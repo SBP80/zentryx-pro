@@ -15,10 +15,10 @@ function clearSession() {
 function renderLogin() {
   app.innerHTML = `
     <div style="max-width:400px;margin:60px auto;padding:20px;border:1px solid #ddd;border-radius:12px;font-family:Arial;">
-      <h2 style="margin-top:0;">Zentryx</h2>
+      <h2>Zentryx</h2>
 
-      <input id="user" placeholder="Usuario" style="width:100%;height:40px;margin-bottom:10px;padding:0 10px;box-sizing:border-box;">
-      <input id="pass" type="password" placeholder="Contraseña" style="width:100%;height:40px;margin-bottom:10px;padding:0 10px;box-sizing:border-box;">
+      <input id="user" placeholder="Usuario" style="width:100%;height:40px;margin-bottom:10px;padding:0 10px;">
+      <input id="pass" type="password" placeholder="Contraseña" style="width:100%;height:40px;margin-bottom:10px;padding:0 10px;">
 
       <button id="login" style="width:100%;height:45px;">Entrar</button>
 
@@ -30,42 +30,64 @@ function renderLogin() {
     const user = document.getElementById("user").value.trim();
     const pass = document.getElementById("pass").value.trim();
 
-    if (!user || !pass) {
-      document.getElementById("msg").innerText = "Escribe usuario y contraseña";
-      return;
-    }
-
     if (user === "admin" && pass === "1234") {
       setSession(user);
-      renderHome();
+      renderMenu();
     } else {
-      document.getElementById("msg").innerText = "Usuario o contraseña incorrectos";
+      document.getElementById("msg").innerText = "Datos incorrectos";
     }
   };
 }
 
-function renderHome() {
+function renderMenu() {
   const user = getSession();
 
   app.innerHTML = `
-    <div style="max-width:500px;margin:60px auto;padding:20px;border:1px solid #ddd;border-radius:12px;text-align:center;font-family:Arial;">
-      <h1>Bienvenido</h1>
-      <p>Usuario activo: <b>${user || ""}</b></p>
-      <button id="logout" style="height:42px;padding:0 18px;">Cerrar sesión</button>
+    <div style="max-width:500px;margin:40px auto;font-family:Arial;">
+      <h2>Panel principal</h2>
+      <p>Usuario: <b>${user}</b></p>
+
+      <button id="btn_inicio" style="width:100%;height:45px;margin-bottom:10px;">Inicio</button>
+      <button id="btn_fichajes" style="width:100%;height:45px;margin-bottom:10px;">Fichajes</button>
+
+      <button id="logout" style="width:100%;height:45px;margin-top:20px;">Cerrar sesión</button>
     </div>
   `;
 
+  document.getElementById("btn_inicio").onclick = renderInicio;
+  document.getElementById("btn_fichajes").onclick = renderFichajes;
   document.getElementById("logout").onclick = () => {
     clearSession();
     renderLogin();
   };
 }
 
+function renderInicio() {
+  app.innerHTML = `
+    <div style="max-width:500px;margin:40px auto;font-family:Arial;">
+      <h2>Inicio</h2>
+      <p>Bienvenido al sistema Zentryx</p>
+      <button onclick="renderMenu()">Volver</button>
+    </div>
+  `;
+}
+
+function renderFichajes() {
+  app.innerHTML = `
+    <div style="max-width:500px;margin:40px auto;font-family:Arial;">
+      <h2>Fichajes</h2>
+      <p>Módulo en construcción</p>
+      <button onclick="renderMenu()">Volver</button>
+    </div>
+  `;
+}
+
+window.renderMenu = renderMenu;
+
 function init() {
   const user = getSession();
-
   if (user) {
-    renderHome();
+    renderMenu();
   } else {
     renderLogin();
   }
