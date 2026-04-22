@@ -1,91 +1,136 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx Login</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body {
-  font-family: Arial;
-  background: #eef2f7;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
-
-.box {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  width: 300px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-}
-
-input {
-  width: 100%;
-  padding: 12px;
-  margin: 10px 0;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-}
-
-button {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  background: #0d1b2a;
-  color: white;
-  font-weight: bold;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zentryx Login</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef2f7;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .box {
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      box-sizing: border-box;
+    }
+    input {
+      width: 100%;
+      padding: 14px;
+      margin: 10px 0;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background: #0d1b2a;
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
+    }
+    #msg {
+      margin-top: 12px;
+      font-size: 14px;
+      color: #b91c1c;
+      white-space: pre-wrap;
+    }
+  </style>
 </head>
-
 <body>
 
-<div class="box">
-  <h2>Zentryx</h2>
-  <p>Acceso al sistema</p>
+  <div class="box">
+    <h2 style="margin-top:0;">Zentryx</h2>
+    <p>Acceso al sistema</p>
 
-  <input id="usuario" placeholder="Usuario">
-  <input id="password" type="password" placeholder="Contraseña">
+    <input id="usuario" placeholder="Usuario">
+    <input id="password" type="password" placeholder="Contraseña">
 
-  <button onclick="login()">Entrar</button>
-</div>
+    <button id="btnLogin" type="button">Entrar</button>
 
-<script>
-const supabase = window.supabase.createClient(
-  "https://idtaamivqbiuxtjywuux.supabase.co",
-  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-);
+    <div id="msg"></div>
+  </div>
 
-async function login() {
-  const usuario = document.getElementById("usuario").value;
-  const password = document.getElementById("password").value;
+  <script>
+    const msg = document.getElementById("msg");
+    const btnLogin = document.getElementById("btnLogin");
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("usuario", usuario)
-    .eq("password", password)
-    .single();
+    let supabase = null;
 
-  if (error || !data) {
-    alert("Usuario o contraseña incorrectos");
-    return;
-  }
+    try {
+      if (!window.supabase) {
+        throw new Error("No se ha cargado la librería de Supabase.");
+      }
 
-  // guardar sesión
-  localStorage.setItem("usuario", JSON.stringify(data));
+      supabase = window.supabase.createClient(
+        "https://idtaamivqbiuxtjywuux.supabase.co",
+        "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
+      );
+    } catch (e) {
+      msg.textContent = "Error iniciando Supabase:\n" + e.message;
+    }
 
-  // ir a la app
-  window.location.href = "app.html";
-}
-</script>
+    btnLogin.addEventListener("click", login);
+
+    async function login() {
+      msg.style.color = "#374151";
+      msg.textContent = "Comprobando...";
+
+      const usuario = document.getElementById("usuario").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if (!usuario || !password) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Escribe usuario y contraseña.";
+        return;
+      }
+
+      if (!supabase) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Supabase no está disponible.";
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("usuario", usuario)
+          .eq("password", password)
+          .single();
+
+        if (error || !data) {
+          msg.style.color = "#b91c1c";
+          msg.textContent = "Usuario o contraseña incorrectos.";
+          return;
+        }
+
+        localStorage.setItem("usuario", JSON.stringify(data));
+        msg.style.color = "#15803d";
+        msg.textContent = "Login correcto. Entrando...";
+        window.location.href = "./app.html";
+      } catch (e) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Error en login:\n" + e.message;
+      }
+    }
+  </script>
 
 </body>
 </html>
