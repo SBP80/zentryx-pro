@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Zentryx</title>
+</head>
+
+<body style="font-family:Arial;padding:20px;">
+
+  <h1>Panel Zentryx</h1>
+
+  <div id="info"></div>
+
+  <button onclick="logout()">Salir</button>
+
+  <script>
+    const usuario = JSON.parse(localStorage.getItem("usuario"));
+
+    if (!usuario) {
+      window.location.href = "index.html";
+    }
+
+    document.getElementById("info").innerHTML = `
+      <p><b>Nombre:</b> ${usuario.nombre}</p>
+      <p><b>Usuario:</b> ${usuario.usuario}</p>
+      <p><b>Rol:</b> ${usuario.rol}</p>
+    `;
+
+    function logout() {
+      localStorage.removeItem("usuario");
+      window.location.href = "index.html";
+    }
+  </script>
+
+</body>
+</html>
