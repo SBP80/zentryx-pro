@@ -12,12 +12,24 @@
   <script>
     const app = document.getElementById("app");
 
+    const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
     function renderError(texto) {
       app.innerHTML = `
         <div style="padding:20px;">
           <div style="background:#fff;border:1px solid #ddd;border-radius:16px;padding:20px;">
             <h2 style="margin-top:0;color:#b91c1c;">Error</h2>
-            <div style="white-space:pre-wrap;">${texto}</div>
+            <div style="white-space:pre-wrap;">${escapeHtml(texto)}</div>
             <button onclick="window.location.href='./index.html'" style="
               margin-top:16px;
               height:42px;
@@ -43,25 +55,97 @@
           throw new Error("No se ha cargado Supabase");
         }
 
-        const supabase = window.supabase.createClient(
-          "https://idtaamivqbiuxtjywuux.supabase.co",
-          "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-        );
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let usuariosCache = [];
+        let usuarioSeleccionadoId = null;
 
         window.logout = function () {
           localStorage.removeItem("usuario");
           window.location.href = "./index.html";
         };
 
+        function navButtonStyle() {
+          return "padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;font-weight:700;";
+        }
+
+        function cardStyle() {
+          return "background:white;padding:20px;border-radius:16px;border:1px solid #ddd;";
+        }
+
+        function inputStyle() {
+          return "width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;";
+        }
+
+        function textareaStyle() {
+          return "width:100%;min-height:110px;margin-bottom:10px;padding:10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;font-family:Arial;";
+        }
+
+        function primaryBtnStyle() {
+          return "width:100%;height:44px;border:none;border-radius:10px;background:#0f172a;color:white;font-weight:700;";
+        }
+
+        function secondaryBtnStyle() {
+          return "height:40px;padding:0 12px;border:none;border-radius:10px;background:#e5e7eb;font-weight:700;";
+        }
+
+        function dangerBtnStyle() {
+          return "height:40px;padding:0 12px;border:none;border-radius:10px;background:#dc2626;color:#fff;font-weight:700;";
+        }
+
+        function successBtnStyle() {
+          return "height:40px;padding:0 12px;border:none;border-radius:10px;background:#15803d;color:#fff;font-weight:700;";
+        }
+
+        function contactBtnStyle() {
+          return "height:40px;padding:0 12px;border:none;border-radius:10px;background:#dbe0e6;font-weight:700;";
+        }
+
+        function renderShell() {
+          app.innerHTML = `
+            <div style="min-height:100vh;">
+              <div style="background:#0f172a;color:white;padding:20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                  <div>
+                    <h2 style="margin:0;">Zentryx</h2>
+                    <small>${escapeHtml(usuario.nombre)} · ${escapeHtml(usuario.rol)}</small>
+                  </div>
+
+                  <button onclick="logout()" style="
+                    background:red;
+                    border:none;
+                    color:white;
+                    padding:10px 15px;
+                    border-radius:10px;
+                    font-weight:700;
+                  ">Salir</button>
+                </div>
+              </div>
+
+              <div style="display:flex;gap:10px;padding:15px;flex-wrap:wrap;">
+                <button onclick="cambiar('inicio')" style="${navButtonStyle()}">Inicio</button>
+
+                ${usuario.rol === "admin" ? `
+                  <button onclick="cambiar('usuarios')" style="${navButtonStyle()}">Usuarios</button>
+                  <button onclick="cambiar('config')" style="${navButtonStyle()}">Configuración</button>
+                ` : ``}
+              </div>
+
+              <div id="contenido" style="padding:20px;"></div>
+            </div>
+          `;
+        }
+
         window.cambiar = async function (seccion) {
           const contenido = document.getElementById("contenido");
 
           if (seccion === "inicio") {
             contenido.innerHTML = `
-              <div style="background:white;padding:20px;border-radius:16px;border:1px solid #ddd;">
+              <div style="${cardStyle()}">
                 <h2 style="margin-top:0;">Inicio</h2>
-                <p><b>Usuario:</b> ${usuario.nombre}</p>
-                <p><b>Rol:</b> ${usuario.rol}</p>
+                <p><b>Usuario:</b> ${escapeHtml(usuario.nombre)}</p>
+                <p><b>Rol:</b> ${escapeHtml(usuario.rol)}</p>
+                <p>Base de usuarios lista para seguir creciendo.</p>
               </div>
             `;
             return;
@@ -69,7 +153,7 @@
 
           if ((seccion === "usuarios" || seccion === "config") && usuario.rol !== "admin") {
             contenido.innerHTML = `
-              <div style="background:white;padding:20px;border-radius:16px;border:1px solid #ddd;">
+              <div style="${cardStyle()}">
                 <h2 style="margin-top:0;color:#b91c1c;">Acceso restringido</h2>
                 <p>No tienes permiso para entrar en esta sección.</p>
               </div>
@@ -79,127 +163,437 @@
 
           if (seccion === "config") {
             contenido.innerHTML = `
-              <div style="background:white;padding:20px;border-radius:16px;border:1px solid #ddd;">
+              <div style="${cardStyle()}">
                 <h2 style="margin-top:0;">Configuración</h2>
-                <p>Proyecto listo.</p>
+                <p>Este módulo va después de cerrar Usuarios.</p>
               </div>
             `;
             return;
           }
 
           if (seccion === "usuarios") {
-            contenido.innerHTML = `
-              <div style="background:white;padding:20px;border-radius:16px;border:1px solid #ddd;">
-                <h2 style="margin-top:0;">Usuarios</h2>
-
-                <div style="margin-bottom:20px;padding:15px;border:1px solid #ddd;border-radius:12px;">
-                  <h3>Nuevo usuario</h3>
-
-                  <input id="nuevo_nombre" placeholder="Nombre" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
-                  <input id="nuevo_usuario" placeholder="Usuario" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
-                  <input id="nuevo_password" placeholder="Contraseña" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
-                  <input id="nuevo_rol" placeholder="Rol" value="operario" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
-
-                  <button onclick="crearUsuario()" style="width:100%;height:44px;border:none;border-radius:10px;background:#0f172a;color:white;font-weight:700;">
-                    Guardar usuario
-                  </button>
-
-                  <div id="msgUsuarios" style="margin-top:10px;"></div>
-                </div>
-
-                <div id="listaUsuarios">Cargando usuarios...</div>
-              </div>
-            `;
-
-            const { data, error } = await supabase
-              .from("users")
-              .select("*")
-              .order("id", { ascending: true });
-
-            if (error) {
-              document.getElementById("listaUsuarios").innerHTML = `<p style="color:#b91c1c;">Error cargando usuarios</p>`;
-              return;
-            }
-
-            if (!data || data.length === 0) {
-              document.getElementById("listaUsuarios").innerHTML = `<p>No hay usuarios</p>`;
-              return;
-            }
-
-            document.getElementById("listaUsuarios").innerHTML = data.map(u => `
-              <div style="padding:15px;border:1px solid #ddd;border-radius:12px;margin-bottom:10px;">
-                <div><b>${u.nombre}</b></div>
-                <div>Usuario: ${u.usuario}</div>
-                <div>Rol: ${u.rol}</div>
-              </div>
-            `).join("");
-
-            return;
+            await renderUsuarios();
           }
         };
 
-        window.crearUsuario = async function () {
-          const nombre = document.getElementById("nuevo_nombre").value.trim();
-          const user = document.getElementById("nuevo_usuario").value.trim();
-          const password = document.getElementById("nuevo_password").value.trim();
-          const rol = document.getElementById("nuevo_rol").value.trim();
-          const msg = document.getElementById("msgUsuarios");
+        async function cargarUsuarios() {
+          const { data, error } = await supabase
+            .from("users")
+            .select("*")
+            .order("id", { ascending: true });
+
+          if (error) {
+            throw error;
+          }
+
+          usuariosCache = Array.isArray(data) ? data : [];
+          return usuariosCache;
+        }
+
+        async function renderUsuarios() {
+          const contenido = document.getElementById("contenido");
+          contenido.innerHTML = `<div style="${cardStyle()}">Cargando usuarios...</div>`;
+
+          try {
+            await cargarUsuarios();
+
+            contenido.innerHTML = `
+              <div style="display:grid;gap:16px;">
+                <div style="${cardStyle()}">
+                  <h2 style="margin-top:0;">Usuarios</h2>
+
+                  <div style="margin-top:14px;">
+                    <button onclick="mostrarAltaUsuario()" style="${primaryBtnStyle()}">Nuevo usuario</button>
+                  </div>
+
+                  <div id="msgGlobalUsuarios" style="margin-top:12px;"></div>
+                </div>
+
+                <div id="bloqueFicha"></div>
+
+                <div style="${cardStyle()}">
+                  <h3 style="margin-top:0;">Listado</h3>
+                  <div id="listaUsuarios"></div>
+                </div>
+              </div>
+            `;
+
+            renderListadoUsuarios();
+            renderFichaVacia();
+          } catch (e) {
+            contenido.innerHTML = `
+              <div style="${cardStyle()}">
+                <h2 style="margin-top:0;color:#b91c1c;">Error</h2>
+                <p>No se pudieron cargar los usuarios.</p>
+              </div>
+            `;
+          }
+        }
+
+        function renderListadoUsuarios() {
+          const lista = document.getElementById("listaUsuarios");
+
+          if (!usuariosCache.length) {
+            lista.innerHTML = `<p>No hay usuarios.</p>`;
+            return;
+          }
+
+          lista.innerHTML = usuariosCache.map(u => `
+            <div style="padding:15px;border:1px solid #ddd;border-radius:12px;margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+                <div>
+                  <div style="font-size:18px;font-weight:700;">${escapeHtml(u.nombre)}</div>
+                  <div style="margin-top:6px;">Usuario: ${escapeHtml(u.usuario)}</div>
+                  <div>Rol: ${escapeHtml(u.rol)}</div>
+                  <div>Estado: <b style="color:${u.activo === false ? "#b91c1c" : "#15803d"};">${u.activo === false ? "Inactivo" : "Activo"}</b></div>
+                  <div>Teléfono: ${escapeHtml(u.telefono || "-")}</div>
+                  <div>Email: ${escapeHtml(u.email || "-")}</div>
+                </div>
+
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button onclick="abrirFichaUsuario(${u.id})" style="${secondaryBtnStyle()}">Abrir ficha</button>
+                  <button onclick="toggleActivoUsuario(${u.id})" style="${u.activo === false ? successBtnStyle() : secondaryBtnStyle()}">
+                    ${u.activo === false ? "Activar" : "Inactivar"}
+                  </button>
+                  <button onclick="eliminarUsuario(${u.id})" style="${dangerBtnStyle()}">Eliminar</button>
+                </div>
+              </div>
+            </div>
+          `).join("");
+        }
+
+        function renderFichaVacia() {
+          const bloque = document.getElementById("bloqueFicha");
+          if (!bloque) return;
+
+          bloque.innerHTML = `
+            <div style="${cardStyle()}">
+              <h3 style="margin-top:0;">Ficha de usuario</h3>
+              <p>Selecciona un usuario o crea uno nuevo.</p>
+            </div>
+          `;
+        }
+
+        window.mostrarAltaUsuario = function () {
+          usuarioSeleccionadoId = null;
+          const bloque = document.getElementById("bloqueFicha");
+
+          bloque.innerHTML = `
+            <div style="${cardStyle()}">
+              <h3 style="margin-top:0;">Nuevo usuario</h3>
+
+              <input id="f_nombre" placeholder="Nombre y apellidos" style="${inputStyle()}">
+              <input id="f_usuario" placeholder="Usuario" style="${inputStyle()}">
+              <input id="f_password" placeholder="Contraseña" style="${inputStyle()}">
+              <input id="f_rol" placeholder="Rol" value="operario" style="${inputStyle()}">
+              <input id="f_telefono" placeholder="Teléfono" style="${inputStyle()}">
+              <input id="f_email" placeholder="Email" style="${inputStyle()}">
+              <input id="f_direccion" placeholder="Dirección" style="${inputStyle()}">
+              <input id="f_dni" placeholder="DNI" style="${inputStyle()}">
+              <input id="f_fecha_alta" type="date" style="${inputStyle()}">
+              <textarea id="f_observaciones" placeholder="Observaciones" style="${textareaStyle()}"></textarea>
+
+              <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                <input id="f_activo" type="checkbox" checked>
+                Usuario activo
+              </label>
+
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button onclick="guardarNuevoUsuario()" style="${primaryBtnStyle()}">Guardar usuario</button>
+              </div>
+
+              <div id="msgFichaUsuario" style="margin-top:12px;"></div>
+            </div>
+          `;
+        };
+
+        window.abrirFichaUsuario = function (id) {
+          usuarioSeleccionadoId = id;
+          const u = usuariosCache.find(x => x.id === id);
+          if (!u) return;
+
+          const bloque = document.getElementById("bloqueFicha");
+
+          bloque.innerHTML = `
+            <div style="${cardStyle()}">
+              <h3 style="margin-top:0;">Ficha de usuario</h3>
+
+              <input id="f_nombre" placeholder="Nombre y apellidos" value="${escapeHtml(u.nombre || "")}" style="${inputStyle()}">
+              <input id="f_usuario" placeholder="Usuario" value="${escapeHtml(u.usuario || "")}" style="${inputStyle()}">
+              <input id="f_password" placeholder="Contraseña" value="${escapeHtml(u.password || "")}" style="${inputStyle()}">
+              <input id="f_rol" placeholder="Rol" value="${escapeHtml(u.rol || "")}" style="${inputStyle()}">
+              <input id="f_telefono" placeholder="Teléfono" value="${escapeHtml(u.telefono || "")}" style="${inputStyle()}">
+              <input id="f_email" placeholder="Email" value="${escapeHtml(u.email || "")}" style="${inputStyle()}">
+              <input id="f_direccion" placeholder="Dirección" value="${escapeHtml(u.direccion || "")}" style="${inputStyle()}">
+              <input id="f_dni" placeholder="DNI" value="${escapeHtml(u.dni || "")}" style="${inputStyle()}">
+              <input id="f_fecha_alta" type="date" value="${escapeHtml(u.fecha_alta || "")}" style="${inputStyle()}">
+              <textarea id="f_observaciones" placeholder="Observaciones" style="${textareaStyle()}">${escapeHtml(u.observaciones || "")}</textarea>
+
+              <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                <input id="f_activo" type="checkbox" ${u.activo === false ? "" : "checked"}>
+                Usuario activo
+              </label>
+
+              <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+                <button onclick="guardarFichaUsuario()" style="${primaryBtnStyle()}">Guardar cambios</button>
+              </div>
+
+              <div style="margin-top:10px;padding:14px;border:1px solid #ddd;border-radius:12px;">
+                <h4 style="margin-top:0;">Contacto rápido</h4>
+
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                  <button onclick="toggleTelefonoMenu()" style="${contactBtnStyle()}">Teléfono</button>
+                  <button onclick="toggleMailMenu()" style="${contactBtnStyle()}">Email</button>
+                  <button onclick="toggleDireccionMenu()" style="${contactBtnStyle()}">Dirección</button>
+                </div>
+
+                <div id="menuTelefono" style="display:none;margin-bottom:10px;"></div>
+                <div id="menuMail" style="display:none;margin-bottom:10px;"></div>
+                <div id="menuDireccion" style="display:none;"></div>
+              </div>
+
+              <div id="msgFichaUsuario" style="margin-top:12px;"></div>
+            </div>
+          `;
+        };
+
+        function leerFichaFormulario() {
+          return {
+            nombre: document.getElementById("f_nombre").value.trim(),
+            usuario: document.getElementById("f_usuario").value.trim(),
+            password: document.getElementById("f_password").value.trim(),
+            rol: document.getElementById("f_rol").value.trim() || "operario",
+            telefono: document.getElementById("f_telefono").value.trim(),
+            email: document.getElementById("f_email").value.trim(),
+            direccion: document.getElementById("f_direccion").value.trim(),
+            dni: document.getElementById("f_dni").value.trim(),
+            fecha_alta: document.getElementById("f_fecha_alta").value || null,
+            observaciones: document.getElementById("f_observaciones").value.trim(),
+            activo: document.getElementById("f_activo").checked
+          };
+        }
+
+        window.guardarNuevoUsuario = async function () {
+          const msg = document.getElementById("msgFichaUsuario");
+          const ficha = leerFichaFormulario();
 
           msg.style.color = "#b91c1c";
           msg.innerText = "";
 
-          if (!nombre || !user || !password || !rol) {
-            msg.innerText = "Completa todos los campos";
+          if (!ficha.nombre || !ficha.usuario || !ficha.password || !ficha.rol) {
+            msg.innerText = "Nombre, usuario, contraseña y rol son obligatorios.";
+            return;
+          }
+
+          const existe = usuariosCache.some(u => String(u.usuario).toLowerCase() === ficha.usuario.toLowerCase());
+          if (existe) {
+            msg.innerText = "Ese usuario ya existe.";
             return;
           }
 
           const { error } = await supabase
             .from("users")
-            .insert([{ nombre, usuario: user, password, rol }]);
+            .insert([ficha]);
 
           if (error) {
-            msg.innerText = "Error guardando usuario";
+            msg.innerText = "Error guardando usuario.";
             return;
           }
 
-          msg.style.color = "green";
-          msg.innerText = "Usuario guardado correctamente";
-          window.cambiar("usuarios");
+          msg.style.color = "#15803d";
+          msg.innerText = "Usuario guardado correctamente.";
+
+          await cargarUsuarios();
+          renderListadoUsuarios();
+          renderFichaVacia();
         };
 
-        app.innerHTML = `
-          <div style="min-height:100vh;">
-            <div style="background:#0f172a;color:white;padding:20px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                <div>
-                  <h2 style="margin:0;">Zentryx</h2>
-                  <small>${usuario.nombre} · ${usuario.rol}</small>
-                </div>
+        window.guardarFichaUsuario = async function () {
+          const msg = document.getElementById("msgFichaUsuario");
+          const ficha = leerFichaFormulario();
 
-                <button onclick="logout()" style="
-                  background:red;
-                  border:none;
-                  color:white;
-                  padding:10px 15px;
-                  border-radius:10px;
-                  font-weight:700;
-                ">Salir</button>
-              </div>
+          msg.style.color = "#b91c1c";
+          msg.innerText = "";
+
+          if (!usuarioSeleccionadoId) {
+            msg.innerText = "No hay usuario seleccionado.";
+            return;
+          }
+
+          if (!ficha.nombre || !ficha.usuario || !ficha.password || !ficha.rol) {
+            msg.innerText = "Nombre, usuario, contraseña y rol son obligatorios.";
+            return;
+          }
+
+          const existe = usuariosCache.some(
+            u => u.id !== usuarioSeleccionadoId && String(u.usuario).toLowerCase() === ficha.usuario.toLowerCase()
+          );
+
+          if (existe) {
+            msg.innerText = "Ese usuario ya existe.";
+            return;
+          }
+
+          const { error } = await supabase
+            .from("users")
+            .update(ficha)
+            .eq("id", usuarioSeleccionadoId);
+
+          if (error) {
+            msg.innerText = "Error guardando cambios.";
+            return;
+          }
+
+          msg.style.color = "#15803d";
+          msg.innerText = "Cambios guardados correctamente.";
+
+          await cargarUsuarios();
+          renderListadoUsuarios();
+          abrirFichaUsuario(usuarioSeleccionadoId);
+        };
+
+        window.toggleActivoUsuario = async function (id) {
+          const u = usuariosCache.find(x => x.id === id);
+          if (!u) return;
+
+          if (u.usuario === usuario.usuario && u.activo !== false) {
+            alert("No puedes inactivarte a ti mismo.");
+            return;
+          }
+
+          const { error } = await supabase
+            .from("users")
+            .update({ activo: u.activo === false ? true : false })
+            .eq("id", id);
+
+          if (error) {
+            alert("No se pudo cambiar el estado.");
+            return;
+          }
+
+          await cargarUsuarios();
+          renderListadoUsuarios();
+
+          if (usuarioSeleccionadoId === id) {
+            abrirFichaUsuario(id);
+          }
+        };
+
+        window.eliminarUsuario = async function (id) {
+          const u = usuariosCache.find(x => x.id === id);
+          if (!u) return;
+
+          if (u.usuario === usuario.usuario) {
+            alert("No puedes borrarte a ti mismo.");
+            return;
+          }
+
+          const ok = confirm("¿Seguro que quieres eliminar este usuario?");
+          if (!ok) return;
+
+          const { error } = await supabase
+            .from("users")
+            .delete()
+            .eq("id", id);
+
+          if (error) {
+            alert("No se pudo eliminar el usuario.");
+            return;
+          }
+
+          if (usuarioSeleccionadoId === id) {
+            usuarioSeleccionadoId = null;
+            renderFichaVacia();
+          }
+
+          await cargarUsuarios();
+          renderListadoUsuarios();
+        };
+
+        function obtenerTelefonoActual() {
+          const input = document.getElementById("f_telefono");
+          return input ? input.value.trim() : "";
+        }
+
+        function obtenerEmailActual() {
+          const input = document.getElementById("f_email");
+          return input ? input.value.trim() : "";
+        }
+
+        function obtenerDireccionActual() {
+          const input = document.getElementById("f_direccion");
+          return input ? input.value.trim() : "";
+        }
+
+        window.toggleTelefonoMenu = function () {
+          const box = document.getElementById("menuTelefono");
+          const tel = obtenerTelefonoActual();
+
+          if (!tel) {
+            box.style.display = "block";
+            box.innerHTML = `<div style="color:#b91c1c;">No hay teléfono.</div>`;
+            return;
+          }
+
+          const limpio = tel.replaceAll(" ", "");
+
+          box.style.display = box.style.display === "block" ? "none" : "block";
+          if (box.style.display === "none") return;
+
+          box.innerHTML = `
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <a href="tel:${encodeURIComponent(limpio)}" style="${contactBtnStyle()}text-decoration:none;display:inline-flex;align-items:center;">Llamar</a>
+              <a href="sms:${encodeURIComponent(limpio)}" style="${contactBtnStyle()}text-decoration:none;display:inline-flex;align-items:center;">SMS</a>
+              <a href="https://wa.me/${encodeURIComponent(limpio.replaceAll('+',''))}" target="_blank" style="${contactBtnStyle()}text-decoration:none;display:inline-flex;align-items:center;">WhatsApp</a>
             </div>
+          `;
+        };
 
-            <div style="display:flex;gap:10px;padding:15px;flex-wrap:wrap;">
-              <button onclick="cambiar('inicio')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Inicio</button>
+        window.toggleMailMenu = function () {
+          const box = document.getElementById("menuMail");
+          const email = obtenerEmailActual();
 
-              ${usuario.rol === "admin" ? `
-                <button onclick="cambiar('usuarios')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Usuarios</button>
-                <button onclick="cambiar('config')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Configuración</button>
-              ` : ``}
+          if (!email) {
+            box.style.display = "block";
+            box.innerHTML = `<div style="color:#b91c1c;">No hay email.</div>`;
+            return;
+          }
+
+          box.style.display = box.style.display === "block" ? "none" : "block";
+          if (box.style.display === "none") return;
+
+          box.innerHTML = `
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <a href="mailto:${encodeURIComponent(email)}" style="${contactBtnStyle()}text-decoration:none;display:inline-flex;align-items:center;">Mandar mail</a>
             </div>
+          `;
+        };
 
-            <div id="contenido" style="padding:20px;"></div>
-          </div>
-        `;
+        window.toggleDireccionMenu = function () {
+          const box = document.getElementById("menuDireccion");
+          const direccion = obtenerDireccionActual();
 
+          if (!direccion) {
+            box.style.display = "block";
+            box.innerHTML = `<div style="color:#b91c1c;">No hay dirección.</div>`;
+            return;
+          }
+
+          const q = encodeURIComponent(direccion);
+
+          box.style.display = box.style.display === "block" ? "none" : "block";
+          if (box.style.display === "none") return;
+
+          box.innerHTML = `
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <a href="http://maps.apple.com/?daddr=${q}" target="_blank" style="${contactBtnStyle()}text-decoration:none;display:inline-flex;align-items:center;">Mapas</a>
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" style="${contactBtnStyle()}text-decoration:none;display:inline-flex;align-items:center;">Google Maps</a>
+              <a href="https://waze.com/ul?q=${q}&navigate=yes" target="_blank" style="${contactBtnStyle()}text-decoration:none;display:inline-flex;align-items:center;">Waze</a>
+            </div>
+          `;
+        };
+
+        renderShell();
         window.cambiar("inicio");
       }
     } catch (e) {
