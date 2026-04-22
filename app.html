@@ -67,6 +67,16 @@
             return;
           }
 
+          if ((seccion === "usuarios" || seccion === "config") && usuario.rol !== "admin") {
+            contenido.innerHTML = `
+              <div style="background:white;padding:20px;border-radius:16px;border:1px solid #ddd;">
+                <h2 style="margin-top:0;color:#b91c1c;">Acceso restringido</h2>
+                <p>No tienes permiso para entrar en esta sección.</p>
+              </div>
+            `;
+            return;
+          }
+
           if (seccion === "config") {
             contenido.innerHTML = `
               <div style="background:white;padding:20px;border-radius:16px;border:1px solid #ddd;">
@@ -179,8 +189,11 @@
 
             <div style="display:flex;gap:10px;padding:15px;flex-wrap:wrap;">
               <button onclick="cambiar('inicio')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Inicio</button>
-              <button onclick="cambiar('usuarios')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Usuarios</button>
-              <button onclick="cambiar('config')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Configuración</button>
+
+              ${usuario.rol === "admin" ? `
+                <button onclick="cambiar('usuarios')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Usuarios</button>
+                <button onclick="cambiar('config')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Configuración</button>
+              ` : ``}
             </div>
 
             <div id="contenido" style="padding:20px;"></div>
