@@ -17,66 +17,118 @@
   ">
     <div style="
       width:100%;
-      max-width:400px;
-      background:#fff;
-      border-radius:16px;
-      padding:20px;
-      box-shadow:0 10px 30px rgba(0,0,0,0.1);
+      max-width:420px;
+      background:#ffffff;
+      border-radius:18px;
+      padding:22px;
       box-sizing:border-box;
+      box-shadow:0 10px 30px rgba(0,0,0,0.08);
+      border:1px solid #d1d5db;
     ">
-      <h2 style="margin-top:0;">Zentryx</h2>
-      <p style="margin-top:0;color:#6b7280;">Acceso al sistema</p>
+      <h1 style="margin:0 0 8px 0;font-size:32px;">Zentryx</h1>
+      <p style="margin:0 0 18px 0;color:#6b7280;">Acceso al sistema</p>
 
       <input
         id="usuario"
         type="text"
         placeholder="Usuario"
-        style="width:100%;height:45px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;"
+        style="
+          width:100%;
+          height:48px;
+          margin-bottom:10px;
+          padding:0 14px;
+          border:1px solid #d1d5db;
+          border-radius:12px;
+          box-sizing:border-box;
+          font-size:16px;
+        "
       >
 
       <input
         id="password"
         type="password"
         placeholder="Contraseña"
-        style="width:100%;height:45px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;"
+        style="
+          width:100%;
+          height:48px;
+          margin-bottom:12px;
+          padding:0 14px;
+          border:1px solid #d1d5db;
+          border-radius:12px;
+          box-sizing:border-box;
+          font-size:16px;
+        "
       >
 
       <button
+        id="loginBtn"
         type="button"
-        onclick="login()"
-        style="width:100%;height:45px;background:#111827;color:#fff;border:none;border-radius:10px;font-weight:700;"
+        style="
+          width:100%;
+          height:50px;
+          border:none;
+          border-radius:12px;
+          background:#0f172a;
+          color:#ffffff;
+          font-size:16px;
+          font-weight:700;
+        "
       >
         Entrar
       </button>
+
+      <div id="msg" style="margin-top:12px;font-size:14px;color:#b91c1c;"></div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
-    const supabase = window.supabase.createClient(
-      "https://idtaamivqbiuxtjywuux.supabase.co",
-      "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-    );
+    const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
-    async function login() {
-      const usuario = document.getElementById("usuario").value;
-      const password = document.getElementById("password").value;
+    const msg = document.getElementById("msg");
 
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("usuario", usuario)
-        .eq("password", password)
-        .single();
+    if (!window.supabase) {
+      msg.textContent = "Error cargando Supabase";
+    } else {
+      const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-      if (error || !data) {
-        alert("Usuario o contraseña incorrectos");
-        return;
-      }
+      document.getElementById("loginBtn").addEventListener("click", async () => {
+        const usuario = document.getElementById("usuario").value.trim();
+        const password = document.getElementById("password").value.trim();
 
-      localStorage.setItem("usuario", JSON.stringify(data));
-      window.location.href = "app.html";
+        msg.textContent = "";
+
+        if (!usuario || !password) {
+          msg.textContent = "Escribe usuario y contraseña";
+          return;
+        }
+
+        msg.style.color = "#374151";
+        msg.textContent = "Comprobando...";
+
+        try {
+          const { data, error } = await supabaseClient
+            .from("users")
+            .select("*")
+            .eq("usuario", usuario)
+            .eq("password", password)
+            .single();
+
+          if (error || !data) {
+            msg.style.color = "#b91c1c";
+            msg.textContent = "Usuario o contraseña incorrectos";
+            return;
+          }
+
+          localStorage.setItem("usuario", JSON.stringify(data));
+          window.location.href = "./app.html";
+        } catch (e) {
+          msg.style.color = "#b91c1c";
+          msg.textContent = "Error conectando con la base de datos";
+        }
+      });
     }
   </script>
 
