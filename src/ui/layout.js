@@ -1,7 +1,4 @@
 import { getSession, clearSession } from "../core/session.js";
-import { renderInicio } from "../modules/inicio.js";
-import { renderUsuarios } from "../modules/usuarios.js";
-import { renderConfiguracion } from "../modules/configuracion.js";
 
 export function layout(title, content, state) {
   const user = state.users.find(u => u.usuario === getSession());
@@ -35,12 +32,12 @@ export function layout(title, content, state) {
   `;
 }
 
-export function bindLayoutEvents(app, state) {
-  document.getElementById("nav_inicio").onclick = () => renderInicio(app, state);
-  document.getElementById("nav_usuarios").onclick = () => renderUsuarios(app, state);
-  document.getElementById("nav_config").onclick = () => renderConfiguracion(app, state);
+export function bindLayoutEvents(app, state, handlers) {
+  document.getElementById("nav_inicio").onclick = handlers.onInicio;
+  document.getElementById("nav_usuarios").onclick = handlers.onUsuarios;
+  document.getElementById("nav_config").onclick = handlers.onConfiguracion;
   document.getElementById("nav_logout").onclick = () => {
     clearSession();
-    location.reload();
+    handlers.onLogout();
   };
 }
