@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx Test</title>
+  <title>Zentryx Login</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -47,7 +48,6 @@
     #msg {
       margin-top: 12px;
       font-size: 14px;
-      color: #15803d;
       white-space: pre-wrap;
     }
   </style>
@@ -56,24 +56,82 @@
 
   <div class="box">
     <h2 style="margin-top:0;">Zentryx</h2>
-    <p>Prueba de botón</p>
+    <p>Acceso al sistema</p>
 
     <input id="usuario" placeholder="Usuario">
     <input id="password" type="password" placeholder="Contraseña">
 
     <button id="btnLogin" type="button">Entrar</button>
 
-    <div id="msg">Página de prueba cargada.</div>
+    <div id="msg"></div>
   </div>
 
   <script>
-    const btn = document.getElementById("btnLogin");
     const msg = document.getElementById("msg");
+    const btnLogin = document.getElementById("btnLogin");
 
-    btn.addEventListener("click", function () {
-      msg.textContent = "El botón sí responde.";
-      alert("Botón funcionando");
-    });
+    let supabase = null;
+
+    try {
+      if (!window.supabase) {
+        throw new Error("No se ha cargado la librería de Supabase.");
+      }
+
+      supabase = window.supabase.createClient(
+        "https://idtaamivqbiuxtjywuux.supabase.co",
+        "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
+      );
+    } catch (e) {
+      msg.style.color = "#b91c1c";
+      msg.textContent = "Error iniciando Supabase:\n" + e.message;
+    }
+
+    btnLogin.addEventListener("click", login);
+
+    async function login() {
+      msg.style.color = "#374151";
+      msg.textContent = "Comprobando...";
+
+      const usuario = document.getElementById("usuario").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if (!usuario || !password) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Escribe usuario y contraseña.";
+        return;
+      }
+
+      if (!supabase) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Supabase no está disponible.";
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("usuario", usuario)
+          .eq("password", password)
+          .single();
+
+        if (error || !data) {
+          msg.style.color = "#b91c1c";
+          msg.textContent = "Usuario o contraseña incorrectos.";
+          return;
+        }
+
+        localStorage.setItem("usuario", JSON.stringify(data));
+
+        msg.style.color = "#15803d";
+        msg.textContent = "Login correcto. Entrando...";
+
+        window.location.href = "./app.html";
+      } catch (e) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Error en login:\n" + e.message;
+      }
+    }
   </script>
 
 </body>
