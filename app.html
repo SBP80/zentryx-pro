@@ -1,165 +1,197 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zentryx</title>
 </head>
-
 <body style="margin:0;font-family:Arial;background:#f3f4f6;">
-<div id="app"></div>
+  <div id="app"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-const usuario = JSON.parse(localStorage.getItem("usuario"));
-if (!usuario) {
-  window.location.href = "index.html";
-}
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const app = document.getElementById("app");
 
-const supabase = window.supabase.createClient(
-  "https://idtaamivqbiuxtjywuux.supabase.co",
-  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-);
+    function renderError(texto) {
+      app.innerHTML = `
+        <div style="padding:20px;">
+          <div style="background:#fff;border:1px solid #ddd;border-radius:16px;padding:20px;">
+            <h2 style="margin-top:0;color:#b91c1c;">Error</h2>
+            <div style="white-space:pre-wrap;">${texto}</div>
+            <button onclick="window.location.href='./index.html'" style="
+              margin-top:16px;
+              height:42px;
+              padding:0 14px;
+              border:none;
+              border-radius:10px;
+              background:#111827;
+              color:#fff;
+              font-weight:700;
+            ">Volver al login</button>
+          </div>
+        </div>
+      `;
+    }
 
-document.getElementById("app").innerHTML = `
-<div style="min-height:100vh;">
+    try {
+      const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
 
-  <div style="background:#0f172a;color:white;padding:20px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-      <div>
-        <h2 style="margin:0;">Zentryx</h2>
-        <small>${usuario.nombre} · ${usuario.rol}</small>
-      </div>
+      if (!usuario) {
+        window.location.href = "./index.html";
+      } else {
+        if (!window.supabase) {
+          throw new Error("No se ha cargado Supabase");
+        }
 
-      <button onclick="logout()" style="
-        background:red;
-        border:none;
-        color:white;
-        padding:10px 15px;
-        border-radius:10px;
-        font-weight:700;
-      ">Salir</button>
-    </div>
-  </div>
+        const supabase = window.supabase.createClient(
+          "https://idtaamivqbiuxtjywuux.supabase.co",
+          "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
+        );
 
-  <div style="display:flex;gap:10px;padding:15px;flex-wrap:wrap;">
-    <button onclick="cambiar('inicio')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Inicio</button>
-    <button onclick="cambiar('usuarios')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Usuarios</button>
-    <button onclick="cambiar('config')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Configuración</button>
-  </div>
+        window.logout = function () {
+          localStorage.removeItem("usuario");
+          window.location.href = "./index.html";
+        };
 
-  <div id="contenido" style="padding:20px;"></div>
-</div>
-`;
+        window.cambiar = async function (seccion) {
+          const contenido = document.getElementById("contenido");
 
-function logout() {
-  localStorage.removeItem("usuario");
-  window.location.href = "index.html";
-}
+          if (seccion === "inicio") {
+            contenido.innerHTML = `
+              <div style="background:white;padding:20px;border-radius:16px;border:1px solid #ddd;">
+                <h2 style="margin-top:0;">Inicio</h2>
+                <p><b>Usuario:</b> ${usuario.nombre}</p>
+                <p><b>Rol:</b> ${usuario.rol}</p>
+              </div>
+            `;
+            return;
+          }
 
-function cambiar(seccion) {
-  if (seccion === "inicio") {
-    document.getElementById("contenido").innerHTML = `
-      <div style="background:white;padding:20px;border-radius:16px;">
-        <h2>Inicio</h2>
-        <p><b>Usuario:</b> ${usuario.nombre}</p>
-        <p><b>Rol:</b> ${usuario.rol}</p>
-      </div>
-    `;
-  }
+          if (seccion === "config") {
+            contenido.innerHTML = `
+              <div style="background:white;padding:20px;border-radius:16px;border:1px solid #ddd;">
+                <h2 style="margin-top:0;">Configuración</h2>
+                <p>Proyecto listo.</p>
+              </div>
+            `;
+            return;
+          }
 
-  if (seccion === "usuarios") {
-    renderUsuarios();
-  }
+          if (seccion === "usuarios") {
+            contenido.innerHTML = `
+              <div style="background:white;padding:20px;border-radius:16px;border:1px solid #ddd;">
+                <h2 style="margin-top:0;">Usuarios</h2>
 
-  if (seccion === "config") {
-    document.getElementById("contenido").innerHTML = `
-      <div style="background:white;padding:20px;border-radius:16px;">
-        <h2>Configuración</h2>
-        <p>Proyecto listo.</p>
-      </div>
-    `;
-  }
-}
+                <div style="margin-bottom:20px;padding:15px;border:1px solid #ddd;border-radius:12px;">
+                  <h3>Nuevo usuario</h3>
 
-async function renderUsuarios() {
-  document.getElementById("contenido").innerHTML = `
-    <div style="background:white;padding:20px;border-radius:16px;">
-      <h2>Usuarios</h2>
+                  <input id="nuevo_nombre" placeholder="Nombre" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
+                  <input id="nuevo_usuario" placeholder="Usuario" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
+                  <input id="nuevo_password" placeholder="Contraseña" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
+                  <input id="nuevo_rol" placeholder="Rol" value="operario" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
 
-      <div style="margin-bottom:20px;padding:15px;border:1px solid #ddd;border-radius:12px;">
-        <h3>Nuevo usuario</h3>
+                  <button onclick="crearUsuario()" style="width:100%;height:44px;border:none;border-radius:10px;background:#0f172a;color:white;font-weight:700;">
+                    Guardar usuario
+                  </button>
 
-        <input id="nuevo_nombre" placeholder="Nombre" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
-        <input id="nuevo_usuario" placeholder="Usuario" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
-        <input id="nuevo_password" placeholder="Contraseña" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
-        <input id="nuevo_rol" placeholder="Rol" value="operario" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
+                  <div id="msgUsuarios" style="margin-top:10px;"></div>
+                </div>
 
-        <button onclick="crearUsuario()" style="width:100%;height:44px;border:none;border-radius:10px;background:#0f172a;color:white;font-weight:700;">
-          Guardar usuario
-        </button>
+                <div id="listaUsuarios">Cargando usuarios...</div>
+              </div>
+            `;
 
-        <div id="msgUsuarios" style="margin-top:10px;"></div>
-      </div>
+            const { data, error } = await supabase
+              .from("users")
+              .select("*")
+              .order("id", { ascending: true });
 
-      <div id="listaUsuarios">Cargando usuarios...</div>
-    </div>
-  `;
+            if (error) {
+              document.getElementById("listaUsuarios").innerHTML = `<p style="color:#b91c1c;">Error cargando usuarios</p>`;
+              return;
+            }
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .order("id", { ascending: true });
+            if (!data || data.length === 0) {
+              document.getElementById("listaUsuarios").innerHTML = `<p>No hay usuarios</p>`;
+              return;
+            }
 
-  if (error) {
-    document.getElementById("listaUsuarios").innerHTML = `<p>Error cargando usuarios</p>`;
-    return;
-  }
+            document.getElementById("listaUsuarios").innerHTML = data.map(u => `
+              <div style="padding:15px;border:1px solid #ddd;border-radius:12px;margin-bottom:10px;">
+                <div><b>${u.nombre}</b></div>
+                <div>Usuario: ${u.usuario}</div>
+                <div>Rol: ${u.rol}</div>
+              </div>
+            `).join("");
 
-  if (!data || data.length === 0) {
-    document.getElementById("listaUsuarios").innerHTML = `<p>No hay usuarios</p>`;
-    return;
-  }
+            return;
+          }
+        };
 
-  document.getElementById("listaUsuarios").innerHTML = data.map(u => `
-    <div style="padding:15px;border:1px solid #ddd;border-radius:12px;margin-bottom:10px;">
-      <div><b>${u.nombre}</b></div>
-      <div>Usuario: ${u.usuario}</div>
-      <div>Rol: ${u.rol}</div>
-    </div>
-  `).join("");
-}
+        window.crearUsuario = async function () {
+          const nombre = document.getElementById("nuevo_nombre").value.trim();
+          const user = document.getElementById("nuevo_usuario").value.trim();
+          const password = document.getElementById("nuevo_password").value.trim();
+          const rol = document.getElementById("nuevo_rol").value.trim();
+          const msg = document.getElementById("msgUsuarios");
 
-async function crearUsuario() {
-  const nombre = document.getElementById("nuevo_nombre").value.trim();
-  const user = document.getElementById("nuevo_usuario").value.trim();
-  const password = document.getElementById("nuevo_password").value.trim();
-  const rol = document.getElementById("nuevo_rol").value.trim();
-  const msg = document.getElementById("msgUsuarios");
+          msg.style.color = "#b91c1c";
+          msg.innerText = "";
 
-  msg.style.color = "red";
-  msg.innerText = "";
+          if (!nombre || !user || !password || !rol) {
+            msg.innerText = "Completa todos los campos";
+            return;
+          }
 
-  if (!nombre || !user || !password || !rol) {
-    msg.innerText = "Completa todos los campos";
-    return;
-  }
+          const { error } = await supabase
+            .from("users")
+            .insert([{ nombre, usuario: user, password, rol }]);
 
-  const { error } = await supabase
-    .from("users")
-    .insert([{ nombre, usuario: user, password, rol }]);
+          if (error) {
+            msg.innerText = "Error guardando usuario";
+            return;
+          }
 
-  if (error) {
-    msg.innerText = "Error guardando usuario";
-    return;
-  }
+          msg.style.color = "green";
+          msg.innerText = "Usuario guardado correctamente";
+          window.cambiar("usuarios");
+        };
 
-  msg.style.color = "green";
-  msg.innerText = "Usuario guardado correctamente";
-  renderUsuarios();
-}
+        app.innerHTML = `
+          <div style="min-height:100vh;">
+            <div style="background:#0f172a;color:white;padding:20px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <div>
+                  <h2 style="margin:0;">Zentryx</h2>
+                  <small>${usuario.nombre} · ${usuario.rol}</small>
+                </div>
 
-cambiar("inicio");
-</script>
+                <button onclick="logout()" style="
+                  background:red;
+                  border:none;
+                  color:white;
+                  padding:10px 15px;
+                  border-radius:10px;
+                  font-weight:700;
+                ">Salir</button>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:10px;padding:15px;flex-wrap:wrap;">
+              <button onclick="cambiar('inicio')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Inicio</button>
+              <button onclick="cambiar('usuarios')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Usuarios</button>
+              <button onclick="cambiar('config')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Configuración</button>
+            </div>
+
+            <div id="contenido" style="padding:20px;"></div>
+          </div>
+        `;
+
+        window.cambiar("inicio");
+      }
+    } catch (e) {
+      renderError(e.message || "Error desconocido");
+    }
+  </script>
 </body>
 </html>
