@@ -1,12 +1,22 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx</title>
-</head>
-<body style="margin:0;">
-  <div id="app"></div>
-  <script type="module" src="./src/app.js"></script>
-</body>
-</html>
+async function login() {
+  const usuario = document.getElementById("usuario").value;
+  const password = document.getElementById("password").value;
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("usuario", usuario)
+    .eq("password", password)
+    .single();
+
+  if (error || !data) {
+    alert("Usuario o contraseña incorrectos");
+    return;
+  }
+
+  // guardar sesión
+  localStorage.setItem("usuario", JSON.stringify(data));
+
+  // ir a la app
+  window.location.href = "app.html";
+}
