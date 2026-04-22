@@ -1,39 +1,12 @@
 import { getSession, setSession, clearSession } from "./core/session.js";
+import { loadState, saveState } from "./core/store.js";
 import { renderInicio } from "./modules/inicio.js";
 import { renderUsuarios } from "./modules/usuarios.js";
 import { renderConfiguracion } from "./modules/configuracion.js";
 
 const app = document.getElementById("app");
 
-let state = {
-  company: {
-    nombre: "Zentryx"
-  },
-  users: [
-    {
-      id: 1,
-      usuario: "admin",
-      password: "1234",
-      nombre: "Administrador",
-      rol: "Administrador"
-    }
-  ]
-};
-
-function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem("zentryx_state"));
-    if (saved) {
-      state = saved;
-    }
-  } catch {
-    // no hacer nada
-  }
-}
-
-function saveState() {
-  localStorage.setItem("zentryx_state", JSON.stringify(state));
-}
+let state = loadState();
 
 function renderLogin() {
   app.innerHTML = `
@@ -84,8 +57,8 @@ const handlers = {
 };
 
 function init() {
-  loadState();
-  saveState();
+  state = loadState();
+  saveState(state);
 
   if (getSession()) {
     renderInicio(app, state, handlers);
