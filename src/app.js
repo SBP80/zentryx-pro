@@ -11,7 +11,7 @@ let state = loadState();
 function renderLogin() {
   app.innerHTML = `
     <div style="max-width:400px;margin:60px auto;padding:20px;border:1px solid #ddd;border-radius:16px;font-family:Arial,sans-serif;">
-      <h2 style="margin-top:0;">Zentryx</h2>
+      <h2 style="margin-top:0;">${state.company.nombre || "Zentryx"}</h2>
 
       <input id="user" placeholder="Usuario" style="width:100%;height:44px;margin-bottom:10px;padding:0 12px;box-sizing:border-box;">
       <input id="pass" type="password" placeholder="Contraseña" style="width:100%;height:44px;margin-bottom:10px;padding:0 12px;box-sizing:border-box;">
