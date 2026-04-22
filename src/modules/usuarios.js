@@ -1,4 +1,5 @@
 import { layout, bindLayoutEvents } from "../ui/layout.js";
+import { saveState } from "../core/store.js";
 
 export function renderUsuarios(app, state, handlers) {
   const list = state.users.map(u => `
@@ -38,7 +39,7 @@ export function renderUsuarios(app, state, handlers) {
       rol: "Usuario"
     });
 
-    localStorage.setItem("zentryx_state", JSON.stringify(state));
+    saveState(state);
     renderUsuarios(app, state, handlers);
   };
 }
