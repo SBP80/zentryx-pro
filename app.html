@@ -7,22 +7,25 @@
 </head>
 
 <body style="margin:0;font-family:Arial;background:#f3f4f6;">
-
 <div id="app"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const usuario = JSON.parse(localStorage.getItem("usuario"));
-
 if (!usuario) {
   window.location.href = "index.html";
 }
 
+const supabase = window.supabase.createClient(
+  "https://idtaamivqbiuxtjywuux.supabase.co",
+  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
+);
+
 document.getElementById("app").innerHTML = `
 <div style="min-height:100vh;">
 
-  <!-- HEADER -->
   <div style="background:#0f172a;color:white;padding:20px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
       <div>
         <h2 style="margin:0;">Zentryx</h2>
         <small>${usuario.nombre} · ${usuario.rol}</small>
@@ -34,22 +37,18 @@ document.getElementById("app").innerHTML = `
         color:white;
         padding:10px 15px;
         border-radius:10px;
-      ">
-        Salir
-      </button>
+        font-weight:700;
+      ">Salir</button>
     </div>
   </div>
 
-  <!-- MENÚ -->
-  <div style="display:flex;gap:10px;padding:15px;">
-    <button onclick="cambiar('inicio')" style="padding:10px;">Inicio</button>
-    <button onclick="cambiar('usuarios')" style="padding:10px;">Usuarios</button>
-    <button onclick="cambiar('config')" style="padding:10px;">Configuración</button>
+  <div style="display:flex;gap:10px;padding:15px;flex-wrap:wrap;">
+    <button onclick="cambiar('inicio')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Inicio</button>
+    <button onclick="cambiar('usuarios')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Usuarios</button>
+    <button onclick="cambiar('config')" style="padding:10px 14px;border-radius:10px;border:none;background:#dbe0e6;">Configuración</button>
   </div>
 
-  <!-- CONTENIDO -->
   <div id="contenido" style="padding:20px;"></div>
-
 </div>
 `;
 
@@ -59,34 +58,108 @@ function logout() {
 }
 
 function cambiar(seccion) {
-
   if (seccion === "inicio") {
     document.getElementById("contenido").innerHTML = `
-      <h2>Inicio</h2>
-      <p>Usuario: ${usuario.nombre}</p>
-      <p>Rol: ${usuario.rol}</p>
+      <div style="background:white;padding:20px;border-radius:16px;">
+        <h2>Inicio</h2>
+        <p><b>Usuario:</b> ${usuario.nombre}</p>
+        <p><b>Rol:</b> ${usuario.rol}</p>
+      </div>
     `;
   }
 
   if (seccion === "usuarios") {
-    document.getElementById("contenido").innerHTML = `
-      <h2>Usuarios</h2>
-      <p>Aquí irá la gestión de usuarios</p>
-    `;
+    renderUsuarios();
   }
 
   if (seccion === "config") {
     document.getElementById("contenido").innerHTML = `
-      <h2>Configuración</h2>
-      <p>Proyecto listo</p>
+      <div style="background:white;padding:20px;border-radius:16px;">
+        <h2>Configuración</h2>
+        <p>Proyecto listo.</p>
+      </div>
     `;
   }
 }
 
-// carga inicial
+async function renderUsuarios() {
+  document.getElementById("contenido").innerHTML = `
+    <div style="background:white;padding:20px;border-radius:16px;">
+      <h2>Usuarios</h2>
+
+      <div style="margin-bottom:20px;padding:15px;border:1px solid #ddd;border-radius:12px;">
+        <h3>Nuevo usuario</h3>
+
+        <input id="nuevo_nombre" placeholder="Nombre" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
+        <input id="nuevo_usuario" placeholder="Usuario" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
+        <input id="nuevo_password" placeholder="Contraseña" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
+        <input id="nuevo_rol" placeholder="Rol" value="operario" style="width:100%;height:44px;margin-bottom:10px;padding:0 10px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;">
+
+        <button onclick="crearUsuario()" style="width:100%;height:44px;border:none;border-radius:10px;background:#0f172a;color:white;font-weight:700;">
+          Guardar usuario
+        </button>
+
+        <div id="msgUsuarios" style="margin-top:10px;"></div>
+      </div>
+
+      <div id="listaUsuarios">Cargando usuarios...</div>
+    </div>
+  `;
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .order("id", { ascending: true });
+
+  if (error) {
+    document.getElementById("listaUsuarios").innerHTML = `<p>Error cargando usuarios</p>`;
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    document.getElementById("listaUsuarios").innerHTML = `<p>No hay usuarios</p>`;
+    return;
+  }
+
+  document.getElementById("listaUsuarios").innerHTML = data.map(u => `
+    <div style="padding:15px;border:1px solid #ddd;border-radius:12px;margin-bottom:10px;">
+      <div><b>${u.nombre}</b></div>
+      <div>Usuario: ${u.usuario}</div>
+      <div>Rol: ${u.rol}</div>
+    </div>
+  `).join("");
+}
+
+async function crearUsuario() {
+  const nombre = document.getElementById("nuevo_nombre").value.trim();
+  const user = document.getElementById("nuevo_usuario").value.trim();
+  const password = document.getElementById("nuevo_password").value.trim();
+  const rol = document.getElementById("nuevo_rol").value.trim();
+  const msg = document.getElementById("msgUsuarios");
+
+  msg.style.color = "red";
+  msg.innerText = "";
+
+  if (!nombre || !user || !password || !rol) {
+    msg.innerText = "Completa todos los campos";
+    return;
+  }
+
+  const { error } = await supabase
+    .from("users")
+    .insert([{ nombre, usuario: user, password, rol }]);
+
+  if (error) {
+    msg.innerText = "Error guardando usuario";
+    return;
+  }
+
+  msg.style.color = "green";
+  msg.innerText = "Usuario guardado correctamente";
+  renderUsuarios();
+}
+
 cambiar("inicio");
-
 </script>
-
 </body>
 </html>
