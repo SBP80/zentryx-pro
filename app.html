@@ -1,36 +1,92 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Zentryx</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zentryx</title>
 </head>
 
-<body style="font-family:Arial;padding:20px;">
+<body style="margin:0;font-family:Arial;background:#f3f4f6;">
 
-  <h1>Panel Zentryx</h1>
+<div id="app"></div>
 
-  <div id="info"></div>
+<script>
+const usuario = JSON.parse(localStorage.getItem("usuario"));
 
-  <button onclick="logout()">Salir</button>
+if (!usuario) {
+  window.location.href = "index.html";
+}
 
-  <script>
-    const usuario = JSON.parse(localStorage.getItem("usuario"));
+document.getElementById("app").innerHTML = `
+<div style="min-height:100vh;">
 
-    if (!usuario) {
-      window.location.href = "index.html";
-    }
+  <!-- HEADER -->
+  <div style="background:#0f172a;color:white;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2 style="margin:0;">Zentryx</h2>
+        <small>${usuario.nombre} · ${usuario.rol}</small>
+      </div>
 
-    document.getElementById("info").innerHTML = `
-      <p><b>Nombre:</b> ${usuario.nombre}</p>
-      <p><b>Usuario:</b> ${usuario.usuario}</p>
-      <p><b>Rol:</b> ${usuario.rol}</p>
+      <button onclick="logout()" style="
+        background:red;
+        border:none;
+        color:white;
+        padding:10px 15px;
+        border-radius:10px;
+      ">
+        Salir
+      </button>
+    </div>
+  </div>
+
+  <!-- MENÚ -->
+  <div style="display:flex;gap:10px;padding:15px;">
+    <button onclick="cambiar('inicio')" style="padding:10px;">Inicio</button>
+    <button onclick="cambiar('usuarios')" style="padding:10px;">Usuarios</button>
+    <button onclick="cambiar('config')" style="padding:10px;">Configuración</button>
+  </div>
+
+  <!-- CONTENIDO -->
+  <div id="contenido" style="padding:20px;"></div>
+
+</div>
+`;
+
+function logout() {
+  localStorage.removeItem("usuario");
+  window.location.href = "index.html";
+}
+
+function cambiar(seccion) {
+
+  if (seccion === "inicio") {
+    document.getElementById("contenido").innerHTML = `
+      <h2>Inicio</h2>
+      <p>Usuario: ${usuario.nombre}</p>
+      <p>Rol: ${usuario.rol}</p>
     `;
+  }
 
-    function logout() {
-      localStorage.removeItem("usuario");
-      window.location.href = "index.html";
-    }
-  </script>
+  if (seccion === "usuarios") {
+    document.getElementById("contenido").innerHTML = `
+      <h2>Usuarios</h2>
+      <p>Aquí irá la gestión de usuarios</p>
+    `;
+  }
+
+  if (seccion === "config") {
+    document.getElementById("contenido").innerHTML = `
+      <h2>Configuración</h2>
+      <p>Proyecto listo</p>
+    `;
+  }
+}
+
+// carga inicial
+cambiar("inicio");
+
+</script>
 
 </body>
 </html>
