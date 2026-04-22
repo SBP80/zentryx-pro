@@ -1,4 +1,5 @@
 import { layout, bindLayoutEvents } from "../ui/layout.js";
+import { saveState } from "../core/store.js";
 
 export function renderConfiguracion(app, state, handlers) {
   const content = `
@@ -14,7 +15,7 @@ export function renderConfiguracion(app, state, handlers) {
 
   document.getElementById("save_config").onclick = () => {
     state.company.nombre = document.getElementById("c_nombre").value.trim() || "Zentryx";
-    localStorage.setItem("zentryx_state", JSON.stringify(state));
+    saveState(state);
     renderConfiguracion(app, state, handlers);
   };
 }
