@@ -1,31 +1,12 @@
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<script>
-const supabase = window.supabase.createClient(
-  "https://idtaamivqbiuxtjywuux.supabase.co",
-  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-);
-
-// LOGIN
-async function login() {
-  const usuario = document.getElementById("usuario").value;
-  const password = document.getElementById("password").value;
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("usuario", usuario)
-    .eq("password", password)
-    .single();
-
-  if (error || !data) {
-    alert("Usuario o contraseña incorrectos");
-    return;
-  }
-
-  alert("Bienvenido " + data.nombre);
-
-  // aquí luego redirigimos
-  // window.location.href = "app.html";
-}
-</script>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zentryx</title>
+</head>
+<body style="margin:0;">
+  <div id="app"></div>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
