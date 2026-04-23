@@ -1,232 +1,177 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zentryx Login V900</title>
 
-<style>
-body {
-  font-family: Arial;
-  background: #f0f2f5;
-  margin: 0;
-}
-
-.container {
-  padding: 20px;
-}
-
-.card {
-  background: white;
-  padding: 20px;
-  border-radius: 15px;
-  margin-bottom: 15px;
-}
-
-button {
-  padding: 12px;
-  border-radius: 10px;
-  border: none;
-  margin: 5px;
-}
-
-.btn {
-  background: #0b2239;
-  color: white;
-}
-
-.btn-red {
-  background: red;
-  color: white;
-}
-
-.btn-accion {
-  background: #ddd;
-}
-</style>
+  <style>
+    body{
+      margin:0;
+      font-family:Arial,sans-serif;
+      background:#eef2f7;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      min-height:100vh;
+      padding:20px;
+      box-sizing:border-box;
+    }
+    .box{
+      width:100%;
+      max-width:420px;
+      background:#fff;
+      border-radius:18px;
+      padding:28px;
+      box-sizing:border-box;
+      box-shadow:0 10px 30px rgba(0,0,0,.08);
+    }
+    .version{
+      color:#ef4444;
+      font-size:28px;
+      font-weight:800;
+      margin-bottom:10px;
+    }
+    h1{
+      margin:0 0 10px 0;
+      font-size:38px;
+    }
+    p{
+      margin:0 0 20px 0;
+      color:#374151;
+      font-size:18px;
+    }
+    input{
+      width:100%;
+      height:54px;
+      border:1px solid #d1d5db;
+      border-radius:14px;
+      padding:0 16px;
+      box-sizing:border-box;
+      font-size:18px;
+      margin-bottom:12px;
+    }
+    button{
+      width:100%;
+      height:56px;
+      border:none;
+      border-radius:14px;
+      background:#0f172a;
+      color:white;
+      font-size:22px;
+      font-weight:800;
+    }
+    #msg{
+      margin-top:14px;
+      font-size:16px;
+      min-height:24px;
+      font-weight:700;
+    }
+    .ok{color:#15803d;}
+    .error{color:#b91c1c;}
+    .info{color:#374151;}
+  </style>
 </head>
 
 <body>
 
-<div class="container">
+  <div class="box">
+    <div class="version">LOGIN V900</div>
+    <h1>Zentryx</h1>
+    <p>Acceso al sistema</p>
 
-<!-- LOGIN -->
-<div id="login">
-  <div class="card">
-    <h2>Zentryx</h2>
-    <input id="usuario" placeholder="Usuario"><br><br>
-    <input id="password" placeholder="Contraseña" type="password"><br><br>
-    <button class="btn" onclick="login()">Entrar</button>
-    <p id="error" style="color:red;"></p>
+    <input id="usuario" type="text" placeholder="Usuario" autocomplete="username">
+    <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
+
+    <button id="btnLogin" type="button">Entrar</button>
+
+    <div id="msg" class="info">Página cargada.</div>
   </div>
-</div>
-
-<!-- PANEL -->
-<div id="panel" style="display:none;">
-
-  <div class="card">
-    <h2>Panel</h2>
-    <button onclick="mostrarUsuarios()">Usuarios</button>
-    <button onclick="logout()">Salir</button>
-  </div>
-
-  <!-- USUARIOS -->
-  <div id="usuarios" style="display:none;">
-    
-    <div class="card">
-      <h3>Nuevo usuario</h3>
-      <input id="nombre" placeholder="Nombre"><br><br>
-      <input id="user" placeholder="Usuario"><br><br>
-      <input id="pass" placeholder="Contraseña"><br><br>
-      <input id="direccion" placeholder="Dirección"><br><br>
-      <button class="btn" onclick="guardarUsuario()">Guardar</button>
-    </div>
-
-    <div id="listado"></div>
-
-  </div>
-
-  <!-- FICHA -->
-  <div id="ficha" style="display:none;">
-    <div class="card">
-      <h3>Ficha</h3>
-      <input id="ficha-nombre"><br><br>
-      <input id="ficha-usuario"><br><br>
-      <input id="ficha-password"><br><br>
-      <input id="ficha-direccion"><br><br>
-
-      <button class="btn" onclick="guardarCambios()">Guardar cambios</button>
-
-      <hr>
-
-      <h4>Acciones rápidas</h4>
-
-      <button class="btn-accion" onclick="abrirGoogleMaps()">Google Maps</button>
-      <button class="btn-accion" onclick="abrirWaze()">Waze</button>
-      <button class="btn-accion" onclick="abrirAppleMaps()">Apple Maps</button>
-
-    </div>
-  </div>
-
-</div>
-
-</div>
 
 <script>
+const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
+const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
-// --- LOGIN ---
-function login(){
-  let u = document.getElementById('usuario').value;
-  let p = document.getElementById('password').value;
+const inputUsuario = document.getElementById("usuario");
+const inputPassword = document.getElementById("password");
+const btnLogin = document.getElementById("btnLogin");
+const msg = document.getElementById("msg");
 
-  if(u === 'admin' && p === 'admin'){
-    document.getElementById('login').style.display='none';
-    document.getElementById('panel').style.display='block';
-  } else {
-    document.getElementById('error').innerText='Error';
+function mensaje(texto, tipo){
+  msg.textContent = texto;
+  msg.className = tipo;
+}
+
+function limpiarUsuario(valor){
+  return String(valor || "").trim().toLowerCase();
+}
+
+async function login(){
+  const usuario = limpiarUsuario(inputUsuario.value);
+  const password = String(inputPassword.value || "").trim();
+
+  if(!usuario || !password){
+    mensaje("Escribe usuario y contraseña.", "error");
+    return;
+  }
+
+  btnLogin.disabled = true;
+  mensaje("Comprobando...", "info");
+
+  try{
+    const url =
+      SUPABASE_URL +
+      "/rest/v1/users?select=*&usuario=ilike." +
+      encodeURIComponent(usuario) +
+      "&password=eq." +
+      encodeURIComponent(password) +
+      "&limit=1";
+
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + SUPABASE_KEY,
+        "Content-Type": "application/json"
+      }
+    });
+
+    const data = await res.json();
+
+    if(!res.ok){
+      mensaje("Error conectando con la base de datos.", "error");
+      btnLogin.disabled = false;
+      return;
+    }
+
+    if(!Array.isArray(data) || data.length === 0){
+      mensaje("Usuario o contraseña incorrectos.", "error");
+      btnLogin.disabled = false;
+      return;
+    }
+
+    localStorage.setItem("usuario", JSON.stringify(data[0]));
+    mensaje("Login correcto. Entrando...", "ok");
+
+    setTimeout(function(){
+      window.location.href = "./app.html?v=900";
+    }, 400);
+
+  }catch(e){
+    mensaje("Error de red: " + e.message, "error");
+    btnLogin.disabled = false;
   }
 }
 
-function logout(){
-  location.reload();
-}
+btnLogin.addEventListener("click", login);
 
-// --- DATOS ---
-let usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
-let editIndex = null;
+inputUsuario.addEventListener("keydown", function(e){
+  if(e.key === "Enter") login();
+});
 
-// --- MOSTRAR USUARIOS ---
-function mostrarUsuarios(){
-  document.getElementById('usuarios').style.display='block';
-  document.getElementById('ficha').style.display='none';
-  pintarUsuarios();
-}
-
-function pintarUsuarios(){
-  let html = '';
-
-  usuarios.forEach((u,i)=>{
-    html += `
-    <div class="card">
-      <b>${u.nombre}</b><br>
-      Usuario: ${u.usuario}<br>
-      <button onclick="abrirFicha(${i})">Abrir</button>
-      <button class="btn-red" onclick="eliminar(${i})">Eliminar</button>
-    </div>
-    `;
-  });
-
-  document.getElementById('listado').innerHTML = html;
-}
-
-// --- GUARDAR ---
-function guardarUsuario(){
-  let nuevo = {
-    nombre: nombre.value,
-    usuario: user.value,
-    password: pass.value,
-    direccion: direccion.value
-  };
-
-  usuarios.push(nuevo);
-  localStorage.setItem('usuarios', JSON.stringify(usuarios));
-  pintarUsuarios();
-}
-
-// --- ELIMINAR ---
-function eliminar(i){
-  usuarios.splice(i,1);
-  localStorage.setItem('usuarios', JSON.stringify(usuarios));
-  pintarUsuarios();
-}
-
-// --- FICHA ---
-function abrirFicha(i){
-  editIndex = i;
-
-  let u = usuarios[i];
-
-  document.getElementById('usuarios').style.display='none';
-  document.getElementById('ficha').style.display='block';
-
-  document.getElementById('ficha-nombre').value = u.nombre;
-  document.getElementById('ficha-usuario').value = u.usuario;
-  document.getElementById('ficha-password').value = u.password;
-  document.getElementById('ficha-direccion').value = u.direccion;
-}
-
-function guardarCambios(){
-  usuarios[editIndex] = {
-    nombre: document.getElementById('ficha-nombre').value,
-    usuario: document.getElementById('ficha-usuario').value,
-    password: document.getElementById('ficha-password').value,
-    direccion: document.getElementById('ficha-direccion').value
-  };
-
-  localStorage.setItem('usuarios', JSON.stringify(usuarios));
-  mostrarUsuarios();
-}
-
-// --- MAPAS ---
-function obtenerDireccion(){
-  return document.getElementById('ficha-direccion').value;
-}
-
-function abrirGoogleMaps(){
-  let d = obtenerDireccion();
-  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d)}`);
-}
-
-function abrirWaze(){
-  let d = obtenerDireccion();
-  window.open(`https://waze.com/ul?q=${encodeURIComponent(d)}&navigate=yes`);
-}
-
-function abrirAppleMaps(){
-  let d = obtenerDireccion();
-  window.open(`https://maps.apple.com/?q=${encodeURIComponent(d)}`);
-}
-
+inputPassword.addEventListener("keydown", function(e){
+  if(e.key === "Enter") login();
+});
 </script>
 
 </body>
