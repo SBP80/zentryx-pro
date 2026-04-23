@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx APP V500</title>
+  <title>Zentryx APP V600</title>
   <style>
     body{
       margin:0;
@@ -37,12 +37,14 @@
       background:#d9dee7;
       font-weight:700;
       font-size:16px;
+      color:#2563eb;
     }
     .card{
       background:#fff;
       border-radius:16px;
       padding:20px;
       box-shadow:0 10px 30px rgba(0,0,0,.08);
+      margin-bottom:16px;
     }
     .salir{
       margin-top:12px;
@@ -54,6 +56,76 @@
       font-weight:700;
       font-size:16px;
     }
+    input, select, textarea{
+      width:100%;
+      box-sizing:border-box;
+      padding:14px;
+      border:1px solid #d1d5db;
+      border-radius:12px;
+      font-size:16px;
+      margin-bottom:10px;
+      background:#fff;
+    }
+    textarea{
+      min-height:100px;
+      resize:vertical;
+    }
+    .btn{
+      padding:12px 16px;
+      border:none;
+      border-radius:12px;
+      font-weight:700;
+      font-size:16px;
+      cursor:pointer;
+    }
+    .btn-dark{
+      background:#0d1b2a;
+      color:#fff;
+    }
+    .btn-red{
+      background:#dc2626;
+      color:#fff;
+    }
+    .btn-green{
+      background:#16a34a;
+      color:#fff;
+    }
+    .btn-gray{
+      background:#e5e7eb;
+      color:#111827;
+    }
+    .fila-botones{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .usuario-item{
+      border:1px solid #d1d5db;
+      border-radius:12px;
+      padding:14px;
+      margin-bottom:10px;
+    }
+    .muted{
+      color:#6b7280;
+    }
+    .ok{
+      color:#15803d;
+      font-weight:700;
+    }
+    .error{
+      color:#b91c1c;
+      font-weight:700;
+    }
+    .acciones-rapidas a{
+      display:inline-block;
+      margin:6px 6px 0 0;
+      padding:10px 12px;
+      border-radius:10px;
+      background:#e5e7eb;
+      color:#111827;
+      text-decoration:none;
+      font-weight:700;
+    }
   </style>
 </head>
 <body>
@@ -61,62 +133,420 @@
 <div id="app"></div>
 
 <script>
-  const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
+const APP = document.getElementById("app");
 
-  if (!usuario) {
-    window.location.href = "./index.html";
+const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
+const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+
+let usuarioSesion = null;
+let usuariosCache = [];
+let usuarioAbierto = null;
+
+function escapar(texto) {
+  return String(texto ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function leerSesion() {
+  try {
+    const raw = localStorage.getItem("usuario");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function cerrarSesion() {
+  localStorage.removeItem("usuario");
+  window.location.href = "./index.html";
+}
+
+async function apiSupabase(path, options = {}) {
+  const res = await fetch(SUPABASE_URL + path, {
+    method: options.method || "GET",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": "Bearer " + SUPABASE_KEY,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+
+  const text = await res.text();
+  let data = null;
+
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
   }
 
-  const app = document.getElementById("app");
+  if (!res.ok) {
+    throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+  }
 
-  app.innerHTML = `
+  return data;
+}
+
+function renderErrorPantalla(titulo, detalle) {
+  APP.innerHTML = `
+    <div class="wrap">
+      <div class="card">
+        <h2>${escapar(titulo)}</h2>
+        <div class="error">${escapar(detalle)}</div>
+        <div style="margin-top:16px;">
+          <button class="btn btn-dark" onclick="window.location.href='./index.html'">Volver</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderShell() {
+  APP.innerHTML = `
     <div class="top">
-      <div class="ver">APP V500</div>
+      <div class="ver">APP V600</div>
       <h1 style="margin:0;">Zentryx</h1>
-      <div style="margin-top:8px;">${usuario.nombre} · ${usuario.rol}</div>
-      <button class="salir" onclick="logout()">Salir</button>
+      <div style="margin-top:8px;font-size:18px;">${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</div>
+      <button class="salir" onclick="cerrarSesion()">Salir</button>
     </div>
 
     <div class="wrap">
       <div class="menu">
         <button onclick="mostrarInicio()">Inicio</button>
-        <button onclick="mostrarUsuarios()">Usuarios</button>
-        <button onclick="mostrarConfig()">Configuración</button>
+        ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarUsuarios()">Usuarios</button>` : ``}
+        ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarConfiguracion()">Configuración</button>` : ``}
       </div>
 
-      <div id="contenido" class="card"></div>
+      <div id="contenido"></div>
     </div>
   `;
+}
 
-  function logout() {
-    localStorage.removeItem("usuario");
-    window.location.href = "./index.html";
-  }
-
-  function mostrarInicio() {
-    document.getElementById("contenido").innerHTML = `
+function mostrarInicio() {
+  const contenido = document.getElementById("contenido");
+  contenido.innerHTML = `
+    <div class="card">
       <h2>Inicio</h2>
-      <p><b>Nombre:</b> ${usuario.nombre}</p>
-      <p><b>Usuario:</b> ${usuario.usuario}</p>
-      <p><b>Rol:</b> ${usuario.rol}</p>
-    `;
-  }
+      <p><b>Nombre:</b> ${escapar(usuarioSesion.nombre)}</p>
+      <p><b>Usuario:</b> ${escapar(usuarioSesion.usuario)}</p>
+      <p><b>Rol:</b> ${escapar(usuarioSesion.rol)}</p>
+    </div>
+  `;
+}
 
-  function mostrarUsuarios() {
-    document.getElementById("contenido").innerHTML = `
-      <h2>Usuarios</h2>
-      <p>Pantalla de usuarios cargada.</p>
-    `;
-  }
-
-  function mostrarConfig() {
-    document.getElementById("contenido").innerHTML = `
+function mostrarConfiguracion() {
+  const contenido = document.getElementById("contenido");
+  contenido.innerHTML = `
+    <div class="card">
       <h2>Configuración</h2>
-      <p>Pantalla de configuración cargada.</p>
-    `;
+      <p>Este bloque va después de cerrar Usuarios.</p>
+    </div>
+  `;
+}
+
+async function cargarUsuarios() {
+  const data = await apiSupabase("/rest/v1/users?select=*&order=id.asc");
+  usuariosCache = Array.isArray(data) ? data : [];
+  return usuariosCache;
+}
+
+function renderFormularioNuevo() {
+  return `
+    <div class="card">
+      <h2>Nuevo usuario</h2>
+
+      <input id="nuevo_nombre" placeholder="Nombre">
+      <input id="nuevo_usuario" placeholder="Usuario">
+      <input id="nuevo_password" placeholder="Contraseña">
+      <select id="nuevo_rol">
+        <option value="operario">operario</option>
+        <option value="admin">admin</option>
+      </select>
+      <input id="nuevo_telefono" placeholder="Teléfono">
+      <input id="nuevo_email" placeholder="Email">
+      <input id="nuevo_direccion" placeholder="Dirección">
+
+      <div class="fila-botones">
+        <button class="btn btn-dark" onclick="guardarUsuarioNuevo()">Guardar usuario</button>
+      </div>
+
+      <div id="msgNuevoUsuario" style="margin-top:12px;"></div>
+    </div>
+  `;
+}
+
+function renderListadoUsuarios() {
+  if (!usuariosCache.length) {
+    return `<div class="card"><h2>Listado</h2><p>No hay usuarios.</p></div>`;
   }
 
+  return `
+    <div class="card">
+      <h2>Listado</h2>
+      ${usuariosCache.map(u => `
+        <div class="usuario-item">
+          <div><b>${escapar(u.nombre)}</b></div>
+          <div class="muted">Usuario: ${escapar(u.usuario)}</div>
+          <div class="muted">Rol: ${escapar(u.rol)}</div>
+          <div class="muted">Teléfono: ${escapar(u.telefono || "-")}</div>
+          <div class="muted">Email: ${escapar(u.email || "-")}</div>
+
+          <div class="fila-botones" style="margin-top:10px;">
+            <button class="btn btn-gray" onclick="abrirFicha(${JSON.stringify(u).replaceAll('"', '&quot;')})">Abrir ficha</button>
+            ${u.usuario !== usuarioSesion.usuario ? `<button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>` : ``}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderFichaVacia() {
+  return `
+    <div class="card">
+      <h2>Ficha de usuario</h2>
+      <p>Selecciona un usuario del listado.</p>
+    </div>
+  `;
+}
+
+function renderFichaUsuario(u) {
+  const tel = u.telefono ? escapar(u.telefono) : "";
+  const email = u.email ? escapar(u.email) : "";
+  const direccion = u.direccion ? escapar(u.direccion) : "";
+
+  const telLimpio = String(u.telefono || "").replaceAll(" ", "");
+  const telWhats = telLimpio.replaceAll("+", "");
+
+  return `
+    <div class="card">
+      <h2>Ficha de usuario</h2>
+
+      <input id="edit_nombre" value="${escapar(u.nombre)}" placeholder="Nombre">
+      <input id="edit_usuario" value="${escapar(u.usuario)}" placeholder="Usuario">
+      <input id="edit_password" value="${escapar(u.password)}" placeholder="Contraseña">
+      <select id="edit_rol">
+        <option value="operario" ${u.rol === "operario" ? "selected" : ""}>operario</option>
+        <option value="admin" ${u.rol === "admin" ? "selected" : ""}>admin</option>
+      </select>
+      <input id="edit_telefono" value="${tel}" placeholder="Teléfono">
+      <input id="edit_email" value="${email}" placeholder="Email">
+      <input id="edit_direccion" value="${direccion}" placeholder="Dirección">
+
+      <div class="fila-botones">
+        <button class="btn btn-dark" onclick="guardarEdicionUsuario()">Guardar cambios</button>
+      </div>
+
+      <div id="msgEditarUsuario" style="margin-top:12px;"></div>
+
+      <hr style="margin:20px 0;">
+
+      <h3>Acciones rápidas</h3>
+      <div class="acciones-rapidas">
+        ${u.telefono ? `<a href="tel:${encodeURIComponent(telLimpio)}">Llamar</a>` : ``}
+        ${u.telefono ? `<a href="sms:${encodeURIComponent(telLimpio)}">SMS</a>` : ``}
+        ${u.telefono ? `<a target="_blank" href="https://wa.me/${encodeURIComponent(telWhats)}">WhatsApp</a>` : ``}
+        ${u.email ? `<a href="mailto:${encodeURIComponent(u.email)}">Email</a>` : ``}
+        ${u.direccion ? `<a target="_blank" href="https://www.google.com/maps/search/${encodeURIComponent(u.direccion)}">Google Maps</a>` : ``}
+      </div>
+
+      ${!u.telefono && !u.email && !u.direccion ? `<p class="muted">Este usuario no tiene datos de contacto.</p>` : ``}
+    </div>
+  `;
+}
+
+async function mostrarUsuarios() {
+  const contenido = document.getElementById("contenido");
+  contenido.innerHTML = `<div class="card">Cargando usuarios...</div>`;
+
+  try {
+    await cargarUsuarios();
+
+    contenido.innerHTML = `
+      ${renderFormularioNuevo()}
+      ${renderListadoUsuarios()}
+      <div id="bloqueFicha">${usuarioAbierto ? renderFichaUsuario(usuarioAbierto) : renderFichaVacia()}</div>
+    `;
+  } catch (e) {
+    contenido.innerHTML = `
+      <div class="card">
+        <h2>Usuarios</h2>
+        <div class="error">Error cargando usuarios: ${escapar(e.message)}</div>
+      </div>
+    `;
+  }
+}
+
+async function guardarUsuarioNuevo() {
+  const msg = document.getElementById("msgNuevoUsuario");
+
+  const nuevo = {
+    nombre: document.getElementById("nuevo_nombre").value.trim(),
+    usuario: document.getElementById("nuevo_usuario").value.trim(),
+    password: document.getElementById("nuevo_password").value.trim(),
+    rol: document.getElementById("nuevo_rol").value.trim(),
+    telefono: document.getElementById("nuevo_telefono").value.trim(),
+    email: document.getElementById("nuevo_email").value.trim(),
+    direccion: document.getElementById("nuevo_direccion").value.trim()
+  };
+
+  msg.className = "error";
+  msg.textContent = "";
+
+  if (!nuevo.nombre || !nuevo.usuario || !nuevo.password || !nuevo.rol) {
+    msg.textContent = "Nombre, usuario, contraseña y rol son obligatorios.";
+    return;
+  }
+
+  const repetido = usuariosCache.some(u => String(u.usuario).toLowerCase() === nuevo.usuario.toLowerCase());
+  if (repetido) {
+    msg.textContent = "Ese usuario ya existe.";
+    return;
+  }
+
+  try {
+    await apiSupabase("/rest/v1/users", {
+      method: "POST",
+      headers: {
+        "Prefer": "return=representation"
+      },
+      body: nuevo
+    });
+
+    msg.className = "ok";
+    msg.textContent = "Usuario guardado correctamente.";
+
+    usuarioAbierto = null;
+    await mostrarUsuarios();
+  } catch (e) {
+    msg.className = "error";
+    msg.textContent = "Error guardando usuario: " + e.message;
+  }
+}
+
+function abrirFicha(u) {
+  try {
+    if (typeof u === "string") {
+      usuarioAbierto = JSON.parse(u);
+    } else {
+      usuarioAbierto = u;
+    }
+  } catch {
+    usuarioAbierto = u;
+  }
+
+  const bloque = document.getElementById("bloqueFicha");
+  bloque.innerHTML = renderFichaUsuario(usuarioAbierto);
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+}
+
+async function guardarEdicionUsuario() {
+  const msg = document.getElementById("msgEditarUsuario");
+
+  if (!usuarioAbierto) return;
+
+  const editado = {
+    nombre: document.getElementById("edit_nombre").value.trim(),
+    usuario: document.getElementById("edit_usuario").value.trim(),
+    password: document.getElementById("edit_password").value.trim(),
+    rol: document.getElementById("edit_rol").value.trim(),
+    telefono: document.getElementById("edit_telefono").value.trim(),
+    email: document.getElementById("edit_email").value.trim(),
+    direccion: document.getElementById("edit_direccion").value.trim()
+  };
+
+  msg.className = "error";
+  msg.textContent = "";
+
+  if (!editado.nombre || !editado.usuario || !editado.password || !editado.rol) {
+    msg.textContent = "Nombre, usuario, contraseña y rol son obligatorios.";
+    return;
+  }
+
+  const repetido = usuariosCache.some(u =>
+    String(u.id) !== String(usuarioAbierto.id) &&
+    String(u.usuario).toLowerCase() === editado.usuario.toLowerCase()
+  );
+
+  if (repetido) {
+    msg.textContent = "Ese usuario ya existe.";
+    return;
+  }
+
+  try {
+    await apiSupabase("/rest/v1/users?id=eq." + encodeURIComponent(usuarioAbierto.id), {
+      method: "PATCH",
+      headers: {
+        "Prefer": "return=representation"
+      },
+      body: editado
+    });
+
+    if (usuarioSesion && String(usuarioSesion.id) === String(usuarioAbierto.id)) {
+      const nuevaSesion = { ...usuarioSesion, ...editado };
+      localStorage.setItem("usuario", JSON.stringify(nuevaSesion));
+      usuarioSesion = nuevaSesion;
+      renderShell();
+    }
+
+    usuarioAbierto = { ...usuarioAbierto, ...editado };
+    msg.className = "ok";
+    msg.textContent = "Cambios guardados.";
+
+    await mostrarUsuarios();
+    abrirFicha(usuarioAbierto);
+  } catch (e) {
+    msg.className = "error";
+    msg.textContent = "Error guardando cambios: " + e.message;
+  }
+}
+
+async function borrarUsuario(id) {
+  if (!confirm("¿Seguro que quieres eliminar este usuario?")) return;
+
+  try {
+    await apiSupabase("/rest/v1/users?id=eq." + encodeURIComponent(id), {
+      method: "DELETE"
+    });
+
+    if (usuarioAbierto && String(usuarioAbierto.id) === String(id)) {
+      usuarioAbierto = null;
+    }
+
+    await mostrarUsuarios();
+  } catch (e) {
+    alert("Error borrando usuario: " + e.message);
+  }
+}
+
+function iniciar() {
+  usuarioSesion = leerSesion();
+
+  if (!usuarioSesion) {
+    window.location.href = "./index.html";
+    return;
+  }
+
+  renderShell();
   mostrarInicio();
+}
+
+window.cerrarSesion = cerrarSesion;
+window.mostrarInicio = mostrarInicio;
+window.mostrarUsuarios = mostrarUsuarios;
+window.mostrarConfiguracion = mostrarConfiguracion;
+window.guardarUsuarioNuevo = guardarUsuarioNuevo;
+window.abrirFicha = abrirFicha;
+window.guardarEdicionUsuario = guardarEdicionUsuario;
+window.borrarUsuario = borrarUsuario;
+
+iniciar();
 </script>
 
 </body>
