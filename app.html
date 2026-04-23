@@ -2,38 +2,121 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Zentryx</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zentryx APP V500</title>
+  <style>
+    body{
+      margin:0;
+      font-family:Arial,sans-serif;
+      background:#eef2f7;
+    }
+    .top{
+      background:#0d1b2a;
+      color:#fff;
+      padding:20px;
+    }
+    .ver{
+      color:#ff4d4f;
+      font-size:28px;
+      font-weight:800;
+      margin-bottom:8px;
+    }
+    .wrap{
+      padding:20px;
+    }
+    .menu{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:20px;
+    }
+    .menu button{
+      padding:12px 16px;
+      border:none;
+      border-radius:12px;
+      background:#d9dee7;
+      font-weight:700;
+      font-size:16px;
+    }
+    .card{
+      background:#fff;
+      border-radius:16px;
+      padding:20px;
+      box-shadow:0 10px 30px rgba(0,0,0,.08);
+    }
+    .salir{
+      margin-top:12px;
+      padding:12px 16px;
+      border:none;
+      border-radius:12px;
+      background:#dc2626;
+      color:#fff;
+      font-weight:700;
+      font-size:16px;
+    }
+  </style>
 </head>
 <body>
 
-<h1>Panel Zentryx</h1>
-
-<div id="info"></div>
-
-<button onclick="logout()">Salir</button>
+<div id="app"></div>
 
 <script>
-  console.log("APP CARGADA");
-
-  const usuario = localStorage.getItem("usuario");
+  const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
 
   if (!usuario) {
-    console.log("NO HAY SESIÓN");
-    window.location.href = "index.html";
-  } else {
-    const data = JSON.parse(usuario);
-
-    document.getElementById("info").innerHTML = `
-      <p><b>Nombre:</b> ${data.nombre}</p>
-      <p><b>Usuario:</b> ${data.usuario}</p>
-      <p><b>Rol:</b> ${data.rol}</p>
-    `;
+    window.location.href = "./index.html";
   }
+
+  const app = document.getElementById("app");
+
+  app.innerHTML = `
+    <div class="top">
+      <div class="ver">APP V500</div>
+      <h1 style="margin:0;">Zentryx</h1>
+      <div style="margin-top:8px;">${usuario.nombre} · ${usuario.rol}</div>
+      <button class="salir" onclick="logout()">Salir</button>
+    </div>
+
+    <div class="wrap">
+      <div class="menu">
+        <button onclick="mostrarInicio()">Inicio</button>
+        <button onclick="mostrarUsuarios()">Usuarios</button>
+        <button onclick="mostrarConfig()">Configuración</button>
+      </div>
+
+      <div id="contenido" class="card"></div>
+    </div>
+  `;
 
   function logout() {
     localStorage.removeItem("usuario");
-    window.location.href = "index.html";
+    window.location.href = "./index.html";
   }
+
+  function mostrarInicio() {
+    document.getElementById("contenido").innerHTML = `
+      <h2>Inicio</h2>
+      <p><b>Nombre:</b> ${usuario.nombre}</p>
+      <p><b>Usuario:</b> ${usuario.usuario}</p>
+      <p><b>Rol:</b> ${usuario.rol}</p>
+    `;
+  }
+
+  function mostrarUsuarios() {
+    document.getElementById("contenido").innerHTML = `
+      <h2>Usuarios</h2>
+      <p>Pantalla de usuarios cargada.</p>
+    `;
+  }
+
+  function mostrarConfig() {
+    document.getElementById("contenido").innerHTML = `
+      <h2>Configuración</h2>
+      <p>Pantalla de configuración cargada.</p>
+    `;
+  }
+
+  mostrarInicio();
 </script>
 
 </body>
