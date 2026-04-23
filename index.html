@@ -1,100 +1,84 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body {
-  font-family: Arial;
-  background: #eef2f7;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
-
-.box {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  width: 300px;
-}
-
-input {
-  width: 100%;
-  padding: 12px;
-  margin: 10px 0;
-}
-
-button {
-  width: 100%;
-  padding: 12px;
-  background: #0d1b2a;
-  color: white;
-  border: none;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zentryx V200</title>
+  <style>
+    body{
+      font-family:Arial,sans-serif;
+      background:#eef2f7;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      min-height:100vh;
+      margin:0;
+      padding:20px;
+      box-sizing:border-box;
+    }
+    .box{
+      background:#fff;
+      padding:30px;
+      border-radius:16px;
+      width:100%;
+      max-width:380px;
+      box-sizing:border-box;
+      box-shadow:0 10px 30px rgba(0,0,0,.1);
+    }
+    input{
+      width:100%;
+      padding:14px;
+      margin:10px 0;
+      border-radius:10px;
+      border:1px solid #ccc;
+      box-sizing:border-box;
+      font-size:16px;
+    }
+    button{
+      width:100%;
+      padding:14px;
+      border:none;
+      border-radius:10px;
+      background:#0d1b2a;
+      color:#fff;
+      font-weight:bold;
+      font-size:16px;
+    }
+    #msg{
+      margin-top:12px;
+      font-size:18px;
+      color:#15803d;
+      white-space:pre-wrap;
+    }
+    .ver{
+      color:#b91c1c;
+      font-size:28px;
+      font-weight:800;
+      margin-bottom:12px;
+    }
+  </style>
 </head>
-
 <body>
 
-<div class="box">
-  <h2>Zentryx</h2>
+  <div class="box">
+    <div class="ver">VERSIÓN 200</div>
+    <h2 style="margin-top:0;">Zentryx</h2>
+    <p>Prueba definitiva</p>
 
-  <input id="usuario" placeholder="Usuario">
-  <input id="password" type="password" placeholder="Contraseña">
+    <input id="usuario" placeholder="Usuario">
+    <input id="password" type="password" placeholder="Contraseña">
 
-  <button onclick="login()">Entrar</button>
+    <button id="btnLogin" type="button">Entrar</button>
 
-  <div id="estado"></div>
-</div>
+    <div id="msg">Página cargada.</div>
+  </div>
 
-<script>
-
-const supabase = window.supabase.createClient(
-  "https://idtaamivqbiuxtjywuux.supabase.co",
-  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-);
-
-async function login() {
-
-  const usuario = document.getElementById("usuario").value;
-  const password = document.getElementById("password").value;
-
-  document.getElementById("estado").innerText = "Comprobando...";
-
-  try {
-
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("usuario", usuario)
-      .eq("password", password)
-      .single();
-
-    if (error || !data) {
-      document.getElementById("estado").innerText = "Error login";
-      return;
-    }
-
-    localStorage.setItem("usuario", JSON.stringify(data));
-
-    document.getElementById("estado").innerText = "OK entrando...";
-
-    setTimeout(() => {
-      window.location.href = "app.html";
-    }, 500);
-
-  } catch (e) {
-    document.getElementById("estado").innerText = "Fallo: " + e.message;
-  }
-}
-
-</script>
+  <script>
+    document.getElementById("btnLogin").addEventListener("click", function () {
+      document.getElementById("msg").textContent = "BOTÓN OK";
+      alert("BOTÓN OK");
+    });
+  </script>
 
 </body>
 </html>
