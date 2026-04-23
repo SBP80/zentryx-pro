@@ -3,224 +3,191 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx APP V610</title>
+  <title>Zentryx APP V900</title>
+
   <style>
     body{
       margin:0;
       font-family:Arial,sans-serif;
       background:#eef2f7;
+      color:#111827;
     }
     .top{
-      background:#0d1b2a;
-      color:#fff;
-      padding:20px;
+      background:#0f172a;
+      color:white;
+      padding:24px 20px;
     }
-    .ver{
-      color:#ff4d4f;
-      font-size:28px;
-      font-weight:800;
+    .version{
+      color:#fb7185;
+      font-size:30px;
+      font-weight:900;
       margin-bottom:8px;
+    }
+    .top h1{
+      margin:0;
+      font-size:42px;
+    }
+    .top p{
+      margin:8px 0 18px 0;
+      font-size:19px;
     }
     .wrap{
       padding:20px;
     }
     .menu{
       display:flex;
-      gap:10px;
+      gap:12px;
       flex-wrap:wrap;
       margin-bottom:20px;
     }
     .menu button{
-      padding:12px 16px;
+      padding:14px 18px;
       border:none;
-      border-radius:12px;
-      background:#d9dee7;
-      font-weight:700;
-      font-size:16px;
+      border-radius:14px;
+      background:#dbe0e8;
       color:#2563eb;
+      font-size:18px;
+      font-weight:900;
     }
     .card{
-      background:#fff;
-      border-radius:16px;
-      padding:20px;
-      box-shadow:0 10px 30px rgba(0,0,0,.08);
-      margin-bottom:16px;
+      background:white;
+      border-radius:18px;
+      padding:22px;
+      margin-bottom:18px;
+      box-shadow:0 10px 30px rgba(0,0,0,.07);
+      border:1px solid #e5e7eb;
     }
-    .salir{
-      margin-top:12px;
-      padding:12px 16px;
-      border:none;
-      border-radius:12px;
-      background:#dc2626;
-      color:#fff;
-      font-weight:700;
-      font-size:16px;
+    h2{
+      margin-top:0;
+      font-size:34px;
     }
-    input, select, textarea{
+    h3{
+      font-size:26px;
+    }
+    input, select{
       width:100%;
+      height:54px;
       box-sizing:border-box;
-      padding:14px;
+      padding:0 16px;
       border:1px solid #d1d5db;
-      border-radius:12px;
-      font-size:16px;
-      margin-bottom:10px;
-      background:#fff;
-    }
-    textarea{
-      min-height:100px;
-      resize:vertical;
+      border-radius:14px;
+      font-size:18px;
+      margin-bottom:12px;
+      background:white;
     }
     .btn{
-      padding:12px 16px;
       border:none;
-      border-radius:12px;
-      font-weight:700;
-      font-size:16px;
-      cursor:pointer;
+      border-radius:14px;
+      padding:14px 18px;
+      font-size:18px;
+      font-weight:900;
+      margin:4px;
     }
-    .btn-dark{
-      background:#0d1b2a;
-      color:#fff;
-    }
-    .btn-red{
-      background:#dc2626;
-      color:#fff;
-    }
-    .btn-green{
-      background:#16a34a;
-      color:#fff;
-    }
-    .btn-gray{
-      background:#e5e7eb;
-      color:#111827;
-    }
-    .fila-botones{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .usuario-item{
+    .btn-dark{background:#0f172a;color:white;}
+    .btn-red{background:#dc2626;color:white;}
+    .btn-gray{background:#e5e7eb;color:#111827;}
+    .btn-green{background:#16a34a;color:white;}
+    .item{
       border:1px solid #d1d5db;
-      border-radius:12px;
-      padding:14px;
-      margin-bottom:10px;
+      border-radius:16px;
+      padding:16px;
+      margin-bottom:12px;
     }
-    .muted{
-      color:#6b7280;
-    }
-    .ok{
-      color:#15803d;
-      font-weight:700;
-    }
-    .error{
-      color:#b91c1c;
-      font-weight:700;
-    }
-    .acciones-rapidas a{
+    .muted{color:#6b7280;}
+    .ok{color:#15803d;font-weight:900;}
+    .error{color:#b91c1c;font-weight:900;}
+    .acciones a{
       display:inline-block;
-      margin:6px 6px 0 0;
-      padding:10px 12px;
-      border-radius:10px;
-      background:#e5e7eb;
-      color:#111827;
       text-decoration:none;
-      font-weight:700;
+      color:#111827;
+      background:#e5e7eb;
+      padding:13px 16px;
+      border-radius:14px;
+      font-weight:900;
+      margin:5px;
+      font-size:18px;
     }
   </style>
 </head>
+
 <body>
 
 <div id="app"></div>
 
 <script>
-const APP = document.getElementById("app");
-
 const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
+const app = document.getElementById("app");
+
 let usuarioSesion = null;
-let usuariosCache = [];
+let usuarios = [];
 let usuarioAbierto = null;
 
-function escapar(texto) {
-  return String(texto ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function escapar(v){
+  return String(v ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
 
-function leerSesion() {
-  try {
-    const raw = localStorage.getItem("usuario");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
+function sesion(){
+  try{
+    return JSON.parse(localStorage.getItem("usuario") || "null");
+  }catch{
     return null;
   }
 }
 
-function cerrarSesion() {
+function cerrarSesion(){
   localStorage.removeItem("usuario");
-  window.location.href = "./index.html?v=700";
+  window.location.href = "./index.html?v=900";
 }
 
-async function apiSupabase(path, options = {}) {
+async function api(path, opciones = {}){
   const res = await fetch(SUPABASE_URL + path, {
-    method: options.method || "GET",
+    method: opciones.method || "GET",
     headers: {
       "apikey": SUPABASE_KEY,
       "Authorization": "Bearer " + SUPABASE_KEY,
       "Content-Type": "application/json",
-      ...(options.headers || {})
+      ...(opciones.headers || {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: opciones.body ? JSON.stringify(opciones.body) : undefined
   });
 
-  const text = await res.text();
+  const texto = await res.text();
   let data = null;
 
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
+  try{
+    data = texto ? JSON.parse(texto) : null;
+  }catch{
+    data = texto;
   }
 
-  if (!res.ok) {
+  if(!res.ok){
     throw new Error(typeof data === "string" ? data : JSON.stringify(data));
   }
 
   return data;
 }
 
-function renderErrorPantalla(titulo, detalle) {
-  APP.innerHTML = `
-    <div class="wrap">
-      <div class="card">
-        <h2>${escapar(titulo)}</h2>
-        <div class="error">${escapar(detalle)}</div>
-        <div style="margin-top:16px;">
-          <button class="btn btn-dark" onclick="window.location.href='./index.html?v=700'">Volver</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderShell() {
-  APP.innerHTML = `
+function pintarEstructura(){
+  app.innerHTML = `
     <div class="top">
-      <div class="ver">APP V610</div>
-      <h1 style="margin:0;">Zentryx</h1>
-      <div style="margin-top:8px;font-size:18px;">${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</div>
-      <button class="salir" onclick="cerrarSesion()">Salir</button>
+      <div class="version">APP V900</div>
+      <h1>Zentryx</h1>
+      <p>${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</p>
+      <button class="btn btn-red" onclick="cerrarSesion()">Salir</button>
     </div>
 
     <div class="wrap">
       <div class="menu">
         <button onclick="mostrarInicio()">Inicio</button>
-        ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarUsuarios()">Usuarios</button>` : ``}
-        ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarConfiguracion()">Configuración</button>` : ``}
+        ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarUsuarios()">Usuarios</button>` : ""}
+        ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarConfig()">Configuración</button>` : ""}
       </div>
 
       <div id="contenido"></div>
@@ -228,9 +195,8 @@ function renderShell() {
   `;
 }
 
-function mostrarInicio() {
-  const contenido = document.getElementById("contenido");
-  contenido.innerHTML = `
+function mostrarInicio(){
+  document.getElementById("contenido").innerHTML = `
     <div class="card">
       <h2>Inicio</h2>
       <p><b>Nombre:</b> ${escapar(usuarioSesion.nombre)}</p>
@@ -240,23 +206,21 @@ function mostrarInicio() {
   `;
 }
 
-function mostrarConfiguracion() {
-  const contenido = document.getElementById("contenido");
-  contenido.innerHTML = `
+function mostrarConfig(){
+  document.getElementById("contenido").innerHTML = `
     <div class="card">
       <h2>Configuración</h2>
-      <p>Este bloque va después de cerrar Usuarios.</p>
+      <p>Módulo pendiente.</p>
     </div>
   `;
 }
 
-async function cargarUsuarios() {
-  const data = await apiSupabase("/rest/v1/users?select=*&order=id.asc");
-  usuariosCache = Array.isArray(data) ? data : [];
-  return usuariosCache;
+async function cargarUsuarios(){
+  const data = await api("/rest/v1/users?select=*&order=id.asc");
+  usuarios = Array.isArray(data) ? data : [];
 }
 
-function renderFormularioNuevo() {
+function formularioNuevo(){
   return `
     <div class="card">
       <h2>Nuevo usuario</h2>
@@ -264,42 +228,50 @@ function renderFormularioNuevo() {
       <input id="nuevo_nombre" placeholder="Nombre">
       <input id="nuevo_usuario" placeholder="Usuario">
       <input id="nuevo_password" placeholder="Contraseña">
+
       <select id="nuevo_rol">
         <option value="operario">operario</option>
         <option value="admin">admin</option>
       </select>
+
       <input id="nuevo_telefono" placeholder="Teléfono">
       <input id="nuevo_email" placeholder="Email">
       <input id="nuevo_direccion" placeholder="Dirección">
 
-      <div class="fila-botones">
-        <button class="btn btn-dark" onclick="guardarUsuarioNuevo()">Guardar usuario</button>
-      </div>
+      <button class="btn btn-dark" onclick="guardarUsuario()">Guardar usuario</button>
 
-      <div id="msgNuevoUsuario" style="margin-top:12px;"></div>
+      <div id="msgNuevo" style="margin-top:12px;"></div>
     </div>
   `;
 }
 
-function renderListadoUsuarios() {
-  if (!usuariosCache.length) {
-    return `<div class="card"><h2>Listado</h2><p>No hay usuarios.</p></div>`;
+function listado(){
+  if(usuarios.length === 0){
+    return `
+      <div class="card">
+        <h2>Listado</h2>
+        <p>No hay usuarios.</p>
+      </div>
+    `;
   }
 
   return `
     <div class="card">
       <h2>Listado</h2>
-      ${usuariosCache.map(u => `
-        <div class="usuario-item">
-          <div><b>${escapar(u.nombre)}</b></div>
+
+      ${usuarios.map(u => `
+        <div class="item">
+          <h3 style="margin:0 0 8px 0;">${escapar(u.nombre)}</h3>
           <div class="muted">Usuario: ${escapar(u.usuario)}</div>
           <div class="muted">Rol: ${escapar(u.rol)}</div>
           <div class="muted">Teléfono: ${escapar(u.telefono || "-")}</div>
           <div class="muted">Email: ${escapar(u.email || "-")}</div>
 
-          <div class="fila-botones" style="margin-top:10px;">
-            <button class="btn btn-gray" onclick="abrirFichaPorId('${escapar(u.id)}')">Abrir ficha</button>
-            ${String(u.usuario).toLowerCase() !== "admin" ? `<button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>` : ``}
+          <div style="margin-top:12px;">
+            <button class="btn btn-gray" onclick="abrirFicha('${escapar(u.id)}')">Abrir ficha</button>
+            ${String(u.usuario).toLowerCase() !== "admin" ? `
+              <button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>
+            ` : ""}
           </div>
         </div>
       `).join("")}
@@ -307,22 +279,19 @@ function renderListadoUsuarios() {
   `;
 }
 
-function renderFichaVacia() {
+function fichaVacia(){
   return `
     <div class="card">
       <h2>Ficha de usuario</h2>
-      <p>Selecciona un usuario del listado.</p>
+      <p>Selecciona un usuario.</p>
     </div>
   `;
 }
 
-function renderFichaUsuario(u) {
-  const tel = u.telefono ? escapar(u.telefono) : "";
-  const email = u.email ? escapar(u.email) : "";
-  const direccion = u.direccion ? escapar(u.direccion) : "";
-
-  const telLimpio = String(u.telefono || "").replaceAll(" ", "");
-  const telWhats = telLimpio.replaceAll("+", "");
+function fichaUsuario(u){
+  const tel = String(u.telefono || "").replaceAll(" ", "");
+  const telWhatsapp = tel.replaceAll("+", "");
+  const direccion = String(u.direccion || "").trim();
 
   return `
     <div class="card">
@@ -331,49 +300,52 @@ function renderFichaUsuario(u) {
       <input id="edit_nombre" value="${escapar(u.nombre)}" placeholder="Nombre">
       <input id="edit_usuario" value="${escapar(u.usuario)}" placeholder="Usuario">
       <input id="edit_password" value="${escapar(u.password)}" placeholder="Contraseña">
+
       <select id="edit_rol">
         <option value="operario" ${u.rol === "operario" ? "selected" : ""}>operario</option>
         <option value="admin" ${u.rol === "admin" ? "selected" : ""}>admin</option>
       </select>
-      <input id="edit_telefono" value="${tel}" placeholder="Teléfono">
-      <input id="edit_email" value="${email}" placeholder="Email">
-      <input id="edit_direccion" value="${direccion}" placeholder="Dirección">
 
-      <div class="fila-botones">
-        <button class="btn btn-dark" onclick="guardarEdicionUsuario()">Guardar cambios</button>
+      <input id="edit_telefono" value="${escapar(u.telefono || "")}" placeholder="Teléfono">
+      <input id="edit_email" value="${escapar(u.email || "")}" placeholder="Email">
+      <input id="edit_direccion" value="${escapar(u.direccion || "")}" placeholder="Dirección">
+
+      <button class="btn btn-dark" onclick="guardarCambios()">Guardar cambios</button>
+
+      <div id="msgEditar" style="margin-top:12px;"></div>
+
+      <hr style="margin:22px 0;">
+
+      <h2>Acciones rápidas</h2>
+
+      <div class="acciones">
+        ${tel ? `<a href="tel:${encodeURIComponent(tel)}">Llamar</a>` : ""}
+        ${tel ? `<a href="sms:${encodeURIComponent(tel)}">SMS</a>` : ""}
+        ${tel ? `<a target="_blank" href="https://wa.me/${encodeURIComponent(telWhatsapp)}">WhatsApp</a>` : ""}
+        ${u.email ? `<a href="mailto:${encodeURIComponent(u.email)}">Email</a>` : ""}
+        ${direccion ? `<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccion)}">Google Maps</a>` : ""}
+        ${direccion ? `<a target="_blank" href="https://waze.com/ul?q=${encodeURIComponent(direccion)}&navigate=yes">Waze</a>` : ""}
+        ${direccion ? `<a target="_blank" href="https://maps.apple.com/?q=${encodeURIComponent(direccion)}">Mapas Apple</a>` : ""}
       </div>
 
-      <div id="msgEditarUsuario" style="margin-top:12px;"></div>
-
-      <hr style="margin:20px 0;">
-
-      <h3>Acciones rápidas</h3>
-      <div class="acciones-rapidas">
-        ${u.telefono ? `<a href="tel:${encodeURIComponent(telLimpio)}">Llamar</a>` : ``}
-        ${u.telefono ? `<a href="sms:${encodeURIComponent(telLimpio)}">SMS</a>` : ``}
-        ${u.telefono ? `<a target="_blank" href="https://wa.me/${encodeURIComponent(telWhats)}">WhatsApp</a>` : ``}
-        ${u.email ? `<a href="mailto:${encodeURIComponent(u.email)}">Email</a>` : ``}
-        ${u.direccion ? `<a target="_blank" href="https://www.google.com/maps/search/${encodeURIComponent(u.direccion)}">Google Maps</a>` : ``}
-      </div>
-
-      ${!u.telefono && !u.email && !u.direccion ? `<p class="muted">Este usuario no tiene datos de contacto.</p>` : ``}
+      ${!tel && !u.email && !direccion ? `<p class="muted">No hay datos de contacto.</p>` : ""}
     </div>
   `;
 }
 
-async function mostrarUsuarios() {
+async function mostrarUsuarios(){
   const contenido = document.getElementById("contenido");
   contenido.innerHTML = `<div class="card">Cargando usuarios...</div>`;
 
-  try {
+  try{
     await cargarUsuarios();
 
     contenido.innerHTML = `
-      ${renderFormularioNuevo()}
-      ${renderListadoUsuarios()}
-      <div id="bloqueFicha">${usuarioAbierto ? renderFichaUsuario(usuarioAbierto) : renderFichaVacia()}</div>
+      ${formularioNuevo()}
+      ${listado()}
+      <div id="ficha">${usuarioAbierto ? fichaUsuario(usuarioAbierto) : fichaVacia()}</div>
     `;
-  } catch (e) {
+  }catch(e){
     contenido.innerHTML = `
       <div class="card">
         <h2>Usuarios</h2>
@@ -383,8 +355,8 @@ async function mostrarUsuarios() {
   }
 }
 
-async function guardarUsuarioNuevo() {
-  const msg = document.getElementById("msgNuevoUsuario");
+async function guardarUsuario(){
+  const msg = document.getElementById("msgNuevo");
 
   const nuevo = {
     nombre: document.getElementById("nuevo_nombre").value.trim(),
@@ -399,54 +371,45 @@ async function guardarUsuarioNuevo() {
   msg.className = "error";
   msg.textContent = "";
 
-  if (!nuevo.nombre || !nuevo.usuario || !nuevo.password || !nuevo.rol) {
+  if(!nuevo.nombre || !nuevo.usuario || !nuevo.password || !nuevo.rol){
     msg.textContent = "Nombre, usuario, contraseña y rol son obligatorios.";
     return;
   }
 
-  const repetido = usuariosCache.some(
-    u => String(u.usuario).trim().toLowerCase() === nuevo.usuario
-  );
-
-  if (repetido) {
+  const repetido = usuarios.some(u => String(u.usuario).toLowerCase() === nuevo.usuario);
+  if(repetido){
     msg.textContent = "Ese usuario ya existe.";
     return;
   }
 
-  try {
-    await apiSupabase("/rest/v1/users", {
+  try{
+    await api("/rest/v1/users", {
       method: "POST",
-      headers: {
-        "Prefer": "return=representation"
-      },
+      headers: {"Prefer":"return=representation"},
       body: nuevo
     });
 
-    msg.className = "ok";
-    msg.textContent = "Usuario guardado correctamente.";
-
     usuarioAbierto = null;
     await mostrarUsuarios();
-  } catch (e) {
-    msg.className = "error";
+
+  }catch(e){
     msg.textContent = "Error guardando usuario: " + e.message;
   }
 }
 
-function abrirFichaPorId(id) {
-  const encontrado = usuariosCache.find(u => String(u.id) === String(id));
-  if (!encontrado) return;
+function abrirFicha(id){
+  const u = usuarios.find(x => String(x.id) === String(id));
+  if(!u) return;
 
-  usuarioAbierto = encontrado;
-  const bloque = document.getElementById("bloqueFicha");
-  bloque.innerHTML = renderFichaUsuario(usuarioAbierto);
-  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  usuarioAbierto = u;
+  document.getElementById("ficha").innerHTML = fichaUsuario(u);
+  window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
 }
 
-async function guardarEdicionUsuario() {
-  const msg = document.getElementById("msgEditarUsuario");
+async function guardarCambios(){
+  if(!usuarioAbierto) return;
 
-  if (!usuarioAbierto) return;
+  const msg = document.getElementById("msgEditar");
 
   const editado = {
     nombre: document.getElementById("edit_nombre").value.trim(),
@@ -461,94 +424,90 @@ async function guardarEdicionUsuario() {
   msg.className = "error";
   msg.textContent = "";
 
-  if (!editado.nombre || !editado.usuario || !editado.password || !editado.rol) {
+  if(!editado.nombre || !editado.usuario || !editado.password || !editado.rol){
     msg.textContent = "Nombre, usuario, contraseña y rol son obligatorios.";
     return;
   }
 
-  const repetido = usuariosCache.some(u =>
+  const repetido = usuarios.some(u =>
     String(u.id) !== String(usuarioAbierto.id) &&
-    String(u.usuario).trim().toLowerCase() === editado.usuario
+    String(u.usuario).toLowerCase() === editado.usuario
   );
 
-  if (repetido) {
+  if(repetido){
     msg.textContent = "Ese usuario ya existe.";
     return;
   }
 
-  try {
-    await apiSupabase("/rest/v1/users?id=eq." + encodeURIComponent(usuarioAbierto.id), {
+  try{
+    await api("/rest/v1/users?id=eq." + encodeURIComponent(usuarioAbierto.id), {
       method: "PATCH",
-      headers: {
-        "Prefer": "return=representation"
-      },
+      headers: {"Prefer":"return=representation"},
       body: editado
     });
 
-    if (usuarioSesion && String(usuarioSesion.id) === String(usuarioAbierto.id)) {
-      const nuevaSesion = { ...usuarioSesion, ...editado };
-      localStorage.setItem("usuario", JSON.stringify(nuevaSesion));
-      usuarioSesion = nuevaSesion;
-      renderShell();
+    usuarioAbierto = {...usuarioAbierto, ...editado};
+
+    if(String(usuarioSesion.id) === String(usuarioAbierto.id)){
+      localStorage.setItem("usuario", JSON.stringify(usuarioAbierto));
+      usuarioSesion = usuarioAbierto;
     }
 
-    usuarioAbierto = { ...usuarioAbierto, ...editado };
     msg.className = "ok";
     msg.textContent = "Cambios guardados.";
 
+    await cargarUsuarios();
     await mostrarUsuarios();
-    abrirFichaPorId(usuarioAbierto.id);
-  } catch (e) {
-    msg.className = "error";
+    abrirFicha(usuarioAbierto.id);
+
+  }catch(e){
     msg.textContent = "Error guardando cambios: " + e.message;
   }
 }
 
-async function borrarUsuario(id) {
-  const encontrado = usuariosCache.find(u => String(u.id) === String(id));
-  if (!encontrado) return;
+async function borrarUsuario(id){
+  const u = usuarios.find(x => String(x.id) === String(id));
+  if(!u) return;
 
-  if (String(encontrado.usuario).trim().toLowerCase() === "admin") {
-    alert("No se puede borrar el usuario admin.");
+  if(String(u.usuario).toLowerCase() === "admin"){
+    alert("No se puede borrar admin.");
     return;
   }
 
-  if (!confirm("¿Seguro que quieres eliminar este usuario?")) return;
+  if(!confirm("¿Eliminar este usuario?")) return;
 
-  try {
-    await apiSupabase("/rest/v1/users?id=eq." + encodeURIComponent(id), {
-      method: "DELETE"
+  try{
+    await api("/rest/v1/users?id=eq." + encodeURIComponent(id), {
+      method:"DELETE"
     });
 
-    if (usuarioAbierto && String(usuarioAbierto.id) === String(id)) {
-      usuarioAbierto = null;
-    }
-
+    usuarioAbierto = null;
     await mostrarUsuarios();
-  } catch (e) {
+
+  }catch(e){
     alert("Error borrando usuario: " + e.message);
   }
 }
 
-function iniciar() {
-  usuarioSesion = leerSesion();
+function iniciar(){
+  usuarioSesion = sesion();
 
-  if (!usuarioSesion) {
-    window.location.href = "./index.html?v=700";
+  if(!usuarioSesion){
+    window.location.href = "./index.html?v=900";
     return;
   }
 
-  renderShell();
+  pintarEstructura();
   mostrarInicio();
 }
 
 window.cerrarSesion = cerrarSesion;
 window.mostrarInicio = mostrarInicio;
 window.mostrarUsuarios = mostrarUsuarios;
-window.mostrarConfiguracion = mostrarConfiguracion;
-window.guardarUsuarioNuevo = guardarUsuarioNuevo;
-window.abrirFichaPorId = abrirFichaPorId;
-window.guardarEdicionUsuario = guardarEdicionUsuario;
+window.mostrarConfig = mostrarConfig;
+window.guardarUsuario = guardarUsuario;
+window.abrirFicha = abrirFicha;
+window.guardarCambios = guardarCambios;
 window.borrarUsuario = borrarUsuario;
 
 iniciar();
