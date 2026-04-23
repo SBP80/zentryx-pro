@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx APP V600</title>
+  <title>Zentryx APP V610</title>
   <style>
     body{
       margin:0;
@@ -162,7 +162,7 @@ function leerSesion() {
 
 function cerrarSesion() {
   localStorage.removeItem("usuario");
-  window.location.href = "./index.html";
+  window.location.href = "./index.html?v=700";
 }
 
 async function apiSupabase(path, options = {}) {
@@ -200,7 +200,7 @@ function renderErrorPantalla(titulo, detalle) {
         <h2>${escapar(titulo)}</h2>
         <div class="error">${escapar(detalle)}</div>
         <div style="margin-top:16px;">
-          <button class="btn btn-dark" onclick="window.location.href='./index.html'">Volver</button>
+          <button class="btn btn-dark" onclick="window.location.href='./index.html?v=700'">Volver</button>
         </div>
       </div>
     </div>
@@ -210,7 +210,7 @@ function renderErrorPantalla(titulo, detalle) {
 function renderShell() {
   APP.innerHTML = `
     <div class="top">
-      <div class="ver">APP V600</div>
+      <div class="ver">APP V610</div>
       <h1 style="margin:0;">Zentryx</h1>
       <div style="margin-top:8px;font-size:18px;">${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</div>
       <button class="salir" onclick="cerrarSesion()">Salir</button>
@@ -298,8 +298,8 @@ function renderListadoUsuarios() {
           <div class="muted">Email: ${escapar(u.email || "-")}</div>
 
           <div class="fila-botones" style="margin-top:10px;">
-            <button class="btn btn-gray" onclick="abrirFicha(${JSON.stringify(u).replaceAll('"', '&quot;')})">Abrir ficha</button>
-            ${u.usuario !== usuarioSesion.usuario ? `<button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>` : ``}
+            <button class="btn btn-gray" onclick="abrirFichaPorId('${escapar(u.id)}')">Abrir ficha</button>
+            ${String(u.usuario).toLowerCase() !== "admin" ? `<button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>` : ``}
           </div>
         </div>
       `).join("")}
@@ -388,7 +388,7 @@ async function guardarUsuarioNuevo() {
 
   const nuevo = {
     nombre: document.getElementById("nuevo_nombre").value.trim(),
-    usuario: document.getElementById("nuevo_usuario").value.trim(),
+    usuario: document.getElementById("nuevo_usuario").value.trim().toLowerCase(),
     password: document.getElementById("nuevo_password").value.trim(),
     rol: document.getElementById("nuevo_rol").value.trim(),
     telefono: document.getElementById("nuevo_telefono").value.trim(),
@@ -404,7 +404,10 @@ async function guardarUsuarioNuevo() {
     return;
   }
 
-  const repetido = usuariosCache.some(u => String(u.usuario).toLowerCase() === nuevo.usuario.toLowerCase());
+  const repetido = usuariosCache.some(
+    u => String(u.usuario).trim().toLowerCase() === nuevo.usuario
+  );
+
   if (repetido) {
     msg.textContent = "Ese usuario ya existe.";
     return;
@@ -430,17 +433,11 @@ async function guardarUsuarioNuevo() {
   }
 }
 
-function abrirFicha(u) {
-  try {
-    if (typeof u === "string") {
-      usuarioAbierto = JSON.parse(u);
-    } else {
-      usuarioAbierto = u;
-    }
-  } catch {
-    usuarioAbierto = u;
-  }
+function abrirFichaPorId(id) {
+  const encontrado = usuariosCache.find(u => String(u.id) === String(id));
+  if (!encontrado) return;
 
+  usuarioAbierto = encontrado;
   const bloque = document.getElementById("bloqueFicha");
   bloque.innerHTML = renderFichaUsuario(usuarioAbierto);
   window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
@@ -453,7 +450,7 @@ async function guardarEdicionUsuario() {
 
   const editado = {
     nombre: document.getElementById("edit_nombre").value.trim(),
-    usuario: document.getElementById("edit_usuario").value.trim(),
+    usuario: document.getElementById("edit_usuario").value.trim().toLowerCase(),
     password: document.getElementById("edit_password").value.trim(),
     rol: document.getElementById("edit_rol").value.trim(),
     telefono: document.getElementById("edit_telefono").value.trim(),
@@ -471,7 +468,7 @@ async function guardarEdicionUsuario() {
 
   const repetido = usuariosCache.some(u =>
     String(u.id) !== String(usuarioAbierto.id) &&
-    String(u.usuario).toLowerCase() === editado.usuario.toLowerCase()
+    String(u.usuario).trim().toLowerCase() === editado.usuario
   );
 
   if (repetido) {
@@ -500,7 +497,7 @@ async function guardarEdicionUsuario() {
     msg.textContent = "Cambios guardados.";
 
     await mostrarUsuarios();
-    abrirFicha(usuarioAbierto);
+    abrirFichaPorId(usuarioAbierto.id);
   } catch (e) {
     msg.className = "error";
     msg.textContent = "Error guardando cambios: " + e.message;
@@ -508,6 +505,14 @@ async function guardarEdicionUsuario() {
 }
 
 async function borrarUsuario(id) {
+  const encontrado = usuariosCache.find(u => String(u.id) === String(id));
+  if (!encontrado) return;
+
+  if (String(encontrado.usuario).trim().toLowerCase() === "admin") {
+    alert("No se puede borrar el usuario admin.");
+    return;
+  }
+
   if (!confirm("¿Seguro que quieres eliminar este usuario?")) return;
 
   try {
@@ -529,7 +534,7 @@ function iniciar() {
   usuarioSesion = leerSesion();
 
   if (!usuarioSesion) {
-    window.location.href = "./index.html";
+    window.location.href = "./index.html?v=700";
     return;
   }
 
@@ -542,7 +547,7 @@ window.mostrarInicio = mostrarInicio;
 window.mostrarUsuarios = mostrarUsuarios;
 window.mostrarConfiguracion = mostrarConfiguracion;
 window.guardarUsuarioNuevo = guardarUsuarioNuevo;
-window.abrirFicha = abrirFicha;
+window.abrirFichaPorId = abrirFichaPorId;
 window.guardarEdicionUsuario = guardarEdicionUsuario;
 window.borrarUsuario = borrarUsuario;
 
