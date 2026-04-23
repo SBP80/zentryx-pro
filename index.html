@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx V200</title>
+  <title>Zentryx V201</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body{
       font-family:Arial,sans-serif;
@@ -46,8 +47,7 @@
     }
     #msg{
       margin-top:12px;
-      font-size:18px;
-      color:#15803d;
+      font-size:15px;
       white-space:pre-wrap;
     }
     .ver{
@@ -61,9 +61,9 @@
 <body>
 
   <div class="box">
-    <div class="ver">VERSIÓN 200</div>
+    <div class="ver">VERSIÓN 201</div>
     <h2 style="margin-top:0;">Zentryx</h2>
-    <p>Prueba definitiva</p>
+    <p>Acceso al sistema</p>
 
     <input id="usuario" placeholder="Usuario">
     <input id="password" type="password" placeholder="Contraseña">
@@ -74,9 +74,52 @@
   </div>
 
   <script>
-    document.getElementById("btnLogin").addEventListener("click", function () {
-      document.getElementById("msg").textContent = "BOTÓN OK";
-      alert("BOTÓN OK");
+    const msg = document.getElementById("msg");
+    const btnLogin = document.getElementById("btnLogin");
+
+    const supabase = window.supabase.createClient(
+      "https://idtaamivqbiuxtjywuux.supabase.co",
+      "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
+    );
+
+    btnLogin.addEventListener("click", async function () {
+      const usuario = document.getElementById("usuario").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      msg.style.color = "#374151";
+      msg.textContent = "Comprobando...";
+
+      if (!usuario || !password) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Escribe usuario y contraseña.";
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("usuario", usuario)
+          .eq("password", password)
+          .single();
+
+        if (error || !data) {
+          msg.style.color = "#b91c1c";
+          msg.textContent = "Usuario o contraseña incorrectos.";
+          return;
+        }
+
+        localStorage.setItem("usuario", JSON.stringify(data));
+        msg.style.color = "#15803d";
+        msg.textContent = "Login correcto. Entrando...";
+
+        setTimeout(() => {
+          window.location.href = "./app.html";
+        }, 400);
+      } catch (e) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Error: " + e.message;
+      }
     });
   </script>
 
