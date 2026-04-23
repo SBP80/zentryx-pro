@@ -3,96 +3,123 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx V202</title>
+  <title>Zentryx Login V700</title>
   <style>
     body{
+      margin:0;
       font-family:Arial,sans-serif;
       background:#eef2f7;
       display:flex;
       justify-content:center;
       align-items:center;
       min-height:100vh;
-      margin:0;
       padding:20px;
       box-sizing:border-box;
     }
     .box{
-      background:#fff;
-      padding:30px;
-      border-radius:16px;
       width:100%;
-      max-width:380px;
+      max-width:420px;
+      background:#fff;
+      border-radius:18px;
+      padding:28px;
       box-sizing:border-box;
-      box-shadow:0 10px 30px rgba(0,0,0,.1);
+      box-shadow:0 10px 30px rgba(0,0,0,.08);
+    }
+    .ver{
+      color:#ff4d4f;
+      font-size:28px;
+      font-weight:800;
+      margin-bottom:10px;
+    }
+    h1{
+      margin:0 0 10px 0;
+      font-size:36px;
+    }
+    p{
+      margin:0 0 20px 0;
+      color:#374151;
+      font-size:18px;
     }
     input{
       width:100%;
-      padding:14px;
-      margin:10px 0;
-      border-radius:10px;
-      border:1px solid #ccc;
+      height:54px;
+      border:1px solid #d1d5db;
+      border-radius:14px;
+      padding:0 16px;
       box-sizing:border-box;
-      font-size:16px;
+      font-size:18px;
+      margin-bottom:12px;
+      outline:none;
     }
     button{
       width:100%;
-      padding:14px;
+      height:54px;
       border:none;
-      border-radius:10px;
+      border-radius:14px;
       background:#0d1b2a;
       color:#fff;
-      font-weight:bold;
-      font-size:16px;
+      font-size:22px;
+      font-weight:700;
     }
     #msg{
-      margin-top:12px;
-      font-size:15px;
+      margin-top:14px;
+      min-height:24px;
+      font-size:16px;
       white-space:pre-wrap;
     }
-    .ver{
-      color:#b91c1c;
-      font-size:28px;
-      font-weight:800;
-      margin-bottom:12px;
-    }
+    .ok{ color:#15803d; font-weight:700; }
+    .error{ color:#b91c1c; font-weight:700; }
+    .muted{ color:#4b5563; }
   </style>
 </head>
 <body>
 
   <div class="box">
-    <div class="ver">VERSIÓN 202</div>
-    <h2 style="margin-top:0;">Zentryx</h2>
+    <div class="ver">LOGIN V700</div>
+    <h1>Zentryx</h1>
     <p>Acceso al sistema</p>
 
-    <input id="usuario" placeholder="Usuario">
-    <input id="password" type="password" placeholder="Contraseña">
+    <input id="usuario" type="text" placeholder="Usuario" autocomplete="username">
+    <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
 
     <button id="btnLogin" type="button">Entrar</button>
 
-    <div id="msg">Página cargada.</div>
+    <div id="msg" class="muted">Página cargada.</div>
   </div>
 
   <script>
-    const btnLogin = document.getElementById("btnLogin");
-    const msg = document.getElementById("msg");
-
     const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
     const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
-    btnLogin.addEventListener("click", login);
+    const btnLogin = document.getElementById("btnLogin");
+    const msg = document.getElementById("msg");
+    const inputUsuario = document.getElementById("usuario");
+    const inputPassword = document.getElementById("password");
+
+    function setMsg(texto, clase) {
+      msg.className = clase;
+      msg.textContent = texto;
+    }
+
+    function normalizarUsuario(valor) {
+      return String(valor || "").trim().toLowerCase();
+    }
+
+    function guardarSesion(usuario) {
+      localStorage.setItem("usuario", JSON.stringify(usuario));
+    }
 
     async function login() {
-      const usuario = document.getElementById("usuario").value.trim();
-      const password = document.getElementById("password").value.trim();
+      const usuario = normalizarUsuario(inputUsuario.value);
+      const password = String(inputPassword.value || "").trim();
 
       if (!usuario || !password) {
-        msg.style.color = "#b91c1c";
-        msg.textContent = "Escribe usuario y contraseña.";
+        setMsg("Escribe usuario y contraseña.", "error");
         return;
       }
 
-      msg.style.color = "#374151";
-      msg.textContent = "Comprobando...";
+      btnLogin.disabled = true;
+      setMsg("Comprobando...", "muted");
 
       try {
         const url =
@@ -112,35 +139,49 @@
           }
         });
 
-        if (!res.ok) {
-          const texto = await res.text();
-          msg.style.color = "#b91c1c";
-          msg.textContent = "Error HTTP " + res.status + ":\n" + texto;
-          return;
+        const texto = await res.text();
+        let data = [];
+
+        try {
+          data = texto ? JSON.parse(texto) : [];
+        } catch {
+          data = [];
         }
 
-        const data = await res.json();
+        if (!res.ok) {
+          setMsg("Error de conexión con la base de datos.", "error");
+          btnLogin.disabled = false;
+          return;
+        }
 
         if (!Array.isArray(data) || data.length === 0) {
-          msg.style.color = "#b91c1c";
-          msg.textContent = "Usuario o contraseña incorrectos.";
+          setMsg("Usuario o contraseña incorrectos.", "error");
+          btnLogin.disabled = false;
           return;
         }
 
-        localStorage.setItem("usuario", JSON.stringify(data[0]));
-
-        msg.style.color = "#15803d";
-        msg.textContent = "Login correcto. Entrando...";
+        guardarSesion(data[0]);
+        setMsg("Login correcto. Entrando...", "ok");
 
         setTimeout(() => {
-          window.location.href = "./app.html";
+          window.location.href = "./app.html?v=600";
         }, 400);
 
       } catch (e) {
-        msg.style.color = "#b91c1c";
-        msg.textContent = "Error de conexión:\n" + e.message;
+        setMsg("Error de red: " + e.message, "error");
+        btnLogin.disabled = false;
       }
     }
+
+    btnLogin.addEventListener("click", login);
+
+    inputPassword.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") login();
+    });
+
+    inputUsuario.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") login();
+    });
   </script>
 
 </body>
