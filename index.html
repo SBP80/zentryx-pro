@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx V201</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <title>Zentryx V202</title>
   <style>
     body{
       font-family:Arial,sans-serif;
@@ -61,7 +60,7 @@
 <body>
 
   <div class="box">
-    <div class="ver">VERSIÓN 201</div>
+    <div class="ver">VERSIÓN 202</div>
     <h2 style="margin-top:0;">Zentryx</h2>
     <p>Acceso al sistema</p>
 
@@ -74,20 +73,17 @@
   </div>
 
   <script>
-    const msg = document.getElementById("msg");
     const btnLogin = document.getElementById("btnLogin");
+    const msg = document.getElementById("msg");
 
-    const supabase = window.supabase.createClient(
-      "https://idtaamivqbiuxtjywuux.supabase.co",
-      "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-    );
+    const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
-    btnLogin.addEventListener("click", async function () {
+    btnLogin.addEventListener("click", login);
+
+    async function login() {
       const usuario = document.getElementById("usuario").value.trim();
       const password = document.getElementById("password").value.trim();
-
-      msg.style.color = "#374151";
-      msg.textContent = "Comprobando...";
 
       if (!usuario || !password) {
         msg.style.color = "#b91c1c";
@@ -95,32 +91,56 @@
         return;
       }
 
-      try {
-        const { data, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("usuario", usuario)
-          .eq("password", password)
-          .single();
+      msg.style.color = "#374151";
+      msg.textContent = "Comprobando...";
 
-        if (error || !data) {
+      try {
+        const url =
+          SUPABASE_URL +
+          "/rest/v1/users?select=*&usuario=eq." +
+          encodeURIComponent(usuario) +
+          "&password=eq." +
+          encodeURIComponent(password) +
+          "&limit=1";
+
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": "Bearer " + SUPABASE_KEY,
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!res.ok) {
+          const texto = await res.text();
+          msg.style.color = "#b91c1c";
+          msg.textContent = "Error HTTP " + res.status + ":\n" + texto;
+          return;
+        }
+
+        const data = await res.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
           msg.style.color = "#b91c1c";
           msg.textContent = "Usuario o contraseña incorrectos.";
           return;
         }
 
-        localStorage.setItem("usuario", JSON.stringify(data));
+        localStorage.setItem("usuario", JSON.stringify(data[0]));
+
         msg.style.color = "#15803d";
         msg.textContent = "Login correcto. Entrando...";
 
         setTimeout(() => {
           window.location.href = "./app.html";
         }, 400);
+
       } catch (e) {
         msg.style.color = "#b91c1c";
-        msg.textContent = "Error: " + e.message;
+        msg.textContent = "Error de conexión:\n" + e.message;
       }
-    });
+    }
   </script>
 
 </body>
