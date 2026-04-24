@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V1903</title>
+<title>Zentryx V1904</title>
 
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
@@ -26,7 +26,7 @@ select{width:100%;padding:14px;border-radius:10px;font-size:18px;margin-bottom:1
 <body>
 
 <div class="top">
-<h1>Zentryx V1903</h1>
+<h1>Zentryx V1904</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -48,14 +48,15 @@ method:o.method||"GET",
 headers:{
 apikey:KEY,
 Authorization:"Bearer "+KEY,
-"Content-Type":"application/json"
+"Content-Type":"application/json",
+...(o.headers||{})
 },
 body:o.body?JSON.stringify(o.body):undefined
 }).then(async r=>{
 const txt=await r.text();
 let data=null;
 try{data=txt?JSON.parse(txt):null}catch{data=txt}
-if(!r.ok) throw new Error(txt||"Error");
+if(!r.ok) throw new Error(txt||"Error Supabase");
 return data;
 });
 }
@@ -207,6 +208,58 @@ direccion:"Lat "+pos.coords.latitude+", Lng "+pos.coords.longitude
 });
 }
 
+async function crearHoraExtraAutomatica(tipo,fichaje){
+if(tipo!=="salida") return;
+
+const ahora=new Date();
+const dia=ahora.getDay();
+
+const horarios=await api(
+"/rest/v1/horarios_usuario?select=*&user_id=eq."+encodeURIComponent(user.id)+"&dia_semana=eq."+dia+"&limit=1"
+);
+
+const horario=horarios.length?horarios[0]:null;
+
+const tipos=await api("/rest/v1/tipos_horas_extra?select=*&activo=eq.true");
+const tipoNormal=tipos.find(t=>String(t.nombre).toLowerCase()==="normal") || tipos[0];
+
+if(!tipoNormal) return;
+
+let minutos=0;
+
+if(!horario || horario.trabaja===false){
+minutos=60;
+}else if(horario.hora_salida){
+const partes=String(horario.hora_salida).split(":");
+const salidaPlan=new Date();
+salidaPlan.setHours(Number(partes[0]||0),Number(partes[1]||0),0,0);
+minutos=Math.max(0,Math.round((ahora-salidaPlan)/60000));
+}
+
+if(minutos<=0) return;
+
+const precio=Number(tipoNormal.precio||0);
+const total=Number(((minutos/60)*precio).toFixed(2));
+
+await api("/rest/v1/horas_extra",{
+method:"POST",
+headers:{"Prefer":"return=representation"},
+body:{
+user_id:String(user.id),
+fichaje_id:fichaje.id,
+tipo_id:tipoNormal.id,
+minutos:minutos,
+precio_unitario:precio,
+total:total,
+estado:"pendiente",
+validado_usuario:false,
+validado_admin:false,
+admin_confirmo_pago:false,
+usuario_confirmo_cobro:false
+}
+});
+}
+
 async function guardarFichaje(){
 const tipo=document.getElementById("tipoFichaje").value;
 const msg=document.getElementById("msgFichaje");
@@ -218,7 +271,7 @@ const ubi=await obtenerUbicacion();
 
 msg.innerHTML="Guardando...";
 
-await api("/rest/v1/fichajes",{
+const data=await api("/rest/v1/fichajes",{
 method:"POST",
 headers:{"Prefer":"return=representation"},
 body:{
@@ -229,6 +282,10 @@ lng:ubi.lng,
 direccion:ubi.direccion
 }
 });
+
+const fichaje=Array.isArray(data)?data[0]:data;
+
+await crearHoraExtraAutomatica(tipo,fichaje);
 
 panelFichaje=false;
 await pintarInicio();
@@ -252,13 +309,62 @@ horas.length
 ? horas.map(h=>`
 <div class="card">
 ${h.minutos||0} min · ${Number(h.total||0).toFixed(2)} €<br>
-Estado: ${h.estado||"pendiente"}
+Estado: ${h.estado||"pendiente"}<br>
+${!h.validado_usuario ? `<button class="btn green" onclick="validarUsuario('${h.id}')">Validar</button>` : ""}
+${(user.rol==="admin" || user.rol==="administrativo") && h.validado_usuario && !h.validado_admin ? `<button class="btn blue" onclick="validarAdmin('${h.id}')">Validar admin</button>` : ""}
+${(user.rol==="admin" || user.rol==="administrativo") && h.validado_admin && !h.admin_confirmo_pago ? `<button class="btn blue" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>` : ""}
+${h.admin_confirmo_pago && !h.usuario_confirmo_cobro ? `<button class="btn green" onclick="cobroUsuario('${h.id}')">Horas cobradas</button>` : ""}
 </div>
 `).join("")
 :"<div class='card'>No hay horas extra pendientes.</div>"
 }
 `;
 }
+
+async function validarUsuario(id){
+await api("/rest/v1/horas_extra?id=eq."+encodeURIComponent(id),{
+method:"PATCH",
+headers:{"Prefer":"return=representation"},
+body:{validado_usuario:true,estado:"pendiente_admin"}
+});
+await pintarHoras();
+}
+
+async function validarAdmin(id){
+await api("/rest/v1/horas_extra?id=eq."+encodeURIComponent(id),{
+method:"PATCH",
+headers:{"Prefer":"return=representation"},
+body:{validado_admin:true,estado:"validado_admin"}
+});
+await pintarHoras();
+}
+
+async function pagoAdmin(id){
+await api("/rest/v1/horas_extra?id=eq."+encodeURIComponent(id),{
+method:"PATCH",
+headers:{"Prefer":"return=representation"},
+body:{admin_confirmo_pago:true,fecha_admin_pago:new Date().toISOString()}
+});
+await pintarHoras();
+}
+
+async function cobroUsuario(id){
+await api("/rest/v1/horas_extra?id=eq."+encodeURIComponent(id),{
+method:"PATCH",
+headers:{"Prefer":"return=representation"},
+body:{usuario_confirmo_cobro:true,fecha_usuario_cobro:new Date().toISOString(),estado:"pagadas"}
+});
+await pintarHoras();
+}
+
+window.salir=salir;
+window.toggleFichaje=toggleFichaje;
+window.guardarFichaje=guardarFichaje;
+window.pintarHoras=pintarHoras;
+window.validarUsuario=validarUsuario;
+window.validarAdmin=validarAdmin;
+window.pagoAdmin=pagoAdmin;
+window.cobroUsuario=cobroUsuario;
 
 if(cargarSesion()){
 pintarInicio();
