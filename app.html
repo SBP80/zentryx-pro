@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V1902</title>
+<title>Zentryx V1903</title>
 
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
@@ -16,15 +16,17 @@ h1{margin:0}
 .green{background:#16a34a;color:white}
 .red{background:#dc2626;color:white}
 .blue{background:#2563eb;color:white}
+.gray{background:#e5e7eb}
 .badge{background:#e5e7eb;padding:6px 10px;border-radius:999px}
 .row{border:1px solid #ccc;border-radius:10px;padding:10px;margin-bottom:10px}
+select{width:100%;padding:14px;border-radius:10px;font-size:18px;margin-bottom:10px}
 </style>
 </head>
 
 <body>
 
 <div class="top">
-<h1>Zentryx</h1>
+<h1>Zentryx V1903</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -36,6 +38,9 @@ const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
 let user=null;
 let horas=[];
+let fichajes=[];
+let ultimoFichaje=null;
+let panelFichaje=false;
 
 function api(p,o={}){
 return fetch(URL+p,{
@@ -46,45 +51,112 @@ Authorization:"Bearer "+KEY,
 "Content-Type":"application/json"
 },
 body:o.body?JSON.stringify(o.body):undefined
-}).then(r=>r.json());
+}).then(async r=>{
+const txt=await r.text();
+let data=null;
+try{data=txt?JSON.parse(txt):null}catch{data=txt}
+if(!r.ok) throw new Error(txt||"Error");
+return data;
+});
 }
 
 function salir(){
 localStorage.removeItem("usuario");
-location.href="./index.html";
+localStorage.removeItem("user");
+location.href="./index.html?v=1000";
 }
 
 function cargarSesion(){
+try{
 user=JSON.parse(localStorage.getItem("usuario"));
+}catch{
+user=null;
+}
+
 if(!user){
-location.href="./index.html";
+location.href="./index.html?v=1000";
 return false;
 }
 return true;
 }
 
-async function pintarInicio(){
-
+async function cargarHoras(){
 let data;
 
-if(user.rol==="admin"){
+if(user.rol==="admin" || user.rol==="administrativo" || user.rol==="encargado"){
 data=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas");
 }else{
-data=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id+"&estado=neq.pagadas");
+data=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(user.id)+"&estado=neq.pagadas");
 }
 
 horas=data||[];
+}
+
+async function cargarFichajes(){
+fichajes=await api(
+"/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(user.id)+"&order=fecha.desc&limit=10"
+)||[];
+
+ultimoFichaje=fichajes.length?fichajes[0]:null;
+}
+
+function accionesDisponibles(){
+const estado=ultimoFichaje?ultimoFichaje.tipo:"fuera";
+
+if(!ultimoFichaje || estado==="salida"){
+return [{v:"entrada",t:"Entrada"}];
+}
+
+if(estado==="entrada" || estado==="fin_descanso" || estado==="fin_comida"){
+return [
+{v:"inicio_descanso",t:"Inicio descanso"},
+{v:"inicio_comida",t:"Inicio comida"},
+{v:"salida",t:"Salida"}
+];
+}
+
+if(estado==="inicio_descanso"){
+return [{v:"fin_descanso",t:"Fin descanso"}];
+}
+
+if(estado==="inicio_comida"){
+return [{v:"fin_comida",t:"Fin comida"}];
+}
+
+return [];
+}
+
+async function pintarInicio(){
+await cargarHoras();
+await cargarFichajes();
 
 let total=horas.reduce((s,h)=>s+Number(h.total||0),0);
+let estado=ultimoFichaje?ultimoFichaje.tipo:"fuera";
+let acciones=accionesDisponibles();
 
 document.getElementById("app").innerHTML=`
 
 <div class="card">
 <h2>Bienvenido ${user.usuario}</h2>
+<p>${user.nombre||""}</p>
 </div>
 
 <div class="card">
-<button class="btn big green" onclick="alert('Siguiente paso: fichaje real')">FICHAR</button>
+<h3>Fichaje rápido</h3>
+<span class="badge">Estado: ${estado}</span><br><br>
+
+<button class="btn big green" onclick="toggleFichaje()">FICHAR</button>
+
+${panelFichaje?`
+<div class="card">
+<h3>Nuevo fichaje</h3>
+<select id="tipoFichaje">
+${acciones.map(a=>`<option value="${a.v}">${a.t}</option>`).join("")}
+</select>
+<button class="btn blue" onclick="guardarFichaje()">Guardar fichaje</button>
+<div id="msgFichaje"></div>
+</div>
+`:""}
 </div>
 
 <div class="card">
@@ -93,32 +165,98 @@ document.getElementById("app").innerHTML=`
 <button class="btn blue" onclick="pintarHoras()">Ver horas</button>
 </div>
 
+<div class="card">
+<h3>Últimos fichajes</h3>
+${
+fichajes.length
+? fichajes.map(f=>`
+<div class="row">
+<b>${f.tipo}</b><br>
+${new Date(f.fecha).toLocaleString("es-ES")}<br>
+${f.direccion||"Sin ubicación"}
+</div>
+`).join("")
+:"<p>No hay fichajes</p>"
+}
+</div>
+
 `;
 }
 
-async function pintarHoras(){
-
-let data;
-
-if(user.rol==="admin"){
-data=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas");
-}else{
-data=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id+"&estado=neq.pagadas");
+function toggleFichaje(){
+panelFichaje=!panelFichaje;
+pintarInicio();
 }
 
-horas=data||[];
+function obtenerUbicacion(){
+return new Promise(resolve=>{
+if(!navigator.geolocation){
+resolve({lat:null,lng:null,direccion:"Sin ubicación"});
+return;
+}
+
+navigator.geolocation.getCurrentPosition(
+pos=>resolve({
+lat:pos.coords.latitude,
+lng:pos.coords.longitude,
+direccion:"Lat "+pos.coords.latitude+", Lng "+pos.coords.longitude
+}),
+()=>resolve({lat:null,lng:null,direccion:"Ubicación no autorizada"}),
+{enableHighAccuracy:true,timeout:10000}
+);
+});
+}
+
+async function guardarFichaje(){
+const tipo=document.getElementById("tipoFichaje").value;
+const msg=document.getElementById("msgFichaje");
+
+msg.innerHTML="Obteniendo ubicación...";
+
+try{
+const ubi=await obtenerUbicacion();
+
+msg.innerHTML="Guardando...";
+
+await api("/rest/v1/fichajes",{
+method:"POST",
+headers:{"Prefer":"return=representation"},
+body:{
+user_id:String(user.id),
+tipo:tipo,
+lat:ubi.lat,
+lng:ubi.lng,
+direccion:ubi.direccion
+}
+});
+
+panelFichaje=false;
+await pintarInicio();
+
+}catch(e){
+msg.innerHTML="Error: "+e.message;
+}
+}
+
+async function pintarHoras(){
+await cargarHoras();
 
 document.getElementById("app").innerHTML=`
 <div class="card">
-<button class="btn" onclick="pintarInicio()">← Volver</button>
+<button class="btn gray" onclick="pintarInicio()">← Volver</button>
 <h2>Horas extra</h2>
 </div>
 
-${horas.map(h=>`
+${
+horas.length
+? horas.map(h=>`
 <div class="card">
-${h.minutos} min · ${h.total} €
+${h.minutos||0} min · ${Number(h.total||0).toFixed(2)} €<br>
+Estado: ${h.estado||"pendiente"}
 </div>
-`).join("")}
+`).join("")
+:"<div class='card'>No hay horas extra pendientes.</div>"
+}
 `;
 }
 
