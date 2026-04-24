@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx APP V1700</title>
-
+<title>Zentryx APP V1800</title>
 <style>
 body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
 .top{background:#0f172a;color:white;padding:28px 20px;}
@@ -19,26 +18,28 @@ body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
 .btn-gray{background:#e5e7eb;color:#111827;}
 .btn-green{background:#16a34a;color:white;}
 .btn-blue{background:#2563eb;color:white;}
-select,input{width:100%;height:56px;border:1px solid #d1d5db;border-radius:14px;padding:0 14px;font-size:18px;box-sizing:border-box;margin-bottom:12px;}
+.btn-orange{background:#f97316;color:white;}
+select,input,textarea{width:100%;border:1px solid #d1d5db;border-radius:14px;padding:14px;font-size:18px;box-sizing:border-box;margin-bottom:12px;}
+textarea{min-height:90px;}
 .muted{color:#6b7280;}
 .ok{color:#15803d;font-weight:900;}
 .error{color:#b91c1c;font-weight:900;}
-.badge{display:inline-block;background:#e5e7eb;border-radius:999px;padding:8px 12px;font-weight:900;}
+.badge{display:inline-block;background:#e5e7eb;border-radius:999px;padding:8px 12px;font-weight:900;margin:3px;}
 .row{border:1px solid #d1d5db;border-radius:14px;padding:14px;margin-bottom:10px;}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.tabs button{background:#e5e7eb;color:#111827;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;}
 </style>
 </head>
 
 <body>
-
 <div class="top">
-  <div class="version">APP V1700</div>
+  <div class="version">APP V1800</div>
   <h1>Zentryx</h1>
   <button class="btn btn-red" onclick="salir()">Salir</button>
 </div>
 
-<div class="wrap" id="app">
-  <div class="card">Cargando...</div>
-</div>
+<div class="wrap" id="app"><div class="card">Cargando...</div></div>
 
 <script>
 const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
@@ -46,10 +47,18 @@ const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
 let sesion = null;
 let usuarioReal = null;
-let ultimo = null;
-let historial = [];
 let usuarios = [];
+let usuarioAbierto = null;
+let tabUsuario = "ficha";
+let historialInicio = [];
+let ultimoInicio = null;
 let panelFichajeAbierto = false;
+
+let horariosUsuario = [];
+let fichajesUsuario = [];
+let tiposHoras = [];
+let horasExtraUsuario = [];
+let cobrosUsuario = [];
 
 function api(path, opciones = {}){
   return fetch(SUPABASE_URL + path, {
@@ -72,11 +81,8 @@ function api(path, opciones = {}){
 
 function escapar(v){
   return String(v ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
 function leerSesion(){
@@ -94,13 +100,20 @@ function puedeVerUsuarios(){
   return ["admin","encargado","administrativo"].includes(usuarioReal?.rol);
 }
 
+function puedeGestionarHoras(){
+  return ["admin","administrativo"].includes(usuarioReal?.rol);
+}
+
+function puedeEditarFichajes(){
+  return ["admin","administrativo","encargado"].includes(usuarioReal?.rol);
+}
+
 function obtenerUbicacion(){
   return new Promise(resolve => {
     if(!navigator.geolocation){
       resolve({lat:null,lng:null,direccion:"Sin ubicación"});
       return;
     }
-
     navigator.geolocation.getCurrentPosition(
       pos => resolve({
         lat:pos.coords.latitude,
@@ -111,32 +124,6 @@ function obtenerUbicacion(){
       {enableHighAccuracy:true,timeout:10000}
     );
   });
-}
-
-function accionesValidas(){
-  const estado = ultimo ? ultimo.tipo : "fuera";
-
-  if(!ultimo || estado === "salida"){
-    return [{v:"entrada",t:"Entrada"}];
-  }
-
-  if(estado === "entrada" || estado === "fin_descanso" || estado === "fin_comida"){
-    return [
-      {v:"inicio_descanso",t:"Inicio descanso"},
-      {v:"inicio_comida",t:"Inicio comida"},
-      {v:"salida",t:"Salida"}
-    ];
-  }
-
-  if(estado === "inicio_descanso"){
-    return [{v:"fin_descanso",t:"Fin descanso"}];
-  }
-
-  if(estado === "inicio_comida"){
-    return [{v:"fin_comida",t:"Fin comida"}];
-  }
-
-  return [];
 }
 
 async function cargarUsuarioReal(){
@@ -150,14 +137,28 @@ async function cargarFichajesInicio(){
     encodeURIComponent(String(usuarioReal.id)) +
     "&order=fecha.desc&limit=10"
   );
+  historialInicio = Array.isArray(data) ? data : [];
+  ultimoInicio = historialInicio.length ? historialInicio[0] : null;
+}
 
-  historial = Array.isArray(data) ? data : [];
-  ultimo = historial.length ? historial[0] : null;
+function accionesValidasInicio(){
+  const estado = ultimoInicio ? ultimoInicio.tipo : "fuera";
+  if(!ultimoInicio || estado === "salida") return [{v:"entrada",t:"Entrada"}];
+  if(["entrada","fin_descanso","fin_comida"].includes(estado)){
+    return [
+      {v:"inicio_descanso",t:"Inicio descanso"},
+      {v:"inicio_comida",t:"Inicio comida"},
+      {v:"salida",t:"Salida"}
+    ];
+  }
+  if(estado === "inicio_descanso") return [{v:"fin_descanso",t:"Fin descanso"}];
+  if(estado === "inicio_comida") return [{v:"fin_comida",t:"Fin comida"}];
+  return [];
 }
 
 function pintarInicio(){
-  const acciones = accionesValidas();
-  const estado = ultimo ? ultimo.tipo : "fuera";
+  const acciones = accionesValidasInicio();
+  const estado = ultimoInicio ? ultimoInicio.tipo : "fuera";
 
   document.getElementById("app").innerHTML = `
     <div class="card">
@@ -169,21 +170,20 @@ function pintarInicio(){
     <div class="card">
       <h2>Fichaje rápido</h2>
       <p><span class="badge">Estado: ${escapar(estado)}</span></p>
-
       <button class="btn btn-big btn-green" onclick="abrirCerrarFichaje()">Fichar</button>
 
       ${panelFichajeAbierto ? `
         <select id="tipoFichaje">
           ${acciones.map(a => `<option value="${a.v}">${a.t}</option>`).join("")}
         </select>
-        <button class="btn btn-dark" onclick="registrarFichaje()">Guardar fichaje</button>
+        <button class="btn btn-dark" onclick="registrarFichajeInicio()">Guardar fichaje</button>
         <div id="msgFichaje" style="margin-top:12px;"></div>
       ` : ""}
     </div>
 
     <div class="card">
       <h2>Últimos fichajes</h2>
-      ${historial.length ? historial.map(f => `
+      ${historialInicio.length ? historialInicio.map(f => `
         <div class="row">
           <b>${escapar(f.tipo)}</b><br>
           ${new Date(f.fecha).toLocaleString("es-ES")}<br>
@@ -206,7 +206,7 @@ function abrirCerrarFichaje(){
   pintarInicio();
 }
 
-async function registrarFichaje(){
+async function registrarFichajeInicio(){
   const msg = document.getElementById("msgFichaje");
   const tipo = document.getElementById("tipoFichaje").value;
 
@@ -215,10 +215,9 @@ async function registrarFichaje(){
 
   try{
     const ubi = await obtenerUbicacion();
-
     msg.textContent = "Guardando fichaje...";
 
-    await api("/rest/v1/fichajes", {
+    const data = await api("/rest/v1/fichajes", {
       method:"POST",
       headers:{"Prefer":"return=representation"},
       body:{
@@ -230,6 +229,9 @@ async function registrarFichaje(){
       }
     });
 
+    const fichaje = Array.isArray(data) ? data[0] : data;
+    await crearHoraExtraSiProcede(usuarioReal.id, tipo, fichaje);
+
     panelFichajeAbierto = false;
     await cargarFichajesInicio();
     pintarInicio();
@@ -238,6 +240,57 @@ async function registrarFichaje(){
     msg.className = "error";
     msg.textContent = "Error guardando fichaje: " + e.message;
   }
+}
+
+async function crearHoraExtraSiProcede(userId, tipo, fichaje){
+  if(tipo !== "salida") return;
+
+  const hoy = new Date();
+  const dia = hoy.getDay();
+
+  const horarios = await api("/rest/v1/horarios_usuario?select=*&user_id=eq." + encodeURIComponent(String(userId)) + "&dia_semana=eq." + dia + "&limit=1");
+  const horario = Array.isArray(horarios) && horarios.length ? horarios[0] : null;
+
+  const tipos = await api("/rest/v1/tipos_horas_extra?select=*&activo=eq.true");
+  const normal = tipos.find(t => String(t.nombre).toLowerCase() === "normal") || tipos[0];
+
+  if(!normal) return;
+
+  let minutos = 0;
+  let motivo = "";
+
+  if(!horario || horario.trabaja === false){
+    minutos = 0;
+    motivo = "Salida registrada en día sin horario laboral configurado";
+  }else if(horario.hora_salida){
+    const [hh,mm] = String(horario.hora_salida).split(":");
+    const salidaPlan = new Date();
+    salidaPlan.setHours(Number(hh || 0), Number(mm || 0), 0, 0);
+    minutos = Math.max(0, Math.round((hoy - salidaPlan) / 60000));
+    motivo = "Salida posterior al horario previsto";
+  }
+
+  if(minutos <= 0 && horario && horario.trabaja !== false) return;
+
+  const horas = minutos / 60;
+  const precio = Number(normal.precio || 0);
+  const total = Number((horas * precio).toFixed(2));
+
+  await api("/rest/v1/horas_extra", {
+    method:"POST",
+    headers:{"Prefer":"return=representation"},
+    body:{
+      user_id:String(userId),
+      fichaje_id:fichaje?.id || null,
+      tipo_id:normal.id,
+      minutos:minutos,
+      precio_unitario:precio,
+      total:total,
+      estado:"pendiente",
+      validado_usuario:false,
+      validado_admin:false
+    }
+  });
 }
 
 async function mostrarUsuarios(){
@@ -252,7 +305,6 @@ async function mostrarUsuarios(){
         <button class="btn btn-gray" onclick="volverInicio()">← Volver al inicio</button>
         <h2>Usuarios</h2>
       </div>
-
       ${usuarios.map(u => `
         <div class="card">
           <h3>${escapar(u.nombre)}</h3>
@@ -273,35 +325,313 @@ async function mostrarUsuarios(){
   }
 }
 
-function abrirUsuario(id){
-  const u = usuarios.find(x => String(x.id) === String(id));
-  if(!u) return;
+async function abrirUsuario(id){
+  const data = await api("/rest/v1/users?select=*&id=eq." + encodeURIComponent(String(id)) + "&limit=1");
+  usuarioAbierto = Array.isArray(data) && data.length ? data[0] : null;
+  tabUsuario = "ficha";
+  await pintarUsuarioAbierto();
+}
+
+async function pintarUsuarioAbierto(){
+  if(!usuarioAbierto) return;
 
   document.getElementById("app").innerHTML = `
     <div class="card">
       <button class="btn btn-gray" onclick="mostrarUsuarios()">← Volver a usuarios</button>
-      <h2>${escapar(u.nombre)}</h2>
-      <p><b>Usuario:</b> ${escapar(u.usuario)}</p>
-      <p><b>Rol:</b> ${escapar(u.rol)}</p>
-      <p><b>Teléfono:</b> ${escapar(u.telefono || "-")}</p>
-      <p><b>Email:</b> ${escapar(u.email || "-")}</p>
+      <h2>${escapar(usuarioAbierto.nombre)}</h2>
+      <p class="muted">${escapar(usuarioAbierto.usuario)} · ${escapar(usuarioAbierto.rol)}</p>
+
+      <div class="tabs">
+        <button class="btn ${tabUsuario==='ficha'?'btn-dark':'btn-gray'}" onclick="cambiarTabUsuario('ficha')">Ficha</button>
+        <button class="btn ${tabUsuario==='horarios'?'btn-dark':'btn-gray'}" onclick="cambiarTabUsuario('horarios')">Horarios</button>
+        <button class="btn ${tabUsuario==='fichajes'?'btn-dark':'btn-gray'}" onclick="cambiarTabUsuario('fichajes')">Fichajes</button>
+        <button class="btn ${tabUsuario==='horas'?'btn-dark':'btn-gray'}" onclick="cambiarTabUsuario('horas')">Horas extra</button>
+      </div>
     </div>
 
+    <div id="zonaUsuario"></div>
+  `;
+
+  if(tabUsuario === "ficha") pintarTabFicha();
+  if(tabUsuario === "horarios") await pintarTabHorarios();
+  if(tabUsuario === "fichajes") await pintarTabFichajes();
+  if(tabUsuario === "horas") await pintarTabHorasExtra();
+}
+
+async function cambiarTabUsuario(tab){
+  tabUsuario = tab;
+  await pintarUsuarioAbierto();
+}
+
+function pintarTabFicha(){
+  document.getElementById("zonaUsuario").innerHTML = `
     <div class="card">
       <h2>Ficha</h2>
-      <p class="muted">Aquí irá la ficha completa ordenada por pestañas.</p>
-    </div>
-
-    <div class="card">
-      <h2>Horarios</h2>
-      <p class="muted">Aquí irá el horario semanal del trabajador.</p>
-    </div>
-
-    <div class="card">
-      <h2>Fichajes</h2>
-      <p class="muted">Aquí irá el historial completo editable con motivo.</p>
+      <p><b>Nombre:</b> ${escapar(usuarioAbierto.nombre)}</p>
+      <p><b>Usuario:</b> ${escapar(usuarioAbierto.usuario)}</p>
+      <p><b>Rol:</b> ${escapar(usuarioAbierto.rol)}</p>
+      <p><b>Teléfono:</b> ${escapar(usuarioAbierto.telefono || "-")}</p>
+      <p><b>Email:</b> ${escapar(usuarioAbierto.email || "-")}</p>
     </div>
   `;
+}
+
+async function pintarTabHorarios(){
+  document.getElementById("zonaUsuario").innerHTML = `<div class="card">Cargando horarios...</div>`;
+
+  horariosUsuario = await api("/rest/v1/horarios_usuario?select=*&user_id=eq." + encodeURIComponent(String(usuarioAbierto.id)) + "&order=dia_semana.asc");
+
+  const dias = [
+    {id:1,n:"Lunes"},{id:2,n:"Martes"},{id:3,n:"Miércoles"},{id:4,n:"Jueves"},
+    {id:5,n:"Viernes"},{id:6,n:"Sábado"},{id:0,n:"Domingo"}
+  ];
+
+  document.getElementById("zonaUsuario").innerHTML = `
+    <div class="card">
+      <h2>Horarios</h2>
+      ${dias.map(d => {
+        const h = horariosUsuario.find(x => Number(x.dia_semana) === d.id) || {};
+        return `
+          <div class="row">
+            <h3>${d.n}</h3>
+            <label><input id="h_trabaja_${d.id}" type="checkbox" ${h.trabaja !== false ? "checked" : ""}> Trabaja</label>
+            <div class="grid">
+              <input id="h_entrada_${d.id}" type="time" value="${escapar(h.hora_entrada || "")}">
+              <input id="h_salida_${d.id}" type="time" value="${escapar(h.hora_salida || "")}">
+              <input id="h_inicio_comida_${d.id}" type="time" value="${escapar(h.inicio_comida || "")}">
+              <input id="h_fin_comida_${d.id}" type="time" value="${escapar(h.fin_comida || "")}">
+              <input id="h_descanso_${d.id}" type="number" value="${escapar(h.minutos_descanso || 0)}" placeholder="Min descanso">
+            </div>
+          </div>
+        `;
+      }).join("")}
+      <button class="btn btn-dark" onclick="guardarHorarios()">Guardar horarios</button>
+      <div id="msgHorario"></div>
+    </div>
+  `;
+}
+
+async function guardarHorarios(){
+  const msg = document.getElementById("msgHorario");
+  msg.className = "muted";
+  msg.textContent = "Guardando...";
+
+  const dias = [1,2,3,4,5,6,0];
+
+  try{
+    await api("/rest/v1/horarios_usuario?user_id=eq." + encodeURIComponent(String(usuarioAbierto.id)), {method:"DELETE"});
+
+    const filas = dias.map(d => ({
+      user_id:String(usuarioAbierto.id),
+      dia_semana:d,
+      trabaja:document.getElementById("h_trabaja_" + d).checked,
+      hora_entrada:document.getElementById("h_entrada_" + d).value || null,
+      hora_salida:document.getElementById("h_salida_" + d).value || null,
+      inicio_comida:document.getElementById("h_inicio_comida_" + d).value || null,
+      fin_comida:document.getElementById("h_fin_comida_" + d).value || null,
+      minutos_descanso:Number(document.getElementById("h_descanso_" + d).value || 0),
+      activo:true
+    }));
+
+    await api("/rest/v1/horarios_usuario", {
+      method:"POST",
+      headers:{"Prefer":"return=representation"},
+      body:filas
+    });
+
+    msg.className = "ok";
+    msg.textContent = "Horarios guardados.";
+  }catch(e){
+    msg.className = "error";
+    msg.textContent = "Error: " + e.message;
+  }
+}
+
+async function pintarTabFichajes(){
+  document.getElementById("zonaUsuario").innerHTML = `<div class="card">Cargando fichajes...</div>`;
+
+  fichajesUsuario = await api("/rest/v1/fichajes?select=*&user_id=eq." + encodeURIComponent(String(usuarioAbierto.id)) + "&order=fecha.desc&limit=50");
+
+  document.getElementById("zonaUsuario").innerHTML = `
+    <div class="card">
+      <h2>Fichajes</h2>
+      ${fichajesUsuario.length ? fichajesUsuario.map(f => `
+        <div class="row">
+          <b>${escapar(f.tipo)}</b><br>
+          ${new Date(f.fecha).toLocaleString("es-ES")}<br>
+          <span class="muted">${escapar(f.direccion || "Sin ubicación")}</span><br>
+          ${puedeEditarFichajes() ? `<button class="btn btn-gray" onclick="abrirEditorFichaje('${escapar(f.id)}')">Editar</button>` : ""}
+        </div>
+      `).join("") : `<p class="muted">No hay fichajes.</p>`}
+    </div>
+  `;
+}
+
+function abrirEditorFichaje(id){
+  const f = fichajesUsuario.find(x => String(x.id) === String(id));
+  if(!f) return;
+
+  const fecha = new Date(f.fecha);
+  const dia = fecha.toISOString().slice(0,10);
+  const hora = fecha.toTimeString().slice(0,5);
+
+  document.getElementById("zonaUsuario").innerHTML = `
+    <div class="card">
+      <button class="btn btn-gray" onclick="pintarTabFichajes()">← Volver a fichajes</button>
+      <h2>Editar fichaje</h2>
+      <select id="edit_tipo_fichaje">
+        ${["entrada","salida","inicio_descanso","fin_descanso","inicio_comida","fin_comida"].map(t => `<option value="${t}" ${f.tipo===t?"selected":""}>${t}</option>`).join("")}
+      </select>
+      <input id="edit_fecha_fichaje" type="date" value="${dia}">
+      <input id="edit_hora_fichaje" type="time" value="${hora}">
+      <textarea id="edit_motivo_fichaje" placeholder="Motivo obligatorio"></textarea>
+      <button class="btn btn-dark" onclick="guardarEdicionFichaje('${escapar(f.id)}')">Guardar modificación</button>
+      <div id="msgEditFichaje"></div>
+    </div>
+  `;
+}
+
+async function guardarEdicionFichaje(id){
+  const msg = document.getElementById("msgEditFichaje");
+  const tipo = document.getElementById("edit_tipo_fichaje").value;
+  const fecha = document.getElementById("edit_fecha_fichaje").value;
+  const hora = document.getElementById("edit_hora_fichaje").value;
+  const motivo = document.getElementById("edit_motivo_fichaje").value.trim();
+
+  if(!motivo){
+    msg.className = "error";
+    msg.textContent = "El motivo es obligatorio.";
+    return;
+  }
+
+  try{
+    await api("/rest/v1/fichajes?id=eq." + encodeURIComponent(id), {
+      method:"PATCH",
+      headers:{"Prefer":"return=representation"},
+      body:{
+        tipo:tipo,
+        fecha:new Date(fecha + "T" + hora).toISOString(),
+        modificado:true,
+        motivo_modificacion:motivo,
+        editado_por:String(usuarioReal.id),
+        editado_en:new Date().toISOString()
+      }
+    });
+
+    await api("/rest/v1/modificaciones_fichajes", {
+      method:"POST",
+      headers:{"Prefer":"return=representation"},
+      body:{
+        fichaje_id:id,
+        user_id_editor:String(usuarioReal.id),
+        motivo:motivo
+      }
+    });
+
+    await pintarTabFichajes();
+  }catch(e){
+    msg.className = "error";
+    msg.textContent = "Error: " + e.message;
+  }
+}
+
+async function pintarTabHorasExtra(){
+  document.getElementById("zonaUsuario").innerHTML = `<div class="card">Cargando horas extra...</div>`;
+
+  tiposHoras = await api("/rest/v1/tipos_horas_extra?select=*&activo=eq.true");
+  horasExtraUsuario = await api("/rest/v1/horas_extra?select=*&user_id=eq." + encodeURIComponent(String(usuarioAbierto.id)) + "&order=fecha.desc");
+  cobrosUsuario = await api("/rest/v1/cobros_horas_extra?select=*&user_id=eq." + encodeURIComponent(String(usuarioAbierto.id)) + "&order=fecha.desc");
+
+  const pendientes = horasExtraUsuario.filter(h => h.estado !== "cobrado");
+  const totalPendiente = pendientes.reduce((s,h)=>s+Number(h.total || 0),0);
+
+  document.getElementById("zonaUsuario").innerHTML = `
+    <div class="card">
+      <h2>Horas extra</h2>
+      <p><span class="badge">Pendiente: ${totalPendiente.toFixed(2)} €</span></p>
+
+      <h3>Pendientes</h3>
+      ${pendientes.length ? pendientes.map(h => {
+        const tipo = tiposHoras.find(t => String(t.id) === String(h.tipo_id));
+        return `
+          <div class="row">
+            <b>${escapar(tipo?.nombre || "Hora extra")}</b><br>
+            ${Math.round(Number(h.minutos || 0))} min · ${Number(h.total || 0).toFixed(2)} €<br>
+            <span class="muted">Usuario validado: ${h.validado_usuario ? "sí" : "no"} · Admin validado: ${h.validado_admin ? "sí" : "no"}</span><br>
+            ${String(usuarioReal.id) === String(usuarioAbierto.id) && !h.validado_usuario ? `<button class="btn btn-green" onclick="validarHoraUsuario('${escapar(h.id)}')">Validar usuario</button>` : ""}
+            ${puedeGestionarHoras() && !h.validado_admin ? `<button class="btn btn-blue" onclick="validarHoraAdmin('${escapar(h.id)}')">Validar admin</button>` : ""}
+          </div>
+        `;
+      }).join("") : `<p class="muted">No hay horas pendientes.</p>`}
+
+      ${puedeGestionarHoras() ? `<button class="btn btn-dark" onclick="cobrarHoras()">Marcar validadas como cobradas</button>` : ""}
+      <div id="msgHoras"></div>
+    </div>
+
+    <div class="card">
+      <h2>Histórico de cobros</h2>
+      ${cobrosUsuario.length ? cobrosUsuario.map(c => `
+        <div class="row">
+          <b>${Number(c.total || 0).toFixed(2)} €</b><br>
+          ${new Date(c.fecha).toLocaleString("es-ES")}
+        </div>
+      `).join("") : `<p class="muted">No hay cobros registrados.</p>`}
+    </div>
+  `;
+}
+
+async function validarHoraUsuario(id){
+  await api("/rest/v1/horas_extra?id=eq." + encodeURIComponent(id), {
+    method:"PATCH",
+    headers:{"Prefer":"return=representation"},
+    body:{validado_usuario:true, estado:"validado_usuario"}
+  });
+  await pintarTabHorasExtra();
+}
+
+async function validarHoraAdmin(id){
+  await api("/rest/v1/horas_extra?id=eq." + encodeURIComponent(id), {
+    method:"PATCH",
+    headers:{"Prefer":"return=representation"},
+    body:{validado_admin:true, estado:"validado_admin"}
+  });
+  await pintarTabHorasExtra();
+}
+
+async function cobrarHoras(){
+  const msg = document.getElementById("msgHoras");
+  const cobrables = horasExtraUsuario.filter(h => h.estado !== "cobrado" && h.validado_usuario && h.validado_admin);
+
+  if(!cobrables.length){
+    msg.className = "error";
+    msg.textContent = "No hay horas con doble validación.";
+    return;
+  }
+
+  const total = cobrables.reduce((s,h)=>s+Number(h.total || 0),0);
+
+  try{
+    const cobro = await api("/rest/v1/cobros_horas_extra", {
+      method:"POST",
+      headers:{"Prefer":"return=representation"},
+      body:{user_id:String(usuarioAbierto.id), total:total}
+    });
+
+    const cobroId = Array.isArray(cobro) ? cobro[0].id : cobro.id;
+
+    for(const h of cobrables){
+      await api("/rest/v1/horas_extra?id=eq." + encodeURIComponent(h.id), {
+        method:"PATCH",
+        headers:{"Prefer":"return=representation"},
+        body:{estado:"cobrado", cobro_id:cobroId}
+      });
+    }
+
+    await pintarTabHorasExtra();
+  }catch(e){
+    msg.className = "error";
+    msg.textContent = "Error cobrando: " + e.message;
+  }
 }
 
 async function volverInicio(){
@@ -334,13 +664,19 @@ async function iniciar(){
 
 window.salir = salir;
 window.abrirCerrarFichaje = abrirCerrarFichaje;
-window.registrarFichaje = registrarFichaje;
+window.registrarFichajeInicio = registrarFichajeInicio;
 window.mostrarUsuarios = mostrarUsuarios;
 window.abrirUsuario = abrirUsuario;
 window.volverInicio = volverInicio;
+window.cambiarTabUsuario = cambiarTabUsuario;
+window.guardarHorarios = guardarHorarios;
+window.abrirEditorFichaje = abrirEditorFichaje;
+window.guardarEdicionFichaje = guardarEdicionFichaje;
+window.validarHoraUsuario = validarHoraUsuario;
+window.validarHoraAdmin = validarHoraAdmin;
+window.cobrarHoras = cobrarHoras;
 
 iniciar();
 </script>
-
 </body>
 </html>
