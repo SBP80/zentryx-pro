@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx APP V1400</title>
+<title>Zentryx APP V1500</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -32,10 +32,12 @@ textarea{min-height:100px;padding-top:14px;font-family:Arial,sans-serif;}
 .muted{color:#6b7280}
 .ok{color:#15803d;font-weight:900}
 .error{color:#b91c1c;font-weight:900}
+.warn{color:#b45309;font-weight:900}
 .acciones a{display:inline-block;text-decoration:none;color:#111827;background:#e5e7eb;padding:13px 16px;border-radius:14px;font-weight:900;margin:5px;font-size:18px;}
 .foto{width:130px;height:130px;border-radius:50%;object-fit:cover;background:#e5e7eb;border:1px solid #d1d5db;display:block;margin-bottom:12px;}
 .oculto{display:none;}
-.docrow,.ficrow{border:1px solid #d1d5db;border-radius:12px;padding:12px;margin-bottom:10px;}
+.docrow,.ficrow,.horarioRow{border:1px solid #d1d5db;border-radius:12px;padding:12px;margin-bottom:10px;}
+.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#e5e7eb;margin:3px;font-weight:900;}
 </style>
 </head>
 
@@ -54,10 +56,23 @@ let usuarioSesion = null;
 let usuarios = [];
 let usuarioAbierto = null;
 let documentosActuales = [];
+let fichajesActuales = [];
+let horariosActuales = [];
 
 const ROLES_VER_USUARIOS = ["admin","encargado","administrativo"];
 const ROLES_EDITAR_USUARIOS = ["admin","administrativo"];
 const ROLES_BORRAR_USUARIOS = ["admin"];
+const ROLES_EDITAR_FICHAJES = ["admin","administrativo","encargado"];
+
+const DIAS = [
+  {id:1,nombre:"Lunes"},
+  {id:2,nombre:"Martes"},
+  {id:3,nombre:"Miércoles"},
+  {id:4,nombre:"Jueves"},
+  {id:5,nombre:"Viernes"},
+  {id:6,nombre:"Sábado"},
+  {id:0,nombre:"Domingo"}
+];
 
 function escapar(v){
   return String(v ?? "")
@@ -83,6 +98,7 @@ function cerrarSesion(){
 function puedeVerUsuarios(){return ROLES_VER_USUARIOS.includes(usuarioSesion.rol);}
 function puedeEditarUsuarios(){return ROLES_EDITAR_USUARIOS.includes(usuarioSesion.rol);}
 function puedeBorrarUsuarios(){return ROLES_BORRAR_USUARIOS.includes(usuarioSesion.rol);}
+function puedeEditarFichajes(){return ROLES_EDITAR_FICHAJES.includes(usuarioSesion.rol);}
 
 async function sha256(texto){
   const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
@@ -125,7 +141,7 @@ function direccionCompleta(u){
 function pintarEstructura(){
   app.innerHTML = `
     <div class="top">
-      <div class="version">APP V1400</div>
+      <div class="version">APP V1500</div>
       <h1>Zentryx</h1>
       <p>${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</p>
       <button class="btn btn-red" onclick="cerrarSesion()">Salir</button>
@@ -353,7 +369,13 @@ function fichaUsuario(u){
 
       <hr style="margin:22px 0;">
 
+      <h2>Horario de trabajo</h2>
+      ${puedeEditarUsuarios() ? horarioEditor(u.id) : `<p class="muted">Solo lectura.</p>`}
+
+      <hr style="margin:22px 0;">
+
       <h2>Fichajes</h2>
+      <div id="estadoJornada"></div>
       <button class="btn btn-green" onclick="fichar('entrada')">Entrada</button>
       <button class="btn btn-red" onclick="fichar('salida')">Salida</button>
       <button class="btn btn-blue" onclick="fichar('inicio_descanso')">Inicio descanso</button>
@@ -364,6 +386,85 @@ function fichaUsuario(u){
       <div id="listaFichajes" style="margin-top:12px;">Cargando fichajes...</div>
     </div>
   `;
+}
+
+function horarioEditor(){
+  return `
+    <div id="bloqueHorarios">Cargando horarios...</div>
+    <button class="btn btn-dark" onclick="guardarHorarios()">Guardar horarios</button>
+    <div id="msgHorario" style="margin-top:12px;"></div>
+  `;
+}
+
+function pintarHorarios(){
+  const cont = document.getElementById("bloqueHorarios");
+  if(!cont) return;
+
+  cont.innerHTML = DIAS.map(d => {
+    const h = horariosActuales.find(x => Number(x.dia_semana) === Number(d.id)) || {};
+    const trabaja = h.trabaja !== false;
+
+    return `
+      <div class="horarioRow">
+        <h3>${d.nombre}</h3>
+        <label><input id="h_trabaja_${d.id}" type="checkbox" ${trabaja ? "checked" : ""}> Trabaja</label>
+        <div class="grid">
+          <input id="h_entrada_${d.id}" type="time" value="${escapar(h.hora_entrada || "")}">
+          <input id="h_salida_${d.id}" type="time" value="${escapar(h.hora_salida || "")}">
+          <input id="h_inicio_comida_${d.id}" type="time" value="${escapar(h.inicio_comida || "")}">
+          <input id="h_fin_comida_${d.id}" type="time" value="${escapar(h.fin_comida || "")}">
+          <input id="h_descanso_${d.id}" type="number" value="${escapar(h.minutos_descanso || 0)}" placeholder="Min descanso">
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function cargarHorarios(userId){
+  try{
+    const data = await api("/rest/v1/horarios_usuario?select=*&user_id=eq." + encodeURIComponent(String(userId)) + "&order=dia_semana.asc");
+    horariosActuales = Array.isArray(data) ? data : [];
+    pintarHorarios();
+  }catch(e){
+    const cont = document.getElementById("bloqueHorarios");
+    if(cont) cont.innerHTML = `<div class="error">Error cargando horarios: ${escapar(e.message)}</div>`;
+  }
+}
+
+async function guardarHorarios(){
+  if(!usuarioAbierto) return;
+  const msg = document.getElementById("msgHorario");
+  msg.className = "muted";
+  msg.textContent = "Guardando horarios...";
+
+  try{
+    await api("/rest/v1/horarios_usuario?user_id=eq." + encodeURIComponent(String(usuarioAbierto.id)), {method:"DELETE"});
+
+    const filas = DIAS.map(d => ({
+      user_id:String(usuarioAbierto.id),
+      dia_semana:d.id,
+      trabaja:document.getElementById("h_trabaja_" + d.id).checked,
+      hora_entrada:document.getElementById("h_entrada_" + d.id).value || null,
+      hora_salida:document.getElementById("h_salida_" + d.id).value || null,
+      inicio_comida:document.getElementById("h_inicio_comida_" + d.id).value || null,
+      fin_comida:document.getElementById("h_fin_comida_" + d.id).value || null,
+      minutos_descanso:Number(document.getElementById("h_descanso_" + d.id).value || 0),
+      activo:true
+    }));
+
+    await api("/rest/v1/horarios_usuario", {
+      method:"POST",
+      headers:{"Prefer":"return=representation"},
+      body:filas
+    });
+
+    msg.className = "ok";
+    msg.textContent = "Horarios guardados.";
+    await cargarHorarios(usuarioAbierto.id);
+  }catch(e){
+    msg.className = "error";
+    msg.textContent = "Error guardando horarios: " + e.message;
+  }
 }
 
 async function mostrarUsuarios(){
@@ -382,6 +483,7 @@ async function mostrarUsuarios(){
     if(usuarioAbierto){
       await cargarDocumentos(usuarioAbierto.id);
       await cargarFichajes(usuarioAbierto.id);
+      await cargarHorarios(usuarioAbierto.id);
     }
   }catch(e){
     contenido.innerHTML = `<div class="card"><h2>Usuarios</h2><div class="error">Error cargando usuarios: ${escapar(e.message)}</div></div>`;
@@ -489,6 +591,7 @@ async function abrirFicha(id){
   document.getElementById("ficha").innerHTML = fichaUsuario(u);
   await cargarDocumentos(u.id);
   await cargarFichajes(u.id);
+  await cargarHorarios(u.id);
   window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
 }
 
@@ -692,19 +795,119 @@ function obtenerUbicacion(){
   });
 }
 
+function ultimoFichaje(){
+  if(!Array.isArray(fichajesActuales) || fichajesActuales.length === 0) return null;
+  return fichajesActuales[0];
+}
+
+function validarFichaje(tipo){
+  const ultimo = ultimoFichaje();
+  const estado = ultimo ? ultimo.tipo : "fuera";
+
+  if(tipo === "entrada"){
+    if(["entrada","inicio_descanso","inicio_comida","fin_descanso","fin_comida"].includes(estado)){
+      return "Ya hay una jornada abierta.";
+    }
+    return "";
+  }
+
+  if(tipo === "salida"){
+    if(!ultimo || estado === "salida") return "No puedes fichar salida sin entrada.";
+    if(estado === "inicio_descanso") return "Primero debes finalizar el descanso.";
+    if(estado === "inicio_comida") return "Primero debes finalizar la comida.";
+    return "";
+  }
+
+  if(tipo === "inicio_descanso"){
+    if(!["entrada","fin_descanso","fin_comida"].includes(estado)) return "No puedes iniciar descanso ahora.";
+    return "";
+  }
+
+  if(tipo === "fin_descanso"){
+    if(estado !== "inicio_descanso") return "No hay descanso abierto.";
+    return "";
+  }
+
+  if(tipo === "inicio_comida"){
+    if(!["entrada","fin_descanso"].includes(estado)) return "No puedes iniciar comida ahora.";
+    return "";
+  }
+
+  if(tipo === "fin_comida"){
+    if(estado !== "inicio_comida") return "No hay comida abierta.";
+    return "";
+  }
+
+  return "";
+}
+
+async function registrarHoraExtraSiProcede(tipo, fichajeGuardado){
+  if(tipo !== "salida") return;
+
+  const hoy = new Date();
+  const dia = hoy.getDay();
+  const horario = horariosActuales.find(h => Number(h.dia_semana) === Number(dia));
+
+  if(!horario || horario.trabaja === false){
+    await api("/rest/v1/horas_extra", {
+      method:"POST",
+      headers:{"Prefer":"return=representation"},
+      body:{
+        user_id:String(usuarioAbierto.id),
+        fichaje_id:fichajeGuardado.id,
+        tipo:"dia_no_laborable",
+        minutos:0,
+        motivo:"Salida registrada en día no laboral o sin horario configurado"
+      }
+    });
+    return;
+  }
+
+  if(!horario.hora_salida) return;
+
+  const salidaPlan = new Date();
+  const partes = String(horario.hora_salida).split(":");
+  salidaPlan.setHours(Number(partes[0] || 0), Number(partes[1] || 0), 0, 0);
+
+  if(hoy > salidaPlan){
+    const minutos = Math.round((hoy - salidaPlan) / 60000);
+
+    if(minutos > 0){
+      await api("/rest/v1/horas_extra", {
+        method:"POST",
+        headers:{"Prefer":"return=representation"},
+        body:{
+          user_id:String(usuarioAbierto.id),
+          fichaje_id:fichajeGuardado.id,
+          tipo:"fuera_horario",
+          minutos:minutos,
+          motivo:"Salida posterior al horario previsto"
+        }
+      });
+    }
+  }
+}
+
 async function fichar(tipo){
   if(!usuarioAbierto) return;
 
   const msg = document.getElementById("msgFichaje");
   msg.className = "muted";
+
+  const errorValidacion = validarFichaje(tipo);
+  if(errorValidacion){
+    msg.className = "error";
+    msg.textContent = errorValidacion;
+    return;
+  }
+
   msg.textContent = "Obteniendo ubicación...";
 
   try{
     const ubicacion = await obtenerUbicacion();
-
     msg.textContent = "Guardando fichaje...";
 
-    await api("/rest/v1/fichajes", {
+    const data = await api("/rest/v1/fichajes", {
       method:"POST",
       headers:{"Prefer":"return=representation"},
       body:{
@@ -715,6 +918,10 @@ async function fichar(tipo){
         direccion:ubicacion.direccion
       }
     });
+
+    const fichajeGuardado = Array.isArray(data) ? data[0] : data;
+
+    await registrarHoraExtraSiProcede(tipo, fichajeGuardado);
 
     msg.className = "ok";
     msg.textContent = "Fichaje guardado.";
@@ -727,25 +934,81 @@ async function fichar(tipo){
 
 async function cargarFichajes(userId){
   const cont = document.getElementById("listaFichajes");
+  const estado = document.getElementById("estadoJornada");
   if(!cont) return;
 
   try{
-    const data = await api("/rest/v1/fichajes?select=*&user_id=eq." + encodeURIComponent(String(userId)) + "&order=fecha.desc&limit=20");
+    const data = await api("/rest/v1/fichajes?select=*&user_id=eq." + encodeURIComponent(String(userId)) + "&order=fecha.desc&limit=30");
+    fichajesActuales = Array.isArray(data) ? data : [];
 
-    if(!Array.isArray(data) || data.length === 0){
+    const ult = ultimoFichaje();
+    if(estado){
+      estado.innerHTML = `<p><span class="badge">Estado: ${ult ? escapar(ult.tipo) : "fuera"}</span></p>`;
+    }
+
+    if(fichajesActuales.length === 0){
       cont.innerHTML = `<p class="muted">No hay fichajes.</p>`;
       return;
     }
 
-    cont.innerHTML = data.map(f => `
+    cont.innerHTML = fichajesActuales.map(f => `
       <div class="ficrow">
         <b>${escapar(f.tipo)}</b><br>
         ${new Date(f.fecha).toLocaleString("es-ES")}<br>
-        <span class="muted">${escapar(f.direccion || "")}</span>
+        <span class="muted">${escapar(f.direccion || "Sin dirección")}</span>
+        ${puedeEditarFichajes() ? `
+          <br><button class="btn btn-gray" onclick="editarFichaje('${escapar(f.id)}')">Editar con motivo</button>
+        ` : ""}
       </div>
     `).join("");
   }catch(e){
     cont.innerHTML = `<div class="error">Error cargando fichajes: ${escapar(e.message)}</div>`;
+  }
+}
+
+async function editarFichaje(id){
+  if(!puedeEditarFichajes()) return alert("No tienes permisos para modificar fichajes.");
+
+  const motivo = prompt("Motivo de la modificación:");
+  if(!motivo || motivo.trim().length < 3){
+    alert("Debes indicar un motivo.");
+    return;
+  }
+
+  const nuevoTipo = prompt("Nuevo tipo: entrada, salida, inicio_descanso, fin_descanso, inicio_comida, fin_comida");
+  const tipos = ["entrada","salida","inicio_descanso","fin_descanso","inicio_comida","fin_comida"];
+
+  if(!tipos.includes(nuevoTipo)){
+    alert("Tipo no válido.");
+    return;
+  }
+
+  try{
+    await api("/rest/v1/fichajes?id=eq." + encodeURIComponent(id), {
+      method:"PATCH",
+      headers:{"Prefer":"return=representation"},
+      body:{
+        tipo:nuevoTipo,
+        modificado:true,
+        motivo_modificacion:motivo.trim(),
+        editado_por:String(usuarioSesion.id),
+        editado_en:new Date().toISOString()
+      }
+    });
+
+    await api("/rest/v1/modificaciones_fichajes", {
+      method:"POST",
+      headers:{"Prefer":"return=representation"},
+      body:{
+        fichaje_id:id,
+        user_id_editor:String(usuarioSesion.id),
+        motivo:motivo.trim()
+      }
+    });
+
+    await cargarFichajes(usuarioAbierto.id);
+  }catch(e){
+    alert("Error modificando fichaje: " + e.message);
   }
 }
 
@@ -773,6 +1036,8 @@ window.subirFotoDesde = subirFotoDesde;
 window.subirDocumentoTipo = subirDocumentoTipo;
 window.eliminarDocumento = eliminarDocumento;
 window.fichar = fichar;
+window.guardarHorarios = guardarHorarios;
+window.editarFichaje = editarFichaje;
 
 iniciar();
 </script>
