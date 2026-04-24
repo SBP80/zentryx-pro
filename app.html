@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx APP V1100</title>
+  <title>Zentryx APP V1200</title>
   <style>
     body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
     .top{background:#0f172a;color:white;padding:24px 20px;}
@@ -21,9 +21,13 @@
     textarea{min-height:100px;padding-top:14px;font-family:Arial,sans-serif;}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;}
     .btn{border:none;border-radius:14px;padding:14px 18px;font-size:18px;font-weight:900;margin:4px;}
-    .btn-dark{background:#0f172a;color:white}.btn-red{background:#dc2626;color:white}.btn-gray{background:#e5e7eb;color:#111827}
+    .btn-dark{background:#0f172a;color:white}
+    .btn-red{background:#dc2626;color:white}
+    .btn-gray{background:#e5e7eb;color:#111827}
     .item{border:1px solid #d1d5db;border-radius:16px;padding:16px;margin-bottom:12px;}
-    .muted{color:#6b7280}.ok{color:#15803d;font-weight:900}.error{color:#b91c1c;font-weight:900}
+    .muted{color:#6b7280}
+    .ok{color:#15803d;font-weight:900}
+    .error{color:#b91c1c;font-weight:900}
     .acciones a{display:inline-block;text-decoration:none;color:#111827;background:#e5e7eb;padding:13px 16px;border-radius:14px;font-weight:900;margin:5px;font-size:18px;}
   </style>
 </head>
@@ -40,6 +44,10 @@ let usuarioSesion = null;
 let usuarios = [];
 let usuarioAbierto = null;
 
+const ROLES_VER_USUARIOS = ["admin","encargado","administrativo"];
+const ROLES_EDITAR_USUARIOS = ["admin","administrativo"];
+const ROLES_BORRAR_USUARIOS = ["admin"];
+
 function escapar(v){
   return String(v ?? "")
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
@@ -54,6 +62,18 @@ function sesion(){
 function cerrarSesion(){
   localStorage.removeItem("usuario");
   window.location.href = "./index.html?v=1000";
+}
+
+function puedeVerUsuarios(){
+  return ROLES_VER_USUARIOS.includes(usuarioSesion.rol);
+}
+
+function puedeEditarUsuarios(){
+  return ROLES_EDITAR_USUARIOS.includes(usuarioSesion.rol);
+}
+
+function puedeBorrarUsuarios(){
+  return ROLES_BORRAR_USUARIOS.includes(usuarioSesion.rol);
 }
 
 async function sha256(texto){
@@ -75,8 +95,13 @@ async function api(path, opciones = {}){
 
   const texto = await res.text();
   let data = null;
+
   try{data = texto ? JSON.parse(texto) : null;}catch{data = texto;}
-  if(!res.ok) throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+
+  if(!res.ok){
+    throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+  }
+
   return data;
 }
 
@@ -99,15 +124,16 @@ function direccionCompleta(u){
 function pintarEstructura(){
   app.innerHTML = `
     <div class="top">
-      <div class="version">APP V1100</div>
+      <div class="version">APP V1200</div>
       <h1>Zentryx</h1>
       <p>${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</p>
       <button class="btn btn-red" onclick="cerrarSesion()">Salir</button>
     </div>
+
     <div class="wrap">
       <div class="menu">
         <button onclick="mostrarInicio()">Inicio</button>
-        ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarUsuarios()">Usuarios</button>` : ""}
+        ${puedeVerUsuarios() ? `<button onclick="mostrarUsuarios()">Usuarios</button>` : ""}
         ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarConfig()">Configuración</button>` : ""}
       </div>
       <div id="contenido"></div>
@@ -127,12 +153,33 @@ function mostrarInicio(){
 }
 
 function mostrarConfig(){
-  document.getElementById("contenido").innerHTML = `<div class="card"><h2>Configuración</h2><p>Módulo pendiente.</p></div>`;
+  if(usuarioSesion.rol !== "admin"){
+    document.getElementById("contenido").innerHTML = `
+      <div class="card">
+        <h2>Acceso restringido</h2>
+        <p>No tienes permiso para entrar en Configuración.</p>
+      </div>
+    `;
+    return;
+  }
+
+  document.getElementById("contenido").innerHTML = `
+    <div class="card">
+      <h2>Configuración</h2>
+      <p>Módulo pendiente.</p>
+    </div>
+  `;
 }
 
 async function cargarUsuarios(){
   const data = await api("/rest/v1/users?select=*&order=id.asc");
-  usuarios = Array.isArray(data) ? data : [];
+  const todos = Array.isArray(data) ? data : [];
+
+  if(usuarioSesion.rol === "admin" || usuarioSesion.rol === "encargado" || usuarioSesion.rol === "administrativo"){
+    usuarios = todos;
+  }else{
+    usuarios = todos.filter(u => String(u.id) === String(usuarioSesion.id));
+  }
 }
 
 function opcionesRol(valor){
@@ -141,6 +188,10 @@ function opcionesRol(valor){
 }
 
 function formularioNuevo(){
+  if(!puedeEditarUsuarios()){
+    return "";
+  }
+
   return `
     <div class="card">
       <h2>Nuevo usuario</h2>
@@ -191,7 +242,9 @@ function formularioNuevo(){
 }
 
 function listado(){
-  if(usuarios.length === 0) return `<div class="card"><h2>Listado</h2><p>No hay usuarios.</p></div>`;
+  if(usuarios.length === 0){
+    return `<div class="card"><h2>Listado</h2><p>No hay usuarios.</p></div>`;
+  }
 
   return `
     <div class="card">
@@ -206,7 +259,7 @@ function listado(){
           <div class="muted">Email: ${escapar(u.email || "-")}</div>
           <div style="margin-top:12px;">
             <button class="btn btn-gray" onclick="abrirFicha('${escapar(u.id)}')">Abrir ficha</button>
-            ${String(u.usuario).toLowerCase() !== "admin" ? `<button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>` : ""}
+            ${puedeBorrarUsuarios() && String(u.usuario).toLowerCase() !== "admin" ? `<button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>` : ""}
           </div>
         </div>
       `).join("")}
@@ -218,59 +271,60 @@ function fichaVacia(){
   return `<div class="card"><h2>Ficha de usuario</h2><p>Selecciona un usuario.</p></div>`;
 }
 
-function input(id, valor, placeholder, type="text"){
-  return `<input id="${id}" type="${type}" value="${escapar(valor || "")}" placeholder="${placeholder}">`;
+function input(id, valor, placeholder, type="text", disabled=false){
+  return `<input id="${id}" type="${type}" value="${escapar(valor || "")}" placeholder="${placeholder}" ${disabled ? "disabled" : ""}>`;
 }
 
 function fichaUsuario(u){
   const tel = String(u.telefono || "").replaceAll(" ", "");
   const telWhatsapp = tel.replaceAll("+", "");
   const dir = direccionCompleta(u);
+  const bloqueado = !puedeEditarUsuarios();
 
   return `
     <div class="card">
       <h2>Ficha de usuario</h2>
 
       <h3>Acceso</h3>
-      ${input("edit_nombre", u.nombre, "Nombre")}
-      ${input("edit_usuario", u.usuario, "Usuario")}
-      <input id="edit_password" type="password" placeholder="Nueva contraseña (dejar vacío para no cambiar)">
-      <select id="edit_rol">${opcionesRol(u.rol)}</select>
+      ${input("edit_nombre", u.nombre, "Nombre", "text", bloqueado)}
+      ${input("edit_usuario", u.usuario, "Usuario", "text", bloqueado)}
+      ${bloqueado ? "" : `<input id="edit_password" type="password" placeholder="Nueva contraseña (dejar vacío para no cambiar)">`}
+      <select id="edit_rol" ${bloqueado ? "disabled" : ""}>${opcionesRol(u.rol)}</select>
 
       <h3>Contacto</h3>
-      ${input("edit_telefono", u.telefono, "Teléfono")}
-      ${input("edit_email", u.email, "Email")}
+      ${input("edit_telefono", u.telefono, "Teléfono", "text", bloqueado)}
+      ${input("edit_email", u.email, "Email", "text", bloqueado)}
 
       <h3>Dirección</h3>
       <div class="grid">
-        ${input("edit_tipo_via", u.tipo_via, "Tipo vía")}
-        ${input("edit_nombre_via", u.nombre_via, "Nombre vía")}
-        ${input("edit_numero", u.numero, "Número")}
-        ${input("edit_portal", u.portal, "Portal")}
-        ${input("edit_escalera", u.escalera, "Escalera")}
-        ${input("edit_piso", u.piso, "Piso")}
-        ${input("edit_puerta", u.puerta, "Puerta")}
-        ${input("edit_codigo_postal", u.codigo_postal, "Código postal")}
-        ${input("edit_poblacion", u.poblacion, "Población")}
-        ${input("edit_provincia", u.provincia, "Provincia")}
-        ${input("edit_pais", u.pais || "España", "País")}
+        ${input("edit_tipo_via", u.tipo_via, "Tipo vía", "text", bloqueado)}
+        ${input("edit_nombre_via", u.nombre_via, "Nombre vía", "text", bloqueado)}
+        ${input("edit_numero", u.numero, "Número", "text", bloqueado)}
+        ${input("edit_portal", u.portal, "Portal", "text", bloqueado)}
+        ${input("edit_escalera", u.escalera, "Escalera", "text", bloqueado)}
+        ${input("edit_piso", u.piso, "Piso", "text", bloqueado)}
+        ${input("edit_puerta", u.puerta, "Puerta", "text", bloqueado)}
+        ${input("edit_codigo_postal", u.codigo_postal, "Código postal", "text", bloqueado)}
+        ${input("edit_poblacion", u.poblacion, "Población", "text", bloqueado)}
+        ${input("edit_provincia", u.provincia, "Provincia", "text", bloqueado)}
+        ${input("edit_pais", u.pais || "España", "País", "text", bloqueado)}
       </div>
 
       <h3>Datos personales y laborales</h3>
       <div class="grid">
-        ${input("edit_dni", u.dni, "DNI/NIE")}
-        ${input("edit_fecha_nacimiento", u.fecha_nacimiento, "", "date")}
-        ${input("edit_fecha_alta", u.fecha_alta, "", "date")}
-        ${input("edit_puesto", u.puesto, "Puesto")}
-        ${input("edit_departamento", u.departamento, "Departamento")}
-        ${input("edit_tipo_contrato", u.tipo_contrato, "Tipo contrato")}
-        ${input("edit_jornada", u.jornada, "Jornada")}
-        ${input("edit_responsable", u.responsable, "Responsable")}
+        ${input("edit_dni", u.dni, "DNI/NIE", "text", bloqueado)}
+        ${input("edit_fecha_nacimiento", u.fecha_nacimiento, "", "date", bloqueado)}
+        ${input("edit_fecha_alta", u.fecha_alta, "", "date", bloqueado)}
+        ${input("edit_puesto", u.puesto, "Puesto", "text", bloqueado)}
+        ${input("edit_departamento", u.departamento, "Departamento", "text", bloqueado)}
+        ${input("edit_tipo_contrato", u.tipo_contrato, "Tipo contrato", "text", bloqueado)}
+        ${input("edit_jornada", u.jornada, "Jornada", "text", bloqueado)}
+        ${input("edit_responsable", u.responsable, "Responsable", "text", bloqueado)}
       </div>
 
-      <textarea id="edit_observaciones" placeholder="Observaciones">${escapar(u.observaciones || "")}</textarea>
+      <textarea id="edit_observaciones" placeholder="Observaciones" ${bloqueado ? "disabled" : ""}>${escapar(u.observaciones || "")}</textarea>
 
-      <button class="btn btn-dark" onclick="guardarCambios()">Guardar cambios</button>
+      ${bloqueado ? `<p class="muted">Vista de solo lectura.</p>` : `<button class="btn btn-dark" onclick="guardarCambios()">Guardar cambios</button>`}
       <div id="msgEditar" style="margin-top:12px;"></div>
 
       <hr style="margin:22px 0;">
@@ -291,7 +345,19 @@ function fichaUsuario(u){
 
 async function mostrarUsuarios(){
   const contenido = document.getElementById("contenido");
+
+  if(!puedeVerUsuarios()){
+    contenido.innerHTML = `
+      <div class="card">
+        <h2>Acceso restringido</h2>
+        <p>No tienes permiso para entrar en Usuarios.</p>
+      </div>
+    `;
+    return;
+  }
+
   contenido.innerHTML = `<div class="card">Cargando usuarios...</div>`;
+
   try{
     await cargarUsuarios();
     contenido.innerHTML = `${formularioNuevo()}${listado()}<div id="ficha">${usuarioAbierto ? fichaUsuario(usuarioAbierto) : fichaVacia()}</div>`;
@@ -333,7 +399,7 @@ function leerNuevo(){
 }
 
 function leerEditado(){
-  const editado = {
+  return {
     nombre: document.getElementById("edit_nombre").value.trim(),
     usuario: document.getElementById("edit_usuario").value.trim().toLowerCase(),
     rol: document.getElementById("edit_rol").value.trim(),
@@ -360,11 +426,14 @@ function leerEditado(){
     responsable: document.getElementById("edit_responsable").value.trim(),
     observaciones: document.getElementById("edit_observaciones").value.trim()
   };
-
-  return editado;
 }
 
 async function guardarUsuario(){
+  if(!puedeEditarUsuarios()){
+    alert("No tienes permisos para crear usuarios.");
+    return;
+  }
+
   const msg = document.getElementById("msgNuevo");
   const nuevo = leerNuevo();
   const passwordPlano = nuevo.password;
@@ -396,12 +465,18 @@ async function guardarUsuario(){
 function abrirFicha(id){
   const u = usuarios.find(x => String(x.id) === String(id));
   if(!u) return;
+
   usuarioAbierto = u;
   document.getElementById("ficha").innerHTML = fichaUsuario(u);
   window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
 }
 
 async function guardarCambios(){
+  if(!puedeEditarUsuarios()){
+    alert("No tienes permisos para editar usuarios.");
+    return;
+  }
+
   if(!usuarioAbierto) return;
 
   const msg = document.getElementById("msgEditar");
@@ -443,6 +518,11 @@ async function guardarCambios(){
 }
 
 async function borrarUsuario(id){
+  if(!puedeBorrarUsuarios()){
+    alert("No tienes permisos para eliminar usuarios.");
+    return;
+  }
+
   const u = usuarios.find(x => String(x.id) === String(id));
   if(!u) return;
 
