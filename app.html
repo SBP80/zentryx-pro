@@ -3,150 +3,158 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx APP V1801</title>
+<title>Zentryx V1802</title>
 
 <style>
-body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
-.top{background:#0f172a;color:white;padding:28px 20px;}
-.version{color:#fb7185;font-size:28px;font-weight:900;margin-bottom:8px;}
-.top h1{margin:0;font-size:38px;}
-.wrap{padding:20px;}
-.card{background:white;border-radius:16px;padding:18px;margin-bottom:16px;border:1px solid #e5e7eb;}
-.btn{border:none;border-radius:12px;padding:12px 16px;font-size:16px;font-weight:700;margin:4px;}
-.btn-dark{background:#0f172a;color:white;}
-.btn-red{background:#dc2626;color:white;}
-.btn-gray{background:#e5e7eb;}
-.btn-green{background:#16a34a;color:white;}
-.btn-blue{background:#2563eb;color:white;}
-.btn-orange{background:#f97316;color:white;}
-.badge{background:#e5e7eb;border-radius:999px;padding:6px 10px;font-weight:700;}
-.row{border:1px solid #d1d5db;border-radius:12px;padding:12px;margin-bottom:10px;}
+body{margin:0;font-family:Arial;background:#eef2f7}
+.top{background:#0f172a;color:white;padding:20px}
+h1{margin:0}
+.card{background:white;border-radius:12px;padding:16px;margin:16px}
+.btn{padding:10px 14px;border:none;border-radius:10px;margin:4px;font-weight:bold}
+.red{background:#dc2626;color:white}
+.green{background:#16a34a;color:white}
+.blue{background:#2563eb;color:white}
+.orange{background:#f97316;color:white}
+.gray{background:#e5e7eb}
+.badge{background:#e5e7eb;padding:6px 10px;border-radius:999px}
+.row{border:1px solid #ccc;border-radius:10px;padding:10px;margin-bottom:10px}
 </style>
 </head>
 
 <body>
 
 <div class="top">
-  <div class="version">APP V1801</div>
-  <h1>Zentryx</h1>
+<h1>Zentryx</h1>
+<button class="btn red" onclick="salir()">Salir</button>
 </div>
 
-<div class="wrap" id="app">Cargando...</div>
+<div id="app"></div>
 
 <script>
 const URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
-let usuarioReal=null;
-let usuarioAbierto=null;
-let horas=[]; let tipos=[];
+let user=null,horas=[],tipos=[];
 
-function api(path,opt={}){
- return fetch(URL+path,{
-  method:opt.method||"GET",
-  headers:{
-   "apikey":KEY,
-   "Authorization":"Bearer "+KEY,
-   "Content-Type":"application/json"
-  },
-  body:opt.body?JSON.stringify(opt.body):undefined
- }).then(r=>r.json());
+function api(p,o={}){
+return fetch(URL+p,{
+method:o.method||"GET",
+headers:{
+apikey:KEY,
+Authorization:"Bearer "+KEY,
+"Content-Type":"application/json"
+},
+body:o.body?JSON.stringify(o.body):undefined
+}).then(r=>r.json());
 }
 
-function esc(v){return v||"";}
-
-async function inicio(){
- let u=JSON.parse(localStorage.getItem("usuario")||"null");
- if(!u){document.getElementById("app").innerHTML="No hay sesión";return;}
- usuarioReal=u;
- await cargarHoras();
+function salir(){
+localStorage.removeItem("usuario");
+location.reload();
 }
 
-async function cargarHoras(){
- horas=await api("/rest/v1/horas_extra?select=*&user_id=eq."+usuarioReal.id);
- tipos=await api("/rest/v1/tipos_horas_extra?select=*");
- pintar();
+async function init(){
+user=JSON.parse(localStorage.getItem("usuario"));
+if(!user){document.getElementById("app").innerHTML="Sin sesión";return;}
+
+horas=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id);
+tipos=await api("/rest/v1/tipos_horas_extra?select=*");
+
+render();
 }
 
-function pintar(){
+function render(){
 
- let pendientes=horas.filter(h=>h.estado!=="pagadas");
- let total=pendientes.reduce((s,h)=>s+Number(h.total||0),0);
+let pendientes=horas.filter(h=>h.estado!="pagadas");
+let total=pendientes.reduce((s,h)=>s+Number(h.total||0),0);
 
- document.getElementById("app").innerHTML=`
- <div class="card">
-  <h2>Horas extra</h2>
-  <span class="badge">Pendiente: ${total.toFixed(2)} €</span>
- </div>
+document.getElementById("app").innerHTML=`
+<div class="card">
+<h2>Horas extra</h2>
+<span class="badge">Pendiente: ${total.toFixed(2)} €</span>
+</div>
 
- ${pendientes.map(h=>{
-   let t=tipos.find(x=>x.id===h.tipo_id);
-   return `
-   <div class="row">
-    <b>${esc(t?.nombre)}</b><br>
-    ${h.minutos} min · ${Number(h.total).toFixed(2)} €<br>
+${pendientes.map(h=>{
 
-    Estado: ${h.estado}<br>
+let t=tipos.find(x=>x.id==h.tipo_id);
 
-    ${
-      usuarioReal.id==h.user_id && !h.validado_usuario
-      ? `<button class="btn btn-green" onclick="validarUsuario('${h.id}')">Validar</button>`:""
-    }
+let botones="";
+let estadoTexto="";
 
-    ${
-      usuarioReal.rol==="admin" && h.validado_usuario && !h.validado_admin
-      ? `<button class="btn btn-blue" onclick="validarAdmin('${h.id}')">Validar admin</button>`:""
-    }
-
-    ${
-      usuarioReal.rol==="admin" && h.validado_admin && !h.admin_confirmo_pago
-      ? `<button class="btn btn-orange" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>`:""
-    }
-
-    ${
-      usuarioReal.id==h.user_id && h.admin_confirmo_pago && !h.usuario_confirmo_cobro
-      ? `<button class="btn btn-dark" onclick="cobroUsuario('${h.id}')">Horas cobradas</button>`:""
-    }
-
-   </div>
-   `;
- }).join("")}
- `;
+if(!h.validado_usuario){
+estadoTexto="Pendiente de validación del operario";
+if(user.id==h.user_id){
+botones+=`<button class="btn green" onclick="valUser('${h.id}')">Validar</button>`;
+}
 }
 
-async function validarUsuario(id){
- await api("/rest/v1/horas_extra?id=eq."+id,{
-  method:"PATCH",
-  body:{validado_usuario:true,estado:"pendiente_admin"}
- });
- await cargarHoras();
+else if(!h.validado_admin){
+estadoTexto="Pendiente de validación del administrador";
+if(user.rol=="admin"){
+botones+=`<button class="btn blue" onclick="valAdmin('${h.id}')">Validar admin</button>`;
+}
 }
 
-async function validarAdmin(id){
- await api("/rest/v1/horas_extra?id=eq."+id,{
-  method:"PATCH",
-  body:{validado_admin:true,estado:"validado_admin"}
- });
- await cargarHoras();
+else if(!h.admin_confirmo_pago){
+estadoTexto="Validado → pendiente de pago";
+if(user.rol=="admin"){
+botones+=`<button class="btn orange" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>`;
+}
+}
+
+else if(!h.usuario_confirmo_cobro){
+estadoTexto="Pago confirmado → pendiente de cobro";
+if(user.id==h.user_id){
+botones+=`<button class="btn green" onclick="cobroUser('${h.id}')">Horas cobradas</button>`;
+}
+}
+
+return `
+<div class="row">
+<b>${t?.nombre||""}</b><br>
+${h.minutos} min · ${Number(h.total||0).toFixed(2)} €<br>
+<b>${estadoTexto}</b><br>
+${botones}
+</div>
+`;
+
+}).join("")}
+`;
+}
+
+async function valUser(id){
+await api("/rest/v1/horas_extra?id=eq."+id,{
+method:"PATCH",
+body:{validado_usuario:true,estado:"pendiente_admin"}
+});
+init();
+}
+
+async function valAdmin(id){
+await api("/rest/v1/horas_extra?id=eq."+id,{
+method:"PATCH",
+body:{validado_admin:true,estado:"validado_admin"}
+});
+init();
 }
 
 async function pagoAdmin(id){
- await api("/rest/v1/horas_extra?id=eq."+id,{
-  method:"PATCH",
-  body:{admin_confirmo_pago:true}
- });
- await cargarHoras();
+await api("/rest/v1/horas_extra?id=eq."+id,{
+method:"PATCH",
+body:{admin_confirmo_pago:true}
+});
+init();
 }
 
-async function cobroUsuario(id){
- await api("/rest/v1/horas_extra?id=eq."+id,{
-  method:"PATCH",
-  body:{usuario_confirmo_cobro:true,estado:"pagadas"}
- });
- await cargarHoras();
+async function cobroUser(id){
+await api("/rest/v1/horas_extra?id=eq."+id,{
+method:"PATCH",
+body:{usuario_confirmo_cobro:true,estado:"pagadas"}
+});
+init();
 }
 
-inicio();
+init();
 </script>
 
 </body>
