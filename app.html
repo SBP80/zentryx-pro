@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V1803</title>
+<title>Zentryx V1804</title>
 
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
@@ -27,7 +27,7 @@ h1{margin:0;font-size:42px}
 <body>
 
 <div class="top">
-  <div class="version">APP V1803</div>
+  <div class="version">APP V1804</div>
   <h1>Zentryx</h1>
   <button class="btn red" onclick="salir()">Salir</button>
 </div>
@@ -43,6 +43,7 @@ const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 let user=null;
 let horas=[];
 let tipos=[];
+let usuarios=[];
 
 function api(p,o={}){
   return fetch(URL+p,{
@@ -84,6 +85,10 @@ function esc(v){
     .replaceAll(">","&gt;");
 }
 
+function esAdmin(){
+  return user && (user.rol==="admin" || user.rol==="administrativo");
+}
+
 async function init(){
   user=leerSesion();
 
@@ -93,7 +98,7 @@ async function init(){
   }
 
   try{
-    await cargarHoras();
+    await cargarDatos();
   }catch(e){
     document.getElementById("app").innerHTML=`
       <div class="card">
@@ -104,26 +109,38 @@ async function init(){
   }
 }
 
-async function cargarHoras(){
-  horas=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(String(user.id))+"&order=fecha.desc");
+async function cargarDatos(){
   tipos=await api("/rest/v1/tipos_horas_extra?select=*");
+  usuarios=await api("/rest/v1/users?select=id,nombre,usuario,rol");
+
+  if(esAdmin()){
+    horas=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas&order=fecha.desc");
+  }else{
+    horas=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(String(user.id))+"&estado=neq.pagadas&order=fecha.desc");
+  }
+
   render();
 }
 
+function nombreUsuario(userId){
+  const u=usuarios.find(x=>String(x.id)===String(userId));
+  return u ? (u.nombre || u.usuario || userId) : userId;
+}
+
 function render(){
-  const pendientes=horas.filter(h=>h.estado!=="pagadas");
-  const total=pendientes.reduce((s,h)=>s+Number(h.total||0),0);
+  const total=horas.reduce((s,h)=>s+Number(h.total||0),0);
 
   document.getElementById("app").innerHTML=`
     <div class="card">
       <h2>Horas extra</h2>
       <p><b>${esc(user.nombre || user.usuario)}</b></p>
+      <p class="muted">${esAdmin() ? "Vista administrador: todas las horas pendientes" : "Vista trabajador: tus horas pendientes"}</p>
       <span class="badge">Pendiente: ${total.toFixed(2)} €</span>
     </div>
 
     ${
-      pendientes.length
-      ? pendientes.map(h=>pintarHora(h)).join("")
+      horas.length
+      ? horas.map(h=>pintarHora(h)).join("")
       : `<div class="card"><p class="muted">No hay horas extra pendientes.</p></div>`
     }
   `;
@@ -136,39 +153,48 @@ function pintarHora(h){
 
   if(!h.validado_usuario){
     texto="Pendiente de validación del trabajador";
+
     if(String(user.id)===String(h.user_id)){
       botones+=`<button class="btn green" onclick="validarUsuario('${h.id}')">Validar</button>`;
     }
   }
-  else if(!h.validado_admin){
+
+  else if(h.validado_usuario && !h.validado_admin){
     texto="Pendiente de validación del administrador";
-    if(user.rol==="admin" || user.rol==="administrativo"){
+
+    if(esAdmin()){
       botones+=`<button class="btn blue" onclick="validarAdmin('${h.id}')">Validar admin</button>`;
     }
   }
-  else if(!h.admin_confirmo_pago){
-    texto="Validado. Falta confirmar pago";
-    if(user.rol==="admin" || user.rol==="administrativo"){
+
+  else if(h.validado_usuario && h.validado_admin && !h.admin_confirmo_pago){
+    texto="Validado. Pendiente de marcar pago";
+
+    if(esAdmin()){
       botones+=`<button class="btn orange" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>`;
     }
   }
-  else if(!h.usuario_confirmo_cobro){
-    texto="Pago confirmado. Falta confirmar cobro";
+
+  else if(h.admin_confirmo_pago && !h.usuario_confirmo_cobro){
+    texto="Pago marcado. Pendiente de confirmación del trabajador";
+
     if(String(user.id)===String(h.user_id)){
       botones+=`<button class="btn green" onclick="cobroUsuario('${h.id}')">Horas cobradas</button>`;
     }
   }
+
   else{
     texto="Pagadas";
   }
 
   return `
     <div class="card row">
+      ${esAdmin() ? `<p><b>Trabajador:</b> ${esc(nombreUsuario(h.user_id))}</p>` : ""}
       <b>${esc(tipo?.nombre || "Hora extra")}</b><br>
       ${Number(h.minutos||0)} min · ${Number(h.total||0).toFixed(2)} €<br>
       <span class="muted">Estado: ${esc(h.estado || "pendiente")}</span><br>
       <b>${texto}</b><br>
-      ${botones}
+      ${botones || `<p class="muted">Sin acción disponible para este usuario.</p>`}
     </div>
   `;
 }
@@ -182,7 +208,7 @@ async function validarUsuario(id){
       estado:"pendiente_admin"
     }
   });
-  await cargarHoras();
+  await cargarDatos();
 }
 
 async function validarAdmin(id){
@@ -194,7 +220,7 @@ async function validarAdmin(id){
       estado:"validado_admin"
     }
   });
-  await cargarHoras();
+  await cargarDatos();
 }
 
 async function pagoAdmin(id){
@@ -206,7 +232,7 @@ async function pagoAdmin(id){
       fecha_admin_pago:new Date().toISOString()
     }
   });
-  await cargarHoras();
+  await cargarDatos();
 }
 
 async function cobroUsuario(id){
@@ -219,7 +245,7 @@ async function cobroUsuario(id){
       estado:"pagadas"
     }
   });
-  await cargarHoras();
+  await cargarDatos();
 }
 
 window.salir=salir;
