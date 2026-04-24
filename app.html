@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx APP V1302</title>
+<title>Zentryx APP V1400</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -27,6 +27,7 @@ textarea{min-height:100px;padding-top:14px;font-family:Arial,sans-serif;}
 .btn-red{background:#dc2626;color:white}
 .btn-gray{background:#e5e7eb;color:#111827}
 .btn-green{background:#16a34a;color:white}
+.btn-blue{background:#2563eb;color:white}
 .item{border:1px solid #d1d5db;border-radius:16px;padding:16px;margin-bottom:12px;}
 .muted{color:#6b7280}
 .ok{color:#15803d;font-weight:900}
@@ -68,11 +69,8 @@ function escapar(v){
 }
 
 function leerSesion(){
-  try{
-    return JSON.parse(localStorage.getItem("usuario") || localStorage.getItem("user") || "null");
-  }catch{
-    return null;
-  }
+  try{return JSON.parse(localStorage.getItem("usuario") || "null");}
+  catch{return null;}
 }
 
 function cerrarSesion(){
@@ -110,7 +108,6 @@ async function api(path, opciones = {}){
   if(!res.ok){
     throw new Error(typeof data === "string" ? data : JSON.stringify(data));
   }
-
   return data;
 }
 
@@ -128,7 +125,7 @@ function direccionCompleta(u){
 function pintarEstructura(){
   app.innerHTML = `
     <div class="top">
-      <div class="version">APP V1302</div>
+      <div class="version">APP V1400</div>
       <h1>Zentryx</h1>
       <p>${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</p>
       <button class="btn btn-red" onclick="cerrarSesion()">Salir</button>
@@ -157,12 +154,7 @@ function mostrarInicio(){
 }
 
 function mostrarConfig(){
-  document.getElementById("contenido").innerHTML = `
-    <div class="card">
-      <h2>Configuración</h2>
-      <p>Módulo pendiente.</p>
-    </div>
-  `;
+  document.getElementById("contenido").innerHTML = `<div class="card"><h2>Configuración</h2><p>Módulo pendiente.</p></div>`;
 }
 
 async function cargarUsuarios(){
@@ -339,10 +331,20 @@ function fichaUsuario(u){
 
       <hr style="margin:22px 0;">
 
+      <h2>DNI</h2>
+      ${puedeEditarUsuarios() ? `
+        <input class="oculto" id="dni_frontal" type="file" accept="image/*" capture="environment" onchange="subirDocumentoTipo('dni_frontal','DNI frontal')">
+        <input class="oculto" id="dni_reverso" type="file" accept="image/*" capture="environment" onchange="subirDocumentoTipo('dni_reverso','DNI reverso')">
+        <button class="btn btn-gray" onclick="document.getElementById('dni_frontal').click()">Foto DNI frontal</button>
+        <button class="btn btn-gray" onclick="document.getElementById('dni_reverso').click()">Foto DNI reverso</button>
+      ` : ""}
+
+      <hr style="margin:22px 0;">
+
       <h2>Documentos</h2>
       ${puedeEditarUsuarios() ? `
-        <input class="oculto" id="doc_camara" type="file" accept="image/*" capture="environment" onchange="subirDocumentoDesde('doc_camara')">
-        <input class="oculto" id="doc_archivo" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="subirDocumentoDesde('doc_archivo')">
+        <input class="oculto" id="doc_camara" type="file" accept="image/*" capture="environment" onchange="subirDocumentoTipo('doc_camara','documento')">
+        <input class="oculto" id="doc_archivo" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="subirDocumentoTipo('doc_archivo','documento')">
         <button class="btn btn-gray" onclick="document.getElementById('doc_camara').click()">Hacer foto documento</button>
         <button class="btn btn-dark" onclick="document.getElementById('doc_archivo').click()">Elegir archivo</button>
         <div id="msgDoc" style="margin-top:12px;"></div>
@@ -354,6 +356,10 @@ function fichaUsuario(u){
       <h2>Fichajes</h2>
       <button class="btn btn-green" onclick="fichar('entrada')">Entrada</button>
       <button class="btn btn-red" onclick="fichar('salida')">Salida</button>
+      <button class="btn btn-blue" onclick="fichar('inicio_descanso')">Inicio descanso</button>
+      <button class="btn btn-gray" onclick="fichar('fin_descanso')">Fin descanso</button>
+      <button class="btn btn-blue" onclick="fichar('inicio_comida')">Inicio comida</button>
+      <button class="btn btn-gray" onclick="fichar('fin_comida')">Fin comida</button>
       <div id="msgFichaje" style="margin-top:12px;"></div>
       <div id="listaFichajes" style="margin-top:12px;">Cargando fichajes...</div>
     </div>
@@ -557,7 +563,6 @@ async function subirArchivo(inputId, carpeta){
   if(error) throw error;
 
   const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
-
   return { nombre:file.name, path, url:data.publicUrl };
 }
 
@@ -588,12 +593,14 @@ async function subirFotoDesde(inputId){
   }
 }
 
-async function subirDocumentoDesde(inputId){
+async function subirDocumentoTipo(inputId, tipo){
   if(!usuarioAbierto) return;
 
   const msg = document.getElementById("msgDoc");
-  msg.className = "muted";
-  msg.textContent = "Subiendo documento...";
+  if(msg){
+    msg.className = "muted";
+    msg.textContent = "Subiendo documento...";
+  }
 
   try{
     const archivo = await subirArchivo(inputId, "documentos");
@@ -601,15 +608,28 @@ async function subirDocumentoDesde(inputId){
     await api("/rest/v1/documentos", {
       method:"POST",
       headers:{"Prefer":"return=representation"},
-      body:{ user_id:String(usuarioAbierto.id), nombre:archivo.nombre, url:archivo.url }
+      body:{
+        user_id:String(usuarioAbierto.id),
+        nombre:archivo.nombre,
+        url:archivo.url,
+        tipo:tipo,
+        descripcion:tipo
+      }
     });
 
-    msg.className = "ok";
-    msg.textContent = "Documento subido.";
+    if(msg){
+      msg.className = "ok";
+      msg.textContent = "Documento subido.";
+    }
+
     await cargarDocumentos(usuarioAbierto.id);
   }catch(e){
-    msg.className = "error";
-    msg.textContent = "Error subiendo documento: " + e.message;
+    if(msg){
+      msg.className = "error";
+      msg.textContent = "Error subiendo documento: " + e.message;
+    }else{
+      alert("Error subiendo documento: " + e.message);
+    }
   }
 }
 
@@ -628,7 +648,8 @@ async function cargarDocumentos(userId){
 
     cont.innerHTML = documentosActuales.map(d => `
       <div class="docrow">
-        <b>${escapar(d.nombre)}</b><br>
+        <b>${escapar(d.tipo || "documento")}</b><br>
+        ${escapar(d.nombre)}<br>
         <a target="_blank" href="${escapar(d.url)}">Ver documento</a>
         ${puedeEditarUsuarios() ? `<button class="btn btn-red" onclick="eliminarDocumento('${escapar(d.id)}')">Eliminar</button>` : ""}
       </div>
@@ -650,18 +671,49 @@ async function eliminarDocumento(id){
   }
 }
 
+function obtenerUbicacion(){
+  return new Promise(resolve => {
+    if(!navigator.geolocation){
+      resolve({lat:null,lng:null,direccion:"Sin ubicación"});
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        resolve({
+          lat:pos.coords.latitude,
+          lng:pos.coords.longitude,
+          direccion:"Lat " + pos.coords.latitude + ", Lng " + pos.coords.longitude
+        });
+      },
+      () => resolve({lat:null,lng:null,direccion:"Ubicación no autorizada"}),
+      {enableHighAccuracy:true,timeout:10000}
+    );
+  });
+}
+
 async function fichar(tipo){
   if(!usuarioAbierto) return;
 
   const msg = document.getElementById("msgFichaje");
   msg.className = "muted";
-  msg.textContent = "Guardando fichaje...";
+  msg.textContent = "Obteniendo ubicación...";
 
   try{
+    const ubicacion = await obtenerUbicacion();
+
+    msg.textContent = "Guardando fichaje...";
+
     await api("/rest/v1/fichajes", {
       method:"POST",
       headers:{"Prefer":"return=representation"},
-      body:{ user_id:String(usuarioAbierto.id), tipo:tipo }
+      body:{
+        user_id:String(usuarioAbierto.id),
+        tipo:tipo,
+        lat:ubicacion.lat,
+        lng:ubicacion.lng,
+        direccion:ubicacion.direccion
+      }
     });
 
     msg.className = "ok";
@@ -688,7 +740,8 @@ async function cargarFichajes(userId){
     cont.innerHTML = data.map(f => `
       <div class="ficrow">
         <b>${escapar(f.tipo)}</b><br>
-        ${new Date(f.fecha).toLocaleString("es-ES")}
+        ${new Date(f.fecha).toLocaleString("es-ES")}<br>
+        <span class="muted">${escapar(f.direccion || "")}</span>
       </div>
     `).join("");
   }catch(e){
@@ -717,7 +770,7 @@ window.abrirFicha = abrirFicha;
 window.guardarCambios = guardarCambios;
 window.borrarUsuario = borrarUsuario;
 window.subirFotoDesde = subirFotoDesde;
-window.subirDocumentoDesde = subirDocumentoDesde;
+window.subirDocumentoTipo = subirDocumentoTipo;
 window.eliminarDocumento = eliminarDocumento;
 window.fichar = fichar;
 
