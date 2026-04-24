@@ -3,115 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx APP V900</title>
-
+  <title>Zentryx APP V1000</title>
   <style>
-    body{
-      margin:0;
-      font-family:Arial,sans-serif;
-      background:#eef2f7;
-      color:#111827;
-    }
-    .top{
-      background:#0f172a;
-      color:white;
-      padding:24px 20px;
-    }
-    .version{
-      color:#fb7185;
-      font-size:30px;
-      font-weight:900;
-      margin-bottom:8px;
-    }
-    .top h1{
-      margin:0;
-      font-size:42px;
-    }
-    .top p{
-      margin:8px 0 18px 0;
-      font-size:19px;
-    }
-    .wrap{
-      padding:20px;
-    }
-    .menu{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      margin-bottom:20px;
-    }
-    .menu button{
-      padding:14px 18px;
-      border:none;
-      border-radius:14px;
-      background:#dbe0e8;
-      color:#2563eb;
-      font-size:18px;
-      font-weight:900;
-    }
-    .card{
-      background:white;
-      border-radius:18px;
-      padding:22px;
-      margin-bottom:18px;
-      box-shadow:0 10px 30px rgba(0,0,0,.07);
-      border:1px solid #e5e7eb;
-    }
-    h2{
-      margin-top:0;
-      font-size:34px;
-    }
-    h3{
-      font-size:26px;
-    }
-    input, select{
-      width:100%;
-      height:54px;
-      box-sizing:border-box;
-      padding:0 16px;
-      border:1px solid #d1d5db;
-      border-radius:14px;
-      font-size:18px;
-      margin-bottom:12px;
-      background:white;
-    }
-    .btn{
-      border:none;
-      border-radius:14px;
-      padding:14px 18px;
-      font-size:18px;
-      font-weight:900;
-      margin:4px;
-    }
-    .btn-dark{background:#0f172a;color:white;}
-    .btn-red{background:#dc2626;color:white;}
-    .btn-gray{background:#e5e7eb;color:#111827;}
-    .btn-green{background:#16a34a;color:white;}
-    .item{
-      border:1px solid #d1d5db;
-      border-radius:16px;
-      padding:16px;
-      margin-bottom:12px;
-    }
-    .muted{color:#6b7280;}
-    .ok{color:#15803d;font-weight:900;}
-    .error{color:#b91c1c;font-weight:900;}
-    .acciones a{
-      display:inline-block;
-      text-decoration:none;
-      color:#111827;
-      background:#e5e7eb;
-      padding:13px 16px;
-      border-radius:14px;
-      font-weight:900;
-      margin:5px;
-      font-size:18px;
-    }
+    body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
+    .top{background:#0f172a;color:white;padding:24px 20px;}
+    .version{color:#fb7185;font-size:30px;font-weight:900;margin-bottom:8px;}
+    .top h1{margin:0;font-size:42px;}
+    .top p{margin:8px 0 18px 0;font-size:19px;}
+    .wrap{padding:20px;}
+    .menu{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;}
+    .menu button{padding:14px 18px;border:none;border-radius:14px;background:#dbe0e8;color:#2563eb;font-size:18px;font-weight:900;}
+    .card{background:white;border-radius:18px;padding:22px;margin-bottom:18px;box-shadow:0 10px 30px rgba(0,0,0,.07);border:1px solid #e5e7eb;}
+    h2{margin-top:0;font-size:34px;}
+    h3{font-size:26px;}
+    input,select{width:100%;height:54px;box-sizing:border-box;padding:0 16px;border:1px solid #d1d5db;border-radius:14px;font-size:18px;margin-bottom:12px;background:white;}
+    .btn{border:none;border-radius:14px;padding:14px 18px;font-size:18px;font-weight:900;margin:4px;}
+    .btn-dark{background:#0f172a;color:white}.btn-red{background:#dc2626;color:white}.btn-gray{background:#e5e7eb;color:#111827}
+    .item{border:1px solid #d1d5db;border-radius:16px;padding:16px;margin-bottom:12px;}
+    .muted{color:#6b7280}.ok{color:#15803d;font-weight:900}.error{color:#b91c1c;font-weight:900}
+    .acciones a{display:inline-block;text-decoration:none;color:#111827;background:#e5e7eb;padding:13px 16px;border-radius:14px;font-weight:900;margin:5px;font-size:18px;}
   </style>
 </head>
 
 <body>
-
 <div id="app"></div>
 
 <script>
@@ -134,16 +48,18 @@ function escapar(v){
 }
 
 function sesion(){
-  try{
-    return JSON.parse(localStorage.getItem("usuario") || "null");
-  }catch{
-    return null;
-  }
+  try{return JSON.parse(localStorage.getItem("usuario") || "null");}
+  catch{return null;}
 }
 
 function cerrarSesion(){
   localStorage.removeItem("usuario");
-  window.location.href = "./index.html?v=900";
+  window.location.href = "./index.html?v=1000";
+}
+
+async function sha256(texto){
+  const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,"0")).join("");
 }
 
 async function api(path, opciones = {}){
@@ -161,11 +77,8 @@ async function api(path, opciones = {}){
   const texto = await res.text();
   let data = null;
 
-  try{
-    data = texto ? JSON.parse(texto) : null;
-  }catch{
-    data = texto;
-  }
+  try{data = texto ? JSON.parse(texto) : null;}
+  catch{data = texto;}
 
   if(!res.ok){
     throw new Error(typeof data === "string" ? data : JSON.stringify(data));
@@ -177,7 +90,7 @@ async function api(path, opciones = {}){
 function pintarEstructura(){
   app.innerHTML = `
     <div class="top">
-      <div class="version">APP V900</div>
+      <div class="version">APP V1000</div>
       <h1>Zentryx</h1>
       <p>${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</p>
       <button class="btn btn-red" onclick="cerrarSesion()">Salir</button>
@@ -189,7 +102,6 @@ function pintarEstructura(){
         ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarUsuarios()">Usuarios</button>` : ""}
         ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarConfig()">Configuración</button>` : ""}
       </div>
-
       <div id="contenido"></div>
     </div>
   `;
@@ -239,7 +151,6 @@ function formularioNuevo(){
       <input id="nuevo_direccion" placeholder="Dirección">
 
       <button class="btn btn-dark" onclick="guardarUsuario()">Guardar usuario</button>
-
       <div id="msgNuevo" style="margin-top:12px;"></div>
     </div>
   `;
@@ -247,18 +158,12 @@ function formularioNuevo(){
 
 function listado(){
   if(usuarios.length === 0){
-    return `
-      <div class="card">
-        <h2>Listado</h2>
-        <p>No hay usuarios.</p>
-      </div>
-    `;
+    return `<div class="card"><h2>Listado</h2><p>No hay usuarios.</p></div>`;
   }
 
   return `
     <div class="card">
       <h2>Listado</h2>
-
       ${usuarios.map(u => `
         <div class="item">
           <h3 style="margin:0 0 8px 0;">${escapar(u.nombre)}</h3>
@@ -280,12 +185,7 @@ function listado(){
 }
 
 function fichaVacia(){
-  return `
-    <div class="card">
-      <h2>Ficha de usuario</h2>
-      <p>Selecciona un usuario.</p>
-    </div>
-  `;
+  return `<div class="card"><h2>Ficha de usuario</h2><p>Selecciona un usuario.</p></div>`;
 }
 
 function fichaUsuario(u){
@@ -299,7 +199,7 @@ function fichaUsuario(u){
 
       <input id="edit_nombre" value="${escapar(u.nombre)}" placeholder="Nombre">
       <input id="edit_usuario" value="${escapar(u.usuario)}" placeholder="Usuario">
-      <input id="edit_password" value="${escapar(u.password)}" placeholder="Contraseña">
+      <input id="edit_password" type="password" placeholder="Nueva contraseña (dejar vacío para no cambiar)">
 
       <select id="edit_rol">
         <option value="operario" ${u.rol === "operario" ? "selected" : ""}>operario</option>
@@ -311,13 +211,11 @@ function fichaUsuario(u){
       <input id="edit_direccion" value="${escapar(u.direccion || "")}" placeholder="Dirección">
 
       <button class="btn btn-dark" onclick="guardarCambios()">Guardar cambios</button>
-
       <div id="msgEditar" style="margin-top:12px;"></div>
 
       <hr style="margin:22px 0;">
 
       <h2>Acciones rápidas</h2>
-
       <div class="acciones">
         ${tel ? `<a href="tel:${encodeURIComponent(tel)}">Llamar</a>` : ""}
         ${tel ? `<a href="sms:${encodeURIComponent(tel)}">SMS</a>` : ""}
@@ -327,8 +225,6 @@ function fichaUsuario(u){
         ${direccion ? `<a target="_blank" href="https://waze.com/ul?q=${encodeURIComponent(direccion)}&navigate=yes">Waze</a>` : ""}
         ${direccion ? `<a target="_blank" href="https://maps.apple.com/?q=${encodeURIComponent(direccion)}">Mapas Apple</a>` : ""}
       </div>
-
-      ${!tel && !u.email && !direccion ? `<p class="muted">No hay datos de contacto.</p>` : ""}
     </div>
   `;
 }
@@ -339,7 +235,6 @@ async function mostrarUsuarios(){
 
   try{
     await cargarUsuarios();
-
     contenido.innerHTML = `
       ${formularioNuevo()}
       ${listado()}
@@ -358,10 +253,12 @@ async function mostrarUsuarios(){
 async function guardarUsuario(){
   const msg = document.getElementById("msgNuevo");
 
+  const passwordPlano = document.getElementById("nuevo_password").value.trim();
+
   const nuevo = {
     nombre: document.getElementById("nuevo_nombre").value.trim(),
     usuario: document.getElementById("nuevo_usuario").value.trim().toLowerCase(),
-    password: document.getElementById("nuevo_password").value.trim(),
+    password: passwordPlano ? await sha256(passwordPlano) : "",
     rol: document.getElementById("nuevo_rol").value.trim(),
     telefono: document.getElementById("nuevo_telefono").value.trim(),
     email: document.getElementById("nuevo_email").value.trim(),
@@ -371,7 +268,7 @@ async function guardarUsuario(){
   msg.className = "error";
   msg.textContent = "";
 
-  if(!nuevo.nombre || !nuevo.usuario || !nuevo.password || !nuevo.rol){
+  if(!nuevo.nombre || !nuevo.usuario || !passwordPlano || !nuevo.rol){
     msg.textContent = "Nombre, usuario, contraseña y rol son obligatorios.";
     return;
   }
@@ -410,22 +307,26 @@ async function guardarCambios(){
   if(!usuarioAbierto) return;
 
   const msg = document.getElementById("msgEditar");
+  const nuevaPassword = document.getElementById("edit_password").value.trim();
 
   const editado = {
     nombre: document.getElementById("edit_nombre").value.trim(),
     usuario: document.getElementById("edit_usuario").value.trim().toLowerCase(),
-    password: document.getElementById("edit_password").value.trim(),
     rol: document.getElementById("edit_rol").value.trim(),
     telefono: document.getElementById("edit_telefono").value.trim(),
     email: document.getElementById("edit_email").value.trim(),
     direccion: document.getElementById("edit_direccion").value.trim()
   };
 
+  if(nuevaPassword){
+    editado.password = await sha256(nuevaPassword);
+  }
+
   msg.className = "error";
   msg.textContent = "";
 
-  if(!editado.nombre || !editado.usuario || !editado.password || !editado.rol){
-    msg.textContent = "Nombre, usuario, contraseña y rol son obligatorios.";
+  if(!editado.nombre || !editado.usuario || !editado.rol){
+    msg.textContent = "Nombre, usuario y rol son obligatorios.";
     return;
   }
 
@@ -477,13 +378,9 @@ async function borrarUsuario(id){
   if(!confirm("¿Eliminar este usuario?")) return;
 
   try{
-    await api("/rest/v1/users?id=eq." + encodeURIComponent(id), {
-      method:"DELETE"
-    });
-
+    await api("/rest/v1/users?id=eq." + encodeURIComponent(id), {method:"DELETE"});
     usuarioAbierto = null;
     await mostrarUsuarios();
-
   }catch(e){
     alert("Error borrando usuario: " + e.message);
   }
@@ -493,7 +390,7 @@ function iniciar(){
   usuarioSesion = sesion();
 
   if(!usuarioSesion){
-    window.location.href = "./index.html?v=900";
+    window.location.href = "./index.html?v=1000";
     return;
   }
 
