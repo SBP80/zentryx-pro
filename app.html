@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx APP V1000</title>
+  <title>Zentryx APP V1100</title>
   <style>
     body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
     .top{background:#0f172a;color:white;padding:24px 20px;}
@@ -15,8 +15,11 @@
     .menu button{padding:14px 18px;border:none;border-radius:14px;background:#dbe0e8;color:#2563eb;font-size:18px;font-weight:900;}
     .card{background:white;border-radius:18px;padding:22px;margin-bottom:18px;box-shadow:0 10px 30px rgba(0,0,0,.07);border:1px solid #e5e7eb;}
     h2{margin-top:0;font-size:34px;}
-    h3{font-size:26px;}
-    input,select{width:100%;height:54px;box-sizing:border-box;padding:0 16px;border:1px solid #d1d5db;border-radius:14px;font-size:18px;margin-bottom:12px;background:white;}
+    h3{font-size:24px;margin-bottom:12px;}
+    input,select,textarea{width:100%;box-sizing:border-box;padding:0 16px;border:1px solid #d1d5db;border-radius:14px;font-size:18px;margin-bottom:12px;background:white;}
+    input,select{height:54px;}
+    textarea{min-height:100px;padding-top:14px;font-family:Arial,sans-serif;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;}
     .btn{border:none;border-radius:14px;padding:14px 18px;font-size:18px;font-weight:900;margin:4px;}
     .btn-dark{background:#0f172a;color:white}.btn-red{background:#dc2626;color:white}.btn-gray{background:#e5e7eb;color:#111827}
     .item{border:1px solid #d1d5db;border-radius:16px;padding:16px;margin-bottom:12px;}
@@ -33,18 +36,14 @@ const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
 const app = document.getElementById("app");
-
 let usuarioSesion = null;
 let usuarios = [];
 let usuarioAbierto = null;
 
 function escapar(v){
   return String(v ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
 function sesion(){
@@ -76,26 +75,35 @@ async function api(path, opciones = {}){
 
   const texto = await res.text();
   let data = null;
-
-  try{data = texto ? JSON.parse(texto) : null;}
-  catch{data = texto;}
-
-  if(!res.ok){
-    throw new Error(typeof data === "string" ? data : JSON.stringify(data));
-  }
-
+  try{data = texto ? JSON.parse(texto) : null;}catch{data = texto;}
+  if(!res.ok) throw new Error(typeof data === "string" ? data : JSON.stringify(data));
   return data;
+}
+
+function direccionCompleta(u){
+  return [
+    u.tipo_via,
+    u.nombre_via,
+    u.numero,
+    u.portal ? "Portal " + u.portal : "",
+    u.escalera ? "Esc. " + u.escalera : "",
+    u.piso ? "Piso " + u.piso : "",
+    u.puerta ? "Puerta " + u.puerta : "",
+    u.codigo_postal,
+    u.poblacion,
+    u.provincia,
+    u.pais
+  ].filter(Boolean).join(", ");
 }
 
 function pintarEstructura(){
   app.innerHTML = `
     <div class="top">
-      <div class="version">APP V1000</div>
+      <div class="version">APP V1100</div>
       <h1>Zentryx</h1>
       <p>${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</p>
       <button class="btn btn-red" onclick="cerrarSesion()">Salir</button>
     </div>
-
     <div class="wrap">
       <div class="menu">
         <button onclick="mostrarInicio()">Inicio</button>
@@ -119,12 +127,7 @@ function mostrarInicio(){
 }
 
 function mostrarConfig(){
-  document.getElementById("contenido").innerHTML = `
-    <div class="card">
-      <h2>Configuración</h2>
-      <p>Módulo pendiente.</p>
-    </div>
-  `;
+  document.getElementById("contenido").innerHTML = `<div class="card"><h2>Configuración</h2><p>Módulo pendiente.</p></div>`;
 }
 
 async function cargarUsuarios(){
@@ -132,23 +135,54 @@ async function cargarUsuarios(){
   usuarios = Array.isArray(data) ? data : [];
 }
 
+function opcionesRol(valor){
+  const roles = ["admin","encargado","administrativo","tecnico","instalador","comercial","almacen","mantenimiento","externo","operario"];
+  return roles.map(r => `<option value="${r}" ${valor === r ? "selected" : ""}>${r}</option>`).join("");
+}
+
 function formularioNuevo(){
   return `
     <div class="card">
       <h2>Nuevo usuario</h2>
 
-      <input id="nuevo_nombre" placeholder="Nombre">
+      <h3>Acceso</h3>
+      <input id="nuevo_nombre" placeholder="Nombre y apellidos">
       <input id="nuevo_usuario" placeholder="Usuario">
-      <input id="nuevo_password" placeholder="Contraseña">
+      <input id="nuevo_password" type="password" placeholder="Contraseña">
+      <select id="nuevo_rol">${opcionesRol("operario")}</select>
 
-      <select id="nuevo_rol">
-        <option value="operario">operario</option>
-        <option value="admin">admin</option>
-      </select>
-
+      <h3>Contacto</h3>
       <input id="nuevo_telefono" placeholder="Teléfono">
       <input id="nuevo_email" placeholder="Email">
-      <input id="nuevo_direccion" placeholder="Dirección">
+
+      <h3>Dirección</h3>
+      <div class="grid">
+        <input id="nuevo_tipo_via" placeholder="Tipo vía">
+        <input id="nuevo_nombre_via" placeholder="Nombre vía">
+        <input id="nuevo_numero" placeholder="Número">
+        <input id="nuevo_portal" placeholder="Portal">
+        <input id="nuevo_escalera" placeholder="Escalera">
+        <input id="nuevo_piso" placeholder="Piso">
+        <input id="nuevo_puerta" placeholder="Puerta">
+        <input id="nuevo_codigo_postal" placeholder="Código postal">
+        <input id="nuevo_poblacion" placeholder="Población">
+        <input id="nuevo_provincia" placeholder="Provincia">
+        <input id="nuevo_pais" placeholder="País" value="España">
+      </div>
+
+      <h3>Datos personales y laborales</h3>
+      <div class="grid">
+        <input id="nuevo_dni" placeholder="DNI/NIE">
+        <input id="nuevo_fecha_nacimiento" type="date">
+        <input id="nuevo_fecha_alta" type="date">
+        <input id="nuevo_puesto" placeholder="Puesto">
+        <input id="nuevo_departamento" placeholder="Departamento">
+        <input id="nuevo_tipo_contrato" placeholder="Tipo contrato">
+        <input id="nuevo_jornada" placeholder="Jornada">
+        <input id="nuevo_responsable" placeholder="Responsable">
+      </div>
+
+      <textarea id="nuevo_observaciones" placeholder="Observaciones"></textarea>
 
       <button class="btn btn-dark" onclick="guardarUsuario()">Guardar usuario</button>
       <div id="msgNuevo" style="margin-top:12px;"></div>
@@ -157,9 +191,7 @@ function formularioNuevo(){
 }
 
 function listado(){
-  if(usuarios.length === 0){
-    return `<div class="card"><h2>Listado</h2><p>No hay usuarios.</p></div>`;
-  }
+  if(usuarios.length === 0) return `<div class="card"><h2>Listado</h2><p>No hay usuarios.</p></div>`;
 
   return `
     <div class="card">
@@ -169,14 +201,12 @@ function listado(){
           <h3 style="margin:0 0 8px 0;">${escapar(u.nombre)}</h3>
           <div class="muted">Usuario: ${escapar(u.usuario)}</div>
           <div class="muted">Rol: ${escapar(u.rol)}</div>
+          <div class="muted">Puesto: ${escapar(u.puesto || "-")}</div>
           <div class="muted">Teléfono: ${escapar(u.telefono || "-")}</div>
           <div class="muted">Email: ${escapar(u.email || "-")}</div>
-
           <div style="margin-top:12px;">
             <button class="btn btn-gray" onclick="abrirFicha('${escapar(u.id)}')">Abrir ficha</button>
-            ${String(u.usuario).toLowerCase() !== "admin" ? `
-              <button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>
-            ` : ""}
+            ${String(u.usuario).toLowerCase() !== "admin" ? `<button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>` : ""}
           </div>
         </div>
       `).join("")}
@@ -188,27 +218,57 @@ function fichaVacia(){
   return `<div class="card"><h2>Ficha de usuario</h2><p>Selecciona un usuario.</p></div>`;
 }
 
+function input(id, valor, placeholder, type="text"){
+  return `<input id="${id}" type="${type}" value="${escapar(valor || "")}" placeholder="${placeholder}">`;
+}
+
 function fichaUsuario(u){
   const tel = String(u.telefono || "").replaceAll(" ", "");
   const telWhatsapp = tel.replaceAll("+", "");
-  const direccion = String(u.direccion || "").trim();
+  const dir = direccionCompleta(u);
 
   return `
     <div class="card">
       <h2>Ficha de usuario</h2>
 
-      <input id="edit_nombre" value="${escapar(u.nombre)}" placeholder="Nombre">
-      <input id="edit_usuario" value="${escapar(u.usuario)}" placeholder="Usuario">
+      <h3>Acceso</h3>
+      ${input("edit_nombre", u.nombre, "Nombre")}
+      ${input("edit_usuario", u.usuario, "Usuario")}
       <input id="edit_password" type="password" placeholder="Nueva contraseña (dejar vacío para no cambiar)">
+      <select id="edit_rol">${opcionesRol(u.rol)}</select>
 
-      <select id="edit_rol">
-        <option value="operario" ${u.rol === "operario" ? "selected" : ""}>operario</option>
-        <option value="admin" ${u.rol === "admin" ? "selected" : ""}>admin</option>
-      </select>
+      <h3>Contacto</h3>
+      ${input("edit_telefono", u.telefono, "Teléfono")}
+      ${input("edit_email", u.email, "Email")}
 
-      <input id="edit_telefono" value="${escapar(u.telefono || "")}" placeholder="Teléfono">
-      <input id="edit_email" value="${escapar(u.email || "")}" placeholder="Email">
-      <input id="edit_direccion" value="${escapar(u.direccion || "")}" placeholder="Dirección">
+      <h3>Dirección</h3>
+      <div class="grid">
+        ${input("edit_tipo_via", u.tipo_via, "Tipo vía")}
+        ${input("edit_nombre_via", u.nombre_via, "Nombre vía")}
+        ${input("edit_numero", u.numero, "Número")}
+        ${input("edit_portal", u.portal, "Portal")}
+        ${input("edit_escalera", u.escalera, "Escalera")}
+        ${input("edit_piso", u.piso, "Piso")}
+        ${input("edit_puerta", u.puerta, "Puerta")}
+        ${input("edit_codigo_postal", u.codigo_postal, "Código postal")}
+        ${input("edit_poblacion", u.poblacion, "Población")}
+        ${input("edit_provincia", u.provincia, "Provincia")}
+        ${input("edit_pais", u.pais || "España", "País")}
+      </div>
+
+      <h3>Datos personales y laborales</h3>
+      <div class="grid">
+        ${input("edit_dni", u.dni, "DNI/NIE")}
+        ${input("edit_fecha_nacimiento", u.fecha_nacimiento, "", "date")}
+        ${input("edit_fecha_alta", u.fecha_alta, "", "date")}
+        ${input("edit_puesto", u.puesto, "Puesto")}
+        ${input("edit_departamento", u.departamento, "Departamento")}
+        ${input("edit_tipo_contrato", u.tipo_contrato, "Tipo contrato")}
+        ${input("edit_jornada", u.jornada, "Jornada")}
+        ${input("edit_responsable", u.responsable, "Responsable")}
+      </div>
+
+      <textarea id="edit_observaciones" placeholder="Observaciones">${escapar(u.observaciones || "")}</textarea>
 
       <button class="btn btn-dark" onclick="guardarCambios()">Guardar cambios</button>
       <div id="msgEditar" style="margin-top:12px;"></div>
@@ -221,9 +281,9 @@ function fichaUsuario(u){
         ${tel ? `<a href="sms:${encodeURIComponent(tel)}">SMS</a>` : ""}
         ${tel ? `<a target="_blank" href="https://wa.me/${encodeURIComponent(telWhatsapp)}">WhatsApp</a>` : ""}
         ${u.email ? `<a href="mailto:${encodeURIComponent(u.email)}">Email</a>` : ""}
-        ${direccion ? `<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccion)}">Google Maps</a>` : ""}
-        ${direccion ? `<a target="_blank" href="https://waze.com/ul?q=${encodeURIComponent(direccion)}&navigate=yes">Waze</a>` : ""}
-        ${direccion ? `<a target="_blank" href="https://maps.apple.com/?q=${encodeURIComponent(direccion)}">Mapas Apple</a>` : ""}
+        ${dir ? `<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dir)}">Google Maps</a>` : ""}
+        ${dir ? `<a target="_blank" href="https://waze.com/ul?q=${encodeURIComponent(dir)}&navigate=yes">Waze</a>` : ""}
+        ${dir ? `<a target="_blank" href="https://maps.apple.com/?q=${encodeURIComponent(dir)}">Mapas Apple</a>` : ""}
       </div>
     </div>
   `;
@@ -232,38 +292,82 @@ function fichaUsuario(u){
 async function mostrarUsuarios(){
   const contenido = document.getElementById("contenido");
   contenido.innerHTML = `<div class="card">Cargando usuarios...</div>`;
-
   try{
     await cargarUsuarios();
-    contenido.innerHTML = `
-      ${formularioNuevo()}
-      ${listado()}
-      <div id="ficha">${usuarioAbierto ? fichaUsuario(usuarioAbierto) : fichaVacia()}</div>
-    `;
+    contenido.innerHTML = `${formularioNuevo()}${listado()}<div id="ficha">${usuarioAbierto ? fichaUsuario(usuarioAbierto) : fichaVacia()}</div>`;
   }catch(e){
-    contenido.innerHTML = `
-      <div class="card">
-        <h2>Usuarios</h2>
-        <div class="error">Error cargando usuarios: ${escapar(e.message)}</div>
-      </div>
-    `;
+    contenido.innerHTML = `<div class="card"><h2>Usuarios</h2><div class="error">Error cargando usuarios: ${escapar(e.message)}</div></div>`;
   }
+}
+
+function leerNuevo(){
+  return {
+    nombre: document.getElementById("nuevo_nombre").value.trim(),
+    usuario: document.getElementById("nuevo_usuario").value.trim().toLowerCase(),
+    password: document.getElementById("nuevo_password").value.trim(),
+    rol: document.getElementById("nuevo_rol").value.trim(),
+    telefono: document.getElementById("nuevo_telefono").value.trim(),
+    email: document.getElementById("nuevo_email").value.trim(),
+    tipo_via: document.getElementById("nuevo_tipo_via").value.trim(),
+    nombre_via: document.getElementById("nuevo_nombre_via").value.trim(),
+    numero: document.getElementById("nuevo_numero").value.trim(),
+    portal: document.getElementById("nuevo_portal").value.trim(),
+    escalera: document.getElementById("nuevo_escalera").value.trim(),
+    piso: document.getElementById("nuevo_piso").value.trim(),
+    puerta: document.getElementById("nuevo_puerta").value.trim(),
+    codigo_postal: document.getElementById("nuevo_codigo_postal").value.trim(),
+    poblacion: document.getElementById("nuevo_poblacion").value.trim(),
+    provincia: document.getElementById("nuevo_provincia").value.trim(),
+    pais: document.getElementById("nuevo_pais").value.trim() || "España",
+    dni: document.getElementById("nuevo_dni").value.trim(),
+    fecha_nacimiento: document.getElementById("nuevo_fecha_nacimiento").value || null,
+    fecha_alta: document.getElementById("nuevo_fecha_alta").value || null,
+    puesto: document.getElementById("nuevo_puesto").value.trim(),
+    departamento: document.getElementById("nuevo_departamento").value.trim(),
+    tipo_contrato: document.getElementById("nuevo_tipo_contrato").value.trim(),
+    jornada: document.getElementById("nuevo_jornada").value.trim(),
+    responsable: document.getElementById("nuevo_responsable").value.trim(),
+    observaciones: document.getElementById("nuevo_observaciones").value.trim(),
+    activo: true
+  };
+}
+
+function leerEditado(){
+  const editado = {
+    nombre: document.getElementById("edit_nombre").value.trim(),
+    usuario: document.getElementById("edit_usuario").value.trim().toLowerCase(),
+    rol: document.getElementById("edit_rol").value.trim(),
+    telefono: document.getElementById("edit_telefono").value.trim(),
+    email: document.getElementById("edit_email").value.trim(),
+    tipo_via: document.getElementById("edit_tipo_via").value.trim(),
+    nombre_via: document.getElementById("edit_nombre_via").value.trim(),
+    numero: document.getElementById("edit_numero").value.trim(),
+    portal: document.getElementById("edit_portal").value.trim(),
+    escalera: document.getElementById("edit_escalera").value.trim(),
+    piso: document.getElementById("edit_piso").value.trim(),
+    puerta: document.getElementById("edit_puerta").value.trim(),
+    codigo_postal: document.getElementById("edit_codigo_postal").value.trim(),
+    poblacion: document.getElementById("edit_poblacion").value.trim(),
+    provincia: document.getElementById("edit_provincia").value.trim(),
+    pais: document.getElementById("edit_pais").value.trim() || "España",
+    dni: document.getElementById("edit_dni").value.trim(),
+    fecha_nacimiento: document.getElementById("edit_fecha_nacimiento").value || null,
+    fecha_alta: document.getElementById("edit_fecha_alta").value || null,
+    puesto: document.getElementById("edit_puesto").value.trim(),
+    departamento: document.getElementById("edit_departamento").value.trim(),
+    tipo_contrato: document.getElementById("edit_tipo_contrato").value.trim(),
+    jornada: document.getElementById("edit_jornada").value.trim(),
+    responsable: document.getElementById("edit_responsable").value.trim(),
+    observaciones: document.getElementById("edit_observaciones").value.trim()
+  };
+
+  return editado;
 }
 
 async function guardarUsuario(){
   const msg = document.getElementById("msgNuevo");
-
-  const passwordPlano = document.getElementById("nuevo_password").value.trim();
-
-  const nuevo = {
-    nombre: document.getElementById("nuevo_nombre").value.trim(),
-    usuario: document.getElementById("nuevo_usuario").value.trim().toLowerCase(),
-    password: passwordPlano ? await sha256(passwordPlano) : "",
-    rol: document.getElementById("nuevo_rol").value.trim(),
-    telefono: document.getElementById("nuevo_telefono").value.trim(),
-    email: document.getElementById("nuevo_email").value.trim(),
-    direccion: document.getElementById("nuevo_direccion").value.trim()
-  };
+  const nuevo = leerNuevo();
+  const passwordPlano = nuevo.password;
 
   msg.className = "error";
   msg.textContent = "";
@@ -273,22 +377,17 @@ async function guardarUsuario(){
     return;
   }
 
-  const repetido = usuarios.some(u => String(u.usuario).toLowerCase() === nuevo.usuario);
-  if(repetido){
+  if(usuarios.some(u => String(u.usuario).toLowerCase() === nuevo.usuario)){
     msg.textContent = "Ese usuario ya existe.";
     return;
   }
 
-  try{
-    await api("/rest/v1/users", {
-      method: "POST",
-      headers: {"Prefer":"return=representation"},
-      body: nuevo
-    });
+  nuevo.password = await sha256(passwordPlano);
 
+  try{
+    await api("/rest/v1/users", {method:"POST", headers:{"Prefer":"return=representation"}, body:nuevo});
     usuarioAbierto = null;
     await mostrarUsuarios();
-
   }catch(e){
     msg.textContent = "Error guardando usuario: " + e.message;
   }
@@ -297,7 +396,6 @@ async function guardarUsuario(){
 function abrirFicha(id){
   const u = usuarios.find(x => String(x.id) === String(id));
   if(!u) return;
-
   usuarioAbierto = u;
   document.getElementById("ficha").innerHTML = fichaUsuario(u);
   window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
@@ -307,20 +405,8 @@ async function guardarCambios(){
   if(!usuarioAbierto) return;
 
   const msg = document.getElementById("msgEditar");
+  const editado = leerEditado();
   const nuevaPassword = document.getElementById("edit_password").value.trim();
-
-  const editado = {
-    nombre: document.getElementById("edit_nombre").value.trim(),
-    usuario: document.getElementById("edit_usuario").value.trim().toLowerCase(),
-    rol: document.getElementById("edit_rol").value.trim(),
-    telefono: document.getElementById("edit_telefono").value.trim(),
-    email: document.getElementById("edit_email").value.trim(),
-    direccion: document.getElementById("edit_direccion").value.trim()
-  };
-
-  if(nuevaPassword){
-    editado.password = await sha256(nuevaPassword);
-  }
 
   msg.className = "error";
   msg.textContent = "";
@@ -330,23 +416,17 @@ async function guardarCambios(){
     return;
   }
 
-  const repetido = usuarios.some(u =>
-    String(u.id) !== String(usuarioAbierto.id) &&
-    String(u.usuario).toLowerCase() === editado.usuario
-  );
-
-  if(repetido){
+  if(usuarios.some(u => String(u.id) !== String(usuarioAbierto.id) && String(u.usuario).toLowerCase() === editado.usuario)){
     msg.textContent = "Ese usuario ya existe.";
     return;
   }
 
-  try{
-    await api("/rest/v1/users?id=eq." + encodeURIComponent(usuarioAbierto.id), {
-      method: "PATCH",
-      headers: {"Prefer":"return=representation"},
-      body: editado
-    });
+  if(nuevaPassword){
+    editado.password = await sha256(nuevaPassword);
+  }
 
+  try{
+    await api("/rest/v1/users?id=eq." + encodeURIComponent(usuarioAbierto.id), {method:"PATCH", headers:{"Prefer":"return=representation"}, body:editado});
     usuarioAbierto = {...usuarioAbierto, ...editado};
 
     if(String(usuarioSesion.id) === String(usuarioAbierto.id)){
@@ -354,13 +434,9 @@ async function guardarCambios(){
       usuarioSesion = usuarioAbierto;
     }
 
-    msg.className = "ok";
-    msg.textContent = "Cambios guardados.";
-
     await cargarUsuarios();
     await mostrarUsuarios();
     abrirFicha(usuarioAbierto.id);
-
   }catch(e){
     msg.textContent = "Error guardando cambios: " + e.message;
   }
