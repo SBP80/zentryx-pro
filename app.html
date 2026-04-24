@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V1900</title>
+<title>Zentryx V1902</title>
 
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
@@ -17,6 +17,7 @@ h1{margin:0}
 .red{background:#dc2626;color:white}
 .blue{background:#2563eb;color:white}
 .badge{background:#e5e7eb;padding:6px 10px;border-radius:999px}
+.row{border:1px solid #ccc;border-radius:10px;padding:10px;margin-bottom:10px}
 </style>
 </head>
 
@@ -31,9 +32,10 @@ h1{margin:0}
 
 <script>
 const URL="https://idtaamivqbiuxtjywuux.supabase.co";
-const KEY="TU_KEY_AQUI";
+const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
 let user=null;
+let horas=[];
 
 function api(p,o={}){
 return fetch(URL+p,{
@@ -60,15 +62,18 @@ return false;
 }
 return true;
 }
+
 async function pintarInicio(){
 
-let horas;
+let data;
 
 if(user.rol==="admin"){
-horas=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas");
+data=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas");
 }else{
-horas=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id+"&estado=neq.pagadas");
+data=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id+"&estado=neq.pagadas");
 }
+
+horas=data||[];
 
 let total=horas.reduce((s,h)=>s+Number(h.total||0),0);
 
@@ -79,38 +84,29 @@ document.getElementById("app").innerHTML=`
 </div>
 
 <div class="card">
-<button class="btn big green" onclick="fichar()">FICHAR</button>
+<button class="btn big green" onclick="alert('Siguiente paso: fichaje real')">FICHAR</button>
 </div>
 
 <div class="card">
 <h3>Horas extra</h3>
 <span class="badge">${total.toFixed(2)} € pendientes</span><br><br>
-<button class="btn blue" onclick="verHoras()">Ver horas</button>
-</div>
-
-<div class="card">
-<button class="btn blue" onclick="verUsuarios()">Usuarios</button>
+<button class="btn blue" onclick="pintarHoras()">Ver horas</button>
 </div>
 
 `;
 }
-function verHoras(){
-pintarHoras();
-}
 
-function verUsuarios(){
-pintarUsuarios();
-}
 async function pintarHoras(){
 
-let horas;
-let tipos=await api("/rest/v1/tipos_horas_extra?select=*");
+let data;
 
 if(user.rol==="admin"){
-horas=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas");
+data=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas");
 }else{
-horas=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id+"&estado=neq.pagadas");
+data=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id+"&estado=neq.pagadas");
 }
+
+horas=data||[];
 
 document.getElementById("app").innerHTML=`
 <div class="card">
@@ -118,80 +114,18 @@ document.getElementById("app").innerHTML=`
 <h2>Horas extra</h2>
 </div>
 
-${horas.map(h=>{
-
-let t=tipos.find(x=>x.id==h.tipo_id);
-let botones="";
-let texto="";
-
-if(!h.validado_usuario){
-texto="Pendiente trabajador";
-if(user.id==h.user_id){
-botones+=`<button class="btn green" onclick="valUser('${h.id}')">Validar</button>`;
-}
-}
-else if(!h.validado_admin){
-texto="Pendiente admin";
-if(user.rol==="admin"){
-botones+=`<button class="btn blue" onclick="valAdmin('${h.id}')">Validar admin</button>`;
-}
-}
-else if(!h.admin_confirmo_pago){
-texto="Pendiente pago";
-if(user.rol==="admin"){
-botones+=`<button class="btn blue" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>`;
-}
-}
-else if(!h.usuario_confirmo_cobro){
-texto="Pendiente cobro";
-if(user.id==h.user_id){
-botones+=`<button class="btn green" onclick="cobroUser('${h.id}')">Cobrado</button>`;
-}
-}
-
-return `
+${horas.map(h=>`
 <div class="card">
-<b>${t?.nombre||""}</b><br>
-${h.minutos} min · ${h.total} €<br>
-${texto}<br>
-${botones}
+${h.minutos} min · ${h.total} €
 </div>
-`;
-
-}).join("")}
+`).join("")}
 `;
 }
-async function valUser(id){
-await api("/rest/v1/horas_extra?id=eq."+id,{
-method:"PATCH",
-body:{validado_usuario:true,estado:"pendiente_admin"}
-});
-pintarHoras();
-}
 
-async function valAdmin(id){
-await api("/rest/v1/horas_extra?id=eq."+id,{
-method:"PATCH",
-body:{validado_admin:true}
-});
-pintarHoras();
-}
-
-async function pagoAdmin(id){
-await api("/rest/v1/horas_extra?id=eq."+id,{
-method:"PATCH",
-body:{admin_confirmo_pago:true}
-});
-pintarHoras();
-}
-
-async function cobroUser(id){
-await api("/rest/v1/horas_extra?id=eq."+id,{
-method:"PATCH",
-body:{usuario_confirmo_cobro:true,estado:"pagadas"}
-});
-pintarHoras();
-}
 if(cargarSesion()){
 pintarInicio();
 }
+</script>
+
+</body>
+</html>
