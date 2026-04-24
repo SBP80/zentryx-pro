@@ -1,569 +1,164 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx APP V1200</title>
-  <style>
-    body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
-    .top{background:#0f172a;color:white;padding:24px 20px;}
-    .version{color:#fb7185;font-size:30px;font-weight:900;margin-bottom:8px;}
-    .top h1{margin:0;font-size:42px;}
-    .top p{margin:8px 0 18px 0;font-size:19px;}
-    .wrap{padding:20px;}
-    .menu{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;}
-    .menu button{padding:14px 18px;border:none;border-radius:14px;background:#dbe0e8;color:#2563eb;font-size:18px;font-weight:900;}
-    .card{background:white;border-radius:18px;padding:22px;margin-bottom:18px;box-shadow:0 10px 30px rgba(0,0,0,.07);border:1px solid #e5e7eb;}
-    h2{margin-top:0;font-size:34px;}
-    h3{font-size:24px;margin-bottom:12px;}
-    input,select,textarea{width:100%;box-sizing:border-box;padding:0 16px;border:1px solid #d1d5db;border-radius:14px;font-size:18px;margin-bottom:12px;background:white;}
-    input,select{height:54px;}
-    textarea{min-height:100px;padding-top:14px;font-family:Arial,sans-serif;}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;}
-    .btn{border:none;border-radius:14px;padding:14px 18px;font-size:18px;font-weight:900;margin:4px;}
-    .btn-dark{background:#0f172a;color:white}
-    .btn-red{background:#dc2626;color:white}
-    .btn-gray{background:#e5e7eb;color:#111827}
-    .item{border:1px solid #d1d5db;border-radius:16px;padding:16px;margin-bottom:12px;}
-    .muted{color:#6b7280}
-    .ok{color:#15803d;font-weight:900}
-    .error{color:#b91c1c;font-weight:900}
-    .acciones a{display:inline-block;text-decoration:none;color:#111827;background:#e5e7eb;padding:13px 16px;border-radius:14px;font-weight:900;margin:5px;font-size:18px;}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zentryx V1300</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<style>
+body{font-family:sans-serif;background:#eef2f5;margin:0;padding:20px;}
+.card{background:white;padding:20px;border-radius:15px;margin-bottom:20px;}
+button{padding:10px 15px;border:none;border-radius:10px;margin:5px;}
+.primary{background:#0b1f33;color:white;}
+.danger{background:#e53935;color:white;}
+.gray{background:#ddd;}
+img{width:100px;height:100px;border-radius:50%;object-fit:cover;}
+</style>
 </head>
 
 <body>
-<div id="app"></div>
+
+<div class="card">
+<h2>Zentryx</h2>
+<button onclick="logout()" class="danger">Salir</button>
+</div>
+
+<div class="card">
+<h3>Foto usuario</h3>
+<img id="foto" src="">
+<input type="file" id="fileFoto">
+<button onclick="subirFoto()" class="primary">Subir foto</button>
+</div>
+
+<div class="card">
+<h3>Documentos</h3>
+<input type="file" id="fileDoc">
+<button onclick="subirDoc()" class="primary">Subir documento</button>
+<div id="listaDocs"></div>
+</div>
+
+<div class="card">
+<h3>Fichajes</h3>
+<button onclick="fichar('entrada')" class="primary">Entrada</button>
+<button onclick="fichar('salida')" class="danger">Salida</button>
+<div id="historial"></div>
+</div>
 
 <script>
-const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
-const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+const SUPABASE_URL = "TU_URL";
+const SUPABASE_KEY = "TU_PUBLIC_KEY";
 
-const app = document.getElementById("app");
-let usuarioSesion = null;
-let usuarios = [];
-let usuarioAbierto = null;
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const ROLES_VER_USUARIOS = ["admin","encargado","administrativo"];
-const ROLES_EDITAR_USUARIOS = ["admin","administrativo"];
-const ROLES_BORRAR_USUARIOS = ["admin"];
+const user = JSON.parse(localStorage.getItem("user"));
 
-function escapar(v){
-  return String(v ?? "")
-    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+if(!user){ location.href="index.html"; }
+
+// FOTO
+async function subirFoto(){
+    const file = document.getElementById("fileFoto").files[0];
+    if(!file) return;
+
+    const path = user.id + "_foto";
+
+    await supabase.storage.from('usuarios').upload(path, file, {upsert:true});
+
+    const { data } = supabase.storage.from('usuarios').getPublicUrl(path);
+
+    await supabase.from("users").update({foto_url:data.publicUrl}).eq("id", user.id);
+
+    cargarFoto();
 }
 
-function sesion(){
-  try{return JSON.parse(localStorage.getItem("usuario") || "null");}
-  catch{return null;}
-}
-
-function cerrarSesion(){
-  localStorage.removeItem("usuario");
-  window.location.href = "./index.html?v=1000";
-}
-
-function puedeVerUsuarios(){
-  return ROLES_VER_USUARIOS.includes(usuarioSesion.rol);
-}
-
-function puedeEditarUsuarios(){
-  return ROLES_EDITAR_USUARIOS.includes(usuarioSesion.rol);
-}
-
-function puedeBorrarUsuarios(){
-  return ROLES_BORRAR_USUARIOS.includes(usuarioSesion.rol);
-}
-
-async function sha256(texto){
-  const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
-  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,"0")).join("");
-}
-
-async function api(path, opciones = {}){
-  const res = await fetch(SUPABASE_URL + path, {
-    method: opciones.method || "GET",
-    headers: {
-      "apikey": SUPABASE_KEY,
-      "Authorization": "Bearer " + SUPABASE_KEY,
-      "Content-Type": "application/json",
-      ...(opciones.headers || {})
-    },
-    body: opciones.body ? JSON.stringify(opciones.body) : undefined
-  });
-
-  const texto = await res.text();
-  let data = null;
-
-  try{data = texto ? JSON.parse(texto) : null;}catch{data = texto;}
-
-  if(!res.ok){
-    throw new Error(typeof data === "string" ? data : JSON.stringify(data));
-  }
-
-  return data;
-}
-
-function direccionCompleta(u){
-  return [
-    u.tipo_via,
-    u.nombre_via,
-    u.numero,
-    u.portal ? "Portal " + u.portal : "",
-    u.escalera ? "Esc. " + u.escalera : "",
-    u.piso ? "Piso " + u.piso : "",
-    u.puerta ? "Puerta " + u.puerta : "",
-    u.codigo_postal,
-    u.poblacion,
-    u.provincia,
-    u.pais
-  ].filter(Boolean).join(", ");
-}
-
-function pintarEstructura(){
-  app.innerHTML = `
-    <div class="top">
-      <div class="version">APP V1200</div>
-      <h1>Zentryx</h1>
-      <p>${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</p>
-      <button class="btn btn-red" onclick="cerrarSesion()">Salir</button>
-    </div>
-
-    <div class="wrap">
-      <div class="menu">
-        <button onclick="mostrarInicio()">Inicio</button>
-        ${puedeVerUsuarios() ? `<button onclick="mostrarUsuarios()">Usuarios</button>` : ""}
-        ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarConfig()">Configuración</button>` : ""}
-      </div>
-      <div id="contenido"></div>
-    </div>
-  `;
-}
-
-function mostrarInicio(){
-  document.getElementById("contenido").innerHTML = `
-    <div class="card">
-      <h2>Inicio</h2>
-      <p><b>Nombre:</b> ${escapar(usuarioSesion.nombre)}</p>
-      <p><b>Usuario:</b> ${escapar(usuarioSesion.usuario)}</p>
-      <p><b>Rol:</b> ${escapar(usuarioSesion.rol)}</p>
-    </div>
-  `;
-}
-
-function mostrarConfig(){
-  if(usuarioSesion.rol !== "admin"){
-    document.getElementById("contenido").innerHTML = `
-      <div class="card">
-        <h2>Acceso restringido</h2>
-        <p>No tienes permiso para entrar en Configuración.</p>
-      </div>
-    `;
-    return;
-  }
-
-  document.getElementById("contenido").innerHTML = `
-    <div class="card">
-      <h2>Configuración</h2>
-      <p>Módulo pendiente.</p>
-    </div>
-  `;
-}
-
-async function cargarUsuarios(){
-  const data = await api("/rest/v1/users?select=*&order=id.asc");
-  const todos = Array.isArray(data) ? data : [];
-
-  if(usuarioSesion.rol === "admin" || usuarioSesion.rol === "encargado" || usuarioSesion.rol === "administrativo"){
-    usuarios = todos;
-  }else{
-    usuarios = todos.filter(u => String(u.id) === String(usuarioSesion.id));
-  }
-}
-
-function opcionesRol(valor){
-  const roles = ["admin","encargado","administrativo","tecnico","instalador","comercial","almacen","mantenimiento","externo","operario"];
-  return roles.map(r => `<option value="${r}" ${valor === r ? "selected" : ""}>${r}</option>`).join("");
-}
-
-function formularioNuevo(){
-  if(!puedeEditarUsuarios()){
-    return "";
-  }
-
-  return `
-    <div class="card">
-      <h2>Nuevo usuario</h2>
-
-      <h3>Acceso</h3>
-      <input id="nuevo_nombre" placeholder="Nombre y apellidos">
-      <input id="nuevo_usuario" placeholder="Usuario">
-      <input id="nuevo_password" type="password" placeholder="Contraseña">
-      <select id="nuevo_rol">${opcionesRol("operario")}</select>
-
-      <h3>Contacto</h3>
-      <input id="nuevo_telefono" placeholder="Teléfono">
-      <input id="nuevo_email" placeholder="Email">
-
-      <h3>Dirección</h3>
-      <div class="grid">
-        <input id="nuevo_tipo_via" placeholder="Tipo vía">
-        <input id="nuevo_nombre_via" placeholder="Nombre vía">
-        <input id="nuevo_numero" placeholder="Número">
-        <input id="nuevo_portal" placeholder="Portal">
-        <input id="nuevo_escalera" placeholder="Escalera">
-        <input id="nuevo_piso" placeholder="Piso">
-        <input id="nuevo_puerta" placeholder="Puerta">
-        <input id="nuevo_codigo_postal" placeholder="Código postal">
-        <input id="nuevo_poblacion" placeholder="Población">
-        <input id="nuevo_provincia" placeholder="Provincia">
-        <input id="nuevo_pais" placeholder="País" value="España">
-      </div>
-
-      <h3>Datos personales y laborales</h3>
-      <div class="grid">
-        <input id="nuevo_dni" placeholder="DNI/NIE">
-        <input id="nuevo_fecha_nacimiento" type="date">
-        <input id="nuevo_fecha_alta" type="date">
-        <input id="nuevo_puesto" placeholder="Puesto">
-        <input id="nuevo_departamento" placeholder="Departamento">
-        <input id="nuevo_tipo_contrato" placeholder="Tipo contrato">
-        <input id="nuevo_jornada" placeholder="Jornada">
-        <input id="nuevo_responsable" placeholder="Responsable">
-      </div>
-
-      <textarea id="nuevo_observaciones" placeholder="Observaciones"></textarea>
-
-      <button class="btn btn-dark" onclick="guardarUsuario()">Guardar usuario</button>
-      <div id="msgNuevo" style="margin-top:12px;"></div>
-    </div>
-  `;
-}
-
-function listado(){
-  if(usuarios.length === 0){
-    return `<div class="card"><h2>Listado</h2><p>No hay usuarios.</p></div>`;
-  }
-
-  return `
-    <div class="card">
-      <h2>Listado</h2>
-      ${usuarios.map(u => `
-        <div class="item">
-          <h3 style="margin:0 0 8px 0;">${escapar(u.nombre)}</h3>
-          <div class="muted">Usuario: ${escapar(u.usuario)}</div>
-          <div class="muted">Rol: ${escapar(u.rol)}</div>
-          <div class="muted">Puesto: ${escapar(u.puesto || "-")}</div>
-          <div class="muted">Teléfono: ${escapar(u.telefono || "-")}</div>
-          <div class="muted">Email: ${escapar(u.email || "-")}</div>
-          <div style="margin-top:12px;">
-            <button class="btn btn-gray" onclick="abrirFicha('${escapar(u.id)}')">Abrir ficha</button>
-            ${puedeBorrarUsuarios() && String(u.usuario).toLowerCase() !== "admin" ? `<button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>` : ""}
-          </div>
-        </div>
-      `).join("")}
-    </div>
-  `;
-}
-
-function fichaVacia(){
-  return `<div class="card"><h2>Ficha de usuario</h2><p>Selecciona un usuario.</p></div>`;
-}
-
-function input(id, valor, placeholder, type="text", disabled=false){
-  return `<input id="${id}" type="${type}" value="${escapar(valor || "")}" placeholder="${placeholder}" ${disabled ? "disabled" : ""}>`;
-}
-
-function fichaUsuario(u){
-  const tel = String(u.telefono || "").replaceAll(" ", "");
-  const telWhatsapp = tel.replaceAll("+", "");
-  const dir = direccionCompleta(u);
-  const bloqueado = !puedeEditarUsuarios();
-
-  return `
-    <div class="card">
-      <h2>Ficha de usuario</h2>
-
-      <h3>Acceso</h3>
-      ${input("edit_nombre", u.nombre, "Nombre", "text", bloqueado)}
-      ${input("edit_usuario", u.usuario, "Usuario", "text", bloqueado)}
-      ${bloqueado ? "" : `<input id="edit_password" type="password" placeholder="Nueva contraseña (dejar vacío para no cambiar)">`}
-      <select id="edit_rol" ${bloqueado ? "disabled" : ""}>${opcionesRol(u.rol)}</select>
-
-      <h3>Contacto</h3>
-      ${input("edit_telefono", u.telefono, "Teléfono", "text", bloqueado)}
-      ${input("edit_email", u.email, "Email", "text", bloqueado)}
-
-      <h3>Dirección</h3>
-      <div class="grid">
-        ${input("edit_tipo_via", u.tipo_via, "Tipo vía", "text", bloqueado)}
-        ${input("edit_nombre_via", u.nombre_via, "Nombre vía", "text", bloqueado)}
-        ${input("edit_numero", u.numero, "Número", "text", bloqueado)}
-        ${input("edit_portal", u.portal, "Portal", "text", bloqueado)}
-        ${input("edit_escalera", u.escalera, "Escalera", "text", bloqueado)}
-        ${input("edit_piso", u.piso, "Piso", "text", bloqueado)}
-        ${input("edit_puerta", u.puerta, "Puerta", "text", bloqueado)}
-        ${input("edit_codigo_postal", u.codigo_postal, "Código postal", "text", bloqueado)}
-        ${input("edit_poblacion", u.poblacion, "Población", "text", bloqueado)}
-        ${input("edit_provincia", u.provincia, "Provincia", "text", bloqueado)}
-        ${input("edit_pais", u.pais || "España", "País", "text", bloqueado)}
-      </div>
-
-      <h3>Datos personales y laborales</h3>
-      <div class="grid">
-        ${input("edit_dni", u.dni, "DNI/NIE", "text", bloqueado)}
-        ${input("edit_fecha_nacimiento", u.fecha_nacimiento, "", "date", bloqueado)}
-        ${input("edit_fecha_alta", u.fecha_alta, "", "date", bloqueado)}
-        ${input("edit_puesto", u.puesto, "Puesto", "text", bloqueado)}
-        ${input("edit_departamento", u.departamento, "Departamento", "text", bloqueado)}
-        ${input("edit_tipo_contrato", u.tipo_contrato, "Tipo contrato", "text", bloqueado)}
-        ${input("edit_jornada", u.jornada, "Jornada", "text", bloqueado)}
-        ${input("edit_responsable", u.responsable, "Responsable", "text", bloqueado)}
-      </div>
-
-      <textarea id="edit_observaciones" placeholder="Observaciones" ${bloqueado ? "disabled" : ""}>${escapar(u.observaciones || "")}</textarea>
-
-      ${bloqueado ? `<p class="muted">Vista de solo lectura.</p>` : `<button class="btn btn-dark" onclick="guardarCambios()">Guardar cambios</button>`}
-      <div id="msgEditar" style="margin-top:12px;"></div>
-
-      <hr style="margin:22px 0;">
-
-      <h2>Acciones rápidas</h2>
-      <div class="acciones">
-        ${tel ? `<a href="tel:${encodeURIComponent(tel)}">Llamar</a>` : ""}
-        ${tel ? `<a href="sms:${encodeURIComponent(tel)}">SMS</a>` : ""}
-        ${tel ? `<a target="_blank" href="https://wa.me/${encodeURIComponent(telWhatsapp)}">WhatsApp</a>` : ""}
-        ${u.email ? `<a href="mailto:${encodeURIComponent(u.email)}">Email</a>` : ""}
-        ${dir ? `<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dir)}">Google Maps</a>` : ""}
-        ${dir ? `<a target="_blank" href="https://waze.com/ul?q=${encodeURIComponent(dir)}&navigate=yes">Waze</a>` : ""}
-        ${dir ? `<a target="_blank" href="https://maps.apple.com/?q=${encodeURIComponent(dir)}">Mapas Apple</a>` : ""}
-      </div>
-    </div>
-  `;
-}
-
-async function mostrarUsuarios(){
-  const contenido = document.getElementById("contenido");
-
-  if(!puedeVerUsuarios()){
-    contenido.innerHTML = `
-      <div class="card">
-        <h2>Acceso restringido</h2>
-        <p>No tienes permiso para entrar en Usuarios.</p>
-      </div>
-    `;
-    return;
-  }
-
-  contenido.innerHTML = `<div class="card">Cargando usuarios...</div>`;
-
-  try{
-    await cargarUsuarios();
-    contenido.innerHTML = `${formularioNuevo()}${listado()}<div id="ficha">${usuarioAbierto ? fichaUsuario(usuarioAbierto) : fichaVacia()}</div>`;
-  }catch(e){
-    contenido.innerHTML = `<div class="card"><h2>Usuarios</h2><div class="error">Error cargando usuarios: ${escapar(e.message)}</div></div>`;
-  }
-}
-
-function leerNuevo(){
-  return {
-    nombre: document.getElementById("nuevo_nombre").value.trim(),
-    usuario: document.getElementById("nuevo_usuario").value.trim().toLowerCase(),
-    password: document.getElementById("nuevo_password").value.trim(),
-    rol: document.getElementById("nuevo_rol").value.trim(),
-    telefono: document.getElementById("nuevo_telefono").value.trim(),
-    email: document.getElementById("nuevo_email").value.trim(),
-    tipo_via: document.getElementById("nuevo_tipo_via").value.trim(),
-    nombre_via: document.getElementById("nuevo_nombre_via").value.trim(),
-    numero: document.getElementById("nuevo_numero").value.trim(),
-    portal: document.getElementById("nuevo_portal").value.trim(),
-    escalera: document.getElementById("nuevo_escalera").value.trim(),
-    piso: document.getElementById("nuevo_piso").value.trim(),
-    puerta: document.getElementById("nuevo_puerta").value.trim(),
-    codigo_postal: document.getElementById("nuevo_codigo_postal").value.trim(),
-    poblacion: document.getElementById("nuevo_poblacion").value.trim(),
-    provincia: document.getElementById("nuevo_provincia").value.trim(),
-    pais: document.getElementById("nuevo_pais").value.trim() || "España",
-    dni: document.getElementById("nuevo_dni").value.trim(),
-    fecha_nacimiento: document.getElementById("nuevo_fecha_nacimiento").value || null,
-    fecha_alta: document.getElementById("nuevo_fecha_alta").value || null,
-    puesto: document.getElementById("nuevo_puesto").value.trim(),
-    departamento: document.getElementById("nuevo_departamento").value.trim(),
-    tipo_contrato: document.getElementById("nuevo_tipo_contrato").value.trim(),
-    jornada: document.getElementById("nuevo_jornada").value.trim(),
-    responsable: document.getElementById("nuevo_responsable").value.trim(),
-    observaciones: document.getElementById("nuevo_observaciones").value.trim(),
-    activo: true
-  };
-}
-
-function leerEditado(){
-  return {
-    nombre: document.getElementById("edit_nombre").value.trim(),
-    usuario: document.getElementById("edit_usuario").value.trim().toLowerCase(),
-    rol: document.getElementById("edit_rol").value.trim(),
-    telefono: document.getElementById("edit_telefono").value.trim(),
-    email: document.getElementById("edit_email").value.trim(),
-    tipo_via: document.getElementById("edit_tipo_via").value.trim(),
-    nombre_via: document.getElementById("edit_nombre_via").value.trim(),
-    numero: document.getElementById("edit_numero").value.trim(),
-    portal: document.getElementById("edit_portal").value.trim(),
-    escalera: document.getElementById("edit_escalera").value.trim(),
-    piso: document.getElementById("edit_piso").value.trim(),
-    puerta: document.getElementById("edit_puerta").value.trim(),
-    codigo_postal: document.getElementById("edit_codigo_postal").value.trim(),
-    poblacion: document.getElementById("edit_poblacion").value.trim(),
-    provincia: document.getElementById("edit_provincia").value.trim(),
-    pais: document.getElementById("edit_pais").value.trim() || "España",
-    dni: document.getElementById("edit_dni").value.trim(),
-    fecha_nacimiento: document.getElementById("edit_fecha_nacimiento").value || null,
-    fecha_alta: document.getElementById("edit_fecha_alta").value || null,
-    puesto: document.getElementById("edit_puesto").value.trim(),
-    departamento: document.getElementById("edit_departamento").value.trim(),
-    tipo_contrato: document.getElementById("edit_tipo_contrato").value.trim(),
-    jornada: document.getElementById("edit_jornada").value.trim(),
-    responsable: document.getElementById("edit_responsable").value.trim(),
-    observaciones: document.getElementById("edit_observaciones").value.trim()
-  };
-}
-
-async function guardarUsuario(){
-  if(!puedeEditarUsuarios()){
-    alert("No tienes permisos para crear usuarios.");
-    return;
-  }
-
-  const msg = document.getElementById("msgNuevo");
-  const nuevo = leerNuevo();
-  const passwordPlano = nuevo.password;
-
-  msg.className = "error";
-  msg.textContent = "";
-
-  if(!nuevo.nombre || !nuevo.usuario || !passwordPlano || !nuevo.rol){
-    msg.textContent = "Nombre, usuario, contraseña y rol son obligatorios.";
-    return;
-  }
-
-  if(usuarios.some(u => String(u.usuario).toLowerCase() === nuevo.usuario)){
-    msg.textContent = "Ese usuario ya existe.";
-    return;
-  }
-
-  nuevo.password = await sha256(passwordPlano);
-
-  try{
-    await api("/rest/v1/users", {method:"POST", headers:{"Prefer":"return=representation"}, body:nuevo});
-    usuarioAbierto = null;
-    await mostrarUsuarios();
-  }catch(e){
-    msg.textContent = "Error guardando usuario: " + e.message;
-  }
-}
-
-function abrirFicha(id){
-  const u = usuarios.find(x => String(x.id) === String(id));
-  if(!u) return;
-
-  usuarioAbierto = u;
-  document.getElementById("ficha").innerHTML = fichaUsuario(u);
-  window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
-}
-
-async function guardarCambios(){
-  if(!puedeEditarUsuarios()){
-    alert("No tienes permisos para editar usuarios.");
-    return;
-  }
-
-  if(!usuarioAbierto) return;
-
-  const msg = document.getElementById("msgEditar");
-  const editado = leerEditado();
-  const nuevaPassword = document.getElementById("edit_password").value.trim();
-
-  msg.className = "error";
-  msg.textContent = "";
-
-  if(!editado.nombre || !editado.usuario || !editado.rol){
-    msg.textContent = "Nombre, usuario y rol son obligatorios.";
-    return;
-  }
-
-  if(usuarios.some(u => String(u.id) !== String(usuarioAbierto.id) && String(u.usuario).toLowerCase() === editado.usuario)){
-    msg.textContent = "Ese usuario ya existe.";
-    return;
-  }
-
-  if(nuevaPassword){
-    editado.password = await sha256(nuevaPassword);
-  }
-
-  try{
-    await api("/rest/v1/users?id=eq." + encodeURIComponent(usuarioAbierto.id), {method:"PATCH", headers:{"Prefer":"return=representation"}, body:editado});
-    usuarioAbierto = {...usuarioAbierto, ...editado};
-
-    if(String(usuarioSesion.id) === String(usuarioAbierto.id)){
-      localStorage.setItem("usuario", JSON.stringify(usuarioAbierto));
-      usuarioSesion = usuarioAbierto;
+async function cargarFoto(){
+    const { data } = await supabase.from("users").select("foto_url").eq("id", user.id).single();
+    if(data?.foto_url){
+        document.getElementById("foto").src = data.foto_url;
     }
-
-    await cargarUsuarios();
-    await mostrarUsuarios();
-    abrirFicha(usuarioAbierto.id);
-  }catch(e){
-    msg.textContent = "Error guardando cambios: " + e.message;
-  }
 }
 
-async function borrarUsuario(id){
-  if(!puedeBorrarUsuarios()){
-    alert("No tienes permisos para eliminar usuarios.");
-    return;
-  }
+// DOCUMENTOS
+async function subirDoc(){
+    const file = document.getElementById("fileDoc").files[0];
+    if(!file) return;
 
-  const u = usuarios.find(x => String(x.id) === String(id));
-  if(!u) return;
+    const path = user.id + "_" + Date.now();
 
-  if(String(u.usuario).toLowerCase() === "admin"){
-    alert("No se puede borrar admin.");
-    return;
-  }
+    await supabase.storage.from('usuarios').upload(path, file);
 
-  if(!confirm("¿Eliminar este usuario?")) return;
+    const { data } = supabase.storage.from('usuarios').getPublicUrl(path);
 
-  try{
-    await api("/rest/v1/users?id=eq." + encodeURIComponent(id), {method:"DELETE"});
-    usuarioAbierto = null;
-    await mostrarUsuarios();
-  }catch(e){
-    alert("Error borrando usuario: " + e.message);
-  }
+    await supabase.from("documentos").insert({
+        user_id:user.id,
+        nombre:file.name,
+        url:data.publicUrl
+    });
+
+    cargarDocs();
 }
 
-function iniciar(){
-  usuarioSesion = sesion();
+async function cargarDocs(){
+    const { data } = await supabase.from("documentos").select("*").eq("user_id", user.id);
 
-  if(!usuarioSesion){
-    window.location.href = "./index.html?v=1000";
-    return;
-  }
+    let html="";
+    data.forEach(d=>{
+        html+=`
+        <div>
+            ${d.nombre}
+            <a href="${d.url}" target="_blank">Ver</a>
+            <button onclick="eliminarDoc('${d.id}','${d.url}')" class="danger">Eliminar</button>
+        </div>`;
+    });
 
-  pintarEstructura();
-  mostrarInicio();
+    document.getElementById("listaDocs").innerHTML = html;
 }
 
-window.cerrarSesion = cerrarSesion;
-window.mostrarInicio = mostrarInicio;
-window.mostrarUsuarios = mostrarUsuarios;
-window.mostrarConfig = mostrarConfig;
-window.guardarUsuario = guardarUsuario;
-window.abrirFicha = abrirFicha;
-window.guardarCambios = guardarCambios;
-window.borrarUsuario = borrarUsuario;
+async function eliminarDoc(id,url){
+    const path = url.split("/usuarios/")[1];
 
-iniciar();
+    await supabase.storage.from("usuarios").remove([path]);
+    await supabase.from("documentos").delete().eq("id", id);
+
+    cargarDocs();
+}
+
+// FICHAJES
+async function fichar(tipo){
+    await supabase.from("fichajes").insert({
+        user_id:user.id,
+        tipo:tipo
+    });
+
+    cargarFichajes();
+}
+
+async function cargarFichajes(){
+    const { data } = await supabase.from("fichajes")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("fecha",{ascending:false});
+
+    let html="";
+    data.forEach(f=>{
+        html+=`<div>${f.tipo} - ${new Date(f.fecha).toLocaleString()}</div>`;
+    });
+
+    document.getElementById("historial").innerHTML = html;
+}
+
+// LOGOUT
+function logout(){
+    localStorage.removeItem("user");
+    location.href="index.html";
+}
+
+// INIT
+cargarFoto();
+cargarDocs();
+cargarFichajes();
+
 </script>
 
 </body>
