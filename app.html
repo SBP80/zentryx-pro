@@ -3,28 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx APP V1602</title>
+<title>Zentryx APP V1700</title>
 
 <style>
 body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
 .top{background:#0f172a;color:white;padding:28px 20px;}
-.top h1{margin:0;font-size:42px;}
 .version{color:#fb7185;font-size:30px;font-weight:900;margin-bottom:10px;}
+.top h1{margin:0;font-size:42px;}
 .wrap{padding:20px;}
 .card{background:white;border-radius:18px;padding:22px;margin-bottom:18px;border:1px solid #e5e7eb;}
-.btn{border:none;border-radius:14px;padding:14px 18px;font-size:18px;font-weight:900;margin:4px;}
+.btn{border:none;border-radius:14px;padding:16px 20px;font-size:18px;font-weight:900;margin:4px;}
+.btn-big{width:100%;font-size:26px;padding:22px;margin:10px 0;}
 .btn-dark{background:#0f172a;color:white;}
 .btn-red{background:#dc2626;color:white;}
 .btn-gray{background:#e5e7eb;color:#111827;}
-.error{color:#b91c1c;font-weight:900;}
+.btn-green{background:#16a34a;color:white;}
+.btn-blue{background:#2563eb;color:white;}
+select,input{width:100%;height:56px;border:1px solid #d1d5db;border-radius:14px;padding:0 14px;font-size:18px;box-sizing:border-box;margin-bottom:12px;}
 .muted{color:#6b7280;}
+.ok{color:#15803d;font-weight:900;}
+.error{color:#b91c1c;font-weight:900;}
+.badge{display:inline-block;background:#e5e7eb;border-radius:999px;padding:8px 12px;font-weight:900;}
+.row{border:1px solid #d1d5db;border-radius:14px;padding:14px;margin-bottom:10px;}
 </style>
 </head>
 
 <body>
 
 <div class="top">
-  <div class="version">APP V1602</div>
+  <div class="version">APP V1700</div>
   <h1>Zentryx</h1>
   <button class="btn btn-red" onclick="salir()">Salir</button>
 </div>
@@ -38,8 +45,11 @@ const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
 let sesion = null;
+let usuarioReal = null;
+let ultimo = null;
+let historial = [];
 let usuarios = [];
-let usuarioAbierto = null;
+let panelFichajeAbierto = false;
 
 function api(path, opciones = {}){
   return fetch(SUPABASE_URL + path, {
@@ -54,8 +64,8 @@ function api(path, opciones = {}){
   }).then(async r => {
     const txt = await r.text();
     let data = null;
-    try{ data = txt ? JSON.parse(txt) : null; }catch{ data = txt; }
-    if(!r.ok) throw new Error(txt || "Error Supabase");
+    try{data = txt ? JSON.parse(txt) : null;}catch{data = txt;}
+    if(!r.ok) throw new Error(txt || "Error");
     return data;
   });
 }
@@ -69,32 +79,168 @@ function escapar(v){
     .replaceAll("'","&#039;");
 }
 
+function leerSesion(){
+  try{return JSON.parse(localStorage.getItem("usuario") || "null");}
+  catch{return null;}
+}
+
 function salir(){
   localStorage.removeItem("usuario");
   localStorage.removeItem("user");
-  location.href = "./index.html?v=1000";
+  location.href="./index.html?v=1000";
 }
 
-function leerSesion(){
+function puedeVerUsuarios(){
+  return ["admin","encargado","administrativo"].includes(usuarioReal?.rol);
+}
+
+function obtenerUbicacion(){
+  return new Promise(resolve => {
+    if(!navigator.geolocation){
+      resolve({lat:null,lng:null,direccion:"Sin ubicación"});
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({
+        lat:pos.coords.latitude,
+        lng:pos.coords.longitude,
+        direccion:"Lat " + pos.coords.latitude + ", Lng " + pos.coords.longitude
+      }),
+      () => resolve({lat:null,lng:null,direccion:"Ubicación no autorizada"}),
+      {enableHighAccuracy:true,timeout:10000}
+    );
+  });
+}
+
+function accionesValidas(){
+  const estado = ultimo ? ultimo.tipo : "fuera";
+
+  if(!ultimo || estado === "salida"){
+    return [{v:"entrada",t:"Entrada"}];
+  }
+
+  if(estado === "entrada" || estado === "fin_descanso" || estado === "fin_comida"){
+    return [
+      {v:"inicio_descanso",t:"Inicio descanso"},
+      {v:"inicio_comida",t:"Inicio comida"},
+      {v:"salida",t:"Salida"}
+    ];
+  }
+
+  if(estado === "inicio_descanso"){
+    return [{v:"fin_descanso",t:"Fin descanso"}];
+  }
+
+  if(estado === "inicio_comida"){
+    return [{v:"fin_comida",t:"Fin comida"}];
+  }
+
+  return [];
+}
+
+async function cargarUsuarioReal(){
+  const data = await api("/rest/v1/users?select=*&id=eq." + encodeURIComponent(sesion.id) + "&limit=1");
+  usuarioReal = Array.isArray(data) && data.length ? data[0] : sesion;
+}
+
+async function cargarFichajesInicio(){
+  const data = await api(
+    "/rest/v1/fichajes?select=*&user_id=eq." +
+    encodeURIComponent(String(usuarioReal.id)) +
+    "&order=fecha.desc&limit=10"
+  );
+
+  historial = Array.isArray(data) ? data : [];
+  ultimo = historial.length ? historial[0] : null;
+}
+
+function pintarInicio(){
+  const acciones = accionesValidas();
+  const estado = ultimo ? ultimo.tipo : "fuera";
+
+  document.getElementById("app").innerHTML = `
+    <div class="card">
+      <h2>Inicio</h2>
+      <p><b>${escapar(usuarioReal.nombre)}</b></p>
+      <p class="muted">${escapar(usuarioReal.rol)} · ${escapar(usuarioReal.usuario)}</p>
+    </div>
+
+    <div class="card">
+      <h2>Fichaje rápido</h2>
+      <p><span class="badge">Estado: ${escapar(estado)}</span></p>
+
+      <button class="btn btn-big btn-green" onclick="abrirCerrarFichaje()">Fichar</button>
+
+      ${panelFichajeAbierto ? `
+        <select id="tipoFichaje">
+          ${acciones.map(a => `<option value="${a.v}">${a.t}</option>`).join("")}
+        </select>
+        <button class="btn btn-dark" onclick="registrarFichaje()">Guardar fichaje</button>
+        <div id="msgFichaje" style="margin-top:12px;"></div>
+      ` : ""}
+    </div>
+
+    <div class="card">
+      <h2>Últimos fichajes</h2>
+      ${historial.length ? historial.map(f => `
+        <div class="row">
+          <b>${escapar(f.tipo)}</b><br>
+          ${new Date(f.fecha).toLocaleString("es-ES")}<br>
+          <span class="muted">${escapar(f.direccion || "Sin ubicación")}</span>
+        </div>
+      `).join("") : `<p class="muted">No hay fichajes.</p>`}
+    </div>
+
+    ${puedeVerUsuarios() ? `
+      <div class="card">
+        <h2>Administración</h2>
+        <button class="btn btn-dark" onclick="mostrarUsuarios()">Usuarios</button>
+      </div>
+    ` : ""}
+  `;
+}
+
+function abrirCerrarFichaje(){
+  panelFichajeAbierto = !panelFichajeAbierto;
+  pintarInicio();
+}
+
+async function registrarFichaje(){
+  const msg = document.getElementById("msgFichaje");
+  const tipo = document.getElementById("tipoFichaje").value;
+
+  msg.className = "muted";
+  msg.textContent = "Obteniendo ubicación...";
+
   try{
-    return JSON.parse(localStorage.getItem("usuario") || "null");
-  }catch{
-    return null;
+    const ubi = await obtenerUbicacion();
+
+    msg.textContent = "Guardando fichaje...";
+
+    await api("/rest/v1/fichajes", {
+      method:"POST",
+      headers:{"Prefer":"return=representation"},
+      body:{
+        user_id:String(usuarioReal.id),
+        tipo:tipo,
+        lat:ubi.lat,
+        lng:ubi.lng,
+        direccion:ubi.direccion
+      }
+    });
+
+    panelFichajeAbierto = false;
+    await cargarFichajesInicio();
+    pintarInicio();
+
+  }catch(e){
+    msg.className = "error";
+    msg.textContent = "Error guardando fichaje: " + e.message;
   }
 }
 
-async function iniciar(){
-  sesion = leerSesion();
-
-  if(!sesion){
-    location.href = "./index.html?v=1000";
-    return;
-  }
-
-  await cargarUsuarios();
-}
-
-async function cargarUsuarios(){
+async function mostrarUsuarios(){
   const app = document.getElementById("app");
   app.innerHTML = `<div class="card">Cargando usuarios...</div>`;
 
@@ -103,20 +249,23 @@ async function cargarUsuarios(){
 
     app.innerHTML = `
       <div class="card">
+        <button class="btn btn-gray" onclick="volverInicio()">← Volver al inicio</button>
         <h2>Usuarios</h2>
-        ${usuarios.map(u => `
-          <div class="card">
-            <h3>${escapar(u.nombre)}</h3>
-            <p class="muted">Usuario: ${escapar(u.usuario)}</p>
-            <p class="muted">Rol: ${escapar(u.rol)}</p>
-            <button class="btn btn-dark" onclick="abrirUsuario('${escapar(u.id)}')">Abrir usuario</button>
-          </div>
-        `).join("")}
       </div>
+
+      ${usuarios.map(u => `
+        <div class="card">
+          <h3>${escapar(u.nombre)}</h3>
+          <p class="muted">Usuario: ${escapar(u.usuario)}</p>
+          <p class="muted">Rol: ${escapar(u.rol)}</p>
+          <button class="btn btn-dark" onclick="abrirUsuario('${escapar(u.id)}')">Abrir usuario</button>
+        </div>
+      `).join("")}
     `;
   }catch(e){
     app.innerHTML = `
       <div class="card">
+        <button class="btn btn-gray" onclick="volverInicio()">← Volver</button>
         <h2>Error cargando usuarios</h2>
         <p class="error">${escapar(e.message)}</p>
       </div>
@@ -125,48 +274,70 @@ async function cargarUsuarios(){
 }
 
 function abrirUsuario(id){
-  usuarioAbierto = usuarios.find(u => String(u.id) === String(id));
-
-  if(!usuarioAbierto){
-    document.getElementById("app").innerHTML = `
-      <div class="card">
-        <h2>No hay usuario</h2>
-        <button class="btn btn-gray" onclick="cargarUsuarios()">Volver</button>
-      </div>
-    `;
-    return;
-  }
+  const u = usuarios.find(x => String(x.id) === String(id));
+  if(!u) return;
 
   document.getElementById("app").innerHTML = `
     <div class="card">
-      <button class="btn btn-gray" onclick="cargarUsuarios()">← Volver a usuarios</button>
-      <h2>${escapar(usuarioAbierto.nombre)}</h2>
-      <p><b>Usuario:</b> ${escapar(usuarioAbierto.usuario)}</p>
-      <p><b>Rol:</b> ${escapar(usuarioAbierto.rol)}</p>
-      <p><b>Teléfono:</b> ${escapar(usuarioAbierto.telefono || "-")}</p>
-      <p><b>Email:</b> ${escapar(usuarioAbierto.email || "-")}</p>
+      <button class="btn btn-gray" onclick="mostrarUsuarios()">← Volver a usuarios</button>
+      <h2>${escapar(u.nombre)}</h2>
+      <p><b>Usuario:</b> ${escapar(u.usuario)}</p>
+      <p><b>Rol:</b> ${escapar(u.rol)}</p>
+      <p><b>Teléfono:</b> ${escapar(u.telefono || "-")}</p>
+      <p><b>Email:</b> ${escapar(u.email || "-")}</p>
     </div>
 
     <div class="card">
       <h2>Ficha</h2>
-      <p>Aquí seguimos montando la ficha real ordenada.</p>
-    </div>
-
-    <div class="card">
-      <h2>Fichajes</h2>
-      <p>Aquí irá el historial y los botones válidos.</p>
+      <p class="muted">Aquí irá la ficha completa ordenada por pestañas.</p>
     </div>
 
     <div class="card">
       <h2>Horarios</h2>
-      <p>Aquí irá el horario por días.</p>
+      <p class="muted">Aquí irá el horario semanal del trabajador.</p>
+    </div>
+
+    <div class="card">
+      <h2>Fichajes</h2>
+      <p class="muted">Aquí irá el historial completo editable con motivo.</p>
     </div>
   `;
 }
 
+async function volverInicio(){
+  panelFichajeAbierto = false;
+  await cargarFichajesInicio();
+  pintarInicio();
+}
+
+async function iniciar(){
+  sesion = leerSesion();
+
+  if(!sesion){
+    location.href="./index.html?v=1000";
+    return;
+  }
+
+  try{
+    await cargarUsuarioReal();
+    await cargarFichajesInicio();
+    pintarInicio();
+  }catch(e){
+    document.getElementById("app").innerHTML = `
+      <div class="card">
+        <h2>Error iniciando</h2>
+        <p class="error">${escapar(e.message)}</p>
+      </div>
+    `;
+  }
+}
+
 window.salir = salir;
+window.abrirCerrarFichaje = abrirCerrarFichaje;
+window.registrarFichaje = registrarFichaje;
+window.mostrarUsuarios = mostrarUsuarios;
 window.abrirUsuario = abrirUsuario;
-window.cargarUsuarios = cargarUsuarios;
+window.volverInicio = volverInicio;
 
 iniciar();
 </script>
