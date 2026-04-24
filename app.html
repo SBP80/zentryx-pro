@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V1600</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<title>Zentryx V1601</title>
 
 <style>
 body{font-family:Arial;margin:0;background:#eef2f7;}
@@ -13,9 +16,7 @@ body{font-family:Arial;margin:0;background:#eef2f7;}
 .btn{padding:12px;border:none;border-radius:10px;margin:4px;font-weight:700;}
 .btn-dark{background:#111;color:#fff}
 .btn-gray{background:#ddd}
-.btn-green{background:#16a34a;color:#fff}
 .btn-red{background:#dc2626;color:#fff}
-.tabs button{margin-right:5px}
 </style>
 </head>
 
@@ -23,148 +24,80 @@ body{font-family:Arial;margin:0;background:#eef2f7;}
 
 <div class="top">
 <h2>Zentryx</h2>
-<button class="btn btn-red" onclick="volver()">Volver usuarios</button>
+<button class="btn btn-red" onclick="volver()">Volver</button>
 </div>
 
 <div class="wrap" id="app"></div>
 
 <script>
 
-let usuario = null
-let tab = "ficha"
+// 🔴 CONFIGURA ESTO
+const supabase = window.supabase.createClient(
+  "TU_URL_SUPABASE",
+  "TU_PUBLIC_KEY"
+)
 
-function cargarUsuario(){
-  usuario = JSON.parse(localStorage.getItem("usuarioDemo"))
-  render()
-}
+let usuarios = []
+let usuarioActual = null
 
-function cambiarTab(t){
-  tab = t
-  render()
-}
+// 🔵 CARGAR USUARIOS
+async function cargarUsuarios(){
 
-function render(){
-  if(!usuario){
-    document.getElementById("app").innerHTML = "<p>No hay usuario</p>"
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+
+  if(error){
+    document.getElementById("app").innerHTML = "Error cargando usuarios"
     return
   }
 
+  usuarios = data
+  renderListado()
+}
+
+// 🔵 LISTADO
+function renderListado(){
+
   document.getElementById("app").innerHTML = `
-  <div class="card">
-    <h2>${usuario.nombre}</h2>
-
-    <div class="tabs">
-      <button class="btn btn-gray" onclick="cambiarTab('ficha')">Ficha</button>
-      <button class="btn btn-gray" onclick="cambiarTab('horarios')">Horarios</button>
-      <button class="btn btn-gray" onclick="cambiarTab('fichajes')">Fichajes</button>
+    <div class="card">
+      <h3>Usuarios</h3>
+      ${usuarios.map(u=>`
+        <div class="card">
+          <b>${u.nombre}</b><br>
+          ${u.usuario}<br>
+          ${u.rol}<br>
+          <button class="btn btn-dark" onclick="abrirUsuario(${u.id})">Abrir</button>
+        </div>
+      `).join("")}
     </div>
-  </div>
-
-  ${tab==="ficha" ? ficha() : ""}
-  ${tab==="horarios" ? horarios() : ""}
-  ${tab==="fichajes" ? fichajes() : ""}
   `
 }
 
-function ficha(){
-  return `
-  <div class="card">
-    <h3>Datos</h3>
-    <p>${usuario.nombre}</p>
-    <p>${usuario.usuario}</p>
-  </div>`
-}
+// 🔵 ABRIR USUARIO
+function abrirUsuario(id){
 
-function horarios(){
-  return `
-  <div class="card">
-    <h3>Horarios</h3>
-    <p>Pendiente conectar con Supabase</p>
-  </div>`
-}
+  usuarioActual = usuarios.find(u => u.id === id)
 
-let historial = []
-
-function estado(){
-  if(historial.length===0) return "fuera"
-  return historial[historial.length-1].tipo
-}
-
-function fichajes(){
-
-  let est = estado()
-
-  let botones = ""
-
-  if(est==="fuera"){
-    botones += `<button class="btn btn-green" onclick="fichar('entrada')">Entrada</button>`
-  }
-
-  if(est==="entrada"){
-    botones += `
-      <button class="btn btn-red" onclick="fichar('salida')">Salida</button>
-      <button class="btn btn-dark" onclick="fichar('inicio_descanso')">Descanso</button>
-      <button class="btn btn-dark" onclick="fichar('inicio_comida')">Comida</button>
-    `
-  }
-
-  if(est==="inicio_descanso"){
-    botones += `<button class="btn btn-green" onclick="fichar('fin_descanso')">Fin descanso</button>`
-  }
-
-  if(est==="inicio_comida"){
-    botones += `<button class="btn btn-green" onclick="fichar('fin_comida')">Fin comida</button>`
-  }
-
-  return `
-  <div class="card">
-    <h3>Estado: ${est}</h3>
-    ${botones}
-
-    <hr>
-
-    <h3>Historial</h3>
-    ${historial.map((f,i)=>`
-      <div>
-        ${f.tipo} - ${f.fecha}
-        <button onclick="editar(${i})">Editar</button>
-      </div>
-    `).join("")}
-  </div>
+  document.getElementById("app").innerHTML = `
+    <div class="card">
+      <h2>${usuarioActual.nombre}</h2>
+      <p>Usuario: ${usuarioActual.usuario}</p>
+      <p>Rol: ${usuarioActual.rol}</p>
+    </div>
   `
 }
 
-function fichar(tipo){
-  historial.push({
-    tipo:tipo,
-    fecha:new Date().toLocaleString()
-  })
-  render()
-}
-
-function editar(i){
-  let fecha = prompt("Nueva fecha (YYYY-MM-DD)")
-  let hora = prompt("Nueva hora (HH:mm)")
-  let tipo = prompt("Tipo")
-  let motivo = prompt("Motivo")
-
-  if(!motivo){alert("Motivo obligatorio");return}
-
-  historial[i] = {
-    tipo:tipo,
-    fecha:fecha+" "+hora,
-    motivo:motivo
-  }
-
-  render()
-}
-
+// 🔵 VOLVER
 function volver(){
-  location.reload()
+  usuarioActual = null
+  renderListado()
 }
 
-cargarUsuario()
+// 🔵 INICIO
+cargarUsuarios()
 
 </script>
+
 </body>
 </html>
