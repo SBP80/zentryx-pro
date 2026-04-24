@@ -60,3 +60,138 @@ return false;
 }
 return true;
 }
+async function pintarInicio(){
+
+let horas;
+
+if(user.rol==="admin"){
+horas=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas");
+}else{
+horas=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id+"&estado=neq.pagadas");
+}
+
+let total=horas.reduce((s,h)=>s+Number(h.total||0),0);
+
+document.getElementById("app").innerHTML=`
+
+<div class="card">
+<h2>Bienvenido ${user.usuario}</h2>
+</div>
+
+<div class="card">
+<button class="btn big green" onclick="fichar()">FICHAR</button>
+</div>
+
+<div class="card">
+<h3>Horas extra</h3>
+<span class="badge">${total.toFixed(2)} € pendientes</span><br><br>
+<button class="btn blue" onclick="verHoras()">Ver horas</button>
+</div>
+
+<div class="card">
+<button class="btn blue" onclick="verUsuarios()">Usuarios</button>
+</div>
+
+`;
+}
+function verHoras(){
+pintarHoras();
+}
+
+function verUsuarios(){
+pintarUsuarios();
+}
+async function pintarHoras(){
+
+let horas;
+let tipos=await api("/rest/v1/tipos_horas_extra?select=*");
+
+if(user.rol==="admin"){
+horas=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas");
+}else{
+horas=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id+"&estado=neq.pagadas");
+}
+
+document.getElementById("app").innerHTML=`
+<div class="card">
+<button class="btn" onclick="pintarInicio()">← Volver</button>
+<h2>Horas extra</h2>
+</div>
+
+${horas.map(h=>{
+
+let t=tipos.find(x=>x.id==h.tipo_id);
+let botones="";
+let texto="";
+
+if(!h.validado_usuario){
+texto="Pendiente trabajador";
+if(user.id==h.user_id){
+botones+=`<button class="btn green" onclick="valUser('${h.id}')">Validar</button>`;
+}
+}
+else if(!h.validado_admin){
+texto="Pendiente admin";
+if(user.rol==="admin"){
+botones+=`<button class="btn blue" onclick="valAdmin('${h.id}')">Validar admin</button>`;
+}
+}
+else if(!h.admin_confirmo_pago){
+texto="Pendiente pago";
+if(user.rol==="admin"){
+botones+=`<button class="btn blue" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>`;
+}
+}
+else if(!h.usuario_confirmo_cobro){
+texto="Pendiente cobro";
+if(user.id==h.user_id){
+botones+=`<button class="btn green" onclick="cobroUser('${h.id}')">Cobrado</button>`;
+}
+}
+
+return `
+<div class="card">
+<b>${t?.nombre||""}</b><br>
+${h.minutos} min · ${h.total} €<br>
+${texto}<br>
+${botones}
+</div>
+`;
+
+}).join("")}
+`;
+}
+async function valUser(id){
+await api("/rest/v1/horas_extra?id=eq."+id,{
+method:"PATCH",
+body:{validado_usuario:true,estado:"pendiente_admin"}
+});
+pintarHoras();
+}
+
+async function valAdmin(id){
+await api("/rest/v1/horas_extra?id=eq."+id,{
+method:"PATCH",
+body:{validado_admin:true}
+});
+pintarHoras();
+}
+
+async function pagoAdmin(id){
+await api("/rest/v1/horas_extra?id=eq."+id,{
+method:"PATCH",
+body:{admin_confirmo_pago:true}
+});
+pintarHoras();
+}
+
+async function cobroUser(id){
+await api("/rest/v1/horas_extra?id=eq."+id,{
+method:"PATCH",
+body:{usuario_confirmo_cobro:true,estado:"pagadas"}
+});
+pintarHoras();
+}
+if(cargarSesion()){
+pintarInicio();
+}
