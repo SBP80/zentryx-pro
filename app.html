@@ -3,105 +3,172 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<title>Zentryx V1601</title>
+<title>Zentryx APP V1602</title>
 
 <style>
-body{font-family:Arial;margin:0;background:#eef2f7;}
-.top{background:#0f172a;color:#fff;padding:20px;}
+body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
+.top{background:#0f172a;color:white;padding:28px 20px;}
+.top h1{margin:0;font-size:42px;}
+.version{color:#fb7185;font-size:30px;font-weight:900;margin-bottom:10px;}
 .wrap{padding:20px;}
-.card{background:#fff;padding:20px;border-radius:14px;margin-bottom:15px;}
-.btn{padding:12px;border:none;border-radius:10px;margin:4px;font-weight:700;}
-.btn-dark{background:#111;color:#fff}
-.btn-gray{background:#ddd}
-.btn-red{background:#dc2626;color:#fff}
+.card{background:white;border-radius:18px;padding:22px;margin-bottom:18px;border:1px solid #e5e7eb;}
+.btn{border:none;border-radius:14px;padding:14px 18px;font-size:18px;font-weight:900;margin:4px;}
+.btn-dark{background:#0f172a;color:white;}
+.btn-red{background:#dc2626;color:white;}
+.btn-gray{background:#e5e7eb;color:#111827;}
+.error{color:#b91c1c;font-weight:900;}
+.muted{color:#6b7280;}
 </style>
 </head>
 
 <body>
 
 <div class="top">
-<h2>Zentryx</h2>
-<button class="btn btn-red" onclick="volver()">Volver</button>
+  <div class="version">APP V1602</div>
+  <h1>Zentryx</h1>
+  <button class="btn btn-red" onclick="salir()">Salir</button>
 </div>
 
-<div class="wrap" id="app">Cargando...</div>
+<div class="wrap" id="app">
+  <div class="card">Cargando...</div>
+</div>
 
 <script>
+const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
+const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
-// 🔴 CONFIG REAL
-const supabase = window.supabase.createClient(
-  "https://idtaamivqbiuxtjywuux.supabase.co",
-  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-)
+let sesion = null;
+let usuarios = [];
+let usuarioAbierto = null;
 
-let usuarios = []
-let usuarioActual = null
+function api(path, opciones = {}){
+  return fetch(SUPABASE_URL + path, {
+    method: opciones.method || "GET",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": "Bearer " + SUPABASE_KEY,
+      "Content-Type": "application/json",
+      ...(opciones.headers || {})
+    },
+    body: opciones.body ? JSON.stringify(opciones.body) : undefined
+  }).then(async r => {
+    const txt = await r.text();
+    let data = null;
+    try{ data = txt ? JSON.parse(txt) : null; }catch{ data = txt; }
+    if(!r.ok) throw new Error(txt || "Error Supabase");
+    return data;
+  });
+}
 
-// 🔵 CARGAR USUARIOS
-async function cargarUsuarios(){
+function escapar(v){
+  return String(v ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
+function salir(){
+  localStorage.removeItem("usuario");
+  localStorage.removeItem("user");
+  location.href = "./index.html?v=1000";
+}
 
-  if(error){
-    document.getElementById("app").innerHTML = "Error cargando usuarios"
-    console.error(error)
-    return
+function leerSesion(){
+  try{
+    return JSON.parse(localStorage.getItem("usuario") || "null");
+  }catch{
+    return null;
+  }
+}
+
+async function iniciar(){
+  sesion = leerSesion();
+
+  if(!sesion){
+    location.href = "./index.html?v=1000";
+    return;
   }
 
-  usuarios = data
-  renderListado()
+  await cargarUsuarios();
 }
 
-// 🔵 LISTADO
-function renderListado(){
+async function cargarUsuarios(){
+  const app = document.getElementById("app");
+  app.innerHTML = `<div class="card">Cargando usuarios...</div>`;
 
-  document.getElementById("app").innerHTML = `
-    <div class="card">
-      <h3>Usuarios</h3>
-      ${usuarios.map(u=>`
-        <div class="card">
-          <b>${u.nombre || "-"}</b><br>
-          Usuario: ${u.usuario}<br>
-          Rol: ${u.rol || "-"}<br>
-          <button class="btn btn-dark" onclick="abrirUsuario(${u.id})">Abrir</button>
-        </div>
-      `).join("")}
-    </div>
-  `
+  try{
+    usuarios = await api("/rest/v1/users?select=*&order=id.asc");
+
+    app.innerHTML = `
+      <div class="card">
+        <h2>Usuarios</h2>
+        ${usuarios.map(u => `
+          <div class="card">
+            <h3>${escapar(u.nombre)}</h3>
+            <p class="muted">Usuario: ${escapar(u.usuario)}</p>
+            <p class="muted">Rol: ${escapar(u.rol)}</p>
+            <button class="btn btn-dark" onclick="abrirUsuario('${escapar(u.id)}')">Abrir usuario</button>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }catch(e){
+    app.innerHTML = `
+      <div class="card">
+        <h2>Error cargando usuarios</h2>
+        <p class="error">${escapar(e.message)}</p>
+      </div>
+    `;
+  }
 }
 
-// 🔵 ABRIR USUARIO
 function abrirUsuario(id){
+  usuarioAbierto = usuarios.find(u => String(u.id) === String(id));
 
-  usuarioActual = usuarios.find(u => u.id === id)
+  if(!usuarioAbierto){
+    document.getElementById("app").innerHTML = `
+      <div class="card">
+        <h2>No hay usuario</h2>
+        <button class="btn btn-gray" onclick="cargarUsuarios()">Volver</button>
+      </div>
+    `;
+    return;
+  }
 
   document.getElementById("app").innerHTML = `
     <div class="card">
-      <h2>${usuarioActual.nombre}</h2>
-      <p><b>Usuario:</b> ${usuarioActual.usuario}</p>
-      <p><b>Rol:</b> ${usuarioActual.rol}</p>
-
-      <hr>
-
-      <button class="btn btn-gray" onclick="volver()">← Volver</button>
+      <button class="btn btn-gray" onclick="cargarUsuarios()">← Volver a usuarios</button>
+      <h2>${escapar(usuarioAbierto.nombre)}</h2>
+      <p><b>Usuario:</b> ${escapar(usuarioAbierto.usuario)}</p>
+      <p><b>Rol:</b> ${escapar(usuarioAbierto.rol)}</p>
+      <p><b>Teléfono:</b> ${escapar(usuarioAbierto.telefono || "-")}</p>
+      <p><b>Email:</b> ${escapar(usuarioAbierto.email || "-")}</p>
     </div>
-  `
+
+    <div class="card">
+      <h2>Ficha</h2>
+      <p>Aquí seguimos montando la ficha real ordenada.</p>
+    </div>
+
+    <div class="card">
+      <h2>Fichajes</h2>
+      <p>Aquí irá el historial y los botones válidos.</p>
+    </div>
+
+    <div class="card">
+      <h2>Horarios</h2>
+      <p>Aquí irá el horario por días.</p>
+    </div>
+  `;
 }
 
-// 🔵 VOLVER
-function volver(){
-  usuarioActual = null
-  renderListado()
-}
+window.salir = salir;
+window.abrirUsuario = abrirUsuario;
+window.cargarUsuarios = cargarUsuarios;
 
-// 🔵 INICIO
-cargarUsuarios()
-
+iniciar();
 </script>
 
 </body>
