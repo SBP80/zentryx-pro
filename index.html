@@ -3,90 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx Login V900</title>
-
+  <title>Zentryx Login V1000</title>
   <style>
-    body{
-      margin:0;
-      font-family:Arial,sans-serif;
-      background:#eef2f7;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      min-height:100vh;
-      padding:20px;
-      box-sizing:border-box;
-    }
-    .box{
-      width:100%;
-      max-width:420px;
-      background:#fff;
-      border-radius:18px;
-      padding:28px;
-      box-sizing:border-box;
-      box-shadow:0 10px 30px rgba(0,0,0,.08);
-    }
-    .version{
-      color:#ef4444;
-      font-size:28px;
-      font-weight:800;
-      margin-bottom:10px;
-    }
-    h1{
-      margin:0 0 10px 0;
-      font-size:38px;
-    }
-    p{
-      margin:0 0 20px 0;
-      color:#374151;
-      font-size:18px;
-    }
-    input{
-      width:100%;
-      height:54px;
-      border:1px solid #d1d5db;
-      border-radius:14px;
-      padding:0 16px;
-      box-sizing:border-box;
-      font-size:18px;
-      margin-bottom:12px;
-    }
-    button{
-      width:100%;
-      height:56px;
-      border:none;
-      border-radius:14px;
-      background:#0f172a;
-      color:white;
-      font-size:22px;
-      font-weight:800;
-    }
-    #msg{
-      margin-top:14px;
-      font-size:16px;
-      min-height:24px;
-      font-weight:700;
-    }
-    .ok{color:#15803d;}
-    .error{color:#b91c1c;}
-    .info{color:#374151;}
+    body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px;box-sizing:border-box;}
+    .box{width:100%;max-width:420px;background:#fff;border-radius:18px;padding:28px;box-sizing:border-box;box-shadow:0 10px 30px rgba(0,0,0,.08);}
+    .version{color:#ef4444;font-size:28px;font-weight:800;margin-bottom:10px;}
+    h1{margin:0 0 10px 0;font-size:38px;}
+    p{margin:0 0 20px 0;color:#374151;font-size:18px;}
+    input{width:100%;height:54px;border:1px solid #d1d5db;border-radius:14px;padding:0 16px;box-sizing:border-box;font-size:18px;margin-bottom:12px;}
+    button{width:100%;height:56px;border:none;border-radius:14px;background:#0f172a;color:white;font-size:22px;font-weight:800;}
+    #msg{margin-top:14px;font-size:16px;min-height:24px;font-weight:700;}
+    .ok{color:#15803d}.error{color:#b91c1c}.info{color:#374151}
   </style>
 </head>
-
 <body>
 
-  <div class="box">
-    <div class="version">LOGIN V900</div>
-    <h1>Zentryx</h1>
-    <p>Acceso al sistema</p>
+<div class="box">
+  <div class="version">LOGIN V1000</div>
+  <h1>Zentryx</h1>
+  <p>Acceso al sistema</p>
 
-    <input id="usuario" type="text" placeholder="Usuario" autocomplete="username">
-    <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
+  <input id="usuario" type="text" placeholder="Usuario" autocomplete="username">
+  <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
 
-    <button id="btnLogin" type="button">Entrar</button>
-
-    <div id="msg" class="info">Página cargada.</div>
-  </div>
+  <button id="btnLogin" type="button">Entrar</button>
+  <div id="msg" class="info">Página cargada.</div>
+</div>
 
 <script>
 const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
@@ -106,11 +48,41 @@ function limpiarUsuario(valor){
   return String(valor || "").trim().toLowerCase();
 }
 
+async function sha256(texto){
+  const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+
+async function api(path, opciones = {}){
+  const res = await fetch(SUPABASE_URL + path, {
+    method: opciones.method || "GET",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": "Bearer " + SUPABASE_KEY,
+      "Content-Type": "application/json",
+      ...(opciones.headers || {})
+    },
+    body: opciones.body ? JSON.stringify(opciones.body) : undefined
+  });
+
+  const texto = await res.text();
+  let data = null;
+
+  try{ data = texto ? JSON.parse(texto) : null; }
+  catch{ data = texto; }
+
+  if(!res.ok){
+    throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+  }
+
+  return data;
+}
+
 async function login(){
   const usuario = limpiarUsuario(inputUsuario.value);
-  const password = String(inputPassword.value || "").trim();
+  const passwordPlano = String(inputPassword.value || "").trim();
 
-  if(!usuario || !password){
+  if(!usuario || !passwordPlano){
     mensaje("Escribe usuario y contraseña.", "error");
     return;
   }
@@ -119,30 +91,11 @@ async function login(){
   mensaje("Comprobando...", "info");
 
   try{
-    const url =
-      SUPABASE_URL +
+    const data = await api(
       "/rest/v1/users?select=*&usuario=ilike." +
       encodeURIComponent(usuario) +
-      "&password=eq." +
-      encodeURIComponent(password) +
-      "&limit=1";
-
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + SUPABASE_KEY,
-        "Content-Type": "application/json"
-      }
-    });
-
-    const data = await res.json();
-
-    if(!res.ok){
-      mensaje("Error conectando con la base de datos.", "error");
-      btnLogin.disabled = false;
-      return;
-    }
+      "&limit=1"
+    );
 
     if(!Array.isArray(data) || data.length === 0){
       mensaje("Usuario o contraseña incorrectos.", "error");
@@ -150,28 +103,43 @@ async function login(){
       return;
     }
 
-    localStorage.setItem("usuario", JSON.stringify(data[0]));
+    const user = data[0];
+    const passwordHash = await sha256(passwordPlano);
+
+    const coincideHash = user.password === passwordHash;
+    const coincideAntigua = user.password === passwordPlano;
+
+    if(!coincideHash && !coincideAntigua){
+      mensaje("Usuario o contraseña incorrectos.", "error");
+      btnLogin.disabled = false;
+      return;
+    }
+
+    if(coincideAntigua){
+      await api("/rest/v1/users?id=eq." + encodeURIComponent(user.id), {
+        method: "PATCH",
+        headers: {"Prefer":"return=representation"},
+        body: { password: passwordHash }
+      });
+      user.password = passwordHash;
+    }
+
+    localStorage.setItem("usuario", JSON.stringify(user));
     mensaje("Login correcto. Entrando...", "ok");
 
     setTimeout(function(){
-      window.location.href = "./app.html?v=900";
+      window.location.href = "./app.html?v=1000";
     }, 400);
 
   }catch(e){
-    mensaje("Error de red: " + e.message, "error");
+    mensaje("Error: " + e.message, "error");
     btnLogin.disabled = false;
   }
 }
 
 btnLogin.addEventListener("click", login);
-
-inputUsuario.addEventListener("keydown", function(e){
-  if(e.key === "Enter") login();
-});
-
-inputPassword.addEventListener("keydown", function(e){
-  if(e.key === "Enter") login();
-});
+inputUsuario.addEventListener("keydown", e => { if(e.key === "Enter") login(); });
+inputPassword.addEventListener("keydown", e => { if(e.key === "Enter") login(); });
 </script>
 
 </body>
