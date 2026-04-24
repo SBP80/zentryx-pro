@@ -3,1043 +3,168 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx APP V1500</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<title>Zentryx V1600</title>
 
 <style>
-body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827;}
-.top{background:#0f172a;color:white;padding:24px 20px;}
-.version{color:#fb7185;font-size:30px;font-weight:900;margin-bottom:8px;}
-.top h1{margin:0;font-size:42px;}
-.top p{margin:8px 0 18px 0;font-size:19px;}
+body{font-family:Arial;margin:0;background:#eef2f7;}
+.top{background:#0f172a;color:#fff;padding:20px;}
 .wrap{padding:20px;}
-.menu{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;}
-.menu button{padding:14px 18px;border:none;border-radius:14px;background:#dbe0e8;color:#2563eb;font-size:18px;font-weight:900;}
-.card{background:white;border-radius:18px;padding:22px;margin-bottom:18px;box-shadow:0 10px 30px rgba(0,0,0,.07);border:1px solid #e5e7eb;}
-h2{margin-top:0;font-size:34px;}
-h3{font-size:24px;margin-bottom:12px;}
-input,select,textarea{width:100%;box-sizing:border-box;padding:0 16px;border:1px solid #d1d5db;border-radius:14px;font-size:18px;margin-bottom:12px;background:white;}
-input,select{height:54px;}
-textarea{min-height:100px;padding-top:14px;font-family:Arial,sans-serif;}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;}
-.btn{border:none;border-radius:14px;padding:14px 18px;font-size:18px;font-weight:900;margin:4px;}
-.btn-dark{background:#0f172a;color:white}
-.btn-red{background:#dc2626;color:white}
-.btn-gray{background:#e5e7eb;color:#111827}
-.btn-green{background:#16a34a;color:white}
-.btn-blue{background:#2563eb;color:white}
-.item{border:1px solid #d1d5db;border-radius:16px;padding:16px;margin-bottom:12px;}
-.muted{color:#6b7280}
-.ok{color:#15803d;font-weight:900}
-.error{color:#b91c1c;font-weight:900}
-.warn{color:#b45309;font-weight:900}
-.acciones a{display:inline-block;text-decoration:none;color:#111827;background:#e5e7eb;padding:13px 16px;border-radius:14px;font-weight:900;margin:5px;font-size:18px;}
-.foto{width:130px;height:130px;border-radius:50%;object-fit:cover;background:#e5e7eb;border:1px solid #d1d5db;display:block;margin-bottom:12px;}
-.oculto{display:none;}
-.docrow,.ficrow,.horarioRow{border:1px solid #d1d5db;border-radius:12px;padding:12px;margin-bottom:10px;}
-.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#e5e7eb;margin:3px;font-weight:900;}
+.card{background:#fff;padding:20px;border-radius:14px;margin-bottom:15px;}
+.btn{padding:12px;border:none;border-radius:10px;margin:4px;font-weight:700;}
+.btn-dark{background:#111;color:#fff}
+.btn-gray{background:#ddd}
+.btn-green{background:#16a34a;color:#fff}
+.btn-red{background:#dc2626;color:#fff}
+.tabs button{margin-right:5px}
 </style>
 </head>
 
 <body>
-<div id="app"></div>
+
+<div class="top">
+<h2>Zentryx</h2>
+<button class="btn btn-red" onclick="volver()">Volver usuarios</button>
+</div>
+
+<div class="wrap" id="app"></div>
 
 <script>
-const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
-const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
-const BUCKET = "usuarios";
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const app = document.getElementById("app");
+let usuario = null
+let tab = "ficha"
 
-let usuarioSesion = null;
-let usuarios = [];
-let usuarioAbierto = null;
-let documentosActuales = [];
-let fichajesActuales = [];
-let horariosActuales = [];
-
-const ROLES_VER_USUARIOS = ["admin","encargado","administrativo"];
-const ROLES_EDITAR_USUARIOS = ["admin","administrativo"];
-const ROLES_BORRAR_USUARIOS = ["admin"];
-const ROLES_EDITAR_FICHAJES = ["admin","administrativo","encargado"];
-
-const DIAS = [
-  {id:1,nombre:"Lunes"},
-  {id:2,nombre:"Martes"},
-  {id:3,nombre:"Miércoles"},
-  {id:4,nombre:"Jueves"},
-  {id:5,nombre:"Viernes"},
-  {id:6,nombre:"Sábado"},
-  {id:0,nombre:"Domingo"}
-];
-
-function escapar(v){
-  return String(v ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+function cargarUsuario(){
+  usuario = JSON.parse(localStorage.getItem("usuarioDemo"))
+  render()
 }
 
-function leerSesion(){
-  try{return JSON.parse(localStorage.getItem("usuario") || "null");}
-  catch{return null;}
+function cambiarTab(t){
+  tab = t
+  render()
 }
 
-function cerrarSesion(){
-  localStorage.removeItem("usuario");
-  localStorage.removeItem("user");
-  sessionStorage.clear();
-  window.location.replace("./index.html?v=1000");
-}
-
-function puedeVerUsuarios(){return ROLES_VER_USUARIOS.includes(usuarioSesion.rol);}
-function puedeEditarUsuarios(){return ROLES_EDITAR_USUARIOS.includes(usuarioSesion.rol);}
-function puedeBorrarUsuarios(){return ROLES_BORRAR_USUARIOS.includes(usuarioSesion.rol);}
-function puedeEditarFichajes(){return ROLES_EDITAR_FICHAJES.includes(usuarioSesion.rol);}
-
-async function sha256(texto){
-  const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
-  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,"0")).join("");
-}
-
-async function api(path, opciones = {}){
-  const res = await fetch(SUPABASE_URL + path, {
-    method: opciones.method || "GET",
-    headers: {
-      "apikey": SUPABASE_KEY,
-      "Authorization": "Bearer " + SUPABASE_KEY,
-      "Content-Type": "application/json",
-      ...(opciones.headers || {})
-    },
-    body: opciones.body ? JSON.stringify(opciones.body) : undefined
-  });
-
-  const texto = await res.text();
-  let data = null;
-  try{data = texto ? JSON.parse(texto) : null;}catch{data = texto;}
-
-  if(!res.ok){
-    throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+function render(){
+  if(!usuario){
+    document.getElementById("app").innerHTML = "<p>No hay usuario</p>"
+    return
   }
-  return data;
-}
 
-function direccionCompleta(u){
-  return [
-    u.tipo_via,u.nombre_via,u.numero,
-    u.portal ? "Portal " + u.portal : "",
-    u.escalera ? "Esc. " + u.escalera : "",
-    u.piso ? "Piso " + u.piso : "",
-    u.puerta ? "Puerta " + u.puerta : "",
-    u.codigo_postal,u.poblacion,u.provincia,u.pais
-  ].filter(Boolean).join(", ");
-}
+  document.getElementById("app").innerHTML = `
+  <div class="card">
+    <h2>${usuario.nombre}</h2>
 
-function pintarEstructura(){
-  app.innerHTML = `
-    <div class="top">
-      <div class="version">APP V1500</div>
-      <h1>Zentryx</h1>
-      <p>${escapar(usuarioSesion.nombre)} · ${escapar(usuarioSesion.rol)}</p>
-      <button class="btn btn-red" onclick="cerrarSesion()">Salir</button>
+    <div class="tabs">
+      <button class="btn btn-gray" onclick="cambiarTab('ficha')">Ficha</button>
+      <button class="btn btn-gray" onclick="cambiarTab('horarios')">Horarios</button>
+      <button class="btn btn-gray" onclick="cambiarTab('fichajes')">Fichajes</button>
     </div>
+  </div>
 
-    <div class="wrap">
-      <div class="menu">
-        <button onclick="mostrarInicio()">Inicio</button>
-        ${puedeVerUsuarios() ? `<button onclick="mostrarUsuarios()">Usuarios</button>` : ""}
-        ${usuarioSesion.rol === "admin" ? `<button onclick="mostrarConfig()">Configuración</button>` : ""}
-      </div>
-      <div id="contenido"></div>
-    </div>
-  `;
+  ${tab==="ficha" ? ficha() : ""}
+  ${tab==="horarios" ? horarios() : ""}
+  ${tab==="fichajes" ? fichajes() : ""}
+  `
 }
 
-function mostrarInicio(){
-  document.getElementById("contenido").innerHTML = `
-    <div class="card">
-      <h2>Inicio</h2>
-      <p><b>Nombre:</b> ${escapar(usuarioSesion.nombre)}</p>
-      <p><b>Usuario:</b> ${escapar(usuarioSesion.usuario)}</p>
-      <p><b>Rol:</b> ${escapar(usuarioSesion.rol)}</p>
-    </div>
-  `;
-}
-
-function mostrarConfig(){
-  document.getElementById("contenido").innerHTML = `<div class="card"><h2>Configuración</h2><p>Módulo pendiente.</p></div>`;
-}
-
-async function cargarUsuarios(){
-  const data = await api("/rest/v1/users?select=*&order=id.asc");
-  const todos = Array.isArray(data) ? data : [];
-  usuarios = puedeVerUsuarios() ? todos : todos.filter(u => String(u.id) === String(usuarioSesion.id));
-}
-
-function opcionesRol(valor){
-  const roles = ["admin","encargado","administrativo","tecnico","instalador","comercial","almacen","mantenimiento","externo","operario"];
-  return roles.map(r => `<option value="${r}" ${valor === r ? "selected" : ""}>${r}</option>`).join("");
-}
-
-function input(id, valor, placeholder, type="text", disabled=false){
-  return `<input id="${id}" type="${type}" value="${escapar(valor || "")}" placeholder="${placeholder}" ${disabled ? "disabled" : ""}>`;
-}
-
-function formularioNuevo(){
-  if(!puedeEditarUsuarios()) return "";
-
+function ficha(){
   return `
-    <div class="card">
-      <h2>Nuevo usuario</h2>
-      <h3>Acceso</h3>
-      <input id="nuevo_nombre" placeholder="Nombre y apellidos">
-      <input id="nuevo_usuario" placeholder="Usuario">
-      <input id="nuevo_password" type="password" placeholder="Contraseña">
-      <select id="nuevo_rol">${opcionesRol("operario")}</select>
-
-      <h3>Contacto</h3>
-      <input id="nuevo_telefono" placeholder="Teléfono">
-      <input id="nuevo_email" placeholder="Email">
-
-      <h3>Dirección</h3>
-      <div class="grid">
-        <input id="nuevo_tipo_via" placeholder="Tipo vía">
-        <input id="nuevo_nombre_via" placeholder="Nombre vía">
-        <input id="nuevo_numero" placeholder="Número">
-        <input id="nuevo_portal" placeholder="Portal">
-        <input id="nuevo_escalera" placeholder="Escalera">
-        <input id="nuevo_piso" placeholder="Piso">
-        <input id="nuevo_puerta" placeholder="Puerta">
-        <input id="nuevo_codigo_postal" placeholder="Código postal">
-        <input id="nuevo_poblacion" placeholder="Población">
-        <input id="nuevo_provincia" placeholder="Provincia">
-        <input id="nuevo_pais" placeholder="País" value="España">
-      </div>
-
-      <h3>Datos personales y laborales</h3>
-      <div class="grid">
-        <input id="nuevo_dni" placeholder="DNI/NIE">
-        <input id="nuevo_fecha_nacimiento" type="date">
-        <input id="nuevo_fecha_alta" type="date">
-        <input id="nuevo_puesto" placeholder="Puesto">
-        <input id="nuevo_departamento" placeholder="Departamento">
-        <input id="nuevo_tipo_contrato" placeholder="Tipo contrato">
-        <input id="nuevo_jornada" placeholder="Jornada">
-        <input id="nuevo_responsable" placeholder="Responsable">
-      </div>
-
-      <textarea id="nuevo_observaciones" placeholder="Observaciones"></textarea>
-      <button class="btn btn-dark" onclick="guardarUsuario()">Guardar usuario</button>
-      <div id="msgNuevo" style="margin-top:12px;"></div>
-    </div>
-  `;
+  <div class="card">
+    <h3>Datos</h3>
+    <p>${usuario.nombre}</p>
+    <p>${usuario.usuario}</p>
+  </div>`
 }
 
-function listado(){
-  if(usuarios.length === 0) return `<div class="card"><h2>Listado</h2><p>No hay usuarios.</p></div>`;
-
+function horarios(){
   return `
-    <div class="card">
-      <h2>Listado</h2>
-      ${usuarios.map(u => `
-        <div class="item">
-          <h3 style="margin:0 0 8px 0;">${escapar(u.nombre)}</h3>
-          <div class="muted">Usuario: ${escapar(u.usuario)}</div>
-          <div class="muted">Rol: ${escapar(u.rol)}</div>
-          <div class="muted">Puesto: ${escapar(u.puesto || "-")}</div>
-          <div class="muted">Teléfono: ${escapar(u.telefono || "-")}</div>
-          <div class="muted">Email: ${escapar(u.email || "-")}</div>
-          <div style="margin-top:12px;">
-            <button class="btn btn-gray" onclick="abrirFicha('${escapar(u.id)}')">Abrir ficha</button>
-            ${puedeBorrarUsuarios() && String(u.usuario).toLowerCase() !== "admin" ? `<button class="btn btn-red" onclick="borrarUsuario('${escapar(u.id)}')">Eliminar</button>` : ""}
-          </div>
-        </div>
-      `).join("")}
-    </div>
-  `;
+  <div class="card">
+    <h3>Horarios</h3>
+    <p>Pendiente conectar con Supabase</p>
+  </div>`
 }
 
-function fichaVacia(){
-  return `<div class="card"><h2>Ficha de usuario</h2><p>Selecciona un usuario.</p></div>`;
+let historial = []
+
+function estado(){
+  if(historial.length===0) return "fuera"
+  return historial[historial.length-1].tipo
 }
 
-function fichaUsuario(u){
-  const tel = String(u.telefono || "").replaceAll(" ", "");
-  const telWhatsapp = tel.replaceAll("+", "");
-  const dir = direccionCompleta(u);
-  const bloqueado = !puedeEditarUsuarios();
-  const foto = u.foto_url || "";
+function fichajes(){
 
-  return `
-    <div class="card">
-      <h2>Ficha de usuario</h2>
+  let est = estado()
 
-      <h3>Foto de perfil</h3>
-      ${foto ? `<img class="foto" src="${escapar(foto)}">` : `<div class="foto"></div>`}
+  let botones = ""
 
-      ${puedeEditarUsuarios() ? `
-        <input class="oculto" id="foto_camara" type="file" accept="image/*" capture="environment" onchange="subirFotoDesde('foto_camara')">
-        <input class="oculto" id="foto_archivo" type="file" accept="image/*" onchange="subirFotoDesde('foto_archivo')">
-        <button class="btn btn-gray" onclick="document.getElementById('foto_camara').click()">Hacer foto perfil</button>
-        <button class="btn btn-dark" onclick="document.getElementById('foto_archivo').click()">Elegir imagen</button>
-        <div id="msgFoto" style="margin-top:12px;"></div>
-      ` : ""}
+  if(est==="fuera"){
+    botones += `<button class="btn btn-green" onclick="fichar('entrada')">Entrada</button>`
+  }
 
-      <hr style="margin:22px 0;">
-
-      <h3>Acceso</h3>
-      ${input("edit_nombre", u.nombre, "Nombre", "text", bloqueado)}
-      ${input("edit_usuario", u.usuario, "Usuario", "text", bloqueado)}
-      ${bloqueado ? "" : `<input id="edit_password" type="password" placeholder="Nueva contraseña (dejar vacío para no cambiar)">`}
-      <select id="edit_rol" ${bloqueado ? "disabled" : ""}>${opcionesRol(u.rol)}</select>
-
-      <h3>Contacto</h3>
-      ${input("edit_telefono", u.telefono, "Teléfono", "text", bloqueado)}
-      ${input("edit_email", u.email, "Email", "text", bloqueado)}
-
-      <h3>Dirección</h3>
-      <div class="grid">
-        ${input("edit_tipo_via", u.tipo_via, "Tipo vía", "text", bloqueado)}
-        ${input("edit_nombre_via", u.nombre_via, "Nombre vía", "text", bloqueado)}
-        ${input("edit_numero", u.numero, "Número", "text", bloqueado)}
-        ${input("edit_portal", u.portal, "Portal", "text", bloqueado)}
-        ${input("edit_escalera", u.escalera, "Escalera", "text", bloqueado)}
-        ${input("edit_piso", u.piso, "Piso", "text", bloqueado)}
-        ${input("edit_puerta", u.puerta, "Puerta", "text", bloqueado)}
-        ${input("edit_codigo_postal", u.codigo_postal, "Código postal", "text", bloqueado)}
-        ${input("edit_poblacion", u.poblacion, "Población", "text", bloqueado)}
-        ${input("edit_provincia", u.provincia, "Provincia", "text", bloqueado)}
-        ${input("edit_pais", u.pais || "España", "País", "text", bloqueado)}
-      </div>
-
-      <h3>Datos personales y laborales</h3>
-      <div class="grid">
-        ${input("edit_dni", u.dni, "DNI/NIE", "text", bloqueado)}
-        ${input("edit_fecha_nacimiento", u.fecha_nacimiento, "", "date", bloqueado)}
-        ${input("edit_fecha_alta", u.fecha_alta, "", "date", bloqueado)}
-        ${input("edit_puesto", u.puesto, "Puesto", "text", bloqueado)}
-        ${input("edit_departamento", u.departamento, "Departamento", "text", bloqueado)}
-        ${input("edit_tipo_contrato", u.tipo_contrato, "Tipo contrato", "text", bloqueado)}
-        ${input("edit_jornada", u.jornada, "Jornada", "text", bloqueado)}
-        ${input("edit_responsable", u.responsable, "Responsable", "text", bloqueado)}
-      </div>
-
-      <textarea id="edit_observaciones" placeholder="Observaciones" ${bloqueado ? "disabled" : ""}>${escapar(u.observaciones || "")}</textarea>
-
-      ${bloqueado ? `<p class="muted">Vista de solo lectura.</p>` : `<button class="btn btn-dark" onclick="guardarCambios()">Guardar cambios</button>`}
-      <div id="msgEditar" style="margin-top:12px;"></div>
-
-      <hr style="margin:22px 0;">
-
-      <h2>Acciones rápidas</h2>
-      <div class="acciones">
-        ${tel ? `<a href="tel:${encodeURIComponent(tel)}">Llamar</a>` : ""}
-        ${tel ? `<a href="sms:${encodeURIComponent(tel)}">SMS</a>` : ""}
-        ${tel ? `<a target="_blank" href="https://wa.me/${encodeURIComponent(telWhatsapp)}">WhatsApp</a>` : ""}
-        ${u.email ? `<a href="mailto:${encodeURIComponent(u.email)}">Email</a>` : ""}
-        ${dir ? `<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dir)}">Google Maps</a>` : ""}
-        ${dir ? `<a target="_blank" href="https://waze.com/ul?q=${encodeURIComponent(dir)}&navigate=yes">Waze</a>` : ""}
-        ${dir ? `<a target="_blank" href="https://maps.apple.com/?q=${encodeURIComponent(dir)}">Mapas Apple</a>` : ""}
-      </div>
-
-      <hr style="margin:22px 0;">
-
-      <h2>DNI</h2>
-      ${puedeEditarUsuarios() ? `
-        <input class="oculto" id="dni_frontal" type="file" accept="image/*" capture="environment" onchange="subirDocumentoTipo('dni_frontal','DNI frontal')">
-        <input class="oculto" id="dni_reverso" type="file" accept="image/*" capture="environment" onchange="subirDocumentoTipo('dni_reverso','DNI reverso')">
-        <button class="btn btn-gray" onclick="document.getElementById('dni_frontal').click()">Foto DNI frontal</button>
-        <button class="btn btn-gray" onclick="document.getElementById('dni_reverso').click()">Foto DNI reverso</button>
-      ` : ""}
-
-      <hr style="margin:22px 0;">
-
-      <h2>Documentos</h2>
-      ${puedeEditarUsuarios() ? `
-        <input class="oculto" id="doc_camara" type="file" accept="image/*" capture="environment" onchange="subirDocumentoTipo('doc_camara','documento')">
-        <input class="oculto" id="doc_archivo" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="subirDocumentoTipo('doc_archivo','documento')">
-        <button class="btn btn-gray" onclick="document.getElementById('doc_camara').click()">Hacer foto documento</button>
-        <button class="btn btn-dark" onclick="document.getElementById('doc_archivo').click()">Elegir archivo</button>
-        <div id="msgDoc" style="margin-top:12px;"></div>
-      ` : ""}
-      <div id="listaDocs">Cargando documentos...</div>
-
-      <hr style="margin:22px 0;">
-
-      <h2>Horario de trabajo</h2>
-      ${puedeEditarUsuarios() ? horarioEditor(u.id) : `<p class="muted">Solo lectura.</p>`}
-
-      <hr style="margin:22px 0;">
-
-      <h2>Fichajes</h2>
-      <div id="estadoJornada"></div>
-      <button class="btn btn-green" onclick="fichar('entrada')">Entrada</button>
+  if(est==="entrada"){
+    botones += `
       <button class="btn btn-red" onclick="fichar('salida')">Salida</button>
-      <button class="btn btn-blue" onclick="fichar('inicio_descanso')">Inicio descanso</button>
-      <button class="btn btn-gray" onclick="fichar('fin_descanso')">Fin descanso</button>
-      <button class="btn btn-blue" onclick="fichar('inicio_comida')">Inicio comida</button>
-      <button class="btn btn-gray" onclick="fichar('fin_comida')">Fin comida</button>
-      <div id="msgFichaje" style="margin-top:12px;"></div>
-      <div id="listaFichajes" style="margin-top:12px;">Cargando fichajes...</div>
-    </div>
-  `;
-}
+      <button class="btn btn-dark" onclick="fichar('inicio_descanso')">Descanso</button>
+      <button class="btn btn-dark" onclick="fichar('inicio_comida')">Comida</button>
+    `
+  }
 
-function horarioEditor(){
+  if(est==="inicio_descanso"){
+    botones += `<button class="btn btn-green" onclick="fichar('fin_descanso')">Fin descanso</button>`
+  }
+
+  if(est==="inicio_comida"){
+    botones += `<button class="btn btn-green" onclick="fichar('fin_comida')">Fin comida</button>`
+  }
+
   return `
-    <div id="bloqueHorarios">Cargando horarios...</div>
-    <button class="btn btn-dark" onclick="guardarHorarios()">Guardar horarios</button>
-    <div id="msgHorario" style="margin-top:12px;"></div>
-  `;
-}
+  <div class="card">
+    <h3>Estado: ${est}</h3>
+    ${botones}
 
-function pintarHorarios(){
-  const cont = document.getElementById("bloqueHorarios");
-  if(!cont) return;
+    <hr>
 
-  cont.innerHTML = DIAS.map(d => {
-    const h = horariosActuales.find(x => Number(x.dia_semana) === Number(d.id)) || {};
-    const trabaja = h.trabaja !== false;
-
-    return `
-      <div class="horarioRow">
-        <h3>${d.nombre}</h3>
-        <label><input id="h_trabaja_${d.id}" type="checkbox" ${trabaja ? "checked" : ""}> Trabaja</label>
-        <div class="grid">
-          <input id="h_entrada_${d.id}" type="time" value="${escapar(h.hora_entrada || "")}">
-          <input id="h_salida_${d.id}" type="time" value="${escapar(h.hora_salida || "")}">
-          <input id="h_inicio_comida_${d.id}" type="time" value="${escapar(h.inicio_comida || "")}">
-          <input id="h_fin_comida_${d.id}" type="time" value="${escapar(h.fin_comida || "")}">
-          <input id="h_descanso_${d.id}" type="number" value="${escapar(h.minutos_descanso || 0)}" placeholder="Min descanso">
-        </div>
+    <h3>Historial</h3>
+    ${historial.map((f,i)=>`
+      <div>
+        ${f.tipo} - ${f.fecha}
+        <button onclick="editar(${i})">Editar</button>
       </div>
-    `;
-  }).join("");
+    `).join("")}
+  </div>
+  `
 }
 
-async function cargarHorarios(userId){
-  try{
-    const data = await api("/rest/v1/horarios_usuario?select=*&user_id=eq." + encodeURIComponent(String(userId)) + "&order=dia_semana.asc");
-    horariosActuales = Array.isArray(data) ? data : [];
-    pintarHorarios();
-  }catch(e){
-    const cont = document.getElementById("bloqueHorarios");
-    if(cont) cont.innerHTML = `<div class="error">Error cargando horarios: ${escapar(e.message)}</div>`;
-  }
+function fichar(tipo){
+  historial.push({
+    tipo:tipo,
+    fecha:new Date().toLocaleString()
+  })
+  render()
 }
 
-async function guardarHorarios(){
-  if(!usuarioAbierto) return;
-  const msg = document.getElementById("msgHorario");
-  msg.className = "muted";
-  msg.textContent = "Guardando horarios...";
+function editar(i){
+  let fecha = prompt("Nueva fecha (YYYY-MM-DD)")
+  let hora = prompt("Nueva hora (HH:mm)")
+  let tipo = prompt("Tipo")
+  let motivo = prompt("Motivo")
 
-  try{
-    await api("/rest/v1/horarios_usuario?user_id=eq." + encodeURIComponent(String(usuarioAbierto.id)), {method:"DELETE"});
+  if(!motivo){alert("Motivo obligatorio");return}
 
-    const filas = DIAS.map(d => ({
-      user_id:String(usuarioAbierto.id),
-      dia_semana:d.id,
-      trabaja:document.getElementById("h_trabaja_" + d.id).checked,
-      hora_entrada:document.getElementById("h_entrada_" + d.id).value || null,
-      hora_salida:document.getElementById("h_salida_" + d.id).value || null,
-      inicio_comida:document.getElementById("h_inicio_comida_" + d.id).value || null,
-      fin_comida:document.getElementById("h_fin_comida_" + d.id).value || null,
-      minutos_descanso:Number(document.getElementById("h_descanso_" + d.id).value || 0),
-      activo:true
-    }));
-
-    await api("/rest/v1/horarios_usuario", {
-      method:"POST",
-      headers:{"Prefer":"return=representation"},
-      body:filas
-    });
-
-    msg.className = "ok";
-    msg.textContent = "Horarios guardados.";
-    await cargarHorarios(usuarioAbierto.id);
-  }catch(e){
-    msg.className = "error";
-    msg.textContent = "Error guardando horarios: " + e.message;
+  historial[i] = {
+    tipo:tipo,
+    fecha:fecha+" "+hora,
+    motivo:motivo
   }
+
+  render()
 }
 
-async function mostrarUsuarios(){
-  const contenido = document.getElementById("contenido");
-
-  if(!puedeVerUsuarios()){
-    contenido.innerHTML = `<div class="card"><h2>Acceso restringido</h2><p>No tienes permiso para entrar en Usuarios.</p></div>`;
-    return;
-  }
-
-  contenido.innerHTML = `<div class="card">Cargando usuarios...</div>`;
-
-  try{
-    await cargarUsuarios();
-    contenido.innerHTML = `${formularioNuevo()}${listado()}<div id="ficha">${usuarioAbierto ? fichaUsuario(usuarioAbierto) : fichaVacia()}</div>`;
-    if(usuarioAbierto){
-      await cargarDocumentos(usuarioAbierto.id);
-      await cargarFichajes(usuarioAbierto.id);
-      await cargarHorarios(usuarioAbierto.id);
-    }
-  }catch(e){
-    contenido.innerHTML = `<div class="card"><h2>Usuarios</h2><div class="error">Error cargando usuarios: ${escapar(e.message)}</div></div>`;
-  }
+function volver(){
+  location.reload()
 }
 
-function leerNuevo(){
-  return {
-    nombre: document.getElementById("nuevo_nombre").value.trim(),
-    usuario: document.getElementById("nuevo_usuario").value.trim().toLowerCase(),
-    password: document.getElementById("nuevo_password").value.trim(),
-    rol: document.getElementById("nuevo_rol").value.trim(),
-    telefono: document.getElementById("nuevo_telefono").value.trim(),
-    email: document.getElementById("nuevo_email").value.trim(),
-    tipo_via: document.getElementById("nuevo_tipo_via").value.trim(),
-    nombre_via: document.getElementById("nuevo_nombre_via").value.trim(),
-    numero: document.getElementById("nuevo_numero").value.trim(),
-    portal: document.getElementById("nuevo_portal").value.trim(),
-    escalera: document.getElementById("nuevo_escalera").value.trim(),
-    piso: document.getElementById("nuevo_piso").value.trim(),
-    puerta: document.getElementById("nuevo_puerta").value.trim(),
-    codigo_postal: document.getElementById("nuevo_codigo_postal").value.trim(),
-    poblacion: document.getElementById("nuevo_poblacion").value.trim(),
-    provincia: document.getElementById("nuevo_provincia").value.trim(),
-    pais: document.getElementById("nuevo_pais").value.trim() || "España",
-    dni: document.getElementById("nuevo_dni").value.trim(),
-    fecha_nacimiento: document.getElementById("nuevo_fecha_nacimiento").value || null,
-    fecha_alta: document.getElementById("nuevo_fecha_alta").value || null,
-    puesto: document.getElementById("nuevo_puesto").value.trim(),
-    departamento: document.getElementById("nuevo_departamento").value.trim(),
-    tipo_contrato: document.getElementById("nuevo_tipo_contrato").value.trim(),
-    jornada: document.getElementById("nuevo_jornada").value.trim(),
-    responsable: document.getElementById("nuevo_responsable").value.trim(),
-    observaciones: document.getElementById("nuevo_observaciones").value.trim(),
-    activo: true
-  };
-}
+cargarUsuario()
 
-function leerEditado(){
-  return {
-    nombre: document.getElementById("edit_nombre").value.trim(),
-    usuario: document.getElementById("edit_usuario").value.trim().toLowerCase(),
-    rol: document.getElementById("edit_rol").value.trim(),
-    telefono: document.getElementById("edit_telefono").value.trim(),
-    email: document.getElementById("edit_email").value.trim(),
-    tipo_via: document.getElementById("edit_tipo_via").value.trim(),
-    nombre_via: document.getElementById("edit_nombre_via").value.trim(),
-    numero: document.getElementById("edit_numero").value.trim(),
-    portal: document.getElementById("edit_portal").value.trim(),
-    escalera: document.getElementById("edit_escalera").value.trim(),
-    piso: document.getElementById("edit_piso").value.trim(),
-    puerta: document.getElementById("edit_puerta").value.trim(),
-    codigo_postal: document.getElementById("edit_codigo_postal").value.trim(),
-    poblacion: document.getElementById("edit_poblacion").value.trim(),
-    provincia: document.getElementById("edit_provincia").value.trim(),
-    pais: document.getElementById("edit_pais").value.trim() || "España",
-    dni: document.getElementById("edit_dni").value.trim(),
-    fecha_nacimiento: document.getElementById("edit_fecha_nacimiento").value || null,
-    fecha_alta: document.getElementById("edit_fecha_alta").value || null,
-    puesto: document.getElementById("edit_puesto").value.trim(),
-    departamento: document.getElementById("edit_departamento").value.trim(),
-    tipo_contrato: document.getElementById("edit_tipo_contrato").value.trim(),
-    jornada: document.getElementById("edit_jornada").value.trim(),
-    responsable: document.getElementById("edit_responsable").value.trim(),
-    observaciones: document.getElementById("edit_observaciones").value.trim()
-  };
-}
-
-async function guardarUsuario(){
-  if(!puedeEditarUsuarios()) return alert("No tienes permisos para crear usuarios.");
-
-  const msg = document.getElementById("msgNuevo");
-  const nuevo = leerNuevo();
-  const passwordPlano = nuevo.password;
-
-  msg.className = "error";
-  msg.textContent = "";
-
-  if(!nuevo.nombre || !nuevo.usuario || !passwordPlano || !nuevo.rol){
-    msg.textContent = "Nombre, usuario, contraseña y rol son obligatorios.";
-    return;
-  }
-
-  if(usuarios.some(u => String(u.usuario).toLowerCase() === nuevo.usuario)){
-    msg.textContent = "Ese usuario ya existe.";
-    return;
-  }
-
-  nuevo.password = await sha256(passwordPlano);
-
-  try{
-    await api("/rest/v1/users", {method:"POST", headers:{"Prefer":"return=representation"}, body:nuevo});
-    usuarioAbierto = null;
-    await mostrarUsuarios();
-  }catch(e){
-    msg.textContent = "Error guardando usuario: " + e.message;
-  }
-}
-
-async function abrirFicha(id){
-  const u = usuarios.find(x => String(x.id) === String(id));
-  if(!u) return;
-
-  usuarioAbierto = u;
-  document.getElementById("ficha").innerHTML = fichaUsuario(u);
-  await cargarDocumentos(u.id);
-  await cargarFichajes(u.id);
-  await cargarHorarios(u.id);
-  window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
-}
-
-async function guardarCambios(){
-  if(!puedeEditarUsuarios()) return alert("No tienes permisos para editar usuarios.");
-  if(!usuarioAbierto) return;
-
-  const msg = document.getElementById("msgEditar");
-  const editado = leerEditado();
-  const nuevaPassword = document.getElementById("edit_password").value.trim();
-
-  msg.className = "error";
-  msg.textContent = "";
-
-  if(!editado.nombre || !editado.usuario || !editado.rol){
-    msg.textContent = "Nombre, usuario y rol son obligatorios.";
-    return;
-  }
-
-  if(usuarios.some(u => String(u.id) !== String(usuarioAbierto.id) && String(u.usuario).toLowerCase() === editado.usuario)){
-    msg.textContent = "Ese usuario ya existe.";
-    return;
-  }
-
-  if(nuevaPassword) editado.password = await sha256(nuevaPassword);
-
-  try{
-    await api("/rest/v1/users?id=eq." + encodeURIComponent(usuarioAbierto.id), {method:"PATCH", headers:{"Prefer":"return=representation"}, body:editado});
-    usuarioAbierto = {...usuarioAbierto, ...editado};
-
-    if(String(usuarioSesion.id) === String(usuarioAbierto.id)){
-      localStorage.setItem("usuario", JSON.stringify(usuarioAbierto));
-      usuarioSesion = usuarioAbierto;
-    }
-
-    await cargarUsuarios();
-    await mostrarUsuarios();
-    await abrirFicha(usuarioAbierto.id);
-  }catch(e){
-    msg.textContent = "Error guardando cambios: " + e.message;
-  }
-}
-
-async function borrarUsuario(id){
-  if(!puedeBorrarUsuarios()) return alert("No tienes permisos para eliminar usuarios.");
-
-  const u = usuarios.find(x => String(x.id) === String(id));
-  if(!u) return;
-
-  if(String(u.usuario).toLowerCase() === "admin") return alert("No se puede borrar admin.");
-  if(!confirm("¿Eliminar este usuario?")) return;
-
-  try{
-    await api("/rest/v1/users?id=eq." + encodeURIComponent(id), {method:"DELETE"});
-    usuarioAbierto = null;
-    await mostrarUsuarios();
-  }catch(e){
-    alert("Error borrando usuario: " + e.message);
-  }
-}
-
-async function subirArchivo(inputId, carpeta){
-  const inputFile = document.getElementById(inputId);
-  const file = inputFile.files && inputFile.files[0];
-
-  if(!file) throw new Error("No has seleccionado archivo.");
-
-  const extension = file.name.includes(".") ? file.name.split(".").pop() : "jpg";
-  const path = `${carpeta}/${usuarioAbierto.id}/${Date.now()}_${Math.random().toString(16).slice(2)}.${extension}`;
-
-  const { error } = await sb.storage.from(BUCKET).upload(path, file, { upsert:false });
-  if(error) throw error;
-
-  const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
-  return { nombre:file.name, path, url:data.publicUrl };
-}
-
-async function subirFotoDesde(inputId){
-  if(!usuarioAbierto) return;
-
-  const msg = document.getElementById("msgFoto");
-  msg.className = "muted";
-  msg.textContent = "Subiendo foto...";
-
-  try{
-    const archivo = await subirArchivo(inputId, "fotos");
-
-    await api("/rest/v1/users?id=eq." + encodeURIComponent(usuarioAbierto.id), {
-      method:"PATCH",
-      headers:{"Prefer":"return=representation"},
-      body:{foto_url: archivo.url}
-    });
-
-    usuarioAbierto.foto_url = archivo.url;
-    msg.className = "ok";
-    msg.textContent = "Foto subida.";
-    await cargarUsuarios();
-    await abrirFicha(usuarioAbierto.id);
-  }catch(e){
-    msg.className = "error";
-    msg.textContent = "Error subiendo foto: " + e.message;
-  }
-}
-
-async function subirDocumentoTipo(inputId, tipo){
-  if(!usuarioAbierto) return;
-
-  const msg = document.getElementById("msgDoc");
-  if(msg){
-    msg.className = "muted";
-    msg.textContent = "Subiendo documento...";
-  }
-
-  try{
-    const archivo = await subirArchivo(inputId, "documentos");
-
-    await api("/rest/v1/documentos", {
-      method:"POST",
-      headers:{"Prefer":"return=representation"},
-      body:{
-        user_id:String(usuarioAbierto.id),
-        nombre:archivo.nombre,
-        url:archivo.url,
-        tipo:tipo,
-        descripcion:tipo
-      }
-    });
-
-    if(msg){
-      msg.className = "ok";
-      msg.textContent = "Documento subido.";
-    }
-
-    await cargarDocumentos(usuarioAbierto.id);
-  }catch(e){
-    if(msg){
-      msg.className = "error";
-      msg.textContent = "Error subiendo documento: " + e.message;
-    }else{
-      alert("Error subiendo documento: " + e.message);
-    }
-  }
-}
-
-async function cargarDocumentos(userId){
-  const cont = document.getElementById("listaDocs");
-  if(!cont) return;
-
-  try{
-    const data = await api("/rest/v1/documentos?select=*&user_id=eq." + encodeURIComponent(String(userId)) + "&order=fecha.desc");
-    documentosActuales = Array.isArray(data) ? data : [];
-
-    if(documentosActuales.length === 0){
-      cont.innerHTML = `<p class="muted">No hay documentos.</p>`;
-      return;
-    }
-
-    cont.innerHTML = documentosActuales.map(d => `
-      <div class="docrow">
-        <b>${escapar(d.tipo || "documento")}</b><br>
-        ${escapar(d.nombre)}<br>
-        <a target="_blank" href="${escapar(d.url)}">Ver documento</a>
-        ${puedeEditarUsuarios() ? `<button class="btn btn-red" onclick="eliminarDocumento('${escapar(d.id)}')">Eliminar</button>` : ""}
-      </div>
-    `).join("");
-  }catch(e){
-    cont.innerHTML = `<div class="error">Error cargando documentos: ${escapar(e.message)}</div>`;
-  }
-}
-
-async function eliminarDocumento(id){
-  if(!puedeEditarUsuarios()) return alert("No tienes permisos.");
-  if(!confirm("¿Eliminar documento?")) return;
-
-  try{
-    await api("/rest/v1/documentos?id=eq." + encodeURIComponent(id), {method:"DELETE"});
-    await cargarDocumentos(usuarioAbierto.id);
-  }catch(e){
-    alert("Error eliminando documento: " + e.message);
-  }
-}
-
-function obtenerUbicacion(){
-  return new Promise(resolve => {
-    if(!navigator.geolocation){
-      resolve({lat:null,lng:null,direccion:"Sin ubicación"});
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        resolve({
-          lat:pos.coords.latitude,
-          lng:pos.coords.longitude,
-          direccion:"Lat " + pos.coords.latitude + ", Lng " + pos.coords.longitude
-        });
-      },
-      () => resolve({lat:null,lng:null,direccion:"Ubicación no autorizada"}),
-      {enableHighAccuracy:true,timeout:10000}
-    );
-  });
-}
-
-function ultimoFichaje(){
-  if(!Array.isArray(fichajesActuales) || fichajesActuales.length === 0) return null;
-  return fichajesActuales[0];
-}
-
-function validarFichaje(tipo){
-  const ultimo = ultimoFichaje();
-  const estado = ultimo ? ultimo.tipo : "fuera";
-
-  if(tipo === "entrada"){
-    if(["entrada","inicio_descanso","inicio_comida","fin_descanso","fin_comida"].includes(estado)){
-      return "Ya hay una jornada abierta.";
-    }
-    return "";
-  }
-
-  if(tipo === "salida"){
-    if(!ultimo || estado === "salida") return "No puedes fichar salida sin entrada.";
-    if(estado === "inicio_descanso") return "Primero debes finalizar el descanso.";
-    if(estado === "inicio_comida") return "Primero debes finalizar la comida.";
-    return "";
-  }
-
-  if(tipo === "inicio_descanso"){
-    if(!["entrada","fin_descanso","fin_comida"].includes(estado)) return "No puedes iniciar descanso ahora.";
-    return "";
-  }
-
-  if(tipo === "fin_descanso"){
-    if(estado !== "inicio_descanso") return "No hay descanso abierto.";
-    return "";
-  }
-
-  if(tipo === "inicio_comida"){
-    if(!["entrada","fin_descanso"].includes(estado)) return "No puedes iniciar comida ahora.";
-    return "";
-  }
-
-  if(tipo === "fin_comida"){
-    if(estado !== "inicio_comida") return "No hay comida abierta.";
-    return "";
-  }
-
-  return "";
-}
-
-async function registrarHoraExtraSiProcede(tipo, fichajeGuardado){
-  if(tipo !== "salida") return;
-
-  const hoy = new Date();
-  const dia = hoy.getDay();
-  const horario = horariosActuales.find(h => Number(h.dia_semana) === Number(dia));
-
-  if(!horario || horario.trabaja === false){
-    await api("/rest/v1/horas_extra", {
-      method:"POST",
-      headers:{"Prefer":"return=representation"},
-      body:{
-        user_id:String(usuarioAbierto.id),
-        fichaje_id:fichajeGuardado.id,
-        tipo:"dia_no_laborable",
-        minutos:0,
-        motivo:"Salida registrada en día no laboral o sin horario configurado"
-      }
-    });
-    return;
-  }
-
-  if(!horario.hora_salida) return;
-
-  const salidaPlan = new Date();
-  const partes = String(horario.hora_salida).split(":");
-  salidaPlan.setHours(Number(partes[0] || 0), Number(partes[1] || 0), 0, 0);
-
-  if(hoy > salidaPlan){
-    const minutos = Math.round((hoy - salidaPlan) / 60000);
-
-    if(minutos > 0){
-      await api("/rest/v1/horas_extra", {
-        method:"POST",
-        headers:{"Prefer":"return=representation"},
-        body:{
-          user_id:String(usuarioAbierto.id),
-          fichaje_id:fichajeGuardado.id,
-          tipo:"fuera_horario",
-          minutos:minutos,
-          motivo:"Salida posterior al horario previsto"
-        }
-      });
-    }
-  }
-}
-
-async function fichar(tipo){
-  if(!usuarioAbierto) return;
-
-  const msg = document.getElementById("msgFichaje");
-  msg.className = "muted";
-
-  const errorValidacion = validarFichaje(tipo);
-  if(errorValidacion){
-    msg.className = "error";
-    msg.textContent = errorValidacion;
-    return;
-  }
-
-  msg.textContent = "Obteniendo ubicación...";
-
-  try{
-    const ubicacion = await obtenerUbicacion();
-    msg.textContent = "Guardando fichaje...";
-
-    const data = await api("/rest/v1/fichajes", {
-      method:"POST",
-      headers:{"Prefer":"return=representation"},
-      body:{
-        user_id:String(usuarioAbierto.id),
-        tipo:tipo,
-        lat:ubicacion.lat,
-        lng:ubicacion.lng,
-        direccion:ubicacion.direccion
-      }
-    });
-
-    const fichajeGuardado = Array.isArray(data) ? data[0] : data;
-
-    await registrarHoraExtraSiProcede(tipo, fichajeGuardado);
-
-    msg.className = "ok";
-    msg.textContent = "Fichaje guardado.";
-    await cargarFichajes(usuarioAbierto.id);
-  }catch(e){
-    msg.className = "error";
-    msg.textContent = "Error guardando fichaje: " + e.message;
-  }
-}
-
-async function cargarFichajes(userId){
-  const cont = document.getElementById("listaFichajes");
-  const estado = document.getElementById("estadoJornada");
-  if(!cont) return;
-
-  try{
-    const data = await api("/rest/v1/fichajes?select=*&user_id=eq." + encodeURIComponent(String(userId)) + "&order=fecha.desc&limit=30");
-    fichajesActuales = Array.isArray(data) ? data : [];
-
-    const ult = ultimoFichaje();
-    if(estado){
-      estado.innerHTML = `<p><span class="badge">Estado: ${ult ? escapar(ult.tipo) : "fuera"}</span></p>`;
-    }
-
-    if(fichajesActuales.length === 0){
-      cont.innerHTML = `<p class="muted">No hay fichajes.</p>`;
-      return;
-    }
-
-    cont.innerHTML = fichajesActuales.map(f => `
-      <div class="ficrow">
-        <b>${escapar(f.tipo)}</b><br>
-        ${new Date(f.fecha).toLocaleString("es-ES")}<br>
-        <span class="muted">${escapar(f.direccion || "Sin dirección")}</span>
-        ${puedeEditarFichajes() ? `
-          <br><button class="btn btn-gray" onclick="editarFichaje('${escapar(f.id)}')">Editar con motivo</button>
-        ` : ""}
-      </div>
-    `).join("");
-  }catch(e){
-    cont.innerHTML = `<div class="error">Error cargando fichajes: ${escapar(e.message)}</div>`;
-  }
-}
-
-async function editarFichaje(id){
-  if(!puedeEditarFichajes()) return alert("No tienes permisos para modificar fichajes.");
-
-  const motivo = prompt("Motivo de la modificación:");
-  if(!motivo || motivo.trim().length < 3){
-    alert("Debes indicar un motivo.");
-    return;
-  }
-
-  const nuevoTipo = prompt("Nuevo tipo: entrada, salida, inicio_descanso, fin_descanso, inicio_comida, fin_comida");
-  const tipos = ["entrada","salida","inicio_descanso","fin_descanso","inicio_comida","fin_comida"];
-
-  if(!tipos.includes(nuevoTipo)){
-    alert("Tipo no válido.");
-    return;
-  }
-
-  try{
-    await api("/rest/v1/fichajes?id=eq." + encodeURIComponent(id), {
-      method:"PATCH",
-      headers:{"Prefer":"return=representation"},
-      body:{
-        tipo:nuevoTipo,
-        modificado:true,
-        motivo_modificacion:motivo.trim(),
-        editado_por:String(usuarioSesion.id),
-        editado_en:new Date().toISOString()
-      }
-    });
-
-    await api("/rest/v1/modificaciones_fichajes", {
-      method:"POST",
-      headers:{"Prefer":"return=representation"},
-      body:{
-        fichaje_id:id,
-        user_id_editor:String(usuarioSesion.id),
-        motivo:motivo.trim()
-      }
-    });
-
-    await cargarFichajes(usuarioAbierto.id);
-  }catch(e){
-    alert("Error modificando fichaje: " + e.message);
-  }
-}
-
-function iniciar(){
-  usuarioSesion = leerSesion();
-
-  if(!usuarioSesion){
-    window.location.replace("./index.html?v=1000");
-    return;
-  }
-
-  pintarEstructura();
-  mostrarInicio();
-}
-
-window.cerrarSesion = cerrarSesion;
-window.mostrarInicio = mostrarInicio;
-window.mostrarUsuarios = mostrarUsuarios;
-window.mostrarConfig = mostrarConfig;
-window.guardarUsuario = guardarUsuario;
-window.abrirFicha = abrirFicha;
-window.guardarCambios = guardarCambios;
-window.borrarUsuario = borrarUsuario;
-window.subirFotoDesde = subirFotoDesde;
-window.subirDocumentoTipo = subirDocumentoTipo;
-window.eliminarDocumento = eliminarDocumento;
-window.fichar = fichar;
-window.guardarHorarios = guardarHorarios;
-window.editarFichaje = editarFichaje;
-
-iniciar();
 </script>
 </body>
 </html>
