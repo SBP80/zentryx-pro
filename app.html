@@ -27,14 +27,14 @@ body{font-family:Arial;margin:0;background:#eef2f7;}
 <button class="btn btn-red" onclick="volver()">Volver</button>
 </div>
 
-<div class="wrap" id="app"></div>
+<div class="wrap" id="app">Cargando...</div>
 
 <script>
 
-// 🔴 CONFIGURA ESTO
+// 🔴 CONFIG REAL
 const supabase = window.supabase.createClient(
-  "TU_URL_SUPABASE",
-  "TU_PUBLIC_KEY"
+  "https://idtaamivqbiuxtjywuux.supabase.co",
+  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
 )
 
 let usuarios = []
@@ -49,6 +49,7 @@ async function cargarUsuarios(){
 
   if(error){
     document.getElementById("app").innerHTML = "Error cargando usuarios"
+    console.error(error)
     return
   }
 
@@ -64,9 +65,9 @@ function renderListado(){
       <h3>Usuarios</h3>
       ${usuarios.map(u=>`
         <div class="card">
-          <b>${u.nombre}</b><br>
-          ${u.usuario}<br>
-          ${u.rol}<br>
+          <b>${u.nombre || "-"}</b><br>
+          Usuario: ${u.usuario}<br>
+          Rol: ${u.rol || "-"}<br>
           <button class="btn btn-dark" onclick="abrirUsuario(${u.id})">Abrir</button>
         </div>
       `).join("")}
@@ -82,8 +83,12 @@ function abrirUsuario(id){
   document.getElementById("app").innerHTML = `
     <div class="card">
       <h2>${usuarioActual.nombre}</h2>
-      <p>Usuario: ${usuarioActual.usuario}</p>
-      <p>Rol: ${usuarioActual.rol}</p>
+      <p><b>Usuario:</b> ${usuarioActual.usuario}</p>
+      <p><b>Rol:</b> ${usuarioActual.rol}</p>
+
+      <hr>
+
+      <button class="btn btn-gray" onclick="volver()">← Volver</button>
     </div>
   `
 }
