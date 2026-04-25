@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2510</title>
+<title>Zentryx V2511</title>
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
 .top{background:#0f172a;color:white;padding:22px}
@@ -15,7 +15,8 @@ h1{margin:0;font-size:38px}
 .green{background:#16a34a;color:white}.red{background:#dc2626;color:white}.blue{background:#2563eb;color:white}.gray{background:#e5e7eb}.orange{background:#f97316;color:white}.dark{background:#0f172a;color:white}
 .badge{background:#e5e7eb;padding:7px 11px;border-radius:999px;font-weight:bold;display:inline-block}
 .row{border:1px solid #ccc;border-radius:10px;padding:10px;margin-bottom:10px}
-input,select{width:100%;padding:13px;border-radius:10px;border:1px solid #bbb;font-size:17px;margin:6px 0 12px 0;box-sizing:border-box}
+input,select,textarea{width:100%;padding:13px;border-radius:10px;border:1px solid #bbb;font-size:17px;margin:6px 0 12px 0;box-sizing:border-box}
+textarea{min-height:90px}
 table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid #ccc;padding:7px;text-align:left}
 .muted{color:#6b7280}.error{color:#b91c1c;font-weight:bold}.ok{color:#15803d;font-weight:bold}
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
@@ -28,7 +29,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid
 <body>
 
 <div class="top">
-<h1>Zentryx V2510</h1>
+<h1>Zentryx V2511</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -91,6 +92,7 @@ return["entrada"];
 async function inicio(){
 await cargarBase();await cargarFichajes();await cargarHoras();
 const total=horas.reduce((s,h)=>s+Number(h.total||0),0);
+
 document.getElementById("app").innerHTML=`
 <div class="card"><h2>Inicio</h2><b>${esc(user.nombre||user.usuario)}</b><p class="muted">${esc(user.rol)} · ${esc(user.usuario)}</p></div>
 
@@ -145,47 +147,30 @@ return r.length?r[0]:null;
 }
 
 function evaluarHorario(tipo,fecha,h){
-if(!h||h.trabaja===false){
-return {
-estado:"fuera_horario",
-aviso:"Día no laboral o sin horario configurado"
-};
-}
+if(!h||h.trabaja===false)return {estado:"fuera_horario",aviso:"Día no laboral o sin horario configurado"};
 
 const ahora=minFecha(fecha);
 const entrada=minHora(h.hora_entrada);
 const salida=minHora(h.hora_salida);
 
 if(tipo==="entrada"){
-if(h.hora_entrada&&ahora<entrada){
-return {estado:"fuera_horario",aviso:"Entrada antes del horario previsto"};
-}
-if(h.hora_entrada&&ahora>entrada+15){
-return {estado:"fuera_horario",aviso:"Entrada posterior al horario previsto"};
-}
+if(h.hora_entrada&&ahora<entrada)return {estado:"fuera_horario",aviso:"Entrada antes del horario previsto"};
+if(h.hora_entrada&&ahora>entrada+15)return {estado:"fuera_horario",aviso:"Entrada posterior al horario previsto"};
 }
 
 if(tipo==="salida"){
-if(h.hora_salida&&ahora<salida){
-return {estado:"fuera_horario",aviso:"Salida antes del horario previsto"};
-}
-if(h.hora_salida&&ahora>salida){
-return {estado:"fuera_horario",aviso:"Salida posterior al horario previsto"};
-}
+if(h.hora_salida&&ahora<salida)return {estado:"fuera_horario",aviso:"Salida antes del horario previsto"};
+if(h.hora_salida&&ahora>salida)return {estado:"fuera_horario",aviso:"Salida posterior al horario previsto"};
 }
 
 if(tipo==="inicio_comida"&&h.inicio_comida){
 const c1=minHora(h.inicio_comida);
-if(Math.abs(ahora-c1)>30){
-return {estado:"fuera_horario",aviso:"Comida fuera del horario previsto"};
-}
+if(Math.abs(ahora-c1)>30)return {estado:"fuera_horario",aviso:"Comida fuera del horario previsto"};
 }
 
 if(tipo==="fin_comida"&&h.fin_comida){
 const c2=minHora(h.fin_comida);
-if(Math.abs(ahora-c2)>30){
-return {estado:"fuera_horario",aviso:"Fin de comida fuera del horario previsto"};
-}
+if(Math.abs(ahora-c2)>30)return {estado:"fuera_horario",aviso:"Fin de comida fuera del horario previsto"};
 }
 
 return {estado:"correcto",aviso:""};
@@ -427,7 +412,7 @@ zonaUsuario.innerHTML=`
 }
 
 if(tab==="documentos"){
-zonaUsuario.innerHTML=`<div class="card"><h3>Documentos</h3><p class="muted">Siguiente bloque: foto, DNI y archivos.</p></div>`;
+zonaUsuario.innerHTML=`<div class="card"><h3>Documentos</h3><p class="muted">Pendiente: foto, DNI y archivos.</p></div>`;
 }
 
 if(tab==="horarios"){
@@ -435,7 +420,7 @@ await cargarHorariosUsuario();
 }
 
 if(tab==="historial"){
-zonaUsuario.innerHTML=`<div class="card"><h3>Historial</h3><p class="muted">Siguiente bloque: fichajes, horas extra, vacaciones y ausencias.</p></div>`;
+await cargarHistorialUsuario();
 }
 }
 
@@ -527,6 +512,106 @@ msg.textContent="Error: "+e.message;
 }
 }
 
+async function cargarHistorialUsuario(){
+const fs=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=fecha.desc");
+const hs=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=fecha.desc");
+const aus=await api("/rest/v1/ausencias_usuario?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=fecha_inicio.desc");
+
+let html=`<div class="card"><h3>Historial completo</h3></div>`;
+
+html+=`<div class="card"><h3>Fichajes</h3>`;
+html+=fs.length?fs.map(f=>`
+<div class="row">
+<b>${esc(f.tipo)}</b><br>
+${new Date(f.fecha).toLocaleString("es-ES")}<br>
+<span class="muted">${esc(f.direccion||"")}</span>
+${f.aviso_horario?`<br><span class="warn">${esc(f.aviso_horario)}</span>`:""}
+${f.modificado?`<br><span class="error">Modificado: ${esc(f.motivo_modificacion||"")}</span>`:""}
+<br><br>
+${admin()?`<button class="btn gray" onclick="editarFichaje('${esc(f.id)}')">Editar</button>`:""}
+</div>`).join(""):`<p class="muted">Sin fichajes.</p>`;
+html+=`</div>`;
+
+html+=`<div class="card"><h3>Horas extra</h3>`;
+html+=hs.length?hs.map(h=>`
+<div class="row">
+<b>${esc(nombreTipo(h.tipo_id))}</b><br>
+${Number(h.minutos||0)} min · ${Number(h.total||0).toFixed(2)} €<br>
+Estado: ${esc(h.estado||"pendiente")}<br>
+${h.motivo?`<span class="muted">${esc(h.motivo)}</span>`:""}
+</div>`).join(""):`<p class="muted">Sin horas extra.</p>`;
+html+=`</div>`;
+
+html+=`<div class="card"><h3>Ausencias / Vacaciones</h3>
+<button class="btn blue" onclick="nuevaAusencia()">Añadir ausencia</button>`;
+html+=aus.length?aus.map(a=>`
+<div class="row">
+<b>${esc(a.tipo)}</b><br>
+${esc(a.fecha_inicio)} → ${esc(a.fecha_fin)}<br>
+${esc(a.motivo||"")}<br>
+Estado: ${esc(a.estado||"pendiente")}
+</div>`).join(""):`<p class="muted">Sin ausencias.</p>`;
+html+=`</div>`;
+
+zonaUsuario.innerHTML=html;
+}
+
+async function editarFichaje(id){
+const nuevo=prompt("Nueva fecha y hora (YYYY-MM-DD HH:MM)");
+if(!nuevo)return;
+
+const motivo=prompt("Motivo de modificación");
+if(!motivo)return;
+
+try{
+await api("/rest/v1/fichajes?id=eq."+encodeURIComponent(id),{
+method:"PATCH",
+headers:{"Prefer":"return=representation"},
+body:{
+fecha:new Date(nuevo.replace(" ","T")).toISOString(),
+modificado:true,
+motivo_modificacion:motivo,
+editado_por:String(user.id),
+editado_en:new Date().toISOString()
+}
+});
+await cargarHistorialUsuario();
+}catch(e){
+alert("Error: "+e.message);
+}
+}
+
+async function nuevaAusencia(){
+const tipo=prompt("Tipo: vacaciones, baja, permiso, ausencia");
+if(!tipo)return;
+
+const inicio=prompt("Fecha inicio (YYYY-MM-DD)");
+if(!inicio)return;
+
+const fin=prompt("Fecha fin (YYYY-MM-DD)");
+if(!fin)return;
+
+const motivo=prompt("Motivo / comentario")||"";
+
+try{
+await api("/rest/v1/ausencias_usuario",{
+method:"POST",
+headers:{"Prefer":"return=representation"},
+body:{
+user_id:String(usuarioAbierto.id),
+tipo,
+fecha_inicio:inicio,
+fecha_fin:fin,
+motivo,
+estado:"aprobada"
+}
+});
+await cargarHistorialUsuario();
+}catch(e){
+alert("Error: "+e.message);
+}
+}
+
 async function vistaInformes(){
 const h=new Date();
 document.getElementById("app").innerHTML=`<div class="card no-print"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Informes</h2><label>Mes</label><input id="mes" type="number" value="${h.getMonth()+1}"><label>Año</label><input id="anio" type="number" value="${h.getFullYear()}"><button class="btn blue" onclick="generarInforme()">Generar</button><button class="btn green" onclick="window.print()">Imprimir</button>${admin()?`<button class="btn red" onclick="cerrarMes()">Cerrar mes</button><button class="btn orange" onclick="reabrirMes()">Reabrir mes</button>`:""}</div><div id="res"></div>`;
@@ -597,6 +682,9 @@ window.guardarUsuario=guardarUsuario;
 window.tabUsuario=tabUsuario;
 window.cargarHorariosUsuario=cargarHorariosUsuario;
 window.guardarHorariosUsuario=guardarHorariosUsuario;
+window.cargarHistorialUsuario=cargarHistorialUsuario;
+window.editarFichaje=editarFichaje;
+window.nuevaAusencia=nuevaAusencia;
 window.vistaInformes=vistaInformes;
 window.generarInforme=generarInforme;
 window.cerrarMes=cerrarMes;
