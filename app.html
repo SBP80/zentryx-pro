@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2503</title>
+<title>Zentryx V2504</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
@@ -14,20 +15,25 @@ body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
 .big{width:100%;font-size:18px}
 .green{background:#16a34a;color:white}
 .blue{background:#2563eb;color:white}
+.red{background:#dc2626;color:white}
 .gray{background:#e5e7eb}
 .dark{background:#111827;color:white}
-.badge{background:#e5e7eb;padding:6px 10px;border-radius:999px}
-input,select{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #ccc}
-.tabs{display:flex;gap:6px;margin-bottom:10px}
+input,select{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #ccc;box-sizing:border-box}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .tab{padding:10px;background:#e5e7eb;border-radius:8px;cursor:pointer}
 .tab.active{background:#111827;color:white}
+.foto{width:120px;height:120px;border-radius:50%;object-fit:cover;background:#e5e7eb;border:1px solid #ccc}
+.doc{border:1px solid #ccc;border-radius:10px;padding:10px;margin-bottom:8px}
+.oculto{display:none}
+.ok{color:#15803d;font-weight:bold}
+.error{color:#b91c1c;font-weight:bold}
 </style>
 </head>
 
 <body>
 
 <div class="top">
-<h2>Zentryx V2503</h2>
+<h2>Zentryx V2504</h2>
 <button class="btn gray" onclick="salir()">Salir</button>
 </div>
 
@@ -36,43 +42,58 @@ input,select{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px s
 <script>
 const URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+const BUCKET="usuarios";
+
+const sb=window.supabase.createClient(URL,KEY);
 
 let user=null;
 let usuariosCache=[];
+let usuarioAbierto=null;
 
-// ================= BASE =================
 function api(p,o={}){
 return fetch(URL+p,{
 method:o.method||"GET",
 headers:{
 apikey:KEY,
 Authorization:"Bearer "+KEY,
-"Content-Type":"application/json"
+"Content-Type":"application/json",
+...(o.headers||{})
 },
 body:o.body?JSON.stringify(o.body):undefined
-}).then(r=>r.json());
+}).then(async r=>{
+const txt=await r.text();
+let data=null;
+try{data=txt?JSON.parse(txt):null}catch{data=txt}
+if(!r.ok)throw new Error(txt||"Error");
+return data;
+});
+}
+
+function esc(v){
+return String(v??"")
+.replaceAll("&","&amp;")
+.replaceAll("<","&lt;")
+.replaceAll(">","&gt;")
+.replaceAll('"',"&quot;");
 }
 
 function salir(){
 localStorage.removeItem("usuario");
-location.href="./index.html";
+localStorage.removeItem("user");
+location.href="./index.html?v=1000";
 }
 
 function cargarSesion(){
-user=JSON.parse(localStorage.getItem("usuario"));
-if(!user){
-location.href="./index.html";
-return false;
-}
+try{user=JSON.parse(localStorage.getItem("usuario"))}catch{user=null}
+if(!user){location.href="./index.html?v=1000";return false}
 return true;
 }
 
-// ================= INICIO =================
 function inicio(){
 document.getElementById("app").innerHTML=`
 <div class="card">
-<h2>${user.nombre||user.usuario}</h2>
-<p>${user.rol}</p>
+<h2>${esc(user.nombre||user.usuario)}</h2>
+<p>${esc(user.rol)}</p>
 </div>
 
 <div class="card">
@@ -87,15 +108,13 @@ document.getElementById("app").innerHTML=`
 `;
 }
 
-// ================= FICHAJE =================
 async function fichar(){
-await api("/rest/v1/fichajes",{method:"POST",body:{user_id:user.id,tipo:"entrada"}});
+await api("/rest/v1/fichajes",{method:"POST",body:{user_id:String(user.id),tipo:"entrada"}});
 alert("Fichaje registrado");
 }
 
-// ================= HORAS =================
 async function vistaHoras(){
-const data=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id);
+const data=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(user.id));
 
 document.getElementById("app").innerHTML=`
 <div class="card">
@@ -105,15 +124,14 @@ document.getElementById("app").innerHTML=`
 
 ${data.map(h=>`
 <div class="card">
-${h.minutos} min - ${h.total} €
+${h.minutos||0} min - ${Number(h.total||0).toFixed(2)} €
 </div>
 `).join("")}
 `;
 }
 
-// ================= USUARIOS =================
 async function vistaUsuarios(){
-usuariosCache=await api("/rest/v1/users?select=*");
+usuariosCache=await api("/rest/v1/users?select=*&order=id.asc");
 
 document.getElementById("app").innerHTML=`
 <div class="card">
@@ -122,83 +140,95 @@ document.getElementById("app").innerHTML=`
 </div>
 
 ${usuariosCache.map(u=>`
-<div class="card" onclick="abrirUsuario('${u.id}')">
-<b>${u.nombre||""}</b><br>
-${u.usuario}<br>
-${u.rol}
+<div class="card" onclick="abrirUsuario('${esc(u.id)}')">
+<b>${esc(u.nombre||"")}</b><br>
+${esc(u.usuario)}<br>
+${esc(u.rol)}
 </div>
 `).join("")}
 `;
 }
 
 async function abrirUsuario(id){
-const u=usuariosCache.find(x=>x.id==id);
+const data=await api("/rest/v1/users?select=*&id=eq."+encodeURIComponent(id)+"&limit=1");
+usuarioAbierto=data[0];
+
+if(!usuarioAbierto){
+alert("Usuario no encontrado");
+return;
+}
 
 document.getElementById("app").innerHTML=`
 <div class="card">
 <button class="btn gray" onclick="vistaUsuarios()">←</button>
-<h2>${u.nombre||"Usuario"}</h2>
+<h2>${esc(usuarioAbierto.nombre||"Usuario")}</h2>
 </div>
 
 <div class="tabs">
-<div class="tab active" onclick="tabUsuario('${id}','datos')">Datos</div>
-<div class="tab" onclick="tabUsuario('${id}','docs')">Documentos</div>
-<div class="tab" onclick="tabUsuario('${id}','horarios')">Horarios</div>
-<div class="tab" onclick="tabUsuario('${id}','historial')">Historial</div>
+<div class="tab active" onclick="tabUsuario('datos')">Datos</div>
+<div class="tab" onclick="tabUsuario('docs')">Foto/DNI</div>
+<div class="tab" onclick="tabUsuario('horarios')">Horarios</div>
+<div class="tab" onclick="tabUsuario('historial')">Historial</div>
 </div>
 
 <div id="contenidoUsuario"></div>
 `;
 
-tabUsuario(id,"datos");
+tabUsuario("datos");
 }
 
-function tabUsuario(id,tab){
+function activarTab(nombre){
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab").forEach(t=>{
+if(t.textContent.toLowerCase().includes(nombre==="docs"?"foto":nombre)){
+t.classList.add("active");
+}
+});
+}
 
-const u=usuariosCache.find(x=>x.id==id);
+function tabUsuario(tab){
+if(!usuarioAbierto)return;
+
+activarTab(tab);
 
 if(tab==="datos"){
 document.getElementById("contenidoUsuario").innerHTML=`
-
 <div class="card">
 <label>Nombre</label>
-<input id="nombre" value="${u.nombre||""}">
+<input id="nombre" value="${esc(usuarioAbierto.nombre||"")}">
 
 <label>Usuario</label>
-<input id="usuario" value="${u.usuario||""}">
+<input id="usuario" value="${esc(usuarioAbierto.usuario||"")}">
 
 <label>Teléfono</label>
-<input id="tel" value="${u.telefono||""}">
+<input id="tel" value="${esc(usuarioAbierto.telefono||"")}">
 
 <label>Email</label>
-<input id="email" value="${u.email||""}">
+<input id="email" value="${esc(usuarioAbierto.email||"")}">
 
 <label>Rol</label>
 <select id="rol">
-<option ${u.rol==="operario"?"selected":""}>operario</option>
-<option ${u.rol==="encargado"?"selected":""}>encargado</option>
-<option ${u.rol==="administrativo"?"selected":""}>administrativo</option>
-<option ${u.rol==="admin"?"selected":""}>admin</option>
+<option ${usuarioAbierto.rol==="operario"?"selected":""}>operario</option>
+<option ${usuarioAbierto.rol==="encargado"?"selected":""}>encargado</option>
+<option ${usuarioAbierto.rol==="administrativo"?"selected":""}>administrativo</option>
+<option ${usuarioAbierto.rol==="admin"?"selected":""}>admin</option>
 </select>
 
-<button class="btn blue" onclick="guardarUsuario('${id}')">Guardar</button>
+<button class="btn blue" onclick="guardarUsuario('${esc(usuarioAbierto.id)}')">Guardar</button>
+<div id="msgUsuario"></div>
 </div>
 `;
 }
 
 if(tab==="docs"){
-document.getElementById("contenidoUsuario").innerHTML=`
-<div class="card">
-<h3>Documentos</h3>
-<p>Próximo paso: DNI, fotos, archivos</p>
-</div>`;
+pintarDocumentos();
 }
 
 if(tab==="horarios"){
 document.getElementById("contenidoUsuario").innerHTML=`
 <div class="card">
 <h3>Horarios</h3>
-<p>Próximo paso: horarios por días</p>
+<p>Próximo paso: horario semanal completo.</p>
 </div>`;
 }
 
@@ -206,27 +236,216 @@ if(tab==="historial"){
 document.getElementById("contenidoUsuario").innerHTML=`
 <div class="card">
 <h3>Historial</h3>
-<p>Próximo paso: fichajes y horas</p>
+<p>Próximo paso: fichajes, horas extra, vacaciones y ausencias.</p>
 </div>`;
 }
 }
 
 async function guardarUsuario(id){
-await api("/rest/v1/users?id=eq."+id,{
+const msg=document.getElementById("msgUsuario");
+msg.className="";
+msg.textContent="Guardando...";
+
+try{
+await api("/rest/v1/users?id=eq."+encodeURIComponent(id),{
 method:"PATCH",
+headers:{"Prefer":"return=representation"},
 body:{
-nombre:document.getElementById("nombre").value,
-usuario:document.getElementById("usuario").value,
-telefono:document.getElementById("tel").value,
-email:document.getElementById("email").value,
+nombre:document.getElementById("nombre").value.trim(),
+usuario:document.getElementById("usuario").value.trim().toLowerCase(),
+telefono:document.getElementById("tel").value.trim(),
+email:document.getElementById("email").value.trim(),
 rol:document.getElementById("rol").value
 }
 });
-alert("Guardado");
-vistaUsuarios();
+
+msg.className="ok";
+msg.textContent="Guardado correctamente.";
+}catch(e){
+msg.className="error";
+msg.textContent="Error: "+e.message;
+}
 }
 
-// ================= INFORMES =================
+async function pintarDocumentos(){
+document.getElementById("contenidoUsuario").innerHTML=`
+<div class="card">
+<h3>Foto de perfil</h3>
+${usuarioAbierto.foto_url?`<img class="foto" src="${esc(usuarioAbierto.foto_url)}">`:`<div class="foto"></div>`}
+
+<input class="oculto" id="foto_camara" type="file" accept="image/*" capture="environment" onchange="subirFoto('foto_camara')">
+<input class="oculto" id="foto_archivo" type="file" accept="image/*" onchange="subirFoto('foto_archivo')">
+
+<button class="btn gray" onclick="document.getElementById('foto_camara').click()">Hacer foto</button>
+<button class="btn blue" onclick="document.getElementById('foto_archivo').click()">Elegir foto</button>
+
+<div id="msgFoto"></div>
+</div>
+
+<div class="card">
+<h3>DNI</h3>
+
+<input class="oculto" id="dni_frontal" type="file" accept="image/*" capture="environment" onchange="subirDocumento('dni_frontal','DNI frontal')">
+<input class="oculto" id="dni_reverso" type="file" accept="image/*" capture="environment" onchange="subirDocumento('dni_reverso','DNI reverso')">
+
+<button class="btn gray" onclick="document.getElementById('dni_frontal').click()">Foto DNI frontal</button>
+<button class="btn gray" onclick="document.getElementById('dni_reverso').click()">Foto DNI reverso</button>
+
+<div id="msgDoc"></div>
+</div>
+
+<div class="card">
+<h3>Otros documentos</h3>
+
+<input class="oculto" id="doc_archivo" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="subirDocumento('doc_archivo','documento')">
+<input class="oculto" id="doc_camara" type="file" accept="image/*" capture="environment" onchange="subirDocumento('doc_camara','documento foto')">
+
+<button class="btn blue" onclick="document.getElementById('doc_archivo').click()">Subir archivo</button>
+<button class="btn gray" onclick="document.getElementById('doc_camara').click()">Hacer foto documento</button>
+</div>
+
+<div class="card">
+<h3>Documentos guardados</h3>
+<div id="listaDocs">Cargando...</div>
+</div>
+`;
+
+await cargarDocumentos();
+}
+
+function limpiarNombre(nombre){
+return String(nombre||"archivo")
+.replaceAll(" ","_")
+.replaceAll("/","_")
+.replaceAll("\\","_")
+.replaceAll(":","_");
+}
+
+async function subirArchivo(inputId, carpeta){
+const input=document.getElementById(inputId);
+const file=input.files&&input.files[0];
+
+if(!file)throw new Error("No has seleccionado archivo.");
+
+const nombre=limpiarNombre(file.name);
+const path=`${carpeta}/${usuarioAbierto.id}/${Date.now()}_${nombre}`;
+
+const {error}=await sb.storage.from(BUCKET).upload(path,file,{upsert:false});
+if(error)throw error;
+
+const {data}=sb.storage.from(BUCKET).getPublicUrl(path);
+
+return {
+nombre:file.name,
+url:data.publicUrl,
+path:path
+};
+}
+
+async function subirFoto(inputId){
+const msg=document.getElementById("msgFoto");
+msg.className="";
+msg.textContent="Subiendo foto...";
+
+try{
+const archivo=await subirArchivo(inputId,"fotos");
+
+await api("/rest/v1/users?id=eq."+encodeURIComponent(usuarioAbierto.id),{
+method:"PATCH",
+headers:{"Prefer":"return=representation"},
+body:{foto_url:archivo.url}
+});
+
+usuarioAbierto.foto_url=archivo.url;
+
+msg.className="ok";
+msg.textContent="Foto guardada.";
+
+await pintarDocumentos();
+}catch(e){
+msg.className="error";
+msg.textContent="Error: "+e.message;
+}
+}
+
+async function subirDocumento(inputId,tipo){
+const msg=document.getElementById("msgDoc");
+if(msg){
+msg.className="";
+msg.textContent="Subiendo documento...";
+}
+
+try{
+const archivo=await subirArchivo(inputId,"documentos");
+
+await api("/rest/v1/documentos",{
+method:"POST",
+headers:{"Prefer":"return=representation"},
+body:{
+user_id:String(usuarioAbierto.id),
+nombre:archivo.nombre,
+url:archivo.url,
+tipo:tipo,
+descripcion:tipo
+}
+});
+
+if(msg){
+msg.className="ok";
+msg.textContent="Documento guardado.";
+}
+
+await cargarDocumentos();
+}catch(e){
+if(msg){
+msg.className="error";
+msg.textContent="Error: "+e.message;
+}else{
+alert("Error: "+e.message);
+}
+}
+}
+
+async function cargarDocumentos(){
+const cont=document.getElementById("listaDocs");
+if(!cont)return;
+
+try{
+const docs=await api("/rest/v1/documentos?select=*&user_id=eq."+encodeURIComponent(String(usuarioAbierto.id))+"&order=fecha.desc");
+
+if(!docs.length){
+cont.innerHTML="<p>No hay documentos.</p>";
+return;
+}
+
+cont.innerHTML=docs.map(d=>`
+<div class="doc">
+<b>${esc(d.tipo||"documento")}</b><br>
+${esc(d.nombre||"")}
+
+<br><br>
+<a href="${esc(d.url)}" target="_blank">Ver</a>
+<button class="btn red" onclick="eliminarDocumento('${esc(d.id)}')">Eliminar</button>
+</div>
+`).join("");
+}catch(e){
+cont.innerHTML=`<span class="error">Error cargando documentos: ${esc(e.message)}</span>`;
+}
+}
+
+async function eliminarDocumento(id){
+if(!confirm("¿Eliminar documento?"))return;
+
+try{
+await api("/rest/v1/documentos?id=eq."+encodeURIComponent(id),{
+method:"DELETE"
+});
+await cargarDocumentos();
+}catch(e){
+alert("Error: "+e.message);
+}
+}
+
 function vistaInformes(){
 document.getElementById("app").innerHTML=`
 <div class="card">
@@ -237,7 +456,19 @@ document.getElementById("app").innerHTML=`
 `;
 }
 
-// ================= INIT =================
+window.salir=salir;
+window.fichar=fichar;
+window.vistaHoras=vistaHoras;
+window.vistaUsuarios=vistaUsuarios;
+window.abrirUsuario=abrirUsuario;
+window.tabUsuario=tabUsuario;
+window.guardarUsuario=guardarUsuario;
+window.subirFoto=subirFoto;
+window.subirDocumento=subirDocumento;
+window.eliminarDocumento=eliminarDocumento;
+window.vistaInformes=vistaInformes;
+window.inicio=inicio;
+
 if(cargarSesion()){
 inicio();
 }
