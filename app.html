@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2400</title>
+<title>Zentryx V2500</title>
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
 .top{background:#0f172a;color:white;padding:22px}
@@ -24,7 +24,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid
 <body>
 
 <div class="top">
-<h1>Zentryx V2400</h1>
+<h1>Zentryx V2500</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -127,11 +127,33 @@ async function guardarFichaje(){
 const msg=document.getElementById("msg"),tipo=document.getElementById("tipoFichaje").value;msg.textContent="Guardando...";
 try{const u=await ubicacion();const d=await api("/rest/v1/fichajes",{method:"POST",headers:{"Prefer":"return=representation"},body:{user_id:String(user.id),tipo,lat:u.lat,lng:u.lng,direccion:u.direccion}});await crearExtra(tipo,Array.isArray(d)?d[0]:d);panel=false;await inicio()}catch(e){msg.innerHTML="<span class='error'>"+esc(e.message)+"</span>"}}
 
+async function cierreDeMes(mes,anio){
+const r=await api("/rest/v1/cierre_mensual?select=*&mes=eq."+mes+"&anio=eq."+anio+"&cerrado=eq.true&limit=1");
+return r.length?true:false;
+}
+
+function mesAnioDeFecha(fechaTxt){
+const d=new Date(fechaTxt);
+return {mes:d.getMonth()+1,anio:d.getFullYear()};
+}
+
+async function accionBloqueadaPorCierre(horaId){
+const r=await api("/rest/v1/horas_extra?select=fecha,created_at&id=eq."+encodeURIComponent(horaId)+"&limit=1");
+if(!r.length)return true;
+const f=r[0].fecha||r[0].created_at;
+const ma=mesAnioDeFecha(f);
+return await cierreDeMes(ma.mes,ma.anio);
+}
+
 async function vistaHoras(){await cargarBase();await cargarHoras();app.innerHTML=`<div class="card no-print"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Horas extra</h2></div>${horas.length?horas.map(h=>horaCard(h)).join(""):"<div class='card'>No hay horas extra pendientes.</div>"}`}
 function horaCard(h){
 return `<div class="card">${mando()?`<b>Trabajador:</b> ${esc(nombreUsuario(h.user_id))}<br>`:""}<b>${esc(nombreTipo(h.tipo_id))}</b><br>${Number(h.minutos||0)} min · ${Number(h.total||0).toFixed(2)} €<br><span class="muted">Estado: ${esc(h.estado||"pendiente")}</span><br>${h.motivo?`<small>${esc(h.motivo)}</small><br>`:""}${!h.validado_usuario&&String(user.id)===String(h.user_id)?`<button class="btn green" onclick="validarUsuario('${h.id}')">Validar</button>`:""}${admin()&&h.validado_usuario&&!h.validado_admin?`<button class="btn blue" onclick="validarAdmin('${h.id}')">Validar admin</button>`:""}${admin()&&h.validado_admin&&!h.admin_confirmo_pago?`<button class="btn orange" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>`:""}${h.admin_confirmo_pago&&!h.usuario_confirmo_cobro&&String(user.id)===String(h.user_id)?`<button class="btn green" onclick="cobroUsuario('${h.id}')">Horas cobradas</button>`:""}</div>`;
 }
-async function patchHora(id,b){await api("/rest/v1/horas_extra?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:{"Prefer":"return=representation"},body:b});await vistaHoras()}
+async function patchHora(id,b){
+if(await accionBloqueadaPorCierre(id)){alert("Mes cerrado. No se puede modificar.");return}
+await api("/rest/v1/horas_extra?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:{"Prefer":"return=representation"},body:b});
+await vistaHoras();
+}
 function validarUsuario(id){patchHora(id,{validado_usuario:true,estado:"pendiente_admin"})}
 function validarAdmin(id){patchHora(id,{validado_admin:true,estado:"validado_admin"})}
 function pagoAdmin(id){patchHora(id,{admin_confirmo_pago:true,fecha_admin_pago:new Date().toISOString()})}
@@ -142,19 +164,46 @@ async function guardarConfig(){await api("/rest/v1/configuracion_horas_extra?id=
 
 async function vistaUsuarios(){await cargarBase();app.innerHTML=`<div class="card"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Usuarios</h2></div>${usuarios.map(u=>`<div class="card"><b>${esc(u.nombre||"-")}</b><br>${esc(u.usuario)} · ${esc(u.rol)}<br>${esc(u.telefono||"")}<br>${esc(u.email||"")}</div>`).join("")}`}
 
-async function vistaInformes(){const h=new Date();app.innerHTML=`<div class="card no-print"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Informes</h2><label>Mes</label><input id="mes" type="number" value="${h.getMonth()+1}"><label>Año</label><input id="anio" type="number" value="${h.getFullYear()}"><button class="btn blue" onclick="generarInforme()">Generar</button><button class="btn green" onclick="window.print()">Imprimir</button></div><div id="res"></div>`}
+async function vistaInformes(){
+const h=new Date();
+app.innerHTML=`<div class="card no-print"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Informes</h2><label>Mes</label><input id="mes" type="number" value="${h.getMonth()+1}"><label>Año</label><input id="anio" type="number" value="${h.getFullYear()}"><button class="btn blue" onclick="generarInforme()">Generar</button><button class="btn green" onclick="window.print()">Imprimir</button>${admin()?`<button class="btn red" onclick="cerrarMes()">Cerrar mes</button><button class="btn orange" onclick="reabrirMes()">Reabrir mes</button>`:""}</div><div id="res"></div>`;
+}
+
 async function generarInforme(){
-await cargarBase();const mes=String(document.getElementById("mes").value).padStart(2,"0"),anio=document.getElementById("anio").value,ini=`${anio}-${mes}-01`,fin=`${anio}-${mes}-31`;
-let data=await api("/rest/v1/horas_extra?select=*&order=fecha.desc");if(!mando())data=data.filter(h=>String(h.user_id)===String(user.id));
+await cargarBase();
+const mes=String(document.getElementById("mes").value).padStart(2,"0"),anio=document.getElementById("anio").value,ini=`${anio}-${mes}-01`,fin=`${anio}-${mes}-31`;
+let cerrado=await cierreDeMes(Number(mes),Number(anio));
+let data=await api("/rest/v1/horas_extra?select=*&order=fecha.desc");
+if(!mando())data=data.filter(h=>String(h.user_id)===String(user.id));
 data=data.filter(h=>{const f=String(h.fecha||h.created_at||"");return !f||(f>=ini&&f<=fin)});
 const porUser={};let total=0;
 data.forEach(h=>{const u=String(h.user_id),t=nombreTipo(h.tipo_id);if(!porUser[u])porUser[u]={total:0,tipos:{}};if(!porUser[u].tipos[t])porUser[u].tipos[t]={min:0,eur:0};porUser[u].tipos[t].min+=Number(h.minutos||0);porUser[u].tipos[t].eur+=Number(h.total||0);porUser[u].total+=Number(h.total||0);total+=Number(h.total||0)});
-let html=`<div class="card"><h2>Informe ${mes}/${anio}</h2></div>`;
+let html=`<div class="card"><h2>Informe ${mes}/${anio}</h2><span class="badge">${cerrado?"MES CERRADO":"MES ABIERTO"}</span></div>`;
 Object.keys(porUser).forEach(u=>{html+=`<div class="card"><h3>${esc(nombreUsuario(u))}</h3><table><tr><th>Tipo</th><th>Min</th><th>€</th></tr>`;Object.keys(porUser[u].tipos).forEach(t=>{const v=porUser[u].tipos[t];html+=`<tr><td>${esc(t)}</td><td>${v.min}</td><td>${v.eur.toFixed(2)}</td></tr>`});html+=`</table><br><b>Total usuario: ${porUser[u].total.toFixed(2)} €</b></div>`});
-html+=`<div class="card"><h2>Total empresa: ${total.toFixed(2)} €</h2></div>`;res.innerHTML=html;
+html+=`<div class="card"><h2>Total empresa: ${total.toFixed(2)} €</h2></div>`;
+res.innerHTML=html;
 }
 
-window.salir=salir;window.toggleFichaje=toggleFichaje;window.guardarFichaje=guardarFichaje;window.vistaHoras=vistaHoras;window.validarUsuario=validarUsuario;window.validarAdmin=validarAdmin;window.pagoAdmin=pagoAdmin;window.cobroUsuario=cobroUsuario;window.vistaConfig=vistaConfig;window.guardarConfig=guardarConfig;window.vistaUsuarios=vistaUsuarios;window.vistaInformes=vistaInformes;window.generarInforme=generarInforme;window.inicio=inicio;
+async function cerrarMes(){
+if(!admin())return;
+const mes=Number(document.getElementById("mes").value),anio=Number(document.getElementById("anio").value);
+if(await cierreDeMes(mes,anio)){alert("Ese mes ya está cerrado.");return}
+if(!confirm("¿Cerrar mes y marcar horas como pagadas?"))return;
+const mm=String(mes).padStart(2,"0"),ini=`${anio}-${mm}-01`,fin=`${anio}-${mm}-31`;
+await api("/rest/v1/horas_extra?fecha=gte."+ini+"&fecha=lte."+fin,{method:"PATCH",headers:{"Prefer":"return=representation"},body:{estado:"pagadas",pagada:true,fecha_pago:new Date().toISOString(),validado_usuario:true,validado_admin:true,admin_confirmo_pago:true,usuario_confirmo_cobro:true}});
+await api("/rest/v1/cierre_mensual",{method:"POST",headers:{"Prefer":"return=representation"},body:{mes,anio,cerrado:true,cerrado_por:String(user.id)}});
+await generarInforme();
+}
+
+async function reabrirMes(){
+if(!admin())return;
+const mes=Number(document.getElementById("mes").value),anio=Number(document.getElementById("anio").value);
+if(!confirm("¿Reabrir mes? Las horas quedarán pagadas, pero el mes dejará de estar bloqueado."))return;
+await api("/rest/v1/cierre_mensual?mes=eq."+mes+"&anio=eq."+anio,{method:"PATCH",headers:{"Prefer":"return=representation"},body:{cerrado:false}});
+await generarInforme();
+}
+
+window.salir=salir;window.toggleFichaje=toggleFichaje;window.guardarFichaje=guardarFichaje;window.vistaHoras=vistaHoras;window.validarUsuario=validarUsuario;window.validarAdmin=validarAdmin;window.pagoAdmin=pagoAdmin;window.cobroUsuario=cobroUsuario;window.vistaConfig=vistaConfig;window.guardarConfig=guardarConfig;window.vistaUsuarios=vistaUsuarios;window.vistaInformes=vistaInformes;window.generarInforme=generarInforme;window.cerrarMes=cerrarMes;window.reabrirMes=reabrirMes;window.inicio=inicio;
 if(sesion())inicio();
 </script>
 </body>
