@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2511</title>
+<title>Zentryx V2512</title>
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
 .top{background:#0f172a;color:white;padding:22px}
@@ -23,13 +23,16 @@ table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid
 .tab{background:#e5e7eb;padding:12px;border-radius:10px;font-weight:bold;border:0}
 .tab.active{background:#0f172a;color:white}
 .warn{color:#b45309;font-weight:bold}
+.foto{width:120px;height:120px;border-radius:50%;object-fit:cover;background:#e5e7eb;border:1px solid #ccc}
+.preview{max-width:100%;border-radius:10px;margin-top:8px;border:1px solid #ccc}
+.oculto{display:none}
 @media print{.top,.no-print,.btn{display:none!important}.card{box-shadow:none;border:1px solid #999}}
 </style>
 </head>
 <body>
 
 <div class="top">
-<h1>Zentryx V2511</h1>
+<h1>Zentryx V2512</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -38,8 +41,9 @@ table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid
 <script>
 const URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+const BUCKET="usuarios";
 
-let user=null,fichajes=[],ultimo=null,horas=[],usuarios=[],tipos=[],panel=false,usuarioAbierto=null,horariosUsuario=[];
+let user=null,fichajes=[],ultimo=null,horas=[],usuarios=[],tipos=[],panel=false,usuarioAbierto=null,horariosUsuario=[],docsUsuario=[];
 
 function api(p,o={}){
 return fetch(URL+p,{
@@ -412,7 +416,7 @@ zonaUsuario.innerHTML=`
 }
 
 if(tab==="documentos"){
-zonaUsuario.innerHTML=`<div class="card"><h3>Documentos</h3><p class="muted">Pendiente: foto, DNI y archivos.</p></div>`;
+await cargarDocumentosUsuario();
 }
 
 if(tab==="horarios"){
@@ -448,6 +452,131 @@ msg.textContent="Guardado correctamente.";
 }catch(e){
 msg.className="error";
 msg.textContent="Error: "+e.message
+}
+}
+
+function limpiarNombre(n){return String(n||"archivo").replaceAll(" ","_").replaceAll("/","_").replaceAll("\\","_").replaceAll(":","_").replaceAll("?","_")}
+function urlPublica(path){return URL+"/storage/v1/object/public/"+BUCKET+"/"+path.split("/").map(encodeURIComponent).join("/")}
+
+async function subirAStorage(file,tipo){
+const carpeta=tipo.replaceAll(" ","_").toLowerCase();
+const nombre=limpiarNombre(file.name);
+const path=carpeta+"/"+usuarioAbierto.id+"/"+Date.now()+"_"+nombre;
+
+const res=await fetch(URL+"/storage/v1/object/"+BUCKET+"/"+path,{
+method:"POST",
+headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":file.type||"application/octet-stream","x-upsert":"false"},
+body:file
+});
+
+if(!res.ok)throw new Error(await res.text());
+
+return {nombre:file.name,path,url:urlPublica(path)};
+}
+
+async function guardarDocumentoBD(tipo,archivo){
+await api("/rest/v1/documentos",{
+method:"POST",
+headers:{"Prefer":"return=representation"},
+body:{
+user_id:String(usuarioAbierto.id),
+tipo:tipo,
+nombre:archivo.nombre,
+url:archivo.url,
+path:archivo.path
+}
+});
+}
+
+async function docsDeUsuario(){
+docsUsuario=await api("/rest/v1/documentos?select=*&user_id=eq."+encodeURIComponent(String(usuarioAbierto.id))+"&order=fecha.desc");
+return docsUsuario;
+}
+
+async function cargarDocumentosUsuario(){
+await docsDeUsuario();
+const foto=docsUsuario.find(d=>d.tipo==="foto_perfil");
+
+zonaUsuario.innerHTML=`
+<div class="card">
+<h3>Foto de perfil</h3>
+${foto?`<img class="foto" src="${esc(foto.url)}">`:`<div class="foto"></div>`}
+
+<input class="oculto" id="fotoCam" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('fotoCam','foto_perfil')">
+<input class="oculto" id="fotoFile" type="file" accept="image/*" onchange="subirDocumentoInput('fotoFile','foto_perfil')">
+
+<br>
+<button class="btn gray" onclick="fotoCam.click()">Hacer foto</button>
+<button class="btn blue" onclick="fotoFile.click()">Elegir foto</button>
+<div id="msgDocs"></div>
+</div>
+
+<div class="card">
+<h3>DNI</h3>
+<input class="oculto" id="dniFrontal" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('dniFrontal','dni_frontal')">
+<input class="oculto" id="dniTrasero" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('dniTrasero','dni_trasero')">
+
+<button class="btn gray" onclick="dniFrontal.click()">Foto DNI frontal</button>
+<button class="btn gray" onclick="dniTrasero.click()">Foto DNI trasero</button>
+</div>
+
+<div class="card">
+<h3>Otros documentos</h3>
+<input class="oculto" id="docFile" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="subirDocumentoInput('docFile','documento')">
+<input class="oculto" id="docCam" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('docCam','documento_foto')">
+
+<button class="btn blue" onclick="docFile.click()">Subir archivo</button>
+<button class="btn gray" onclick="docCam.click()">Hacer foto documento</button>
+</div>
+
+<div class="card">
+<h3>Documentos guardados</h3>
+${docsUsuario.length?docsUsuario.map(d=>`
+<div class="row">
+<b>${esc(d.tipo)}</b><br>
+${esc(d.nombre||"")}<br>
+<a href="${esc(d.url)}" target="_blank">Ver archivo</a>
+<button class="btn red" onclick="eliminarDocumento('${esc(d.id)}','${esc(d.path||"")}')">Eliminar</button>
+${String(d.tipo).includes("dni")||String(d.tipo).includes("foto")?`<br><img class="preview" src="${esc(d.url)}">`:""}
+</div>`).join(""):"<p class='muted'>No hay documentos.</p>"}
+</div>`;
+}
+
+async function subirDocumentoInput(inputId,tipo){
+const input=document.getElementById(inputId);
+const file=input.files&&input.files[0];
+const msg=document.getElementById("msgDocs");
+if(!file){alert("Selecciona un archivo");return}
+
+if(msg){msg.className="muted";msg.textContent="Subiendo..."}
+
+try{
+const archivo=await subirAStorage(file,tipo);
+await guardarDocumentoBD(tipo,archivo);
+if(msg){msg.className="ok";msg.textContent="Guardado."}
+await cargarDocumentosUsuario();
+}catch(e){
+if(msg){msg.className="error";msg.textContent="Error: "+e.message}else alert("Error: "+e.message)
+}
+}
+
+async function eliminarDocumento(id,path){
+if(!confirm("¿Eliminar documento?"))return;
+
+try{
+await api("/rest/v1/documentos?id=eq."+encodeURIComponent(id),{method:"DELETE"});
+
+if(path){
+await fetch(URL+"/storage/v1/object/"+BUCKET,{
+method:"DELETE",
+headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json"},
+body:JSON.stringify({prefixes:[path]})
+});
+}
+
+await cargarDocumentosUsuario();
+}catch(e){
+alert("Error: "+e.message);
 }
 }
 
@@ -680,6 +809,9 @@ window.vistaUsuarios=vistaUsuarios;
 window.abrirUsuario=abrirUsuario;
 window.guardarUsuario=guardarUsuario;
 window.tabUsuario=tabUsuario;
+window.cargarDocumentosUsuario=cargarDocumentosUsuario;
+window.subirDocumentoInput=subirDocumentoInput;
+window.eliminarDocumento=eliminarDocumento;
 window.cargarHorariosUsuario=cargarHorariosUsuario;
 window.guardarHorariosUsuario=guardarHorariosUsuario;
 window.cargarHistorialUsuario=cargarHistorialUsuario;
