@@ -3,29 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2300</title>
+<title>Zentryx V2301</title>
 
 <style>
-body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
+body{margin:0;font-family:Arial;background:#eef2f7}
 .top{background:#0f172a;color:white;padding:20px}
-h1{margin:0}
 .wrap{padding:16px}
 .card{background:white;border-radius:12px;padding:16px;margin-bottom:12px}
-.btn{padding:12px 14px;border:none;border-radius:8px;margin:4px;font-weight:bold}
-.green{background:#16a34a;color:white}
+.btn{padding:12px;border:none;border-radius:8px;margin:4px}
 .blue{background:#2563eb;color:white}
 .gray{background:#e5e7eb}
 .red{background:#dc2626;color:white}
-.table{width:100%;border-collapse:collapse;margin-top:10px}
-.table th,.table td{border:1px solid #ccc;padding:6px;text-align:left}
-.badge{background:#e5e7eb;padding:6px 10px;border-radius:999px}
+.table{width:100%;border-collapse:collapse}
+.table td,.table th{border:1px solid #ccc;padding:6px}
 </style>
 </head>
 
 <body>
 
 <div class="top">
-<h1>Zentryx V2300</h1>
+<h1>Zentryx V2301</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -37,15 +34,9 @@ const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
 let user=null;
 
-function api(p,o={}){
+function api(p){
 return fetch(URL+p,{
-method:o.method||"GET",
-headers:{
-apikey:KEY,
-Authorization:"Bearer "+KEY,
-"Content-Type":"application/json"
-},
-body:o.body?JSON.stringify(o.body):undefined
+headers:{apikey:KEY,Authorization:"Bearer "+KEY}
 }).then(r=>r.json());
 }
 
@@ -61,103 +52,83 @@ return true;
 }
 
 function esAdmin(){
-return user.rol==="admin" || user.rol==="administrativo";
+return user.rol==="admin"||user.rol==="administrativo";
 }
 
 function pintarInicio(){
 document.getElementById("app").innerHTML=`
-
 <div class="card">
 <h2>${user.usuario}</h2>
-</div>
-
-<div class="card">
 <button class="btn blue" onclick="pintarInforme()">Informes</button>
-</div>
-
-`;
+</div>`;
 }
 
 async function pintarInforme(){
-
 const hoy=new Date();
-const mes=hoy.getMonth()+1;
-const año=hoy.getFullYear();
 
 document.getElementById("app").innerHTML=`
 <div class="card">
-<button class="btn gray" onclick="pintarInicio()">← Volver</button>
+<button class="btn gray" onclick="pintarInicio()">←</button>
 
-<h2>Informes</h2>
+<h2>Informe</h2>
 
-<label>Mes</label>
-<input type="number" id="mes" value="${mes}">
+<input id="mes" type="number" value="${hoy.getMonth()+1}">
+<input id="anio" type="number" value="${hoy.getFullYear()}">
 
-<label>Año</label>
-<input type="number" id="anio" value="${año}">
+<button class="btn blue" onclick="generar()">Generar</button>
+<button class="btn blue" onclick="window.print()">Imprimir</button>
 
-<button class="btn blue" onclick="generarInforme()">Generar</button>
-<button class="btn green" onclick="window.print()">Imprimir</button>
-
-<div id="resultado"></div>
-</div>
-`;
+<div id="res"></div>
+</div>`;
 }
 
-async function generarInforme(){
+async function generar(){
 
-const mes=Number(document.getElementById("mes").value);
-const anio=Number(document.getElementById("anio").value);
+const mes=String(document.getElementById("mes").value).padStart(2,"0");
+const anio=document.getElementById("anio").value;
 
-const inicio=`${anio}-${String(mes).padStart(2,"0")}-01`;
-const fin=`${anio}-${String(mes).padStart(2,"0")}-31`;
+const ini=`${anio}-${mes}-01`;
+const fin=`${anio}-${mes}-31`;
 
-let query=`/rest/v1/horas_extra?select=*,tipos_horas_extra(nombre)&fecha=gte.${inicio}&fecha=lte.${fin}`;
+let url=`/rest/v1/horas_extra?select=*`;
 
 if(!esAdmin()){
-query+=`&user_id=eq.${user.id}`;
+url+=`&user_id=eq.${user.id}`;
 }
 
-const data=await api(query);
+const data=await api(url);
+
+// filtro manual por fecha
+const filtrado=data.filter(h=>{
+if(!h.created_at) return true;
+return h.created_at>=ini && h.created_at<=fin;
+});
 
 const usuarios={};
 
-data.forEach(h=>{
+filtrado.forEach(h=>{
 const u=h.user_id;
-if(!usuarios[u]) usuarios[u]={total:0,tipos:{}};
+if(!usuarios[u]) usuarios[u]={total:0};
 
-const tipo=h.tipos_horas_extra?.nombre||"otros";
-
-if(!usuarios[u].tipos[tipo]) usuarios[u].tipos[tipo]={min:0,€:0};
-
-usuarios[u].tipos[tipo].min+=Number(h.minutos||0);
-usuarios[u].tipos[tipo].€+=Number(h.total||0);
 usuarios[u].total+=Number(h.total||0);
 });
 
 let html="";
 
 for(const u in usuarios){
-
-html+=`<div class="card"><h3>Usuario ${u}</h3>`;
-
-html+=`<table class="table">
-<tr><th>Tipo</th><th>Minutos</th><th>€</th></tr>`;
-
-for(const t in usuarios[u].tipos){
-const v=usuarios[u].tipos[t];
-html+=`<tr><td>${t}</td><td>${v.min}</td><td>${v.€.toFixed(2)}</td></tr>`;
+html+=`
+<div class="card">
+<h3>Usuario ${u}</h3>
+Total: ${usuarios[u].total.toFixed(2)} €
+</div>`;
 }
 
-html+=`</table><br><b>Total: ${usuarios[u].total.toFixed(2)} €</b></div>`;
-}
+let total=0;
+filtrado.forEach(h=>total+=Number(h.total||0));
 
-let totalEmpresa=0;
-data.forEach(h=>totalEmpresa+=Number(h.total||0));
+html+=`<div class="card"><b>Total empresa: ${total.toFixed(2)} €</b></div>`;
 
-html+=`<div class="card"><h2>Total empresa: ${totalEmpresa.toFixed(2)} €</h2></div>`;
-
-document.getElementById("resultado").innerHTML=html;
+document.getElementById("res").innerHTML=html;
 }
 
 if(cargarSesion()){
