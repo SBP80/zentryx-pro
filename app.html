@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2500</title>
+<title>Zentryx V2501</title>
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
 .top{background:#0f172a;color:white;padding:22px}
@@ -17,14 +17,14 @@ h1{margin:0;font-size:38px}
 .row{border:1px solid #ccc;border-radius:10px;padding:10px;margin-bottom:10px}
 input,select{width:100%;padding:13px;border-radius:10px;border:1px solid #bbb;font-size:17px;margin:6px 0 12px 0;box-sizing:border-box}
 table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid #ccc;padding:7px;text-align:left}
-.muted{color:#6b7280}.error{color:#b91c1c;font-weight:bold}
+.muted{color:#6b7280}.error{color:#b91c1c;font-weight:bold}.ok{color:#15803d;font-weight:bold}
 @media print{.top,.no-print,.btn{display:none!important}.card{box-shadow:none;border:1px solid #999}}
 </style>
 </head>
 <body>
 
 <div class="top">
-<h1>Zentryx V2500</h1>
+<h1>Zentryx V2501</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -40,7 +40,7 @@ function api(p,o={}){
 return fetch(URL+p,{method:o.method||"GET",headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json",...(o.headers||{})},body:o.body?JSON.stringify(o.body):undefined})
 .then(async r=>{const t=await r.text();let d=null;try{d=t?JSON.parse(t):null}catch{d=t}if(!r.ok)throw new Error(t||"Error");return d;});
 }
-function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")}
+function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;")}
 function salir(){localStorage.removeItem("usuario");localStorage.removeItem("user");location.href="./index.html?v=1000"}
 function sesion(){try{user=JSON.parse(localStorage.getItem("usuario"))}catch{user=null}if(!user){location.href="./index.html?v=1000";return false}return true}
 function admin(){return user.rol==="admin"||user.rol==="administrativo"}
@@ -162,7 +162,95 @@ function cobroUsuario(id){patchHora(id,{usuario_confirmo_cobro:true,fecha_usuari
 async function vistaConfig(){const c=await config();app.innerHTML=`<div class="card"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Ajustes horas extra</h2><label>Inicio nocturna</label><input id="ni" type="time" value="${c.nocturna_inicio||"22:00"}"><label>Fin nocturna</label><input id="nf" type="time" value="${c.nocturna_fin||"06:00"}"><label>Redondeo</label><select id="rd"><option value="1">Exacto</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option></select><label>Mínimo</label><select id="mi"><option value="0">Sin mínimo</option><option value="30">30 min</option><option value="60">60 min</option></select><button class="btn blue" onclick="guardarConfig()">Guardar</button><div id="mc"></div></div>`;document.getElementById("rd").value=String(c.redondeo_minutos||1);document.getElementById("mi").value=String(c.minimo_minutos||0)}
 async function guardarConfig(){await api("/rest/v1/configuracion_horas_extra?id=eq.1",{method:"PATCH",headers:{"Prefer":"return=representation"},body:{nocturna_inicio:ni.value,nocturna_fin:nf.value,redondeo_minutos:Number(rd.value),minimo_minutos:Number(mi.value),actualizado_en:new Date().toISOString()}});mc.textContent="Guardado"}
 
-async function vistaUsuarios(){await cargarBase();app.innerHTML=`<div class="card"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Usuarios</h2></div>${usuarios.map(u=>`<div class="card"><b>${esc(u.nombre||"-")}</b><br>${esc(u.usuario)} · ${esc(u.rol)}<br>${esc(u.telefono||"")}<br>${esc(u.email||"")}</div>`).join("")}`}
+async function vistaUsuarios(){
+await cargarBase();
+app.innerHTML=`
+<div class="card">
+<button class="btn gray" onclick="inicio()">← Volver</button>
+<h2>Usuarios</h2>
+<p class="muted">Pulsa un usuario para abrir su ficha.</p>
+</div>
+${usuarios.map(u=>`
+<div class="card" onclick="abrirUsuario('${esc(u.id)}')">
+<b>${esc(u.nombre||"-")}</b><br>
+${esc(u.usuario)} · ${esc(u.rol)}<br>
+<span class="muted">${esc(u.telefono||"")} ${esc(u.email||"")}</span>
+</div>
+`).join("")}`;
+}
+
+async function abrirUsuario(id){
+const data=await api("/rest/v1/users?select=*&id=eq."+encodeURIComponent(id)+"&limit=1");
+const u=data[0];
+if(!u){alert("Usuario no encontrado");return;}
+
+app.innerHTML=`
+<div class="card">
+<button class="btn gray" onclick="vistaUsuarios()">← Usuarios</button>
+<h2>${esc(u.nombre||"Usuario")}</h2>
+<p class="muted">${esc(u.usuario)} · ${esc(u.rol)}</p>
+</div>
+
+<div class="card">
+<h3>Datos principales</h3>
+
+<label>Nombre</label>
+<input id="u_nombre" value="${esc(u.nombre||"")}">
+
+<label>Usuario</label>
+<input id="u_usuario" value="${esc(u.usuario||"")}">
+
+<label>Teléfono</label>
+<input id="u_telefono" value="${esc(u.telefono||"")}">
+
+<label>Email</label>
+<input id="u_email" value="${esc(u.email||"")}">
+
+<label>Rol</label>
+<select id="u_rol">
+<option value="operario" ${u.rol==="operario"?"selected":""}>operario</option>
+<option value="instalador" ${u.rol==="instalador"?"selected":""}>instalador</option>
+<option value="tecnico" ${u.rol==="tecnico"?"selected":""}>tecnico</option>
+<option value="encargado" ${u.rol==="encargado"?"selected":""}>encargado</option>
+<option value="administrativo" ${u.rol==="administrativo"?"selected":""}>administrativo</option>
+<option value="admin" ${u.rol==="admin"?"selected":""}>admin</option>
+</select>
+
+<button class="btn blue" onclick="guardarUsuario('${esc(u.id)}')">Guardar cambios</button>
+<div id="msgUsuario"></div>
+</div>
+
+<div class="card">
+<h3>Pendiente de completar</h3>
+<p class="muted">Foto · DNI · documentos · horarios · vacaciones · ausencias · historial · permisos · dirección completa.</p>
+</div>
+`;
+}
+
+async function guardarUsuario(id){
+const msg=document.getElementById("msgUsuario");
+msg.className="muted";
+msg.textContent="Guardando...";
+
+try{
+await api("/rest/v1/users?id=eq."+encodeURIComponent(id),{
+method:"PATCH",
+headers:{"Prefer":"return=representation"},
+body:{
+nombre:document.getElementById("u_nombre").value.trim(),
+usuario:document.getElementById("u_usuario").value.trim().toLowerCase(),
+telefono:document.getElementById("u_telefono").value.trim(),
+email:document.getElementById("u_email").value.trim(),
+rol:document.getElementById("u_rol").value
+}
+});
+msg.className="ok";
+msg.textContent="Guardado correctamente.";
+}catch(e){
+msg.className="error";
+msg.textContent="Error: "+e.message;
+}
+}
 
 async function vistaInformes(){
 const h=new Date();
@@ -203,7 +291,7 @@ await api("/rest/v1/cierre_mensual?mes=eq."+mes+"&anio=eq."+anio,{method:"PATCH"
 await generarInforme();
 }
 
-window.salir=salir;window.toggleFichaje=toggleFichaje;window.guardarFichaje=guardarFichaje;window.vistaHoras=vistaHoras;window.validarUsuario=validarUsuario;window.validarAdmin=validarAdmin;window.pagoAdmin=pagoAdmin;window.cobroUsuario=cobroUsuario;window.vistaConfig=vistaConfig;window.guardarConfig=guardarConfig;window.vistaUsuarios=vistaUsuarios;window.vistaInformes=vistaInformes;window.generarInforme=generarInforme;window.cerrarMes=cerrarMes;window.reabrirMes=reabrirMes;window.inicio=inicio;
+window.salir=salir;window.toggleFichaje=toggleFichaje;window.guardarFichaje=guardarFichaje;window.vistaHoras=vistaHoras;window.validarUsuario=validarUsuario;window.validarAdmin=validarAdmin;window.pagoAdmin=pagoAdmin;window.cobroUsuario=cobroUsuario;window.vistaConfig=vistaConfig;window.guardarConfig=guardarConfig;window.vistaUsuarios=vistaUsuarios;window.abrirUsuario=abrirUsuario;window.guardarUsuario=guardarUsuario;window.vistaInformes=vistaInformes;window.generarInforme=generarInforme;window.cerrarMes=cerrarMes;window.reabrirMes=reabrirMes;window.inicio=inicio;
 if(sesion())inicio();
 </script>
 </body>
