@@ -3,268 +3,407 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2505</title>
-
+<title>Zentryx V2506</title>
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
-.top{background:#0f172a;color:white;padding:20px}
+.top{background:#0f172a;color:white;padding:22px}
+h1{margin:0;font-size:38px}
 .wrap{padding:16px}
-.card{background:white;border-radius:12px;padding:16px;margin-bottom:12px}
-.btn{padding:12px;border:none;border-radius:8px;margin:4px;font-weight:bold}
-.big{width:100%;font-size:18px}
-.green{background:#16a34a;color:white}
-.blue{background:#2563eb;color:white}
-.gray{background:#e5e7eb}
-.red{background:#dc2626;color:white}
-input,select{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #ccc}
-.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
-.tab{padding:10px;background:#e5e7eb;border-radius:8px;cursor:pointer}
-.tab.active{background:#111827;color:white}
-.foto{width:120px;height:120px;border-radius:50%;object-fit:cover;background:#ddd}
+.card{background:white;border-radius:14px;padding:16px;margin-bottom:14px;border:1px solid #d1d5db}
+.btn{padding:13px 15px;border:0;border-radius:10px;margin:4px;font-weight:bold;font-size:16px}
+.big{width:100%;font-size:22px;padding:20px}
+.green{background:#16a34a;color:white}.red{background:#dc2626;color:white}.blue{background:#2563eb;color:white}.gray{background:#e5e7eb}.orange{background:#f97316;color:white}.dark{background:#0f172a;color:white}
+.badge{background:#e5e7eb;padding:7px 11px;border-radius:999px;font-weight:bold;display:inline-block}
+.row{border:1px solid #ccc;border-radius:10px;padding:10px;margin-bottom:10px}
+input,select{width:100%;padding:13px;border-radius:10px;border:1px solid #bbb;font-size:17px;margin:6px 0 12px 0;box-sizing:border-box}
+table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid #ccc;padding:7px;text-align:left}
+.muted{color:#6b7280}.error{color:#b91c1c;font-weight:bold}.ok{color:#15803d;font-weight:bold}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tab{background:#e5e7eb;padding:12px;border-radius:10px;font-weight:bold}.tab.active{background:#0f172a;color:white}
+.foto{width:120px;height:120px;border-radius:50%;object-fit:cover;background:#e5e7eb;border:1px solid #ccc}
+.preview{max-width:100%;border-radius:10px;margin-top:8px;border:1px solid #ccc}
+.oculto{display:none}
+@media print{.top,.no-print,.btn{display:none!important}.card{box-shadow:none;border:1px solid #999}}
 </style>
 </head>
-
 <body>
 
 <div class="top">
-<h2>Zentryx V2505</h2>
-<button class="btn gray" onclick="salir()">Salir</button>
+<h1>Zentryx V2506</h1>
+<button class="btn red" onclick="salir()">Salir</button>
 </div>
 
-<div class="wrap" id="app"></div>
+<div class="wrap" id="app">Cargando...</div>
 
 <script>
 const URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+const BUCKET="usuarios";
 
-let user=null;
-let usuarios=[];
-let usuarioActual=null;
+let user=null,fichajes=[],ultimo=null,horas=[],usuarios=[],tipos=[],panel=false,usuarioAbierto=null,docsUsuario=[];
 
-// ================= BASE =================
 function api(p,o={}){
-return fetch(URL+p,{
-method:o.method||"GET",
-headers:{
-apikey:KEY,
-Authorization:"Bearer "+KEY,
-"Content-Type":"application/json"
-},
-body:o.body?JSON.stringify(o.body):undefined
-}).then(r=>r.json());
+return fetch(URL+p,{method:o.method||"GET",headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json",...(o.headers||{})},body:o.body?JSON.stringify(o.body):undefined})
+.then(async r=>{const t=await r.text();let d=null;try{d=t?JSON.parse(t):null}catch{d=t}if(!r.ok)throw new Error(t||"Error");return d;});
+}
+function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;")}
+function salir(){localStorage.removeItem("usuario");localStorage.removeItem("user");location.href="./index.html?v=1000"}
+function sesion(){try{user=JSON.parse(localStorage.getItem("usuario"))}catch{user=null}if(!user){location.href="./index.html?v=1000";return false}return true}
+function admin(){return user.rol==="admin"||user.rol==="administrativo"}
+function mando(){return admin()||user.rol==="encargado"}
+
+async function cargarBase(){
+tipos=await api("/rest/v1/tipos_horas_extra?select=*");
+if(mando()) usuarios=await api("/rest/v1/users?select=*&order=id.asc");
+}
+async function cargarFichajes(){
+fichajes=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(user.id)+"&order=fecha.desc&limit=10");
+ultimo=fichajes.length?fichajes[0]:null;
+}
+async function cargarHoras(){
+let q="/rest/v1/horas_extra?select=*&estado=neq.pagadas&order=fecha.desc";
+if(!mando()) q+="&user_id=eq."+encodeURIComponent(user.id);
+horas=await api(q);
+}
+function nombreUsuario(id){const u=usuarios.find(x=>String(x.id)===String(id));return u?(u.nombre||u.usuario):id}
+function nombreTipo(id){const t=tipos.find(x=>String(x.id)===String(id));return t?t.nombre:"Hora extra"}
+
+function acciones(){
+const e=ultimo?ultimo.tipo:"fuera";
+if(!ultimo||e==="salida")return["entrada"];
+if(["entrada","fin_descanso","fin_comida"].includes(e))return["inicio_descanso","inicio_comida","salida"];
+if(e==="inicio_descanso")return["fin_descanso"];
+if(e==="inicio_comida")return["fin_comida"];
+return["entrada"];
 }
 
-function salir(){
-localStorage.removeItem("usuario");
-location.href="./index.html";
-}
-
-function sesion(){
-user=JSON.parse(localStorage.getItem("usuario"));
-if(!user){location.href="./index.html";return false}
-return true;
-}
-
-// ================= INICIO =================
-function inicio(){
-document.getElementById("app").innerHTML=`
+async function inicio(){
+await cargarBase();await cargarFichajes();await cargarHoras();
+const total=horas.reduce((s,h)=>s+Number(h.total||0),0);
+app.innerHTML=`
+<div class="card"><h2>Inicio</h2><b>${esc(user.nombre||user.usuario)}</b><p class="muted">${esc(user.rol)} · ${esc(user.usuario)}</p></div>
 <div class="card">
-<h2>${user.nombre||user.usuario}</h2>
-<p>${user.rol}</p>
+<h2>Fichaje rápido</h2><span class="badge">Estado: ${esc(ultimo?ultimo.tipo:"fuera")}</span><br><br>
+<button class="btn big green" onclick="toggleFichaje()">FICHAR</button>
+${panel?`<div class="card"><select id="tipoFichaje">${acciones().map(a=>`<option value="${a}">${a}</option>`).join("")}</select><button class="btn blue" onclick="guardarFichaje()">Guardar fichaje</button><div id="msg"></div></div>`:""}
 </div>
+<div class="card"><h2>Horas extra</h2><span class="badge">${total.toFixed(2)} € pendientes</span><br><br><button class="btn blue" onclick="vistaHoras()">Ver horas</button>${admin()?`<button class="btn gray" onclick="vistaConfig()">Ajustes horas</button>`:""}</div>
+<div class="card"><h2>Informes</h2><button class="btn blue" onclick="vistaInformes()">Informes mensuales</button></div>
+${mando()?`<div class="card"><h2>Usuarios</h2><button class="btn dark" onclick="vistaUsuarios()">Ver usuarios</button></div>`:""}
+<div class="card"><h2>Últimos fichajes</h2>${fichajes.length?fichajes.map(f=>`<div class="row"><b>${esc(f.tipo)}</b><br>${new Date(f.fecha).toLocaleString("es-ES")}<br><span class="muted">${esc(f.direccion||"Sin ubicación")}</span></div>`).join(""):"No hay fichajes"}</div>`;
+}
+function toggleFichaje(){panel=!panel;inicio()}
 
-<div class="card">
-<button class="btn big green" onclick="fichar()">FICHAR</button>
-</div>
+function ubicacion(){return new Promise(r=>{if(!navigator.geolocation){r({lat:null,lng:null,direccion:"Sin ubicación"});return}navigator.geolocation.getCurrentPosition(p=>r({lat:p.coords.latitude,lng:p.coords.longitude,direccion:"Lat "+p.coords.latitude+", Lng "+p.coords.longitude}),()=>r({lat:null,lng:null,direccion:"Ubicación no autorizada"}),{enableHighAccuracy:true,timeout:10000})})}
+function minHora(t){const [h,m]=String(t||"00:00").split(":");return Number(h||0)*60+Number(m||0)}
+function minFecha(d){return d.getHours()*60+d.getMinutes()}
+function iso(d){return d.toISOString().split("T")[0]}
+async function config(){const r=await api("/rest/v1/configuracion_horas_extra?select=*&id=eq.1&limit=1");return r[0]||{nocturna_inicio:"22:00",nocturna_fin:"06:00",redondeo_minutos:1,minimo_minutos:0,prioridad_festivo:true}}
+async function festivo(d){const r=await api("/rest/v1/calendario_festivos?select=*&fecha=eq."+encodeURIComponent(iso(d))+"&limit=1");return r.length>0}
+function nocturna(d,c){const m=minFecha(d),i=minHora(c.nocturna_inicio),f=minHora(c.nocturna_fin);return i>f?m>=i||m<f:m>=i&&m<f}
+function redondear(m,c){m=Math.max(0,Number(m||0));const min=Number(c.minimo_minutos||0),red=Number(c.redondeo_minutos||1);if(m>0&&m<min)m=min;if(red>1)m=Math.ceil(m/red)*red;return m}
+async function tipoExtra(d,c){
+const fs=await festivo(d),finde=[0,6].includes(d.getDay()),noc=nocturna(d,c);
+function busca(n){return tipos.find(t=>String(t.nombre).toLowerCase()===n)}
+if(c.prioridad_festivo&&fs&&busca("festiva"))return busca("festiva");
+if(fs&&busca("festiva"))return busca("festiva");
+if(finde&&busca("fin de semana"))return busca("fin de semana");
+if(noc&&busca("nocturna"))return busca("nocturna");
+return busca("normal")||tipos[0];
+}
+async function crearExtra(tipo,fichaje){
+if(tipo!=="salida")return;
+const salida=new Date(fichaje.fecha),dia=salida.getDay(),c=await config();
+const hs=await api("/rest/v1/horarios_usuario?select=*&user_id=eq."+encodeURIComponent(user.id)+"&dia_semana=eq."+dia+"&limit=1");
+const h=hs.length?hs[0]:null;let min=0,motivo="";
+if(!h||h.trabaja===false){
+const ent=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(user.id)+"&tipo=eq.entrada&order=fecha.desc&limit=1");
+min=ent.length?Math.round((salida-new Date(ent[0].fecha))/60000):(Number(c.minimo_minutos||60)||60);
+motivo="Día no laboral";
+}else if(h.hora_salida){
+const sp=new Date(salida),sm=minHora(h.hora_salida);sp.setHours(Math.floor(sm/60),sm%60,0,0);
+min=Math.max(0,Math.round((salida-sp)/60000));motivo="Salida posterior al horario";
+}
+min=redondear(min,c);if(min<=0)return;
+const t=await tipoExtra(salida,c);if(!t)return;
+const precio=Number(t.precio||0),total=Number(((min/60)*precio).toFixed(2));
+await api("/rest/v1/horas_extra",{method:"POST",headers:{"Prefer":"return=representation"},body:{user_id:String(user.id),fichaje_id:fichaje.id,tipo_id:t.id,minutos:min,precio_unitario:precio,total,estado:"pendiente",validado_usuario:false,validado_admin:false,admin_confirmo_pago:false,usuario_confirmo_cobro:false,motivo}});
+}
+async function guardarFichaje(){
+const msg=document.getElementById("msg"),tipo=document.getElementById("tipoFichaje").value;msg.textContent="Guardando...";
+try{const u=await ubicacion();const d=await api("/rest/v1/fichajes",{method:"POST",headers:{"Prefer":"return=representation"},body:{user_id:String(user.id),tipo,lat:u.lat,lng:u.lng,direccion:u.direccion}});await crearExtra(tipo,Array.isArray(d)?d[0]:d);panel=false;await inicio()}catch(e){msg.innerHTML="<span class='error'>"+esc(e.message)+"</span>"}}
 
-<div class="card">
-<button class="btn blue" onclick="vistaUsuarios()">Usuarios</button>
-<button class="btn blue" onclick="vistaHoras()">Horas</button>
-<button class="btn blue" onclick="vistaInformes()">Informes</button>
-</div>
-`;
+async function cierreDeMes(mes,anio){
+const r=await api("/rest/v1/cierre_mensual?select=*&mes=eq."+mes+"&anio=eq."+anio+"&cerrado=eq.true&limit=1");
+return r.length?true:false;
+}
+function mesAnioDeFecha(fechaTxt){const d=new Date(fechaTxt);return {mes:d.getMonth()+1,anio:d.getFullYear()}}
+async function accionBloqueadaPorCierre(horaId){
+const r=await api("/rest/v1/horas_extra?select=fecha,created_at&id=eq."+encodeURIComponent(horaId)+"&limit=1");
+if(!r.length)return true;
+const f=r[0].fecha||r[0].created_at;
+const ma=mesAnioDeFecha(f);
+return await cierreDeMes(ma.mes,ma.anio);
 }
 
-// ================= FICHAJE =================
-async function fichar(){
-await api("/rest/v1/fichajes",{method:"POST",body:{user_id:user.id,tipo:"entrada"}});
-alert("Fichado");
+async function vistaHoras(){await cargarBase();await cargarHoras();app.innerHTML=`<div class="card no-print"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Horas extra</h2></div>${horas.length?horas.map(h=>horaCard(h)).join(""):"<div class='card'>No hay horas extra pendientes.</div>"}`}
+function horaCard(h){
+return `<div class="card">${mando()?`<b>Trabajador:</b> ${esc(nombreUsuario(h.user_id))}<br>`:""}<b>${esc(nombreTipo(h.tipo_id))}</b><br>${Number(h.minutos||0)} min · ${Number(h.total||0).toFixed(2)} €<br><span class="muted">Estado: ${esc(h.estado||"pendiente")}</span><br>${h.motivo?`<small>${esc(h.motivo)}</small><br>`:""}${!h.validado_usuario&&String(user.id)===String(h.user_id)?`<button class="btn green" onclick="validarUsuario('${h.id}')">Validar</button>`:""}${admin()&&h.validado_usuario&&!h.validado_admin?`<button class="btn blue" onclick="validarAdmin('${h.id}')">Validar admin</button>`:""}${admin()&&h.validado_admin&&!h.admin_confirmo_pago?`<button class="btn orange" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>`:""}${h.admin_confirmo_pago&&!h.usuario_confirmo_cobro&&String(user.id)===String(h.user_id)?`<button class="btn green" onclick="cobroUsuario('${h.id}')">Horas cobradas</button>`:""}</div>`;
 }
-
-// ================= HORAS =================
-async function vistaHoras(){
-const data=await api("/rest/v1/horas_extra?select=*&user_id=eq."+user.id);
-
-document.getElementById("app").innerHTML=`
-<div class="card">
-<button class="btn gray" onclick="inicio()">←</button>
-<h2>Horas</h2>
-</div>
-
-${data.map(h=>`
-<div class="card">${h.minutos} min - ${h.total} €</div>
-`).join("")}
-`;
+async function patchHora(id,b){
+if(await accionBloqueadaPorCierre(id)){alert("Mes cerrado. No se puede modificar.");return}
+await api("/rest/v1/horas_extra?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:{"Prefer":"return=representation"},body:b});
+await vistaHoras();
 }
+function validarUsuario(id){patchHora(id,{validado_usuario:true,estado:"pendiente_admin"})}
+function validarAdmin(id){patchHora(id,{validado_admin:true,estado:"validado_admin"})}
+function pagoAdmin(id){patchHora(id,{admin_confirmo_pago:true,fecha_admin_pago:new Date().toISOString()})}
+function cobroUsuario(id){patchHora(id,{usuario_confirmo_cobro:true,fecha_usuario_cobro:new Date().toISOString(),estado:"pagadas",pagada:true,fecha_pago:new Date().toISOString()})}
 
-// ================= USUARIOS =================
+async function vistaConfig(){const c=await config();app.innerHTML=`<div class="card"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Ajustes horas extra</h2><label>Inicio nocturna</label><input id="ni" type="time" value="${c.nocturna_inicio||"22:00"}"><label>Fin nocturna</label><input id="nf" type="time" value="${c.nocturna_fin||"06:00"}"><label>Redondeo</label><select id="rd"><option value="1">Exacto</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option></select><label>Mínimo</label><select id="mi"><option value="0">Sin mínimo</option><option value="30">30 min</option><option value="60">60 min</option></select><button class="btn blue" onclick="guardarConfig()">Guardar</button><div id="mc"></div></div>`;document.getElementById("rd").value=String(c.redondeo_minutos||1);document.getElementById("mi").value=String(c.minimo_minutos||0)}
+async function guardarConfig(){await api("/rest/v1/configuracion_horas_extra?id=eq.1",{method:"PATCH",headers:{"Prefer":"return=representation"},body:{nocturna_inicio:ni.value,nocturna_fin:nf.value,redondeo_minutos:Number(rd.value),minimo_minutos:Number(mi.value),actualizado_en:new Date().toISOString()}});mc.textContent="Guardado"}
+
 async function vistaUsuarios(){
-usuarios=await api("/rest/v1/users?select=*");
-
-document.getElementById("app").innerHTML=`
+await cargarBase();
+app.innerHTML=`
 <div class="card">
-<button class="btn gray" onclick="inicio()">←</button>
+<button class="btn gray" onclick="inicio()">← Volver</button>
 <h2>Usuarios</h2>
+<p class="muted">Pulsa un usuario para abrir su ficha.</p>
 </div>
-
 ${usuarios.map(u=>`
-<div class="card" onclick="abrirUsuario('${u.id}')">
-<b>${u.nombre||""}</b><br>
-${u.usuario}
+<div class="card" onclick="abrirUsuario('${esc(u.id)}')">
+<b>${esc(u.nombre||"-")}</b><br>
+${esc(u.usuario)} · ${esc(u.rol)}<br>
+<span class="muted">${esc(u.telefono||"")} ${esc(u.email||"")}</span>
 </div>
-`).join("")}
-`;
+`).join("")}`;
 }
 
-function abrirUsuario(id){
-usuarioActual=usuarios.find(u=>u.id==id);
-
-document.getElementById("app").innerHTML=`
+async function abrirUsuario(id){
+const data=await api("/rest/v1/users?select=*&id=eq."+encodeURIComponent(id)+"&limit=1");
+usuarioAbierto=data[0];
+if(!usuarioAbierto){alert("Usuario no encontrado");return}
+app.innerHTML=`
 <div class="card">
-<button class="btn gray" onclick="vistaUsuarios()">←</button>
-<h2>${usuarioActual.nombre}</h2>
+<button class="btn gray" onclick="vistaUsuarios()">← Usuarios</button>
+<h2>${esc(usuarioAbierto.nombre||"Usuario")}</h2>
+<p class="muted">${esc(usuarioAbierto.usuario)} · ${esc(usuarioAbierto.rol)}</p>
 </div>
-
 <div class="tabs">
-<div class="tab active" onclick="tab('datos')">Datos</div>
-<div class="tab" onclick="tab('docs')">DNI/Fotos</div>
+<button class="tab active" onclick="tabUsuario('datos')">Datos</button>
+<button class="tab" onclick="tabUsuario('documentos')">Foto/DNI</button>
+<button class="tab" onclick="tabUsuario('horarios')">Horarios</button>
+<button class="tab" onclick="tabUsuario('historial')">Historial</button>
 </div>
-
-<div id="contenido"></div>
-`;
-
-tab("datos");
+<div id="zonaUsuario"></div>`;
+tabUsuario("datos");
 }
 
-function activarTab(t){
-document.querySelectorAll(".tab").forEach(e=>e.classList.remove("active"));
-document.querySelectorAll(".tab").forEach(e=>{
-if(e.innerText.toLowerCase().includes(t)) e.classList.add("active");
+function marcarTab(nombre){
+document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+document.querySelectorAll(".tab").forEach(b=>{if(b.textContent.toLowerCase().includes(nombre==="documentos"?"foto":nombre))b.classList.add("active")});
+}
+
+async function tabUsuario(tab){
+if(!usuarioAbierto)return;
+marcarTab(tab);
+
+if(tab==="datos"){
+zonaUsuario.innerHTML=`
+<div class="card">
+<h3>Datos principales</h3>
+<label>Nombre</label><input id="u_nombre" value="${esc(usuarioAbierto.nombre||"")}">
+<label>Usuario</label><input id="u_usuario" value="${esc(usuarioAbierto.usuario||"")}">
+<label>Teléfono</label><input id="u_telefono" value="${esc(usuarioAbierto.telefono||"")}">
+<label>Email</label><input id="u_email" value="${esc(usuarioAbierto.email||"")}">
+<label>Rol</label>
+<select id="u_rol">
+<option value="operario" ${usuarioAbierto.rol==="operario"?"selected":""}>operario</option>
+<option value="instalador" ${usuarioAbierto.rol==="instalador"?"selected":""}>instalador</option>
+<option value="tecnico" ${usuarioAbierto.rol==="tecnico"?"selected":""}>tecnico</option>
+<option value="encargado" ${usuarioAbierto.rol==="encargado"?"selected":""}>encargado</option>
+<option value="administrativo" ${usuarioAbierto.rol==="administrativo"?"selected":""}>administrativo</option>
+<option value="admin" ${usuarioAbierto.rol==="admin"?"selected":""}>admin</option>
+</select>
+<button class="btn blue" onclick="guardarUsuario('${esc(usuarioAbierto.id)}')">Guardar cambios</button>
+<div id="msgUsuario"></div>
+</div>`;
+}
+
+if(tab==="documentos"){
+await vistaDocumentosUsuario();
+}
+
+if(tab==="horarios"){
+zonaUsuario.innerHTML=`<div class="card"><h3>Horarios</h3><p class="muted">Siguiente paso: horario semanal editable.</p></div>`;
+}
+
+if(tab==="historial"){
+zonaUsuario.innerHTML=`<div class="card"><h3>Historial</h3><p class="muted">Siguiente paso: fichajes, horas, vacaciones y ausencias.</p></div>`;
+}
+}
+
+async function guardarUsuario(id){
+const msg=document.getElementById("msgUsuario");
+msg.className="muted";msg.textContent="Guardando...";
+try{
+await api("/rest/v1/users?id=eq."+encodeURIComponent(id),{
+method:"PATCH",headers:{"Prefer":"return=representation"},
+body:{
+nombre:u_nombre.value.trim(),
+usuario:u_usuario.value.trim().toLowerCase(),
+telefono:u_telefono.value.trim(),
+email:u_email.value.trim(),
+rol:u_rol.value
+}});
+msg.className="ok";msg.textContent="Guardado correctamente.";
+}catch(e){msg.className="error";msg.textContent="Error: "+e.message}
+}
+
+function limpiarNombre(n){return String(n||"archivo").replaceAll(" ","_").replaceAll("/","_").replaceAll("\\","_").replaceAll(":","_").replaceAll("?","_")}
+function publicUrl(path){return URL+"/storage/v1/object/public/"+BUCKET+"/"+path.split("/").map(encodeURIComponent).join("/")}
+
+async function subirStorage(file,tipo){
+const nombre=limpiarNombre(file.name);
+const carpeta=tipo.replaceAll(" ","_").toLowerCase();
+const path=carpeta+"/"+usuarioAbierto.id+"/"+Date.now()+"_"+nombre;
+const res=await fetch(URL+"/storage/v1/object/"+BUCKET+"/"+path,{
+method:"POST",
+headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":file.type||"application/octet-stream","x-upsert":"false"},
+body:file
+});
+if(!res.ok)throw new Error(await res.text());
+return {nombre:file.name,path,url:publicUrl(path)};
+}
+
+async function guardarDocumentoBD(tipo,archivo){
+await api("/rest/v1/documentos",{
+method:"POST",headers:{"Prefer":"return=representation"},
+body:{user_id:String(usuarioAbierto.id),tipo,nombre:archivo.nombre,url:archivo.url,path:archivo.path}
 });
 }
 
-// ================= TABS =================
-function tab(t){
-activarTab(t);
-
-if(t==="datos"){
-document.getElementById("contenido").innerHTML=`
-<div class="card">
-<input id="nombre" value="${usuarioActual.nombre||""}">
-<input id="usuario" value="${usuarioActual.usuario||""}">
-<button class="btn blue" onclick="guardarUsuario()">Guardar</button>
-</div>
-`;
+async function cargarDocsUsuario(){
+docsUsuario=await api("/rest/v1/documentos?select=*&user_id=eq."+encodeURIComponent(String(usuarioAbierto.id))+"&order=fecha.desc");
+return docsUsuario;
 }
 
-if(t==="docs"){
-document.getElementById("contenido").innerHTML=`
+async function vistaDocumentosUsuario(){
+await cargarDocsUsuario();
+const foto=docsUsuario.find(d=>d.tipo==="foto_perfil");
+zonaUsuario.innerHTML=`
 <div class="card">
-<h3>Foto</h3>
-
-${usuarioActual.foto?
-`<img class="foto" src="${usuarioActual.foto}">`:
-`<div class="foto"></div>`}
-
-<input type="file" id="foto" accept="image/*">
-<button class="btn blue" onclick="guardarFoto()">Guardar foto</button>
+<h3>Foto de perfil</h3>
+${foto?`<img class="foto" src="${esc(foto.url)}">`:`<div class="foto"></div>`}
+<input class="oculto" id="fotoCam" type="file" accept="image/*" capture="environment" onchange="subirDocInput('fotoCam','foto_perfil')">
+<input class="oculto" id="fotoFile" type="file" accept="image/*" onchange="subirDocInput('fotoFile','foto_perfil')">
+<br>
+<button class="btn gray" onclick="fotoCam.click()">Hacer foto</button>
+<button class="btn blue" onclick="fotoFile.click()">Elegir foto</button>
+<div id="msgDocs"></div>
 </div>
 
 <div class="card">
 <h3>DNI</h3>
-
-<input type="file" id="dni1" accept="image/*"><br>
-<input type="file" id="dni2" accept="image/*"><br>
-
-<button class="btn blue" onclick="guardarDNI()">Guardar DNI</button>
+<input class="oculto" id="dniFrontal" type="file" accept="image/*" capture="environment" onchange="subirDocInput('dniFrontal','dni_frontal')">
+<input class="oculto" id="dniTrasero" type="file" accept="image/*" capture="environment" onchange="subirDocInput('dniTrasero','dni_trasero')">
+<button class="btn gray" onclick="dniFrontal.click()">Foto DNI frontal</button>
+<button class="btn gray" onclick="dniTrasero.click()">Foto DNI trasero</button>
 </div>
-`;
-}
-}
 
-// ================= GUARDAR =================
-async function guardarUsuario(){
-await api("/rest/v1/users?id=eq."+usuarioActual.id,{
-method:"PATCH",
-body:{
-nombre:document.getElementById("nombre").value,
-usuario:document.getElementById("usuario").value
-}
-});
-alert("Guardado");
-vistaUsuarios();
-}
-
-// ================= FOTO =================
-async function guardarFoto(){
-const file=document.getElementById("foto").files[0];
-if(!file){alert("Selecciona imagen");return;}
-
-const reader=new FileReader();
-reader.onload=async ()=>{
-await api("/rest/v1/users?id=eq."+usuarioActual.id,{
-method:"PATCH",
-body:{foto:reader.result}
-});
-alert("Foto guardada");
-abrirUsuario(usuarioActual.id);
-};
-reader.readAsDataURL(file);
-}
-
-// ================= DNI =================
-async function guardarDNI(){
-const f1=document.getElementById("dni1").files[0];
-const f2=document.getElementById("dni2").files[0];
-
-if(!f1 || !f2){alert("Sube ambas caras");return;}
-
-const r1=new FileReader();
-const r2=new FileReader();
-
-r1.onload=()=>{
-r2.onload=async ()=>{
-await api("/rest/v1/users?id=eq."+usuarioActual.id,{
-method:"PATCH",
-body:{
-dni_frontal:r1.result,
-dni_trasero:r2.result
-}
-});
-alert("DNI guardado");
-abrirUsuario(usuarioActual.id);
-};
-r2.readAsDataURL(f2);
-};
-r1.readAsDataURL(f1);
-}
-
-// ================= INFORMES =================
-function vistaInformes(){
-document.getElementById("app").innerHTML=`
 <div class="card">
-<button class="btn gray" onclick="inicio()">←</button>
-<h2>Informes</h2>
-<button class="btn blue" onclick="window.print()">Imprimir</button>
+<h3>Otros documentos</h3>
+<input class="oculto" id="docFile" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="subirDocInput('docFile','documento')">
+<input class="oculto" id="docCam" type="file" accept="image/*" capture="environment" onchange="subirDocInput('docCam','documento_foto')">
+<button class="btn blue" onclick="docFile.click()">Subir archivo</button>
+<button class="btn gray" onclick="docCam.click()">Hacer foto documento</button>
 </div>
-`;
+
+<div class="card">
+<h3>Documentos guardados</h3>
+${docsUsuario.length?docsUsuario.map(d=>`
+<div class="row">
+<b>${esc(d.tipo)}</b><br>
+${esc(d.nombre||"")}<br>
+<a href="${esc(d.url)}" target="_blank">Ver archivo</a>
+<button class="btn red" onclick="eliminarDocumento('${esc(d.id)}','${esc(d.path||"")}')">Eliminar</button>
+${String(d.tipo).includes("dni")||String(d.tipo).includes("foto")?`<br><img class="preview" src="${esc(d.url)}">`:""}
+</div>`).join(""):"<p>No hay documentos.</p>"}
+</div>`;
 }
 
-// ================= INIT =================
-if(sesion()){
-inicio();
+async function subirDocInput(inputId,tipo){
+const input=document.getElementById(inputId);
+const file=input.files&&input.files[0];
+const msg=document.getElementById("msgDocs");
+if(!file){alert("Selecciona un archivo");return}
+if(msg){msg.className="muted";msg.textContent="Subiendo..."}
+try{
+const archivo=await subirStorage(file,tipo);
+await guardarDocumentoBD(tipo,archivo);
+if(msg){msg.className="ok";msg.textContent="Guardado."}
+await vistaDocumentosUsuario();
+}catch(e){
+if(msg){msg.className="error";msg.textContent="Error: "+e.message}else alert(e.message)
 }
+}
+
+async function eliminarDocumento(id,path){
+if(!confirm("¿Eliminar documento?"))return;
+try{
+await api("/rest/v1/documentos?id=eq."+encodeURIComponent(id),{method:"DELETE"});
+if(path){
+await fetch(URL+"/storage/v1/object/"+BUCKET,{
+method:"DELETE",
+headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json"},
+body:JSON.stringify({prefixes:[path]})
+});
+}
+await vistaDocumentosUsuario();
+}catch(e){alert("Error: "+e.message)}
+}
+
+async function vistaInformes(){
+const h=new Date();
+app.innerHTML=`<div class="card no-print"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Informes</h2><label>Mes</label><input id="mes" type="number" value="${h.getMonth()+1}"><label>Año</label><input id="anio" type="number" value="${h.getFullYear()}"><button class="btn blue" onclick="generarInforme()">Generar</button><button class="btn green" onclick="window.print()">Imprimir</button>${admin()?`<button class="btn red" onclick="cerrarMes()">Cerrar mes</button><button class="btn orange" onclick="reabrirMes()">Reabrir mes</button>`:""}</div><div id="res"></div>`;
+}
+
+async function generarInforme(){
+await cargarBase();
+const mes=String(document.getElementById("mes").value).padStart(2,"0"),anio=document.getElementById("anio").value,ini=`${anio}-${mes}-01`,fin=`${anio}-${mes}-31`;
+let cerrado=await cierreDeMes(Number(mes),Number(anio));
+let data=await api("/rest/v1/horas_extra?select=*&order=fecha.desc");
+if(!mando())data=data.filter(h=>String(h.user_id)===String(user.id));
+data=data.filter(h=>{const f=String(h.fecha||h.created_at||"");return !f||(f>=ini&&f<=fin)});
+const porUser={};let total=0;
+data.forEach(h=>{const u=String(h.user_id),t=nombreTipo(h.tipo_id);if(!porUser[u])porUser[u]={total:0,tipos:{}};if(!porUser[u].tipos[t])porUser[u].tipos[t]={min:0,eur:0};porUser[u].tipos[t].min+=Number(h.minutos||0);porUser[u].tipos[t].eur+=Number(h.total||0);porUser[u].total+=Number(h.total||0);total+=Number(h.total||0)});
+let html=`<div class="card"><h2>Informe ${mes}/${anio}</h2><span class="badge">${cerrado?"MES CERRADO":"MES ABIERTO"}</span></div>`;
+Object.keys(porUser).forEach(u=>{html+=`<div class="card"><h3>${esc(nombreUsuario(u))}</h3><table><tr><th>Tipo</th><th>Min</th><th>€</th></tr>`;Object.keys(porUser[u].tipos).forEach(t=>{const v=porUser[u].tipos[t];html+=`<tr><td>${esc(t)}</td><td>${v.min}</td><td>${v.eur.toFixed(2)}</td></tr>`});html+=`</table><br><b>Total usuario: ${porUser[u].total.toFixed(2)} €</b></div>`});
+html+=`<div class="card"><h2>Total empresa: ${total.toFixed(2)} €</h2></div>`;
+res.innerHTML=html;
+}
+
+async function cerrarMes(){
+if(!admin())return;
+const mes=Number(document.getElementById("mes").value),anio=Number(document.getElementById("anio").value);
+if(await cierreDeMes(mes,anio)){alert("Ese mes ya está cerrado.");return}
+if(!confirm("¿Cerrar mes y marcar horas como pagadas?"))return;
+const mm=String(mes).padStart(2,"0"),ini=`${anio}-${mm}-01`,fin=`${anio}-${mm}-31`;
+await api("/rest/v1/horas_extra?fecha=gte."+ini+"&fecha=lte."+fin,{method:"PATCH",headers:{"Prefer":"return=representation"},body:{estado:"pagadas",pagada:true,fecha_pago:new Date().toISOString(),validado_usuario:true,validado_admin:true,admin_confirmo_pago:true,usuario_confirmo_cobro:true}});
+await api("/rest/v1/cierre_mensual",{method:"POST",headers:{"Prefer":"return=representation"},body:{mes,anio,cerrado:true,cerrado_por:String(user.id)}});
+await generarInforme();
+}
+
+async function reabrirMes(){
+if(!admin())return;
+const mes=Number(document.getElementById("mes").value),anio=Number(document.getElementById("anio").value);
+if(!confirm("¿Reabrir mes? Las horas quedarán pagadas, pero el mes dejará de estar bloqueado."))return;
+await api("/rest/v1/cierre_mensual?mes=eq."+mes+"&anio=eq."+anio,{method:"PATCH",headers:{"Prefer":"return=representation"},body:{cerrado:false}});
+await generarInforme();
+}
+
+window.salir=salir;window.toggleFichaje=toggleFichaje;window.guardarFichaje=guardarFichaje;window.vistaHoras=vistaHoras;window.validarUsuario=validarUsuario;window.validarAdmin=validarAdmin;window.pagoAdmin=pagoAdmin;window.cobroUsuario=cobroUsuario;window.vistaConfig=vistaConfig;window.guardarConfig=guardarConfig;window.vistaUsuarios=vistaUsuarios;window.abrirUsuario=abrirUsuario;window.guardarUsuario=guardarUsuario;window.tabUsuario=tabUsuario;window.subirDocInput=subirDocInput;window.eliminarDocumento=eliminarDocumento;window.vistaInformes=vistaInformes;window.generarInforme=generarInforme;window.cerrarMes=cerrarMes;window.reabrirMes=reabrirMes;window.inicio=inicio;
+if(sesion())inicio();
 </script>
-
 </body>
 </html>
