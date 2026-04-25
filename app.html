@@ -3,30 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2507</title>
+<title>Zentryx V2508</title>
 
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
 .top{background:#0f172a;color:white;padding:20px}
 .wrap{padding:16px}
 .card{background:white;border-radius:12px;padding:16px;margin-bottom:12px}
-.btn{padding:10px;border:none;border-radius:8px;margin:4px;font-weight:bold}
+.btn{padding:12px;border:none;border-radius:8px;margin:4px;font-weight:bold}
+.green{background:#16a34a;color:white}
 .blue{background:#2563eb;color:white}
 .gray{background:#e5e7eb}
-.green{background:#16a34a;color:white}
 .red{background:#dc2626;color:white}
-.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
-.tab{padding:10px;background:#e5e7eb;border-radius:8px;cursor:pointer}
-.tab.active{background:#111827;color:white}
-input,select{width:100%;padding:8px;margin:4px 0;border-radius:6px;border:1px solid #ccc}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.badge{background:#e5e7eb;padding:6px 10px;border-radius:999px}
+select{width:100%;padding:10px;margin-top:10px}
 </style>
 </head>
 
 <body>
 
 <div class="top">
-<h2>Zentryx V2507</h2>
+<h2>Zentryx V2508</h2>
 <button class="btn gray" onclick="salir()">Salir</button>
 </div>
 
@@ -37,8 +34,7 @@ const URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
 let user=null;
-let usuarios=[];
-let usuarioActual=null;
+let ultimo=null;
 let horarios=[];
 
 // ================= BASE =================
@@ -66,7 +62,10 @@ return true;
 }
 
 // ================= INICIO =================
-function inicio(){
+async function inicio(){
+
+await cargarEstado();
+
 app.innerHTML=`
 <div class="card">
 <h2>${user.nombre||user.usuario}</h2>
@@ -74,163 +73,112 @@ app.innerHTML=`
 </div>
 
 <div class="card">
-<button class="btn blue" onclick="vistaUsuarios()">Usuarios</button>
+<b>Estado actual:</b><br>
+<span class="badge">${ultimo?ultimo.tipo:"FUERA"}</span>
 </div>
+
+<div class="card">
+<button class="btn green" onclick="abrirFichaje()">FICHAR</button>
+</div>
+
+<div id="panel"></div>
 `;
 }
 
-// ================= USUARIOS =================
-async function vistaUsuarios(){
-usuarios=await api("/rest/v1/users?select=*");
+// ================= ESTADO =================
+async function cargarEstado(){
 
-app.innerHTML=`
+let fichajes=await api("/rest/v1/fichajes?select=*&user_id=eq."+user.id+"&order=fecha.desc&limit=1");
+ultimo=fichajes[0]||null;
+
+horarios=await api("/rest/v1/horarios_usuario?select=*&user_id=eq."+user.id);
+}
+
+// ================= LOGICA =================
+function opciones(){
+
+if(!ultimo) return ["entrada"];
+
+switch(ultimo.tipo){
+
+case "entrada":
+case "fin_descanso":
+case "fin_comida":
+return ["inicio_descanso","inicio_comida","salida"];
+
+case "inicio_descanso":
+return ["fin_descanso"];
+
+case "inicio_comida":
+return ["fin_comida"];
+
+case "salida":
+return ["entrada"];
+}
+
+return ["entrada"];
+}
+
+// ================= UI =================
+function abrirFichaje(){
+
+let ops=opciones();
+
+panel.innerHTML=`
 <div class="card">
-<button class="btn gray" onclick="inicio()">←</button>
-<h2>Usuarios</h2>
-</div>
-
-${usuarios.map(u=>`
-<div class="card" onclick="abrirUsuario('${u.id}')">
-<b>${u.nombre}</b><br>${u.usuario}
-</div>
-`).join("")}
-`;
-}
-
-async function abrirUsuario(id){
-usuarioActual=usuarios.find(u=>u.id==id);
-
-app.innerHTML=`
-<div class="card">
-<button class="btn gray" onclick="vistaUsuarios()">←</button>
-<h2>${usuarioActual.nombre}</h2>
-</div>
-
-<div class="tabs">
-<div class="tab active" onclick="tab('datos')">Datos</div>
-<div class="tab" onclick="tab('horarios')">Horarios</div>
-</div>
-
-<div id="contenido"></div>
-`;
-
-tab("datos");
-}
-
-// ================= TABS =================
-function activarTab(t){
-document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-document.querySelectorAll(".tab").forEach(x=>{
-if(x.innerText.toLowerCase().includes(t)) x.classList.add("active");
-});
-}
-
-function tab(t){
-activarTab(t);
-
-if(t==="datos"){
-contenido.innerHTML=`
-<div class="card">
-<input id="nombre" value="${usuarioActual.nombre||""}">
-<button class="btn blue" onclick="guardarUsuario()">Guardar</button>
-</div>
-`;
-}
-
-if(t==="horarios"){
-vistaHorarios();
-}
-}
-
-// ================= HORARIOS =================
-const dias=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-
-async function vistaHorarios(){
-horarios=await api("/rest/v1/horarios_usuario?select=*&user_id=eq."+usuarioActual.id);
-
-let html=`<div class="card"><h3>Horarios</h3></div>`;
-
-for(let i=0;i<7;i++){
-
-let h=horarios.find(x=>x.dia_semana==i) || {};
-
-html+=`
-<div class="card">
-<b>${dias[i]}</b>
-
-<label>Trabaja</label>
-<select id="t_${i}">
-<option value="true" ${h.trabaja?"selected":""}>Sí</option>
-<option value="false" ${h.trabaja===false?"selected":""}>No</option>
+<select id="tipo">
+${ops.map(o=>`<option>${o}</option>`).join("")}
 </select>
 
-<div class="grid">
-<input type="time" id="e_${i}" value="${h.hora_entrada||""}">
-<input type="time" id="s_${i}" value="${h.hora_salida||""}">
-</div>
-
-<label>Comida</label>
-<div class="grid">
-<input type="time" id="c1_${i}" value="${h.inicio_comida||""}">
-<input type="time" id="c2_${i}" value="${h.fin_comida||""}">
-</div>
-
-<label>Descanso (min)</label>
-<input type="number" id="d_${i}" value="${h.minutos_descanso||0}">
+<button class="btn blue" onclick="fichar()">Confirmar</button>
+<div id="msg"></div>
 </div>
 `;
 }
 
-html+=`<button class="btn green" onclick="guardarHorarios()">Guardar horarios</button>`;
+// ================= VALIDACION =================
+function validar(tipo){
 
-contenido.innerHTML=html;
+if(!ultimo && tipo!=="entrada") return "Debes fichar entrada primero";
+
+if(ultimo?.tipo==="entrada" && tipo==="entrada") return "Ya estás dentro";
+
+if(ultimo?.tipo==="salida" && tipo!=="entrada") return "Primero entrada";
+
+if(ultimo?.tipo==="inicio_descanso" && tipo!=="fin_descanso")
+return "Debes cerrar descanso";
+
+if(ultimo?.tipo==="inicio_comida" && tipo!=="fin_comida")
+return "Debes cerrar comida";
+
+return null;
 }
 
-async function guardarHorarios(){
+// ================= FICHAJE =================
+async function fichar(){
 
-for(let i=0;i<7;i++){
+let tipo=document.getElementById("tipo").value;
+let error=validar(tipo);
 
-let trabaja=document.getElementById("t_"+i).value==="true";
+if(error){
+msg.innerHTML="<span style='color:red'>"+error+"</span>";
+return;
+}
 
-let data={
-user_id:usuarioActual.id,
-dia_semana:i,
-trabaja:trabaja,
-hora_entrada:document.getElementById("e_"+i).value,
-hora_salida:document.getElementById("s_"+i).value,
-inicio_comida:document.getElementById("c1_"+i).value,
-fin_comida:document.getElementById("c2_"+i).value,
-minutos_descanso:Number(document.getElementById("d_"+i).value)
-};
+msg.innerText="Guardando...";
 
-let existente=horarios.find(x=>x.dia_semana==i);
-
-if(existente){
-await api("/rest/v1/horarios_usuario?id=eq."+existente.id,{
-method:"PATCH",
-body:data
-});
-}else{
-await api("/rest/v1/horarios_usuario",{
+await api("/rest/v1/fichajes",{
 method:"POST",
-body:data
+body:{
+user_id:user.id,
+tipo:tipo,
+fecha:new Date().toISOString()
+}
 });
-}
 
-}
+msg.innerText="OK";
 
-alert("Horarios guardados");
-vistaHorarios();
-}
-
-// ================= GUARDAR =================
-async function guardarUsuario(){
-await api("/rest/v1/users?id=eq."+usuarioActual.id,{
-method:"PATCH",
-body:{nombre:document.getElementById("nombre").value}
-});
-alert("Guardado");
-vistaUsuarios();
+await inicio();
 }
 
 // ================= INIT =================
