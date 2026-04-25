@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2513</title>
+<title>Zentryx V2514</title>
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
 .top{background:#0f172a;color:white;padding:22px}
@@ -32,7 +32,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid
 <body>
 
 <div class="top">
-<h1>Zentryx V2513</h1>
+<h1>Zentryx V2514</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -84,13 +84,30 @@ horas=await api(q);
 function nombreUsuario(id){const u=usuarios.find(x=>String(x.id)===String(id));return u?(u.nombre||u.usuario):id}
 function nombreTipo(id){const t=tipos.find(x=>String(x.id)===String(id));return t?t.nombre:"Hora extra"}
 
+function estadoReal(){
+if(!ultimo||ultimo.tipo==="salida")return "fuera";
+if(ultimo.tipo==="entrada"||ultimo.tipo==="fin_descanso"||ultimo.tipo==="fin_comida")return "trabajando";
+if(ultimo.tipo==="inicio_descanso")return "descanso";
+if(ultimo.tipo==="inicio_comida")return "comida";
+return "fuera";
+}
+
 function acciones(){
-const e=ultimo?ultimo.tipo:"fuera";
-if(!ultimo||e==="salida")return["entrada"];
-if(["entrada","fin_descanso","fin_comida"].includes(e))return["inicio_descanso","inicio_comida","salida"];
-if(e==="inicio_descanso")return["fin_descanso"];
-if(e==="inicio_comida")return["fin_comida"];
+const e=estadoReal();
+if(e==="fuera")return["entrada"];
+if(e==="trabajando")return["inicio_descanso","inicio_comida","salida"];
+if(e==="descanso")return["fin_descanso"];
+if(e==="comida")return["fin_comida"];
 return["entrada"];
+}
+
+function textoEstado(){
+const e=estadoReal();
+if(e==="fuera")return "Fuera";
+if(e==="trabajando")return "Trabajando";
+if(e==="descanso")return "En descanso";
+if(e==="comida")return "En comida";
+return e;
 }
 
 async function inicio(){
@@ -102,7 +119,7 @@ document.getElementById("app").innerHTML=`
 
 <div class="card">
 <h2>Fichaje rápido</h2>
-<span class="badge">Estado: ${esc(ultimo?ultimo.tipo:"fuera")}</span><br><br>
+<span class="badge">${esc(textoEstado())}</span><br><br>
 <button class="btn big green" onclick="toggleFichaje()">FICHAR</button>
 ${panel?`
 <div class="card">
@@ -181,13 +198,31 @@ return {estado:"correcto",aviso:""};
 }
 
 function validarFlujo(tipo){
-if(!ultimo&&tipo!=="entrada")return "Debes fichar entrada primero.";
-if(ultimo?.tipo==="entrada"&&tipo==="entrada")return "Ya tienes una jornada abierta.";
-if(ultimo?.tipo==="salida"&&tipo!=="entrada")return "Primero debes fichar entrada.";
-if(ultimo?.tipo==="inicio_descanso"&&tipo!=="fin_descanso")return "Primero debes finalizar el descanso.";
-if(ultimo?.tipo==="inicio_comida"&&tipo!=="fin_comida")return "Primero debes finalizar la comida.";
-if(["inicio_descanso","inicio_comida"].includes(tipo)&&!["entrada","fin_descanso","fin_comida"].includes(ultimo?.tipo))return "No puedes iniciar pausa sin jornada activa.";
-if(tipo==="salida"&&["inicio_descanso","inicio_comida"].includes(ultimo?.tipo))return "No puedes salir con pausa abierta.";
+const e=estadoReal();
+
+if(e==="fuera"&&tipo!=="entrada")return "Debes fichar entrada primero.";
+if(e!=="fuera"&&tipo==="entrada")return "Ya tienes una jornada abierta.";
+if(e==="trabajando"&&!["inicio_descanso","inicio_comida","salida"].includes(tipo))return "Acción no permitida.";
+if(e==="descanso"&&tipo!=="fin_descanso")return "Primero debes finalizar el descanso.";
+if(e==="comida"&&tipo!=="fin_comida")return "Primero debes finalizar la comida.";
+if(tipo==="salida"&&(e==="descanso"||e==="comida"))return "No puedes salir con una pausa abierta.";
+
+return "";
+}
+
+function jornadaActualId(tipo){
+if(tipo==="entrada")return crypto.randomUUID();
+if(ultimo&&ultimo.jornada_id)return ultimo.jornada_id;
+return crypto.randomUUID();
+}
+
+function estadoJornadaPara(tipo){
+if(tipo==="entrada")return "trabajando";
+if(tipo==="inicio_descanso")return "descanso";
+if(tipo==="fin_descanso")return "trabajando";
+if(tipo==="inicio_comida")return "comida";
+if(tipo==="fin_comida")return "trabajando";
+if(tipo==="salida")return "cerrada";
 return "";
 }
 
@@ -231,7 +266,9 @@ const h=await horarioHoy(user.id,salida);
 let min=0,motivo="";
 
 if(!h||h.trabaja===false){
-const ent=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(user.id)+"&tipo=eq.entrada&order=fecha.desc&limit=1");
+let q="/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(user.id)+"&tipo=eq.entrada&order=fecha.desc&limit=1";
+if(fichaje.jornada_id)q="/rest/v1/fichajes?select=*&jornada_id=eq."+encodeURIComponent(fichaje.jornada_id)+"&tipo=eq.entrada&order=fecha.asc&limit=1";
+const ent=await api(q);
 min=ent.length?Math.round((salida-new Date(ent[0].fecha))/60000):(Number(c.minimo_minutos||60)||60);
 motivo="Día no laboral";
 }else if(h.hora_salida){
@@ -275,11 +312,24 @@ if(!seguir){msg.innerHTML="<span class='error'>Fichaje cancelado.</span>";return
 
 msg.textContent="Guardando...";
 const u=await ubicacion();
+const jid=jornadaActualId(tipo);
+const ej=estadoJornadaPara(tipo);
 
 const d=await api("/rest/v1/fichajes",{
 method:"POST",
 headers:{"Prefer":"return=representation"},
-body:{user_id:String(user.id),tipo,lat:u.lat,lng:u.lng,direccion:u.direccion,estado_horario:ev.estado,aviso_horario:ev.aviso}
+body:{
+user_id:String(user.id),
+tipo,
+lat:u.lat,
+lng:u.lng,
+direccion:u.direccion,
+estado_horario:ev.estado,
+aviso_horario:ev.aviso,
+jornada_id:jid,
+estado_jornada:ej,
+bloqueo_motivo:""
+}
 });
 
 await crearExtra(tipo,Array.isArray(d)?d[0]:d);
@@ -759,14 +809,7 @@ try{
 await api("/rest/v1/ausencias_usuario",{
 method:"POST",
 headers:{"Prefer":"return=representation"},
-body:{
-user_id:String(usuarioAbierto.id),
-tipo,
-fecha_inicio:inicio,
-fecha_fin:fin,
-motivo,
-estado:"aprobada"
-}
+body:{user_id:String(usuarioAbierto.id),tipo,fecha_inicio:inicio,fecha_fin:fin,motivo,estado:"aprobada"}
 });
 await cargarHistorialUsuario();
 }catch(e){
