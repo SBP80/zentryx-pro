@@ -1,10 +1,13 @@
+<!-- ZENTRYX APP V2000 -->
+<!-- Mantiene fichaje rápido + horas extra + configuración configurable -->
+<!-- Pegar entero en app.html -->
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V1904</title>
-
+<title>Zentryx V2000</title>
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
 .top{background:#0f172a;color:white;padding:20px}
@@ -19,14 +22,14 @@ h1{margin:0}
 .gray{background:#e5e7eb}
 .badge{background:#e5e7eb;padding:6px 10px;border-radius:999px}
 .row{border:1px solid #ccc;border-radius:10px;padding:10px;margin-bottom:10px}
-select{width:100%;padding:14px;border-radius:10px;font-size:18px;margin-bottom:10px}
+select,input{width:100%;padding:14px;border-radius:10px;font-size:18px;margin-bottom:10px;box-sizing:border-box;border:1px solid #ccc}
 </style>
 </head>
 
 <body>
 
 <div class="top">
-<h1>Zentryx V1904</h1>
+<h1>Zentryx V2000</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -68,46 +71,33 @@ location.href="./index.html?v=1000";
 }
 
 function cargarSesion(){
-try{
-user=JSON.parse(localStorage.getItem("usuario"));
-}catch{
-user=null;
+try{user=JSON.parse(localStorage.getItem("usuario"));}catch{user=null;}
+if(!user){location.href="./index.html?v=1000";return false;}
+return true;
 }
 
-if(!user){
-location.href="./index.html?v=1000";
-return false;
-}
-return true;
+function esAdmin(){
+return user.rol==="admin" || user.rol==="administrativo";
 }
 
 async function cargarHoras(){
 let data;
-
 if(user.rol==="admin" || user.rol==="administrativo" || user.rol==="encargado"){
 data=await api("/rest/v1/horas_extra?select=*&estado=neq.pagadas");
 }else{
 data=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(user.id)+"&estado=neq.pagadas");
 }
-
 horas=data||[];
 }
 
 async function cargarFichajes(){
-fichajes=await api(
-"/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(user.id)+"&order=fecha.desc&limit=10"
-)||[];
-
+fichajes=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(user.id)+"&order=fecha.desc&limit=10")||[];
 ultimoFichaje=fichajes.length?fichajes[0]:null;
 }
 
 function accionesDisponibles(){
 const estado=ultimoFichaje?ultimoFichaje.tipo:"fuera";
-
-if(!ultimoFichaje || estado==="salida"){
-return [{v:"entrada",t:"Entrada"}];
-}
-
+if(!ultimoFichaje || estado==="salida") return [{v:"entrada",t:"Entrada"}];
 if(estado==="entrada" || estado==="fin_descanso" || estado==="fin_comida"){
 return [
 {v:"inicio_descanso",t:"Inicio descanso"},
@@ -115,15 +105,8 @@ return [
 {v:"salida",t:"Salida"}
 ];
 }
-
-if(estado==="inicio_descanso"){
-return [{v:"fin_descanso",t:"Fin descanso"}];
-}
-
-if(estado==="inicio_comida"){
-return [{v:"fin_comida",t:"Fin comida"}];
-}
-
+if(estado==="inicio_descanso") return [{v:"fin_descanso",t:"Fin descanso"}];
+if(estado==="inicio_comida") return [{v:"fin_comida",t:"Fin comida"}];
 return [];
 }
 
@@ -145,7 +128,6 @@ document.getElementById("app").innerHTML=`
 <div class="card">
 <h3>Fichaje rápido</h3>
 <span class="badge">Estado: ${estado}</span><br><br>
-
 <button class="btn big green" onclick="toggleFichaje()">FICHAR</button>
 
 ${panelFichaje?`
@@ -164,6 +146,7 @@ ${acciones.map(a=>`<option value="${a.v}">${a.t}</option>`).join("")}
 <h3>Horas extra</h3>
 <span class="badge">${total.toFixed(2)} € pendientes</span><br><br>
 <button class="btn blue" onclick="pintarHoras()">Ver horas</button>
+${esAdmin()?`<button class="btn gray" onclick="pintarConfiguracionHoras()">Configuración horas extra</button>`:""}
 </div>
 
 <div class="card">
@@ -180,7 +163,6 @@ ${f.direccion||"Sin ubicación"}
 :"<p>No hay fichajes</p>"
 }
 </div>
-
 `;
 }
 
@@ -195,7 +177,6 @@ if(!navigator.geolocation){
 resolve({lat:null,lng:null,direccion:"Sin ubicación"});
 return;
 }
-
 navigator.geolocation.getCurrentPosition(
 pos=>resolve({
 lat:pos.coords.latitude,
@@ -208,27 +189,77 @@ direccion:"Lat "+pos.coords.latitude+", Lng "+pos.coords.longitude
 });
 }
 
+function minutosDesdeHora(hora){
+const [h,m]=String(hora||"00:00").split(":");
+return Number(h)*60+Number(m||0);
+}
+
+function esNocturna(fecha, config){
+const min=fecha.getHours()*60+fecha.getMinutes();
+const ini=minutosDesdeHora(config.nocturna_inicio);
+const fin=minutosDesdeHora(config.nocturna_fin);
+if(ini>fin) return min>=ini || min<fin;
+return min>=ini && min<fin;
+}
+
+function redondearMinutos(minutos, config){
+let m=Math.max(0, minutos);
+const minimo=Number(config.minimo_minutos||0);
+const redondeo=Number(config.redondeo_minutos||1);
+if(m>0 && m<minimo) m=minimo;
+if(redondeo>1) m=Math.ceil(m/redondeo)*redondeo;
+return m;
+}
+
+async function elegirTipoHoraExtra(fecha, config){
+const tipos=await api("/rest/v1/tipos_horas_extra?select=*&activo=eq.true");
+
+const dia=fecha.getDay();
+const finde=dia===0 || dia===6;
+const nocturna=esNocturna(fecha, config);
+
+function buscar(nombre){
+return tipos.find(t=>String(t.nombre).toLowerCase()===nombre);
+}
+
+if(config.prioridad_festivo){
+/* Festivos reales se conectan en siguiente paso con tabla calendario_festivos */
+}
+
+if(finde && buscar("fin de semana")) return buscar("fin de semana");
+if(nocturna && buscar("nocturna")) return buscar("nocturna");
+return buscar("normal") || tipos[0];
+}
+
+async function cargarConfiguracionHoras(){
+const data=await api("/rest/v1/configuracion_horas_extra?select=*&id=eq.1&limit=1");
+return data && data.length ? data[0] : {
+nocturna_inicio:"22:00",
+nocturna_fin:"06:00",
+prioridad_festivo:true,
+redondeo_minutos:1,
+minimo_minutos:0
+};
+}
+
 async function crearHoraExtraAutomatica(tipo,fichaje){
 if(tipo!=="salida") return;
 
 const ahora=new Date();
 const dia=ahora.getDay();
+const config=await cargarConfiguracionHoras();
 
-const horarios=await api(
-"/rest/v1/horarios_usuario?select=*&user_id=eq."+encodeURIComponent(user.id)+"&dia_semana=eq."+dia+"&limit=1"
-);
-
+const horarios=await api("/rest/v1/horarios_usuario?select=*&user_id=eq."+encodeURIComponent(user.id)+"&dia_semana=eq."+dia+"&limit=1");
 const horario=horarios.length?horarios[0]:null;
 
-const tipos=await api("/rest/v1/tipos_horas_extra?select=*&activo=eq.true");
-const tipoNormal=tipos.find(t=>String(t.nombre).toLowerCase()==="normal") || tipos[0];
-
-if(!tipoNormal) return;
+const tipoHora=await elegirTipoHoraExtra(ahora,config);
+if(!tipoHora) return;
 
 let minutos=0;
 
 if(!horario || horario.trabaja===false){
-minutos=60;
+minutos=Number(config.minimo_minutos||60);
+if(minutos<=0) minutos=60;
 }else if(horario.hora_salida){
 const partes=String(horario.hora_salida).split(":");
 const salidaPlan=new Date();
@@ -236,9 +267,10 @@ salidaPlan.setHours(Number(partes[0]||0),Number(partes[1]||0),0,0);
 minutos=Math.max(0,Math.round((ahora-salidaPlan)/60000));
 }
 
+minutos=redondearMinutos(minutos,config);
 if(minutos<=0) return;
 
-const precio=Number(tipoNormal.precio||0);
+const precio=Number(tipoHora.precio||0);
 const total=Number(((minutos/60)*precio).toFixed(2));
 
 await api("/rest/v1/horas_extra",{
@@ -247,7 +279,7 @@ headers:{"Prefer":"return=representation"},
 body:{
 user_id:String(user.id),
 fichaje_id:fichaje.id,
-tipo_id:tipoNormal.id,
+tipo_id:tipoHora.id,
 minutos:minutos,
 precio_unitario:precio,
 total:total,
@@ -268,7 +300,6 @@ msg.innerHTML="Obteniendo ubicación...";
 
 try{
 const ubi=await obtenerUbicacion();
-
 msg.innerHTML="Guardando...";
 
 const data=await api("/rest/v1/fichajes",{
@@ -284,7 +315,6 @@ direccion:ubi.direccion
 });
 
 const fichaje=Array.isArray(data)?data[0]:data;
-
 await crearHoraExtraAutomatica(tipo,fichaje);
 
 panelFichaje=false;
@@ -311,8 +341,8 @@ horas.length
 ${h.minutos||0} min · ${Number(h.total||0).toFixed(2)} €<br>
 Estado: ${h.estado||"pendiente"}<br>
 ${!h.validado_usuario ? `<button class="btn green" onclick="validarUsuario('${h.id}')">Validar</button>` : ""}
-${(user.rol==="admin" || user.rol==="administrativo") && h.validado_usuario && !h.validado_admin ? `<button class="btn blue" onclick="validarAdmin('${h.id}')">Validar admin</button>` : ""}
-${(user.rol==="admin" || user.rol==="administrativo") && h.validado_admin && !h.admin_confirmo_pago ? `<button class="btn blue" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>` : ""}
+${esAdmin() && h.validado_usuario && !h.validado_admin ? `<button class="btn blue" onclick="validarAdmin('${h.id}')">Validar admin</button>` : ""}
+${esAdmin() && h.validado_admin && !h.admin_confirmo_pago ? `<button class="btn blue" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>` : ""}
 ${h.admin_confirmo_pago && !h.usuario_confirmo_cobro ? `<button class="btn green" onclick="cobroUsuario('${h.id}')">Horas cobradas</button>` : ""}
 </div>
 `).join("")
@@ -357,6 +387,72 @@ body:{usuario_confirmo_cobro:true,fecha_usuario_cobro:new Date().toISOString(),e
 await pintarHoras();
 }
 
+async function pintarConfiguracionHoras(){
+if(!esAdmin()) return;
+
+const c=await cargarConfiguracionHoras();
+
+document.getElementById("app").innerHTML=`
+<div class="card">
+<button class="btn gray" onclick="pintarInicio()">← Volver</button>
+<h2>Configuración horas extra</h2>
+
+<label>Inicio nocturna</label>
+<input id="cfg_nocturna_inicio" type="time" value="${c.nocturna_inicio||"22:00"}">
+
+<label>Fin nocturna</label>
+<input id="cfg_nocturna_fin" type="time" value="${c.nocturna_fin||"06:00"}">
+
+<label>Prioridad festivo</label>
+<select id="cfg_prioridad_festivo">
+<option value="true" ${c.prioridad_festivo?"selected":""}>Sí</option>
+<option value="false" ${!c.prioridad_festivo?"selected":""}>No</option>
+</select>
+
+<label>Redondeo minutos</label>
+<select id="cfg_redondeo">
+<option value="1" ${Number(c.redondeo_minutos)===1?"selected":""}>Exacto al minuto</option>
+<option value="15" ${Number(c.redondeo_minutos)===15?"selected":""}>Cada 15 minutos</option>
+<option value="30" ${Number(c.redondeo_minutos)===30?"selected":""}>Cada 30 minutos</option>
+<option value="60" ${Number(c.redondeo_minutos)===60?"selected":""}>Cada hora</option>
+</select>
+
+<label>Mínimo facturable</label>
+<select id="cfg_minimo">
+<option value="0" ${Number(c.minimo_minutos)===0?"selected":""}>Sin mínimo</option>
+<option value="30" ${Number(c.minimo_minutos)===30?"selected":""}>30 minutos</option>
+<option value="60" ${Number(c.minimo_minutos)===60?"selected":""}>60 minutos</option>
+</select>
+
+<button class="btn blue" onclick="guardarConfiguracionHoras()">Guardar configuración</button>
+<div id="msgConfig"></div>
+</div>
+`;
+}
+
+async function guardarConfiguracionHoras(){
+const msg=document.getElementById("msgConfig");
+msg.innerHTML="Guardando...";
+
+try{
+await api("/rest/v1/configuracion_horas_extra?id=eq.1",{
+method:"PATCH",
+headers:{"Prefer":"return=representation"},
+body:{
+nocturna_inicio:document.getElementById("cfg_nocturna_inicio").value,
+nocturna_fin:document.getElementById("cfg_nocturna_fin").value,
+prioridad_festivo:document.getElementById("cfg_prioridad_festivo").value==="true",
+redondeo_minutos:Number(document.getElementById("cfg_redondeo").value),
+minimo_minutos:Number(document.getElementById("cfg_minimo").value),
+actualizado_en:new Date().toISOString()
+}
+});
+msg.innerHTML="Configuración guardada.";
+}catch(e){
+msg.innerHTML="Error: "+e.message;
+}
+}
+
 window.salir=salir;
 window.toggleFichaje=toggleFichaje;
 window.guardarFichaje=guardarFichaje;
@@ -365,6 +461,8 @@ window.validarUsuario=validarUsuario;
 window.validarAdmin=validarAdmin;
 window.pagoAdmin=pagoAdmin;
 window.cobroUsuario=cobroUsuario;
+window.pintarConfiguracionHoras=pintarConfiguracionHoras;
+window.guardarConfiguracionHoras=guardarConfiguracionHoras;
 
 if(cargarSesion()){
 pintarInicio();
