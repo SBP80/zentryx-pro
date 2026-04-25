@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2512</title>
+<title>Zentryx V2513</title>
 <style>
 body{margin:0;font-family:Arial;background:#eef2f7;color:#111827}
 .top{background:#0f172a;color:white;padding:22px}
@@ -32,7 +32,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid
 <body>
 
 <div class="top">
-<h1>Zentryx V2512</h1>
+<h1>Zentryx V2513</h1>
 <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -392,14 +392,32 @@ marcarTab(tab);
 if(tab==="datos"){
 zonaUsuario.innerHTML=`
 <div class="card">
-<h3>Datos principales</h3>
+<h3>Datos personales</h3>
 <label>Nombre</label><input id="u_nombre" value="${esc(usuarioAbierto.nombre||"")}">
 <label>Usuario</label><input id="u_usuario" value="${esc(usuarioAbierto.usuario||"")}">
 <label>DNI</label><input id="u_dni" value="${esc(usuarioAbierto.dni||"")}">
 <label>Teléfono</label><input id="u_telefono" value="${esc(usuarioAbierto.telefono||"")}">
 <label>Email</label><input id="u_email" value="${esc(usuarioAbierto.email||"")}">
-<label>Dirección</label><input id="u_direccion" value="${esc(usuarioAbierto.direccion||"")}">
+</div>
+
+<div class="card">
+<h3>Dirección</h3>
+<label>Tipo vía</label><input id="u_via_tipo" value="${esc(usuarioAbierto.via_tipo||"")}">
+<label>Nombre vía</label><input id="u_via_nombre" value="${esc(usuarioAbierto.via_nombre||"")}">
+<label>Número</label><input id="u_numero" value="${esc(usuarioAbierto.numero||"")}">
+<label>Portal</label><input id="u_portal" value="${esc(usuarioAbierto.portal||"")}">
+<label>Piso</label><input id="u_piso" value="${esc(usuarioAbierto.piso||"")}">
+<label>Puerta</label><input id="u_puerta" value="${esc(usuarioAbierto.puerta||"")}">
+<label>Población</label><input id="u_poblacion" value="${esc(usuarioAbierto.poblacion||"")}">
+<label>Provincia</label><input id="u_provincia" value="${esc(usuarioAbierto.provincia||"")}">
+<label>Código postal</label><input id="u_codigo_postal" value="${esc(usuarioAbierto.codigo_postal||"")}">
+</div>
+
+<div class="card">
+<h3>Datos laborales</h3>
 <label>Puesto</label><input id="u_puesto" value="${esc(usuarioAbierto.puesto||"")}">
+<label>Tipo contrato</label><input id="u_tipo_contrato" value="${esc(usuarioAbierto.tipo_contrato||"")}">
+<label>Jornada</label><input id="u_jornada" value="${esc(usuarioAbierto.jornada||"")}">
 <label>Fecha alta</label><input type="date" id="u_fecha_alta" value="${esc(usuarioAbierto.fecha_alta||"")}">
 <label>Rol</label>
 <select id="u_rol">
@@ -410,7 +428,16 @@ zonaUsuario.innerHTML=`
 <option value="administrativo" ${usuarioAbierto.rol==="administrativo"?"selected":""}>administrativo</option>
 <option value="admin" ${usuarioAbierto.rol==="admin"?"selected":""}>admin</option>
 </select>
-<button class="btn blue" onclick="guardarUsuario('${esc(usuarioAbierto.id)}')">Guardar cambios</button>
+</div>
+
+<div class="card">
+<h3>Contacto emergencia</h3>
+<label>Nombre</label><input id="u_contacto_emergencia_nombre" value="${esc(usuarioAbierto.contacto_emergencia_nombre||"")}">
+<label>Teléfono</label><input id="u_contacto_emergencia_telefono" value="${esc(usuarioAbierto.contacto_emergencia_telefono||"")}">
+</div>
+
+<div class="card">
+<button class="btn blue" onclick="guardarUsuario('${esc(usuarioAbierto.id)}')">Guardar ficha completa</button>
 <div id="msgUsuario"></div>
 </div>`;
 }
@@ -442,13 +469,25 @@ usuario:u_usuario.value.trim().toLowerCase(),
 dni:u_dni.value.trim(),
 telefono:u_telefono.value.trim(),
 email:u_email.value.trim(),
-direccion:u_direccion.value.trim(),
+via_tipo:u_via_tipo.value.trim(),
+via_nombre:u_via_nombre.value.trim(),
+numero:u_numero.value.trim(),
+portal:u_portal.value.trim(),
+piso:u_piso.value.trim(),
+puerta:u_puerta.value.trim(),
+poblacion:u_poblacion.value.trim(),
+provincia:u_provincia.value.trim(),
+codigo_postal:u_codigo_postal.value.trim(),
 puesto:u_puesto.value.trim(),
+tipo_contrato:u_tipo_contrato.value.trim(),
+jornada:u_jornada.value.trim(),
 fecha_alta:u_fecha_alta.value||null,
-rol:u_rol.value
+rol:u_rol.value,
+contacto_emergencia_nombre:u_contacto_emergencia_nombre.value.trim(),
+contacto_emergencia_telefono:u_contacto_emergencia_telefono.value.trim()
 }});
 msg.className="ok";
-msg.textContent="Guardado correctamente.";
+msg.textContent="Ficha guardada correctamente.";
 }catch(e){
 msg.className="error";
 msg.textContent="Error: "+e.message
@@ -478,13 +517,7 @@ async function guardarDocumentoBD(tipo,archivo){
 await api("/rest/v1/documentos",{
 method:"POST",
 headers:{"Prefer":"return=representation"},
-body:{
-user_id:String(usuarioAbierto.id),
-tipo:tipo,
-nombre:archivo.nombre,
-url:archivo.url,
-path:archivo.path
-}
+body:{user_id:String(usuarioAbierto.id),tipo,nombre:archivo.nombre,url:archivo.url,path:archivo.path}
 });
 }
 
