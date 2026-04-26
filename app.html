@@ -3,12 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2516</title>
+<title>Zentryx V2520</title>
 <style>
-:root{--bg:#eef2f7;--card:#fff;--txt:#111827;--muted:#6b7280;--dark:#0f172a;--blue:#2563eb;--green:#16a34a;--red:#dc2626;--orange:#f97316;--line:#d1d5db}
+:root{
+  --bg:#eef2f7;
+  --card:#ffffff;
+  --txt:#111827;
+  --muted:#6b7280;
+  --dark:#0f172a;
+  --blue:#2563eb;
+  --green:#16a34a;
+  --red:#dc2626;
+  --orange:#f97316;
+  --line:#d1d5db;
+}
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--txt)}
-.top{background:var(--dark);color:#fff;padding:24px}
+.top{background:var(--dark);color:white;padding:24px}
 h1{margin:0;font-size:42px;line-height:1.15}
 h2{font-size:34px;margin:0 0 18px}
 h3{font-size:24px;margin:0 0 14px}
@@ -17,12 +28,21 @@ h3{font-size:24px;margin:0 0 14px}
 .row{border:1px solid #cfcfcf;border-radius:14px;padding:14px;margin-bottom:12px;background:#fff}
 .btn{padding:13px 16px;border:0;border-radius:12px;margin:4px;font-weight:800;font-size:16px}
 .big{width:100%;font-size:24px;padding:22px}
-.green{background:var(--green);color:#fff}.red{background:var(--red);color:#fff}.blue{background:var(--blue);color:#fff}.gray{background:#e5e7eb;color:#2563eb}.orange{background:var(--orange);color:#fff}.dark{background:var(--dark);color:#fff}
+.green{background:var(--green);color:#fff}
+.red{background:var(--red);color:#fff}
+.blue{background:var(--blue);color:#fff}
+.gray{background:#e5e7eb;color:#2563eb}
+.orange{background:var(--orange);color:#fff}
+.dark{background:var(--dark);color:#fff}
 .badge{background:#e5e7eb;padding:8px 13px;border-radius:999px;font-weight:800;display:inline-block}
-.muted{color:var(--muted)}.error{color:#b91c1c;font-weight:800}.ok{color:#15803d;font-weight:800}.warn{color:#a05a1b;font-weight:800}
+.muted{color:var(--muted)}
+.error{color:#b91c1c;font-weight:800;white-space:pre-wrap}
+.ok{color:#15803d;font-weight:800}
+.warn{color:#a05a1b;font-weight:800}
 input,select,textarea{width:100%;padding:13px;border-radius:12px;border:1px solid #bbb;font-size:17px;margin:7px 0 13px;background:#fff}
 textarea{min-height:90px}
-table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid #ccc;padding:8px;text-align:left}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+td,th{border:1px solid #ccc;padding:8px;text-align:left}
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .tab{background:#e5e7eb;color:#2563eb;padding:12px;border-radius:12px;font-weight:800;border:0}
 .tab.active{background:#0f172a;color:#fff}
@@ -31,15 +51,16 @@ table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid
 .preview{max-width:100%;border-radius:12px;margin-top:8px;border:1px solid #ccc}
 .oculto{display:none}
 .small{font-size:14px;padding:9px 11px}
-.split{display:flex;gap:8px;flex-wrap:wrap}
-@media print{.top,.no-print,.btn{display:none!important}.card{border:1px solid #999}}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.line{height:1px;background:#e5e7eb;margin:14px 0}
+@media print{.top,.no-print,.btn,.tabs{display:none!important}.card{border:1px solid #999}}
 </style>
 </head>
 <body>
 
 <div class="top">
-<h1>Zentryx V2516</h1>
-<button class="btn red" onclick="salir()">Salir</button>
+  <h1>Zentryx V2520</h1>
+  <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
 <div class="wrap" id="app">Cargando...</div>
@@ -49,19 +70,33 @@ const URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 const BUCKET="usuarios";
 
-let user=null, fichajes=[], ultimo=null, horas=[], usuarios=[], tipos=[], panel=false;
-let usuarioAbierto=null, horariosUsuario=[], docsUsuario=[];
+let user=null;
+let fichajes=[];
+let ultimo=null;
+let horas=[];
+let usuarios=[];
+let tipos=[];
+let panel=false;
+let usuarioAbierto=null;
+let horariosUsuario=[];
+let docsUsuario=[];
 
 function app(){return document.getElementById("app")}
 function zona(){return document.getElementById("zonaUsuario")}
+function el(id){return document.getElementById(id)}
 function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;")}
 function admin(){return user && (user.rol==="admin"||user.rol==="administrativo")}
-function mando(){return admin()||user.rol==="encargado"}
+function mando(){return admin() || (user && user.rol==="encargado")}
 
 async function api(p,o={}){
   const r=await fetch(URL+p,{
     method:o.method||"GET",
-    headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json",...(o.headers||{})},
+    headers:{
+      apikey:KEY,
+      Authorization:"Bearer "+KEY,
+      "Content-Type":"application/json",
+      ...(o.headers||{})
+    },
     body:o.body?JSON.stringify(o.body):undefined
   });
   const t=await r.text();
@@ -69,6 +104,16 @@ async function api(p,o={}){
   try{d=t?JSON.parse(t):null}catch{d=t}
   if(!r.ok)throw new Error(t||"Error Supabase");
   return d;
+}
+
+function mostrarError(titulo,e){
+  app().innerHTML=`
+  <div class="card">
+    <h2>${esc(titulo)}</h2>
+    <p class="error">${esc(e && e.message ? e.message : e)}</p>
+    <button class="btn blue" onclick="location.reload()">Recargar</button>
+    <button class="btn gray" onclick="salir()">Salir</button>
+  </div>`;
 }
 
 function salir(){
@@ -79,23 +124,30 @@ function salir(){
 
 function sesion(){
   try{user=JSON.parse(localStorage.getItem("usuario"))}catch{user=null}
-  if(!user){location.href="./index.html?v=1000";return false}
+  if(!user){
+    location.href="./index.html?v=1000";
+    return false;
+  }
   return true;
 }
 
 async function cargarBase(){
-  tipos=await api("/rest/v1/tipos_horas_extra?select=*");
-  if(mando()) usuarios=await api("/rest/v1/users?select=*&order=id.asc");
+  tipos=await api("/rest/v1/tipos_horas_extra?select=*&order=id.asc");
+  if(mando()){
+    usuarios=await api("/rest/v1/users?select=*&order=nombre.asc");
+  }else{
+    usuarios=[user];
+  }
 }
 
 async function cargarFichajes(){
-  fichajes=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(user.id)+"&order=fecha.desc&limit=10");
+  fichajes=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(String(user.id))+"&order=fecha.desc&limit=10");
   ultimo=fichajes.length?fichajes[0]:null;
 }
 
 async function cargarHoras(){
-  let q="/rest/v1/horas_extra?select=*&estado=neq.pagadas&order=fecha.desc";
-  if(!mando()) q+="&user_id=eq."+encodeURIComponent(user.id);
+  let q="/rest/v1/horas_extra?select=*&estado=neq.pagadas&order=created_at.desc";
+  if(!mando()) q+="&user_id=eq."+encodeURIComponent(String(user.id));
   horas=await api(q);
 }
 
@@ -109,37 +161,69 @@ function nombreTipo(id){
   return t?t.nombre:"Hora extra";
 }
 
-function telLimpio(t){return String(t||"").replaceAll(" ","").replaceAll("-","").replaceAll("+","")}
-function abrirTel(t){const n=telLimpio(t); if(!n){alert("Sin telÃ©fono");return} location.href="tel:"+n}
-function abrirWhatsApp(t){let n=telLimpio(t); if(!n){alert("Sin telÃ©fono");return} if(!n.startsWith("34"))n="34"+n; window.open("https://wa.me/"+n,"_blank")}
-function abrirEmail(e){if(!e){alert("Sin email");return} location.href="mailto:"+e}
+function telLimpio(t){
+  return String(t||"").replaceAll(" ","").replaceAll("-","").replaceAll("+","");
+}
+
+function abrirTel(t){
+  const n=telLimpio(t);
+  if(!n){alert("Sin teléfono");return}
+  location.href="tel:"+n;
+}
+
+function abrirWhatsApp(t){
+  let n=telLimpio(t);
+  if(!n){alert("Sin teléfono");return}
+  if(!n.startsWith("34"))n="34"+n;
+  window.open("https://wa.me/"+n,"_blank");
+}
+
+function abrirEmail(e){
+  if(!e){alert("Sin email");return}
+  location.href="mailto:"+e;
+}
 
 function direccionUsuario(u){
-  return [u.via_tipo,u.via_nombre,u.numero,u.portal,u.piso,u.puerta,u.codigo_postal,u.poblacion,u.provincia].filter(Boolean).join(" ");
+  return [
+    u.via_tipo,u.via_nombre,u.numero,u.portal,u.piso,u.puerta,
+    u.codigo_postal,u.poblacion,u.provincia
+  ].filter(Boolean).join(" ");
 }
 
 function abrirDireccionMaps(u){
   const d=direccionUsuario(u);
-  if(!d){alert("Sin direcciÃ³n");return}
+  if(!d){alert("Sin dirección");return}
   window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(d),"_blank");
 }
 
-function abrirMapaGoogle(lat,lng){if(!lat||!lng){alert("Sin coordenadas");return} window.open("https://www.google.com/maps/search/?api=1&query="+lat+","+lng,"_blank")}
-function abrirMapaApple(lat,lng){if(!lat||!lng){alert("Sin coordenadas");return} location.href="http://maps.apple.com/?ll="+lat+","+lng}
-function abrirMapaWaze(lat,lng){if(!lat||!lng){alert("Sin coordenadas");return} location.href="https://waze.com/ul?ll="+lat+","+lng+"&navigate=yes"}
+function abrirMapaGoogle(lat,lng){
+  if(!lat||!lng){alert("Sin coordenadas");return}
+  window.open("https://www.google.com/maps/search/?api=1&query="+lat+","+lng,"_blank");
+}
+
+function abrirMapaApple(lat,lng){
+  if(!lat||!lng){alert("Sin coordenadas");return}
+  location.href="http://maps.apple.com/?ll="+lat+","+lng;
+}
+
+function abrirMapaWaze(lat,lng){
+  if(!lat||!lng){alert("Sin coordenadas");return}
+  location.href="https://waze.com/ul?ll="+lat+","+lng+"&navigate=yes";
+}
 
 function botonesMapa(f){
   if(!f.lat||!f.lng)return "";
   return `
-  <br>
-  <button class="btn gray small" onclick="abrirMapaGoogle('${esc(f.lat)}','${esc(f.lng)}')">Abrir en Google Maps</button>
-  <button class="btn gray small" onclick="abrirMapaApple('${esc(f.lat)}','${esc(f.lng)}')">Abrir en Apple Maps</button>
-  <button class="btn gray small" onclick="abrirMapaWaze('${esc(f.lat)}','${esc(f.lng)}')">Abrir en Waze</button>`;
+  <div class="actions">
+    <button class="btn gray small" onclick="abrirMapaGoogle('${esc(f.lat)}','${esc(f.lng)}')">Abrir en Google Maps</button>
+    <button class="btn gray small" onclick="abrirMapaApple('${esc(f.lat)}','${esc(f.lng)}')">Abrir en Apple Maps</button>
+    <button class="btn gray small" onclick="abrirMapaWaze('${esc(f.lat)}','${esc(f.lng)}')">Abrir en Waze</button>
+  </div>`;
 }
 
 function estadoReal(){
-  if(!ultimo||ultimo.tipo==="salida")return "fuera";
-  if(ultimo.tipo==="entrada"||ultimo.tipo==="fin_descanso"||ultimo.tipo==="fin_comida")return "trabajando";
+  if(!ultimo || ultimo.tipo==="salida")return "fuera";
+  if(ultimo.tipo==="entrada" || ultimo.tipo==="fin_descanso" || ultimo.tipo==="fin_comida")return "trabajando";
   if(ultimo.tipo==="inicio_descanso")return "descanso";
   if(ultimo.tipo==="inicio_comida")return "comida";
   return "fuera";
@@ -164,83 +248,117 @@ function textoEstado(){
 }
 
 async function inicio(){
-  await cargarBase(); await cargarFichajes(); await cargarHoras();
-  const total=horas.reduce((s,h)=>s+Number(h.total||0),0);
+  try{
+    await cargarBase();
+    await cargarFichajes();
+    await cargarHoras();
 
-  app().innerHTML=`
-  <div class="card">
-    <h2>Inicio</h2>
-    <b>${esc(user.nombre||user.usuario)}</b>
-    <p class="muted">${esc(user.rol)} Â· ${esc(user.usuario)}</p>
-  </div>
+    const total=horas.reduce((s,h)=>s+Number(h.total||0),0);
 
-  <div class="card">
-    <h2>Fichaje rÃ¡pido</h2>
-    <span class="badge">${esc(textoEstado())}</span><br><br>
-    <button class="btn big green" onclick="toggleFichaje()">FICHAR</button>
-    ${panel?`
+    app().innerHTML=`
     <div class="card">
-      <select id="tipoFichaje">${acciones().map(a=>`<option value="${a}">${a}</option>`).join("")}</select>
-      <button class="btn blue" onclick="guardarFichaje()">Guardar fichaje</button>
-      <div id="msg"></div>
+      <h2>Inicio</h2>
+      <b>${esc(user.nombre||user.usuario)}</b>
+      <p class="muted">${esc(user.rol)} · ${esc(user.usuario)}</p>
+    </div>
+
+    <div class="card">
+      <h2>Fichaje rápido</h2>
+      <span class="badge">${esc(textoEstado())}</span><br><br>
+      <button class="btn big green" onclick="toggleFichaje()">FICHAR</button>
+      ${panel?`
+      <div class="card">
+        <select id="tipoFichaje">${acciones().map(a=>`<option value="${a}">${a}</option>`).join("")}</select>
+        <button class="btn blue" onclick="guardarFichaje()">Guardar fichaje</button>
+        <div id="msg"></div>
+      </div>`:""}
+    </div>
+
+    <div class="card">
+      <h2>Horas extra</h2>
+      <span class="badge">${total.toFixed(2)} € pendientes</span><br><br>
+      <button class="btn blue" onclick="vistaHoras()">Ver horas</button>
+      ${admin()?`<button class="btn gray" onclick="vistaConfig()">Ajustes horas</button>`:""}
+    </div>
+
+    <div class="card">
+      <h2>Informes</h2>
+      <button class="btn blue" onclick="vistaInformes()">Informes mensuales</button>
+    </div>
+
+    ${mando()?`
+    <div class="card">
+      <h2>Usuarios</h2>
+      <button class="btn dark" onclick="vistaUsuarios()">Ver usuarios</button>
     </div>`:""}
-  </div>
 
-  <div class="card">
-    <h2>Horas extra</h2>
-    <span class="badge">${total.toFixed(2)} â¬ pendientes</span><br><br>
-    <button class="btn blue" onclick="vistaHoras()">Ver horas</button>
-    ${admin()?`<button class="btn gray" onclick="vistaConfig()">Ajustes horas</button>`:""}
-  </div>
-
-  <div class="card">
-    <h2>Informes</h2>
-    <button class="btn blue" onclick="vistaInformes()">Informes mensuales</button>
-  </div>
-
-  ${mando()?`<div class="card"><h2>Usuarios</h2><button class="btn dark" onclick="vistaUsuarios()">Ver usuarios</button></div>`:""}
-
-  <div class="card">
-    <h2>Ãltimos fichajes</h2>
-    ${fichajes.length?fichajes.map(f=>`
-    <div class="row">
-      <b>${esc(f.tipo)}</b><br>
-      ${new Date(f.fecha).toLocaleString("es-ES")}<br>
-      <span class="muted">${esc(f.direccion_real||f.direccion||"Sin ubicaciÃ³n")}</span>
-      ${f.aviso_horario?`<br><span class="warn">${esc(f.aviso_horario)}</span>`:""}
-      ${botonesMapa(f)}
-    </div>`).join(""):"No hay fichajes"}
-  </div>`;
+    <div class="card">
+      <h2>Últimos fichajes</h2>
+      ${fichajes.length?fichajes.map(f=>`
+      <div class="row">
+        <b>${esc(f.tipo)}</b><br>
+        ${new Date(f.fecha).toLocaleString("es-ES")}<br>
+        <span class="muted">${esc(f.direccion_real||f.direccion||"Sin ubicación")}</span>
+        ${f.aviso_horario?`<br><span class="warn">${esc(f.aviso_horario)}</span>`:""}
+        ${botonesMapa(f)}
+      </div>`).join(""):"No hay fichajes"}
+    </div>`;
+  }catch(e){
+    mostrarError("Error al cargar inicio",e);
+  }
 }
 
-function toggleFichaje(){panel=!panel;inicio()}
+function toggleFichaje(){
+  panel=!panel;
+  inicio();
+}
 
 async function direccionDesdeCoords(lat,lng){
   try{
     const r=await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat="+encodeURIComponent(lat)+"&lon="+encodeURIComponent(lng));
     const d=await r.json();
-    return d.display_name||"Lat "+lat+", Lng "+lng;
-  }catch(e){return "Lat "+lat+", Lng "+lng}
+    return d.display_name || "Lat "+lat+", Lng "+lng;
+  }catch(e){
+    return "Lat "+lat+", Lng "+lng;
+  }
 }
 
 function ubicacion(){
   return new Promise(r=>{
-    if(!navigator.geolocation){r({lat:null,lng:null,direccion:"Sin ubicaciÃ³n",direccion_real:""});return}
+    if(!navigator.geolocation){
+      r({lat:null,lng:null,direccion:"Sin ubicación",direccion_real:""});
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       async p=>{
-        const lat=p.coords.latitude,lng=p.coords.longitude;
+        const lat=p.coords.latitude;
+        const lng=p.coords.longitude;
         const real=await direccionDesdeCoords(lat,lng);
-        r({lat,lng,direccion:"Lat "+lat+", Lng "+lng,direccion_real:real});
+        r({
+          lat,
+          lng,
+          direccion:"Lat "+lat+", Lng "+lng,
+          direccion_real:real
+        });
       },
-      ()=>r({lat:null,lng:null,direccion:"UbicaciÃ³n no autorizada",direccion_real:""}),
+      ()=>r({lat:null,lng:null,direccion:"Ubicación no autorizada",direccion_real:""}),
       {enableHighAccuracy:true,timeout:10000}
     );
   });
 }
 
-function minHora(t){const [h,m]=String(t||"00:00").split(":");return Number(h||0)*60+Number(m||0)}
-function minFecha(d){return d.getHours()*60+d.getMinutes()}
-function iso(d){return d.toISOString().split("T")[0]}
+function minHora(t){
+  const [h,m]=String(t||"00:00").split(":");
+  return Number(h||0)*60+Number(m||0);
+}
+
+function minFecha(d){
+  return d.getHours()*60+d.getMinutes();
+}
+
+function iso(d){
+  return d.toISOString().split("T")[0];
+}
 
 async function horarioHoy(userId,fecha){
   const dia=fecha.getDay();
@@ -249,25 +367,30 @@ async function horarioHoy(userId,fecha){
 }
 
 function evaluarHorario(tipo,fecha,h){
-  if(!h||h.trabaja===false)return {estado:"fuera_horario",aviso:"DÃ­a no laboral o sin horario configurado"};
-  const ahora=minFecha(fecha), entrada=minHora(h.hora_entrada), salida=minHora(h.hora_salida);
+  if(!h || h.trabaja===false){
+    return {estado:"fuera_horario",aviso:"Día no laboral o sin horario configurado"};
+  }
+
+  const ahora=minFecha(fecha);
+  const entrada=minHora(h.hora_entrada);
+  const salida=minHora(h.hora_salida);
 
   if(tipo==="entrada"){
-    if(h.hora_entrada&&ahora<entrada)return {estado:"fuera_horario",aviso:"Entrada antes del horario previsto"};
-    if(h.hora_entrada&&ahora>entrada+15)return {estado:"fuera_horario",aviso:"Entrada posterior al horario previsto"};
+    if(h.hora_entrada && ahora<entrada)return {estado:"fuera_horario",aviso:"Entrada antes del horario previsto"};
+    if(h.hora_entrada && ahora>entrada+15)return {estado:"fuera_horario",aviso:"Entrada posterior al horario previsto"};
   }
 
   if(tipo==="salida"){
-    if(h.hora_salida&&ahora<salida)return {estado:"fuera_horario",aviso:"Salida antes del horario previsto"};
-    if(h.hora_salida&&ahora>salida)return {estado:"fuera_horario",aviso:"Salida posterior al horario previsto"};
+    if(h.hora_salida && ahora<salida)return {estado:"fuera_horario",aviso:"Salida antes del horario previsto"};
+    if(h.hora_salida && ahora>salida)return {estado:"fuera_horario",aviso:"Salida posterior al horario previsto"};
   }
 
-  if(tipo==="inicio_comida"&&h.inicio_comida){
+  if(tipo==="inicio_comida" && h.inicio_comida){
     const c1=minHora(h.inicio_comida);
     if(Math.abs(ahora-c1)>30)return {estado:"fuera_horario",aviso:"Comida fuera del horario previsto"};
   }
 
-  if(tipo==="fin_comida"&&h.fin_comida){
+  if(tipo==="fin_comida" && h.fin_comida){
     const c2=minHora(h.fin_comida);
     if(Math.abs(ahora-c2)>30)return {estado:"fuera_horario",aviso:"Fin de comida fuera del horario previsto"};
   }
@@ -277,18 +400,18 @@ function evaluarHorario(tipo,fecha,h){
 
 function validarFlujo(tipo){
   const e=estadoReal();
-  if(e==="fuera"&&tipo!=="entrada")return "Debes fichar entrada primero.";
-  if(e!=="fuera"&&tipo==="entrada")return "Ya tienes una jornada abierta.";
-  if(e==="trabajando"&&!["inicio_descanso","inicio_comida","salida"].includes(tipo))return "AcciÃ³n no permitida.";
-  if(e==="descanso"&&tipo!=="fin_descanso")return "Primero debes finalizar el descanso.";
-  if(e==="comida"&&tipo!=="fin_comida")return "Primero debes finalizar la comida.";
-  if(tipo==="salida"&&(e==="descanso"||e==="comida"))return "No puedes salir con una pausa abierta.";
+  if(e==="fuera" && tipo!=="entrada")return "Debes fichar entrada primero.";
+  if(e!=="fuera" && tipo==="entrada")return "Ya tienes una jornada abierta.";
+  if(e==="trabajando" && !["inicio_descanso","inicio_comida","salida"].includes(tipo))return "Acción no permitida.";
+  if(e==="descanso" && tipo!=="fin_descanso")return "Primero debes finalizar el descanso.";
+  if(e==="comida" && tipo!=="fin_comida")return "Primero debes finalizar la comida.";
+  if(tipo==="salida" && (e==="descanso" || e==="comida"))return "No puedes salir con una pausa abierta.";
   return "";
 }
 
 function jornadaActualId(tipo){
   if(tipo==="entrada")return crypto.randomUUID();
-  if(ultimo&&ultimo.jornada_id)return ultimo.jornada_id;
+  if(ultimo && ultimo.jornada_id)return ultimo.jornada_id;
   return crypto.randomUUID();
 }
 
@@ -304,7 +427,13 @@ function estadoJornadaPara(tipo){
 
 async function config(){
   const r=await api("/rest/v1/configuracion_horas_extra?select=*&id=eq.1&limit=1");
-  return r[0]||{nocturna_inicio:"22:00",nocturna_fin:"06:00",redondeo_minutos:1,minimo_minutos:0,prioridad_festivo:true};
+  return r[0] || {
+    nocturna_inicio:"22:00",
+    nocturna_fin:"06:00",
+    redondeo_minutos:1,
+    minimo_minutos:0,
+    prioridad_festivo:true
+  };
 }
 
 async function festivo(d){
@@ -313,41 +442,59 @@ async function festivo(d){
 }
 
 function nocturna(d,c){
-  const m=minFecha(d),i=minHora(c.nocturna_inicio),f=minHora(c.nocturna_fin);
-  return i>f?m>=i||m<f:m>=i&&m<f;
+  const m=minFecha(d);
+  const i=minHora(c.nocturna_inicio);
+  const f=minHora(c.nocturna_fin);
+  return i>f ? m>=i || m<f : m>=i && m<f;
 }
 
 function redondear(m,c){
   m=Math.max(0,Number(m||0));
-  const min=Number(c.minimo_minutos||0),red=Number(c.redondeo_minutos||1);
-  if(m>0&&m<min)m=min;
+  const min=Number(c.minimo_minutos||0);
+  const red=Number(c.redondeo_minutos||1);
+  if(m>0 && m<min)m=min;
   if(red>1)m=Math.ceil(m/red)*red;
   return m;
 }
 
 async function tipoExtra(d,c){
-  const fs=await festivo(d), finde=[0,6].includes(d.getDay()), noc=nocturna(d,c);
-  function busca(n){return tipos.find(t=>String(t.nombre).toLowerCase()===n)}
-  if(c.prioridad_festivo&&fs&&busca("festiva"))return busca("festiva");
-  if(fs&&busca("festiva"))return busca("festiva");
-  if(finde&&busca("fin de semana"))return busca("fin de semana");
-  if(noc&&busca("nocturna"))return busca("nocturna");
-  return busca("normal")||tipos[0];
+  const fs=await festivo(d);
+  const finde=[0,6].includes(d.getDay());
+  const noc=nocturna(d,c);
+
+  function busca(n){
+    return tipos.find(t=>String(t.nombre).toLowerCase()===n);
+  }
+
+  if(c.prioridad_festivo && fs && busca("festiva"))return busca("festiva");
+  if(fs && busca("festiva"))return busca("festiva");
+  if(finde && busca("fin de semana"))return busca("fin de semana");
+  if(noc && busca("nocturna"))return busca("nocturna");
+
+  return busca("normal") || tipos[0];
 }
 
 async function crearExtra(tipo,fichaje){
   if(tipo!=="salida")return;
-  const salida=new Date(fichaje.fecha), c=await config(), h=await horarioHoy(user.id,salida);
-  let min=0, motivo="";
 
-  if(!h||h.trabaja===false){
-    let q="/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(user.id)+"&tipo=eq.entrada&order=fecha.desc&limit=1";
-    if(fichaje.jornada_id)q="/rest/v1/fichajes?select=*&jornada_id=eq."+encodeURIComponent(fichaje.jornada_id)+"&tipo=eq.entrada&order=fecha.asc&limit=1";
+  const salida=new Date(fichaje.fecha);
+  const c=await config();
+  const h=await horarioHoy(user.id,salida);
+
+  let min=0;
+  let motivo="";
+
+  if(!h || h.trabaja===false){
+    let q="/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(String(user.id))+"&tipo=eq.entrada&order=fecha.desc&limit=1";
+    if(fichaje.jornada_id){
+      q="/rest/v1/fichajes?select=*&jornada_id=eq."+encodeURIComponent(fichaje.jornada_id)+"&tipo=eq.entrada&order=fecha.asc&limit=1";
+    }
     const ent=await api(q);
-    min=ent.length?Math.round((salida-new Date(ent[0].fecha))/60000):(Number(c.minimo_minutos||60)||60);
-    motivo="DÃ­a no laboral";
+    min=ent.length ? Math.round((salida-new Date(ent[0].fecha))/60000) : (Number(c.minimo_minutos||60)||60);
+    motivo="Día no laboral";
   }else if(h.hora_salida){
-    const sp=new Date(salida), sm=minHora(h.hora_salida);
+    const sp=new Date(salida);
+    const sm=minHora(h.hora_salida);
     sp.setHours(Math.floor(sm/60),sm%60,0,0);
     min=Math.max(0,Math.round((salida-sp)/60000));
     motivo="Salida posterior al horario";
@@ -359,40 +506,80 @@ async function crearExtra(tipo,fichaje){
   const t=await tipoExtra(salida,c);
   if(!t)return;
 
-  const precio=Number(t.precio||0), total=Number(((min/60)*precio).toFixed(2));
+  const precio=Number(t.precio||0);
+  const total=Number(((min/60)*precio).toFixed(2));
 
   await api("/rest/v1/horas_extra",{
     method:"POST",
     headers:{"Prefer":"return=representation"},
-    body:{user_id:String(user.id),fichaje_id:fichaje.id,tipo_id:t.id,minutos:min,precio_unitario:precio,total,estado:"pendiente",validado_usuario:false,validado_admin:false,admin_confirmo_pago:false,usuario_confirmo_cobro:false,motivo}
+    body:{
+      user_id:String(user.id),
+      fichaje_id:fichaje.id,
+      tipo_id:t.id,
+      minutos:min,
+      precio_unitario:precio,
+      total,
+      estado:"pendiente",
+      validado_usuario:false,
+      validado_admin:false,
+      admin_confirmo_pago:false,
+      usuario_confirmo_cobro:false,
+      motivo
+    }
   });
 }
 
 async function guardarFichaje(){
-  const msg=document.getElementById("msg"), tipo=document.getElementById("tipoFichaje").value;
+  const msg=el("msg");
+  const tipo=el("tipoFichaje").value;
+
   msg.textContent="Comprobando...";
 
   const error=validarFlujo(tipo);
-  if(error){msg.innerHTML="<span class='error'>"+esc(error)+"</span>";return}
+  if(error){
+    msg.innerHTML="<span class='error'>"+esc(error)+"</span>";
+    return;
+  }
 
   try{
-    const ahora=new Date(), h=await horarioHoy(user.id,ahora), ev=evaluarHorario(tipo,ahora,h);
+    const ahora=new Date();
+    const h=await horarioHoy(user.id,ahora);
+    const ev=evaluarHorario(tipo,ahora,h);
 
     if(ev.aviso){
-      const seguir=confirm(ev.aviso+". Â¿Registrar igualmente?");
-      if(!seguir){msg.innerHTML="<span class='error'>Fichaje cancelado.</span>";return}
+      const seguir=confirm(ev.aviso+". ¿Registrar igualmente?");
+      if(!seguir){
+        msg.innerHTML="<span class='error'>Fichaje cancelado.</span>";
+        return;
+      }
     }
 
     msg.textContent="Guardando...";
-    const u=await ubicacion(), jid=jornadaActualId(tipo), ej=estadoJornadaPara(tipo);
+
+    const u=await ubicacion();
+    const jid=jornadaActualId(tipo);
+    const ej=estadoJornadaPara(tipo);
 
     const d=await api("/rest/v1/fichajes",{
       method:"POST",
       headers:{"Prefer":"return=representation"},
-      body:{user_id:String(user.id),tipo,lat:u.lat,lng:u.lng,direccion:u.direccion,direccion_real:u.direccion_real,estado_horario:ev.estado,aviso_horario:ev.aviso,jornada_id:jid,estado_jornada:ej,bloqueo_motivo:""}
+      body:{
+        user_id:String(user.id),
+        tipo,
+        lat:u.lat,
+        lng:u.lng,
+        direccion:u.direccion,
+        direccion_real:u.direccion_real,
+        estado_horario:ev.estado,
+        aviso_horario:ev.aviso,
+        jornada_id:jid,
+        estado_jornada:ej,
+        bloqueo_motivo:""
+      }
     });
 
     await crearExtra(tipo,Array.isArray(d)?d[0]:d);
+
     panel=false;
     await inicio();
   }catch(e){
@@ -413,15 +600,26 @@ function mesAnioDeFecha(fechaTxt){
 async function accionBloqueadaPorCierre(horaId){
   const r=await api("/rest/v1/horas_extra?select=fecha,created_at&id=eq."+encodeURIComponent(horaId)+"&limit=1");
   if(!r.length)return true;
-  const f=r[0].fecha||r[0].created_at, ma=mesAnioDeFecha(f);
+  const f=r[0].fecha || r[0].created_at;
+  const ma=mesAnioDeFecha(f);
   return await cierreDeMes(ma.mes,ma.anio);
 }
 
 async function vistaHoras(){
-  await cargarBase(); await cargarHoras();
-  app().innerHTML=`
-  <div class="card no-print"><button class="btn gray" onclick="inicio()">â Volver</button><h2>Horas extra</h2></div>
-  ${horas.length?horas.map(h=>horaCard(h)).join(""):"<div class='card'>No hay horas extra pendientes.</div>"}`;
+  try{
+    await cargarBase();
+    await cargarHoras();
+
+    app().innerHTML=`
+    <div class="card no-print">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Horas extra</h2>
+    </div>
+    ${horas.length?horas.map(h=>horaCard(h)).join(""):"<div class='card'>No hay horas extra pendientes.</div>"}
+    `;
+  }catch(e){
+    mostrarError("Error al cargar horas extra",e);
+  }
 }
 
 function horaCard(h){
@@ -429,109 +627,204 @@ function horaCard(h){
   <div class="card">
     ${mando()?`<b>Trabajador:</b> ${esc(nombreUsuario(h.user_id))}<br>`:""}
     <b>${esc(nombreTipo(h.tipo_id))}</b><br>
-    ${Number(h.minutos||0)} min Â· ${Number(h.total||0).toFixed(2)} â¬<br>
+    ${Number(h.minutos||0)} min · ${Number(h.total||0).toFixed(2)} €<br>
     <span class="muted">Estado: ${esc(h.estado||"pendiente")}</span><br>
     ${h.motivo?`<small>${esc(h.motivo)}</small><br>`:""}
-    ${!h.validado_usuario&&String(user.id)===String(h.user_id)?`<button class="btn green" onclick="validarUsuario('${h.id}')">Validar usuario</button>`:""}
-    ${admin()&&h.validado_usuario&&!h.validado_admin?`<button class="btn blue" onclick="validarAdmin('${h.id}')">Validar admin</button>`:""}
-    ${admin()&&h.validado_admin&&!h.admin_confirmo_pago?`<button class="btn orange" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>`:""}
-    ${h.admin_confirmo_pago&&!h.usuario_confirmo_cobro&&String(user.id)===String(h.user_id)?`<button class="btn green" onclick="cobroUsuario('${h.id}')">Horas cobradas</button>`:""}
+
+    ${!h.validado_usuario && String(user.id)===String(h.user_id)?`
+    <button class="btn green" onclick="validarUsuario('${h.id}')">Validar usuario</button>`:""}
+
+    ${admin() && h.validado_usuario && !h.validado_admin?`
+    <button class="btn blue" onclick="validarAdmin('${h.id}')">Validar admin</button>`:""}
+
+    ${admin() && h.validado_admin && !h.admin_confirmo_pago?`
+    <button class="btn orange" onclick="pagoAdmin('${h.id}')">Horas pagadas</button>`:""}
+
+    ${h.admin_confirmo_pago && !h.usuario_confirmo_cobro && String(user.id)===String(h.user_id)?`
+    <button class="btn green" onclick="cobroUsuario('${h.id}')">Horas cobradas</button>`:""}
   </div>`;
 }
 
 async function patchHora(id,b){
   try{
-    if(await accionBloqueadaPorCierre(id)){alert("Mes cerrado. No se puede modificar.");return}
-    await api("/rest/v1/horas_extra?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:{"Prefer":"return=representation"},body:b});
-    await cargarHoras();
+    if(await accionBloqueadaPorCierre(id)){
+      alert("Mes cerrado. No se puede modificar.");
+      return;
+    }
+
+    await api("/rest/v1/horas_extra?id=eq."+encodeURIComponent(id),{
+      method:"PATCH",
+      headers:{"Prefer":"return=representation"},
+      body:b
+    });
+
     await vistaHoras();
-  }catch(e){alert("Error: "+e.message)}
+  }catch(e){
+    alert("Error: "+e.message);
+  }
 }
 
-function validarUsuario(id){patchHora(id,{validado_usuario:true,estado:"pendiente_admin"})}
-function validarAdmin(id){patchHora(id,{validado_admin:true,estado:"validado_admin"})}
-function pagoAdmin(id){patchHora(id,{admin_confirmo_pago:true,fecha_admin_pago:new Date().toISOString()})}
-function cobroUsuario(id){patchHora(id,{usuario_confirmo_cobro:true,fecha_usuario_cobro:new Date().toISOString(),estado:"pagadas",pagada:true,fecha_pago:new Date().toISOString()})}
+function validarUsuario(id){
+  patchHora(id,{validado_usuario:true,estado:"pendiente_admin"});
+}
+
+function validarAdmin(id){
+  patchHora(id,{validado_admin:true,estado:"validado_admin"});
+}
+
+function pagoAdmin(id){
+  patchHora(id,{admin_confirmo_pago:true,fecha_admin_pago:new Date().toISOString()});
+}
+
+function cobroUsuario(id){
+  patchHora(id,{
+    usuario_confirmo_cobro:true,
+    fecha_usuario_cobro:new Date().toISOString(),
+    estado:"pagadas",
+    pagada:true,
+    fecha_pago:new Date().toISOString()
+  });
+}
 
 async function vistaConfig(){
-  const c=await config();
-  app().innerHTML=`
-  <div class="card">
-    <button class="btn gray" onclick="inicio()">â Volver</button>
-    <h2>Ajustes horas extra</h2>
-    <label>Inicio nocturna</label><input id="ni" type="time" value="${c.nocturna_inicio||"22:00"}">
-    <label>Fin nocturna</label><input id="nf" type="time" value="${c.nocturna_fin||"06:00"}">
-    <label>Redondeo</label>
-    <select id="rd"><option value="1">Exacto</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option></select>
-    <label>MÃ­nimo</label>
-    <select id="mi"><option value="0">Sin mÃ­nimo</option><option value="30">30 min</option><option value="60">60 min</option></select>
-    <button class="btn blue" onclick="guardarConfig()">Guardar</button>
-    <div id="mc"></div>
-  </div>`;
-  document.getElementById("rd").value=String(c.redondeo_minutos||1);
-  document.getElementById("mi").value=String(c.minimo_minutos||0);
+  try{
+    const c=await config();
+
+    app().innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Ajustes horas extra</h2>
+
+      <label>Inicio nocturna</label>
+      <input id="ni" type="time" value="${c.nocturna_inicio||"22:00"}">
+
+      <label>Fin nocturna</label>
+      <input id="nf" type="time" value="${c.nocturna_fin||"06:00"}">
+
+      <label>Redondeo</label>
+      <select id="rd">
+        <option value="1">Exacto</option>
+        <option value="15">15 min</option>
+        <option value="30">30 min</option>
+        <option value="60">60 min</option>
+      </select>
+
+      <label>Mínimo</label>
+      <select id="mi">
+        <option value="0">Sin mínimo</option>
+        <option value="30">30 min</option>
+        <option value="60">60 min</option>
+      </select>
+
+      <button class="btn blue" onclick="guardarConfig()">Guardar</button>
+      <div id="mc"></div>
+    </div>`;
+
+    el("rd").value=String(c.redondeo_minutos||1);
+    el("mi").value=String(c.minimo_minutos||0);
+  }catch(e){
+    mostrarError("Error al cargar ajustes",e);
+  }
 }
 
 async function guardarConfig(){
-  await api("/rest/v1/configuracion_horas_extra?id=eq.1",{
-    method:"PATCH",
-    headers:{"Prefer":"return=representation"},
-    body:{nocturna_inicio:document.getElementById("ni").value,nocturna_fin:document.getElementById("nf").value,redondeo_minutos:Number(document.getElementById("rd").value),minimo_minutos:Number(document.getElementById("mi").value),actualizado_en:new Date().toISOString()}
-  });
-  document.getElementById("mc").textContent="Guardado";
+  try{
+    await api("/rest/v1/configuracion_horas_extra?id=eq.1",{
+      method:"PATCH",
+      headers:{"Prefer":"return=representation"},
+      body:{
+        nocturna_inicio:el("ni").value,
+        nocturna_fin:el("nf").value,
+        redondeo_minutos:Number(el("rd").value),
+        minimo_minutos:Number(el("mi").value),
+        actualizado_en:new Date().toISOString()
+      }
+    });
+    el("mc").className="ok";
+    el("mc").textContent="Guardado";
+  }catch(e){
+    el("mc").className="error";
+    el("mc").textContent=e.message;
+  }
 }
 
 async function vistaUsuarios(){
-  await cargarBase();
-  app().innerHTML=`
-  <div class="card">
-    <button class="btn gray" onclick="inicio()">â Volver</button>
-    <h2>Usuarios</h2>
-    <p class="muted">Pulsa un usuario para abrir su ficha.</p>
-  </div>
-  ${usuarios.map(u=>`
-  <div class="card" onclick="abrirUsuario('${esc(u.id)}')">
-    ${u.foto_url?`<img class="foto-mini" src="${esc(u.foto_url)}"><br>`:`<div class="foto-mini"></div><br>`}
-    <b>${esc(u.nombre||"-")}</b><br>
-    ${esc(u.usuario)} Â· ${esc(u.rol)}<br>
-    <span class="muted">${esc(u.telefono||"")} ${esc(u.email||"")}</span><br>
-    <button class="btn gray small" onclick="event.stopPropagation();abrirTel('${esc(u.telefono||"")}')">Llamar</button>
-    <button class="btn green small" onclick="event.stopPropagation();abrirWhatsApp('${esc(u.telefono||"")}')">WhatsApp</button>
-    <button class="btn blue small" onclick="event.stopPropagation();abrirEmail('${esc(u.email||"")}')">Email</button>
-    <button class="btn gray small" onclick='event.stopPropagation();abrirDireccionMaps(${JSON.stringify(u)})'>Abrir direcciÃ³n en Maps</button>
-  </div>`).join("")}`;
+  try{
+    await cargarBase();
+
+    app().innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Usuarios</h2>
+      <p class="muted">Pulsa un usuario para abrir su ficha.</p>
+    </div>
+
+    ${usuarios.map(u=>`
+    <div class="card" onclick="abrirUsuario('${esc(u.id)}')">
+      ${u.foto_url?`<img class="foto-mini" src="${esc(u.foto_url)}"><br>`:`<div class="foto-mini"></div><br>`}
+      <b>${esc(u.nombre||"-")}</b><br>
+      ${esc(u.usuario)} · ${esc(u.rol)}<br>
+      <span class="muted">${esc(u.telefono||"")} ${esc(u.email||"")}</span><br>
+      <div class="actions">
+        <button class="btn gray small" onclick="event.stopPropagation();abrirTel('${esc(u.telefono||"")}')">Llamar</button>
+        <button class="btn green small" onclick="event.stopPropagation();abrirWhatsApp('${esc(u.telefono||"")}')">WhatsApp</button>
+        <button class="btn blue small" onclick="event.stopPropagation();abrirEmail('${esc(u.email||"")}')">Email</button>
+        <button class="btn gray small" onclick='event.stopPropagation();abrirDireccionMaps(${JSON.stringify(u)})'>Abrir dirección en Maps</button>
+      </div>
+    </div>`).join("")}`;
+  }catch(e){
+    mostrarError("Error al cargar usuarios",e);
+  }
 }
 
 async function abrirUsuario(id){
-  const data=await api("/rest/v1/users?select=*&id=eq."+encodeURIComponent(id)+"&limit=1");
-  usuarioAbierto=data[0];
-  if(!usuarioAbierto){alert("Usuario no encontrado");return}
+  try{
+    const data=await api("/rest/v1/users?select=*&id=eq."+encodeURIComponent(id)+"&limit=1");
+    usuarioAbierto=data[0];
 
-  app().innerHTML=`
-  <div class="card">
-    <button class="btn gray" onclick="vistaUsuarios()">â Usuarios</button>
-    <h2>${esc(usuarioAbierto.nombre||"Usuario")}</h2>
-    <p class="muted">${esc(usuarioAbierto.usuario)} Â· ${esc(usuarioAbierto.rol)}</p>
-    ${usuarioAbierto.foto_url?`<img class="foto" src="${esc(usuarioAbierto.foto_url)}"><br>`:`<div class="foto"></div><br>`}
-    <button class="btn gray small" onclick="abrirTel('${esc(usuarioAbierto.telefono||"")}')">Llamar</button>
-    <button class="btn green small" onclick="abrirWhatsApp('${esc(usuarioAbierto.telefono||"")}')">WhatsApp</button>
-    <button class="btn blue small" onclick="abrirEmail('${esc(usuarioAbierto.email||"")}')">Email</button>
-    <button class="btn gray small" onclick='abrirDireccionMaps(${JSON.stringify(usuarioAbierto)})'>Abrir direcciÃ³n en Maps</button>
-  </div>
-  <div class="tabs">
-    <button class="tab active" onclick="tabUsuario('datos')">Datos</button>
-    <button class="tab" onclick="tabUsuario('documentos')">Documentos</button>
-    <button class="tab" onclick="tabUsuario('horarios')">Horarios</button>
-    <button class="tab" onclick="tabUsuario('historial')">Historial</button>
-  </div>
-  <div id="zonaUsuario"></div>`;
-  tabUsuario("datos");
+    if(!usuarioAbierto){
+      alert("Usuario no encontrado");
+      return;
+    }
+
+    app().innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="vistaUsuarios()">← Usuarios</button>
+      <h2>${esc(usuarioAbierto.nombre||"Usuario")}</h2>
+      <p class="muted">${esc(usuarioAbierto.usuario)} · ${esc(usuarioAbierto.rol)}</p>
+
+      ${usuarioAbierto.foto_url?`<img class="foto" src="${esc(usuarioAbierto.foto_url)}"><br>`:`<div class="foto"></div><br>`}
+
+      <div class="actions">
+        <button class="btn gray small" onclick="abrirTel('${esc(usuarioAbierto.telefono||"")}')">Llamar</button>
+        <button class="btn green small" onclick="abrirWhatsApp('${esc(usuarioAbierto.telefono||"")}')">WhatsApp</button>
+        <button class="btn blue small" onclick="abrirEmail('${esc(usuarioAbierto.email||"")}')">Email</button>
+        <button class="btn gray small" onclick='abrirDireccionMaps(${JSON.stringify(usuarioAbierto)})'>Abrir dirección en Maps</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="tabUsuario('datos')">Datos</button>
+      <button class="tab" onclick="tabUsuario('documentos')">Documentos</button>
+      <button class="tab" onclick="tabUsuario('horarios')">Horarios</button>
+      <button class="tab" onclick="tabUsuario('historial')">Historial</button>
+    </div>
+
+    <div id="zonaUsuario"></div>`;
+
+    tabUsuario("datos");
+  }catch(e){
+    mostrarError("Error al abrir usuario",e);
+  }
 }
 
 function marcarTab(nombre){
   document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(b=>{
-    if(b.textContent.toLowerCase().includes(nombre==="documentos"?"documentos":nombre))b.classList.add("active");
+    const txt=b.textContent.toLowerCase();
+    if(txt.includes(nombre==="documentos"?"documentos":nombre)){
+      b.classList.add("active");
+    }
   });
 }
 
@@ -546,21 +839,23 @@ async function tabUsuario(tab){
       <label>Nombre</label><input id="u_nombre" value="${esc(usuarioAbierto.nombre||"")}">
       <label>Usuario</label><input id="u_usuario" value="${esc(usuarioAbierto.usuario||"")}">
       <label>DNI</label><input id="u_dni" value="${esc(usuarioAbierto.dni||"")}">
-      <label>TelÃ©fono</label><input id="u_telefono" value="${esc(usuarioAbierto.telefono||"")}">
+      <label>Teléfono</label><input id="u_telefono" value="${esc(usuarioAbierto.telefono||"")}">
       <label>Email</label><input id="u_email" value="${esc(usuarioAbierto.email||"")}">
     </div>
+
     <div class="card">
-      <h3>DirecciÃ³n</h3>
-      <label>Tipo vÃ­a</label><input id="u_via_tipo" value="${esc(usuarioAbierto.via_tipo||"")}">
-      <label>Nombre vÃ­a</label><input id="u_via_nombre" value="${esc(usuarioAbierto.via_nombre||"")}">
-      <label>NÃºmero</label><input id="u_numero" value="${esc(usuarioAbierto.numero||"")}">
+      <h3>Dirección</h3>
+      <label>Tipo vía</label><input id="u_via_tipo" value="${esc(usuarioAbierto.via_tipo||"")}">
+      <label>Nombre vía</label><input id="u_via_nombre" value="${esc(usuarioAbierto.via_nombre||"")}">
+      <label>Número</label><input id="u_numero" value="${esc(usuarioAbierto.numero||"")}">
       <label>Portal</label><input id="u_portal" value="${esc(usuarioAbierto.portal||"")}">
       <label>Piso</label><input id="u_piso" value="${esc(usuarioAbierto.piso||"")}">
       <label>Puerta</label><input id="u_puerta" value="${esc(usuarioAbierto.puerta||"")}">
-      <label>PoblaciÃ³n</label><input id="u_poblacion" value="${esc(usuarioAbierto.poblacion||"")}">
+      <label>Población</label><input id="u_poblacion" value="${esc(usuarioAbierto.poblacion||"")}">
       <label>Provincia</label><input id="u_provincia" value="${esc(usuarioAbierto.provincia||"")}">
-      <label>CÃ³digo postal</label><input id="u_codigo_postal" value="${esc(usuarioAbierto.codigo_postal||"")}">
+      <label>Código postal</label><input id="u_codigo_postal" value="${esc(usuarioAbierto.codigo_postal||"")}">
     </div>
+
     <div class="card">
       <h3>Datos laborales</h3>
       <label>Puesto</label><input id="u_puesto" value="${esc(usuarioAbierto.puesto||"")}">
@@ -577,11 +872,13 @@ async function tabUsuario(tab){
         <option value="admin" ${usuarioAbierto.rol==="admin"?"selected":""}>admin</option>
       </select>
     </div>
+
     <div class="card">
       <h3>Contacto emergencia</h3>
       <label>Nombre</label><input id="u_contacto_emergencia_nombre" value="${esc(usuarioAbierto.contacto_emergencia_nombre||"")}">
-      <label>TelÃ©fono</label><input id="u_contacto_emergencia_telefono" value="${esc(usuarioAbierto.contacto_emergencia_telefono||"")}">
+      <label>Teléfono</label><input id="u_contacto_emergencia_telefono" value="${esc(usuarioAbierto.contacto_emergencia_telefono||"")}">
     </div>
+
     <div class="card">
       <button class="btn blue" onclick="guardarUsuario('${esc(usuarioAbierto.id)}')">Guardar ficha completa</button>
       <div id="msgUsuario"></div>
@@ -594,45 +891,59 @@ async function tabUsuario(tab){
 }
 
 async function guardarUsuario(id){
-  const msg=document.getElementById("msgUsuario");
-  msg.className="muted"; msg.textContent="Guardando...";
+  const msg=el("msgUsuario");
+  msg.className="muted";
+  msg.textContent="Guardando...";
 
   try{
     await api("/rest/v1/users?id=eq."+encodeURIComponent(id),{
       method:"PATCH",
       headers:{"Prefer":"return=representation"},
       body:{
-        nombre:document.getElementById("u_nombre").value.trim(),
-        usuario:document.getElementById("u_usuario").value.trim().toLowerCase(),
-        dni:document.getElementById("u_dni").value.trim(),
-        telefono:document.getElementById("u_telefono").value.trim(),
-        email:document.getElementById("u_email").value.trim(),
-        via_tipo:document.getElementById("u_via_tipo").value.trim(),
-        via_nombre:document.getElementById("u_via_nombre").value.trim(),
-        numero:document.getElementById("u_numero").value.trim(),
-        portal:document.getElementById("u_portal").value.trim(),
-        piso:document.getElementById("u_piso").value.trim(),
-        puerta:document.getElementById("u_puerta").value.trim(),
-        poblacion:document.getElementById("u_poblacion").value.trim(),
-        provincia:document.getElementById("u_provincia").value.trim(),
-        codigo_postal:document.getElementById("u_codigo_postal").value.trim(),
-        puesto:document.getElementById("u_puesto").value.trim(),
-        tipo_contrato:document.getElementById("u_tipo_contrato").value.trim(),
-        jornada:document.getElementById("u_jornada").value.trim(),
-        fecha_alta:document.getElementById("u_fecha_alta").value||null,
-        rol:document.getElementById("u_rol").value,
-        contacto_emergencia_nombre:document.getElementById("u_contacto_emergencia_nombre").value.trim(),
-        contacto_emergencia_telefono:document.getElementById("u_contacto_emergencia_telefono").value.trim()
+        nombre:el("u_nombre").value.trim(),
+        usuario:el("u_usuario").value.trim().toLowerCase(),
+        dni:el("u_dni").value.trim(),
+        telefono:el("u_telefono").value.trim(),
+        email:el("u_email").value.trim(),
+        via_tipo:el("u_via_tipo").value.trim(),
+        via_nombre:el("u_via_nombre").value.trim(),
+        numero:el("u_numero").value.trim(),
+        portal:el("u_portal").value.trim(),
+        piso:el("u_piso").value.trim(),
+        puerta:el("u_puerta").value.trim(),
+        poblacion:el("u_poblacion").value.trim(),
+        provincia:el("u_provincia").value.trim(),
+        codigo_postal:el("u_codigo_postal").value.trim(),
+        puesto:el("u_puesto").value.trim(),
+        tipo_contrato:el("u_tipo_contrato").value.trim(),
+        jornada:el("u_jornada").value.trim(),
+        fecha_alta:el("u_fecha_alta").value||null,
+        rol:el("u_rol").value,
+        contacto_emergencia_nombre:el("u_contacto_emergencia_nombre").value.trim(),
+        contacto_emergencia_telefono:el("u_contacto_emergencia_telefono").value.trim()
       }
     });
-    msg.className="ok"; msg.textContent="Ficha guardada correctamente.";
+
+    msg.className="ok";
+    msg.textContent="Ficha guardada correctamente.";
   }catch(e){
-    msg.className="error"; msg.textContent="Error: "+e.message;
+    msg.className="error";
+    msg.textContent="Error: "+e.message;
   }
 }
 
-function limpiarNombre(n){return String(n||"archivo").replaceAll(" ","_").replaceAll("/","_").replaceAll("\\","_").replaceAll(":","_").replaceAll("?","_")}
-function urlPublica(path){return URL+"/storage/v1/object/public/"+BUCKET+"/"+path.split("/").map(encodeURIComponent).join("/")}
+function limpiarNombre(n){
+  return String(n||"archivo")
+    .replaceAll(" ","_")
+    .replaceAll("/","_")
+    .replaceAll("\\","_")
+    .replaceAll(":","_")
+    .replaceAll("?","_");
+}
+
+function urlPublica(path){
+  return URL+"/storage/v1/object/public/"+BUCKET+"/"+path.split("/").map(encodeURIComponent).join("/");
+}
 
 async function subirAStorage(file,tipo){
   const carpeta=tipo.replaceAll(" ","_").toLowerCase();
@@ -641,7 +952,12 @@ async function subirAStorage(file,tipo){
 
   const res=await fetch(URL+"/storage/v1/object/"+BUCKET+"/"+path,{
     method:"POST",
-    headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":file.type||"application/octet-stream","x-upsert":"false"},
+    headers:{
+      apikey:KEY,
+      Authorization:"Bearer "+KEY,
+      "Content-Type":file.type||"application/octet-stream",
+      "x-upsert":"false"
+    },
     body:file
   });
 
@@ -653,7 +969,13 @@ async function guardarDocumentoBD(tipo,archivo){
   await api("/rest/v1/documentos",{
     method:"POST",
     headers:{"Prefer":"return=representation"},
-    body:{user_id:String(usuarioAbierto.id),tipo,nombre:archivo.nombre,url:archivo.url,path:archivo.path}
+    body:{
+      user_id:String(usuarioAbierto.id),
+      tipo,
+      nombre:archivo.nombre,
+      url:archivo.url,
+      path:archivo.path
+    }
   });
 }
 
@@ -663,55 +985,70 @@ async function docsDeUsuario(){
 }
 
 async function cargarDocumentosUsuario(){
-  await docsDeUsuario();
-  const foto=docsUsuario.find(d=>d.tipo==="foto_perfil");
+  try{
+    await docsDeUsuario();
+    const foto=docsUsuario.find(d=>d.tipo==="foto_perfil");
 
-  zona().innerHTML=`
-  <div class="card">
-    <h3>Foto de perfil</h3>
-    ${foto?`<img class="foto" src="${esc(foto.url)}">`:`<div class="foto"></div>`}
-    <input class="oculto" id="fotoCam" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('fotoCam','foto_perfil')">
-    <input class="oculto" id="fotoFile" type="file" accept="image/*" onchange="subirDocumentoInput('fotoFile','foto_perfil')">
-    <br>
-    <button class="btn gray" onclick="fotoCam.click()">Hacer foto</button>
-    <button class="btn blue" onclick="fotoFile.click()">Elegir foto</button>
-    <div id="msgDocs"></div>
-  </div>
+    zona().innerHTML=`
+    <div class="card">
+      <h3>Foto de perfil</h3>
+      ${foto?`<img class="foto" src="${esc(foto.url)}">`:`<div class="foto"></div>`}
 
-  <div class="card">
-    <h3>DNI</h3>
-    <input class="oculto" id="dniFrontal" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('dniFrontal','dni_frontal')">
-    <input class="oculto" id="dniTrasero" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('dniTrasero','dni_trasero')">
-    <button class="btn gray" onclick="dniFrontal.click()">Foto DNI frontal</button>
-    <button class="btn gray" onclick="dniTrasero.click()">Foto DNI trasero</button>
-  </div>
+      <input class="oculto" id="fotoCam" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('fotoCam','foto_perfil')">
+      <input class="oculto" id="fotoFile" type="file" accept="image/*" onchange="subirDocumentoInput('fotoFile','foto_perfil')">
 
-  <div class="card">
-    <h3>Otros documentos</h3>
-    <input class="oculto" id="docFile" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="subirDocumentoInput('docFile','documento')">
-    <input class="oculto" id="docCam" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('docCam','documento_foto')">
-    <button class="btn blue" onclick="docFile.click()">Subir archivo</button>
-    <button class="btn gray" onclick="docCam.click()">Hacer foto documento</button>
-  </div>
+      <br>
+      <button class="btn gray" onclick="fotoCam.click()">Hacer foto</button>
+      <button class="btn blue" onclick="fotoFile.click()">Elegir foto</button>
+      <div id="msgDocs"></div>
+    </div>
 
-  <div class="card">
-    <h3>Documentos guardados</h3>
-    ${docsUsuario.length?docsUsuario.map(d=>`
-    <div class="row">
-      <b>${esc(d.tipo)}</b><br>
-      ${esc(d.nombre||"")}<br>
-      <a href="${esc(d.url)}" target="_blank">Ver archivo</a>
-      <button class="btn red" onclick="eliminarDocumento('${esc(d.id)}','${esc(d.path||"")}')">Eliminar</button>
-      ${String(d.tipo).includes("dni")||String(d.tipo).includes("foto")?`<br><img class="preview" src="${esc(d.url)}">`:""}
-    </div>`).join(""):"<p class='muted'>No hay documentos.</p>"}
-  </div>`;
+    <div class="card">
+      <h3>DNI</h3>
+      <input class="oculto" id="dniFrontal" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('dniFrontal','dni_frontal')">
+      <input class="oculto" id="dniTrasero" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('dniTrasero','dni_trasero')">
+      <button class="btn gray" onclick="dniFrontal.click()">Foto DNI frontal</button>
+      <button class="btn gray" onclick="dniTrasero.click()">Foto DNI trasero</button>
+    </div>
+
+    <div class="card">
+      <h3>Otros documentos</h3>
+      <input class="oculto" id="docFile" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="subirDocumentoInput('docFile','documento')">
+      <input class="oculto" id="docCam" type="file" accept="image/*" capture="environment" onchange="subirDocumentoInput('docCam','documento_foto')">
+      <button class="btn blue" onclick="docFile.click()">Subir archivo</button>
+      <button class="btn gray" onclick="docCam.click()">Hacer foto documento</button>
+    </div>
+
+    <div class="card">
+      <h3>Documentos guardados</h3>
+      ${docsUsuario.length?docsUsuario.map(d=>`
+      <div class="row">
+        <b>${esc(d.tipo)}</b><br>
+        ${esc(d.nombre||"")}<br>
+        <a href="${esc(d.url)}" target="_blank">Ver archivo</a>
+        <button class="btn red" onclick="eliminarDocumento('${esc(d.id)}','${esc(d.path||"")}')">Eliminar</button>
+        ${String(d.tipo).includes("dni")||String(d.tipo).includes("foto")?`<br><img class="preview" src="${esc(d.url)}">`:""}
+      </div>`).join(""):"<p class='muted'>No hay documentos.</p>"}
+    </div>`;
+  }catch(e){
+    zona().innerHTML=`<div class="card"><p class="error">${esc(e.message)}</p></div>`;
+  }
 }
 
 async function subirDocumentoInput(inputId,tipo){
-  const input=document.getElementById(inputId), file=input.files&&input.files[0], msg=document.getElementById("msgDocs");
-  if(!file){alert("Selecciona un archivo");return}
+  const input=el(inputId);
+  const file=input.files && input.files[0];
+  const msg=el("msgDocs");
 
-  if(msg){msg.className="muted";msg.textContent="Subiendo..."}
+  if(!file){
+    alert("Selecciona un archivo");
+    return;
+  }
+
+  if(msg){
+    msg.className="muted";
+    msg.textContent="Subiendo...";
+  }
 
   try{
     const archivo=await subirAStorage(file,tipo);
@@ -726,15 +1063,24 @@ async function subirDocumentoInput(inputId,tipo){
       usuarioAbierto.foto_url=archivo.url;
     }
 
-    if(msg){msg.className="ok";msg.textContent="Guardado."}
+    if(msg){
+      msg.className="ok";
+      msg.textContent="Guardado.";
+    }
+
     await cargarDocumentosUsuario();
   }catch(e){
-    if(msg){msg.className="error";msg.textContent="Error: "+e.message}else alert("Error: "+e.message)
+    if(msg){
+      msg.className="error";
+      msg.textContent="Error: "+e.message;
+    }else{
+      alert("Error: "+e.message);
+    }
   }
 }
 
 async function eliminarDocumento(id,path){
-  if(!confirm("Â¿Eliminar documento?"))return;
+  if(!confirm("¿Eliminar documento?"))return;
 
   try{
     await api("/rest/v1/documentos?id=eq."+encodeURIComponent(id),{method:"DELETE"});
@@ -742,83 +1088,119 @@ async function eliminarDocumento(id,path){
     if(path){
       await fetch(URL+"/storage/v1/object/"+BUCKET,{
         method:"DELETE",
-        headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json"},
+        headers:{
+          apikey:KEY,
+          Authorization:"Bearer "+KEY,
+          "Content-Type":"application/json"
+        },
         body:JSON.stringify({prefixes:[path]})
       });
     }
 
     await cargarDocumentosUsuario();
-  }catch(e){alert("Error: "+e.message)}
+  }catch(e){
+    alert("Error: "+e.message);
+  }
 }
 
-const diasSemana=["Domingo","Lunes","Martes","MiÃ©rcoles","Jueves","Viernes","SÃ¡bado"];
+const diasSemana=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 
 async function cargarHorariosUsuario(){
   horariosUsuario=await api("/rest/v1/horarios_usuario?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id));
+
   let html=`<div class="card"><h3>Horario semanal</h3></div>`;
 
   for(let i=0;i<7;i++){
     let h=horariosUsuario.find(x=>Number(x.dia_semana)===i)||{};
+
     html+=`
     <div class="card">
       <b>${diasSemana[i]}</b>
+
       <label>Trabaja</label>
       <select id="t_${i}">
-        <option value="true" ${h.trabaja!==false?"selected":""}>SÃ­</option>
+        <option value="true" ${h.trabaja!==false?"selected":""}>Sí</option>
         <option value="false" ${h.trabaja===false?"selected":""}>No</option>
       </select>
-      <label>Entrada</label><input type="time" id="e_${i}" value="${esc(h.hora_entrada||"")}">
-      <label>Salida</label><input type="time" id="s_${i}" value="${esc(h.hora_salida||"")}">
-      <label>Inicio comida</label><input type="time" id="c1_${i}" value="${esc(h.inicio_comida||"")}">
-      <label>Fin comida</label><input type="time" id="c2_${i}" value="${esc(h.fin_comida||"")}">
-      <label>Descanso permitido (min)</label><input type="number" id="d_${i}" value="${esc(h.minutos_descanso||0)}">
+
+      <label>Entrada</label>
+      <input type="time" id="e_${i}" value="${esc(h.hora_entrada||"")}">
+
+      <label>Salida</label>
+      <input type="time" id="s_${i}" value="${esc(h.hora_salida||"")}">
+
+      <label>Inicio comida</label>
+      <input type="time" id="c1_${i}" value="${esc(h.inicio_comida||"")}">
+
+      <label>Fin comida</label>
+      <input type="time" id="c2_${i}" value="${esc(h.fin_comida||"")}">
+
+      <label>Descanso permitido (min)</label>
+      <input type="number" id="d_${i}" value="${esc(h.minutos_descanso||0)}">
     </div>`;
   }
 
-  html+=`<button class="btn green" onclick="guardarHorariosUsuario()">Guardar horarios</button><div id="msgHorario"></div>`;
+  html+=`
+  <button class="btn green" onclick="guardarHorariosUsuario()">Guardar horarios</button>
+  <div id="msgHorario"></div>`;
+
   zona().innerHTML=html;
 }
 
 async function guardarHorariosUsuario(){
-  const msg=document.getElementById("msgHorario");
-  msg.className="muted"; msg.textContent="Guardando horarios...";
+  const msg=el("msgHorario");
+  msg.className="muted";
+  msg.textContent="Guardando horarios...";
 
   try{
     for(let i=0;i<7;i++){
       let body={
-        user_id:String(usuarioAbierto.id), dia_semana:i,
-        trabaja:document.getElementById("t_"+i).value==="true",
-        hora_entrada:document.getElementById("e_"+i).value||null,
-        hora_salida:document.getElementById("s_"+i).value||null,
-        inicio_comida:document.getElementById("c1_"+i).value||null,
-        fin_comida:document.getElementById("c2_"+i).value||null,
-        minutos_descanso:Number(document.getElementById("d_"+i).value||0),
+        user_id:String(usuarioAbierto.id),
+        dia_semana:i,
+        trabaja:el("t_"+i).value==="true",
+        hora_entrada:el("e_"+i).value||null,
+        hora_salida:el("s_"+i).value||null,
+        inicio_comida:el("c1_"+i).value||null,
+        fin_comida:el("c2_"+i).value||null,
+        minutos_descanso:Number(el("d_"+i).value||0),
         actualizado_en:new Date().toISOString()
       };
 
       let ex=horariosUsuario.find(x=>Number(x.dia_semana)===i);
+
       if(ex){
-        await api("/rest/v1/horarios_usuario?id=eq."+encodeURIComponent(ex.id),{method:"PATCH",headers:{"Prefer":"return=representation"},body});
+        await api("/rest/v1/horarios_usuario?id=eq."+encodeURIComponent(ex.id),{
+          method:"PATCH",
+          headers:{"Prefer":"return=representation"},
+          body
+        });
       }else{
-        await api("/rest/v1/horarios_usuario",{method:"POST",headers:{"Prefer":"return=representation"},body});
+        await api("/rest/v1/horarios_usuario",{
+          method:"POST",
+          headers:{"Prefer":"return=representation"},
+          body
+        });
       }
     }
 
-    msg.className="ok"; msg.textContent="Horarios guardados correctamente.";
+    msg.className="ok";
+    msg.textContent="Horarios guardados correctamente.";
     await cargarHorariosUsuario();
   }catch(e){
-    msg.className="error"; msg.textContent="Error: "+e.message;
+    msg.className="error";
+    msg.textContent="Error: "+e.message;
   }
 }
 
 async function cargarHistorialUsuario(){
   const fs=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=fecha.desc");
-  const hs=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=fecha.desc");
+  const hs=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=created_at.desc");
   const aus=await api("/rest/v1/ausencias_usuario?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=fecha_inicio.desc");
 
   let html=`<div class="card"><h3>Historial completo</h3></div>`;
 
   html+=`<div class="card"><h3>Fichajes</h3>`;
+
   html+=fs.length?fs.map(f=>`
   <div class="row">
     <b>${esc(f.tipo)}</b><br>
@@ -826,29 +1208,40 @@ async function cargarHistorialUsuario(){
     <span class="muted">${esc(f.direccion_real||f.direccion||"")}</span>
     ${f.aviso_horario?`<br><span class="warn">${esc(f.aviso_horario)}</span>`:""}
     ${f.modificado?`<br><span class="error">Modificado: ${esc(f.motivo_modificacion||"")}</span>`:""}
+
     ${botonesMapa(f)}
-    ${admin()?`<br><button class="btn blue small" onclick="editarFichajePanel('${esc(f.id)}')">Editar</button>`:""}
+
+    ${admin()?`
+    <br><button class="btn blue small" onclick="editarFichajePanel('${esc(f.id)}')">Editar</button>`:""}
   </div>`).join(""):`<p class="muted">Sin fichajes.</p>`;
+
   html+=`</div>`;
 
   html+=`<div class="card"><h3>Horas extra</h3>`;
+
   html+=hs.length?hs.map(h=>`
   <div class="row">
     <b>${esc(nombreTipo(h.tipo_id))}</b><br>
-    ${Number(h.minutos||0)} min Â· ${Number(h.total||0).toFixed(2)} â¬<br>
+    ${Number(h.minutos||0)} min · ${Number(h.total||0).toFixed(2)} €<br>
     Estado: ${esc(h.estado||"pendiente")}<br>
     ${h.motivo?`<span class="muted">${esc(h.motivo)}</span>`:""}
   </div>`).join(""):`<p class="muted">Sin horas extra.</p>`;
+
   html+=`</div>`;
 
-  html+=`<div class="card"><h3>Ausencias / Vacaciones</h3><button class="btn blue" onclick="nuevaAusencia()">AÃ±adir ausencia</button>`;
+  html+=`
+  <div class="card">
+    <h3>Ausencias / Vacaciones</h3>
+    <button class="btn blue" onclick="nuevaAusencia()">Añadir ausencia</button>`;
+
   html+=aus.length?aus.map(a=>`
   <div class="row">
     <b>${esc(a.tipo)}</b><br>
-    ${esc(a.fecha_inicio)} â ${esc(a.fecha_fin)}<br>
+    ${esc(a.fecha_inicio)} → ${esc(a.fecha_fin)}<br>
     ${esc(a.motivo||"")}<br>
     Estado: ${esc(a.estado||"pendiente")}
   </div>`).join(""):`<p class="muted">Sin ausencias.</p>`;
+
   html+=`</div>`;
 
   zona().innerHTML=html;
@@ -857,7 +1250,11 @@ async function cargarHistorialUsuario(){
 async function editarFichajePanel(id){
   const r=await api("/rest/v1/fichajes?select=*&id=eq."+encodeURIComponent(id)+"&limit=1");
   const f=r[0];
-  if(!f){alert("Fichaje no encontrado");return}
+
+  if(!f){
+    alert("Fichaje no encontrado");
+    return;
+  }
 
   const d=new Date(f.fecha);
   const fecha=d.toISOString().slice(0,10);
@@ -865,121 +1262,237 @@ async function editarFichajePanel(id){
 
   zona().innerHTML=`
   <div class="card">
-    <button class="btn gray" onclick="cargarHistorialUsuario()">â Volver historial</button>
+    <button class="btn gray" onclick="cargarHistorialUsuario()">← Volver historial</button>
     <h3>Editar fichaje</h3>
-    <label>Fecha</label><input type="date" id="editFecha" value="${fecha}">
-    <label>Hora</label><input type="time" id="editHora" value="${hora}">
-    <label>Motivo obligatorio</label><textarea id="editMotivo"></textarea>
+
+    <label>Fecha</label>
+    <input type="date" id="editFecha" value="${fecha}">
+
+    <label>Hora</label>
+    <input type="time" id="editHora" value="${hora}">
+
+    <label>Motivo obligatorio</label>
+    <textarea id="editMotivo"></textarea>
+
     <button class="btn blue" onclick="guardarEdicionFichaje('${esc(id)}')">Guardar cambio</button>
   </div>`;
 }
 
 async function guardarEdicionFichaje(id){
-  const fecha=document.getElementById("editFecha").value;
-  const hora=document.getElementById("editHora").value;
-  const motivo=document.getElementById("editMotivo").value.trim();
+  const fecha=el("editFecha").value;
+  const hora=el("editHora").value;
+  const motivo=el("editMotivo").value.trim();
 
-  if(!fecha||!hora){alert("Falta fecha u hora");return}
-  if(!motivo){alert("El motivo es obligatorio");return}
+  if(!fecha || !hora){
+    alert("Falta fecha u hora");
+    return;
+  }
+
+  if(!motivo){
+    alert("El motivo es obligatorio");
+    return;
+  }
 
   try{
     await api("/rest/v1/fichajes?id=eq."+encodeURIComponent(id),{
       method:"PATCH",
       headers:{"Prefer":"return=representation"},
-      body:{fecha:new Date(fecha+"T"+hora).toISOString(),modificado:true,motivo_modificacion:motivo,editado_por:String(user.id),editado_en:new Date().toISOString()}
+      body:{
+        fecha:new Date(fecha+"T"+hora).toISOString(),
+        modificado:true,
+        motivo_modificacion:motivo,
+        editado_por:String(user.id),
+        editado_en:new Date().toISOString()
+      }
     });
+
     await cargarHistorialUsuario();
-  }catch(e){alert("Error: "+e.message)}
+  }catch(e){
+    alert("Error: "+e.message);
+  }
 }
 
 async function nuevaAusencia(){
-  const tipo=prompt("Tipo: vacaciones, baja, permiso, ausencia"); if(!tipo)return;
-  const inicio=prompt("Fecha inicio (YYYY-MM-DD)"); if(!inicio)return;
-  const fin=prompt("Fecha fin (YYYY-MM-DD)"); if(!fin)return;
+  const tipo=prompt("Tipo: vacaciones, baja, permiso, ausencia");
+  if(!tipo)return;
+
+  const inicio=prompt("Fecha inicio (YYYY-MM-DD)");
+  if(!inicio)return;
+
+  const fin=prompt("Fecha fin (YYYY-MM-DD)");
+  if(!fin)return;
+
   const motivo=prompt("Motivo / comentario")||"";
 
   try{
     await api("/rest/v1/ausencias_usuario",{
       method:"POST",
       headers:{"Prefer":"return=representation"},
-      body:{user_id:String(usuarioAbierto.id),tipo,fecha_inicio:inicio,fecha_fin:fin,motivo,estado:"aprobada"}
+      body:{
+        user_id:String(usuarioAbierto.id),
+        tipo,
+        fecha_inicio:inicio,
+        fecha_fin:fin,
+        motivo,
+        estado:"aprobada"
+      }
     });
+
     await cargarHistorialUsuario();
-  }catch(e){alert("Error: "+e.message)}
+  }catch(e){
+    alert("Error: "+e.message);
+  }
 }
 
 async function vistaInformes(){
   const h=new Date();
+
   app().innerHTML=`
   <div class="card no-print">
-    <button class="btn gray" onclick="inicio()">â Volver</button>
+    <button class="btn gray" onclick="inicio()">← Volver</button>
     <h2>Informes</h2>
-    <label>Mes</label><input id="mes" type="number" value="${h.getMonth()+1}">
-    <label>AÃ±o</label><input id="anio" type="number" value="${h.getFullYear()}">
+
+    <label>Mes</label>
+    <input id="mes" type="number" value="${h.getMonth()+1}">
+
+    <label>Año</label>
+    <input id="anio" type="number" value="${h.getFullYear()}">
+
     <button class="btn blue" onclick="generarInforme()">Generar</button>
     <button class="btn green" onclick="window.print()">Imprimir</button>
-    ${admin()?`<button class="btn red" onclick="cerrarMes()">Cerrar mes</button><button class="btn orange" onclick="reabrirMes()">Reabrir mes</button>`:""}
+
+    ${admin()?`
+    <button class="btn red" onclick="cerrarMes()">Cerrar mes</button>
+    <button class="btn orange" onclick="reabrirMes()">Reabrir mes</button>`:""}
   </div>
+
   <div id="res"></div>`;
 }
 
 async function generarInforme(){
   await cargarBase();
 
-  const mes=String(document.getElementById("mes").value).padStart(2,"0");
-  const anio=document.getElementById("anio").value;
-  const ini=`${anio}-${mes}-01`, fin=`${anio}-${mes}-31`;
+  const mes=String(el("mes").value).padStart(2,"0");
+  const anio=el("anio").value;
+  const ini=`${anio}-${mes}-01`;
+  const fin=`${anio}-${mes}-31`;
+
   let cerrado=await cierreDeMes(Number(mes),Number(anio));
+  let data=await api("/rest/v1/horas_extra?select=*&order=created_at.desc");
 
-  let data=await api("/rest/v1/horas_extra?select=*&order=fecha.desc");
-  if(!mando())data=data.filter(h=>String(h.user_id)===String(user.id));
-  data=data.filter(h=>{const f=String(h.fecha||h.created_at||"");return !f||(f>=ini&&f<=fin)});
+  if(!mando()){
+    data=data.filter(h=>String(h.user_id)===String(user.id));
+  }
 
-  const porUser={}; let total=0;
+  data=data.filter(h=>{
+    const f=String(h.fecha || h.created_at || "");
+    return !f || (f>=ini && f<=fin);
+  });
+
+  const porUser={};
+  let total=0;
+
   data.forEach(h=>{
-    const u=String(h.user_id), t=nombreTipo(h.tipo_id);
+    const u=String(h.user_id);
+    const t=nombreTipo(h.tipo_id);
+
     if(!porUser[u])porUser[u]={total:0,tipos:{}};
     if(!porUser[u].tipos[t])porUser[u].tipos[t]={min:0,eur:0};
+
     porUser[u].tipos[t].min+=Number(h.minutos||0);
     porUser[u].tipos[t].eur+=Number(h.total||0);
     porUser[u].total+=Number(h.total||0);
     total+=Number(h.total||0);
   });
 
-  let html=`<div class="card"><h2>Informe ${mes}/${anio}</h2><span class="badge">${cerrado?"MES CERRADO":"MES ABIERTO"}</span></div>`;
+  let html=`
+  <div class="card">
+    <h2>Informe ${mes}/${anio}</h2>
+    <span class="badge">${cerrado?"MES CERRADO":"MES ABIERTO"}</span>
+  </div>`;
+
   Object.keys(porUser).forEach(u=>{
-    html+=`<div class="card"><h3>${esc(nombreUsuario(u))}</h3><table><tr><th>Tipo</th><th>Min</th><th>â¬</th></tr>`;
+    html+=`
+    <div class="card">
+      <h3>${esc(nombreUsuario(u))}</h3>
+      <table>
+        <tr><th>Tipo</th><th>Min</th><th>€</th></tr>`;
+
     Object.keys(porUser[u].tipos).forEach(t=>{
       const v=porUser[u].tipos[t];
       html+=`<tr><td>${esc(t)}</td><td>${v.min}</td><td>${v.eur.toFixed(2)}</td></tr>`;
     });
-    html+=`</table><br><b>Total usuario: ${porUser[u].total.toFixed(2)} â¬</b></div>`;
+
+    html+=`
+      </table>
+      <br><b>Total usuario: ${porUser[u].total.toFixed(2)} €</b>
+    </div>`;
   });
-  html+=`<div class="card"><h2>Total empresa: ${total.toFixed(2)} â¬</h2></div>`;
-  document.getElementById("res").innerHTML=html;
+
+  html+=`<div class="card"><h2>Total empresa: ${total.toFixed(2)} €</h2></div>`;
+
+  el("res").innerHTML=html;
 }
 
 async function cerrarMes(){
   if(!admin())return;
-  const mes=Number(document.getElementById("mes").value), anio=Number(document.getElementById("anio").value);
-  if(await cierreDeMes(mes,anio)){alert("Ese mes ya estÃ¡ cerrado.");return}
-  if(!confirm("Â¿Cerrar mes y marcar horas como pagadas?"))return;
 
-  const mm=String(mes).padStart(2,"0"), ini=`${anio}-${mm}-01`, fin=`${anio}-${mm}-31`;
+  const mes=Number(el("mes").value);
+  const anio=Number(el("anio").value);
+
+  if(await cierreDeMes(mes,anio)){
+    alert("Ese mes ya está cerrado.");
+    return;
+  }
+
+  if(!confirm("¿Cerrar mes y marcar horas como pagadas?"))return;
+
+  const mm=String(mes).padStart(2,"0");
+  const ini=`${anio}-${mm}-01`;
+  const fin=`${anio}-${mm}-31`;
+
   await api("/rest/v1/horas_extra?fecha=gte."+ini+"&fecha=lte."+fin,{
     method:"PATCH",
     headers:{"Prefer":"return=representation"},
-    body:{estado:"pagadas",pagada:true,fecha_pago:new Date().toISOString(),validado_usuario:true,validado_admin:true,admin_confirmo_pago:true,usuario_confirmo_cobro:true}
+    body:{
+      estado:"pagadas",
+      pagada:true,
+      fecha_pago:new Date().toISOString(),
+      validado_usuario:true,
+      validado_admin:true,
+      admin_confirmo_pago:true,
+      usuario_confirmo_cobro:true
+    }
   });
-  await api("/rest/v1/cierre_mensual",{method:"POST",headers:{"Prefer":"return=representation"},body:{mes,anio,cerrado:true,cerrado_por:String(user.id)}});
+
+  await api("/rest/v1/cierre_mensual",{
+    method:"POST",
+    headers:{"Prefer":"return=representation"},
+    body:{
+      mes,
+      anio,
+      cerrado:true,
+      cerrado_por:String(user.id)
+    }
+  });
+
   await generarInforme();
 }
 
 async function reabrirMes(){
   if(!admin())return;
-  const mes=Number(document.getElementById("mes").value), anio=Number(document.getElementById("anio").value);
-  if(!confirm("Â¿Reabrir mes? Las horas quedan pagadas, pero el mes deja de estar bloqueado."))return;
-  await api("/rest/v1/cierre_mensual?mes=eq."+mes+"&anio=eq."+anio,{method:"PATCH",headers:{"Prefer":"return=representation"},body:{cerrado:false}});
+
+  const mes=Number(el("mes").value);
+  const anio=Number(el("anio").value);
+
+  if(!confirm("¿Reabrir mes? Las horas quedan pagadas, pero el mes deja de estar bloqueado."))return;
+
+  await api("/rest/v1/cierre_mensual?mes=eq."+mes+"&anio=eq."+anio,{
+    method:"PATCH",
+    headers:{"Prefer":"return=representation"},
+    body:{cerrado:false}
+  });
+
   await generarInforme();
 }
 
@@ -1019,7 +1532,9 @@ window.cerrarMes=cerrarMes;
 window.reabrirMes=reabrirMes;
 window.inicio=inicio;
 
-if(sesion())inicio();
+if(sesion()){
+  inicio();
+}
 </script>
 </body>
 </html>
