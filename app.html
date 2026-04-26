@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2526</title>
+<title>Zentryx V2526.1</title>
 <style>
 :root{
   --bg:#eef2f7;
@@ -19,12 +19,12 @@
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--txt)}
-.top{background:var(--dark);color:white;padding:24px}
-h1{margin:0;font-size:42px;line-height:1.15}
+.top{background:var(--dark);color:white;padding:20px}
+h1{margin:0;font-size:38px;line-height:1.15}
 h2{font-size:34px;margin:0 0 18px}
 h3{font-size:24px;margin:0 0 14px}
 .wrap{padding:16px}
-.card{background:var(--card);border-radius:18px;padding:18px;margin-bottom:16px;border:1px solid var(--line)}
+.card{background:var(--card);border-radius:18px;padding:16px;margin-bottom:14px;border:1px solid var(--line)}
 .row{border:1px solid #cfcfcf;border-radius:14px;padding:14px;margin-bottom:12px;background:#fff}
 .btn{padding:13px 16px;border:0;border-radius:12px;margin:4px;font-weight:800;font-size:16px}
 .big{width:100%;font-size:24px;padding:22px}
@@ -52,7 +52,15 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 .oculto{display:none}
 .small{font-size:14px;padding:9px 11px}
 .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.dashboard{display:grid;grid-template-columns:1fr 1fr;gap:12px}.dash-card{background:#fff;border:1px solid #d1d5db;border-radius:18px;padding:18px}.dash-card button{width:100%;min-height:70px;font-size:18px}@media(max-width:700px){.dashboard{grid-template-columns:1fr}}
+.dashboard{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dash-card{background:#fff;border:1px solid #d1d5db;border-radius:16px;padding:14px}
+.dash-card h3{font-size:22px;margin:0 0 6px}
+.dash-card p{font-size:15px;line-height:1.25;margin:0 0 10px}
+.dash-card button{width:100%;min-height:48px;font-size:16px;padding:10px 12px}
+.dash-card.principal{grid-column:1/-1;border:2px solid #16a34a}
+.dash-card.principal h3{font-size:28px}
+.dash-card.principal button{min-height:60px;font-size:20px}
+@media(max-width:430px){.dashboard{grid-template-columns:1fr 1fr;gap:8px}.dash-card{padding:12px}.dash-card h3{font-size:20px}.dash-card p{font-size:14px}.dash-card button{font-size:15px}}
 .menu-box{display:none;margin-top:10px;padding:10px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc}
 .menu-box.open{display:block}
 .line{height:1px;background:#e5e7eb;margin:14px 0}
@@ -65,7 +73,7 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 <body>
 
 <div class="top">
-  <h1>Zentryx V2526</h1>
+  <h1>Zentryx V2526.1</h1>
   <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -305,7 +313,7 @@ async function inicio(){
     </div>
 
     <div class="dashboard">
-      <div class="dash-card">
+      <div class="dash-card principal">
         <h3>Fichaje</h3>
         <p class="muted">Entrada, salida, comida y descansos.</p>
         <button class="btn green" onclick="vistaFichaje()">Abrir fichaje</button>
