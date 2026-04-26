@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2523</title>
+<title>Zentryx V2524</title>
 <style>
 :root{
   --bg:#eef2f7;
@@ -64,7 +64,7 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 <body>
 
 <div class="top">
-  <h1>Zentryx V2523</h1>
+  <h1>Zentryx V2524</h1>
   <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -330,6 +330,12 @@ async function inicio(){
       <h2>Configuración laboral</h2>
       <button class="btn dark" onclick="vistaConfigLaboral()">Abrir configuración laboral</button>
     </div>`:""}
+
+    <div class="card">
+      <h2>Solicitudes y avisos</h2>
+      <button class="btn blue" onclick="vistaSolicitudes()">Solicitudes</button>
+      <button class="btn gray" onclick="vistaAvisosFichaje()">Avisos fichaje</button>
+    </div>
 
     ${mando()?`
     <div class="card">
@@ -2061,6 +2067,251 @@ async function reabrirMes(){
   await generarInforme();
 }
 
+
+async function vistaSolicitudes(){
+  try{
+    await cargarBase();
+    const tiposAus=await cargarTiposAusencia();
+    let pendientes=[];
+    if(mando()){
+      pendientes=await api("/rest/v1/ausencias_usuario?select=*&estado=eq.pendiente&order=fecha_inicio.asc");
+    }
+
+    app().innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Solicitudes</h2>
+      <p class="muted">${mando()?"Crear, revisar y aprobar solicitudes.":"Crear solicitudes de vacaciones, permisos, médico o asuntos propios."}</p>
+    </div>
+
+    <div class="card">
+      <h3>Nueva solicitud</h3>
+      <label>Tipo</label>
+      <select id="sol_tipo">
+        ${tiposAus.length?tiposAus.map(t=>`<option value="${esc(t.nombre)}">${esc(t.nombre)}</option>`).join(""):`
+        <option value="Vacaciones">Vacaciones</option>
+        <option value="Asuntos propios">Asuntos propios</option>
+        <option value="Médico">Médico</option>
+        <option value="Permiso">Permiso</option>
+        <option value="Baja">Baja</option>`}
+      </select>
+
+      ${mando()?`
+      <label>Trabajador</label>
+      <select id="sol_user">
+        ${usuarios.map(u=>`<option value="${esc(u.id)}">${esc(u.nombre||u.usuario)}</option>`).join("")}
+      </select>`:""}
+
+      <label>Fecha inicio</label>
+      <input id="sol_inicio" type="date">
+
+      <label>Fecha fin</label>
+      <input id="sol_fin" type="date">
+
+      <label>Motivo / comentario</label>
+      <textarea id="sol_motivo"></textarea>
+
+      <button class="btn green" onclick="crearSolicitudAusencia()">Enviar solicitud</button>
+      <div id="msgSolicitud"></div>
+    </div>
+
+    ${mando()?`
+    <div class="card">
+      <h3>Pendientes de aprobar</h3>
+      ${pendientes.length?pendientes.map(a=>`
+      <div class="row">
+        <b>${esc(nombreUsuario(a.user_id))}</b><br>
+        ${esc(a.tipo)} · ${esc(a.fecha_inicio)} → ${esc(a.fecha_fin)}<br>
+        ${esc(a.motivo||"")}<br>
+        <button class="btn green small" onclick="resolverSolicitudAusencia('${esc(a.id)}','aprobada')">Aprobar</button>
+        <button class="btn red small" onclick="resolverSolicitudAusencia('${esc(a.id)}','rechazada')">Rechazar</button>
+      </div>`).join(""):"<p class='muted'>No hay solicitudes pendientes.</p>"}
+    </div>`:""}
+    `;
+  }catch(e){
+    mostrarError("Error al cargar solicitudes",e);
+  }
+}
+
+async function crearSolicitudAusencia(){
+  const msg=el("msgSolicitud");
+  msg.className="muted";
+  msg.textContent="Guardando...";
+
+  try{
+    const uid=mando()?el("sol_user").value:String(user.id);
+    const estado=mando()?"aprobada":"pendiente";
+    await api("/rest/v1/ausencias_usuario",{
+      method:"POST",
+      headers:{"Prefer":"return=representation"},
+      body:{
+        user_id:String(uid),
+        tipo:el("sol_tipo").value,
+        fecha_inicio:el("sol_inicio").value,
+        fecha_fin:el("sol_fin").value,
+        motivo:el("sol_motivo").value.trim(),
+        estado
+      }
+    });
+
+    msg.className="ok";
+    msg.textContent=mando()?"Ausencia creada.":"Solicitud enviada.";
+  }catch(e){
+    msg.className="error";
+    msg.textContent=e.message;
+  }
+}
+
+async function resolverSolicitudAusencia(id,estado){
+  const comentario=prompt("Comentario / motivo")||"";
+  await api("/rest/v1/ausencias_usuario?id=eq."+encodeURIComponent(id),{
+    method:"PATCH",
+    headers:{"Prefer":"return=representation"},
+    body:{
+      estado,
+      aprobado_por:String(user.id),
+      aprobado_en:new Date().toISOString(),
+      comentario_resolucion:comentario
+    }
+  });
+  await vistaSolicitudes();
+}
+
+async function cargarConfigAvisoUsuario(uid){
+  try{
+    const r=await api("/rest/v1/avisos_fichaje?select=*&user_id=eq."+encodeURIComponent(String(uid))+"&limit=1");
+    return r[0]||null;
+  }catch(e){
+    return null;
+  }
+}
+
+async function vistaAvisosFichaje(){
+  try{
+    await cargarBase();
+
+    app().innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Avisos de fichaje</h2>
+      <p class="muted">Avisos para evitar olvidos de entrada, salida, comida y descansos.</p>
+    </div>
+
+    <div class="card">
+      <label>Trabajador</label>
+      <select id="aviso_user" onchange="cargarPanelAvisos()">
+        ${(mando()?usuarios:[user]).map(u=>`<option value="${esc(u.id)}">${esc(u.nombre||u.usuario)}</option>`).join("")}
+      </select>
+      <div id="panelAvisos"></div>
+    </div>`;
+
+    await cargarPanelAvisos();
+  }catch(e){
+    mostrarError("Error al cargar avisos",e);
+  }
+}
+
+async function cargarPanelAvisos(){
+  const uid=el("aviso_user").value;
+  const cfg=await cargarConfigAvisoUsuario(uid) || {};
+  el("panelAvisos").innerHTML=`
+  <div class="line"></div>
+
+  <label>Activar avisos</label>
+  <select id="av_activo">
+    <option value="true">Sí</option>
+    <option value="false">No</option>
+  </select>
+
+  <label>Margen entrada tarde (min)</label>
+  <input id="av_margen_entrada" type="number" value="${esc(cfg.margen_entrada_min||10)}">
+
+  <label>Aviso antes de salida (min)</label>
+  <input id="av_antes_salida" type="number" value="${esc(cfg.antes_salida_min||10)}">
+
+  <label>Máximo comida abierta (min)</label>
+  <input id="av_max_comida" type="number" value="${esc(cfg.max_comida_min||90)}">
+
+  <label>Máximo descanso abierto (min)</label>
+  <input id="av_max_descanso" type="number" value="${esc(cfg.max_descanso_min||30)}">
+
+  <label>Sonido interno</label>
+  <select id="av_sonido">
+    <option value="true">Sí</option>
+    <option value="false">No</option>
+  </select>
+
+  <button class="btn blue" onclick="guardarAvisosFichaje()">Guardar avisos</button>
+  <button class="btn gray" onclick="comprobarAvisosAhora()">Comprobar ahora</button>
+  <div id="msgAvisos"></div>`;
+
+  el("av_activo").value=String(cfg.activo!==false);
+  el("av_sonido").value=String(cfg.sonido!==false);
+}
+
+async function guardarAvisosFichaje(){
+  const msg=el("msgAvisos");
+  msg.className="muted";
+  msg.textContent="Guardando...";
+  try{
+    await api("/rest/v1/avisos_fichaje",{
+      method:"POST",
+      headers:{"Prefer":"resolution=merge-duplicates,return=representation"},
+      body:{
+        user_id:String(el("aviso_user").value),
+        activo:el("av_activo").value==="true",
+        margen_entrada_min:Number(el("av_margen_entrada").value||10),
+        antes_salida_min:Number(el("av_antes_salida").value||10),
+        max_comida_min:Number(el("av_max_comida").value||90),
+        max_descanso_min:Number(el("av_max_descanso").value||30),
+        sonido:el("av_sonido").value==="true",
+        actualizado_en:new Date().toISOString()
+      }
+    });
+    msg.className="ok";
+    msg.textContent="Avisos guardados.";
+  }catch(e){
+    msg.className="error";
+    msg.textContent=e.message;
+  }
+}
+
+async function comprobarAvisosAhora(){
+  const msg=el("msgAvisos");
+  msg.className="muted";
+  msg.textContent="Comprobando...";
+  try{
+    const uid=el("aviso_user").value;
+    const f=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(String(uid))+"&order=fecha.desc&limit=1");
+    const ultimoLocal=f[0];
+    if(!ultimoLocal){
+      msg.className="warn";
+      msg.textContent="Aviso: este usuario aún no tiene fichajes.";
+      return;
+    }
+    const tipo=ultimoLocal.tipo;
+    if(tipo==="entrada"||tipo==="fin_descanso"||tipo==="fin_comida"){
+      msg.className="ok";
+      msg.textContent="Estado actual: trabajando.";
+    }else if(tipo==="inicio_comida"){
+      msg.className="warn";
+      msg.textContent="Aviso: comida abierta. Revisar si se ha olvidado cerrar.";
+    }else if(tipo==="inicio_descanso"){
+      msg.className="warn";
+      msg.textContent="Aviso: descanso abierto. Revisar si se ha olvidado cerrar.";
+    }else if(tipo==="salida"){
+      msg.className="ok";
+      msg.textContent="Estado actual: jornada cerrada.";
+    }else{
+      msg.className="warn";
+      msg.textContent="Estado no reconocido: "+tipo;
+    }
+  }catch(e){
+    msg.className="error";
+    msg.textContent=e.message;
+  }
+}
+
 window.salir=salir;
 window.toggleFichaje=toggleFichaje;
 window.guardarFichaje=guardarFichaje;
@@ -2119,6 +2370,15 @@ window.resolverAusencia=resolverAusencia;
 window.pintarConfigUsuario=pintarConfigUsuario;
 window.cargarPanelUsuarioLaboral=cargarPanelUsuarioLaboral;
 window.guardarSaldoUsuarioLaboral=guardarSaldoUsuarioLaboral;
+
+
+window.vistaSolicitudes=vistaSolicitudes;
+window.crearSolicitudAusencia=crearSolicitudAusencia;
+window.resolverSolicitudAusencia=resolverSolicitudAusencia;
+window.vistaAvisosFichaje=vistaAvisosFichaje;
+window.cargarPanelAvisos=cargarPanelAvisos;
+window.guardarAvisosFichaje=guardarAvisosFichaje;
+window.comprobarAvisosAhora=comprobarAvisosAhora;
 
 window.inicio=inicio;
 
