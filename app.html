@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2520</title>
+<title>Zentryx V2521</title>
 <style>
 :root{
   --bg:#eef2f7;
@@ -52,6 +52,8 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 .oculto{display:none}
 .small{font-size:14px;padding:9px 11px}
 .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.menu-box{display:none;margin-top:10px;padding:10px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc}
+.menu-box.open{display:block}
 .line{height:1px;background:#e5e7eb;margin:14px 0}
 @media print{.top,.no-print,.btn,.tabs{display:none!important}.card{border:1px solid #999}}
 </style>
@@ -59,7 +61,7 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 <body>
 
 <div class="top">
-  <h1>Zentryx V2520</h1>
+  <h1>Zentryx V2521</h1>
   <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -85,6 +87,26 @@ function app(){return document.getElementById("app")}
 function zona(){return document.getElementById("zonaUsuario")}
 function el(id){return document.getElementById(id)}
 function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;")}
+
+function dos(n){return String(n).padStart(2,"0")}
+function fechaLocalISO(d=new Date()){
+  return d.getFullYear()+"-"+dos(d.getMonth()+1)+"-"+dos(d.getDate())+"T"+dos(d.getHours())+":"+dos(d.getMinutes())+":"+dos(d.getSeconds());
+}
+function parseFechaLocal(v){
+  if(!v)return new Date();
+  const s=String(v).replace(" ","T");
+  if(/[zZ]|[+-]\d\d:\d\d$/.test(s))return new Date(s);
+  const p=s.split(/[T.]/);
+  const f=(p[0]||"").split("-").map(Number);
+  const h=(p[1]||"00:00:00").split(":").map(Number);
+  return new Date(f[0]||1970,(f[1]||1)-1,f[2]||1,h[0]||0,h[1]||0,h[2]||0);
+}
+function fechaTexto(v){return parseFechaLocal(v).toLocaleString("es-ES")}
+function toggleMenu(id){
+  const box=document.getElementById(id);
+  if(box)box.classList.toggle("open");
+}
+
 function admin(){return user && (user.rol==="admin"||user.rol==="administrativo")}
 function mando(){return admin() || (user && user.rol==="encargado")}
 
@@ -146,7 +168,7 @@ async function cargarFichajes(){
 }
 
 async function cargarHoras(){
-  let q="/rest/v1/horas_extra?select=*&estado=neq.pagadas&order=created_at.desc";
+  let q="/rest/v1/horas_extra?select=*&estado=neq.pagadas&order=id.desc";
   if(!mando()) q+="&user_id=eq."+encodeURIComponent(String(user.id));
   horas=await api(q);
 }
@@ -190,34 +212,48 @@ function direccionUsuario(u){
   ].filter(Boolean).join(" ");
 }
 
-function abrirDireccionMaps(u){
+function abrirDireccionGoogle(u){
   const d=direccionUsuario(u);
   if(!d){alert("Sin dirección");return}
   window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(d),"_blank");
 }
-
+function abrirDireccionApple(u){
+  const d=direccionUsuario(u);
+  if(!d){alert("Sin dirección");return}
+  location.href="http://maps.apple.com/?q="+encodeURIComponent(d);
+}
+function abrirDireccionWaze(u){
+  const d=direccionUsuario(u);
+  if(!d){alert("Sin dirección");return}
+  location.href="https://waze.com/ul?q="+encodeURIComponent(d)+"&navigate=yes";
+}
+function abrirDireccionMaps(u){abrirDireccionGoogle(u)}
+function abrirSMS(t){
+  const n=telLimpio(t);
+  if(!n){alert("Sin teléfono");return}
+  location.href="sms:"+n;
+}
 function abrirMapaGoogle(lat,lng){
   if(!lat||!lng){alert("Sin coordenadas");return}
   window.open("https://www.google.com/maps/search/?api=1&query="+lat+","+lng,"_blank");
 }
-
 function abrirMapaApple(lat,lng){
   if(!lat||!lng){alert("Sin coordenadas");return}
   location.href="http://maps.apple.com/?ll="+lat+","+lng;
 }
-
 function abrirMapaWaze(lat,lng){
   if(!lat||!lng){alert("Sin coordenadas");return}
   location.href="https://waze.com/ul?ll="+lat+","+lng+"&navigate=yes";
 }
-
 function botonesMapa(f){
   if(!f.lat||!f.lng)return "";
+  const id="mapa_"+String(f.id||Math.random()).replaceAll("-","_");
   return `
-  <div class="actions">
-    <button class="btn gray small" onclick="abrirMapaGoogle('${esc(f.lat)}','${esc(f.lng)}')">Abrir en Google Maps</button>
-    <button class="btn gray small" onclick="abrirMapaApple('${esc(f.lat)}','${esc(f.lng)}')">Abrir en Apple Maps</button>
-    <button class="btn gray small" onclick="abrirMapaWaze('${esc(f.lat)}','${esc(f.lng)}')">Abrir en Waze</button>
+  <button class="btn gray small" onclick="toggleMenu('${id}')">Abrir mapa</button>
+  <div class="menu-box" id="${id}">
+    <button class="btn gray small" onclick="abrirMapaGoogle('${esc(f.lat)}','${esc(f.lng)}')">Google Maps</button>
+    <button class="btn gray small" onclick="abrirMapaApple('${esc(f.lat)}','${esc(f.lng)}')">Apple Maps</button>
+    <button class="btn gray small" onclick="abrirMapaWaze('${esc(f.lat)}','${esc(f.lng)}')">Waze</button>
   </div>`;
 }
 
@@ -297,7 +333,7 @@ async function inicio(){
       ${fichajes.length?fichajes.map(f=>`
       <div class="row">
         <b>${esc(f.tipo)}</b><br>
-        ${new Date(f.fecha).toLocaleString("es-ES")}<br>
+        ${fechaTexto(f.fecha)}<br>
         <span class="muted">${esc(f.direccion_real||f.direccion||"Sin ubicación")}</span>
         ${f.aviso_horario?`<br><span class="warn">${esc(f.aviso_horario)}</span>`:""}
         ${botonesMapa(f)}
@@ -477,7 +513,7 @@ async function tipoExtra(d,c){
 async function crearExtra(tipo,fichaje){
   if(tipo!=="salida")return;
 
-  const salida=new Date(fichaje.fecha);
+  const salida=parseFechaLocal(fichaje.fecha);
   const c=await config();
   const h=await horarioHoy(user.id,salida);
 
@@ -490,7 +526,7 @@ async function crearExtra(tipo,fichaje){
       q="/rest/v1/fichajes?select=*&jornada_id=eq."+encodeURIComponent(fichaje.jornada_id)+"&tipo=eq.entrada&order=fecha.asc&limit=1";
     }
     const ent=await api(q);
-    min=ent.length ? Math.round((salida-new Date(ent[0].fecha))/60000) : (Number(c.minimo_minutos||60)||60);
+    min=ent.length ? Math.round((salida-parseFechaLocal(ent[0].fecha))/60000) : (Number(c.minimo_minutos||60)||60);
     motivo="Día no laboral";
   }else if(h.hora_salida){
     const sp=new Date(salida);
@@ -566,6 +602,7 @@ async function guardarFichaje(){
       body:{
         user_id:String(user.id),
         tipo,
+        fecha:fechaLocalISO(),
         lat:u.lat,
         lng:u.lng,
         direccion:u.direccion,
@@ -765,11 +802,15 @@ async function vistaUsuarios(){
       <b>${esc(u.nombre||"-")}</b><br>
       ${esc(u.usuario)} · ${esc(u.rol)}<br>
       <span class="muted">${esc(u.telefono||"")} ${esc(u.email||"")}</span><br>
-      <div class="actions">
-        <button class="btn gray small" onclick="event.stopPropagation();abrirTel('${esc(u.telefono||"")}')">Llamar</button>
-        <button class="btn green small" onclick="event.stopPropagation();abrirWhatsApp('${esc(u.telefono||"")}')">WhatsApp</button>
-        <button class="btn blue small" onclick="event.stopPropagation();abrirEmail('${esc(u.email||"")}')">Email</button>
-        <button class="btn gray small" onclick='event.stopPropagation();abrirDireccionMaps(${JSON.stringify(u)})'>Abrir dirección en Maps</button>
+      <button class="btn gray small" onclick="event.stopPropagation();toggleMenu('acciones_${esc(u.id)}')">Acciones</button>
+      <div class="menu-box" id="acciones_${esc(u.id)}" onclick="event.stopPropagation()">
+        <button class="btn gray small" onclick="abrirTel('${esc(u.telefono||"")}')">Llamar</button>
+        <button class="btn gray small" onclick="abrirSMS('${esc(u.telefono||"")}')">Mensaje</button>
+        <button class="btn green small" onclick="abrirWhatsApp('${esc(u.telefono||"")}')">WhatsApp</button>
+        <button class="btn blue small" onclick="abrirEmail('${esc(u.email||"")}')">Email</button>
+        <button class="btn gray small" onclick='abrirDireccionGoogle(${JSON.stringify(u)})'>Google Maps</button>
+        <button class="btn gray small" onclick='abrirDireccionApple(${JSON.stringify(u)})'>Apple Maps</button>
+        <button class="btn gray small" onclick='abrirDireccionWaze(${JSON.stringify(u)})'>Waze</button>
       </div>
     </div>`).join("")}`;
   }catch(e){
@@ -795,11 +836,15 @@ async function abrirUsuario(id){
 
       ${usuarioAbierto.foto_url?`<img class="foto" src="${esc(usuarioAbierto.foto_url)}"><br>`:`<div class="foto"></div><br>`}
 
-      <div class="actions">
+      <button class="btn gray small" onclick="toggleMenu('acciones_usuario_abierto')">Acciones</button>
+      <div class="menu-box" id="acciones_usuario_abierto">
         <button class="btn gray small" onclick="abrirTel('${esc(usuarioAbierto.telefono||"")}')">Llamar</button>
+        <button class="btn gray small" onclick="abrirSMS('${esc(usuarioAbierto.telefono||"")}')">Mensaje</button>
         <button class="btn green small" onclick="abrirWhatsApp('${esc(usuarioAbierto.telefono||"")}')">WhatsApp</button>
         <button class="btn blue small" onclick="abrirEmail('${esc(usuarioAbierto.email||"")}')">Email</button>
-        <button class="btn gray small" onclick='abrirDireccionMaps(${JSON.stringify(usuarioAbierto)})'>Abrir dirección en Maps</button>
+        <button class="btn gray small" onclick='abrirDireccionGoogle(${JSON.stringify(usuarioAbierto)})'>Google Maps</button>
+        <button class="btn gray small" onclick='abrirDireccionApple(${JSON.stringify(usuarioAbierto)})'>Apple Maps</button>
+        <button class="btn gray small" onclick='abrirDireccionWaze(${JSON.stringify(usuarioAbierto)})'>Waze</button>
       </div>
     </div>
 
@@ -1194,7 +1239,7 @@ async function guardarHorariosUsuario(){
 
 async function cargarHistorialUsuario(){
   const fs=await api("/rest/v1/fichajes?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=fecha.desc");
-  const hs=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=created_at.desc");
+  const hs=await api("/rest/v1/horas_extra?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=id.desc");
   const aus=await api("/rest/v1/ausencias_usuario?select=*&user_id=eq."+encodeURIComponent(usuarioAbierto.id)+"&order=fecha_inicio.desc");
 
   let html=`<div class="card"><h3>Historial completo</h3></div>`;
@@ -1204,7 +1249,7 @@ async function cargarHistorialUsuario(){
   html+=fs.length?fs.map(f=>`
   <div class="row">
     <b>${esc(f.tipo)}</b><br>
-    ${new Date(f.fecha).toLocaleString("es-ES")}<br>
+    ${fechaTexto(f.fecha)}<br>
     <span class="muted">${esc(f.direccion_real||f.direccion||"")}</span>
     ${f.aviso_horario?`<br><span class="warn">${esc(f.aviso_horario)}</span>`:""}
     ${f.modificado?`<br><span class="error">Modificado: ${esc(f.motivo_modificacion||"")}</span>`:""}
@@ -1256,7 +1301,7 @@ async function editarFichajePanel(id){
     return;
   }
 
-  const d=new Date(f.fecha);
+  const d=parseFechaLocal(f.fecha);
   const fecha=d.toISOString().slice(0,10);
   const hora=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
 
@@ -1298,7 +1343,7 @@ async function guardarEdicionFichaje(id){
       method:"PATCH",
       headers:{"Prefer":"return=representation"},
       body:{
-        fecha:new Date(fecha+"T"+hora).toISOString(),
+        fecha:fecha+"T"+hora+":00",
         modificado:true,
         motivo_modificacion:motivo,
         editado_por:String(user.id),
@@ -1378,7 +1423,7 @@ async function generarInforme(){
   const fin=`${anio}-${mes}-31`;
 
   let cerrado=await cierreDeMes(Number(mes),Number(anio));
-  let data=await api("/rest/v1/horas_extra?select=*&order=created_at.desc");
+  let data=await api("/rest/v1/horas_extra?select=*&order=id.desc");
 
   if(!mando()){
     data=data.filter(h=>String(h.user_id)===String(user.id));
@@ -1523,6 +1568,11 @@ window.abrirTel=abrirTel;
 window.abrirWhatsApp=abrirWhatsApp;
 window.abrirEmail=abrirEmail;
 window.abrirDireccionMaps=abrirDireccionMaps;
+window.abrirDireccionGoogle=abrirDireccionGoogle;
+window.abrirDireccionApple=abrirDireccionApple;
+window.abrirDireccionWaze=abrirDireccionWaze;
+window.abrirSMS=abrirSMS;
+window.toggleMenu=toggleMenu;
 window.abrirMapaGoogle=abrirMapaGoogle;
 window.abrirMapaApple=abrirMapaApple;
 window.abrirMapaWaze=abrirMapaWaze;
