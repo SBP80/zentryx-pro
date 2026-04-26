@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2524</title>
+<title>Zentryx V2526</title>
 <style>
 :root{
   --bg:#eef2f7;
@@ -52,6 +52,7 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 .oculto{display:none}
 .small{font-size:14px;padding:9px 11px}
 .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.dashboard{display:grid;grid-template-columns:1fr 1fr;gap:12px}.dash-card{background:#fff;border:1px solid #d1d5db;border-radius:18px;padding:18px}.dash-card button{width:100%;min-height:70px;font-size:18px}@media(max-width:700px){.dashboard{grid-template-columns:1fr}}
 .menu-box{display:none;margin-top:10px;padding:10px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc}
 .menu-box.open{display:block}
 .line{height:1px;background:#e5e7eb;margin:14px 0}
@@ -64,7 +65,7 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 <body>
 
 <div class="top">
-  <h1>Zentryx V2524</h1>
+  <h1>Zentryx V2526</h1>
   <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -299,10 +300,70 @@ async function inicio(){
       <h2>Inicio</h2>
       <b>${esc(user.nombre||user.usuario)}</b>
       <p class="muted">${esc(user.rol)} · ${esc(user.usuario)}</p>
+      <span class="badge">Estado fichaje: ${esc(textoEstado())}</span>
+      <span class="badge">${total.toFixed(2)} € pendientes</span>
     </div>
 
+    <div class="dashboard">
+      <div class="dash-card">
+        <h3>Fichaje</h3>
+        <p class="muted">Entrada, salida, comida y descansos.</p>
+        <button class="btn green" onclick="vistaFichaje()">Abrir fichaje</button>
+      </div>
+
+      <div class="dash-card">
+        <h3>Horas extra</h3>
+        <p class="muted">Validación, pagos e importes.</p>
+        <button class="btn blue" onclick="vistaHoras()">Abrir horas extra</button>
+      </div>
+
+      <div class="dash-card">
+        <h3>Solicitudes</h3>
+        <p class="muted">Vacaciones, permisos, médico, bajas y asuntos propios.</p>
+        <button class="btn blue" onclick="vistaSolicitudes()">Abrir solicitudes</button>
+      </div>
+
+      <div class="dash-card">
+        <h3>Avisos</h3>
+        <p class="muted">Recordatorios para no olvidar fichar.</p>
+        <button class="btn gray" onclick="vistaAvisosFichaje()">Abrir avisos</button>
+      </div>
+
+      ${mando()?`
+      <div class="dash-card">
+        <h3>Usuarios</h3>
+        <p class="muted">Ficha, documentos, horarios e historial.</p>
+        <button class="btn dark" onclick="vistaUsuarios()">Abrir usuarios</button>
+      </div>`:""}
+
+      <div class="dash-card">
+        <h3>Informes</h3>
+        <p class="muted">Resumen mensual y datos de empresa.</p>
+        <button class="btn blue" onclick="vistaInformes()">Abrir informes</button>
+      </div>
+
+      ${admin()?`
+      <div class="dash-card">
+        <h3>Configuración laboral</h3>
+        <p class="muted">Precios, calendario, festivos, permisos y saldos.</p>
+        <button class="btn dark" onclick="vistaConfigLaboral()">Abrir configuración</button>
+      </div>`:""}
+    </div>`;
+  }catch(e){
+    mostrarError("Error al cargar inicio",e);
+  }
+}
+
+async function vistaFichaje(){
+  try{
+    await cargarBase();
+    await cargarFichajes();
+    await cargarHoras();
+
+    app().innerHTML=`
     <div class="card">
-      <h2>Fichaje rápido</h2>
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Fichaje</h2>
       <span class="badge">${esc(textoEstado())}</span><br><br>
       <button class="btn big green" onclick="toggleFichaje()">FICHAR</button>
       ${panel?`
@@ -312,36 +373,6 @@ async function inicio(){
         <div id="msg"></div>
       </div>`:""}
     </div>
-
-    <div class="card">
-      <h2>Horas extra</h2>
-      <span class="badge">${total.toFixed(2)} € pendientes</span><br><br>
-      <button class="btn blue" onclick="vistaHoras()">Ver horas</button>
-      
-    </div>
-
-    <div class="card">
-      <h2>Informes</h2>
-      <button class="btn blue" onclick="vistaInformes()">Informes mensuales</button>
-    </div>
-
-    ${admin()?`
-    <div class="card">
-      <h2>Configuración laboral</h2>
-      <button class="btn dark" onclick="vistaConfigLaboral()">Abrir configuración laboral</button>
-    </div>`:""}
-
-    <div class="card">
-      <h2>Solicitudes y avisos</h2>
-      <button class="btn blue" onclick="vistaSolicitudes()">Solicitudes</button>
-      <button class="btn gray" onclick="vistaAvisosFichaje()">Avisos fichaje</button>
-    </div>
-
-    ${mando()?`
-    <div class="card">
-      <h2>Usuarios</h2>
-      <button class="btn dark" onclick="vistaUsuarios()">Ver usuarios</button>
-    </div>`:""}
 
     <div class="card">
       <h2>Últimos fichajes</h2>
@@ -355,13 +386,13 @@ async function inicio(){
       </div>`).join(""):"No hay fichajes"}
     </div>`;
   }catch(e){
-    mostrarError("Error al cargar inicio",e);
+    mostrarError("Error al cargar fichaje",e);
   }
 }
 
 function toggleFichaje(){
   panel=!panel;
-  inicio();
+  vistaFichaje();
 }
 
 async function direccionDesdeCoords(lat,lng){
@@ -633,7 +664,7 @@ async function guardarFichaje(){
     await crearExtra(tipo,Array.isArray(d)?d[0]:d);
 
     panel=false;
-    await inicio();
+    await vistaFichaje();
   }catch(e){
     msg.innerHTML="<span class='error'>"+esc(e.message)+"</span>";
   }
@@ -2316,6 +2347,7 @@ window.salir=salir;
 window.toggleFichaje=toggleFichaje;
 window.guardarFichaje=guardarFichaje;
 window.vistaHoras=vistaHoras;
+window.vistaFichaje=vistaFichaje;
 window.validarUsuario=validarUsuario;
 window.validarAdmin=validarAdmin;
 window.pagoAdmin=pagoAdmin;
