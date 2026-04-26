@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2526.1</title>
+<title>Zentryx V2526.2</title>
 <style>
 :root{
   --bg:#eef2f7;
@@ -73,7 +73,7 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 <body>
 
 <div class="top">
-  <h1>Zentryx V2526.1</h1>
+  <h1>Zentryx V2526.2</h1>
   <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -114,6 +114,20 @@ function parseFechaLocal(v){
   return new Date(f[0]||1970,(f[1]||1)-1,f[2]||1,h[0]||0,h[1]||0,h[2]||0);
 }
 function fechaTexto(v){return parseFechaLocal(v).toLocaleString("es-ES")}
+
+function horaLimpiaHorario(v){
+  if(!v)return null;
+  const s=String(v).trim();
+  if(s==="00:00"||s==="0:00"||s==="00:00:00")return null;
+  return s;
+}
+function horaInputHorario(v){
+  if(!v)return "00:00";
+  const s=String(v).trim();
+  if(s==="00:00:00")return "00:00";
+  return s.slice(0,5);
+}
+
 function toggleMenu(id){
   const box=document.getElementById(id);
   if(box)box.classList.toggle("open");
@@ -475,13 +489,13 @@ function evaluarHorario(tipo,fecha,h){
     if(h.hora_salida && ahora>salida)return {estado:"fuera_horario",aviso:"Salida posterior al horario previsto"};
   }
 
-  if(tipo==="inicio_comida" && h.inicio_comida){
-    const c1=minHora(h.inicio_comida);
+  if(tipo==="inicio_comida" && horaLimpiaHorario(h.inicio_comida)){
+    const c1=minHora(horaLimpiaHorario(h.inicio_comida));
     if(Math.abs(ahora-c1)>30)return {estado:"fuera_horario",aviso:"Comida fuera del horario previsto"};
   }
 
-  if(tipo==="fin_comida" && h.fin_comida){
-    const c2=minHora(h.fin_comida);
+  if(tipo==="fin_comida" && horaLimpiaHorario(h.fin_comida)){
+    const c2=minHora(horaLimpiaHorario(h.fin_comida));
     if(Math.abs(ahora-c2)>30)return {estado:"fuera_horario",aviso:"Fin de comida fuera del horario previsto"};
   }
 
@@ -1229,10 +1243,10 @@ async function cargarHorariosUsuario(){
       <input type="time" id="s_${i}" value="${esc(h.hora_salida||"")}">
 
       <label>Inicio comida</label>
-      <input type="time" id="c1_${i}" value="${esc(h.inicio_comida||"")}">
+      <input type="time" id="c1_${i}" value="${esc(horaInputHorario(h.inicio_comida))}">
 
       <label>Fin comida</label>
-      <input type="time" id="c2_${i}" value="${esc(h.fin_comida||"")}">
+      <input type="time" id="c2_${i}" value="${esc(horaInputHorario(h.fin_comida))}">
 
       <label>Descanso permitido (min)</label>
       <input type="number" id="d_${i}" value="${esc(h.minutos_descanso||0)}">
@@ -2420,6 +2434,8 @@ window.cargarPanelAvisos=cargarPanelAvisos;
 window.guardarAvisosFichaje=guardarAvisosFichaje;
 window.comprobarAvisosAhora=comprobarAvisosAhora;
 
+window.horaLimpiaHorario=horaLimpiaHorario;
+window.horaInputHorario=horaInputHorario;
 window.inicio=inicio;
 
 if(sesion()){
