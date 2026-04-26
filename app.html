@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2521</title>
+<title>Zentryx V2522</title>
 <style>
 :root{
   --bg:#eef2f7;
@@ -55,13 +55,16 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 .menu-box{display:none;margin-top:10px;padding:10px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc}
 .menu-box.open{display:block}
 .line{height:1px;background:#e5e7eb;margin:14px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:700px){.grid2{grid-template-columns:1fr}}
+.menu-box{display:none;margin-top:10px;padding:10px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc}.menu-box.open{display:block}
 @media print{.top,.no-print,.btn,.tabs{display:none!important}.card{border:1px solid #999}}
 </style>
 </head>
 <body>
 
 <div class="top">
-  <h1>Zentryx V2521</h1>
+  <h1>Zentryx V2522</h1>
   <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -321,6 +324,12 @@ async function inicio(){
       <h2>Informes</h2>
       <button class="btn blue" onclick="vistaInformes()">Informes mensuales</button>
     </div>
+
+    ${admin()?`
+    <div class="card">
+      <h2>Configuración laboral</h2>
+      <button class="btn dark" onclick="vistaConfigLaboral()">Abrir configuración laboral</button>
+    </div>`:""}
 
     ${mando()?`
     <div class="card">
@@ -1389,6 +1398,423 @@ async function nuevaAusencia(){
   }
 }
 
+
+function regionesEspanaOptions(){
+  return `
+  <option value="">Seleccionar comunidad</option>
+  <option value="Andalucía">Andalucía</option>
+  <option value="Aragón">Aragón</option>
+  <option value="Asturias">Asturias</option>
+  <option value="Illes Balears">Illes Balears</option>
+  <option value="Canarias">Canarias</option>
+  <option value="Cantabria">Cantabria</option>
+  <option value="Castilla-La Mancha">Castilla-La Mancha</option>
+  <option value="Castilla y León">Castilla y León</option>
+  <option value="Cataluña">Cataluña</option>
+  <option value="Comunitat Valenciana">Comunitat Valenciana</option>
+  <option value="Extremadura">Extremadura</option>
+  <option value="Galicia">Galicia</option>
+  <option value="La Rioja">La Rioja</option>
+  <option value="Comunidad de Madrid">Comunidad de Madrid</option>
+  <option value="Región de Murcia">Región de Murcia</option>
+  <option value="Navarra">Navarra</option>
+  <option value="País Vasco">País Vasco</option>
+  <option value="Ceuta">Ceuta</option>
+  <option value="Melilla">Melilla</option>`;
+}
+
+function zonaConfig(){return document.getElementById("zonaConfigLaboral")}
+
+async function cargarCalendarioLaboralEmpresa(){
+  try{
+    const r=await api("/rest/v1/configuracion_laboral?select=*&id=eq.1&limit=1");
+    return r[0]||{};
+  }catch(e){
+    return {};
+  }
+}
+
+async function vistaConfigLaboral(){
+  if(!admin()){alert("Solo admin puede entrar aquí.");return}
+  try{
+    await cargarBase();
+    app().innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Configuración laboral</h2>
+      <p class="muted">Precios de horas extra, rangos, calendario laboral, festivos, vacaciones, permisos y ausencias.</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="tabConfigLaboral('horas')">Horas extra</button>
+      <button class="tab" onclick="tabConfigLaboral('festivos')">Calendario / festivos</button>
+      <button class="tab" onclick="tabConfigLaboral('ausencias')">Ausencias</button>
+      <button class="tab" onclick="tabConfigLaboral('saldos')">Saldos</button>
+    </div>
+
+    <div id="zonaConfigLaboral"></div>`;
+    tabConfigLaboral("horas");
+  }catch(e){mostrarError("Error al abrir configuración laboral",e)}
+}
+
+function marcarTabConfig(nombre){
+  document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(b=>{
+    const t=b.textContent.toLowerCase();
+    if(nombre==="horas" && t.includes("horas"))b.classList.add("active");
+    if(nombre==="festivos" && t.includes("festivos"))b.classList.add("active");
+    if(nombre==="ausencias" && t.includes("ausencias"))b.classList.add("active");
+    if(nombre==="saldos" && t.includes("saldos"))b.classList.add("active");
+  });
+}
+
+async function tabConfigLaboral(tab){
+  marcarTabConfig(tab);
+  if(tab==="horas")return pintarConfigHoras();
+  if(tab==="festivos")return pintarConfigFestivos();
+  if(tab==="ausencias")return pintarConfigAusencias();
+  if(tab==="saldos")return pintarConfigSaldos();
+}
+
+async function pintarConfigHoras(){
+  const cfg=await config();
+  await cargarBase();
+  zonaConfig().innerHTML=`
+  <div class="card">
+    <h3>Reglas generales</h3>
+    <div class="grid2">
+      <div><label>Inicio nocturna</label><input id="cl_nocturna_inicio" type="time" value="${esc(cfg.nocturna_inicio||"22:00")}"></div>
+      <div><label>Fin nocturna</label><input id="cl_nocturna_fin" type="time" value="${esc(cfg.nocturna_fin||"06:00")}"></div>
+      <div>
+        <label>Redondeo minutos</label>
+        <select id="cl_redondeo"><option value="1">Exacto</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option></select>
+      </div>
+      <div>
+        <label>Mínimo minutos</label>
+        <select id="cl_minimo"><option value="0">Sin mínimo</option><option value="30">30 min</option><option value="60">60 min</option></select>
+      </div>
+    </div>
+    <button class="btn blue" onclick="guardarConfigLaboralGeneral()">Guardar reglas generales</button>
+    <div id="msgCfgGeneral"></div>
+  </div>
+
+  <div class="card">
+    <h3>Tipos y precios de horas extra</h3>
+    ${tipos.length?tipos.map(t=>`
+    <div class="row">
+      <label>Nombre</label><input id="tipo_nombre_${esc(t.id)}" value="${esc(t.nombre||"")}">
+      <div class="grid2">
+        <div><label>Precio/hora (€)</label><input id="tipo_precio_${esc(t.id)}" type="number" step="0.01" value="${Number(t.precio||0)}"></div>
+        <div><label>Prioridad</label><input id="tipo_prioridad_${esc(t.id)}" type="number" value="${Number(t.prioridad||0)}"></div>
+        <div><label>Hora inicio</label><input id="tipo_inicio_${esc(t.id)}" type="time" value="${esc(t.hora_inicio||"")}"></div>
+        <div><label>Hora fin</label><input id="tipo_fin_${esc(t.id)}" type="time" value="${esc(t.hora_fin||"")}"></div>
+      </div>
+      <label>Días aplicables</label>
+      <select id="tipo_dias_${esc(t.id)}">
+        <option value="">Todos</option><option value="laborables">Laborables</option><option value="finde">Sábado y domingo</option><option value="festivos">Festivos</option>
+      </select>
+      <label>Activo</label>
+      <select id="tipo_activo_${esc(t.id)}"><option value="true">Sí</option><option value="false">No</option></select>
+      <button class="btn blue" onclick="guardarTipoHora('${esc(t.id)}')">Guardar tipo</button>
+      <button class="btn red" onclick="desactivarTipoHora('${esc(t.id)}')">Desactivar</button>
+      <div id="msgTipo_${esc(t.id)}"></div>
+    </div>`).join(""):"<p class='muted'>No hay tipos creados.</p>"}
+
+    <div class="line"></div>
+    <h3>Crear nuevo tipo</h3>
+    <label>Nombre</label><input id="nuevo_tipo_nombre" placeholder="Ej: Guardia">
+    <label>Precio/hora (€)</label><input id="nuevo_tipo_precio" type="number" step="0.01" value="0">
+    <label>Prioridad</label><input id="nuevo_tipo_prioridad" type="number" value="0">
+    <button class="btn green" onclick="crearTipoHora()">Crear tipo</button>
+    <div id="msgNuevoTipo"></div>
+  </div>`;
+  el("cl_redondeo").value=String(cfg.redondeo_minutos||1);
+  el("cl_minimo").value=String(cfg.minimo_minutos||0);
+  tipos.forEach(t=>{
+    if(el("tipo_dias_"+t.id))el("tipo_dias_"+t.id).value=t.dias_aplicables||"";
+    if(el("tipo_activo_"+t.id))el("tipo_activo_"+t.id).value=String(t.activo!==false);
+  });
+}
+
+async function guardarConfigLaboralGeneral(){
+  const msg=el("msgCfgGeneral");
+  msg.className="muted"; msg.textContent="Guardando...";
+  try{
+    await api("/rest/v1/configuracion_horas_extra?id=eq.1",{method:"PATCH",headers:{"Prefer":"return=representation"},body:{
+      nocturna_inicio:el("cl_nocturna_inicio").value,
+      nocturna_fin:el("cl_nocturna_fin").value,
+      redondeo_minutos:Number(el("cl_redondeo").value),
+      minimo_minutos:Number(el("cl_minimo").value),
+      actualizado_en:new Date().toISOString()
+    }});
+    msg.className="ok"; msg.textContent="Guardado.";
+  }catch(e){msg.className="error"; msg.textContent=e.message}
+}
+
+async function guardarTipoHora(id){
+  const msg=el("msgTipo_"+id);
+  msg.className="muted"; msg.textContent="Guardando...";
+  try{
+    await api("/rest/v1/tipos_horas_extra?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:{"Prefer":"return=representation"},body:{
+      nombre:el("tipo_nombre_"+id).value.trim(),
+      precio:Number(el("tipo_precio_"+id).value||0),
+      prioridad:Number(el("tipo_prioridad_"+id).value||0),
+      hora_inicio:el("tipo_inicio_"+id).value||null,
+      hora_fin:el("tipo_fin_"+id).value||null,
+      dias_aplicables:el("tipo_dias_"+id).value||null,
+      activo:el("tipo_activo_"+id).value==="true"
+    }});
+    msg.className="ok"; msg.textContent="Guardado.";
+    await cargarBase();
+  }catch(e){msg.className="error"; msg.textContent=e.message}
+}
+
+async function desactivarTipoHora(id){
+  if(!confirm("¿Desactivar este tipo de hora?"))return;
+  await api("/rest/v1/tipos_horas_extra?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:{"Prefer":"return=representation"},body:{activo:false}});
+  await cargarBase(); pintarConfigHoras();
+}
+
+async function crearTipoHora(){
+  const msg=el("msgNuevoTipo");
+  msg.className="muted"; msg.textContent="Creando...";
+  try{
+    await api("/rest/v1/tipos_horas_extra",{method:"POST",headers:{"Prefer":"return=representation"},body:{
+      nombre:el("nuevo_tipo_nombre").value.trim(),
+      precio:Number(el("nuevo_tipo_precio").value||0),
+      prioridad:Number(el("nuevo_tipo_prioridad").value||0),
+      activo:true
+    }});
+    msg.className="ok"; msg.textContent="Creado.";
+    await cargarBase(); pintarConfigHoras();
+  }catch(e){msg.className="error"; msg.textContent=e.message}
+}
+
+async function pintarConfigFestivos(){
+  const festivos=await api("/rest/v1/calendario_festivos?select=*&order=fecha.asc");
+  const cfgLab=await cargarCalendarioLaboralEmpresa();
+  zonaConfig().innerHTML=`
+  <div class="card">
+    <h3>Calendario laboral de la empresa</h3>
+    <p class="muted">Elige comunidad, provincia y municipio. Puedes registrar festivos nacionales, autonómicos, locales y de empresa.</p>
+    <label>Año</label><input id="cal_anio" type="number" value="${esc(cfgLab.anio||new Date().getFullYear())}">
+    <label>Comunidad autónoma</label><select id="cal_comunidad">${regionesEspanaOptions()}</select>
+    <label>Provincia</label><input id="cal_provincia" value="${esc(cfgLab.provincia||"")}" placeholder="Ej: Madrid">
+    <label>Municipio</label><input id="cal_municipio" value="${esc(cfgLab.municipio||"")}" placeholder="Ej: Pozuelo del Rey">
+    <button class="btn blue" onclick="guardarCalendarioLaboralEmpresa()">Guardar calendario laboral</button>
+    <button class="btn gray" onclick="importarFestivosBaseMadrid()">Importar plantilla base Madrid</button>
+    <div id="msgCalendarioLaboral"></div>
+  </div>
+
+  <div class="card">
+    <h3>Crear festivo</h3>
+    <label>Fecha</label><input id="festivo_fecha" type="date">
+    <label>Nombre</label><input id="festivo_nombre" placeholder="Ej: Fiesta local">
+    <label>Tipo</label>
+    <select id="festivo_tipo"><option value="nacional">Nacional</option><option value="autonomico">Autonómico</option><option value="local">Local</option><option value="empresa">Empresa</option></select>
+    <label>Comunidad</label><select id="festivo_comunidad">${regionesEspanaOptions()}</select>
+    <label>Provincia</label><input id="festivo_provincia" placeholder="Ej: Madrid">
+    <label>Municipio</label><input id="festivo_municipio" placeholder="Ej: Pozuelo del Rey">
+    <button class="btn green" onclick="crearFestivo()">Añadir festivo</button>
+    <div id="msgFestivo"></div>
+  </div>
+
+  <div class="card">
+    <h3>Festivos configurados</h3>
+    ${festivos.length?festivos.map(f=>`
+    <div class="row">
+      <b>${esc(f.fecha)}</b><br>
+      ${esc(f.nombre||"Festivo")}<br>
+      <span class="muted">${esc(f.tipo||"")} · ${esc(f.comunidad||"")} ${esc(f.provincia||"")} ${esc(f.municipio||"")}</span><br>
+      <button class="btn red small" onclick="eliminarFestivo('${esc(f.id)}')">Eliminar</button>
+    </div>`).join(""):"<p class='muted'>No hay festivos.</p>"}
+  </div>`;
+  if(el("cal_comunidad"))el("cal_comunidad").value=cfgLab.comunidad||"";
+  if(el("festivo_comunidad"))el("festivo_comunidad").value=cfgLab.comunidad||"";
+  if(el("festivo_provincia"))el("festivo_provincia").value=cfgLab.provincia||"";
+  if(el("festivo_municipio"))el("festivo_municipio").value=cfgLab.municipio||"";
+}
+
+async function guardarCalendarioLaboralEmpresa(){
+  const msg=el("msgCalendarioLaboral");
+  msg.className="muted"; msg.textContent="Guardando...";
+  try{
+    await api("/rest/v1/configuracion_laboral",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=representation"},body:{
+      id:1,
+      comunidad:el("cal_comunidad").value,
+      provincia:el("cal_provincia").value.trim(),
+      municipio:el("cal_municipio").value.trim(),
+      anio:Number(el("cal_anio").value),
+      actualizado_en:new Date().toISOString()
+    }});
+    msg.className="ok"; msg.textContent="Calendario laboral guardado.";
+  }catch(e){msg.className="error"; msg.textContent=e.message}
+}
+
+async function importarFestivosBaseMadrid(){
+  const anio=Number(el("cal_anio")?.value || new Date().getFullYear());
+  if(!confirm("Se añadirá una plantilla base de festivos para Comunidad de Madrid. Después revisa y añade los festivos locales. ¿Continuar?"))return;
+  const base=[
+    {fecha:anio+"-01-01",nombre:"Año Nuevo",tipo:"nacional"},
+    {fecha:anio+"-01-06",nombre:"Epifanía del Señor",tipo:"nacional"},
+    {fecha:anio+"-05-01",nombre:"Fiesta del Trabajo",tipo:"nacional"},
+    {fecha:anio+"-08-15",nombre:"Asunción de la Virgen",tipo:"nacional"},
+    {fecha:anio+"-10-12",nombre:"Fiesta Nacional de España",tipo:"nacional"},
+    {fecha:anio+"-11-01",nombre:"Todos los Santos",tipo:"nacional"},
+    {fecha:anio+"-12-06",nombre:"Día de la Constitución Española",tipo:"nacional"},
+    {fecha:anio+"-12-08",nombre:"Inmaculada Concepción",tipo:"nacional"},
+    {fecha:anio+"-12-25",nombre:"Navidad",tipo:"nacional"},
+    {fecha:anio+"-05-02",nombre:"Fiesta de la Comunidad de Madrid",tipo:"autonomico"}
+  ];
+  const msg=el("msgCalendarioLaboral");
+  msg.className="muted"; msg.textContent="Importando...";
+  try{
+    for(const f of base){
+      await api("/rest/v1/calendario_festivos",{method:"POST",headers:{"Prefer":"return=representation"},body:{
+        fecha:f.fecha,nombre:f.nombre,tipo:f.tipo,comunidad:"Comunidad de Madrid",provincia:el("cal_provincia")?.value.trim()||"",municipio:"",anio
+      }});
+    }
+    msg.className="ok"; msg.textContent="Plantilla importada. Revisa y añade los festivos locales.";
+    await pintarConfigFestivos();
+  }catch(e){msg.className="error"; msg.textContent=e.message}
+}
+
+async function crearFestivo(){
+  const msg=el("msgFestivo");
+  msg.className="muted"; msg.textContent="Guardando...";
+  try{
+    await api("/rest/v1/calendario_festivos",{method:"POST",headers:{"Prefer":"return=representation"},body:{
+      fecha:el("festivo_fecha").value,
+      nombre:el("festivo_nombre").value.trim(),
+      tipo:el("festivo_tipo").value,
+      comunidad:el("festivo_comunidad").value,
+      provincia:el("festivo_provincia").value.trim(),
+      municipio:el("festivo_municipio").value.trim(),
+      anio:Number((el("festivo_fecha").value||"").slice(0,4)||new Date().getFullYear())
+    }});
+    msg.className="ok"; msg.textContent="Festivo añadido.";
+    await pintarConfigFestivos();
+  }catch(e){msg.className="error"; msg.textContent=e.message}
+}
+
+async function eliminarFestivo(id){
+  if(!confirm("¿Eliminar festivo?"))return;
+  await api("/rest/v1/calendario_festivos?id=eq."+encodeURIComponent(id),{method:"DELETE"});
+  await pintarConfigFestivos();
+}
+
+async function cargarTiposAusencia(){
+  try{return await api("/rest/v1/tipos_ausencia?select=*&order=nombre.asc")}catch(e){return []}
+}
+
+async function pintarConfigAusencias(){
+  const tiposAus=await cargarTiposAusencia();
+  zonaConfig().innerHTML=`
+  <div class="card">
+    <h3>Crear tipo de ausencia</h3>
+    <label>Nombre</label><input id="aus_nombre" placeholder="Ej: Médico">
+    <label>Retribuido</label><select id="aus_retribuido"><option value="true">Sí</option><option value="false">No</option></select>
+    <label>Descuenta vacaciones</label><select id="aus_descuenta"><option value="false">No</option><option value="true">Sí</option></select>
+    <label>Requiere aprobación</label><select id="aus_aprobacion"><option value="true">Sí</option><option value="false">No</option></select>
+    <button class="btn green" onclick="crearTipoAusencia()">Crear tipo</button>
+    <div id="msgAusTipo"></div>
+  </div>
+
+  <div class="card">
+    <h3>Tipos de ausencia</h3>
+    ${tiposAus.length?tiposAus.map(t=>`
+    <div class="row">
+      <b>${esc(t.nombre)}</b><br>
+      Retribuido: ${t.retribuido?"sí":"no"} · Descuenta vacaciones: ${t.descuenta_vacaciones?"sí":"no"}<br>
+      Requiere aprobación: ${t.requiere_aprobacion!==false?"sí":"no"}<br>
+      <button class="btn red small" onclick="eliminarTipoAusencia('${esc(t.id)}')">Eliminar</button>
+    </div>`).join(""):"<p class='muted'>No hay tipos.</p>"}
+  </div>`;
+}
+
+async function crearTipoAusencia(){
+  const msg=el("msgAusTipo");
+  msg.className="muted"; msg.textContent="Creando...";
+  try{
+    await api("/rest/v1/tipos_ausencia",{method:"POST",headers:{"Prefer":"return=representation"},body:{
+      nombre:el("aus_nombre").value.trim(),
+      retribuido:el("aus_retribuido").value==="true",
+      descuenta_vacaciones:el("aus_descuenta").value==="true",
+      requiere_aprobacion:el("aus_aprobacion").value==="true",
+      activo:true
+    }});
+    msg.className="ok"; msg.textContent="Creado.";
+    await pintarConfigAusencias();
+  }catch(e){msg.className="error"; msg.textContent=e.message}
+}
+
+async function eliminarTipoAusencia(id){
+  if(!confirm("¿Eliminar tipo de ausencia?"))return;
+  await api("/rest/v1/tipos_ausencia?id=eq."+encodeURIComponent(id),{method:"DELETE"});
+  await pintarConfigAusencias();
+}
+
+async function pintarConfigSaldos(){
+  await cargarBase();
+  zonaConfig().innerHTML=`
+  <div class="card">
+    <h3>Saldos anuales</h3>
+    <label>Año</label><input id="saldo_anio" type="number" value="${new Date().getFullYear()}">
+    <label>Usuario</label><select id="saldo_user">${usuarios.map(u=>`<option value="${esc(u.id)}">${esc(u.nombre||u.usuario)}</option>`).join("")}</select>
+    <div class="grid2">
+      <div><label>Días vacaciones</label><input id="saldo_vacaciones" type="number" value="22"></div>
+      <div><label>Asuntos propios</label><input id="saldo_asuntos" type="number" value="0"></div>
+    </div>
+    <button class="btn blue" onclick="guardarSaldoAnual()">Guardar saldo</button>
+    <div id="msgSaldo"></div>
+  </div>
+
+  <div class="card">
+    <h3>Solicitudes pendientes</h3>
+    <button class="btn gray" onclick="cargarAusenciasPendientes()">Cargar pendientes</button>
+    <div id="ausPendientes"></div>
+  </div>`;
+}
+
+async function guardarSaldoAnual(){
+  const msg=el("msgSaldo");
+  msg.className="muted"; msg.textContent="Guardando...";
+  try{
+    await api("/rest/v1/saldos_ausencias",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=representation"},body:{
+      user_id:String(el("saldo_user").value),
+      anio:Number(el("saldo_anio").value),
+      dias_vacaciones:Number(el("saldo_vacaciones").value||0),
+      dias_asuntos_propios:Number(el("saldo_asuntos").value||0)
+    }});
+    msg.className="ok"; msg.textContent="Saldo guardado.";
+  }catch(e){msg.className="error"; msg.textContent=e.message}
+}
+
+async function cargarAusenciasPendientes(){
+  const cont=el("ausPendientes");
+  cont.innerHTML="<p class='muted'>Cargando...</p>";
+  try{
+    const aus=await api("/rest/v1/ausencias_usuario?select=*&estado=eq.pendiente&order=fecha_inicio.asc");
+    cont.innerHTML=aus.length?aus.map(a=>`
+    <div class="row">
+      <b>${esc(nombreUsuario(a.user_id))}</b><br>
+      ${esc(a.tipo)} · ${esc(a.fecha_inicio)} → ${esc(a.fecha_fin)}<br>
+      ${esc(a.motivo||"")}<br>
+      <button class="btn green small" onclick="resolverAusencia('${esc(a.id)}','aprobada')">Aprobar</button>
+      <button class="btn red small" onclick="resolverAusencia('${esc(a.id)}','rechazada')">Rechazar</button>
+    </div>`).join(""):"<p class='muted'>No hay pendientes.</p>";
+  }catch(e){cont.innerHTML="<p class='error'>"+esc(e.message)+"</p>"}
+}
+
+async function resolverAusencia(id,estado){
+  const motivo=prompt("Comentario / motivo")||"";
+  await api("/rest/v1/ausencias_usuario?id=eq."+encodeURIComponent(id),{method:"PATCH",headers:{"Prefer":"return=representation"},body:{
+    estado,aprobado_por:String(user.id),aprobado_en:new Date().toISOString(),comentario_resolucion:motivo
+  }});
+  await cargarAusenciasPendientes();
+}
+
+
 async function vistaInformes(){
   const h=new Date();
 
@@ -1580,6 +2006,23 @@ window.vistaInformes=vistaInformes;
 window.generarInforme=generarInforme;
 window.cerrarMes=cerrarMes;
 window.reabrirMes=reabrirMes;
+
+window.vistaConfigLaboral=vistaConfigLaboral;
+window.tabConfigLaboral=tabConfigLaboral;
+window.guardarConfigLaboralGeneral=guardarConfigLaboralGeneral;
+window.guardarTipoHora=guardarTipoHora;
+window.desactivarTipoHora=desactivarTipoHora;
+window.crearTipoHora=crearTipoHora;
+window.guardarCalendarioLaboralEmpresa=guardarCalendarioLaboralEmpresa;
+window.importarFestivosBaseMadrid=importarFestivosBaseMadrid;
+window.crearFestivo=crearFestivo;
+window.eliminarFestivo=eliminarFestivo;
+window.crearTipoAusencia=crearTipoAusencia;
+window.eliminarTipoAusencia=eliminarTipoAusencia;
+window.guardarSaldoAnual=guardarSaldoAnual;
+window.cargarAusenciasPendientes=cargarAusenciasPendientes;
+window.resolverAusencia=resolverAusencia;
+
 window.inicio=inicio;
 
 if(sesion()){
