@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2526.2</title>
+<title>Zentryx V2526.3</title>
 <style>
 :root{
   --bg:#eef2f7;
@@ -73,7 +73,7 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 <body>
 
 <div class="top">
-  <h1>Zentryx V2526.2</h1>
+  <h1>Zentryx V2526.3</h1>
   <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -905,6 +905,7 @@ async function abrirUsuario(id){
       ${usuarioAbierto.foto_url?`<img class="foto" src="${esc(usuarioAbierto.foto_url)}"><br>`:`<div class="foto"></div><br>`}
 
       <button class="btn gray small" onclick="toggleMenu('acciones_usuario_abierto')">Acciones</button>
+      ${admin()&&String(usuarioAbierto.id)!==String(user.id)?`<button class="btn red small" onclick="eliminarUsuarioProtegido('${esc(usuarioAbierto.id)}')">Eliminar usuario</button>`:""}
       <div class="menu-box" id="acciones_usuario_abierto">
         <button class="btn gray small" onclick="abrirTel('${esc(usuarioAbierto.telefono||"")}')">Llamar</button>
         <button class="btn gray small" onclick="abrirSMS('${esc(usuarioAbierto.telefono||"")}')">Mensaje</button>
@@ -2365,6 +2366,69 @@ async function comprobarAvisosAhora(){
   }
 }
 
+
+async function eliminarUsuarioProtegido(id){
+  if(!admin()){
+    alert("Solo admin puede eliminar usuarios.");
+    return;
+  }
+
+  const u=usuarios.find(x=>String(x.id)===String(id)) || usuarioAbierto;
+  if(!u){
+    alert("Usuario no encontrado.");
+    return;
+  }
+
+  if(user && String(user.id)===String(id)){
+    alert("No puedes eliminar el usuario con el que has iniciado sesión.");
+    return;
+  }
+
+  const codigo=prompt("Código de seguridad para eliminar usuario:");
+  if(codigo!=="BORRAR"){
+    alert("Código incorrecto. No se ha eliminado nada.");
+    return;
+  }
+
+  const confirmar=confirm("Vas a eliminar a: "+(u.nombre||u.usuario)+". Esta acción no se puede deshacer. ¿Continuar?");
+  if(!confirmar)return;
+
+  const confirmar2=prompt("Escribe ELIMINAR para confirmar:");
+  if(confirmar2!=="ELIMINAR"){
+    alert("Confirmación incorrecta. Cancelado.");
+    return;
+  }
+
+  try{
+    const uid=encodeURIComponent(String(id));
+
+    async function borrarTabla(tabla,campo="user_id"){
+      try{
+        await api("/rest/v1/"+tabla+"?"+campo+"=eq."+uid,{method:"DELETE"});
+      }catch(e){
+        console.warn("No se pudo limpiar "+tabla,e);
+      }
+    }
+
+    await borrarTabla("fichajes");
+    await borrarTabla("horas_extra");
+    await borrarTabla("documentos");
+    await borrarTabla("ausencias_usuario");
+    await borrarTabla("saldos_ausencias");
+    await borrarTabla("avisos_fichaje");
+    await borrarTabla("horarios_usuario");
+
+    await api("/rest/v1/users?id=eq."+uid,{method:"DELETE"});
+
+    alert("Usuario eliminado.");
+    usuarioAbierto=null;
+    await cargarBase();
+    vistaUsuarios();
+  }catch(e){
+    mostrarError("Error al eliminar usuario",e);
+  }
+}
+
 window.salir=salir;
 window.toggleFichaje=toggleFichaje;
 window.guardarFichaje=guardarFichaje;
@@ -2436,6 +2500,7 @@ window.comprobarAvisosAhora=comprobarAvisosAhora;
 
 window.horaLimpiaHorario=horaLimpiaHorario;
 window.horaInputHorario=horaInputHorario;
+window.eliminarUsuarioProtegido=eliminarUsuarioProtegido;
 window.inicio=inicio;
 
 if(sesion()){
