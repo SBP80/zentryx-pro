@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2526.3</title>
+<title>Zentryx V2526.4</title>
 <style>
 :root{
   --bg:#eef2f7;
@@ -73,7 +73,7 @@ td,th{border:1px solid #ccc;padding:8px;text-align:left}
 <body>
 
 <div class="top">
-  <h1>Zentryx V2526.3</h1>
+  <h1>Zentryx V2526.4</h1>
   <button class="btn red" onclick="salir()">Salir</button>
 </div>
 
@@ -861,6 +861,7 @@ async function vistaUsuarios(){
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
       <h2>Usuarios</h2>
+      ${admin()?`<button class="btn green" onclick="abrirCrearUsuario()">Crear usuario</button>`:""}
       <p class="muted">Pulsa un usuario para abrir su ficha.</p>
     </div>
 
@@ -2367,6 +2368,183 @@ async function comprobarAvisosAhora(){
 }
 
 
+
+function abrirCrearUsuario(){
+  if(!admin()){
+    alert("Solo admin puede crear usuarios.");
+    return;
+  }
+
+  app().innerHTML=`
+  <div class="card">
+    <button class="btn gray" onclick="vistaUsuarios()">← Usuarios</button>
+    <h2>Crear usuario</h2>
+
+    <label>Nombre</label>
+    <input id="nuevo_nombre" placeholder="Nombre visible">
+
+    <label>Usuario</label>
+    <input id="nuevo_usuario" placeholder="usuario">
+
+    <label>Contraseña</label>
+    <input id="nuevo_password" placeholder="contraseña">
+
+    <label>Rol</label>
+    <select id="nuevo_rol">
+      <option value="operario">Operario</option>
+      <option value="encargado">Encargado</option>
+      <option value="admin">Admin</option>
+    </select>
+
+    <label>Teléfono</label>
+    <input id="nuevo_telefono" placeholder="Teléfono">
+
+    <label>Email</label>
+    <input id="nuevo_email" placeholder="Email">
+
+    <label>DNI</label>
+    <input id="nuevo_dni" placeholder="DNI">
+
+    <label>Dirección</label>
+    <input id="nuevo_direccion" placeholder="Dirección completa">
+
+    <button class="btn green" onclick="crearUsuarioNuevo()">Crear usuario</button>
+    <div id="msgCrearUsuario"></div>
+  </div>`;
+}
+
+async function crearUsuarioNuevo(){
+  const msg=el("msgCrearUsuario");
+  msg.className="muted";
+  msg.textContent="Creando...";
+
+  const nombre=el("nuevo_nombre").value.trim();
+  const usuario=el("nuevo_usuario").value.trim();
+  const password=el("nuevo_password").value.trim();
+  const rol=el("nuevo_rol").value;
+  const telefono=el("nuevo_telefono").value.trim();
+  const email=el("nuevo_email").value.trim();
+  const dni=el("nuevo_dni").value.trim();
+  const direccion=el("nuevo_direccion").value.trim();
+
+  if(!nombre||!usuario||!password){
+    msg.className="error";
+    msg.textContent="Nombre, usuario y contraseña son obligatorios.";
+    return;
+  }
+
+  try{
+    const existe=await api("/rest/v1/users?select=id&usuario=eq."+encodeURIComponent(usuario)+"&limit=1");
+    if(existe.length){
+      msg.className="error";
+      msg.textContent="Ese usuario ya existe.";
+      return;
+    }
+
+    const creado=await api("/rest/v1/users",{
+      method:"POST",
+      headers:{"Prefer":"return=representation"},
+      body:{
+        nombre,
+        usuario,
+        password,
+        rol,
+        telefono,
+        email,
+        dni,
+        direccion,
+        activo:true
+      }
+    });
+
+    const nuevo=creado[0];
+    if(nuevo?.id){
+      await crearHorarioBaseUsuario(nuevo.id);
+      await crearAvisosBaseUsuario(nuevo.id);
+      await crearSaldosBaseUsuario(nuevo.id);
+    }
+
+    msg.className="ok";
+    msg.textContent="Usuario creado.";
+    await cargarBase();
+    setTimeout(()=>vistaUsuarios(),700);
+  }catch(e){
+    msg.className="error";
+    msg.textContent=e.message;
+  }
+}
+
+async function crearHorarioBaseUsuario(uid){
+  const dias=[
+    {dia:"domingo",trabaja:false},
+    {dia:"lunes",trabaja:true},
+    {dia:"martes",trabaja:true},
+    {dia:"miércoles",trabaja:true},
+    {dia:"jueves",trabaja:true},
+    {dia:"viernes",trabaja:true},
+    {dia:"sábado",trabaja:false}
+  ];
+
+  for(const d of dias){
+    try{
+      await api("/rest/v1/horarios_usuario",{
+        method:"POST",
+        headers:{"Prefer":"resolution=merge-duplicates,return=representation"},
+        body:{
+          user_id:String(uid),
+          dia:d.dia,
+          trabaja:d.trabaja,
+          entrada:d.trabaja?"08:00":null,
+          salida:d.trabaja?"17:00":null,
+          inicio_comida:null,
+          fin_comida:null,
+          descanso_min:0
+        }
+      });
+    }catch(e){
+      console.warn("No se pudo crear horario base",e);
+    }
+  }
+}
+
+async function crearAvisosBaseUsuario(uid){
+  try{
+    await api("/rest/v1/avisos_fichaje",{
+      method:"POST",
+      headers:{"Prefer":"resolution=merge-duplicates,return=representation"},
+      body:{
+        user_id:String(uid),
+        activo:true,
+        margen_entrada_min:10,
+        antes_salida_min:10,
+        max_comida_min:90,
+        max_descanso_min:30,
+        sonido:true,
+        actualizado_en:new Date().toISOString()
+      }
+    });
+  }catch(e){
+    console.warn("No se pudo crear aviso base",e);
+  }
+}
+
+async function crearSaldosBaseUsuario(uid){
+  try{
+    await api("/rest/v1/saldos_ausencias",{
+      method:"POST",
+      headers:{"Prefer":"resolution=merge-duplicates,return=representation"},
+      body:{
+        user_id:String(uid),
+        anio:new Date().getFullYear(),
+        dias_vacaciones:22,
+        dias_asuntos_propios:0
+      }
+    });
+  }catch(e){
+    console.warn("No se pudo crear saldo base",e);
+  }
+}
+
 async function eliminarUsuarioProtegido(id){
   if(!admin()){
     alert("Solo admin puede eliminar usuarios.");
@@ -2500,6 +2678,8 @@ window.comprobarAvisosAhora=comprobarAvisosAhora;
 
 window.horaLimpiaHorario=horaLimpiaHorario;
 window.horaInputHorario=horaInputHorario;
+window.abrirCrearUsuario=abrirCrearUsuario;
+window.crearUsuarioNuevo=crearUsuarioNuevo;
 window.eliminarUsuarioProtegido=eliminarUsuarioProtegido;
 window.inicio=inicio;
 
