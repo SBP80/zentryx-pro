@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2531</title>
+<title>Zentryx V2532</title>
 <style>
 :root{
   --dark:#0f172a;
@@ -68,49 +68,78 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
   .btn{font-size:16px}
 }
 
-/* ===== V2531 RESPONSIVE PRO ===== */
-@media(min-width:900px){
-  .page{max-width:1180px;padding:18px}
-  .header{padding:18px 22px}
-  .header h1{font-size:32px}
-  .header .fecha{font-size:16px}
-  .header .hora{font-size:28px}
-  .inicio-dashboard{display:grid;grid-template-columns:1.25fr .95fr;gap:14px;align-items:start}
-  .inicio-dashboard .card{margin-bottom:0}
-  .inicio-main,.inicio-side{display:flex;flex-direction:column;gap:14px}
-  .card{margin-bottom:14px}
-  .grid{grid-template-columns:1fr 1fr}
-  .module{min-height:150px}
-  .actions{grid-template-columns:1fr 1fr}
-}
-@media(min-width:1100px){
-  .module{min-height:135px}
-}
-@media(max-width:899px){
-  .inicio-dashboard{display:block}
-}
-
+.header-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.logout-btn{background:#dc2626;color:#fff;border:0;border-radius:12px;padding:10px 14px;font-size:16px;font-weight:bold}
+.hidden{display:none!important}
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>Zentryx V2531</h1>
+  <div class="header-top"><h1>Zentryx V2532</h1><button class="logout-btn" onclick="cerrarSesion()">Salir</button></div>
   <div class="fecha" id="fechaActual"></div>
   <div class="hora" id="horaActual"></div>
 </div>
 <div class="page" id="app"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const VERSION="2531";
+const VERSION="2532";
+const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
+const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let user={
-  id:"admin",
+let user = JSON.parse(localStorage.getItem("usuario") || "null") || {
+  id:"1",
   nombre:"Administrador",
   usuario:"admin",
   rol:"admin"
 };
+localStorage.setItem("usuario", JSON.stringify(user));
 
 function esAdmin(){return user.rol==="admin"}
+
+function cerrarSesion(){
+  localStorage.removeItem("usuario");
+  alert("Sesión cerrada.");
+  location.reload();
+}
+
+function normalizarUsuarioBD(u){
+  if(!u) return null;
+  return {
+    id:String(u.id),
+    nombre:u.nombre || u.name || u.usuario || "Usuario",
+    usuario:u.usuario || u.username || String(u.id),
+    rol:u.rol || u.role || "operario",
+    puesto:u.puesto || "",
+    telefono:u.telefono || "",
+    email:u.email || "",
+    dni:u.dni || "",
+    activo:u.activo !== false,
+    password:u.password || "",
+    password_pendiente:!!u.password_pendiente,
+    vacaciones:u.vacaciones ?? 22,
+    asuntos:u.asuntos ?? 0,
+    vacaciones_usadas:u.vacaciones_usadas ?? 0,
+    asuntos_usados:u.asuntos_usados ?? 0
+  };
+}
+
+async function asegurarUsuarioActual(){
+  const guardado = JSON.parse(localStorage.getItem("usuario") || "null");
+  if(guardado && guardado.id){
+    user = guardado;
+    return user;
+  }
+  const {data,error}=await sb.from("users").select("*").eq("usuario","admin").limit(1);
+  if(!error && data && data[0]){
+    user = normalizarUsuarioBD(data[0]);
+  }else{
+    user = {id:"1",nombre:"Administrador",usuario:"admin",rol:"admin"};
+  }
+  localStorage.setItem("usuario", JSON.stringify(user));
+  return user;
+}
 
 function ahora(){return new Date()}
 
@@ -152,159 +181,108 @@ function actualizarReloj(){
 setInterval(actualizarReloj,1000);
 actualizarReloj();
 
-function kFichajes(){return "zentryx_fichajes_"+user.id}
-function leerFichajes(){return JSON.parse(localStorage.getItem(kFichajes())||"[]")}
-function guardarFichajes(v){localStorage.setItem(kFichajes(),JSON.stringify(v))}
-function movimientosHoy(){return leerFichajes().filter(x=>x.fecha===hoyISO()).sort((a,b)=>a.ts-b.ts)}
-function ultimoMovimiento(){const m=movimientosHoy();return m.length?m[m.length-1]:null}
 
-function estadoActual(){
-  const u=ultimoMovimiento();
-  if(!u)return {txt:"Fuera",clase:"red",accion:"entrada"};
-  if(u.tipo==="entrada"||u.tipo==="fin_pausa"||u.tipo==="fin_comida")return {txt:"Trabajando",clase:"green",accion:"salida"};
-  if(u.tipo==="inicio_pausa")return {txt:"En pausa",clase:"orange",accion:"fin_pausa"};
-  if(u.tipo==="inicio_comida")return {txt:"En comida",clase:"orange",accion:"fin_comida"};
-  if(u.tipo==="salida")return {txt:"Fuera",clase:"red",accion:"entrada"};
-  return {txt:"Fuera",clase:"red",accion:"entrada"};
-}
+// ===== FICHAJES SUPABASE =====
+let fichajesCache=[];
 
-function nombreAccion(a){
-  const map={
-    entrada:"Fichar entrada",
-    salida:"Fichar salida",
-    inicio_pausa:"Inicio pausa",
-    fin_pausa:"Fin pausa",
-    inicio_comida:"Inicio comida",
-    fin_comida:"Fin comida"
-  };
-  return map[a]||a;
-}
+async function cargarFichajesServidor(){
+  await asegurarUsuarioActual();
+  const {data,error}=await sb
+    .from("fichajes")
+    .select("*")
+    .eq("user_id", String(user.id))
+    .order("fecha", {ascending:false})
+    .limit(80);
 
-function guardarMovimiento(tipo){
-  const lista=leerFichajes();
-  lista.push({id:Date.now(),fecha:hoyISO(),hora:horaHHMM(),tipo,ts:Date.now()});
-  guardarFichajes(lista);
-  aviso(nombreAccion(tipo)+" guardado.","ok");
-  inicio();
-}
-
-function accionPrincipal(){
-  const e=estadoActual();
-  if(e.accion==="entrada")guardarMovimiento("entrada");
-  else if(e.accion==="salida"){
-    if(confirm("¿Registrar salida y cerrar jornada?"))guardarMovimiento("salida");
-  }
-  else guardarMovimiento(e.accion);
-}
-
-function resumenHoy(){
-  const mov=movimientosHoy();
-  let trabajandoDesde=null, pausaDesde=null, comidaDesde=null;
-  let trabajo=0, pausa=0, comida=0;
-
-  for(const m of mov){
-    const mm=minutos(m.hora);
-    if(m.tipo==="entrada"||m.tipo==="fin_pausa"||m.tipo==="fin_comida"){
-      trabajandoDesde=mm;
-      pausaDesde=null;
-      comidaDesde=null;
-    }
-    if(m.tipo==="inicio_pausa"){
-      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
-      trabajandoDesde=null;
-      pausaDesde=mm;
-    }
-    if(m.tipo==="fin_pausa"){
-      if(pausaDesde!=null)pausa+=mm-pausaDesde;
-      pausaDesde=null;
-      trabajandoDesde=mm;
-    }
-    if(m.tipo==="inicio_comida"){
-      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
-      trabajandoDesde=null;
-      comidaDesde=mm;
-    }
-    if(m.tipo==="fin_comida"){
-      if(comidaDesde!=null)comida+=mm-comidaDesde;
-      comidaDesde=null;
-      trabajandoDesde=mm;
-    }
-    if(m.tipo==="salida"){
-      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
-      trabajandoDesde=null;
-    }
+  if(error){
+    console.error(error);
+    aviso("Error leyendo fichajes: "+error.message,"error");
+    fichajesCache=[];
+    return [];
   }
 
-  const est=estadoActual();
-  const now=minutos(horaHHMM());
-  if(est.txt==="Trabajando" && trabajandoDesde!=null)trabajo+=now-trabajandoDesde;
-  if(est.txt==="En pausa" && pausaDesde!=null)pausa+=now-pausaDesde;
-  if(est.txt==="En comida" && comidaDesde!=null)comida+=now-comidaDesde;
+  fichajesCache=(data||[]).map(f=>({
+    id:f.id,
+    fecha_iso:f.fecha,
+    fecha: String(f.fecha||"").slice(0,10),
+    hora: new Date(f.fecha).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),
+    tipo:f.tipo,
+    ts:new Date(f.fecha).getTime(),
+    lat:f.lat,
+    lng:f.lng,
+    direccion:f.direccion_real || f.direccion || "",
+    aviso_horario:f.aviso_horario || "",
+    estado_horario:f.estado_horario || ""
+  })).sort((a,b)=>a.ts-b.ts);
 
-  return {trabajo,pausa,comida,mov};
+  return fichajesCache;
 }
 
-function kNotas(){return "zentryx_notas_"+user.id}
-function leerNotas(){return JSON.parse(localStorage.getItem(kNotas())||"[]")}
-function guardarNotas(v){localStorage.setItem(kNotas(),JSON.stringify(v))}
+function leerFichajes(){return fichajesCache}
+function guardarFichajes(v){fichajesCache=v||[]}
 
-function notaVencida(n){
-  if(n.hecha)return false;
-  if(!n.fecha||!n.hora)return false;
-  return new Date(n.fecha+"T"+n.hora) <= new Date();
+function movimientosHoy(){
+  return leerFichajes()
+    .filter(x=>x.fecha===hoyISO())
+    .sort((a,b)=>a.ts-b.ts);
 }
 
-function crearNota(){
-  document.getElementById("app").innerHTML=`
-    <div class="card">
-      <button class="btn gray" onclick="inicio()">← Volver</button>
-      <h2>Nueva nota rápida</h2>
-      <label>Nota</label>
-      <textarea id="notaTxt" placeholder="Escribe aquí la nota..."></textarea>
-      <label>Fecha aviso</label>
-      <input id="notaFecha" type="date">
-      <label>Hora aviso</label>
-      <input id="notaHora" type="time">
-      <label>Fijar permanente</label>
-      <select id="notaFija">
-        <option value="false">No</option>
-        <option value="true">Sí</option>
-      </select>
-      <button class="btn green full" onclick="guardarNotaNueva()">Guardar nota</button>
-    </div>`;
+function ultimoMovimiento(){
+  const m=movimientosHoy();
+  return m.length?m[m.length-1]:null;
 }
 
-function guardarNotaNueva(){
-  const txt=document.getElementById("notaTxt").value.trim();
-  if(!txt){alert("Escribe una nota.");return}
-  const lista=leerNotas();
-  lista.unshift({
-    id:Date.now(),
-    txt,
-    fecha:document.getElementById("notaFecha").value,
-    hora:document.getElementById("notaHora").value,
-    fija:document.getElementById("notaFija").value==="true",
-    hecha:false,
-    creada:new Date().toISOString()
-  });
-  guardarNotas(lista);
-  aviso("Nota guardada.","ok");
-  inicio();
+function tipoPermitido(tipo){
+  const est=estadoActual().txt;
+  if(est==="Fuera") return tipo==="entrada";
+  if(est==="Trabajando") return ["salida","inicio_pausa","inicio_comida"].includes(tipo);
+  if(est==="En pausa") return tipo==="fin_pausa";
+  if(est==="En comida") return tipo==="fin_comida";
+  return tipo==="entrada";
 }
 
-function marcarNotaHecha(id){
-  const lista=leerNotas();
-  const n=lista.find(x=>x.id===id);
-  if(n)n.hecha=true;
-  guardarNotas(lista);
-  inicio();
+function mensajeNoPermitido(tipo){
+  const est=estadoActual().txt;
+  if(est==="Fuera") return "No puedes iniciar pausa, comida o salida sin haber fichado entrada.";
+  if(est==="Trabajando" && tipo==="entrada") return "Ya estás trabajando.";
+  if(est==="En pausa") return "Estás en pausa. Primero finaliza la pausa.";
+  if(est==="En comida") return "Estás en comida. Primero finaliza la comida.";
+  return "Movimiento no permitido.";
 }
 
-function eliminarNota(id){
-  if(!confirm("¿Eliminar nota?"))return;
-  guardarNotas(leerNotas().filter(x=>x.id!==id));
-  inicio();
+
+// ===== NOTAS RÁPIDAS SUPABASE =====
+let notasCache=[];
+
+async function cargarNotasServidor(){
+  await asegurarUsuarioActual();
+  const {data,error}=await sb
+    .from("notas_rapidas")
+    .select("*")
+    .eq("user_id", String(user.id))
+    .order("creada_en", {ascending:false});
+
+  if(error){
+    console.error(error);
+    aviso("Error leyendo notas: "+error.message,"error");
+    notasCache=[];
+    return [];
+  }
+
+  notasCache=(data||[]).map(n=>({
+    id:n.id,
+    txt:n.texto,
+    fecha:n.fecha_aviso || "",
+    hora:n.hora_aviso ? String(n.hora_aviso).slice(0,5) : "",
+    fija:!!n.fija,
+    hecha:!!n.hecha,
+    creada:n.creada_en
+  }));
+  return notasCache;
 }
+
+function leerNotas(){return notasCache}
+function guardarNotas(v){notasCache=v||[]}
 
 function aviso(texto,tipo){
   localStorage.setItem("zentryx_msg",JSON.stringify({texto,tipo}));
@@ -318,12 +296,27 @@ function leerAviso(){
   return `<p class="${m.tipo}">${m.texto}</p>`;
 }
 
-function limpiarPrueba(){
+async function limpiarPrueba(){
   if(!esAdmin()){alert("Solo admin.");return}
   const pass=prompt("Contraseña admin:");
   if(pass!=="admin"){alert("Contraseña incorrecta.");return}
   if(!confirm("¿Borrar fichajes de hoy?"))return;
-  guardarFichajes(leerFichajes().filter(x=>x.fecha!==hoyISO()));
+
+  await asegurarUsuarioActual();
+  const inicioDia = hoyISO()+"T00:00:00";
+  const finDia = hoyISO()+"T23:59:59";
+  const {error}=await sb
+    .from("fichajes")
+    .delete()
+    .eq("user_id", String(user.id))
+    .gte("fecha", inicioDia)
+    .lte("fecha", finDia);
+
+  if(error){
+    alert("Error borrando fichajes: "+error.message);
+    return;
+  }
+  await cargarFichajesServidor();
   inicio();
 }
 
@@ -336,81 +329,75 @@ function inicio(){
   const otras=notas.filter(n=>!n.fija&&!notaVencida(n)).slice(0,5);
 
   document.getElementById("app").innerHTML=`
-    <div class="inicio-dashboard">
-      <div class="inicio-main">
-        <div class="card">
-          <h2>Inicio</h2>
-          <b>${user.nombre}</b>
-          <p>${user.usuario} · ${user.rol}</p>
-          <span class="badge ${est.clase}">${est.txt}</span>
-          ${leerAviso()}
-        </div>
+    <div class="card">
+      <h2>Inicio</h2>
+      <b>${user.nombre}</b>
+      <p>${user.usuario} · ${user.rol}</p>
+      <span class="badge ${est.clase}">${est.txt}</span>
+      ${leerAviso()}
+    </div>
 
-        <div class="card">
-          <h2>Jornada de hoy</h2>
-          <span class="badge">Trabajo: ${textoMin(res.trabajo)}</span>
-          <span class="badge">Pausas: ${textoMin(res.pausa)}</span>
-          <span class="badge">Comida: ${textoMin(res.comida)}</span>
-          <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
-          <div class="actions">
-            <button class="btn orange" onclick="guardarMovimiento('inicio_pausa')">Inicio pausa</button>
-            <button class="btn orange" onclick="guardarMovimiento('inicio_comida')">Inicio comida</button>
-          </div>
-          ${esAdmin()?`<button class="btn gray full" onclick="limpiarPrueba()">Borrar fichajes de hoy</button>`:""}
-        </div>
+    ${fijas.length?`
+    <div class="card note-fixed">
+      <h2>Notas fijas</h2>
+      ${fijas.map(n=>notaHTML(n)).join("")}
+    </div>`:""}
 
-        <div class="card">
-          <h2>Movimientos de hoy</h2>
-          ${res.mov.length?res.mov.slice().reverse().map(m=>`
-            <div class="row">
-              <b>${nombreAccion(m.tipo)}</b><br>
-              ${m.hora}
-            </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
-        </div>
+    ${vencidas.length?`
+    <div class="card note-fixed">
+      <h2>Avisos pendientes</h2>
+      ${vencidas.map(n=>notaHTML(n)).join("")}
+    </div>`:""}
+
+    <div class="card">
+      <h2>Jornada de hoy</h2>
+      <span class="badge">Trabajo: ${textoMin(res.trabajo)}</span>
+      <span class="badge">Pausas: ${textoMin(res.pausa)}</span>
+      <span class="badge">Comida: ${textoMin(res.comida)}</span>
+      <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+      <div class="actions">
+        <button class="btn orange" onclick="guardarMovimiento('inicio_pausa')">Inicio pausa</button>
+        <button class="btn orange" onclick="guardarMovimiento('inicio_comida')">Inicio comida</button>
       </div>
+      ${esAdmin()?`<button class="btn gray full" onclick="limpiarPrueba()">Borrar fichajes de hoy</button>`:""}
+    </div>
 
-      <div class="inicio-side">
-        ${fijas.length?`
-        <div class="card note-fixed">
-          <h2>Notas fijas</h2>
-          ${fijas.map(n=>notaHTML(n)).join("")}
-        </div>`:""}
+    <div class="card">
+      <h2>Notas rápidas</h2>
+      <button class="btn blue full" onclick="crearNota()">+ Nota rápida</button>
+      ${otras.length?otras.map(n=>notaHTML(n)).join(""):"<p>No hay notas pendientes.</p>"}
+    </div>
 
-        ${vencidas.length?`
-        <div class="card note-fixed">
-          <h2>Avisos pendientes</h2>
-          ${vencidas.map(n=>notaHTML(n)).join("")}
-        </div>`:""}
-
-        <div class="card">
-          <h2>Notas rápidas</h2>
-          <button class="btn blue full" onclick="crearNota()">+ Nota rápida</button>
-          ${otras.length?otras.map(n=>notaHTML(n)).join(""):"<p>No hay notas pendientes.</p>"}
-        </div>
-
-        <div class="grid">
-          <div class="module">
-            <h3>Usuarios</h3>
-            <p>Alta, ficha, horarios y documentos.</p>
-            <button class="btn dark" onclick="vistaUsuariosPro()">Abrir</button>
-          </div>
-          <div class="module">
-            <h3>Solicitudes</h3>
-            <p>Vacaciones, permisos y bajas.</p>
-            <button class="btn blue" onclick="vistaSolicitudesPro()">Abrir</button>
-          </div>
-          <div class="module">
-            <h3>Configuración</h3>
-            <p>Horarios, avisos y horas extra.</p>
-            <button class="btn gray" onclick="vistaPendiente('Configuración PRO')">Abrir</button>
-          </div>
-          <div class="module">
-            <h3>Informes</h3>
-            <p>Resumen mensual y fichajes.</p>
-            <button class="btn blue" onclick="vistaInformes()">Abrir</button>
-          </div>
-        </div>
+    <div class="grid">
+      <div class="module">
+        <h3>Usuarios</h3>
+        <p>Alta, ficha, horarios y documentos.</p>
+        <button class="btn dark" onclick="vistaUsuariosPro()">Abrir</button>
       </div>
+      <div class="module">
+        <h3>Solicitudes</h3>
+        <p>Vacaciones, permisos y bajas.</p>
+        <button class="btn blue" onclick="vistaSolicitudesPro()">Abrir</button>
+      </div>
+      <div class="module">
+        <h3>Configuración</h3>
+        <p>Horarios, avisos y horas extra.</p>
+        <button class="btn gray" onclick="vistaPendiente('Configuración PRO')">Abrir</button>
+      </div>
+      <div class="module">
+        <h3>Informes</h3>
+        <p>Resumen mensual y fichajes.</p>
+        <button class="btn blue" onclick="vistaInformes()">Abrir</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Movimientos de hoy</h2>
+      ${res.mov.length?res.mov.slice().reverse().map(m=>`
+        <div class="row">
+          <b>${nombreAccion(m.tipo)}</b><br>
+          ${m.hora}
+        </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
     </div>
   `;
 }
@@ -459,36 +446,27 @@ function vistaInformes(){
 // ===== USUARIOS PRO =====
 const ADMIN_PASS="admin";
 
+let usuariosCache=[];
+
 function kUsuarios(){return "zentryx_usuarios_pro"}
 
-function usuariosBase(){
-  return [{
-    id:"admin",
-    nombre:"Administrador",
-    usuario:"admin",
-    rol:"admin",
-    puesto:"Administrador",
-    telefono:"",
-    email:"",
-    dni:"",
-    activo:true,
-    password:"admin",
-    password_pendiente:false,
-    creado:new Date().toISOString()
-  }];
+async function cargarUsuariosServidor(){
+  const {data,error}=await sb.from("users").select("*").order("id",{ascending:true});
+  if(error){
+    console.error(error);
+    usuariosCache=[user];
+    return usuariosCache;
+  }
+  usuariosCache=(data||[]).map(normalizarUsuarioBD);
+  return usuariosCache;
 }
 
 function leerUsuarios(){
-  const raw=localStorage.getItem(kUsuarios());
-  if(!raw){
-    localStorage.setItem(kUsuarios(),JSON.stringify(usuariosBase()));
-    return usuariosBase();
-  }
-  return JSON.parse(raw);
+  return usuariosCache.length ? usuariosCache : [user];
 }
 
 function guardarUsuarios(lista){
-  localStorage.setItem(kUsuarios(),JSON.stringify(lista));
+  usuariosCache=lista||usuariosCache;
 }
 
 function pedirClaveAdmin(){
@@ -516,7 +494,8 @@ function estadoUsuario(u){
   return '<span class="badge green">Activo</span>';
 }
 
-function vistaUsuariosPro(){
+async function vistaUsuariosPro(){
+  await cargarUsuariosServidor();
   const lista=leerUsuarios();
 
   document.getElementById("app").innerHTML=`
@@ -1089,7 +1068,21 @@ function aplicarDescuentoSolicitud(s){
   guardarUsuarios(lista);
 }
 
-inicio();
+async function initApp(){
+  await asegurarUsuarioActual();
+  await cargarUsuariosServidor();
+  await cargarFichajesServidor();
+  await cargarNotasServidor();
+  inicio();
+
+  setInterval(async()=>{
+    await cargarFichajesServidor();
+    await cargarNotasServidor();
+    inicio();
+  }, 15000);
+}
+
+initApp();
 </script>
 </body>
 </html>
