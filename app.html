@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2530</title>
+<title>Zentryx V2531</title>
 <style>
 :root{
   --dark:#0f172a;
@@ -67,18 +67,41 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
   .module p{font-size:13px}
   .btn{font-size:16px}
 }
+
+/* ===== V2531 RESPONSIVE PRO ===== */
+@media(min-width:900px){
+  .page{max-width:1180px;padding:18px}
+  .header{padding:18px 22px}
+  .header h1{font-size:32px}
+  .header .fecha{font-size:16px}
+  .header .hora{font-size:28px}
+  .inicio-dashboard{display:grid;grid-template-columns:1.25fr .95fr;gap:14px;align-items:start}
+  .inicio-dashboard .card{margin-bottom:0}
+  .inicio-main,.inicio-side{display:flex;flex-direction:column;gap:14px}
+  .card{margin-bottom:14px}
+  .grid{grid-template-columns:1fr 1fr}
+  .module{min-height:150px}
+  .actions{grid-template-columns:1fr 1fr}
+}
+@media(min-width:1100px){
+  .module{min-height:135px}
+}
+@media(max-width:899px){
+  .inicio-dashboard{display:block}
+}
+
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>Zentryx V2530</h1>
+  <h1>Zentryx V2531</h1>
   <div class="fecha" id="fechaActual"></div>
   <div class="hora" id="horaActual"></div>
 </div>
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2530";
+const VERSION="2531";
 
 let user={
   id:"admin",
@@ -313,75 +336,81 @@ function inicio(){
   const otras=notas.filter(n=>!n.fija&&!notaVencida(n)).slice(0,5);
 
   document.getElementById("app").innerHTML=`
-    <div class="card">
-      <h2>Inicio</h2>
-      <b>${user.nombre}</b>
-      <p>${user.usuario} · ${user.rol}</p>
-      <span class="badge ${est.clase}">${est.txt}</span>
-      ${leerAviso()}
-    </div>
+    <div class="inicio-dashboard">
+      <div class="inicio-main">
+        <div class="card">
+          <h2>Inicio</h2>
+          <b>${user.nombre}</b>
+          <p>${user.usuario} · ${user.rol}</p>
+          <span class="badge ${est.clase}">${est.txt}</span>
+          ${leerAviso()}
+        </div>
 
-    ${fijas.length?`
-    <div class="card note-fixed">
-      <h2>Notas fijas</h2>
-      ${fijas.map(n=>notaHTML(n)).join("")}
-    </div>`:""}
+        <div class="card">
+          <h2>Jornada de hoy</h2>
+          <span class="badge">Trabajo: ${textoMin(res.trabajo)}</span>
+          <span class="badge">Pausas: ${textoMin(res.pausa)}</span>
+          <span class="badge">Comida: ${textoMin(res.comida)}</span>
+          <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+          <div class="actions">
+            <button class="btn orange" onclick="guardarMovimiento('inicio_pausa')">Inicio pausa</button>
+            <button class="btn orange" onclick="guardarMovimiento('inicio_comida')">Inicio comida</button>
+          </div>
+          ${esAdmin()?`<button class="btn gray full" onclick="limpiarPrueba()">Borrar fichajes de hoy</button>`:""}
+        </div>
 
-    ${vencidas.length?`
-    <div class="card note-fixed">
-      <h2>Avisos pendientes</h2>
-      ${vencidas.map(n=>notaHTML(n)).join("")}
-    </div>`:""}
-
-    <div class="card">
-      <h2>Jornada de hoy</h2>
-      <span class="badge">Trabajo: ${textoMin(res.trabajo)}</span>
-      <span class="badge">Pausas: ${textoMin(res.pausa)}</span>
-      <span class="badge">Comida: ${textoMin(res.comida)}</span>
-      <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
-      <div class="actions">
-        <button class="btn orange" onclick="guardarMovimiento('inicio_pausa')">Inicio pausa</button>
-        <button class="btn orange" onclick="guardarMovimiento('inicio_comida')">Inicio comida</button>
+        <div class="card">
+          <h2>Movimientos de hoy</h2>
+          ${res.mov.length?res.mov.slice().reverse().map(m=>`
+            <div class="row">
+              <b>${nombreAccion(m.tipo)}</b><br>
+              ${m.hora}
+            </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
+        </div>
       </div>
-      ${esAdmin()?`<button class="btn gray full" onclick="limpiarPrueba()">Borrar fichajes de hoy</button>`:""}
-    </div>
 
-    <div class="card">
-      <h2>Notas rápidas</h2>
-      <button class="btn blue full" onclick="crearNota()">+ Nota rápida</button>
-      ${otras.length?otras.map(n=>notaHTML(n)).join(""):"<p>No hay notas pendientes.</p>"}
-    </div>
+      <div class="inicio-side">
+        ${fijas.length?`
+        <div class="card note-fixed">
+          <h2>Notas fijas</h2>
+          ${fijas.map(n=>notaHTML(n)).join("")}
+        </div>`:""}
 
-    <div class="grid">
-      <div class="module">
-        <h3>Usuarios</h3>
-        <p>Alta, ficha, horarios y documentos.</p>
-        <button class="btn dark" onclick="vistaUsuariosPro()">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Solicitudes</h3>
-        <p>Vacaciones, permisos y bajas.</p>
-        <button class="btn blue" onclick="vistaSolicitudesPro()">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Configuración</h3>
-        <p>Horarios, avisos y horas extra.</p>
-        <button class="btn gray" onclick="vistaPendiente('Configuración PRO')">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Informes</h3>
-        <p>Resumen mensual y fichajes.</p>
-        <button class="btn blue" onclick="vistaInformes()">Abrir</button>
-      </div>
-    </div>
+        ${vencidas.length?`
+        <div class="card note-fixed">
+          <h2>Avisos pendientes</h2>
+          ${vencidas.map(n=>notaHTML(n)).join("")}
+        </div>`:""}
 
-    <div class="card">
-      <h2>Movimientos de hoy</h2>
-      ${res.mov.length?res.mov.slice().reverse().map(m=>`
-        <div class="row">
-          <b>${nombreAccion(m.tipo)}</b><br>
-          ${m.hora}
-        </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
+        <div class="card">
+          <h2>Notas rápidas</h2>
+          <button class="btn blue full" onclick="crearNota()">+ Nota rápida</button>
+          ${otras.length?otras.map(n=>notaHTML(n)).join(""):"<p>No hay notas pendientes.</p>"}
+        </div>
+
+        <div class="grid">
+          <div class="module">
+            <h3>Usuarios</h3>
+            <p>Alta, ficha, horarios y documentos.</p>
+            <button class="btn dark" onclick="vistaUsuariosPro()">Abrir</button>
+          </div>
+          <div class="module">
+            <h3>Solicitudes</h3>
+            <p>Vacaciones, permisos y bajas.</p>
+            <button class="btn blue" onclick="vistaSolicitudesPro()">Abrir</button>
+          </div>
+          <div class="module">
+            <h3>Configuración</h3>
+            <p>Horarios, avisos y horas extra.</p>
+            <button class="btn gray" onclick="vistaPendiente('Configuración PRO')">Abrir</button>
+          </div>
+          <div class="module">
+            <h3>Informes</h3>
+            <p>Resumen mensual y fichajes.</p>
+            <button class="btn blue" onclick="vistaInformes()">Abrir</button>
+          </div>
+        </div>
+      </div>
     </div>
   `;
 }
