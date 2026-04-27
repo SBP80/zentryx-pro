@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2532.1</title>
+<title>Zentryx V2530</title>
 <style>
 :root{
   --dark:#0f172a;
@@ -67,33 +67,18 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
   .module p{font-size:13px}
   .btn{font-size:16px}
 }
-
-.logout-btn{
-  background:#dc2626;
-  color:white;
-  border:0;
-  border-radius:16px;
-  padding:14px 22px;
-  font-size:20px;
-  font-weight:800;
-}
-.header-top{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  gap:12px;
-}
 </style>
 </head>
 <body>
-<div class="header"><div class="header-top"><h1>Zentryx V2532.1</h1><button class="logout-btn" onclick="cerrarSesion()">Salir</button></div>
+<div class="header">
+  <h1>Zentryx V2530</h1>
   <div class="fecha" id="fechaActual"></div>
   <div class="hora" id="horaActual"></div>
 </div>
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2532.1";
+const VERSION="2530";
 
 let user={
   id:"admin",
@@ -103,13 +88,6 @@ let user={
 };
 
 function esAdmin(){return user.rol==="admin"}
-
-function cerrarSesion(){
-  localStorage.removeItem("usuario");
-  localStorage.removeItem("user");
-  alert("Sesión cerrada.");
-  location.reload();
-}
 
 function ahora(){return new Date()}
 
@@ -180,24 +158,6 @@ function nombreAccion(a){
 }
 
 function guardarMovimiento(tipo){
-  const estActual = estadoActual().txt;
-  if(estActual==="Fuera" && tipo!=="entrada"){
-    alert("No puedes iniciar pausa, comida o salida sin haber fichado entrada.");
-    return;
-  }
-  if(estActual==="Trabajando" && tipo==="entrada"){
-    alert("Ya estás trabajando.");
-    return;
-  }
-  if(estActual==="En pausa" && tipo!=="fin_pausa"){
-    alert("Estás en pausa. Primero finaliza la pausa.");
-    return;
-  }
-  if(estActual==="En comida" && tipo!=="fin_comida"){
-    alert("Estás en comida. Primero finaliza la comida.");
-    return;
-  }
-
   const lista=leerFichajes();
   lista.push({id:Date.now(),fecha:hoyISO(),hora:horaHHMM(),tipo,ts:Date.now()});
   guardarFichajes(lista);
