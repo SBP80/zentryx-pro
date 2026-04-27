@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2530</title>
+<title>Zentryx V2533</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
   --dark:#0f172a;
@@ -21,9 +22,11 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}
 .header{background:var(--dark);color:#fff;padding:22px 18px}
+.headerTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .header h1{margin:0;font-size:34px;line-height:1.1}
 .header .fecha{margin-top:10px;font-size:18px;color:#cbd5e1}
 .header .hora{font-size:32px;font-weight:bold;margin-top:6px}
+.logoutBtn{background:var(--red);color:#fff;border:0;border-radius:14px;padding:12px 18px;font-size:18px;font-weight:bold}
 .page{padding:14px;max-width:950px;margin:0 auto}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
 h2{font-size:28px;margin:0 0 10px}
@@ -71,23 +74,41 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 </head>
 <body>
 <div class="header">
-  <h1>Zentryx V2530</h1>
-  <div class="fecha" id="fechaActual"></div>
-  <div class="hora" id="horaActual"></div>
+  <div class="headerTop">
+    <div>
+      <h1>Zentryx V2533</h1>
+      <div class="fecha" id="fechaActual"></div>
+      <div class="hora" id="horaActual"></div>
+    </div>
+    <button class="logoutBtn" onclick="cerrarSesion()">Salir</button>
+  </div>
 </div>
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2530";
+const VERSION="2533";
+
+const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
+const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 let user={
-  id:"admin",
+  id:"1",
   nombre:"Administrador",
   usuario:"admin",
   rol:"admin"
 };
 
+let fichajesCache=[];
+let cargandoFichajes=false;
+
 function esAdmin(){return user.rol==="admin"}
+
+function cerrarSesion(){
+  localStorage.removeItem("usuario");
+  localStorage.removeItem("user");
+  location.reload();
+}
 
 function ahora(){return new Date()}
 
@@ -130,8 +151,53 @@ setInterval(actualizarReloj,1000);
 actualizarReloj();
 
 function kFichajes(){return "zentryx_fichajes_"+user.id}
-function leerFichajes(){return JSON.parse(localStorage.getItem(kFichajes())||"[]")}
-function guardarFichajes(v){localStorage.setItem(kFichajes(),JSON.stringify(v))}
+
+async function cargarFichajesServidor(){
+  if(cargandoFichajes)return;
+  cargandoFichajes=true;
+
+  const {data,error}=await sb
+    .from("fichajes")
+    .select("*")
+    .eq("user_id",String(user.id))
+    .order("fecha",{ascending:true})
+    .limit(300);
+
+  cargandoFichajes=false;
+
+  if(error){
+    console.error(error);
+    aviso("Error leyendo fichajes: "+error.message,"error");
+    return;
+  }
+
+  fichajesCache=(data||[]).map(f=>{
+    const d=new Date(f.fecha);
+    return {
+      id:f.id,
+      fecha:String(f.fecha||"").slice(0,10),
+      hora:d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}),
+      tipo:f.tipo,
+      ts:d.getTime(),
+      direccion:f.direccion_real||f.direccion||"",
+      lat:f.lat||null,
+      lng:f.lng||null
+    };
+  });
+
+  localStorage.setItem(kFichajes(),JSON.stringify(fichajesCache));
+}
+
+function leerFichajes(){
+  if(fichajesCache.length)return fichajesCache;
+  return JSON.parse(localStorage.getItem(kFichajes())||"[]");
+}
+
+function guardarFichajes(v){
+  fichajesCache=v;
+  localStorage.setItem(kFichajes(),JSON.stringify(v));
+}
+
 function movimientosHoy(){return leerFichajes().filter(x=>x.fecha===hoyISO()).sort((a,b)=>a.ts-b.ts)}
 function ultimoMovimiento(){const m=movimientosHoy();return m.length?m[m.length-1]:null}
 
@@ -157,21 +223,60 @@ function nombreAccion(a){
   return map[a]||a;
 }
 
-function guardarMovimiento(tipo){
-  const lista=leerFichajes();
-  lista.push({id:Date.now(),fecha:hoyISO(),hora:horaHHMM(),tipo,ts:Date.now()});
-  guardarFichajes(lista);
+function movimientoPermitido(tipo){
+  const est=estadoActual().txt;
+
+  if(est==="Fuera")return tipo==="entrada";
+  if(est==="Trabajando")return ["salida","inicio_pausa","inicio_comida"].includes(tipo);
+  if(est==="En pausa")return tipo==="fin_pausa";
+  if(est==="En comida")return tipo==="fin_comida";
+
+  return tipo==="entrada";
+}
+
+function textoMovimientoNoPermitido(tipo){
+  const est=estadoActual().txt;
+  if(est==="Fuera")return "No puedes iniciar pausa, comida o salida sin haber fichado entrada.";
+  if(est==="Trabajando"&&tipo==="entrada")return "Ya estás trabajando.";
+  if(est==="En pausa")return "Estás en pausa. Primero finaliza la pausa.";
+  if(est==="En comida")return "Estás en comida. Primero finaliza la comida.";
+  return "Movimiento no permitido.";
+}
+
+async function guardarMovimiento(tipo){
+  await cargarFichajesServidor();
+
+  if(!movimientoPermitido(tipo)){
+    alert(textoMovimientoNoPermitido(tipo));
+    return;
+  }
+
+  const payload={
+    user_id:String(user.id),
+    tipo:tipo,
+    fecha:new Date().toISOString()
+  };
+
+  const {error}=await sb.from("fichajes").insert([payload]);
+
+  if(error){
+    console.error(error);
+    alert("Error guardando fichaje: "+error.message);
+    return;
+  }
+
+  await cargarFichajesServidor();
   aviso(nombreAccion(tipo)+" guardado.","ok");
   inicio();
 }
 
-function accionPrincipal(){
+async function accionPrincipal(){
   const e=estadoActual();
-  if(e.accion==="entrada")guardarMovimiento("entrada");
+  if(e.accion==="entrada")await guardarMovimiento("entrada");
   else if(e.accion==="salida"){
-    if(confirm("¿Registrar salida y cerrar jornada?"))guardarMovimiento("salida");
+    if(confirm("¿Registrar salida y cerrar jornada?"))await guardarMovimiento("salida");
   }
-  else guardarMovimiento(e.accion);
+  else await guardarMovimiento(e.accion);
 }
 
 function resumenHoy(){
@@ -295,12 +400,28 @@ function leerAviso(){
   return `<p class="${m.tipo}">${m.texto}</p>`;
 }
 
-function limpiarPrueba(){
+async function limpiarPrueba(){
   if(!esAdmin()){alert("Solo admin.");return}
   const pass=prompt("Contraseña admin:");
   if(pass!=="admin"){alert("Contraseña incorrecta.");return}
   if(!confirm("¿Borrar fichajes de hoy?"))return;
-  guardarFichajes(leerFichajes().filter(x=>x.fecha!==hoyISO()));
+
+  const inicio=hoyISO()+"T00:00:00";
+  const fin=hoyISO()+"T23:59:59";
+
+  const {error}=await sb
+    .from("fichajes")
+    .delete()
+    .eq("user_id",String(user.id))
+    .gte("fecha",inicio)
+    .lte("fecha",fin);
+
+  if(error){
+    alert("Error borrando fichajes: "+error.message);
+    return;
+  }
+
+  await cargarFichajesServidor();
   inicio();
 }
 
@@ -414,7 +535,7 @@ function vistaInformes(){
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
       <h2>Informes</h2>
-      <p>Resumen de movimientos guardados en este dispositivo.</p>
+      <p>Resumen de movimientos guardados.</p>
     </div>
     <div class="card">
       <h3>Movimientos</h3>
@@ -1060,7 +1181,16 @@ function aplicarDescuentoSolicitud(s){
   guardarUsuarios(lista);
 }
 
-inicio();
+async function iniciarApp(){
+  await cargarFichajesServidor();
+  inicio();
+  setInterval(async()=>{
+    await cargarFichajesServidor();
+    inicio();
+  },15000);
+}
+
+iniciarApp();
 </script>
 </body>
 </html>
