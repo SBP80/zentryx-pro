@@ -3,107 +3,61 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2527</title>
-
+<title>Zentryx V2527.1</title>
 <style>
-body{
-  font-family: Arial;
-  margin:0;
-  background:#f5f6f8;
-}
-
-.header{
-  background:#0f172a;
-  color:#fff;
-  padding:20px;
-  font-size:22px;
-  font-weight:bold;
-}
-
-.container{
-  padding:15px;
-}
-
-.card{
-  background:#fff;
-  border-radius:12px;
-  padding:15px;
-  margin-bottom:15px;
-  box-shadow:0 2px 6px rgba(0,0,0,0.08);
-}
-
-.btn{
-  display:block;
-  width:100%;
-  padding:12px;
-  margin-top:10px;
-  border:none;
-  border-radius:8px;
-  font-size:16px;
-  cursor:pointer;
-}
-
-.btn-blue{background:#2563eb;color:#fff;}
-.btn-green{background:#16a34a;color:#fff;}
-.btn-gray{background:#e5e7eb;}
-.btn-red{background:#dc2626;color:#fff;}
-
-h2{margin-top:0;}
+:root{--dark:#0f172a;--bg:#eef2f7;--card:#fff;--line:#d1d5db;--text:#111827;--muted:#6b7280;--blue:#2563eb;--green:#16a34a;--red:#dc2626;--gray:#e5e7eb}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}
+.header{background:var(--dark);color:white;padding:22px 18px}
+.header h1{margin:0;font-size:34px;line-height:1.1}.header .small{margin-top:8px;color:#cbd5e1;font-size:15px}
+.page{padding:14px;max-width:900px;margin:0 auto}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+h2{margin:0 0 10px;font-size:28px}h3{margin:0 0 8px;font-size:22px}p{margin:6px 0;color:var(--muted);font-size:16px;line-height:1.35}
+.badge{display:inline-block;background:var(--gray);border-radius:999px;padding:8px 12px;font-weight:bold;margin:4px 4px 4px 0}
+.btn{border:0;border-radius:14px;padding:13px 16px;font-weight:bold;font-size:17px;cursor:pointer;margin:5px 4px 5px 0}.btn.full{width:100%;margin-top:10px}
+.btn.blue{background:var(--blue);color:white}.btn.green{background:var(--green);color:white}.btn.red{background:var(--red);color:white}.btn.gray{background:var(--gray);color:#2563eb}.btn.dark{background:var(--dark);color:white}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.module{background:white;border:1px solid var(--line);border-radius:16px;padding:14px}.module h3{font-size:20px}.module p{font-size:14px;min-height:38px}.module button{width:100%;min-height:48px}.main-action{border:2px solid var(--green)}.main-action h2{font-size:30px}
+.row{border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0;background:#fff}.row b{font-size:18px}.muted{color:var(--muted)}.ok{color:#15803d;font-weight:bold}.warn{color:#a16207;font-weight:bold}.error{color:#b91c1c;font-weight:bold}
+input,select,textarea{width:100%;padding:13px;border:1px solid #c7c7c7;border-radius:12px;font-size:17px;margin:6px 0 12px;background:white}label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
+@media(max-width:560px){.grid{grid-template-columns:1fr 1fr;gap:8px}.header h1{font-size:32px}.module{padding:12px}.module h3{font-size:18px}.module p{font-size:13px}.btn{font-size:16px}}
 </style>
 </head>
-
 <body>
-
-<div class="header">
-Zentryx V2527
-</div>
-
-<div class="container" id="app"></div>
-
+<div class="header"><h1>Zentryx V2527.1</h1><div class="small">Control horario · usuarios · solicitudes · informes</div></div>
+<div class="page" id="app"></div>
 <script>
-
-let user = {rol:"admin"}; // simulado de momento
-
-function inicio(){
-
-  document.getElementById("app").innerHTML = `
-
-  <div class="card">
-    <h2>Jornada</h2>
-    <button class="btn btn-blue" onclick="fichar()">Fichar ahora</button>
-    <button class="btn btn-gray">Ver jornada</button>
-  </div>
-
-  <div class="card">
-    <h2>Usuarios</h2>
-    ${user.rol==="admin" ? `<button class="btn btn-green">Gestionar usuarios</button>`:""}
-  </div>
-
-  <div class="card">
-    <h2>Solicitudes</h2>
-    <button class="btn btn-gray">Vacaciones / permisos</button>
-  </div>
-
-  <div class="card">
-    <h2>Configuración</h2>
-    ${user.rol==="admin" ? `<button class="btn btn-gray">Configurar sistema</button>`:""}
-  </div>
-
-  <div class="card">
-    <h2>Informes</h2>
-    <button class="btn btn-gray">Ver informes</button>
-  </div>
-
-  `;
-}
-
-function fichar(){
-  alert("Aquí irá el fichaje real (siguiente paso)");
-}
-
+const VERSION="2527.1";
+let user={id:"admin",nombre:"Administrador",usuario:"admin",rol:"admin"};
+function esAdmin(){return user.rol==="admin"}
+function hoyISO(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function fechaES(iso){if(!iso)return "";const p=iso.split("-");return p[2]+"/"+p[1]+"/"+p[0]}
+function horaActual(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")}
+function idRegistro(){return "fichajes_"+user.id}
+function leerFichajes(){return JSON.parse(localStorage.getItem(idRegistro())||"[]")}
+function guardarFichajes(lista){localStorage.setItem(idRegistro(),JSON.stringify(lista))}
+function fichajeHoy(){return leerFichajes().find(x=>x.fecha===hoyISO())||null}
+function estadoJornada(){const r=fichajeHoy();if(!r)return "Sin fichar";if(r.entrada&&!r.salida)return "Trabajando desde "+r.entrada;if(r.entrada&&r.salida)return "Jornada cerrada "+r.entrada+" - "+r.salida;return "Sin fichar"}
+function minutos(h){if(!h)return null;const p=h.split(":").map(Number);return p[0]*60+p[1]}
+function duracionTexto(entrada,salida){if(!entrada||!salida)return "Pendiente";const total=minutos(salida)-minutos(entrada);if(total<0)return "Error hora";return Math.floor(total/60)+" h "+(total%60)+" min"}
+function fichar(){let lista=leerFichajes();let r=lista.find(x=>x.fecha===hoyISO());if(!r){lista.unshift({id:Date.now(),fecha:hoyISO(),entrada:horaActual(),salida:null,nota:""});guardarFichajes(lista);aviso("Entrada registrada.","ok");inicio();return}if(r.entrada&&!r.salida){if(!confirm("¿Registrar salida y cerrar jornada?"))return;r.salida=horaActual();guardarFichajes(lista);aviso("Salida registrada.","ok");inicio();return}aviso("La jornada de hoy ya está cerrada.","warn");inicio()}
+function reiniciarHoyProtegido(){if(!esAdmin()){alert("Solo admin puede editar fichajes.");return}const pass=prompt("Contraseña del administrador:");if(pass!=="admin"){alert("Contraseña incorrecta.");return}if(!confirm("¿Borrar el fichaje de hoy para repetir la prueba?"))return;guardarFichajes(leerFichajes().filter(x=>x.fecha!==hoyISO()));inicio()}
+function aviso(texto,tipo){localStorage.setItem("zentryx_msg",JSON.stringify({texto,tipo}))}
+function leerAviso(){const raw=localStorage.getItem("zentryx_msg");if(!raw)return "";localStorage.removeItem("zentryx_msg");const m=JSON.parse(raw);return '<p class="'+m.tipo+'">'+m.texto+'</p>'}
+function inicio(){const historial=leerFichajes();document.getElementById("app").innerHTML=`
+<div class="card"><h2>Inicio</h2><b>${user.nombre}</b><p>${user.usuario} · ${user.rol}</p><span class="badge">${estadoJornada()}</span>${leerAviso()}</div>
+<div class="card main-action"><h2>Jornada</h2><p>Fichaje rápido de entrada y salida.</p><button class="btn green full" onclick="fichar()">Fichar</button>${esAdmin()?`<button class="btn gray full" onclick="reiniciarHoyProtegido()">Reiniciar fichaje de hoy</button>`:""}</div>
+<div class="grid">
+<div class="module"><h3>Usuarios</h3><p>Alta, ficha, horarios y documentos.</p><button class="btn dark" onclick="vistaUsuarios()">Abrir</button></div>
+<div class="module"><h3>Solicitudes</h3><p>Vacaciones, permisos y bajas.</p><button class="btn blue" onclick="vistaSolicitudes()">Abrir</button></div>
+<div class="module"><h3>Configuración</h3><p>Horarios, avisos y horas extra.</p><button class="btn gray" onclick="vistaConfig()">Abrir</button></div>
+<div class="module"><h3>Informes</h3><p>Resumen mensual y fichajes.</p><button class="btn blue" onclick="vistaInformes()">Abrir</button></div>
+</div>
+<div class="card"><h2>Últimos fichajes</h2>${historial.length?historial.slice(0,8).map(x=>`<div class="row"><b>${fechaES(x.fecha)}</b><br>Entrada: ${x.entrada||"-"}<br>Salida: ${x.salida||"Pendiente"}<br><span class="muted">Total: ${duracionTexto(x.entrada,x.salida)}</span></div>`).join(""):"<p>No hay fichajes todavía.</p>"}</div>`}
+function vistaUsuarios(){document.getElementById("app").innerHTML=`<div class="card"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Usuarios</h2><p>Base preparada para alta PRO de usuario.</p>${esAdmin()?`<button class="btn green full" onclick="vistaCrearUsuario()">Crear usuario</button>`:""}</div><div class="card"><h3>${user.nombre}</h3><p>${user.usuario} · ${user.rol}</p><button class="btn gray" onclick="alert('Aquí irá la ficha completa del usuario')">Abrir ficha</button></div>`}
+function vistaCrearUsuario(){document.getElementById("app").innerHTML=`<div class="card"><button class="btn gray" onclick="vistaUsuarios()">← Usuarios</button><h2>Alta de usuario</h2><p>Formulario base. La versión siguiente lo conectará a base de datos.</p><label>Nombre</label><input id="nuevoNombre" placeholder="Nombre y apellidos"><label>Usuario</label><input id="nuevoUsuario" placeholder="usuario"><label>Rol</label><select id="nuevoRol"><option value="operario">Operario</option><option value="encargado">Encargado</option><option value="oficina">Oficina</option><option value="admin">Admin</option></select><label>Puesto</label><input id="nuevoPuesto" placeholder="Instalador, oficial, administrativo..."><label>Teléfono</label><input id="nuevoTelefono" placeholder="Teléfono"><label>Email</label><input id="nuevoEmail" placeholder="Email"><button class="btn green full" onclick="alert('Alta PRO se conectará en la siguiente versión')">Guardar usuario</button></div>`}
+function vistaSolicitudes(){document.getElementById("app").innerHTML=`<div class="card"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Solicitudes</h2><p>Vacaciones, médico, permisos, bajas y asuntos propios.</p><button class="btn blue full" onclick="alert('Solicitudes PRO se conectará en la siguiente versión')">Nueva solicitud</button></div>`}
+function vistaConfig(){document.getElementById("app").innerHTML=`<div class="card"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Configuración</h2><p>Panel preparado para horarios, avisos, festivos y horas extra.</p></div><div class="grid"><div class="module"><h3>Horarios</h3><p>Horario semanal por usuario.</p><button class="btn gray" onclick="alert('Horarios PRO en siguiente versión')">Abrir</button></div><div class="module"><h3>Horas extra</h3><p>Tipos y precios.</p><button class="btn gray" onclick="alert('Horas extra PRO en siguiente versión')">Abrir</button></div><div class="module"><h3>Festivos</h3><p>Calendario laboral.</p><button class="btn gray" onclick="alert('Festivos PRO en siguiente versión')">Abrir</button></div><div class="module"><h3>Avisos</h3><p>Recordatorios de fichaje.</p><button class="btn gray" onclick="alert('Avisos PRO en siguiente versión')">Abrir</button></div></div>`}
+function vistaInformes(){const historial=leerFichajes();document.getElementById("app").innerHTML=`<div class="card"><button class="btn gray" onclick="inicio()">← Volver</button><h2>Informes</h2><p>Resumen simple actual.</p></div><div class="card"><h3>Fichajes guardados</h3><span class="badge">${historial.length} registros</span>${historial.length?historial.map(x=>`<div class="row"><b>${fechaES(x.fecha)}</b><br>${x.entrada||"-"} → ${x.salida||"Pendiente"}<br><span class="muted">${duracionTexto(x.entrada,x.salida)}</span></div>`).join(""):"<p>No hay datos.</p>"}</div>`}
 inicio();
-
 </script>
-
 </body>
 </html>
