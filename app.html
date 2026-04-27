@@ -3,125 +3,430 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2527.2</title>
+<title>Zentryx V2528</title>
 <style>
-:root{--dark:#0f172a;--bg:#eef2f7;--card:#fff;--line:#d1d5db;--text:#111827;--muted:#6b7280;--blue:#2563eb;--green:#16a34a;--red:#dc2626;--gray:#e5e7eb}
-body{margin:0;background:var(--bg);font-family:Arial}
-.header{background:var(--dark);color:#fff;padding:20px}
-.card{background:#fff;border-radius:16px;padding:16px;margin:12px}
-.btn{padding:14px;border-radius:12px;border:0;font-weight:bold;margin-top:8px}
-.green{background:var(--green);color:#fff}
-.blue{background:var(--blue);color:#fff}
-.gray{background:var(--gray)}
-.note-fixed{position:fixed;top:80px;right:10px;background:#fff;border:2px solid #000;padding:10px;border-radius:10px;max-width:150px}
+:root{
+  --dark:#0f172a;
+  --bg:#eef2f7;
+  --card:#ffffff;
+  --line:#d1d5db;
+  --text:#111827;
+  --muted:#6b7280;
+  --blue:#2563eb;
+  --green:#16a34a;
+  --red:#dc2626;
+  --orange:#f59e0b;
+  --gray:#e5e7eb;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}
+.header{background:var(--dark);color:#fff;padding:22px 18px}
+.header h1{margin:0;font-size:34px;line-height:1.1}
+.header .fecha{margin-top:10px;font-size:18px;color:#cbd5e1}
+.header .hora{font-size:32px;font-weight:bold;margin-top:6px}
+.page{padding:14px;max-width:950px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+h2{font-size:28px;margin:0 0 10px}
+h3{font-size:22px;margin:0 0 8px}
+p{margin:6px 0;color:var(--muted);font-size:16px;line-height:1.35}
+.badge{display:inline-block;background:var(--gray);border-radius:999px;padding:8px 12px;font-weight:bold;margin:4px 4px 4px 0}
+.badge.green{background:#dcfce7;color:#166534}
+.badge.orange{background:#fef3c7;color:#92400e}
+.badge.red{background:#fee2e2;color:#991b1b}
+.btn{border:0;border-radius:14px;padding:13px 16px;font-weight:bold;font-size:17px;cursor:pointer;margin:5px 4px 5px 0}
+.btn.full{width:100%;margin-top:10px}
+.btn.blue{background:var(--blue);color:white}
+.btn.green{background:var(--green);color:white}
+.btn.red{background:var(--red);color:white}
+.btn.orange{background:var(--orange);color:white}
+.btn.gray{background:var(--gray);color:#2563eb}
+.btn.dark{background:var(--dark);color:white}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.module{background:white;border:1px solid var(--line);border-radius:16px;padding:14px}
+.module h3{font-size:20px}
+.module p{font-size:14px;min-height:38px}
+.module button{width:100%;min-height:48px}
+.row{border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0;background:#fff}
+.row b{font-size:18px}
+.ok{color:#15803d;font-weight:bold}
+.warn{color:#a16207;font-weight:bold}
+.error{color:#b91c1c;font-weight:bold}
+input,select,textarea{width:100%;padding:13px;border:1px solid #c7c7c7;border-radius:12px;font-size:17px;margin:6px 0 12px;background:white}
+textarea{min-height:120px}
+label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.note-fixed{border:2px solid var(--orange);background:#fffbeb}
+.small{font-size:13px;color:var(--muted)}
+@media(max-width:560px){
+  .grid{grid-template-columns:1fr 1fr;gap:8px}
+  .actions{grid-template-columns:1fr 1fr}
+  .header h1{font-size:32px}
+  .header .hora{font-size:30px}
+  .module{padding:12px}
+  .module h3{font-size:18px}
+  .module p{font-size:13px}
+  .btn{font-size:16px}
+}
 </style>
 </head>
 <body>
-
 <div class="header">
-<h1>Zentryx V2527.2</h1>
-<div id="fecha"></div>
-<div id="hora"></div>
+  <h1>Zentryx V2528</h1>
+  <div class="fecha" id="fechaActual"></div>
+  <div class="hora" id="horaActual"></div>
 </div>
-
-<div id="app"></div>
+<div class="page" id="app"></div>
 
 <script>
+const VERSION="2528";
 
-// ===== RELOJ =====
-function actualizarTiempo(){
+let user={
+  id:"admin",
+  nombre:"Administrador",
+  usuario:"admin",
+  rol:"admin"
+};
+
+function esAdmin(){return user.rol==="admin"}
+
+function ahora(){return new Date()}
+
+function hoyISO(){
   const d=new Date();
-  document.getElementById("hora").innerText=d.toLocaleTimeString();
-  document.getElementById("fecha").innerText=d.toLocaleDateString("es-ES",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
-}
-setInterval(actualizarTiempo,1000);
-actualizarTiempo();
-
-// ===== STORAGE =====
-function getNotas(){return JSON.parse(localStorage.getItem("notas")||"[]")}
-function saveNotas(n){localStorage.setItem("notas",JSON.stringify(n))}
-
-// ===== FICHAJE =====
-function getHoy(){return new Date().toISOString().split("T")[0]}
-function getF(){return JSON.parse(localStorage.getItem("fich")||"[]")}
-function saveF(f){localStorage.setItem("fich",JSON.stringify(f))}
-
-function estado(){
- let r=getF().find(x=>x.fecha===getHoy());
- if(!r)return "Sin fichar";
- if(r.entrada && !r.salida)return "Trabajando desde "+r.entrada;
- return "Jornada finalizada";
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
 
-function fichar(){
- let f=getF();
- let r=f.find(x=>x.fecha===getHoy());
- let h=new Date().toTimeString().slice(0,5);
-
- if(!r){
-   f.push({fecha:getHoy(),entrada:h});
- }else if(!r.salida){
-   r.salida=h;
- }else{
-   alert("Ya completado");
- }
- saveF(f);
- render();
+function fechaES(iso){
+  if(!iso)return "";
+  const p=iso.split("-");
+  return p[2]+"/"+p[1]+"/"+p[0];
 }
 
-// ===== NOTAS =====
+function horaHHMM(){
+  const d=new Date();
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+
+function minutos(h){
+  if(!h)return null;
+  const p=h.split(":").map(Number);
+  return p[0]*60+p[1];
+}
+
+function textoMin(total){
+  if(total==null)return "0 h 0 min";
+  if(total<0)total=0;
+  const h=Math.floor(total/60);
+  const m=total%60;
+  return h+" h "+m+" min";
+}
+
+function actualizarReloj(){
+  const d=new Date();
+  document.getElementById("fechaActual").textContent=d.toLocaleDateString("es-ES",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  document.getElementById("horaActual").textContent=d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+}
+setInterval(actualizarReloj,1000);
+actualizarReloj();
+
+function kFichajes(){return "zentryx_fichajes_"+user.id}
+function leerFichajes(){return JSON.parse(localStorage.getItem(kFichajes())||"[]")}
+function guardarFichajes(v){localStorage.setItem(kFichajes(),JSON.stringify(v))}
+function movimientosHoy(){return leerFichajes().filter(x=>x.fecha===hoyISO()).sort((a,b)=>a.ts-b.ts)}
+function ultimoMovimiento(){const m=movimientosHoy();return m.length?m[m.length-1]:null}
+
+function estadoActual(){
+  const u=ultimoMovimiento();
+  if(!u)return {txt:"Fuera",clase:"red",accion:"entrada"};
+  if(u.tipo==="entrada"||u.tipo==="fin_pausa"||u.tipo==="fin_comida")return {txt:"Trabajando",clase:"green",accion:"salida"};
+  if(u.tipo==="inicio_pausa")return {txt:"En pausa",clase:"orange",accion:"fin_pausa"};
+  if(u.tipo==="inicio_comida")return {txt:"En comida",clase:"orange",accion:"fin_comida"};
+  if(u.tipo==="salida")return {txt:"Fuera",clase:"red",accion:"entrada"};
+  return {txt:"Fuera",clase:"red",accion:"entrada"};
+}
+
+function nombreAccion(a){
+  const map={
+    entrada:"Fichar entrada",
+    salida:"Fichar salida",
+    inicio_pausa:"Inicio pausa",
+    fin_pausa:"Fin pausa",
+    inicio_comida:"Inicio comida",
+    fin_comida:"Fin comida"
+  };
+  return map[a]||a;
+}
+
+function guardarMovimiento(tipo){
+  const lista=leerFichajes();
+  lista.push({id:Date.now(),fecha:hoyISO(),hora:horaHHMM(),tipo,ts:Date.now()});
+  guardarFichajes(lista);
+  aviso(nombreAccion(tipo)+" guardado.","ok");
+  inicio();
+}
+
+function accionPrincipal(){
+  const e=estadoActual();
+  if(e.accion==="entrada")guardarMovimiento("entrada");
+  else if(e.accion==="salida"){
+    if(confirm("¿Registrar salida y cerrar jornada?"))guardarMovimiento("salida");
+  }
+  else guardarMovimiento(e.accion);
+}
+
+function resumenHoy(){
+  const mov=movimientosHoy();
+  let trabajandoDesde=null, pausaDesde=null, comidaDesde=null;
+  let trabajo=0, pausa=0, comida=0;
+
+  for(const m of mov){
+    const mm=minutos(m.hora);
+    if(m.tipo==="entrada"||m.tipo==="fin_pausa"||m.tipo==="fin_comida"){
+      trabajandoDesde=mm;
+      pausaDesde=null;
+      comidaDesde=null;
+    }
+    if(m.tipo==="inicio_pausa"){
+      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
+      trabajandoDesde=null;
+      pausaDesde=mm;
+    }
+    if(m.tipo==="fin_pausa"){
+      if(pausaDesde!=null)pausa+=mm-pausaDesde;
+      pausaDesde=null;
+      trabajandoDesde=mm;
+    }
+    if(m.tipo==="inicio_comida"){
+      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
+      trabajandoDesde=null;
+      comidaDesde=mm;
+    }
+    if(m.tipo==="fin_comida"){
+      if(comidaDesde!=null)comida+=mm-comidaDesde;
+      comidaDesde=null;
+      trabajandoDesde=mm;
+    }
+    if(m.tipo==="salida"){
+      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
+      trabajandoDesde=null;
+    }
+  }
+
+  const est=estadoActual();
+  const now=minutos(horaHHMM());
+  if(est.txt==="Trabajando" && trabajandoDesde!=null)trabajo+=now-trabajandoDesde;
+  if(est.txt==="En pausa" && pausaDesde!=null)pausa+=now-pausaDesde;
+  if(est.txt==="En comida" && comidaDesde!=null)comida+=now-comidaDesde;
+
+  return {trabajo,pausa,comida,mov};
+}
+
+function kNotas(){return "zentryx_notas_"+user.id}
+function leerNotas(){return JSON.parse(localStorage.getItem(kNotas())||"[]")}
+function guardarNotas(v){localStorage.setItem(kNotas(),JSON.stringify(v))}
+
+function notaVencida(n){
+  if(n.hecha)return false;
+  if(!n.fecha||!n.hora)return false;
+  return new Date(n.fecha+"T"+n.hora) <= new Date();
+}
+
 function crearNota(){
- let txt=prompt("Escribe nota");
- if(!txt)return;
-
- let fecha=prompt("Fecha aviso (YYYY-MM-DD) opcional");
- let hora=prompt("Hora aviso (HH:MM) opcional");
- let fija=confirm("¿Fijar permanente?");
-
- let n=getNotas();
- n.push({txt,fecha,hora,fija});
- saveNotas(n);
- render();
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Nueva nota rápida</h2>
+      <label>Nota</label>
+      <textarea id="notaTxt" placeholder="Escribe aquí la nota..."></textarea>
+      <label>Fecha aviso</label>
+      <input id="notaFecha" type="date">
+      <label>Hora aviso</label>
+      <input id="notaHora" type="time">
+      <label>Fijar permanente</label>
+      <select id="notaFija">
+        <option value="false">No</option>
+        <option value="true">Sí</option>
+      </select>
+      <button class="btn green full" onclick="guardarNotaNueva()">Guardar nota</button>
+    </div>`;
 }
 
-// ===== UI =====
-function render(){
-
- let notas=getNotas();
- let fija=notas.find(n=>n.fija);
-
- document.getElementById("app").innerHTML=`
-
- <div class="card">
- <h2>${estado()}</h2>
- <button class="btn green" onclick="fichar()">Fichar</button>
- </div>
-
- <div class="card">
- <h2>Notas rápidas</h2>
- <button class="btn blue" onclick="crearNota()">+ Nota</button>
- ${notas.map(n=>`<p>${n.txt}</p>`).join("")}
- </div>
-
- `;
-
- // fija
- let old=document.getElementById("fija");
- if(old)old.remove();
-
- if(fija){
-   let d=document.createElement("div");
-   d.className="note-fixed";
-   d.id="fija";
-   d.innerText=fija.txt;
-   document.body.appendChild(d);
- }
-
+function guardarNotaNueva(){
+  const txt=document.getElementById("notaTxt").value.trim();
+  if(!txt){alert("Escribe una nota.");return}
+  const lista=leerNotas();
+  lista.unshift({
+    id:Date.now(),
+    txt,
+    fecha:document.getElementById("notaFecha").value,
+    hora:document.getElementById("notaHora").value,
+    fija:document.getElementById("notaFija").value==="true",
+    hecha:false,
+    creada:new Date().toISOString()
+  });
+  guardarNotas(lista);
+  aviso("Nota guardada.","ok");
+  inicio();
 }
 
-render();
+function marcarNotaHecha(id){
+  const lista=leerNotas();
+  const n=lista.find(x=>x.id===id);
+  if(n)n.hecha=true;
+  guardarNotas(lista);
+  inicio();
+}
 
+function eliminarNota(id){
+  if(!confirm("¿Eliminar nota?"))return;
+  guardarNotas(leerNotas().filter(x=>x.id!==id));
+  inicio();
+}
+
+function aviso(texto,tipo){
+  localStorage.setItem("zentryx_msg",JSON.stringify({texto,tipo}));
+}
+
+function leerAviso(){
+  const raw=localStorage.getItem("zentryx_msg");
+  if(!raw)return "";
+  localStorage.removeItem("zentryx_msg");
+  const m=JSON.parse(raw);
+  return `<p class="${m.tipo}">${m.texto}</p>`;
+}
+
+function limpiarPrueba(){
+  if(!esAdmin()){alert("Solo admin.");return}
+  const pass=prompt("Contraseña admin:");
+  if(pass!=="admin"){alert("Contraseña incorrecta.");return}
+  if(!confirm("¿Borrar fichajes de hoy?"))return;
+  guardarFichajes(leerFichajes().filter(x=>x.fecha!==hoyISO()));
+  inicio();
+}
+
+function inicio(){
+  const est=estadoActual();
+  const res=resumenHoy();
+  const notas=leerNotas().filter(n=>!n.hecha);
+  const fijas=notas.filter(n=>n.fija);
+  const vencidas=notas.filter(notaVencida);
+  const otras=notas.filter(n=>!n.fija&&!notaVencida(n)).slice(0,5);
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <h2>Inicio</h2>
+      <b>${user.nombre}</b>
+      <p>${user.usuario} · ${user.rol}</p>
+      <span class="badge ${est.clase}">${est.txt}</span>
+      ${leerAviso()}
+    </div>
+
+    ${fijas.length?`
+    <div class="card note-fixed">
+      <h2>Notas fijas</h2>
+      ${fijas.map(n=>notaHTML(n)).join("")}
+    </div>`:""}
+
+    ${vencidas.length?`
+    <div class="card note-fixed">
+      <h2>Avisos pendientes</h2>
+      ${vencidas.map(n=>notaHTML(n)).join("")}
+    </div>`:""}
+
+    <div class="card">
+      <h2>Jornada de hoy</h2>
+      <span class="badge">Trabajo: ${textoMin(res.trabajo)}</span>
+      <span class="badge">Pausas: ${textoMin(res.pausa)}</span>
+      <span class="badge">Comida: ${textoMin(res.comida)}</span>
+      <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+      <div class="actions">
+        <button class="btn orange" onclick="guardarMovimiento('inicio_pausa')">Inicio pausa</button>
+        <button class="btn orange" onclick="guardarMovimiento('inicio_comida')">Inicio comida</button>
+      </div>
+      ${esAdmin()?`<button class="btn gray full" onclick="limpiarPrueba()">Borrar fichajes de hoy</button>`:""}
+    </div>
+
+    <div class="card">
+      <h2>Notas rápidas</h2>
+      <button class="btn blue full" onclick="crearNota()">+ Nota rápida</button>
+      ${otras.length?otras.map(n=>notaHTML(n)).join(""):"<p>No hay notas pendientes.</p>"}
+    </div>
+
+    <div class="grid">
+      <div class="module">
+        <h3>Usuarios</h3>
+        <p>Alta, ficha, horarios y documentos.</p>
+        <button class="btn dark" onclick="vistaPendiente('Usuarios PRO')">Abrir</button>
+      </div>
+      <div class="module">
+        <h3>Solicitudes</h3>
+        <p>Vacaciones, permisos y bajas.</p>
+        <button class="btn blue" onclick="vistaPendiente('Solicitudes PRO')">Abrir</button>
+      </div>
+      <div class="module">
+        <h3>Configuración</h3>
+        <p>Horarios, avisos y horas extra.</p>
+        <button class="btn gray" onclick="vistaPendiente('Configuración PRO')">Abrir</button>
+      </div>
+      <div class="module">
+        <h3>Informes</h3>
+        <p>Resumen mensual y fichajes.</p>
+        <button class="btn blue" onclick="vistaInformes()">Abrir</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Movimientos de hoy</h2>
+      ${res.mov.length?res.mov.slice().reverse().map(m=>`
+        <div class="row">
+          <b>${nombreAccion(m.tipo)}</b><br>
+          ${m.hora}
+        </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
+    </div>
+  `;
+}
+
+function notaHTML(n){
+  return `
+    <div class="row">
+      <b>${n.txt}</b><br>
+      ${n.fecha||n.hora?`<span class="small">Aviso: ${n.fecha||""} ${n.hora||""}</span><br>`:""}
+      ${n.fija?`<span class="badge orange">Fija</span>`:""}
+      ${notaVencida(n)?`<span class="badge red">Vencida</span>`:""}
+      <br>
+      <button class="btn green" onclick="marcarNotaHecha(${n.id})">Hecha</button>
+      <button class="btn red" onclick="eliminarNota(${n.id})">Eliminar</button>
+    </div>`;
+}
+
+function vistaPendiente(titulo){
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>${titulo}</h2>
+      <p>Este bloque será el siguiente en conectar con base de datos y permisos.</p>
+    </div>`;
+}
+
+function vistaInformes(){
+  const lista=leerFichajes().slice().reverse();
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Informes</h2>
+      <p>Resumen de movimientos guardados en este dispositivo.</p>
+    </div>
+    <div class="card">
+      <h3>Movimientos</h3>
+      ${lista.length?lista.map(m=>`
+        <div class="row">
+          <b>${fechaES(m.fecha)} · ${m.hora}</b><br>
+          ${nombreAccion(m.tipo)}
+        </div>`).join(""):"<p>No hay datos.</p>"}
+    </div>`;
+}
+
+inicio();
 </script>
-
 </body>
 </html>
