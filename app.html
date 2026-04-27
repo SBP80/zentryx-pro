@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2529</title>
+<title>Zentryx V2530</title>
 <style>
 :root{
   --dark:#0f172a;
@@ -71,14 +71,14 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 </head>
 <body>
 <div class="header">
-  <h1>Zentryx V2529</h1>
+  <h1>Zentryx V2530</h1>
   <div class="fecha" id="fechaActual"></div>
   <div class="hora" id="horaActual"></div>
 </div>
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2529";
+const VERSION="2530";
 
 let user={
   id:"admin",
@@ -361,7 +361,7 @@ function inicio(){
       <div class="module">
         <h3>Solicitudes</h3>
         <p>Vacaciones, permisos y bajas.</p>
-        <button class="btn blue" onclick="vistaPendiente('Solicitudes PRO')">Abrir</button>
+        <button class="btn blue" onclick="vistaSolicitudesPro()">Abrir</button>
       </div>
       <div class="module">
         <h3>Configuración</h3>
@@ -553,7 +553,7 @@ function vistaAltaUsuarioPro(){
       <label>Días de vacaciones anuales</label>
       <input id="u_vacaciones" type="number" value="22">
 
-      <label>Asuntos propios anuales</label>
+      <label>Horas asuntos propios anuales</label>
       <input id="u_asuntos" type="number" value="0">
 
       <button class="btn green full" onclick="guardarAltaUsuarioPro()">Crear usuario</button>
@@ -656,7 +656,7 @@ function vistaFichaUsuarioPro(id){
       <p><b>Email:</b> ${u.email||"-"}</p>
       <p><b>DNI:</b> ${u.dni||"-"}</p>
       <p><b>Vacaciones:</b> ${u.vacaciones??22}</p>
-      <p><b>Asuntos propios:</b> ${u.asuntos??0}</p>
+      <p><b>Horas asuntos propios:</b> ${u.asuntos??0} h</p><p><b>Asuntos usados:</b> ${u.asuntos_usados??0} h</p><p><b>Asuntos restantes:</b> ${Number(u.asuntos??0)-Number(u.asuntos_usados??0)} h</p><p><b>Vacaciones usadas:</b> ${u.vacaciones_usadas??0} días</p><p><b>Vacaciones restantes:</b> ${Number(u.vacaciones??22)-Number(u.vacaciones_usadas??0)} días</p>
     </div>
 
     <div class="card">
@@ -721,7 +721,7 @@ function vistaEditarUsuarioPro(id){
       <label>Días de vacaciones anuales</label>
       <input id="e_vacaciones" type="number" value="${u.vacaciones??22}">
 
-      <label>Asuntos propios anuales</label>
+      <label>Horas asuntos propios anuales</label>
       <input id="e_asuntos" type="number" value="${u.asuntos??0}">
 
       <button class="btn green full" onclick="guardarEdicionUsuarioPro('${u.id}')">Guardar cambios</button>
@@ -839,6 +839,225 @@ function eliminarUsuarioPro(id){
   localStorage.removeItem("zentryx_fichajes_"+id);
   alert("Usuario eliminado.");
   vistaUsuariosPro();
+}
+
+
+// ===== SOLICITUDES PRO =====
+function kSolicitudes(){return "zentryx_solicitudes_pro"}
+
+function leerSolicitudes(){
+  return JSON.parse(localStorage.getItem(kSolicitudes())||"[]");
+}
+
+function guardarSolicitudes(lista){
+  localStorage.setItem(kSolicitudes(),JSON.stringify(lista));
+}
+
+function tipoSolicitudNombre(t){
+  const m={
+    vacaciones:"Vacaciones",
+    asuntos_horas:"Asuntos propios por horas",
+    medico:"Médico",
+    permiso:"Permiso",
+    baja:"Baja",
+    formacion:"Formación",
+    ausencia:"Ausencia"
+  };
+  return m[t]||t;
+}
+
+function estadoSolicitudHTML(e){
+  if(e==="aprobada")return '<span class="badge green">Aprobada</span>';
+  if(e==="rechazada")return '<span class="badge red">Rechazada</span>';
+  return '<span class="badge orange">Pendiente</span>';
+}
+
+function solicitudesDeUsuario(uid){
+  const lista=leerSolicitudes();
+  if(esAdmin())return lista;
+  return lista.filter(s=>String(s.user_id)===String(uid));
+}
+
+function vistaSolicitudesPro(){
+  const lista=solicitudesDeUsuario(user.id).sort((a,b)=>b.creada.localeCompare(a.creada));
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Solicitudes</h2>
+      <p>Vacaciones, asuntos propios por horas, médico, permisos, bajas y formación.</p>
+      <button class="btn green full" onclick="vistaNuevaSolicitudPro()">Nueva solicitud</button>
+    </div>
+
+    <div class="card">
+      <h2>${esAdmin()?"Todas las solicitudes":"Mis solicitudes"}</h2>
+      ${lista.length?lista.map(s=>solicitudHTML(s)).join(""):"<p>No hay solicitudes todavía.</p>"}
+    </div>`;
+}
+
+function solicitudHTML(s){
+  const u=usuarioPorId(s.user_id)||{nombre:s.user_id};
+  return `
+    <div class="row">
+      <b>${tipoSolicitudNombre(s.tipo)}</b><br>
+      ${esAdmin()?`<span class="muted">${u.nombre}</span><br>`:""}
+      ${s.fecha_inicio||"-"} ${s.fecha_fin?`→ ${s.fecha_fin}`:""}<br>
+      ${s.horas?`Horas solicitadas: ${s.horas} h<br>`:""}
+      ${s.motivo?`<span class="muted">${s.motivo}</span><br>`:""}
+      ${estadoSolicitudHTML(s.estado)}<br>
+      ${esAdmin()&&s.estado==="pendiente"?`
+        <button class="btn green" onclick="resolverSolicitudPro('${s.id}','aprobada')">Aprobar</button>
+        <button class="btn red" onclick="resolverSolicitudPro('${s.id}','rechazada')">Rechazar</button>
+      `:""}
+      ${s.estado==="pendiente"&&String(s.user_id)===String(user.id)?`
+        <button class="btn red" onclick="cancelarSolicitudPro('${s.id}')">Cancelar</button>
+      `:""}
+    </div>`;
+}
+
+function vistaNuevaSolicitudPro(){
+  const usuarios=leerUsuarios();
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="vistaSolicitudesPro()">← Solicitudes</button>
+      <h2>Nueva solicitud</h2>
+
+      ${esAdmin()?`
+      <label>Trabajador</label>
+      <select id="sol_user">
+        ${usuarios.filter(u=>u.activo!==false).map(u=>`<option value="${u.id}">${u.nombre} · ${rolNombre(u.rol)}</option>`).join("")}
+      </select>`:""}
+
+      <label>Tipo</label>
+      <select id="sol_tipo" onchange="actualizarCamposSolicitud()">
+        <option value="vacaciones">Vacaciones</option>
+        <option value="asuntos_horas">Asuntos propios por horas</option>
+        <option value="medico">Médico</option>
+        <option value="permiso">Permiso</option>
+        <option value="baja">Baja</option>
+        <option value="formacion">Formación</option>
+        <option value="ausencia">Ausencia</option>
+      </select>
+
+      <label>Fecha inicio</label>
+      <input id="sol_inicio" type="date">
+
+      <label>Fecha fin</label>
+      <input id="sol_fin" type="date">
+
+      <div id="bloqueHorasSolicitud">
+        <label>Horas</label>
+        <input id="sol_horas" type="number" step="0.25" value="0">
+      </div>
+
+      <label>Motivo / comentario</label>
+      <textarea id="sol_motivo" placeholder="Explica brevemente la solicitud..."></textarea>
+
+      <button class="btn green full" onclick="guardarSolicitudPro()">Enviar solicitud</button>
+    </div>`;
+
+  actualizarCamposSolicitud();
+}
+
+function actualizarCamposSolicitud(){
+  const tipo=document.getElementById("sol_tipo")?.value;
+  const bloque=document.getElementById("bloqueHorasSolicitud");
+  if(!bloque)return;
+  bloque.style.display=(tipo==="asuntos_horas"||tipo==="medico"||tipo==="permiso")?"block":"none";
+}
+
+function diasEntreFechas(inicio,fin){
+  if(!inicio)return 0;
+  const a=new Date(inicio+"T00:00:00");
+  const b=new Date((fin||inicio)+"T00:00:00");
+  const d=Math.round((b-a)/(1000*60*60*24))+1;
+  return d<1?1:d;
+}
+
+function guardarSolicitudPro(){
+  const tipo=document.getElementById("sol_tipo").value;
+  const uid=esAdmin()?document.getElementById("sol_user").value:user.id;
+  const inicio=document.getElementById("sol_inicio").value;
+  const fin=document.getElementById("sol_fin").value;
+  const horas=Number(document.getElementById("sol_horas")?.value||0);
+  const motivo=document.getElementById("sol_motivo").value.trim();
+
+  if(!inicio){
+    alert("La fecha de inicio es obligatoria.");
+    return;
+  }
+
+  if((tipo==="asuntos_horas"||tipo==="medico"||tipo==="permiso") && horas<=0){
+    alert("Indica las horas solicitadas.");
+    return;
+  }
+
+  const lista=leerSolicitudes();
+  lista.unshift({
+    id:"s_"+Date.now(),
+    user_id:String(uid),
+    tipo,
+    fecha_inicio:inicio,
+    fecha_fin:fin||inicio,
+    horas:(tipo==="asuntos_horas"||tipo==="medico"||tipo==="permiso")?horas:0,
+    dias:diasEntreFechas(inicio,fin||inicio),
+    motivo,
+    estado:esAdmin()?"aprobada":"pendiente",
+    creada:new Date().toISOString(),
+    resuelta:"",
+    resuelta_por:"",
+    comentario_resolucion:""
+  });
+  guardarSolicitudes(lista);
+  alert(esAdmin()?"Solicitud creada como aprobada.":"Solicitud enviada.");
+  vistaSolicitudesPro();
+}
+
+function cancelarSolicitudPro(id){
+  if(!confirm("¿Cancelar solicitud?"))return;
+  guardarSolicitudes(leerSolicitudes().filter(s=>s.id!==id));
+  vistaSolicitudesPro();
+}
+
+function resolverSolicitudPro(id,estado){
+  if(!pedirClaveAdmin()){
+    alert("Contraseña incorrecta.");
+    return;
+  }
+
+  const lista=leerSolicitudes();
+  const s=lista.find(x=>x.id===id);
+  if(!s)return;
+
+  const comentario=prompt("Comentario de resolución:")||"";
+  s.estado=estado;
+  s.resuelta=new Date().toISOString();
+  s.resuelta_por=user.id;
+  s.comentario_resolucion=comentario;
+
+  if(estado==="aprobada"){
+    aplicarDescuentoSolicitud(s);
+  }
+
+  guardarSolicitudes(lista);
+  vistaSolicitudesPro();
+}
+
+function aplicarDescuentoSolicitud(s){
+  const lista=leerUsuarios();
+  const u=lista.find(x=>String(x.id)===String(s.user_id));
+  if(!u)return;
+
+  if(s.tipo==="vacaciones"){
+    u.vacaciones_usadas=Number(u.vacaciones_usadas||0)+Number(s.dias||0);
+  }
+
+  if(s.tipo==="asuntos_horas"){
+    u.asuntos_usados=Number(u.asuntos_usados||0)+Number(s.horas||0);
+  }
+
+  guardarUsuarios(lista);
 }
 
 inicio();
