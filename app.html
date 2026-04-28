@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2535</title>
+<title>Zentryx V2535.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2535</h1>
+      <h1>Zentryx V2535.1</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2535";
+const VERSION="2535.1";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -310,8 +310,28 @@ function hoyISO(){
 
 function fechaES(iso){
   if(!iso)return "";
-  const p=iso.split("-");
+  const s=String(iso).slice(0,10);
+  if(!s.includes("-"))return s;
+  const p=s.split("-");
   return p[2]+"/"+p[1]+"/"+p[0];
+}
+
+function fechaInputADisplay(v){
+  return fechaES(v);
+}
+
+function fechaDisplayAInput(v){
+  if(!v)return "";
+  const s=String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(!m)return "";
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+function inputFechaTexto(id){
+  const v=document.getElementById(id).value.trim();
+  return fechaDisplayAInput(v);
 }
 
 function horaHHMM(){
@@ -654,7 +674,7 @@ function crearNota(){
       <label>Nota</label>
       <textarea id="notaTxt" placeholder="Escribe aquí la nota..."></textarea>
       <label>Fecha aviso</label>
-      <input id="notaFecha" type="date">
+      <input id="notaFecha" placeholder="dd/mm/aaaa">
       <label>Hora aviso</label>
       <input id="notaHora" type="time">
       <label>Fijar permanente</label>
@@ -673,7 +693,7 @@ async function guardarNotaNueva(){
   const payload={
     user_id:String(user.id),
     texto:txt,
-    fecha_aviso:document.getElementById("notaFecha").value||null,
+    fecha_aviso:inputFechaTexto("notaFecha")||null,
     hora_aviso:document.getElementById("notaHora").value||null,
     fija:document.getElementById("notaFija").value==="true",
     hecha:false,
@@ -842,7 +862,7 @@ function notaHTML(n){
   return `
     <div class="row">
       <b>${n.txt}</b><br>
-      ${n.fecha||n.hora?`<span class="small">Aviso: ${n.fecha||""} ${n.hora||""}</span><br>`:""}
+      ${n.fecha||n.hora?`<span class="small">Aviso: ${fechaES(n.fecha)||""} ${n.hora||""}</span><br>`:""}
       ${n.fija?`<span class="badge orange">Fija</span>`:""}
       ${notaVencida(n)?`<span class="badge red">Vencida</span>`:""}
       <br>
@@ -1433,6 +1453,31 @@ async function eliminarUsuarioPro(id){
 }
 
 
+function columnaFaltante(error){
+  const msg=(error&&error.message)?error.message:String(error||"");
+  const m=msg.match(/'([^']+)' column/);
+  return m?m[1]:null;
+}
+
+async function insertarAdaptativo(tabla,payload){
+  let limpio={...payload};
+
+  for(let i=0;i<12;i++){
+    const {error}=await sb.from(tabla).insert([limpio]);
+    if(!error)return {error:null};
+
+    const col=columnaFaltante(error);
+    if(col && Object.prototype.hasOwnProperty.call(limpio,col)){
+      delete limpio[col];
+      continue;
+    }
+
+    return {error};
+  }
+
+  return {error:{message:"No se pudo guardar por columnas incompatibles."}};
+}
+
 // ===== CONFIGURACIÓN PRO =====
 let configTabActual="horarios";
 
@@ -1711,29 +1756,61 @@ async function pintarConfigFestivos(){
   const {data}=await sb.from("calendario_festivos").select("*").order("fecha",{ascending:true});
   const festivos=data||[];
 
+  const convenios=[...new Set(festivos.map(f=>f.convenio||"").filter(Boolean))];
+  const comunidades=[...new Set(festivos.map(f=>f.comunidad||f.region||"").filter(Boolean))];
+  const poblaciones=[...new Set(festivos.map(f=>f.poblacion||"").filter(Boolean))];
+
   document.getElementById("zonaConfig").innerHTML=`
     <div class="card">
       <h2>Calendario laboral / festivos</h2>
+      <p>Define festivos por convenio, comunidad autónoma y población. Si un campo queda vacío, se considera general.</p>
 
       <label>Fecha</label>
-      <input id="festivo_fecha" type="date">
+      <input id="festivo_fecha" placeholder="dd/mm/aaaa">
 
       <label>Nombre</label>
       <input id="festivo_nombre" placeholder="Fiesta nacional, autonómica, local...">
 
-      <label>Región</label>
-      <input id="festivo_region" placeholder="España, Madrid, municipio...">
+      <label>Convenio</label>
+      <input id="festivo_convenio" placeholder="Metal, construcción, empresa, general...">
+
+      <label>Comunidad autónoma</label>
+      <input id="festivo_comunidad" placeholder="Madrid, Castilla-La Mancha...">
+
+      <label>Población</label>
+      <input id="festivo_poblacion" placeholder="Ciempozuelos, Madrid, Toledo...">
+
+      <label>Tipo</label>
+      <select id="festivo_tipo">
+        <option value="nacional">Nacional</option>
+        <option value="autonomico">Autonómico</option>
+        <option value="local">Local</option>
+        <option value="convenio">Convenio</option>
+        <option value="empresa">Empresa</option>
+      </select>
 
       <button class="btn green full" onclick="crearFestivo()">Crear festivo</button>
+    </div>
+
+    <div class="card">
+      <h2>Filtros guardados</h2>
+      <p><b>Convenios:</b> ${convenios.length?convenios.join(", "):"Sin definir"}</p>
+      <p><b>Comunidades:</b> ${comunidades.length?comunidades.join(", "):"Sin definir"}</p>
+      <p><b>Poblaciones:</b> ${poblaciones.length?poblaciones.join(", "):"Sin definir"}</p>
     </div>
 
     <div class="card">
       <h2>Festivos actuales</h2>
       ${festivos.length?festivos.map(f=>`
         <div class="row">
-          <b>${f.fecha}</b><br>
+          <b>${fechaES(f.fecha)}</b><br>
           ${f.nombre||"-"}<br>
-          <span class="small">${f.region||""}</span><br>
+          <span class="small">
+            Tipo: ${f.tipo||"-"}<br>
+            Convenio: ${f.convenio||"General"}<br>
+            Comunidad: ${f.comunidad||f.region||"General"}<br>
+            Población: ${f.poblacion||"General"}
+          </span><br>
           <button class="btn red" onclick="eliminarFestivo('${f.id}')">Eliminar</button>
         </div>
       `).join(""):"<p>No hay festivos creados.</p>"}
@@ -1742,14 +1819,18 @@ async function pintarConfigFestivos(){
 
 async function crearFestivo(){
   const payload={
-    fecha:document.getElementById("festivo_fecha").value,
+    fecha:inputFechaTexto("festivo_fecha"),
     nombre:document.getElementById("festivo_nombre").value.trim(),
-    region:document.getElementById("festivo_region").value.trim()
+    convenio:document.getElementById("festivo_convenio").value.trim()||null,
+    comunidad:document.getElementById("festivo_comunidad").value.trim()||null,
+    region:document.getElementById("festivo_comunidad").value.trim()||null,
+    poblacion:document.getElementById("festivo_poblacion").value.trim()||null,
+    tipo:document.getElementById("festivo_tipo").value
   };
 
-  if(!payload.fecha){alert("Selecciona fecha.");return}
+  if(!payload.fecha){alert("Escribe la fecha en formato dd/mm/aaaa.");return}
 
-  const {error}=await sb.from("calendario_festivos").insert([payload]);
+  const {error}=await insertarAdaptativo("calendario_festivos",payload);
 
   if(error){alert("Error creando festivo: "+error.message);return}
 
@@ -1824,7 +1905,7 @@ function solicitudHTML(s){
     <div class="row">
       <b>${tipoSolicitudNombre(s.tipo)}</b><br>
       ${esAdmin()?`<span class="muted">${u.nombre}</span><br>`:""}
-      ${s.fecha_inicio||"-"} ${s.fecha_fin?`→ ${s.fecha_fin}`:""}<br>
+      ${fechaES(s.fecha_inicio)||"-"} ${s.fecha_fin?`→ ${fechaES(s.fecha_fin)}`:""}<br>
       ${s.horas?`Horas solicitadas: ${s.horas} h<br>`:""}
       ${s.motivo?`<span class="muted">${s.motivo}</span><br>`:""}
       ${estadoSolicitudHTML(s.estado)}<br>
@@ -1865,10 +1946,10 @@ function vistaNuevaSolicitudPro(){
       </select>
 
       <label>Fecha inicio</label>
-      <input id="sol_inicio" type="date">
+      <input id="sol_inicio" placeholder="dd/mm/aaaa">
 
       <label>Fecha fin</label>
-      <input id="sol_fin" type="date">
+      <input id="sol_fin" placeholder="dd/mm/aaaa">
 
       <div id="bloqueHorasSolicitud">
         <label>Horas</label>
@@ -1902,8 +1983,8 @@ function diasEntreFechas(inicio,fin){
 function guardarSolicitudPro(){
   const tipo=document.getElementById("sol_tipo").value;
   const uid=esAdmin()?document.getElementById("sol_user").value:user.id;
-  const inicio=document.getElementById("sol_inicio").value;
-  const fin=document.getElementById("sol_fin").value;
+  const inicio=inputFechaTexto("sol_inicio");
+  const fin=inputFechaTexto("sol_fin");
   const horas=Number(document.getElementById("sol_horas")?.value||0);
   const motivo=document.getElementById("sol_motivo").value.trim();
 
