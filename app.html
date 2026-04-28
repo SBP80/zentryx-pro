@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2533</title>
+<title>Zentryx V2533.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2533</h1>
+      <h1>Zentryx V2533.1</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2533";
+const VERSION="2533.1";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -243,6 +243,50 @@ function textoMovimientoNoPermitido(tipo){
   return "Movimiento no permitido.";
 }
 
+function obtenerGPS(){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation){
+      resolve({lat:null,lng:null,direccion:"GPS no disponible"});
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        resolve({
+          lat:pos.coords.latitude,
+          lng:pos.coords.longitude,
+          direccion:"Lat "+pos.coords.latitude+", Lng "+pos.coords.longitude
+        });
+      },
+      err=>{
+        resolve({lat:null,lng:null,direccion:"GPS denegado o sin señal"});
+      },
+      {enableHighAccuracy:true,timeout:10000,maximumAge:0}
+    );
+  });
+}
+
+async function obtenerDireccionReal(lat,lng){
+  if(lat==null||lng==null)return "Sin ubicación";
+  try{
+    const url="https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat="+encodeURIComponent(lat)+"&lon="+encodeURIComponent(lng)+"&accept-language=es";
+    const r=await fetch(url);
+    const data=await r.json();
+    return data.display_name || ("Lat "+lat+", Lng "+lng);
+  }catch(e){
+    return "Lat "+lat+", Lng "+lng;
+  }
+}
+
+function abrirMapaMovimiento(lat,lng){
+  if(lat==null||lng==null){
+    alert("Este fichaje no tiene ubicación.");
+    return;
+  }
+  const url="https://www.google.com/maps?q="+encodeURIComponent(lat+","+lng);
+  window.open(url,"_blank");
+}
+
 async function guardarMovimiento(tipo){
   await cargarFichajesServidor();
 
@@ -251,10 +295,17 @@ async function guardarMovimiento(tipo){
     return;
   }
 
+  const gps=await obtenerGPS();
+  const direccionReal=await obtenerDireccionReal(gps.lat,gps.lng);
+
   const payload={
     user_id:String(user.id),
     tipo:tipo,
-    fecha:new Date().toISOString()
+    fecha:new Date().toISOString(),
+    lat:gps.lat,
+    lng:gps.lng,
+    direccion:gps.direccion,
+    direccion_real:direccionReal
   };
 
   const {error}=await sb.from("fichajes").insert([payload]);
@@ -501,7 +552,9 @@ function inicio(){
       ${res.mov.length?res.mov.slice().reverse().map(m=>`
         <div class="row">
           <b>${nombreAccion(m.tipo)}</b><br>
-          ${m.hora}
+          ${m.hora}<br>
+          ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
+          ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
         </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
     </div>
   `;
@@ -542,7 +595,9 @@ function vistaInformes(){
       ${lista.length?lista.map(m=>`
         <div class="row">
           <b>${fechaES(m.fecha)} · ${m.hora}</b><br>
-          ${nombreAccion(m.tipo)}
+          ${nombreAccion(m.tipo)}<br>
+          ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
+          ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
         </div>`).join(""):"<p>No hay datos.</p>"}
     </div>`;
 }
