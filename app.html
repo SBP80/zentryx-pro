@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2534.2</title>
+<title>Zentryx V2534.3</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2534.2</h1>
+      <h1>Zentryx V2534.3</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2534.2";
+const VERSION="2534.3";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -870,6 +870,54 @@ function vistaAltaUsuarioPro(){
     </div>`;
 }
 
+function extraerColumnaFaltante(error){
+  const msg=(error&&error.message)?error.message:String(error||"");
+  const m=msg.match(/'([^']+)' column/);
+  return m?m[1]:null;
+}
+
+async function insertarUsuarioAdaptativo(payload){
+  let limpio={...payload};
+
+  for(let intento=0; intento<12; intento++){
+    const {data,error}=await sb.from("users").insert([limpio]).select().single();
+
+    if(!error)return {data,error:null};
+
+    const col=extraerColumnaFaltante(error);
+
+    if(col && Object.prototype.hasOwnProperty.call(limpio,col)){
+      delete limpio[col];
+      continue;
+    }
+
+    return {data:null,error};
+  }
+
+  return {data:null,error:{message:"No se pudo crear usuario por columnas no compatibles en users."}};
+}
+
+async function actualizarUsuarioAdaptativo(id,payload){
+  let limpio={...payload};
+
+  for(let intento=0; intento<12; intento++){
+    const {error}=await sb.from("users").update(limpio).eq("id",id);
+
+    if(!error)return {error:null};
+
+    const col=extraerColumnaFaltante(error);
+
+    if(col && Object.prototype.hasOwnProperty.call(limpio,col)){
+      delete limpio[col];
+      continue;
+    }
+
+    return {error};
+  }
+
+  return {error:{message:"No se pudo actualizar usuario por columnas no compatibles en users."}};
+}
+
 async function guardarAltaUsuarioPro(){
   const nombre=document.getElementById("u_nombre").value.trim();
   const usuarioLogin=document.getElementById("u_usuario").value.trim();
@@ -906,7 +954,7 @@ async function guardarAltaUsuarioPro(){
     password_pendiente:true,
     vacaciones
   };
-  const {data,error}=await sb.from("users").insert([nuevo]).select().single();
+  const {data,error}=await insertarUsuarioAdaptativo(nuevo);
 
   if(error){
     console.error(error);
@@ -914,9 +962,13 @@ async function guardarAltaUsuarioPro(){
     return;
   }
 
-  await crearHorarioBaseServidor(data.id);
-  await crearAvisosBaseServidor(data.id);
   await cargarUsuariosServidor();
+  const creado=usuarioPorId(data?.id) || leerUsuarios().find(u=>u.usuario.toLowerCase()===usuarioLogin.toLowerCase());
+
+  if(creado){
+    await crearHorarioBaseServidor(creado.id);
+    await crearAvisosBaseServidor(creado.id);
+  }
 
   alert("Usuario creado. La contraseña queda pendiente.");
   vistaUsuariosPro();
@@ -1076,7 +1128,7 @@ async function guardarEdicionUsuarioPro(id){
     vacaciones:Number(document.getElementById("e_vacaciones").value||22)
   };
 
-  const {error}=await sb.from("users").update(update).eq("id",id);
+  const {error}=await actualizarUsuarioAdaptativo(id,update);
 
   if(error){
     console.error(error);
@@ -1130,7 +1182,7 @@ async function resetPasswordUsuarioPro(id){
     return;
   }
 
-  const {error}=await sb.from("users").update({password:"",password_pendiente:true}).eq("id",id);
+  const {error}=await actualizarUsuarioAdaptativo(id,{password:"",password_pendiente:true});
 
   if(error){
     alert("Error reseteando contraseña: "+error.message);
@@ -1152,7 +1204,7 @@ async function simularPrimeraClave(id){
     return;
   }
 
-  const {error}=await sb.from("users").update({password:p1,password_pendiente:false}).eq("id",id);
+  const {error}=await actualizarUsuarioAdaptativo(id,{password:p1,password_pendiente:false});
 
   if(error){
     alert("Error guardando contraseña: "+error.message);
