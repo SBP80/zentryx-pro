@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2534.4</title>
+<title>Zentryx V2534.5</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2534.4</h1>
+      <h1>Zentryx V2534.5</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2534.4";
+const VERSION="2534.5";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -169,6 +169,15 @@ async function loginUsuario(){
   if(u.activo===false){
     alert("Usuario inactivo.");
     return;
+  }
+
+  // Caso especial seguro para recuperar admin:
+  // si el usuario admin existe en Supabase con rol admin pero no tiene password guardada,
+  // permite entrar con admin/admin y guarda esa contraseña.
+  if(u.rol==="admin" && u.usuario==="admin" && !u.password && String(pass)==="admin"){
+    await actualizarUsuarioAdaptativo(u.id,{password:"admin",password_pendiente:false});
+    u.password="admin";
+    u.password_pendiente=false;
   }
 
   if(u.password_pendiente || !u.password){
@@ -901,7 +910,11 @@ function estadoUsuario(u){
 async function vistaUsuariosPro(){
   vistaActual='usuarios';
   await cargarUsuariosServidor();
-  const lista=leerUsuarios();
+  let lista=leerUsuarios();
+
+  if(!esAdmin()){
+    lista=lista.filter(u=>String(u.id)===String(user.id));
+  }
 
   document.getElementById("app").innerHTML=`
     <div class="card">
@@ -1104,6 +1117,13 @@ async function crearAvisosBaseServidor(uid){
 
 async function vistaFichaUsuarioPro(id){
   vistaActual='usuarios';
+
+  if(!esAdmin() && String(id)!==String(user.id)){
+    alert("No tienes acceso a este usuario.");
+    inicio();
+    return;
+  }
+
   await cargarUsuariosServidor();
 
   const u=usuarioPorId(id);
@@ -1134,15 +1154,14 @@ async function vistaFichaUsuarioPro(id){
       <p><b>Vacaciones restantes:</b> ${Number(u.vacaciones??22)-Number(u.vacaciones_usadas??0)} días</p>
     </div>
 
+    ${esAdmin()?`
     <div class="card">
       <h2>Seguridad</h2>
       <p><b>Estado:</b> ${u.password_pendiente?"Pendiente de crear":"Creada"}</p>
-      ${esAdmin()?`<p><b>Contraseña actual:</b> ${u.password||"Sin crear"}</p>`:""}
-      ${esAdmin()?`
-        <button class="btn gray full" onclick="resetPasswordUsuarioPro('${u.id}')">Resetear contraseña</button>
-        <button class="btn blue full" onclick="simularPrimeraClave('${u.id}')">Crear contraseña de usuario</button>
-      `:""}
-    </div>
+      <p><b>Contraseña actual:</b> ${u.password||"Sin crear"}</p>
+      <button class="btn gray full" onclick="resetPasswordUsuarioPro('${u.id}')">Resetear contraseña</button>
+      <button class="btn blue full" onclick="simularPrimeraClave('${u.id}')">Crear contraseña de usuario</button>
+    </div>`:""}
 
     ${esAdmin()?`
     <div class="card">
@@ -1156,6 +1175,11 @@ async function vistaFichaUsuarioPro(id){
 
 async function vistaEditarUsuarioPro(id){
   vistaActual='usuarios';
+
+  if(!esAdmin()){
+    alert("Solo admin puede editar usuarios.");
+    return;
+  }
 
   if(!pedirClaveAdmin()){
     alert("Contraseña incorrecta.");
@@ -1284,6 +1308,11 @@ async function toggleActivoUsuarioPro(id){
 }
 
 async function resetPasswordUsuarioPro(id){
+  if(!esAdmin()){
+    alert("Solo admin puede resetear contraseñas.");
+    return;
+  }
+
   if(!pedirClaveAdmin()){
     alert("Contraseña incorrecta.");
     return;
@@ -1302,6 +1331,11 @@ async function resetPasswordUsuarioPro(id){
 }
 
 async function simularPrimeraClave(id){
+  if(!esAdmin()){
+    alert("Solo admin puede crear o cambiar contraseñas desde ficha.");
+    return;
+  }
+
   const p1=prompt("Nueva contraseña del usuario:");
   if(!p1)return;
 
@@ -1333,6 +1367,11 @@ async function simularPrimeraClave(id){
 }
 
 async function eliminarUsuarioPro(id){
+  if(!esAdmin()){
+    alert("Solo admin puede eliminar usuarios.");
+    return;
+  }
+
   if(!pedirClaveAdmin()){
     alert("Contraseña incorrecta.");
     return;
