@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2535.2</title>
+<title>Zentryx V2535.3</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2535.2</h1>
+      <h1>Zentryx V2535.3</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2535.2";
+const VERSION="2535.3";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -1753,17 +1753,13 @@ async function eliminarTipoHoraExtra(id){
 }
 
 async function pintarConfigFestivos(){
-  const {data}=await sb.from("calendario_festivos").select("*").order("fecha",{ascending:true});
+  const {data,error}=await sb.from("calendario_festivos").select("*").order("fecha",{ascending:true});
   const festivos=data||[];
-
-  const convenios=[...new Set(festivos.map(f=>f.convenio||"").filter(Boolean))];
-  const comunidades=[...new Set(festivos.map(f=>f.comunidad||f.region||"").filter(Boolean))];
-  const poblaciones=[...new Set(festivos.map(f=>f.poblacion||"").filter(Boolean))];
 
   document.getElementById("zonaConfig").innerHTML=`
     <div class="card">
       <h2>Asistente calendario laboral</h2>
-      <p>Rellena estos datos. Con ellos se prepara el calendario anual para importar los festivos de golpe.</p>
+      <p>Rellena estos datos. Después me copias la petición y yo te preparo el bloque de festivos para importarlo de golpe.</p>
 
       <label>Año</label>
       <input id="cal_anio" type="number" value="${new Date().getFullYear()}">
@@ -1785,13 +1781,13 @@ async function pintarConfigFestivos(){
 
       <button class="btn blue full" onclick="prepararPeticionCalendario()">Preparar petición</button>
 
-      <label>Texto para pedirme los festivos</label>
-      <textarea id="cal_peticion" readonly placeholder="Pulsa preparar petición..."></textarea>
+      <label>Texto preparado</label>
+      <textarea id="cal_peticion" readonly placeholder="Pulsa Preparar petición..."></textarea>
     </div>
 
     <div class="card">
       <h2>Importar festivos</h2>
-      <p>Pega aquí el bloque que te prepare. Formato por línea:</p>
+      <p>Pega aquí el bloque preparado. Una línea por festivo:</p>
       <p class="small">dd/mm/aaaa | Nombre | Tipo | Convenio | Comunidad | Población</p>
 
       <textarea id="festivos_importar" placeholder="01/01/2026 | Año Nuevo | nacional | general | España | general"></textarea>
@@ -1830,13 +1826,6 @@ async function pintarConfigFestivos(){
     </div>
 
     <div class="card">
-      <h2>Filtros guardados</h2>
-      <p><b>Convenios:</b> ${convenios.length?convenios.join(", "):"Sin definir"}</p>
-      <p><b>Comunidades:</b> ${comunidades.length?comunidades.join(", "):"Sin definir"}</p>
-      <p><b>Poblaciones:</b> ${poblaciones.length?poblaciones.join(", "):"Sin definir"}</p>
-    </div>
-
-    <div class="card">
       <h2>Festivos actuales</h2>
       ${festivos.length?festivos.map(f=>`
         <div class="row">
@@ -1862,7 +1851,8 @@ function prepararPeticionCalendario(){
   const poblacion=document.getElementById("cal_poblacion").value.trim();
   const convenio=document.getElementById("cal_convenio").value.trim();
 
-  const texto=`Prepárame los festivos laborales para importar en Zentryx con este formato por línea:
+  const texto=
+`Prepárame los festivos laborales para importar en Zentryx con este formato por línea:
 dd/mm/aaaa | Nombre | Tipo | Convenio | Comunidad | Población
 
 Datos:
@@ -1881,12 +1871,11 @@ Incluye festivos nacionales, autonómicos, locales y de convenio si son público
 function parseLineaFestivo(linea){
   const partes=linea.split("|").map(x=>x.trim());
   if(partes.length<2)return null;
-
   const fecha=fechaDisplayAInput(partes[0]);
   if(!fecha)return null;
 
   return {
-    fecha,
+    fecha:fecha,
     nombre:partes[1]||"Festivo",
     tipo:partes[2]||"general",
     convenio:partes[3]||null,
@@ -1898,15 +1887,13 @@ function parseLineaFestivo(linea){
 
 async function importarFestivosTexto(){
   const txt=document.getElementById("festivos_importar").value.trim();
-
   if(!txt){
     alert("Pega primero el calendario.");
     return;
   }
 
-  const lineas=txt.split("
-").map(x=>x.trim()).filter(Boolean);
-  const registros=lineas.map(parseLineaFestivo).filter(Boolean);
+  const registros=txt.split("
+").map(x=>parseLineaFestivo(x)).filter(Boolean);
 
   if(!registros.length){
     alert("No se han detectado líneas válidas.");
@@ -1937,11 +1924,16 @@ async function crearFestivo(){
     tipo:document.getElementById("festivo_tipo").value
   };
 
-  if(!payload.fecha){alert("Escribe la fecha en formato dd/mm/aaaa.");return}
+  if(!payload.fecha){
+    alert("Escribe la fecha en formato dd/mm/aaaa.");
+    return;
+  }
 
   const {error}=await insertarAdaptativo("calendario_festivos",payload);
-
-  if(error){alert("Error creando festivo: "+error.message);return}
+  if(error){
+    alert("Error creando festivo: "+error.message);
+    return;
+  }
 
   await pintarConfigFestivos();
 }
@@ -2216,7 +2208,19 @@ async function iniciarApp(){
   await iniciarAppConUsuario();
 }
 
-iniciarApp();
+iniciarApp().catch(err=>{
+  console.error(err);
+  const app=document.getElementById("app");
+  if(app){
+    app.innerHTML=`
+      <div class="card">
+        <h2>Error de carga</h2>
+        <p class="error">${err.message||err}</p>
+        <button class="btn gray full" onclick="location.reload()">Recargar</button>
+        <button class="btn red full" onclick="cerrarSesion()">Salir</button>
+      </div>`;
+  }
+});
 </script>
 </body>
 </html>
