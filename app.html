@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2534</title>
+<title>Zentryx V2534.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2534</h1>
+      <h1>Zentryx V2534.1</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2534";
+const VERSION="2534.1";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -125,9 +125,9 @@ function normalizarUsuario(u){
     password:u.password||"",
     password_pendiente:!!u.password_pendiente,
     vacaciones:Number(u.vacaciones??22),
-    asuntos:Number(u.asuntos??0),
-    vacaciones_usadas:Number(u.vacaciones_usadas??0),
-    asuntos_usados:Number(u.asuntos_usados??0),
+    asuntos:Number(u.asuntos||u.asuntos_horas||0),
+    vacaciones_usadas:Number(u.vacaciones_usadas||0),
+    asuntos_usados:Number(u.asuntos_usados||u.asuntos_horas_usadas||0),
     creado:u.creado||u.created_at||""
   };
 }
@@ -864,6 +864,7 @@ function vistaAltaUsuarioPro(){
 
       <label>Horas asuntos propios anuales</label>
       <input id="u_asuntos" type="number" value="0">
+      <p class="small">Pendiente de guardar en Supabase hasta añadir su columna.</p>
 
       <button class="btn green full" onclick="guardarAltaUsuarioPro()">Crear usuario</button>
     </div>`;
@@ -892,7 +893,20 @@ async function guardarAltaUsuarioPro(){
     return;
   }
 
-  const nuevo={nombre,usuario:usuarioLogin,rol,puesto,telefono,email,dni,activo:true,password:"",password_pendiente:true,vacaciones,asuntos,vacaciones_usadas:0,asuntos_usados:0,creado:new Date().toISOString()};
+  const nuevo={
+    nombre,
+    usuario:usuarioLogin,
+    rol,
+    puesto,
+    telefono,
+    email,
+    dni,
+    activo:true,
+    password:"",
+    password_pendiente:true,
+    vacaciones,
+    creado:new Date().toISOString()
+  };
   const {data,error}=await sb.from("users").insert([nuevo]).select().single();
 
   if(error){
@@ -1030,6 +1044,7 @@ async function vistaEditarUsuarioPro(id){
 
       <label>Horas asuntos propios anuales</label>
       <input id="e_asuntos" type="number" value="${u.asuntos??0}">
+      <p class="small">Pendiente de guardar en Supabase hasta añadir su columna.</p>
 
       <button class="btn green full" onclick="guardarEdicionUsuarioPro('${u.id}')">Guardar cambios</button>
     </div>`;
@@ -1059,8 +1074,7 @@ async function guardarEdicionUsuarioPro(id){
     telefono:document.getElementById("e_telefono").value.trim(),
     email:document.getElementById("e_email").value.trim(),
     dni:document.getElementById("e_dni").value.trim(),
-    vacaciones:Number(document.getElementById("e_vacaciones").value||22),
-    asuntos:Number(document.getElementById("e_asuntos").value||0)
+    vacaciones:Number(document.getElementById("e_vacaciones").value||22)
   };
 
   const {error}=await sb.from("users").update(update).eq("id",id);
@@ -1401,7 +1415,7 @@ async function aplicarDescuentoSolicitud(s){
   }
 
   if(s.tipo==="asuntos_horas"){
-    update.asuntos_usados=Number(u.asuntos_usados||0)+Number(s.horas||0);
+    // Pendiente de columna en Supabase: asuntos_usados o asuntos_horas_usadas.
   }
 
   if(Object.keys(update).length){
