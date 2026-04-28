@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2534.6</title>
+<title>Zentryx V2535</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2534.6</h1>
+      <h1>Zentryx V2535</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2534.6";
+const VERSION="2535";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -816,7 +816,7 @@ function inicio(){
       <div class="module">
         <h3>Configuración</h3>
         <p>Horarios, avisos y horas extra.</p>
-        <button class="btn gray" onclick="vistaPendiente('Configuración PRO')">Abrir</button>
+        <button class="btn gray" onclick="vistaConfigPro()">Abrir</button>
       </div>
       <div class="module">
         <h3>Informes</h3>
@@ -1431,6 +1431,338 @@ async function eliminarUsuarioPro(id){
   alert("Usuario eliminado.");
   vistaUsuariosPro();
 }
+
+
+// ===== CONFIGURACIÓN PRO =====
+let configTabActual="horarios";
+
+function soloAdminConfig(){
+  if(!esAdmin()){
+    alert("Solo admin puede acceder a configuración.");
+    inicio();
+    return false;
+  }
+  return true;
+}
+
+async function vistaConfigPro(tab="horarios"){
+  vistaActual="config";
+  if(!soloAdminConfig())return;
+
+  configTabActual=tab;
+  await cargarUsuariosServidor();
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Configuración PRO</h2>
+      <p>Horarios, avisos, horas extra y calendario laboral.</p>
+
+      <div class="actions">
+        <button class="btn ${tab==="horarios"?"dark":"gray"}" onclick="vistaConfigPro('horarios')">Horarios</button>
+        <button class="btn ${tab==="avisos"?"dark":"gray"}" onclick="vistaConfigPro('avisos')">Avisos</button>
+        <button class="btn ${tab==="extras"?"dark":"gray"}" onclick="vistaConfigPro('extras')">Horas extra</button>
+        <button class="btn ${tab==="festivos"?"dark":"gray"}" onclick="vistaConfigPro('festivos')">Festivos</button>
+      </div>
+    </div>
+
+    <div id="zonaConfig"></div>
+  `;
+
+  if(tab==="horarios")await pintarConfigHorarios();
+  if(tab==="avisos")await pintarConfigAvisos();
+  if(tab==="extras")await pintarConfigExtras();
+  if(tab==="festivos")await pintarConfigFestivos();
+}
+
+async function cargarHorarioUsuario(uid){
+  const {data,error}=await sb.from("horarios_usuario").select("*").eq("user_id",String(uid));
+  if(error){console.error(error);return []}
+  return data||[];
+}
+
+function horarioPorDia(lista,dia){
+  return lista.find(x=>String(x.dia).toLowerCase()===dia.toLowerCase())||{
+    dia,trabaja:false,entrada:"",salida:"",inicio_comida:"",fin_comida:"",descanso_min:0
+  };
+}
+
+function horaInput(v){
+  if(!v)return "";
+  return String(v).slice(0,5);
+}
+
+async function pintarConfigHorarios(){
+  const usuarios=leerUsuarios();
+  const uid=document.getElementById("cfg_user")?.value || usuarios[0]?.id || user.id;
+  const horario=await cargarHorarioUsuario(uid);
+  const dias=["lunes","martes","miércoles","jueves","viernes","sábado","domingo"];
+
+  document.getElementById("zonaConfig").innerHTML=`
+    <div class="card">
+      <h2>Horario semanal</h2>
+      <label>Trabajador</label>
+      <select id="cfg_user" onchange="pintarConfigHorarios()">
+        ${usuarios.filter(u=>u.activo!==false).map(u=>`<option value="${u.id}" ${String(u.id)===String(uid)?"selected":""}>${u.nombre} · ${rolNombre(u.rol)}</option>`).join("")}
+      </select>
+
+      ${dias.map(d=>{
+        const h=horarioPorDia(horario,d);
+        return `
+          <div class="row">
+            <b>${d.charAt(0).toUpperCase()+d.slice(1)}</b>
+            <label>Trabaja</label>
+            <select id="h_trabaja_${d}">
+              <option value="true" ${h.trabaja?"selected":""}>Sí</option>
+              <option value="false" ${!h.trabaja?"selected":""}>No</option>
+            </select>
+
+            <label>Entrada</label>
+            <input id="h_entrada_${d}" type="time" value="${horaInput(h.entrada)}">
+
+            <label>Salida</label>
+            <input id="h_salida_${d}" type="time" value="${horaInput(h.salida)}">
+
+            <label>Inicio comida</label>
+            <input id="h_inicio_comida_${d}" type="time" value="${horaInput(h.inicio_comida)}">
+
+            <label>Fin comida</label>
+            <input id="h_fin_comida_${d}" type="time" value="${horaInput(h.fin_comida)}">
+
+            <label>Descanso minutos</label>
+            <input id="h_descanso_${d}" type="number" value="${h.descanso_min||0}">
+          </div>`;
+      }).join("")}
+
+      <button class="btn green full" onclick="guardarConfigHorarios('${uid}')">Guardar horario</button>
+    </div>`;
+}
+
+async function guardarConfigHorarios(uid){
+  if(!soloAdminConfig())return;
+  const dias=["lunes","martes","miércoles","jueves","viernes","sábado","domingo"];
+
+  for(const d of dias){
+    const payload={
+      user_id:String(uid),
+      dia:d,
+      trabaja:document.getElementById("h_trabaja_"+d).value==="true",
+      entrada:document.getElementById("h_entrada_"+d).value||null,
+      salida:document.getElementById("h_salida_"+d).value||null,
+      inicio_comida:document.getElementById("h_inicio_comida_"+d).value||null,
+      fin_comida:document.getElementById("h_fin_comida_"+d).value||null,
+      descanso_min:Number(document.getElementById("h_descanso_"+d).value||0)
+    };
+
+    const {data:existe}=await sb.from("horarios_usuario").select("id").eq("user_id",String(uid)).eq("dia",d).limit(1);
+
+    if(existe&&existe[0]){
+      const {error}=await sb.from("horarios_usuario").update(payload).eq("id",existe[0].id);
+      if(error){alert("Error guardando "+d+": "+error.message);return}
+    }else{
+      const {error}=await sb.from("horarios_usuario").insert([payload]);
+      if(error){alert("Error creando "+d+": "+error.message);return}
+    }
+  }
+
+  alert("Horario guardado.");
+  await pintarConfigHorarios();
+}
+
+async function pintarConfigAvisos(){
+  const usuarios=leerUsuarios();
+  const uid=document.getElementById("cfg_av_user")?.value || usuarios[0]?.id || user.id;
+
+  const {data}=await sb.from("avisos_fichaje").select("*").eq("user_id",String(uid)).limit(1);
+
+  const a=(data&&data[0])||{
+    activo:true,margen_entrada_min:10,antes_salida_min:10,max_comida_min:90,max_descanso_min:30,sonido:true
+  };
+
+  document.getElementById("zonaConfig").innerHTML=`
+    <div class="card">
+      <h2>Avisos de fichaje</h2>
+      <label>Trabajador</label>
+      <select id="cfg_av_user" onchange="pintarConfigAvisos()">
+        ${usuarios.filter(u=>u.activo!==false).map(u=>`<option value="${u.id}" ${String(u.id)===String(uid)?"selected":""}>${u.nombre} · ${rolNombre(u.rol)}</option>`).join("")}
+      </select>
+
+      <label>Activar avisos</label>
+      <select id="av_activo">
+        <option value="true" ${a.activo!==false?"selected":""}>Sí</option>
+        <option value="false" ${a.activo===false?"selected":""}>No</option>
+      </select>
+
+      <label>Margen entrada tarde (min)</label>
+      <input id="av_margen" type="number" value="${a.margen_entrada_min||10}">
+
+      <label>Aviso antes salida (min)</label>
+      <input id="av_salida" type="number" value="${a.antes_salida_min||10}">
+
+      <label>Máximo comida abierta (min)</label>
+      <input id="av_comida" type="number" value="${a.max_comida_min||90}">
+
+      <label>Máximo descanso abierto (min)</label>
+      <input id="av_descanso" type="number" value="${a.max_descanso_min||30}">
+
+      <label>Sonido interno</label>
+      <select id="av_sonido">
+        <option value="true" ${a.sonido!==false?"selected":""}>Sí</option>
+        <option value="false" ${a.sonido===false?"selected":""}>No</option>
+      </select>
+
+      <button class="btn green full" onclick="guardarConfigAvisos('${uid}')">Guardar avisos</button>
+    </div>`;
+}
+
+async function guardarConfigAvisos(uid){
+  const payload={
+    user_id:String(uid),
+    activo:document.getElementById("av_activo").value==="true",
+    margen_entrada_min:Number(document.getElementById("av_margen").value||10),
+    antes_salida_min:Number(document.getElementById("av_salida").value||10),
+    max_comida_min:Number(document.getElementById("av_comida").value||90),
+    max_descanso_min:Number(document.getElementById("av_descanso").value||30),
+    sonido:document.getElementById("av_sonido").value==="true",
+    actualizado_en:new Date().toISOString()
+  };
+
+  const {data}=await sb.from("avisos_fichaje").select("id").eq("user_id",String(uid)).limit(1);
+
+  if(data&&data[0]){
+    const {error}=await sb.from("avisos_fichaje").update(payload).eq("id",data[0].id);
+    if(error){alert("Error guardando avisos: "+error.message);return}
+  }else{
+    const {error}=await sb.from("avisos_fichaje").insert([payload]);
+    if(error){alert("Error creando avisos: "+error.message);return}
+  }
+
+  alert("Avisos guardados.");
+  await pintarConfigAvisos();
+}
+
+async function pintarConfigExtras(){
+  const {data}=await sb.from("tipos_horas_extra").select("*").order("nombre",{ascending:true});
+  const tipos=data||[];
+
+  document.getElementById("zonaConfig").innerHTML=`
+    <div class="card">
+      <h2>Tipos de horas extra</h2>
+
+      <label>Nombre</label>
+      <input id="extra_nombre" placeholder="Normal, nocturna, festiva...">
+
+      <label>Precio por hora (€)</label>
+      <input id="extra_precio" type="number" step="0.01" value="0">
+
+      <label>Hora inicio</label>
+      <input id="extra_inicio" type="time">
+
+      <label>Hora fin</label>
+      <input id="extra_fin" type="time">
+
+      <label>Días aplicables</label>
+      <input id="extra_dias" placeholder="lunes,martes,sábado,domingo o todos">
+
+      <button class="btn green full" onclick="crearTipoHoraExtra()">Crear tipo</button>
+    </div>
+
+    <div class="card">
+      <h2>Tipos actuales</h2>
+      ${tipos.length?tipos.map(t=>`
+        <div class="row">
+          <b>${t.nombre||"-"}</b><br>
+          Precio: ${t.precio_hora??t.precio??0} €/h<br>
+          ${t.hora_inicio||""} ${t.hora_fin?`→ ${t.hora_fin}`:""}<br>
+          <span class="small">${t.dias_aplicables||t.dias||"Sin días definidos"}</span><br>
+          <button class="btn red" onclick="eliminarTipoHoraExtra('${t.id}')">Eliminar</button>
+        </div>
+      `).join(""):"<p>No hay tipos creados.</p>"}
+    </div>`;
+}
+
+async function crearTipoHoraExtra(){
+  const payload={
+    nombre:document.getElementById("extra_nombre").value.trim(),
+    precio_hora:Number(document.getElementById("extra_precio").value||0),
+    hora_inicio:document.getElementById("extra_inicio").value||null,
+    hora_fin:document.getElementById("extra_fin").value||null,
+    dias_aplicables:document.getElementById("extra_dias").value.trim()||"todos",
+    activo:true
+  };
+
+  if(!payload.nombre){alert("Escribe el nombre.");return}
+
+  const {error}=await sb.from("tipos_horas_extra").insert([payload]);
+
+  if(error){alert("Error creando tipo: "+error.message);return}
+
+  await pintarConfigExtras();
+}
+
+async function eliminarTipoHoraExtra(id){
+  if(!confirm("¿Eliminar tipo de hora extra?"))return;
+  const {error}=await sb.from("tipos_horas_extra").delete().eq("id",id);
+  if(error){alert("Error eliminando: "+error.message);return}
+  await pintarConfigExtras();
+}
+
+async function pintarConfigFestivos(){
+  const {data}=await sb.from("calendario_festivos").select("*").order("fecha",{ascending:true});
+  const festivos=data||[];
+
+  document.getElementById("zonaConfig").innerHTML=`
+    <div class="card">
+      <h2>Calendario laboral / festivos</h2>
+
+      <label>Fecha</label>
+      <input id="festivo_fecha" type="date">
+
+      <label>Nombre</label>
+      <input id="festivo_nombre" placeholder="Fiesta nacional, autonómica, local...">
+
+      <label>Región</label>
+      <input id="festivo_region" placeholder="España, Madrid, municipio...">
+
+      <button class="btn green full" onclick="crearFestivo()">Crear festivo</button>
+    </div>
+
+    <div class="card">
+      <h2>Festivos actuales</h2>
+      ${festivos.length?festivos.map(f=>`
+        <div class="row">
+          <b>${f.fecha}</b><br>
+          ${f.nombre||"-"}<br>
+          <span class="small">${f.region||""}</span><br>
+          <button class="btn red" onclick="eliminarFestivo('${f.id}')">Eliminar</button>
+        </div>
+      `).join(""):"<p>No hay festivos creados.</p>"}
+    </div>`;
+}
+
+async function crearFestivo(){
+  const payload={
+    fecha:document.getElementById("festivo_fecha").value,
+    nombre:document.getElementById("festivo_nombre").value.trim(),
+    region:document.getElementById("festivo_region").value.trim()
+  };
+
+  if(!payload.fecha){alert("Selecciona fecha.");return}
+
+  const {error}=await sb.from("calendario_festivos").insert([payload]);
+
+  if(error){alert("Error creando festivo: "+error.message);return}
+
+  await pintarConfigFestivos();
+}
+
+async function eliminarFestivo(id){
+  if(!confirm("¿Eliminar festivo?"))return;
+  const {error}=await sb.from("calendario_festivos").delete().eq("id",id);
+  if(error){alert("Error eliminando: "+error.message);return}
+  await pintarConfigFestivos();
+}
+
 
 // ===== SOLICITUDES PRO =====
 function kSolicitudes(){return "zentryx_solicitudes_pro"}
