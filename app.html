@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2537</title>
+<title>Zentryx V2538</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2537</h1>
+      <h1>Zentryx V2538</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2537";
+const VERSION="2538";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -142,6 +142,7 @@ function normalizarUsuario(u){
     telefono:u.telefono||"",
     email:u.email||"",
     dni:u.dni||"",
+    direccion:u.direccion||u.direccion_completa||u.domicilio||u.address||"",
     activo:u.activo!==false,
     password:u.password||"",
     password_pendiente:(u.password_pendiente===true || !u.password),
@@ -326,6 +327,84 @@ function cerrarSesion(){
   localStorage.removeItem("user");
   user=null;
   mostrarLogin();
+}
+
+function limpiarTelefono(t){
+  return String(t||"").replace(/\s+/g,"").replace(/[^0-9+]/g,"");
+}
+
+function abrirTelefono(t){
+  const tel=limpiarTelefono(t);
+  if(!tel){
+    alert("No hay teléfono guardado.");
+    return;
+  }
+  location.href="tel:"+tel;
+}
+
+function abrirSMS(t){
+  const tel=limpiarTelefono(t);
+  if(!tel){
+    alert("No hay teléfono guardado.");
+    return;
+  }
+  location.href="sms:"+tel;
+}
+
+function abrirWhatsApp(t){
+  const tel=limpiarTelefono(t);
+  if(!tel){
+    alert("No hay teléfono guardado.");
+    return;
+  }
+
+  let finalTel=tel;
+  if(!finalTel.startsWith("+")){
+    finalTel="+34"+finalTel;
+  }
+
+  window.open("https://wa.me/"+finalTel.replace("+",""),"_blank");
+}
+
+function abrirEmail(email){
+  if(!email){
+    alert("No hay email guardado.");
+    return;
+  }
+  location.href="mailto:"+email;
+}
+
+function abrirSelectorMapa(lat,lng,direccion){
+  const tieneCoord=lat!=null && lng!=null && String(lat)!=="null" && String(lng)!=="null";
+  const q=tieneCoord ? `${lat},${lng}` : String(direccion||"").trim();
+
+  if(!q){
+    alert("No hay dirección ni ubicación guardada.");
+    return;
+  }
+
+  const opcion=prompt("Abrir mapa con:\n1 - Google Maps\n2 - Waze\n3 - Apple Maps / Mapas","1");
+
+  if(opcion==="1"){
+    window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(q),"_blank");
+    return;
+  }
+
+  if(opcion==="2"){
+    window.open("https://waze.com/ul?q="+encodeURIComponent(q)+"&navigate=yes","_blank");
+    return;
+  }
+
+  if(opcion==="3"){
+    window.open("http://maps.apple.com/?q="+encodeURIComponent(q),"_blank");
+    return;
+  }
+
+  alert("Opción no válida.");
+}
+
+function abrirMapaDireccion(direccion){
+  abrirSelectorMapa(null,null,direccion);
 }
 
 function ahora(){return new Date()}
@@ -594,13 +673,8 @@ async function obtenerDireccionReal(lat,lng){
   }
 }
 
-function abrirMapaMovimiento(lat,lng){
-  if(lat==null||lng==null){
-    alert("Este fichaje no tiene ubicación.");
-    return;
-  }
-  const url="https://www.google.com/maps?q="+encodeURIComponent(lat+","+lng);
-  window.open(url,"_blank");
+function abrirMapaMovimiento(lat,lng,direccion){
+  abrirSelectorMapa(lat,lng,direccion);
 }
 
 async function guardarMovimiento(tipo){
@@ -1123,6 +1197,9 @@ function vistaAltaUsuarioPro(){
       <label>DNI</label>
       <input id="u_dni" placeholder="DNI">
 
+      <label>Dirección</label>
+      <input id="u_direccion" placeholder="Calle, número, población...">
+
       <label>Días de vacaciones anuales</label>
       <input id="u_vacaciones" type="number" value="22">
 
@@ -1190,6 +1267,7 @@ async function guardarAltaUsuarioPro(){
   const telefono=document.getElementById("u_telefono").value.trim();
   const email=document.getElementById("u_email").value.trim();
   const dni=document.getElementById("u_dni").value.trim();
+  const direccion=document.getElementById("u_direccion").value.trim();
   const vacaciones=Number(document.getElementById("u_vacaciones").value||22);
   const asuntos=Number(document.getElementById("u_asuntos").value||0);
 
@@ -1299,6 +1377,20 @@ async function vistaFichaUsuarioPro(id){
       <p><b>Vacaciones restantes:</b> ${Number(u.vacaciones??22)-Number(u.vacaciones_usadas??0)} días</p>
     </div>
 
+    <div class="card">
+      <h2>Contacto</h2>
+      <div class="actions">
+        <button class="btn green" onclick="abrirTelefono('${u.telefono||""}')">Llamar</button>
+        <button class="btn blue" onclick="abrirSMS('${u.telefono||""}')">SMS</button>
+      </div>
+      <div class="actions">
+        <button class="btn green" onclick="abrirWhatsApp('${u.telefono||""}')">WhatsApp</button>
+        <button class="btn blue" onclick="abrirEmail('${u.email||""}')">Email</button>
+      </div>
+      <button class="btn gray full" onclick="abrirMapaDireccion('${u.direccion||u.direccion_completa||u.domicilio||""}')">Mapa</button>
+      ${!(u.direccion||u.direccion_completa||u.domicilio)?`<p class="small">No hay dirección guardada todavía.</p>`:""}
+    </div>
+
     ${esAdmin()?`
     <div class="card">
       <h2>Seguridad</h2>
@@ -1367,6 +1459,9 @@ async function vistaEditarUsuarioPro(id){
       <label>DNI</label>
       <input id="e_dni" value="${u.dni||""}">
 
+      <label>Dirección</label>
+      <input id="e_direccion" value="${u.direccion||""}" placeholder="Calle, número, población...">
+
       <label>Días de vacaciones anuales</label>
       <input id="e_vacaciones" type="number" value="${u.vacaciones??22}">
 
@@ -1402,6 +1497,7 @@ async function guardarEdicionUsuarioPro(id){
     telefono:document.getElementById("e_telefono").value.trim(),
     email:document.getElementById("e_email").value.trim(),
     dni:document.getElementById("e_dni").value.trim(),
+    direccion:document.getElementById("e_direccion").value.trim(),
     vacaciones:Number(document.getElementById("e_vacaciones").value||22)
   };
 
