@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2534.1</title>
+<title>Zentryx V2534.2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2534.1</h1>
+      <h1>Zentryx V2534.2</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2534.1";
+const VERSION="2534.2";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -904,8 +904,7 @@ async function guardarAltaUsuarioPro(){
     activo:true,
     password:"",
     password_pendiente:true,
-    vacaciones,
-    creado:new Date().toISOString()
+    vacaciones
   };
   const {data,error}=await sb.from("users").insert([nuevo]).select().single();
 
