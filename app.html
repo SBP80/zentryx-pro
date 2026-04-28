@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2533.2</title>
+<title>Zentryx V2533.3</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2533.2</h1>
+      <h1>Zentryx V2533.3</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2533.2";
+const VERSION="2533.3";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -100,7 +100,10 @@ let user={
 };
 
 let fichajesCache=[];
+let notasCache=[];
 let cargandoFichajes=false;
+let cargandoNotas=false;
+let vistaActual='inicio';
 
 function esAdmin(){return user.rol==="admin"}
 
@@ -405,8 +408,48 @@ function resumenHoy(){
 }
 
 function kNotas(){return "zentryx_notas_"+user.id}
-function leerNotas(){return JSON.parse(localStorage.getItem(kNotas())||"[]")}
-function guardarNotas(v){localStorage.setItem(kNotas(),JSON.stringify(v))}
+
+async function cargarNotasServidor(){
+  if(cargandoNotas)return;
+  cargandoNotas=true;
+
+  const {data,error}=await sb
+    .from("notas_rapidas")
+    .select("*")
+    .eq("user_id",String(user.id))
+    .order("creada_en",{ascending:false});
+
+  cargandoNotas=false;
+
+  if(error){
+    console.error(error);
+    notasCache=JSON.parse(localStorage.getItem(kNotas())||"[]");
+    aviso("Error leyendo notas: "+error.message,"error");
+    return;
+  }
+
+  notasCache=(data||[]).map(n=>({
+    id:n.id,
+    txt:n.texto||n.txt||"",
+    fecha:n.fecha_aviso||n.fecha||"",
+    hora:n.hora_aviso?String(n.hora_aviso).slice(0,5):(n.hora||""),
+    fija:!!n.fija,
+    hecha:!!n.hecha,
+    creada:n.creada_en||n.creada||""
+  }));
+
+  localStorage.setItem(kNotas(),JSON.stringify(notasCache));
+}
+
+function leerNotas(){
+  if(notasCache.length)return notasCache;
+  return JSON.parse(localStorage.getItem(kNotas())||"[]");
+}
+
+function guardarNotas(v){
+  notasCache=v||[];
+  localStorage.setItem(kNotas(),JSON.stringify(notasCache));
+}
 
 function notaVencida(n){
   if(n.hecha)return false;
@@ -415,6 +458,7 @@ function notaVencida(n){
 }
 
 function crearNota(){
+  vistaActual='nota';
   document.getElementById("app").innerHTML=`
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
@@ -434,35 +478,53 @@ function crearNota(){
     </div>`;
 }
 
-function guardarNotaNueva(){
+async function guardarNotaNueva(){
   const txt=document.getElementById("notaTxt").value.trim();
   if(!txt){alert("Escribe una nota.");return}
-  const lista=leerNotas();
-  lista.unshift({
-    id:Date.now(),
-    txt,
-    fecha:document.getElementById("notaFecha").value,
-    hora:document.getElementById("notaHora").value,
+
+  const payload={
+    user_id:String(user.id),
+    texto:txt,
+    fecha_aviso:document.getElementById("notaFecha").value||null,
+    hora_aviso:document.getElementById("notaHora").value||null,
     fija:document.getElementById("notaFija").value==="true",
     hecha:false,
-    creada:new Date().toISOString()
-  });
-  guardarNotas(lista);
+    creada_en:new Date().toISOString()
+  };
+
+  const {error}=await sb.from("notas_rapidas").insert([payload]);
+
+  if(error){
+    console.error(error);
+    alert("Error guardando nota: "+error.message);
+    return;
+  }
+
+  await cargarNotasServidor();
   aviso("Nota guardada.","ok");
   inicio();
 }
 
-function marcarNotaHecha(id){
-  const lista=leerNotas();
-  const n=lista.find(x=>x.id===id);
-  if(n)n.hecha=true;
-  guardarNotas(lista);
+async function marcarNotaHecha(id){
+  const {error}=await sb.from("notas_rapidas").update({hecha:true}).eq("id",id);
+  if(error){
+    console.error(error);
+    alert("Error actualizando nota: "+error.message);
+    return;
+  }
+  await cargarNotasServidor();
   inicio();
 }
 
-function eliminarNota(id){
+async function eliminarNota(id){
   if(!confirm("¿Eliminar nota?"))return;
-  guardarNotas(leerNotas().filter(x=>x.id!==id));
+  const {error}=await sb.from("notas_rapidas").delete().eq("id",id);
+  if(error){
+    console.error(error);
+    alert("Error eliminando nota: "+error.message);
+    return;
+  }
+  await cargarNotasServidor();
   inicio();
 }
 
@@ -504,6 +566,7 @@ async function limpiarPrueba(){
 }
 
 function inicio(){
+  vistaActual='inicio';
   const est=estadoActual();
   const res=resumenHoy();
   const notas=leerNotas().filter(n=>!n.hecha);
@@ -601,6 +664,7 @@ function notaHTML(n){
 }
 
 function vistaPendiente(titulo){
+  vistaActual='otra';
   document.getElementById("app").innerHTML=`
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
@@ -610,6 +674,7 @@ function vistaPendiente(titulo){
 }
 
 function vistaInformes(){
+  vistaActual='informes';
   const lista=leerFichajes().slice().reverse();
   document.getElementById("app").innerHTML=`
     <div class="card">
@@ -691,6 +756,7 @@ function estadoUsuario(u){
 }
 
 function vistaUsuariosPro(){
+  vistaActual='usuarios';
   const lista=leerUsuarios();
 
   document.getElementById("app").innerHTML=`
@@ -716,6 +782,7 @@ function vistaUsuariosPro(){
 }
 
 function vistaAltaUsuarioPro(){
+  vistaActual='usuarios';
   if(!esAdmin()){
     alert("Solo admin puede crear usuarios.");
     return;
@@ -838,6 +905,7 @@ function crearAvisosBaseLocal(uid){
 }
 
 function vistaFichaUsuarioPro(id){
+  vistaActual='usuarios';
   const u=usuarioPorId(id);
   if(!u){
     alert("Usuario no encontrado.");
@@ -882,6 +950,7 @@ function vistaFichaUsuarioPro(id){
 }
 
 function vistaEditarUsuarioPro(id){
+  vistaActual='usuarios';
   if(!pedirClaveAdmin()){
     alert("Contraseña incorrecta.");
     return;
@@ -1082,6 +1151,7 @@ function solicitudesDeUsuario(uid){
 }
 
 function vistaSolicitudesPro(){
+  vistaActual='solicitudes';
   const lista=solicitudesDeUsuario(user.id).sort((a,b)=>b.creada.localeCompare(a.creada));
 
   document.getElementById("app").innerHTML=`
@@ -1119,6 +1189,7 @@ function solicitudHTML(s){
 }
 
 function vistaNuevaSolicitudPro(){
+  vistaActual='solicitudes';
   const usuarios=leerUsuarios();
 
   document.getElementById("app").innerHTML=`
@@ -1265,10 +1336,13 @@ function aplicarDescuentoSolicitud(s){
 
 async function iniciarApp(){
   await cargarFichajesServidor();
+  await cargarNotasServidor();
   inicio();
+
   setInterval(async()=>{
     await cargarFichajesServidor();
-    inicio();
+    await cargarNotasServidor();
+    if(vistaActual==="inicio")inicio();
   },15000);
 }
 
