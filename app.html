@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2538</title>
+<title>Zentryx V2539</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -70,13 +70,75 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
   .module p{font-size:13px}
   .btn{font-size:16px}
 }
+
+.mapa-modal{
+  position:fixed;
+  inset:0;
+  background:rgba(15,23,42,.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  z-index:9999;
+}
+.mapa-box{
+  background:white;
+  border-radius:20px;
+  padding:18px;
+  width:100%;
+  max-width:420px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.mapa-box h2{margin-top:0}
+.mapa-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+}
+.user-head{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.user-photo{
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  object-fit:cover;
+  background:#e5e7eb;
+  border:2px solid #d1d5db;
+  flex:0 0 auto;
+}
+.user-photo.big{
+  width:110px;
+  height:110px;
+}
+.photo-placeholder{
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  background:#e5e7eb;
+  border:2px solid #d1d5db;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:bold;
+  color:#64748b;
+  flex:0 0 auto;
+}
+.photo-placeholder.big{
+  width:110px;
+  height:110px;
+  font-size:34px;
+}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2538</h1>
+      <h1>Zentryx V2539</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +148,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2538";
+const VERSION="2539";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -143,6 +205,7 @@ function normalizarUsuario(u){
     email:u.email||"",
     dni:u.dni||"",
     direccion:u.direccion||u.direccion_completa||u.domicilio||u.address||"",
+    foto:u.foto||u.foto_url||u.avatar||"",
     activo:u.activo!==false,
     password:u.password||"",
     password_pendiente:(u.password_pendiente===true || !u.password),
@@ -374,6 +437,40 @@ function abrirEmail(email){
   location.href="mailto:"+email;
 }
 
+function inicialesUsuario(nombre){
+  const n=String(nombre||"U").trim();
+  const partes=n.split(/\s+/).filter(Boolean);
+  if(!partes.length)return "U";
+  return partes.slice(0,2).map(x=>x[0].toUpperCase()).join("");
+}
+
+function fotoUsuarioHTML(u,clase=""){
+  if(u&&u.foto){
+    return `<img class="user-photo ${clase}" src="${u.foto}" alt="Foto usuario">`;
+  }
+  return `<div class="photo-placeholder ${clase}">${inicialesUsuario(u?.nombre||u?.usuario||"U")}</div>`;
+}
+
+function leerArchivoFoto(inputId,callback){
+  const input=document.getElementById(inputId);
+  const file=input&&input.files&&input.files[0];
+
+  if(!file){
+    callback("");
+    return;
+  }
+
+  if(!file.type.startsWith("image/")){
+    alert("Selecciona una imagen.");
+    callback("");
+    return;
+  }
+
+  const reader=new FileReader();
+  reader.onload=()=>callback(reader.result);
+  reader.readAsDataURL(file);
+}
+
 function abrirSelectorMapa(lat,lng,direccion){
   const tieneCoord=lat!=null && lng!=null && String(lat)!=="null" && String(lng)!=="null";
   const q=tieneCoord ? `${lat},${lng}` : String(direccion||"").trim();
@@ -383,24 +480,46 @@ function abrirSelectorMapa(lat,lng,direccion){
     return;
   }
 
-  const opcion=prompt("Abrir mapa con:\n1 - Google Maps\n2 - Waze\n3 - Apple Maps / Mapas","1");
+  const modal=document.createElement("div");
+  modal.className="mapa-modal";
+  modal.id="modalMapa";
 
-  if(opcion==="1"){
+  modal.innerHTML=`
+    <div class="mapa-box">
+      <h2>Abrir mapa</h2>
+      <p>Elige dónde quieres abrir la ubicación.</p>
+      <div class="mapa-grid">
+        <button class="btn blue full" onclick="abrirMapaElegido('google','${encodeURIComponent(q)}')">Google Maps</button>
+        <button class="btn green full" onclick="abrirMapaElegido('waze','${encodeURIComponent(q)}')">Waze</button>
+        <button class="btn gray full" onclick="abrirMapaElegido('apple','${encodeURIComponent(q)}')">Apple Maps / Mapas</button>
+        <button class="btn red full" onclick="cerrarModalMapa()">Cancelar</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+}
+
+function cerrarModalMapa(){
+  const modal=document.getElementById("modalMapa");
+  if(modal)modal.remove();
+}
+
+function abrirMapaElegido(tipo,qEncoded){
+  const q=decodeURIComponent(qEncoded);
+
+  if(tipo==="google"){
     window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(q),"_blank");
-    return;
   }
 
-  if(opcion==="2"){
+  if(tipo==="waze"){
     window.open("https://waze.com/ul?q="+encodeURIComponent(q)+"&navigate=yes","_blank");
-    return;
   }
 
-  if(opcion==="3"){
+  if(tipo==="apple"){
     window.open("http://maps.apple.com/?q="+encodeURIComponent(q),"_blank");
-    return;
   }
 
-  alert("Opción no válida.");
+  cerrarModalMapa();
 }
 
 function abrirMapaDireccion(direccion){
@@ -1147,10 +1266,15 @@ async function vistaUsuariosPro(){
       <h2>Lista de usuarios</h2>
       ${lista.map(u=>`
         <div class="row">
-          <b>${u.nombre}</b><br>
-          ${u.usuario} · ${rolNombre(u.rol)}<br>
-          <span class="muted">${u.puesto||"Sin puesto"}</span><br>
-          ${estadoUsuario(u)}<br>
+          <div class="user-head">
+            ${fotoUsuarioHTML(u)}
+            <div>
+              <b>${u.nombre}</b><br>
+              ${u.usuario} · ${rolNombre(u.rol)}<br>
+              <span class="muted">${u.puesto||"Sin puesto"}</span><br>
+              ${estadoUsuario(u)}
+            </div>
+          </div>
           <button class="btn blue" onclick="vistaFichaUsuarioPro('${u.id}')">Abrir ficha</button>
         </div>
       `).join("")}
@@ -1199,6 +1323,9 @@ function vistaAltaUsuarioPro(){
 
       <label>Dirección</label>
       <input id="u_direccion" placeholder="Calle, número, población...">
+
+      <label>Foto usuario</label>
+      <input id="u_foto" type="file" accept="image/*">
 
       <label>Días de vacaciones anuales</label>
       <input id="u_vacaciones" type="number" value="22">
@@ -1259,6 +1386,29 @@ async function actualizarUsuarioAdaptativo(id,payload){
   return {error:{message:"No se pudo actualizar usuario por columnas no compatibles en users."}};
 }
 
+async function obtenerFotoDesdeInput(inputId){
+  return new Promise(resolve=>{
+    const input=document.getElementById(inputId);
+    const file=input&&input.files&&input.files[0];
+
+    if(!file){
+      resolve("");
+      return;
+    }
+
+    if(!file.type.startsWith("image/")){
+      alert("La foto debe ser una imagen.");
+      resolve("");
+      return;
+    }
+
+    const reader=new FileReader();
+    reader.onload=()=>resolve(reader.result);
+    reader.onerror=()=>resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
 async function guardarAltaUsuarioPro(){
   const nombre=document.getElementById("u_nombre").value.trim();
   const usuarioLogin=document.getElementById("u_usuario").value.trim();
@@ -1268,6 +1418,7 @@ async function guardarAltaUsuarioPro(){
   const email=document.getElementById("u_email").value.trim();
   const dni=document.getElementById("u_dni").value.trim();
   const direccion=document.getElementById("u_direccion").value.trim();
+  const fotoInput=document.getElementById("u_foto");
   const vacaciones=Number(document.getElementById("u_vacaciones").value||22);
   const asuntos=Number(document.getElementById("u_asuntos").value||0);
 
@@ -1358,10 +1509,15 @@ async function vistaFichaUsuarioPro(id){
   document.getElementById("app").innerHTML=`
     <div class="card">
       <button class="btn gray" onclick="vistaUsuariosPro()">← Usuarios</button>
-      <h2>${u.nombre}</h2>
-      <p>${u.usuario} · ${rolNombre(u.rol)}</p>
-      <p>${u.puesto||"Sin puesto"}</p>
-      ${estadoUsuario(u)}
+      <div class="user-head">
+        ${fotoUsuarioHTML(u,"big")}
+        <div>
+          <h2>${u.nombre}</h2>
+          <p>${u.usuario} · ${rolNombre(u.rol)}</p>
+          <p>${u.puesto||"Sin puesto"}</p>
+          ${estadoUsuario(u)}
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -1462,6 +1618,12 @@ async function vistaEditarUsuarioPro(id){
       <label>Dirección</label>
       <input id="e_direccion" value="${u.direccion||""}" placeholder="Calle, número, población...">
 
+      <label>Foto actual</label>
+      <div>${fotoUsuarioHTML(u)}</div>
+
+      <label>Cambiar foto</label>
+      <input id="e_foto" type="file" accept="image/*">
+
       <label>Días de vacaciones anuales</label>
       <input id="e_vacaciones" type="number" value="${u.vacaciones??22}">
 
@@ -1500,6 +1662,11 @@ async function guardarEdicionUsuarioPro(id){
     direccion:document.getElementById("e_direccion").value.trim(),
     vacaciones:Number(document.getElementById("e_vacaciones").value||22)
   };
+
+  const nuevaFoto=await obtenerFotoDesdeInput("e_foto");
+  if(nuevaFoto){
+    update.foto=nuevaFoto;
+  }
 
   const {error}=await actualizarUsuarioAdaptativo(id,update);
 
