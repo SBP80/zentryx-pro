@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2533.3</title>
+<title>Zentryx V2534</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2533.3</h1>
+      <h1>Zentryx V2534</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,26 +86,74 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2533.3";
+const VERSION="2534";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-let user={
+let user=JSON.parse(localStorage.getItem("usuario")||"null") || {
   id:"1",
   nombre:"Administrador",
   usuario:"admin",
   rol:"admin"
 };
+localStorage.setItem("usuario",JSON.stringify(user));
 
 let fichajesCache=[];
 let notasCache=[];
+let usuariosCache=[];
 let cargandoFichajes=false;
 let cargandoNotas=false;
+let cargandoUsuarios=false;
 let vistaActual='inicio';
 
 function esAdmin(){return user.rol==="admin"}
+
+function normalizarUsuario(u){
+  if(!u)return null;
+  return {
+    id:String(u.id),
+    nombre:u.nombre||u.name||u.usuario||"Usuario",
+    usuario:u.usuario||u.username||String(u.id),
+    rol:u.rol||u.role||"operario",
+    puesto:u.puesto||"",
+    telefono:u.telefono||"",
+    email:u.email||"",
+    dni:u.dni||"",
+    activo:u.activo!==false,
+    password:u.password||"",
+    password_pendiente:!!u.password_pendiente,
+    vacaciones:Number(u.vacaciones??22),
+    asuntos:Number(u.asuntos??0),
+    vacaciones_usadas:Number(u.vacaciones_usadas??0),
+    asuntos_usados:Number(u.asuntos_usados??0),
+    creado:u.creado||u.created_at||""
+  };
+}
+
+async function cargarUsuarioActual(){
+  const guardado=JSON.parse(localStorage.getItem("usuario")||"null");
+  if(guardado&&guardado.id){
+    const {data,error}=await sb.from("users").select("*").eq("id",guardado.id).limit(1);
+    if(!error&&data&&data[0]){
+      user=normalizarUsuario(data[0]);
+      localStorage.setItem("usuario",JSON.stringify(user));
+    }else{
+      user=guardado;
+    }
+    return user;
+  }
+
+  const {data,error}=await sb.from("users").select("*").eq("id",1).limit(1);
+  if(!error&&data&&data[0]){
+    user=normalizarUsuario(data[0]);
+  }else{
+    user={id:"1",nombre:"Administrador",usuario:"admin",rol:"admin"};
+  }
+  localStorage.setItem("usuario",JSON.stringify(user));
+  return user;
+}
 
 function cerrarSesion(){
   localStorage.removeItem("usuario");
@@ -695,39 +743,33 @@ function vistaInformes(){
 }
 
 
-// ===== USUARIOS PRO =====
+// ===== USUARIOS PRO SUPABASE =====
 const ADMIN_PASS="admin";
 
-function kUsuarios(){return "zentryx_usuarios_pro"}
+async function cargarUsuariosServidor(){
+  if(cargandoUsuarios)return usuariosCache;
+  cargandoUsuarios=true;
 
-function usuariosBase(){
-  return [{
-    id:"admin",
-    nombre:"Administrador",
-    usuario:"admin",
-    rol:"admin",
-    puesto:"Administrador",
-    telefono:"",
-    email:"",
-    dni:"",
-    activo:true,
-    password:"admin",
-    password_pendiente:false,
-    creado:new Date().toISOString()
-  }];
+  const {data,error}=await sb.from("users").select("*").order("id",{ascending:true});
+
+  cargandoUsuarios=false;
+
+  if(error){
+    console.error(error);
+    aviso("Error leyendo usuarios: "+error.message,"error");
+    return usuariosCache;
+  }
+
+  usuariosCache=(data||[]).map(normalizarUsuario);
+  return usuariosCache;
 }
 
 function leerUsuarios(){
-  const raw=localStorage.getItem(kUsuarios());
-  if(!raw){
-    localStorage.setItem(kUsuarios(),JSON.stringify(usuariosBase()));
-    return usuariosBase();
-  }
-  return JSON.parse(raw);
+  return usuariosCache.length?usuariosCache:[user];
 }
 
 function guardarUsuarios(lista){
-  localStorage.setItem(kUsuarios(),JSON.stringify(lista));
+  usuariosCache=lista||usuariosCache;
 }
 
 function pedirClaveAdmin(){
@@ -740,12 +782,7 @@ function usuarioPorId(id){
 }
 
 function rolNombre(rol){
-  const m={
-    admin:"Administrador",
-    encargado:"Encargado",
-    operario:"Operario",
-    oficina:"Oficina"
-  };
+  const m={admin:"Administrador",encargado:"Encargado",operario:"Operario",oficina:"Oficina"};
   return m[rol]||rol;
 }
 
@@ -755,8 +792,9 @@ function estadoUsuario(u){
   return '<span class="badge green">Activo</span>';
 }
 
-function vistaUsuariosPro(){
+async function vistaUsuariosPro(){
   vistaActual='usuarios';
+  await cargarUsuariosServidor();
   const lista=leerUsuarios();
 
   document.getElementById("app").innerHTML=`
@@ -783,6 +821,7 @@ function vistaUsuariosPro(){
 
 function vistaAltaUsuarioPro(){
   vistaActual='usuarios';
+
   if(!esAdmin()){
     alert("Solo admin puede crear usuarios.");
     return;
@@ -830,7 +869,7 @@ function vistaAltaUsuarioPro(){
     </div>`;
 }
 
-function guardarAltaUsuarioPro(){
+async function guardarAltaUsuarioPro(){
   const nombre=document.getElementById("u_nombre").value.trim();
   const usuarioLogin=document.getElementById("u_usuario").value.trim();
   const rol=document.getElementById("u_rol").value;
@@ -846,66 +885,56 @@ function guardarAltaUsuarioPro(){
     return;
   }
 
-  const lista=leerUsuarios();
+  await cargarUsuariosServidor();
 
-  if(lista.some(u=>u.usuario.toLowerCase()===usuarioLogin.toLowerCase())){
+  if(leerUsuarios().some(u=>u.usuario.toLowerCase()===usuarioLogin.toLowerCase())){
     alert("Ese usuario ya existe.");
     return;
   }
 
-  const nuevo={
-    id:"u_"+Date.now(),
-    nombre,
-    usuario:usuarioLogin,
-    rol,
-    puesto,
-    telefono,
-    email,
-    dni,
-    activo:true,
-    password:"",
-    password_pendiente:true,
-    vacaciones,
-    asuntos,
-    creado:new Date().toISOString()
-  };
+  const nuevo={nombre,usuario:usuarioLogin,rol,puesto,telefono,email,dni,activo:true,password:"",password_pendiente:true,vacaciones,asuntos,vacaciones_usadas:0,asuntos_usados:0,creado:new Date().toISOString()};
+  const {data,error}=await sb.from("users").insert([nuevo]).select().single();
 
-  lista.push(nuevo);
-  guardarUsuarios(lista);
+  if(error){
+    console.error(error);
+    alert("Error creando usuario: "+error.message);
+    return;
+  }
 
-  crearHorarioBaseLocal(nuevo.id);
-  crearAvisosBaseLocal(nuevo.id);
+  await crearHorarioBaseServidor(data.id);
+  await crearAvisosBaseServidor(data.id);
+  await cargarUsuariosServidor();
 
   alert("Usuario creado. La contraseña queda pendiente.");
   vistaUsuariosPro();
 }
 
-function crearHorarioBaseLocal(uid){
+async function crearHorarioBaseServidor(uid){
   const dias=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
-  const horario=dias.map(d=>({
+  const registros=dias.map(d=>({
+    user_id:String(uid),
     dia:d,
     trabaja:["lunes","martes","miércoles","jueves","viernes"].includes(d),
-    entrada:["lunes","martes","miércoles","jueves","viernes"].includes(d)?"08:00":"",
-    salida:["lunes","martes","miércoles","jueves","viernes"].includes(d)?"17:00":"",
-    inicio_comida:"",
-    fin_comida:"",
+    entrada:["lunes","martes","miércoles","jueves","viernes"].includes(d)?"08:00":null,
+    salida:["lunes","martes","miércoles","jueves","viernes"].includes(d)?"17:00":null,
+    inicio_comida:null,
+    fin_comida:null,
     descanso_min:0
   }));
-  localStorage.setItem("zentryx_horario_"+uid,JSON.stringify(horario));
+
+  try{await sb.from("horarios_usuario").insert(registros)}catch(e){console.warn("No se pudo crear horario base",e)}
 }
 
-function crearAvisosBaseLocal(uid){
-  localStorage.setItem("zentryx_avisos_"+uid,JSON.stringify({
-    activo:true,
-    margen_entrada:10,
-    salida_antes:10,
-    max_comida:90,
-    max_descanso:30
-  }));
+async function crearAvisosBaseServidor(uid){
+  try{
+    await sb.from("avisos_fichaje").insert([{user_id:String(uid),activo:true,margen_entrada_min:10,antes_salida_min:10,max_comida_min:90,max_descanso_min:30,sonido:true,actualizado_en:new Date().toISOString()}]);
+  }catch(e){console.warn("No se pudo crear aviso base",e)}
 }
 
-function vistaFichaUsuarioPro(id){
+async function vistaFichaUsuarioPro(id){
   vistaActual='usuarios';
+  await cargarUsuariosServidor();
+
   const u=usuarioPorId(id);
   if(!u){
     alert("Usuario no encontrado.");
@@ -927,7 +956,11 @@ function vistaFichaUsuarioPro(id){
       <p><b>Email:</b> ${u.email||"-"}</p>
       <p><b>DNI:</b> ${u.dni||"-"}</p>
       <p><b>Vacaciones:</b> ${u.vacaciones??22}</p>
-      <p><b>Horas asuntos propios:</b> ${u.asuntos??0} h</p><p><b>Asuntos usados:</b> ${u.asuntos_usados??0} h</p><p><b>Asuntos restantes:</b> ${Number(u.asuntos??0)-Number(u.asuntos_usados??0)} h</p><p><b>Vacaciones usadas:</b> ${u.vacaciones_usadas??0} días</p><p><b>Vacaciones restantes:</b> ${Number(u.vacaciones??22)-Number(u.vacaciones_usadas??0)} días</p>
+      <p><b>Horas asuntos propios:</b> ${u.asuntos??0} h</p>
+      <p><b>Asuntos usados:</b> ${u.asuntos_usados??0} h</p>
+      <p><b>Asuntos restantes:</b> ${Number(u.asuntos??0)-Number(u.asuntos_usados??0)} h</p>
+      <p><b>Vacaciones usadas:</b> ${u.vacaciones_usadas??0} días</p>
+      <p><b>Vacaciones restantes:</b> ${Number(u.vacaciones??22)-Number(u.vacaciones_usadas??0)} días</p>
     </div>
 
     <div class="card">
@@ -944,18 +977,20 @@ function vistaFichaUsuarioPro(id){
       <h2>Zona protegida</h2>
       <button class="btn blue full" onclick="vistaEditarUsuarioPro('${u.id}')">Editar usuario</button>
       <button class="btn orange full" onclick="toggleActivoUsuarioPro('${u.id}')">${u.activo?"Desactivar usuario":"Activar usuario"}</button>
-      ${u.id!==user.id?`<button class="btn red full" onclick="eliminarUsuarioPro('${u.id}')">Eliminar usuario</button>`:""}
+      ${String(u.id)!==String(user.id)?`<button class="btn red full" onclick="eliminarUsuarioPro('${u.id}')">Eliminar usuario</button>`:""}
     </div>`:""}
   `;
 }
 
-function vistaEditarUsuarioPro(id){
+async function vistaEditarUsuarioPro(id){
   vistaActual='usuarios';
+
   if(!pedirClaveAdmin()){
     alert("Contraseña incorrecta.");
     return;
   }
 
+  await cargarUsuariosServidor();
   const u=usuarioPorId(id);
   if(!u)return;
 
@@ -1000,79 +1035,101 @@ function vistaEditarUsuarioPro(id){
     </div>`;
 }
 
-function guardarEdicionUsuarioPro(id){
-  const lista=leerUsuarios();
-  const u=lista.find(x=>String(x.id)===String(id));
-  if(!u)return;
+async function guardarEdicionUsuarioPro(id){
+  await cargarUsuariosServidor();
 
   const nuevoUsuario=document.getElementById("e_usuario").value.trim();
-  if(!document.getElementById("e_nombre").value.trim()||!nuevoUsuario){
+  const nuevoNombre=document.getElementById("e_nombre").value.trim();
+
+  if(!nuevoNombre||!nuevoUsuario){
     alert("Nombre y usuario son obligatorios.");
     return;
   }
 
-  if(lista.some(x=>x.id!==id && x.usuario.toLowerCase()===nuevoUsuario.toLowerCase())){
+  if(leerUsuarios().some(x=>String(x.id)!==String(id) && x.usuario.toLowerCase()===nuevoUsuario.toLowerCase())){
     alert("Ese usuario ya existe.");
     return;
   }
 
-  u.nombre=document.getElementById("e_nombre").value.trim();
-  u.usuario=nuevoUsuario;
-  u.rol=document.getElementById("e_rol").value;
-  u.puesto=document.getElementById("e_puesto").value.trim();
-  u.telefono=document.getElementById("e_telefono").value.trim();
-  u.email=document.getElementById("e_email").value.trim();
-  u.dni=document.getElementById("e_dni").value.trim();
-  u.vacaciones=Number(document.getElementById("e_vacaciones").value||22);
-  u.asuntos=Number(document.getElementById("e_asuntos").value||0);
+  const update={
+    nombre:nuevoNombre,
+    usuario:nuevoUsuario,
+    rol:document.getElementById("e_rol").value,
+    puesto:document.getElementById("e_puesto").value.trim(),
+    telefono:document.getElementById("e_telefono").value.trim(),
+    email:document.getElementById("e_email").value.trim(),
+    dni:document.getElementById("e_dni").value.trim(),
+    vacaciones:Number(document.getElementById("e_vacaciones").value||22),
+    asuntos:Number(document.getElementById("e_asuntos").value||0)
+  };
 
-  guardarUsuarios(lista);
+  const {error}=await sb.from("users").update(update).eq("id",id);
+
+  if(error){
+    console.error(error);
+    alert("Error guardando usuario: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
+
+  if(String(id)===String(user.id)){
+    const actualizado=usuarioPorId(id);
+    if(actualizado){
+      user=actualizado;
+      localStorage.setItem("usuario",JSON.stringify(user));
+    }
+  }
+
   alert("Usuario guardado.");
   vistaFichaUsuarioPro(id);
 }
 
-function toggleActivoUsuarioPro(id){
+async function toggleActivoUsuarioPro(id){
   if(!pedirClaveAdmin()){
     alert("Contraseña incorrecta.");
     return;
   }
 
-  const lista=leerUsuarios();
-  const u=lista.find(x=>String(x.id)===String(id));
+  await cargarUsuariosServidor();
+  const u=usuarioPorId(id);
   if(!u)return;
 
-  if(u.id===user.id){
+  if(String(u.id)===String(user.id)){
     alert("No puedes desactivar el usuario actual.");
     return;
   }
 
-  u.activo=!u.activo;
-  guardarUsuarios(lista);
+  const {error}=await sb.from("users").update({activo:!u.activo}).eq("id",id);
+
+  if(error){
+    alert("Error actualizando usuario: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
   vistaFichaUsuarioPro(id);
 }
 
-function resetPasswordUsuarioPro(id){
+async function resetPasswordUsuarioPro(id){
   if(!pedirClaveAdmin()){
     alert("Contraseña incorrecta.");
     return;
   }
 
-  const lista=leerUsuarios();
-  const u=lista.find(x=>String(x.id)===String(id));
-  if(!u)return;
+  const {error}=await sb.from("users").update({password:"",password_pendiente:true}).eq("id",id);
 
-  u.password="";
-  u.password_pendiente=true;
-  guardarUsuarios(lista);
+  if(error){
+    alert("Error reseteando contraseña: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
   alert("Contraseña reseteada. El usuario deberá crear una nueva.");
   vistaFichaUsuarioPro(id);
 }
 
-function simularPrimeraClave(id){
-  const lista=leerUsuarios();
-  const u=lista.find(x=>String(x.id)===String(id));
-  if(!u)return;
-
+async function simularPrimeraClave(id){
   const p1=prompt("Nueva contraseña del usuario:");
   if(!p1)return;
 
@@ -1082,37 +1139,51 @@ function simularPrimeraClave(id){
     return;
   }
 
-  u.password=p1;
-  u.password_pendiente=false;
-  guardarUsuarios(lista);
+  const {error}=await sb.from("users").update({password:p1,password_pendiente:false}).eq("id",id);
+
+  if(error){
+    alert("Error guardando contraseña: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
   alert("Contraseña creada.");
   vistaFichaUsuarioPro(id);
 }
 
-function eliminarUsuarioPro(id){
+async function eliminarUsuarioPro(id){
   if(!pedirClaveAdmin()){
     alert("Contraseña incorrecta.");
     return;
   }
 
-  if(id===user.id){
+  if(String(id)===String(user.id)){
     alert("No puedes eliminar el usuario actual.");
     return;
   }
 
+  await cargarUsuariosServidor();
   const u=usuarioPorId(id);
   if(!u)return;
 
   if(!confirm("¿Eliminar a "+u.nombre+"?"))return;
 
-  guardarUsuarios(leerUsuarios().filter(x=>String(x.id)!==String(id)));
-  localStorage.removeItem("zentryx_horario_"+id);
-  localStorage.removeItem("zentryx_avisos_"+id);
-  localStorage.removeItem("zentryx_fichajes_"+id);
+  await sb.from("fichajes").delete().eq("user_id",String(id));
+  await sb.from("notas_rapidas").delete().eq("user_id",String(id));
+  await sb.from("horarios_usuario").delete().eq("user_id",String(id));
+  await sb.from("avisos_fichaje").delete().eq("user_id",String(id));
+
+  const {error}=await sb.from("users").delete().eq("id",id);
+
+  if(error){
+    alert("Error eliminando usuario: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
   alert("Usuario eliminado.");
   vistaUsuariosPro();
 }
-
 
 // ===== SOLICITUDES PRO =====
 function kSolicitudes(){return "zentryx_solicitudes_pro"}
@@ -1294,7 +1365,7 @@ function cancelarSolicitudPro(id){
   vistaSolicitudesPro();
 }
 
-function resolverSolicitudPro(id,estado){
+async function resolverSolicitudPro(id,estado){
   if(!pedirClaveAdmin()){
     alert("Contraseña incorrecta.");
     return;
@@ -1311,30 +1382,37 @@ function resolverSolicitudPro(id,estado){
   s.comentario_resolucion=comentario;
 
   if(estado==="aprobada"){
-    aplicarDescuentoSolicitud(s);
+    await aplicarDescuentoSolicitud(s);
   }
 
   guardarSolicitudes(lista);
   vistaSolicitudesPro();
 }
 
-function aplicarDescuentoSolicitud(s){
-  const lista=leerUsuarios();
-  const u=lista.find(x=>String(x.id)===String(s.user_id));
+async function aplicarDescuentoSolicitud(s){
+  await cargarUsuariosServidor();
+  const u=usuarioPorId(s.user_id);
   if(!u)return;
 
+  const update={};
+
   if(s.tipo==="vacaciones"){
-    u.vacaciones_usadas=Number(u.vacaciones_usadas||0)+Number(s.dias||0);
+    update.vacaciones_usadas=Number(u.vacaciones_usadas||0)+Number(s.dias||0);
   }
 
   if(s.tipo==="asuntos_horas"){
-    u.asuntos_usados=Number(u.asuntos_usados||0)+Number(s.horas||0);
+    update.asuntos_usados=Number(u.asuntos_usados||0)+Number(s.horas||0);
   }
 
-  guardarUsuarios(lista);
+  if(Object.keys(update).length){
+    await sb.from("users").update(update).eq("id",s.user_id);
+    await cargarUsuariosServidor();
+  }
 }
 
 async function iniciarApp(){
+  await cargarUsuarioActual();
+  await cargarUsuariosServidor();
   await cargarFichajesServidor();
   await cargarNotasServidor();
   inicio();
