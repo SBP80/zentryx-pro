@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2535.3</title>
+<title>Zentryx V2535.4</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2535.3</h1>
+      <h1>Zentryx V2535.4</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,34 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2535.3";
+const VERSION="2535.4";
+
+window.addEventListener('error',function(e){
+  const app=document.getElementById("app");
+  if(app){
+    app.innerHTML=`
+      <div class="card">
+        <h2>Fallo de carga</h2>
+        <p class="error">${e.message||"Fallo no identificado"}</p>
+        <button class="btn gray full" onclick="location.reload()">Recargar</button>
+        <button class="btn red full" onclick="cerrarSesion()">Salir</button>
+      </div>`;
+  }
+});
+
+window.addEventListener('unhandledrejection',function(e){
+  const app=document.getElementById("app");
+  const msg=e.reason && e.reason.message ? e.reason.message : String(e.reason||"Fallo no identificado");
+  if(app){
+    app.innerHTML=`
+      <div class="card">
+        <h2>Fallo de carga</h2>
+        <p class="error">${msg}</p>
+        <button class="btn gray full" onclick="location.reload()">Recargar</button>
+        <button class="btn red full" onclick="cerrarSesion()">Salir</button>
+      </div>`;
+  }
+});
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -1892,8 +1919,7 @@ async function importarFestivosTexto(){
     return;
   }
 
-  const registros=txt.split("
-").map(x=>parseLineaFestivo(x)).filter(Boolean);
+  const registros=txt.split("\n").map(x=>parseLineaFestivo(x)).filter(Boolean);
 
   if(!registros.length){
     alert("No se han detectado líneas válidas.");
