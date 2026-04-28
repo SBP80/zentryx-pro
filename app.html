@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2533.1</title>
+<title>Zentryx V2533.2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2533.1</h1>
+      <h1>Zentryx V2533.2</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2533.1";
+const VERSION="2533.2";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -150,6 +150,32 @@ function actualizarReloj(){
 setInterval(actualizarReloj,1000);
 actualizarReloj();
 
+function fechaSupabaseADate(valor){
+  if(!valor)return new Date();
+  let s=String(valor).trim();
+
+  // Supabase timestamp sin zona: viene como UTC pero sin Z.
+  // Si no trae Z ni offset, se añade Z para convertirlo bien a hora local del navegador.
+  if(!/[zZ]$/.test(s) && !/[+-]\d{2}:?\d{2}$/.test(s)){
+    s=s.replace(" ","T");
+    if(!s.endsWith("Z"))s+="Z";
+  }
+
+  return new Date(s);
+}
+
+function fechaLocalISODesdeDate(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
+function horaLocalHHMMDesdeDate(d){
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+
+function minutosDelDiaDesdeDate(d){
+  return d.getHours()*60+d.getMinutes();
+}
+
 function kFichajes(){return "zentryx_fichajes_"+user.id}
 
 async function cargarFichajesServidor(){
@@ -172,11 +198,12 @@ async function cargarFichajesServidor(){
   }
 
   fichajesCache=(data||[]).map(f=>{
-    const d=new Date(f.fecha);
+    const d=fechaSupabaseADate(f.fecha);
     return {
       id:f.id,
-      fecha:String(f.fecha||"").slice(0,10),
-      hora:d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}),
+      fecha:fechaLocalISODesdeDate(d),
+      hora:horaLocalHHMMDesdeDate(d),
+      minutoDia:minutosDelDiaDesdeDate(d),
       tipo:f.tipo,
       ts:d.getTime(),
       direccion:f.direccion_real||f.direccion||"",
@@ -336,7 +363,7 @@ function resumenHoy(){
   let trabajo=0, pausa=0, comida=0;
 
   for(const m of mov){
-    const mm=minutos(m.hora);
+    const mm=(m.minutoDia!=null)?m.minutoDia:minutos(m.hora);
     if(m.tipo==="entrada"||m.tipo==="fin_pausa"||m.tipo==="fin_comida"){
       trabajandoDesde=mm;
       pausaDesde=null;
