@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2535.4</title>
+<title>Zentryx V2536</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2535.4</h1>
+      <h1>Zentryx V2536</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2535.4";
+const VERSION="2536";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -335,6 +335,39 @@ function hoyISO(){
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
 
+let festivoHoyCache=null;
+
+async function comprobarFestivoHoy(){
+  try{
+    const hoy=hoyISO();
+
+    const {data,error}=await sb
+      .from("calendario_festivos")
+      .select("*")
+      .eq("fecha",hoy);
+
+    if(error){
+      console.warn("No se pudo comprobar festivo:",error.message);
+      festivoHoyCache=null;
+      return null;
+    }
+
+    festivoHoyCache=(data&&data.length)?data[0]:null;
+    return festivoHoyCache;
+  }catch(e){
+    console.warn("Error comprobando festivo:",e);
+    festivoHoyCache=null;
+    return null;
+  }
+}
+
+function textoFestivoHoy(){
+  if(!festivoHoyCache)return "";
+  const nombre=festivoHoyCache.nombre||"Festivo";
+  const tipo=festivoHoyCache.tipo||"";
+  return tipo ? nombre+" · "+tipo : nombre;
+}
+
 function fechaES(iso){
   if(!iso)return "";
   const s=String(iso).slice(0,10);
@@ -557,6 +590,11 @@ async function guardarMovimiento(tipo){
 
   if(!movimientoPermitido(tipo)){
     alert(textoMovimientoNoPermitido(tipo));
+    return;
+  }
+
+  const festivo=await comprobarFestivoHoy();
+  if(festivo && !confirm("Hoy es festivo: "+textoFestivoHoy()+". ¿Seguro que quieres fichar?")){
     return;
   }
 
@@ -800,8 +838,9 @@ async function limpiarPrueba(){
   inicio();
 }
 
-function inicio(){
+async function inicio(){
   vistaActual='inicio';
+  await comprobarFestivoHoy();
   const est=estadoActual();
   const res=resumenHoy();
   const notas=leerNotas().filter(n=>!n.hecha);
@@ -815,6 +854,7 @@ function inicio(){
       <b>${user.nombre}</b>
       <p>${user.usuario} · ${user.rol}</p>
       <span class="badge ${est.clase}">${est.txt}</span>
+      ${festivoHoyCache?`<span class="badge red">Festivo: ${textoFestivoHoy()}</span>`:""}
       ${leerAviso()}
     </div>
 
@@ -832,6 +872,7 @@ function inicio(){
 
     <div class="card">
       <h2>Jornada de hoy</h2>
+      ${festivoHoyCache?`<p class="error"><b>Hoy es festivo:</b> ${textoFestivoHoy()}</p>`:""}
       <span class="badge">Trabajo: ${textoMin(res.trabajo)}</span>
       <span class="badge">Pausas: ${textoMin(res.pausa)}</span>
       <span class="badge">Comida: ${textoMin(res.comida)}</span>
@@ -2210,7 +2251,7 @@ async function iniciarAppConUsuario(){
   await cargarUsuariosServidor();
   await cargarFichajesServidor();
   await cargarNotasServidor();
-  inicio();
+  await inicio();
 
   if(intervaloSync)clearInterval(intervaloSync);
 
@@ -2218,7 +2259,7 @@ async function iniciarAppConUsuario(){
     if(!user)return;
     await cargarFichajesServidor();
     await cargarNotasServidor();
-    if(vistaActual==="inicio")inicio();
+    if(vistaActual==="inicio")await inicio();
   },15000);
 }
 
