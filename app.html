@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2535.1</title>
+<title>Zentryx V2535.2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2535.1</h1>
+      <h1>Zentryx V2535.2</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2535.1";
+const VERSION="2535.2";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -1762,8 +1762,45 @@ async function pintarConfigFestivos(){
 
   document.getElementById("zonaConfig").innerHTML=`
     <div class="card">
-      <h2>Calendario laboral / festivos</h2>
-      <p>Define festivos por convenio, comunidad autónoma y población. Si un campo queda vacío, se considera general.</p>
+      <h2>Asistente calendario laboral</h2>
+      <p>Rellena estos datos. Con ellos se prepara el calendario anual para importar los festivos de golpe.</p>
+
+      <label>Año</label>
+      <input id="cal_anio" type="number" value="${new Date().getFullYear()}">
+
+      <label>País</label>
+      <input id="cal_pais" value="España">
+
+      <label>Comunidad autónoma</label>
+      <input id="cal_comunidad" placeholder="Madrid, Castilla-La Mancha, Andalucía...">
+
+      <label>Provincia</label>
+      <input id="cal_provincia" placeholder="Madrid, Toledo, Guadalajara...">
+
+      <label>Población</label>
+      <input id="cal_poblacion" placeholder="Ciempozuelos, Madrid, Toledo...">
+
+      <label>Convenio</label>
+      <input id="cal_convenio" placeholder="Metal, construcción, empresa, general...">
+
+      <button class="btn blue full" onclick="prepararPeticionCalendario()">Preparar petición</button>
+
+      <label>Texto para pedirme los festivos</label>
+      <textarea id="cal_peticion" readonly placeholder="Pulsa preparar petición..."></textarea>
+    </div>
+
+    <div class="card">
+      <h2>Importar festivos</h2>
+      <p>Pega aquí el bloque que te prepare. Formato por línea:</p>
+      <p class="small">dd/mm/aaaa | Nombre | Tipo | Convenio | Comunidad | Población</p>
+
+      <textarea id="festivos_importar" placeholder="01/01/2026 | Año Nuevo | nacional | general | España | general"></textarea>
+
+      <button class="btn green full" onclick="importarFestivosTexto()">Importar calendario</button>
+    </div>
+
+    <div class="card">
+      <h2>Añadir festivo manual</h2>
 
       <label>Fecha</label>
       <input id="festivo_fecha" placeholder="dd/mm/aaaa">
@@ -1789,7 +1826,7 @@ async function pintarConfigFestivos(){
         <option value="empresa">Empresa</option>
       </select>
 
-      <button class="btn green full" onclick="crearFestivo()">Crear festivo</button>
+      <button class="btn green full" onclick="crearFestivo()">Crear festivo manual</button>
     </div>
 
     <div class="card">
@@ -1815,6 +1852,78 @@ async function pintarConfigFestivos(){
         </div>
       `).join(""):"<p>No hay festivos creados.</p>"}
     </div>`;
+}
+
+function prepararPeticionCalendario(){
+  const anio=document.getElementById("cal_anio").value.trim();
+  const pais=document.getElementById("cal_pais").value.trim()||"España";
+  const comunidad=document.getElementById("cal_comunidad").value.trim();
+  const provincia=document.getElementById("cal_provincia").value.trim();
+  const poblacion=document.getElementById("cal_poblacion").value.trim();
+  const convenio=document.getElementById("cal_convenio").value.trim();
+
+  const texto=`Prepárame los festivos laborales para importar en Zentryx con este formato por línea:
+dd/mm/aaaa | Nombre | Tipo | Convenio | Comunidad | Población
+
+Datos:
+Año: ${anio}
+País: ${pais}
+Comunidad autónoma: ${comunidad||"general"}
+Provincia: ${provincia||"general"}
+Población: ${poblacion||"general"}
+Convenio: ${convenio||"general"}
+
+Incluye festivos nacionales, autonómicos, locales y de convenio si son públicos y verificables.`;
+
+  document.getElementById("cal_peticion").value=texto;
+}
+
+function parseLineaFestivo(linea){
+  const partes=linea.split("|").map(x=>x.trim());
+  if(partes.length<2)return null;
+
+  const fecha=fechaDisplayAInput(partes[0]);
+  if(!fecha)return null;
+
+  return {
+    fecha,
+    nombre:partes[1]||"Festivo",
+    tipo:partes[2]||"general",
+    convenio:partes[3]||null,
+    comunidad:partes[4]||null,
+    region:partes[4]||null,
+    poblacion:partes[5]||null
+  };
+}
+
+async function importarFestivosTexto(){
+  const txt=document.getElementById("festivos_importar").value.trim();
+
+  if(!txt){
+    alert("Pega primero el calendario.");
+    return;
+  }
+
+  const lineas=txt.split("
+").map(x=>x.trim()).filter(Boolean);
+  const registros=lineas.map(parseLineaFestivo).filter(Boolean);
+
+  if(!registros.length){
+    alert("No se han detectado líneas válidas.");
+    return;
+  }
+
+  if(!confirm("Se van a importar "+registros.length+" festivos. ¿Continuar?"))return;
+
+  let creados=0;
+
+  for(const r of registros){
+    const {error}=await insertarAdaptativo("calendario_festivos",r);
+    if(!error)creados++;
+  }
+
+  alert("Importados "+creados+" festivos.");
+  await pintarConfigFestivos();
 }
 
 async function crearFestivo(){
