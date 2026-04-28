@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2536</title>
+<title>Zentryx V2537</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2536</h1>
+      <h1>Zentryx V2537</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2536";
+const VERSION="2537";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -411,6 +411,24 @@ function textoMin(total){
   const h=Math.floor(total/60);
   const m=total%60;
   return h+" h "+m+" min";
+}
+
+function calcularExtrasHoy(resumen){
+  const totalTrabajo=Number(resumen?.trabajo||0);
+
+  if(festivoHoyCache){
+    return {
+      normal:0,
+      extra:totalTrabajo,
+      motivo:"Festivo"
+    };
+  }
+
+  return {
+    normal:totalTrabajo,
+    extra:0,
+    motivo:""
+  };
 }
 
 function actualizarReloj(){
@@ -843,6 +861,7 @@ async function inicio(){
   await comprobarFestivoHoy();
   const est=estadoActual();
   const res=resumenHoy();
+  const extras=calcularExtrasHoy(res);
   const notas=leerNotas().filter(n=>!n.hecha);
   const fijas=notas.filter(n=>n.fija);
   const vencidas=notas.filter(notaVencida);
@@ -873,7 +892,10 @@ async function inicio(){
     <div class="card">
       <h2>Jornada de hoy</h2>
       ${festivoHoyCache?`<p class="error"><b>Hoy es festivo:</b> ${textoFestivoHoy()}</p>`:""}
-      <span class="badge">Trabajo: ${textoMin(res.trabajo)}</span>
+      <span class="badge">Trabajo total: ${textoMin(res.trabajo)}</span>
+      <span class="badge green">Jornada normal: ${textoMin(extras.normal)}</span>
+      <span class="badge orange">Horas extra: ${textoMin(extras.extra)}</span>
+      ${extras.motivo?`<span class="badge red">Motivo extra: ${extras.motivo}</span>`:""}
       <span class="badge">Pausas: ${textoMin(res.pausa)}</span>
       <span class="badge">Comida: ${textoMin(res.comida)}</span>
       <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
@@ -952,12 +974,22 @@ function vistaPendiente(titulo){
 function vistaInformes(){
   vistaActual='informes';
   const lista=leerFichajes().slice().reverse();
+  const res=resumenHoy();
+  const extras=calcularExtrasHoy(res);
   document.getElementById("app").innerHTML=`
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
       <h2>Informes</h2>
       <p>Resumen de movimientos guardados.</p>
     </div>
+    <div class="card">
+      <h3>Resumen de hoy</h3>
+      <span class="badge">Trabajo total: ${textoMin(res.trabajo)}</span>
+      <span class="badge green">Normal: ${textoMin(extras.normal)}</span>
+      <span class="badge orange">Extra: ${textoMin(extras.extra)}</span>
+      ${extras.motivo?`<span class="badge red">${extras.motivo}</span>`:""}
+    </div>
+
     <div class="card">
       <h3>Movimientos</h3>
       ${lista.length?lista.map(m=>`
