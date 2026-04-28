@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2534.5</title>
+<title>Zentryx V2534.6</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -76,7 +76,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2534.5</h1>
+      <h1>Zentryx V2534.6</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -86,7 +86,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2534.5";
+const VERSION="2534.6";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -124,6 +124,28 @@ function normalizarUsuario(u){
     asuntos_usados:Number(u.asuntos_usados||u.asuntos_horas_usadas||0),
     creado:u.creado||u.created_at||""
   };
+}
+
+async function hashPassword(texto){
+  const encoder=new TextEncoder();
+  const data=encoder.encode(String(texto||""));
+  const hash=await crypto.subtle.digest("SHA-256",data);
+  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+async function passwordCoincide(passEscrita,passGuardada){
+  if(!passGuardada)return false;
+  const escrita=String(passEscrita||"");
+  const guardada=String(passGuardada||"");
+
+  if(escrita===guardada)return true;
+
+  const hash=await hashPassword(escrita);
+  return hash===guardada;
+}
+
+async function prepararPasswordParaGuardar(pass){
+  return await hashPassword(pass);
 }
 
 function mostrarLogin(){
@@ -171,12 +193,11 @@ async function loginUsuario(){
     return;
   }
 
-  // Caso especial seguro para recuperar admin:
-  // si el usuario admin existe en Supabase con rol admin pero no tiene password guardada,
-  // permite entrar con admin/admin y guarda esa contraseña.
+  // Recuperación segura del admin si existe pero no tiene password guardada.
   if(u.rol==="admin" && u.usuario==="admin" && !u.password && String(pass)==="admin"){
-    await actualizarUsuarioAdaptativo(u.id,{password:"admin",password_pendiente:false});
-    u.password="admin";
+    const passHash=await prepararPasswordParaGuardar("admin");
+    await actualizarUsuarioAdaptativo(u.id,{password:passHash,password_pendiente:false});
+    u.password=passHash;
     u.password_pendiente=false;
   }
 
@@ -185,7 +206,9 @@ async function loginUsuario(){
     return;
   }
 
-  if(String(pass)!==String(u.password)){
+  const okPass=await passwordCoincide(pass,u.password);
+
+  if(!okPass){
     alert("Contraseña incorrecta.");
     return;
   }
@@ -228,8 +251,10 @@ async function guardarPrimeraPassword(id){
     return;
   }
 
+  const passwordHash=await prepararPasswordParaGuardar(p1);
+
   const {error}=await actualizarUsuarioAdaptativo(id,{
-    password:p1,
+    password:passwordHash,
     password_pendiente:false
   });
 
@@ -1158,7 +1183,8 @@ async function vistaFichaUsuarioPro(id){
     <div class="card">
       <h2>Seguridad</h2>
       <p><b>Estado:</b> ${u.password_pendiente?"Pendiente de crear":"Creada"}</p>
-      <p><b>Contraseña actual:</b> ${u.password||"Sin crear"}</p>
+      <p><b>Contraseña:</b> ${u.password?"Guardada en formato seguro":"Sin crear"}</p>
+      <p class="small">El admin puede resetearla. La contraseña no se muestra en claro.</p>
       <button class="btn gray full" onclick="resetPasswordUsuarioPro('${u.id}')">Resetear contraseña</button>
       <button class="btn blue full" onclick="simularPrimeraClave('${u.id}')">Crear contraseña de usuario</button>
     </div>`:""}
@@ -1345,7 +1371,8 @@ async function simularPrimeraClave(id){
     return;
   }
 
-  const {error}=await actualizarUsuarioAdaptativo(id,{password:p1,password_pendiente:false});
+  const passwordHash=await prepararPasswordParaGuardar(p1);
+  const {error}=await actualizarUsuarioAdaptativo(id,{password:passwordHash,password_pendiente:false});
 
   if(error){
     alert("Error guardando contraseña: "+error.message);
