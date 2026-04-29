@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2539</title>
+<title>Zentryx V2540</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -138,7 +138,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2539</h1>
+      <h1>Zentryx V2540</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -148,7 +148,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2539";
+const VERSION="2540";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -205,7 +205,7 @@ function normalizarUsuario(u){
     email:u.email||"",
     dni:u.dni||"",
     direccion:u.direccion||u.direccion_completa||u.domicilio||u.address||"",
-    foto:u.foto||u.foto_url||u.avatar||"",
+    foto:u.foto_url||u.foto||u.avatar||"",
     activo:u.activo!==false,
     password:u.password||"",
     password_pendiente:(u.password_pendiente===true || !u.password),
@@ -1326,6 +1326,7 @@ function vistaAltaUsuarioPro(){
 
       <label>Foto usuario</label>
       <input id="u_foto" type="file" accept="image/*">
+      <p class="small">La foto se subirá a Supabase Storage.</p>
 
       <label>Días de vacaciones anuales</label>
       <input id="u_vacaciones" type="number" value="22">
@@ -1386,26 +1387,47 @@ async function actualizarUsuarioAdaptativo(id,payload){
   return {error:{message:"No se pudo actualizar usuario por columnas no compatibles en users."}};
 }
 
-async function obtenerFotoDesdeInput(inputId){
-  return new Promise(resolve=>{
-    const input=document.getElementById(inputId);
-    const file=input&&input.files&&input.files[0];
+async function obtenerArchivoFoto(inputId){
+  const input=document.getElementById(inputId);
+  const file=input&&input.files&&input.files[0];
 
-    if(!file){
-      resolve("");
-      return;
-    }
+  if(!file)return null;
 
-    if(!file.type.startsWith("image/")){
-      alert("La foto debe ser una imagen.");
-      resolve("");
-      return;
-    }
+  if(!file.type.startsWith("image/")){
+    alert("La foto debe ser una imagen.");
+    return null;
+  }
 
-    const reader=new FileReader();
-    reader.onload=()=>resolve(reader.result);
-    reader.onerror=()=>resolve("");
-    reader.readAsDataURL(file);
+  return file;
+}
+
+async function subirFotoUsuarioStorage(inputId,uid){
+  const file=await obtenerArchivoFoto(inputId);
+  if(!file)return "";
+
+  const ext=(file.name.split(".").pop()||"jpg").toLowerCase();
+  const nombre="usuarios/"+String(uid)+"/perfil_"+Date.now()+"."+ext;
+
+  const {error}=await sb.storage
+    .from("user-photos")
+    .upload(nombre,file,{cacheControl:"3600",upsert:true});
+
+  if(error){
+    console.error(error);
+    alert("No se pudo subir la foto. Revisa que exista el bucket user-photos en Supabase Storage.");
+    return "";
+  }
+
+  const {data}=sb.storage.from("user-photos").getPublicUrl(nombre);
+  return data&&data.publicUrl?data.publicUrl:"";
+}
+
+async function guardarFotoUsuarioEnBD(uid,url){
+  if(!url)return;
+
+  await actualizarUsuarioAdaptativo(uid,{
+    foto_url:url,
+    foto:url
   });
 }
 
@@ -1459,8 +1481,14 @@ async function guardarAltaUsuarioPro(){
   const creado=usuarioPorId(data?.id) || leerUsuarios().find(u=>u.usuario.toLowerCase()===usuarioLogin.toLowerCase());
 
   if(creado){
+    const fotoUrl=await subirFotoUsuarioStorage("u_foto",creado.id);
+    if(fotoUrl){
+      await guardarFotoUsuarioEnBD(creado.id,fotoUrl);
+    }
+
     await crearHorarioBaseServidor(creado.id);
     await crearAvisosBaseServidor(creado.id);
+    await cargarUsuariosServidor();
   }
 
   alert("Usuario creado. La contraseña queda pendiente.");
@@ -1623,6 +1651,7 @@ async function vistaEditarUsuarioPro(id){
 
       <label>Cambiar foto</label>
       <input id="e_foto" type="file" accept="image/*">
+      <p class="small">La nueva foto se subirá a Supabase Storage.</p>
 
       <label>Días de vacaciones anuales</label>
       <input id="e_vacaciones" type="number" value="${u.vacaciones??22}">
@@ -1663,9 +1692,10 @@ async function guardarEdicionUsuarioPro(id){
     vacaciones:Number(document.getElementById("e_vacaciones").value||22)
   };
 
-  const nuevaFoto=await obtenerFotoDesdeInput("e_foto");
-  if(nuevaFoto){
-    update.foto=nuevaFoto;
+  const fotoUrl=await subirFotoUsuarioStorage("e_foto",id);
+  if(fotoUrl){
+    update.foto_url=fotoUrl;
+    update.foto=fotoUrl;
   }
 
   const {error}=await actualizarUsuarioAdaptativo(id,update);
