@@ -2,144 +2,246 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zentryx Login V1000</title>
+  <title>Zentryx</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <style>
-    body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px;box-sizing:border-box;}
-    .box{width:100%;max-width:420px;background:#fff;border-radius:18px;padding:28px;box-sizing:border-box;box-shadow:0 10px 30px rgba(0,0,0,.08);}
-    .version{color:#ef4444;font-size:28px;font-weight:800;margin-bottom:10px;}
-    h1{margin:0 0 10px 0;font-size:38px;}
-    p{margin:0 0 20px 0;color:#374151;font-size:18px;}
-    input{width:100%;height:54px;border:1px solid #d1d5db;border-radius:14px;padding:0 16px;box-sizing:border-box;font-size:18px;margin-bottom:12px;}
-    button{width:100%;height:56px;border:none;border-radius:14px;background:#0f172a;color:white;font-size:22px;font-weight:800;}
-    #msg{margin-top:14px;font-size:16px;min-height:24px;font-weight:700;}
-    .ok{color:#15803d}.error{color:#b91c1c}.info{color:#374151}
+    body {
+      font-family: Arial;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 400px;
+      margin: auto;
+      margin-top: 40px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 15px;
+      border-radius: 8px;
+      border: none;
+      background: #2d6cdf;
+      color: white;
+      font-weight: bold;
+    }
+
+    #app {
+      display: none;
+    }
+
+    #cambioPass {
+      display: none;
+    }
+
+    img {
+      display: block;
+      margin: auto;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
+
 <body>
 
-<div class="box">
-  <div class="version">LOGIN V1000</div>
-  <h1>Zentryx</h1>
-  <p>Acceso al sistema</p>
+<!-- LOGIN -->
+<div id="login" class="card">
+  <h2>Zentryx</h2>
 
-  <input id="usuario" type="text" placeholder="Usuario" autocomplete="username">
-  <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
+  <input id="usuario" placeholder="Usuario">
+  <input id="password" type="password" placeholder="Contraseña">
 
-  <button id="btnLogin" type="button">Entrar</button>
-  <div id="msg" class="info">Página cargada.</div>
+  <button id="btnLogin">Entrar</button>
+</div>
+
+<!-- CAMBIO PASSWORD -->
+<div id="cambioPass" class="card">
+  <h2>Crear contraseña</h2>
+
+  <input id="nuevaPassword" type="password" placeholder="Nueva contraseña">
+
+  <button id="btnGuardarPassword">Guardar</button>
+</div>
+
+<!-- APP -->
+<div id="app" class="card">
+
+  <h2>Bienvenido</h2>
+
+  <!-- FOTO -->
+  <img id="fotoUser" src="" width="80" height="80" style="border-radius:50%">
+
+  <!-- SUBIR FOTO -->
+  <input type="file" id="fotoUsuario" accept="image/*">
+
+  <button id="btnSubirFoto">Subir foto</button>
+
+  <hr>
+
+  <h3>Crear usuario</h3>
+
+  <input id="nombre" placeholder="Nombre">
+  <input id="usuarioNuevo" placeholder="Usuario">
+
+  <button id="btnCrearUsuario">Crear usuario</button>
+
 </div>
 
 <script>
-const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
-const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
-const inputUsuario = document.getElementById("usuario");
-const inputPassword = document.getElementById("password");
-const btnLogin = document.getElementById("btnLogin");
-const msg = document.getElementById("msg");
+// ===============================
+// CONFIG SUPABASE
+// ===============================
+const supabaseUrl = 'https://TU_URL.supabase.co';
+const supabaseKey = 'TU_KEY';
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-function mensaje(texto, tipo){
-  msg.textContent = texto;
-  msg.className = tipo;
-}
+// ===============================
+// LOGIN
+// ===============================
+async function login() {
+  const usuario = document.getElementById('usuario').value;
+  const password = document.getElementById('password').value;
 
-function limpiarUsuario(valor){
-  return String(valor || "").trim().toLowerCase();
-}
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('usuario', usuario)
+    .single();
 
-async function sha256(texto){
-  const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
-  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,"0")).join("");
-}
-
-async function api(path, opciones = {}){
-  const res = await fetch(SUPABASE_URL + path, {
-    method: opciones.method || "GET",
-    headers: {
-      "apikey": SUPABASE_KEY,
-      "Authorization": "Bearer " + SUPABASE_KEY,
-      "Content-Type": "application/json",
-      ...(opciones.headers || {})
-    },
-    body: opciones.body ? JSON.stringify(opciones.body) : undefined
-  });
-
-  const texto = await res.text();
-  let data = null;
-
-  try{ data = texto ? JSON.parse(texto) : null; }
-  catch{ data = texto; }
-
-  if(!res.ok){
-    throw new Error(typeof data === "string" ? data : JSON.stringify(data));
-  }
-
-  return data;
-}
-
-async function login(){
-  const usuario = limpiarUsuario(inputUsuario.value);
-  const passwordPlano = String(inputPassword.value || "").trim();
-
-  if(!usuario || !passwordPlano){
-    mensaje("Escribe usuario y contraseña.", "error");
+  if (error || !data || data.password !== password) {
+    alert('Usuario o contraseña incorrectos');
     return;
   }
 
-  btnLogin.disabled = true;
-  mensaje("Comprobando...", "info");
+  localStorage.setItem('user', JSON.stringify(data));
 
-  try{
-    const data = await api(
-      "/rest/v1/users?select=*&usuario=ilike." +
-      encodeURIComponent(usuario) +
-      "&limit=1"
-    );
-
-    if(!Array.isArray(data) || data.length === 0){
-      mensaje("Usuario o contraseña incorrectos.", "error");
-      btnLogin.disabled = false;
-      return;
-    }
-
-    const user = data[0];
-    const passwordHash = await sha256(passwordPlano);
-
-    const coincideHash = user.password === passwordHash;
-    const coincideAntigua = user.password === passwordPlano;
-
-    if(!coincideHash && !coincideAntigua){
-      mensaje("Usuario o contraseña incorrectos.", "error");
-      btnLogin.disabled = false;
-      return;
-    }
-
-    if(coincideAntigua){
-      await api("/rest/v1/users?id=eq." + encodeURIComponent(user.id), {
-        method: "PATCH",
-        headers: {"Prefer":"return=representation"},
-        body: { password: passwordHash }
-      });
-      user.password = passwordHash;
-    }
-
-    localStorage.setItem("usuario", JSON.stringify(user));
-    mensaje("Login correcto. Entrando...", "ok");
-
-    setTimeout(function(){
-      window.location.href = "./app.html?v=1000";
-    }, 400);
-
-  }catch(e){
-    mensaje("Error: " + e.message, "error");
-    btnLogin.disabled = false;
+  if (data.password_pendiente) {
+    mostrarCambioPassword(data.id);
+  } else {
+    cargarApp();
   }
 }
 
-btnLogin.addEventListener("click", login);
-inputUsuario.addEventListener("keydown", e => { if(e.key === "Enter") login(); });
-inputPassword.addEventListener("keydown", e => { if(e.key === "Enter") login(); });
+// ===============================
+// CAMBIO PASSWORD
+// ===============================
+async function guardarNuevaPassword() {
+  const nueva = document.getElementById('nuevaPassword').value;
+
+  await supabase
+    .from('users')
+    .update({
+      password: nueva,
+      password_pendiente: false
+    })
+    .eq('id', window.userCambioPass);
+
+  cargarApp();
+}
+
+// ===============================
+// SUBIR FOTO
+// ===============================
+async function subirFoto() {
+  const fileInput = document.getElementById('fotoUsuario');
+  const user = JSON.parse(localStorage.getItem('user'));
+
+  if (fileInput.files.length === 0) {
+    alert('Selecciona una imagen');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const nombre = `user_${user.id}_${Date.now()}.jpg`;
+
+  const { error } = await supabase.storage
+    .from('usuarios')
+    .upload(nombre, file, { upsert: true });
+
+  if (error) {
+    alert('Error subiendo');
+    return;
+  }
+
+  const { data } = supabase.storage
+    .from('usuarios')
+    .getPublicUrl(nombre);
+
+  await supabase
+    .from('users')
+    .update({ foto_url: data.publicUrl })
+    .eq('id', user.id);
+
+  user.foto_url = data.publicUrl;
+  localStorage.setItem('user', JSON.stringify(user));
+
+  document.getElementById('fotoUser').src = data.publicUrl;
+}
+
+// ===============================
+// CREAR USUARIO
+// ===============================
+async function crearUsuario() {
+  const nombre = document.getElementById('nombre').value;
+  const usuario = document.getElementById('usuarioNuevo').value;
+
+  await supabase.from('users').insert([{
+    nombre,
+    usuario,
+    password: '',
+    password_pendiente: true,
+    rol: 'operario'
+  }]);
+
+  alert('Usuario creado');
+}
+
+// ===============================
+// UI
+// ===============================
+function cargarApp() {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('cambioPass').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+
+  const user = JSON.parse(localStorage.getItem('user'));
+
+  document.getElementById('fotoUser').src =
+    user.foto_url || 'https://via.placeholder.com/80';
+}
+
+function mostrarCambioPassword(id) {
+  window.userCambioPass = id;
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('cambioPass').style.display = 'block';
+}
+
+// ===============================
+// EVENTOS
+// ===============================
+document.getElementById('btnLogin').onclick = login;
+document.getElementById('btnGuardarPassword').onclick = guardarNuevaPassword;
+document.getElementById('btnCrearUsuario').onclick = crearUsuario;
+document.getElementById('btnSubirFoto').onclick = subirFoto;
+
 </script>
 
 </body>
