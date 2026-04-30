@@ -3,147 +3,3062 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-
+<title>Zentryx V2546.1</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-body{font-family:Arial;margin:0;background:#f2f2f2}
-header{background:#0b1a2f;color:#fff;padding:15px;display:flex;justify-content:space-between;align-items:center}
-button{padding:10px;border-radius:8px;border:none}
-.btn{margin-top:10px}
-.blue{background:#2d6cdf;color:#fff}
-.orange{background:#ff9800;color:#fff}
-.red{background:#e53935;color:#fff}
-.gray{background:#ccc}
-.card{background:#fff;padding:15px;margin:10px;border-radius:10px}
+:root{
+  --dark:#0f172a;
+  --bg:#eef2f7;
+  --card:#ffffff;
+  --line:#d1d5db;
+  --text:#111827;
+  --muted:#6b7280;
+  --blue:#2563eb;
+  --green:#16a34a;
+  --red:#dc2626;
+  --orange:#f59e0b;
+  --gray:#e5e7eb;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}
+.header{background:var(--dark);color:#fff;padding:22px 18px}
+.headerTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.header h1{margin:0;font-size:34px;line-height:1.1}
+.header .fecha{margin-top:10px;font-size:18px;color:#cbd5e1}
+.header .hora{font-size:32px;font-weight:bold;margin-top:6px}
+.logoutBtn{background:var(--red);color:#fff;border:0;border-radius:14px;padding:12px 18px;font-size:18px;font-weight:bold}
+.page{padding:14px;max-width:950px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+h2{font-size:28px;margin:0 0 10px}
+h3{font-size:22px;margin:0 0 8px}
+p{margin:6px 0;color:var(--muted);font-size:16px;line-height:1.35}
+.badge{display:inline-block;background:var(--gray);border-radius:999px;padding:8px 12px;font-weight:bold;margin:4px 4px 4px 0}
+.badge.green{background:#dcfce7;color:#166534}
+.badge.orange{background:#fef3c7;color:#92400e}
+.badge.red{background:#fee2e2;color:#991b1b}
+.btn{border:0;border-radius:14px;padding:13px 16px;font-weight:bold;font-size:17px;cursor:pointer;margin:5px 4px 5px 0}
+.btn.full{width:100%;margin-top:10px}
+.btn.blue{background:var(--blue);color:white}
+.btn.green{background:var(--green);color:white}
+.btn.red{background:var(--red);color:white}
+.btn.orange{background:var(--orange);color:white}
+.btn.gray{background:var(--gray);color:#2563eb}
+.btn.dark{background:var(--dark);color:white}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.module{background:white;border:1px solid var(--line);border-radius:16px;padding:14px}
+.module h3{font-size:20px}
+.module p{font-size:14px;min-height:38px}
+.module button{width:100%;min-height:48px}
+.row{border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0;background:#fff}
+.row b{font-size:18px}
+.ok{color:#15803d;font-weight:bold}
+.warn{color:#a16207;font-weight:bold}
+.error{color:#b91c1c;font-weight:bold}
+input,select,textarea{width:100%;padding:13px;border:1px solid #c7c7c7;border-radius:12px;font-size:17px;margin:6px 0 12px;background:white}
+textarea{min-height:120px}
+label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.note-fixed{border:2px solid var(--orange);background:#fffbeb}
+.small{font-size:13px;color:var(--muted)}
+@media(max-width:560px){
+  .grid{grid-template-columns:1fr 1fr;gap:8px}
+  .actions{grid-template-columns:1fr 1fr}
+  .header h1{font-size:32px}
+  .header .hora{font-size:30px}
+  .module{padding:12px}
+  .module h3{font-size:18px}
+  .module p{font-size:13px}
+  .btn{font-size:16px}
+}
+
+.mapa-modal{
+  position:fixed;
+  inset:0;
+  background:rgba(15,23,42,.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  z-index:9999;
+}
+.mapa-box{
+  background:white;
+  border-radius:20px;
+  padding:18px;
+  width:100%;
+  max-width:420px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.mapa-box h2{margin-top:0}
+.mapa-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+}
+.user-head{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.user-photo{
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  object-fit:cover;
+  background:#e5e7eb;
+  border:2px solid #d1d5db;
+  flex:0 0 auto;
+}
+.user-photo.big{
+  width:110px;
+  height:110px;
+}
+.photo-placeholder{
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  background:#e5e7eb;
+  border:2px solid #d1d5db;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:bold;
+  color:#64748b;
+  flex:0 0 auto;
+}
+.photo-placeholder.big{
+  width:110px;
+  height:110px;
+  font-size:34px;
+}
+
+
+.user-list-tools{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.user-row-pro{
+  display:flex;
+  gap:12px;
+  align-items:flex-start;
+}
+.user-row-info{
+  flex:1;
+  min-width:0;
+}
+.user-row-info b{
+  display:block;
+  font-size:19px;
+}
+.user-row-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  margin-top:10px;
+}
+.user-row-actions .btn{
+  margin:0;
+  padding:11px 8px;
+  font-size:15px;
+}
+@media(min-width:760px){
+  .user-row-actions{
+    grid-template-columns:repeat(4,1fr);
+  }
+}
+
 </style>
 </head>
-
 <body>
-
-<header>
-<h2>Zentryx V2546</h2>
-<button onclick="logout()" class="red">Salir</button>
-</header>
-
-<div id="app"></div>
+<div class="header">
+  <div class="headerTop">
+    <div>
+      <h1>Zentryx V2546.1</h1>
+      <div class="fecha" id="fechaActual"></div>
+      <div class="hora" id="horaActual"></div>
+    </div>
+    <button class="logoutBtn" onclick="cerrarSesion()">Salir</button>
+  </div>
+</div>
+<div class="page" id="app"></div>
 
 <script>
+const VERSION="2546.1";
 
-// 🔐 TU CONFIG REAL (la que ya tienes)
-const SUPABASE_URL="https://idtaamivqbiuxtjvwuux.supabase.co";
+window.addEventListener('error',function(e){
+  const app=document.getElementById("app");
+  if(app){
+    app.innerHTML=`
+      <div class="card">
+        <h2>Fallo de carga</h2>
+        <p class="error">${e.message||"Fallo no identificado"}</p>
+        <button class="btn gray full" onclick="location.reload()">Recargar</button>
+        <button class="btn red full" onclick="cerrarSesion()">Salir</button>
+      </div>`;
+  }
+});
+
+window.addEventListener('unhandledrejection',function(e){
+  const app=document.getElementById("app");
+  const msg=e.reason && e.reason.message ? e.reason.message : String(e.reason||"Fallo no identificado");
+  if(app){
+    app.innerHTML=`
+      <div class="card">
+        <h2>Fallo de carga</h2>
+        <p class="error">${msg}</p>
+        <button class="btn gray full" onclick="location.reload()">Recargar</button>
+        <button class="btn red full" onclick="cerrarSesion()">Salir</button>
+      </div>`;
+  }
+});
+
+const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let user=JSON.parse(localStorage.getItem("usuario")||"null");
 
-let user = JSON.parse(localStorage.getItem("usuario")||"null");
+let fichajesCache=[];
+let notasCache=[];
+let usuariosCache=[];
+let cargandoFichajes=false;
+let cargandoNotas=false;
+let cargandoUsuarios=false;
+let vistaActual='inicio';
 
-// ---------- LOGIN ----------
-if(!user){
-document.getElementById("app").innerHTML=`
-<div class="card">
-<h2>Login</h2>
-<input id="u" placeholder="usuario"><br><br>
-<input id="p" type="password" placeholder="password"><br><br>
-<button class="blue" onclick="login()">Entrar</button>
-</div>`;
+function esAdmin(){return user && user.rol==="admin"}
+
+function normalizarUsuario(u){
+  if(!u)return null;
+  return {
+    id:String(u.id),
+    nombre:u.nombre||u.name||u.usuario||"Usuario",
+    usuario:u.usuario||u.username||String(u.id),
+    rol:u.rol||u.role||"operario",
+    puesto:u.puesto||"",
+    telefono:u.telefono||"",
+    email:u.email||"",
+    dni:u.dni||"",
+    direccion:u.direccion||u.direccion_completa||u.domicilio||u.address||"",
+    foto:u.foto_url||u.foto||u.avatar||"",
+    activo:u.activo!==false,
+    password:u.password||"",
+    password_pendiente:(u.password_pendiente===true || !u.password),
+    vacaciones:Number(u.vacaciones??22),
+    asuntos:Number(u.asuntos||u.asuntos_horas||0),
+    vacaciones_usadas:Number(u.vacaciones_usadas||0),
+    asuntos_usados:Number(u.asuntos_usados||u.asuntos_horas_usadas||0),
+    creado:u.creado||u.created_at||""
+  };
 }
 
-async function login(){
-let u=document.getElementById("u").value;
-let p=document.getElementById("p").value;
-
-const {data}=await sb.from("users").select("*").eq("usuario",u).eq("password",p);
-
-if(data.length){
-localStorage.setItem("usuario",JSON.stringify(data[0]));
-location.reload();
-}else{
-alert("Error login");
-}
+async function hashPassword(texto){
+  const encoder=new TextEncoder();
+  const data=encoder.encode(String(texto||""));
+  const hash=await crypto.subtle.digest("SHA-256",data);
+  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 
-// ---------- APP ----------
-if(user) inicio();
+async function passwordCoincide(passEscrita,passGuardada){
+  if(!passGuardada)return false;
+  const escrita=String(passEscrita||"");
+  const guardada=String(passGuardada||"");
 
-function inicio(){
-document.getElementById("app").innerHTML=`
-<div class="card">
-<h2>Inicio</h2>
+  if(escrita===guardada)return true;
 
-<button class="orange" onclick="generarFichajesPrueba()">Generar fichajes prueba</button>
-<button class="red" onclick="borrarFichajesPrueba()">Borrar fichajes prueba</button>
-<button class="blue" onclick="vistaInformes()">Informes</button>
-
-</div>`;
+  const hash=await hashPassword(escrita);
+  return hash===guardada;
 }
 
-// ---------- GENERAR DATOS ----------
+async function prepararPasswordParaGuardar(pass){
+  return await hashPassword(pass);
+}
+
+function mostrarLogin(){
+  vistaActual='login';
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <h2>Entrar</h2>
+      <p>Introduce tu usuario y contraseña.</p>
+
+      <label>Usuario</label>
+      <input id="login_usuario" placeholder="usuario">
+
+      <label>Contraseña</label>
+      <input id="login_password" type="password" placeholder="contraseña">
+
+      <button class="btn green full" onclick="loginUsuario()">Entrar</button>
+    </div>`;
+}
+
+async function loginUsuario(){
+  const usuarioLogin=document.getElementById("login_usuario").value.trim();
+  const pass=document.getElementById("login_password").value;
+
+  if(!usuarioLogin){
+    alert("Escribe el usuario.");
+    return;
+  }
+
+  const {data,error}=await sb.from("users").select("*").eq("usuario",usuarioLogin).limit(1);
+
+  if(error){
+    alert("Error leyendo usuario: "+error.message);
+    return;
+  }
+
+  if(!data||!data[0]){
+    alert("Usuario no encontrado.");
+    return;
+  }
+
+  const u=normalizarUsuario(data[0]);
+
+  if(u.activo===false){
+    alert("Usuario inactivo.");
+    return;
+  }
+
+  // Recuperación segura del admin si existe pero no tiene password guardada.
+  if(u.rol==="admin" && u.usuario==="admin" && !u.password && String(pass)==="admin"){
+    const passHash=await prepararPasswordParaGuardar("admin");
+    await actualizarUsuarioAdaptativo(u.id,{password:passHash,password_pendiente:false});
+    u.password=passHash;
+    u.password_pendiente=false;
+  }
+
+  if(u.password_pendiente || !u.password){
+    mostrarCrearPasswordPrimeraVez(u);
+    return;
+  }
+
+  const okPass=await passwordCoincide(pass,u.password);
+
+  if(!okPass){
+    alert("Contraseña incorrecta.");
+    return;
+  }
+
+  user=u;
+  localStorage.setItem("usuario",JSON.stringify(user));
+  await iniciarAppConUsuario();
+}
+
+function mostrarCrearPasswordPrimeraVez(u){
+  vistaActual='login';
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <h2>Crear contraseña</h2>
+      <p>${u.nombre}</p>
+      <p>Es tu primer acceso. Crea tu contraseña personal.</p>
+
+      <label>Nueva contraseña</label>
+      <input id="pass1" type="password" placeholder="Nueva contraseña">
+
+      <label>Repetir contraseña</label>
+      <input id="pass2" type="password" placeholder="Repetir contraseña">
+
+      <button class="btn green full" onclick="guardarPrimeraPassword('${u.id}')">Guardar contraseña y entrar</button>
+      <button class="btn gray full" onclick="mostrarLogin()">Volver</button>
+    </div>`;
+}
+
+async function guardarPrimeraPassword(id){
+  const p1=document.getElementById("pass1").value;
+  const p2=document.getElementById("pass2").value;
+
+  if(!p1 || p1.length<4){
+    alert("La contraseña debe tener al menos 4 caracteres.");
+    return;
+  }
+
+  if(p1!==p2){
+    alert("Las contraseñas no coinciden.");
+    return;
+  }
+
+  const passwordHash=await prepararPasswordParaGuardar(p1);
+
+  const {error}=await actualizarUsuarioAdaptativo(id,{
+    password:passwordHash,
+    password_pendiente:false
+  });
+
+  if(error){
+    alert("Error guardando contraseña: "+error.message);
+    return;
+  }
+
+  const {data,error:err2}=await sb.from("users").select("*").eq("id",id).limit(1);
+
+  if(err2 || !data || !data[0]){
+    alert("Contraseña creada, pero no se pudo iniciar sesión automáticamente.");
+    mostrarLogin();
+    return;
+  }
+
+  user=normalizarUsuario(data[0]);
+  user.password_pendiente=false;
+  localStorage.setItem("usuario",JSON.stringify(user));
+
+  await iniciarAppConUsuario();
+}
+
+async function cargarUsuarioActual(){
+  const guardado=JSON.parse(localStorage.getItem("usuario")||"null");
+  if(guardado&&guardado.id){
+    const {data,error}=await sb.from("users").select("*").eq("id",guardado.id).limit(1);
+    if(!error&&data&&data[0]){
+      user=normalizarUsuario(data[0]);
+      localStorage.setItem("usuario",JSON.stringify(user));
+    }else{
+      user=guardado;
+    }
+    return user;
+  }
+
+  return null;
+}
+
+function cerrarSesion(){
+  localStorage.removeItem("usuario");
+  localStorage.removeItem("user");
+  user=null;
+  mostrarLogin();
+}
+
+function limpiarTelefono(t){
+  return String(t||"").replace(/\s+/g,"").replace(/[^0-9+]/g,"");
+}
+
+function abrirTelefono(t){
+  const tel=limpiarTelefono(t);
+  if(!tel){
+    alert("No hay teléfono guardado.");
+    return;
+  }
+  location.href="tel:"+tel;
+}
+
+function abrirSMS(t){
+  const tel=limpiarTelefono(t);
+  if(!tel){
+    alert("No hay teléfono guardado.");
+    return;
+  }
+  location.href="sms:"+tel;
+}
+
+function abrirWhatsApp(t){
+  const tel=limpiarTelefono(t);
+  if(!tel){
+    alert("No hay teléfono guardado.");
+    return;
+  }
+
+  let finalTel=tel;
+  if(!finalTel.startsWith("+")){
+    finalTel="+34"+finalTel;
+  }
+
+  window.open("https://wa.me/"+finalTel.replace("+",""),"_blank");
+}
+
+function abrirEmail(email){
+  if(!email){
+    alert("No hay email guardado.");
+    return;
+  }
+  location.href="mailto:"+email;
+}
+
+function inicialesUsuario(nombre){
+  const n=String(nombre||"U").trim();
+  const partes=n.split(/\s+/).filter(Boolean);
+  if(!partes.length)return "U";
+  return partes.slice(0,2).map(x=>x[0].toUpperCase()).join("");
+}
+
+function fotoUsuarioHTML(u,clase=""){
+  if(u&&u.foto){
+    return `<img class="user-photo ${clase}" src="${u.foto}" alt="Foto usuario">`;
+  }
+  return `<div class="photo-placeholder ${clase}">${inicialesUsuario(u?.nombre||u?.usuario||"U")}</div>`;
+}
+
+function leerArchivoFoto(inputId,callback){
+  const input=document.getElementById(inputId);
+  const file=input&&input.files&&input.files[0];
+
+  if(!file){
+    callback("");
+    return;
+  }
+
+  if(!file.type.startsWith("image/")){
+    alert("Selecciona una imagen.");
+    callback("");
+    return;
+  }
+
+  const reader=new FileReader();
+  reader.onload=()=>callback(reader.result);
+  reader.readAsDataURL(file);
+}
+
+function abrirSelectorMapa(lat,lng,direccion){
+  const tieneCoord=lat!=null && lng!=null && String(lat)!=="null" && String(lng)!=="null";
+  const q=tieneCoord ? `${lat},${lng}` : String(direccion||"").trim();
+
+  if(!q){
+    alert("No hay dirección ni ubicación guardada.");
+    return;
+  }
+
+  const modal=document.createElement("div");
+  modal.className="mapa-modal";
+  modal.id="modalMapa";
+
+  modal.innerHTML=`
+    <div class="mapa-box">
+      <h2>Abrir mapa</h2>
+      <p>Elige dónde quieres abrir la ubicación.</p>
+      <div class="mapa-grid">
+        <button class="btn blue full" onclick="abrirMapaElegido('google','${encodeURIComponent(q)}')">Google Maps</button>
+        <button class="btn green full" onclick="abrirMapaElegido('waze','${encodeURIComponent(q)}')">Waze</button>
+        <button class="btn gray full" onclick="abrirMapaElegido('apple','${encodeURIComponent(q)}')">Apple Maps / Mapas</button>
+        <button class="btn red full" onclick="cerrarModalMapa()">Cancelar</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+}
+
+function cerrarModalMapa(){
+  const modal=document.getElementById("modalMapa");
+  if(modal)modal.remove();
+}
+
+function abrirMapaElegido(tipo,qEncoded){
+  const q=decodeURIComponent(qEncoded);
+
+  if(tipo==="google"){
+    window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(q),"_blank");
+  }
+
+  if(tipo==="waze"){
+    window.open("https://waze.com/ul?q="+encodeURIComponent(q)+"&navigate=yes","_blank");
+  }
+
+  if(tipo==="apple"){
+    window.open("http://maps.apple.com/?q="+encodeURIComponent(q),"_blank");
+  }
+
+  cerrarModalMapa();
+}
+
+function abrirMapaDireccion(direccion){
+  abrirSelectorMapa(null,null,direccion);
+}
+
+function abrirMapaDireccionCodificada(direccionCodificada){
+  abrirSelectorMapa(null,null,decodeURIComponent(direccionCodificada||""));
+}
+
+function ahora(){return new Date()}
+
+function hoyISO(){
+  const d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
+let festivoHoyCache=null;
+
+async function comprobarFestivoHoy(){
+  try{
+    const hoy=hoyISO();
+
+    const {data,error}=await sb
+      .from("calendario_festivos")
+      .select("*")
+      .eq("fecha",hoy);
+
+    if(error){
+      console.warn("No se pudo comprobar festivo:",error.message);
+      festivoHoyCache=null;
+      return null;
+    }
+
+    festivoHoyCache=(data&&data.length)?data[0]:null;
+    return festivoHoyCache;
+  }catch(e){
+    console.warn("Error comprobando festivo:",e);
+    festivoHoyCache=null;
+    return null;
+  }
+}
+
+function textoFestivoHoy(){
+  if(!festivoHoyCache)return "";
+  const nombre=festivoHoyCache.nombre||"Festivo";
+  const tipo=festivoHoyCache.tipo||"";
+  return tipo ? nombre+" · "+tipo : nombre;
+}
+
+function fechaES(iso){
+  if(!iso)return "";
+  const s=String(iso).slice(0,10);
+  if(!s.includes("-"))return s;
+  const p=s.split("-");
+  return p[2]+"/"+p[1]+"/"+p[0];
+}
+
+function fechaInputADisplay(v){
+  return fechaES(v);
+}
+
+function fechaDisplayAInput(v){
+  if(!v)return "";
+  const s=String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(!m)return "";
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+function inputFechaTexto(id){
+  const v=document.getElementById(id).value.trim();
+  return fechaDisplayAInput(v);
+}
+
+function horaHHMM(){
+  const d=new Date();
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+
+function minutos(h){
+  if(!h)return null;
+  const p=h.split(":").map(Number);
+  return p[0]*60+p[1];
+}
+
+function textoMin(total){
+  if(total==null)return "0 h 0 min";
+  if(total<0)total=0;
+  const h=Math.floor(total/60);
+  const m=total%60;
+  return h+" h "+m+" min";
+}
+
+function calcularExtrasHoy(resumen){
+  const totalTrabajo=Number(resumen?.trabajo||0);
+
+  if(festivoHoyCache){
+    return {
+      normal:0,
+      extra:totalTrabajo,
+      motivo:"Festivo"
+    };
+  }
+
+  return {
+    normal:totalTrabajo,
+    extra:0,
+    motivo:""
+  };
+}
+
+function actualizarReloj(){
+  const d=new Date();
+  document.getElementById("fechaActual").textContent=d.toLocaleDateString("es-ES",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  document.getElementById("horaActual").textContent=d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+}
+setInterval(actualizarReloj,1000);
+actualizarReloj();
+
+function fechaSupabaseADate(valor){
+  if(!valor)return new Date();
+  let s=String(valor).trim();
+
+  // Supabase timestamp sin zona: viene como UTC pero sin Z.
+  // Si no trae Z ni offset, se añade Z para convertirlo bien a hora local del navegador.
+  if(!/[zZ]$/.test(s) && !/[+-]\d{2}:?\d{2}$/.test(s)){
+    s=s.replace(" ","T");
+    if(!s.endsWith("Z"))s+="Z";
+  }
+
+  return new Date(s);
+}
+
+function fechaLocalISODesdeDate(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
+function horaLocalHHMMDesdeDate(d){
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+
+function minutosDelDiaDesdeDate(d){
+  return d.getHours()*60+d.getMinutes();
+}
+
+function kFichajes(){return "zentryx_fichajes_"+user.id}
+
+async function cargarFichajesServidor(){
+  if(cargandoFichajes)return;
+  cargandoFichajes=true;
+
+  const {data,error}=await sb
+    .from("fichajes")
+    .select("*")
+    .eq("user_id",String(user.id))
+    .order("fecha",{ascending:true})
+    .limit(300);
+
+  cargandoFichajes=false;
+
+  if(error){
+    console.error(error);
+    aviso("Error leyendo fichajes: "+error.message,"error");
+    return;
+  }
+
+  fichajesCache=(data||[]).map(f=>{
+    const d=fechaSupabaseADate(f.fecha);
+    return {
+      id:f.id,
+      fecha:fechaLocalISODesdeDate(d),
+      hora:horaLocalHHMMDesdeDate(d),
+      minutoDia:minutosDelDiaDesdeDate(d),
+      tipo:f.tipo,
+      ts:d.getTime(),
+      direccion:f.direccion_real||f.direccion||"",
+      lat:f.lat||null,
+      lng:f.lng||null
+    };
+  });
+
+  localStorage.setItem(kFichajes(),JSON.stringify(fichajesCache));
+}
+
+function leerFichajes(){
+  if(fichajesCache.length)return fichajesCache;
+  return JSON.parse(localStorage.getItem(kFichajes())||"[]");
+}
+
+function guardarFichajes(v){
+  fichajesCache=v;
+  localStorage.setItem(kFichajes(),JSON.stringify(v));
+}
+
+function movimientosHoy(){return leerFichajes().filter(x=>x.fecha===hoyISO()).sort((a,b)=>a.ts-b.ts)}
+function ultimoMovimiento(){const m=movimientosHoy();return m.length?m[m.length-1]:null}
+
+function estadoActual(){
+  const u=ultimoMovimiento();
+  if(!u)return {txt:"Fuera",clase:"red",accion:"entrada"};
+  if(u.tipo==="entrada"||u.tipo==="fin_pausa"||u.tipo==="fin_comida")return {txt:"Trabajando",clase:"green",accion:"salida"};
+  if(u.tipo==="inicio_pausa")return {txt:"En pausa",clase:"orange",accion:"fin_pausa"};
+  if(u.tipo==="inicio_comida")return {txt:"En comida",clase:"orange",accion:"fin_comida"};
+  if(u.tipo==="salida")return {txt:"Fuera",clase:"red",accion:"entrada"};
+  return {txt:"Fuera",clase:"red",accion:"entrada"};
+}
+
+function nombreAccion(a){
+  const map={
+    entrada:"Fichar entrada",
+    salida:"Fichar salida",
+    inicio_pausa:"Inicio pausa",
+    fin_pausa:"Fin pausa",
+    inicio_comida:"Inicio comida",
+    fin_comida:"Fin comida"
+  };
+  return map[a]||a;
+}
+
+function movimientoPermitido(tipo){
+  const est=estadoActual().txt;
+
+  if(est==="Fuera")return tipo==="entrada";
+  if(est==="Trabajando")return ["salida","inicio_pausa","inicio_comida"].includes(tipo);
+  if(est==="En pausa")return tipo==="fin_pausa";
+  if(est==="En comida")return tipo==="fin_comida";
+
+  return tipo==="entrada";
+}
+
+function textoMovimientoNoPermitido(tipo){
+  const est=estadoActual().txt;
+  if(est==="Fuera")return "No puedes iniciar pausa, comida o salida sin haber fichado entrada.";
+  if(est==="Trabajando"&&tipo==="entrada")return "Ya estás trabajando.";
+  if(est==="En pausa")return "Estás en pausa. Primero finaliza la pausa.";
+  if(est==="En comida")return "Estás en comida. Primero finaliza la comida.";
+  return "Movimiento no permitido.";
+}
+
+function obtenerGPS(){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation){
+      resolve({lat:null,lng:null,direccion:"GPS no disponible"});
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        resolve({
+          lat:pos.coords.latitude,
+          lng:pos.coords.longitude,
+          direccion:"Lat "+pos.coords.latitude+", Lng "+pos.coords.longitude
+        });
+      },
+      err=>{
+        resolve({lat:null,lng:null,direccion:"GPS denegado o sin señal"});
+      },
+      {enableHighAccuracy:true,timeout:10000,maximumAge:0}
+    );
+  });
+}
+
+async function obtenerDireccionReal(lat,lng){
+  if(lat==null||lng==null)return "Sin ubicación";
+  try{
+    const url="https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat="+encodeURIComponent(lat)+"&lon="+encodeURIComponent(lng)+"&accept-language=es";
+    const r=await fetch(url);
+    const data=await r.json();
+    return data.display_name || ("Lat "+lat+", Lng "+lng);
+  }catch(e){
+    return "Lat "+lat+", Lng "+lng;
+  }
+}
+
+function abrirMapaMovimiento(lat,lng,direccion){
+  abrirSelectorMapa(lat,lng,direccion);
+}
+
+async function guardarMovimiento(tipo){
+  await cargarFichajesServidor();
+
+  if(!movimientoPermitido(tipo)){
+    alert(textoMovimientoNoPermitido(tipo));
+    return;
+  }
+
+  const festivo=await comprobarFestivoHoy();
+  if(festivo && !confirm("Hoy es festivo: "+textoFestivoHoy()+". ¿Seguro que quieres fichar?")){
+    return;
+  }
+
+  const gps=await obtenerGPS();
+  const direccionReal=await obtenerDireccionReal(gps.lat,gps.lng);
+
+  const payload={
+    user_id:String(user.id),
+    tipo:tipo,
+    fecha:new Date().toISOString(),
+    lat:gps.lat,
+    lng:gps.lng,
+    direccion:gps.direccion,
+    direccion_real:direccionReal
+  };
+
+  const {error}=await sb.from("fichajes").insert([payload]);
+
+  if(error){
+    console.error(error);
+    alert("Error guardando fichaje: "+error.message);
+    return;
+  }
+
+  await cargarFichajesServidor();
+  aviso(nombreAccion(tipo)+" guardado.","ok");
+  inicio();
+}
+
+async function accionPrincipal(){
+  const e=estadoActual();
+  if(e.accion==="entrada")await guardarMovimiento("entrada");
+  else if(e.accion==="salida"){
+    if(confirm("¿Registrar salida y cerrar jornada?"))await guardarMovimiento("salida");
+  }
+  else await guardarMovimiento(e.accion);
+}
+
+function resumenHoy(){
+  const mov=movimientosHoy();
+  let trabajandoDesde=null, pausaDesde=null, comidaDesde=null;
+  let trabajo=0, pausa=0, comida=0;
+
+  for(const m of mov){
+    const mm=(m.minutoDia!=null)?m.minutoDia:minutos(m.hora);
+    if(m.tipo==="entrada"||m.tipo==="fin_pausa"||m.tipo==="fin_comida"){
+      trabajandoDesde=mm;
+      pausaDesde=null;
+      comidaDesde=null;
+    }
+    if(m.tipo==="inicio_pausa"){
+      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
+      trabajandoDesde=null;
+      pausaDesde=mm;
+    }
+    if(m.tipo==="fin_pausa"){
+      if(pausaDesde!=null)pausa+=mm-pausaDesde;
+      pausaDesde=null;
+      trabajandoDesde=mm;
+    }
+    if(m.tipo==="inicio_comida"){
+      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
+      trabajandoDesde=null;
+      comidaDesde=mm;
+    }
+    if(m.tipo==="fin_comida"){
+      if(comidaDesde!=null)comida+=mm-comidaDesde;
+      comidaDesde=null;
+      trabajandoDesde=mm;
+    }
+    if(m.tipo==="salida"){
+      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
+      trabajandoDesde=null;
+    }
+  }
+
+  const est=estadoActual();
+  const now=minutos(horaHHMM());
+  if(est.txt==="Trabajando" && trabajandoDesde!=null)trabajo+=now-trabajandoDesde;
+  if(est.txt==="En pausa" && pausaDesde!=null)pausa+=now-pausaDesde;
+  if(est.txt==="En comida" && comidaDesde!=null)comida+=now-comidaDesde;
+
+  return {trabajo,pausa,comida,mov};
+}
+
+function kNotas(){return "zentryx_notas_"+user.id}
+
+async function cargarNotasServidor(){
+  if(cargandoNotas)return;
+  cargandoNotas=true;
+
+  const {data,error}=await sb
+    .from("notas_rapidas")
+    .select("*")
+    .eq("user_id",String(user.id))
+    .order("creada_en",{ascending:false});
+
+  cargandoNotas=false;
+
+  if(error){
+    console.error(error);
+    notasCache=JSON.parse(localStorage.getItem(kNotas())||"[]");
+    aviso("Error leyendo notas: "+error.message,"error");
+    return;
+  }
+
+  notasCache=(data||[]).map(n=>({
+    id:n.id,
+    txt:n.texto||n.txt||"",
+    fecha:n.fecha_aviso||n.fecha||"",
+    hora:n.hora_aviso?String(n.hora_aviso).slice(0,5):(n.hora||""),
+    fija:!!n.fija,
+    hecha:!!n.hecha,
+    creada:n.creada_en||n.creada||""
+  }));
+
+  localStorage.setItem(kNotas(),JSON.stringify(notasCache));
+}
+
+function leerNotas(){
+  if(notasCache.length)return notasCache;
+  return JSON.parse(localStorage.getItem(kNotas())||"[]");
+}
+
+function guardarNotas(v){
+  notasCache=v||[];
+  localStorage.setItem(kNotas(),JSON.stringify(notasCache));
+}
+
+function notaVencida(n){
+  if(n.hecha)return false;
+  if(!n.fecha||!n.hora)return false;
+  return new Date(n.fecha+"T"+n.hora) <= new Date();
+}
+
+function crearNota(){
+  vistaActual='nota';
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Nueva nota rápida</h2>
+      <label>Nota</label>
+      <textarea id="notaTxt" placeholder="Escribe aquí la nota..."></textarea>
+      <label>Fecha aviso</label>
+      <input id="notaFecha" placeholder="dd/mm/aaaa">
+      <label>Hora aviso</label>
+      <input id="notaHora" type="time">
+      <label>Fijar permanente</label>
+      <select id="notaFija">
+        <option value="false">No</option>
+        <option value="true">Sí</option>
+      </select>
+      <button class="btn green full" onclick="guardarNotaNueva()">Guardar nota</button>
+    </div>`;
+}
+
+async function guardarNotaNueva(){
+  const txt=document.getElementById("notaTxt").value.trim();
+  if(!txt){alert("Escribe una nota.");return}
+
+  const payload={
+    user_id:String(user.id),
+    texto:txt,
+    fecha_aviso:inputFechaTexto("notaFecha")||null,
+    hora_aviso:document.getElementById("notaHora").value||null,
+    fija:document.getElementById("notaFija").value==="true",
+    hecha:false,
+    creada_en:new Date().toISOString()
+  };
+
+  const {error}=await sb.from("notas_rapidas").insert([payload]);
+
+  if(error){
+    console.error(error);
+    alert("Error guardando nota: "+error.message);
+    return;
+  }
+
+  await cargarNotasServidor();
+  aviso("Nota guardada.","ok");
+  inicio();
+}
+
+async function marcarNotaHecha(id){
+  const {error}=await sb.from("notas_rapidas").update({hecha:true}).eq("id",id);
+  if(error){
+    console.error(error);
+    alert("Error actualizando nota: "+error.message);
+    return;
+  }
+  await cargarNotasServidor();
+  inicio();
+}
+
+async function eliminarNota(id){
+  if(!confirm("¿Eliminar nota?"))return;
+  const {error}=await sb.from("notas_rapidas").delete().eq("id",id);
+  if(error){
+    console.error(error);
+    alert("Error eliminando nota: "+error.message);
+    return;
+  }
+  await cargarNotasServidor();
+  inicio();
+}
+
+function aviso(texto,tipo){
+  localStorage.setItem("zentryx_msg",JSON.stringify({texto,tipo}));
+}
+
+function leerAviso(){
+  const raw=localStorage.getItem("zentryx_msg");
+  if(!raw)return "";
+  localStorage.removeItem("zentryx_msg");
+  const m=JSON.parse(raw);
+  return `<p class="${m.tipo}">${m.texto}</p>`;
+}
+
+async function limpiarPrueba(){
+  if(!esAdmin()){alert("Solo admin.");return}
+  const pass=prompt("Contraseña admin:");
+  if(pass!=="admin"){alert("Contraseña incorrecta.");return}
+  if(!confirm("¿Borrar fichajes de hoy?"))return;
+
+  const inicio=hoyISO()+"T00:00:00";
+  const fin=hoyISO()+"T23:59:59";
+
+  const {error}=await sb
+    .from("fichajes")
+    .delete()
+    .eq("user_id",String(user.id))
+    .gte("fecha",inicio)
+    .lte("fecha",fin);
+
+  if(error){
+    alert("Error borrando fichajes: "+error.message);
+    return;
+  }
+
+  await cargarFichajesServidor();
+  inicio();
+}
+
+async function inicio(){
+  vistaActual='inicio';
+  await comprobarFestivoHoy();
+  const est=estadoActual();
+  const res=resumenHoy();
+  const extras=calcularExtrasHoy(res);
+  const notas=leerNotas().filter(n=>!n.hecha);
+  const fijas=notas.filter(n=>n.fija);
+  const vencidas=notas.filter(notaVencida);
+  const otras=notas.filter(n=>!n.fija&&!notaVencida(n)).slice(0,5);
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <h2>Inicio</h2>
+      <b>${user.nombre}</b>
+      <p>${user.usuario} · ${user.rol}</p>
+      <span class="badge ${est.clase}">${est.txt}</span>
+      ${festivoHoyCache?`<span class="badge red">Festivo: ${textoFestivoHoy()}</span>`:""}
+      ${leerAviso()}
+    </div>
+
+    ${fijas.length?`
+    <div class="card note-fixed">
+      <h2>Notas fijas</h2>
+      ${fijas.map(n=>notaHTML(n)).join("")}
+    </div>`:""}
+
+    ${vencidas.length?`
+    <div class="card note-fixed">
+      <h2>Avisos pendientes</h2>
+      ${vencidas.map(n=>notaHTML(n)).join("")}
+    </div>`:""}
+
+    <div class="card">
+      <h2>Jornada de hoy</h2>
+      ${festivoHoyCache?`<p class="error"><b>Hoy es festivo:</b> ${textoFestivoHoy()}</p>`:""}
+      <span class="badge">Trabajo total: ${textoMin(res.trabajo)}</span>
+      <span class="badge green">Jornada normal: ${textoMin(extras.normal)}</span>
+      <span class="badge orange">Horas extra: ${textoMin(extras.extra)}</span>
+      ${extras.motivo?`<span class="badge red">Motivo extra: ${extras.motivo}</span>`:""}
+      <span class="badge">Pausas: ${textoMin(res.pausa)}</span>
+      <span class="badge">Comida: ${textoMin(res.comida)}</span>
+      <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+      <div class="actions">
+        <button class="btn orange" onclick="guardarMovimiento('inicio_pausa')">Inicio pausa</button>
+        <button class="btn orange" onclick="guardarMovimiento('inicio_comida')">Inicio comida</button>
+      </div>
+      ${esAdmin()?`<button class="btn gray full" onclick="limpiarPrueba()">Borrar fichajes de hoy</button>`:""}
+      ${esAdmin()?`<button class="btn orange full" onclick="generarFichajesPrueba()">Generar fichajes de prueba</button>`:""}
+      ${esAdmin()?`<button class="btn red full" onclick="borrarFichajesPrueba()">Borrar fichajes de prueba</button>`:""}
+    </div>
+
+    <div class="card">
+      <h2>Notas rápidas</h2>
+      <button class="btn blue full" onclick="crearNota()">+ Nota rápida</button>
+      ${otras.length?otras.map(n=>notaHTML(n)).join(""):"<p>No hay notas pendientes.</p>"}
+    </div>
+
+    <div class="grid">
+      <div class="module">
+        <h3>Usuarios</h3>
+        <p>Alta, ficha, horarios y documentos.</p>
+        <button class="btn dark" onclick="vistaUsuariosPro()">Abrir</button>
+      </div>
+      <div class="module">
+        <h3>Solicitudes</h3>
+        <p>Vacaciones, permisos y bajas.</p>
+        <button class="btn blue" onclick="vistaSolicitudesPro()">Abrir</button>
+      </div>
+      <div class="module">
+        <h3>Configuración</h3>
+        <p>Horarios, avisos y horas extra.</p>
+        <button class="btn gray" onclick="vistaConfigPro()">Abrir</button>
+      </div>
+      <div class="module">
+        <h3>Informes</h3>
+        <p>Resumen mensual y fichajes.</p>
+        <button class="btn blue" onclick="vistaInformes()">Abrir</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Movimientos de hoy</h2>
+      ${res.mov.length?res.mov.slice().reverse().map(m=>`
+        <div class="row">
+          <b>${nombreAccion(m.tipo)}</b><br>
+          ${m.hora}<br>
+          ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
+          ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
+        </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
+    </div>
+  `;
+}
+
+function notaHTML(n){
+  return `
+    <div class="row">
+      <b>${n.txt}</b><br>
+      ${n.fecha||n.hora?`<span class="small">Aviso: ${fechaES(n.fecha)||""} ${n.hora||""}</span><br>`:""}
+      ${n.fija?`<span class="badge orange">Fija</span>`:""}
+      ${notaVencida(n)?`<span class="badge red">Vencida</span>`:""}
+      <br>
+      <button class="btn green" onclick="marcarNotaHecha(${n.id})">Hecha</button>
+      <button class="btn red" onclick="eliminarNota(${n.id})">Eliminar</button>
+    </div>`;
+}
+
+function vistaPendiente(titulo){
+  vistaActual='otra';
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>${titulo}</h2>
+      <p>Este bloque será el siguiente en conectar con base de datos y permisos.</p>
+    </div>`;
+}
+
+
 async function generarFichajesPrueba(){
+  if(!esAdmin()){
+    alert("Solo admin.");
+    return;
+  }
 
-const hoy=new Date();
+  if(!confirm("Esto creará fichajes de prueba para varios días y usuarios activos. ¿Continuar?")){
+    return;
+  }
 
-for(let i=1;i<=10;i++){
+  await cargarUsuariosServidor();
 
-let d=new Date();
-d.setDate(hoy.getDate()-i);
+  const usuarios=leerUsuarios().filter(u=>u.activo!==false);
+  if(!usuarios.length){
+    alert("No hay usuarios activos.");
+    return;
+  }
 
-let fecha=d.toISOString().slice(0,10);
+  const hoy=new Date();
+  let creados=0;
 
-let base=[
-{h:"08:00",t:"entrada"},
-{h:"11:00",t:"inicio_pausa"},
-{h:"11:15",t:"fin_pausa"},
-{h:"14:00",t:"inicio_comida"},
-{h:"15:00",t:"fin_comida"},
-{h:i%3==0?"19:00":"18:00",t:"salida"}
-];
+  for(const u of usuarios){
+    for(let i=1;i<=14;i++){
+      const d=new Date(hoy);
+      d.setDate(hoy.getDate()-i);
 
-for(let m of base){
-await sb.from("fichajes").insert({
-user_id:user.id,
-tipo:m.t,
-fecha:fecha+"T"+m.h+":00",
-direccion:"PRUEBA"
-});
+      if(d.getDay()===0)continue;
+
+      const fecha=fechaLocalISODesdeDate(d);
+
+      const base=[
+        {hora:"08:00",tipo:"entrada"},
+        {hora:"11:00",tipo:"inicio_pausa"},
+        {hora:"11:15",tipo:"fin_pausa"},
+        {hora:"14:00",tipo:"inicio_comida"},
+        {hora:"15:00",tipo:"fin_comida"},
+        {hora:i%3===0?"19:00":"18:00",tipo:"salida"}
+      ];
+
+      for(const m of base){
+        const payload={
+          user_id:String(u.id),
+          tipo:m.tipo,
+          fecha:fecha+"T"+m.hora+":00",
+          direccion:"Fichaje de prueba",
+          direccion_real:"Fichaje de prueba"
+        };
+
+        const {error}=await sb.from("fichajes").insert([payload]);
+        if(!error)creados++;
+      }
+    }
+  }
+
+  await cargarFichajesServidor();
+  alert("Fichajes de prueba creados: "+creados);
+  await inicio();
 }
-}
 
-alert("Datos creados");
-}
-
-// ---------- BORRAR ----------
 async function borrarFichajesPrueba(){
-await sb.from("fichajes").delete().eq("direccion","PRUEBA");
-alert("Borrados");
+  if(!esAdmin()){
+    alert("Solo admin.");
+    return;
+  }
+
+  if(!confirm("¿Borrar todos los fichajes de prueba?")){
+    return;
+  }
+
+  const {error}=await sb
+    .from("fichajes")
+    .delete()
+    .eq("direccion","Fichaje de prueba");
+
+  if(error){
+    alert("Error borrando fichajes de prueba: "+error.message);
+    return;
+  }
+
+  await cargarFichajesServidor();
+  alert("Fichajes de prueba borrados.");
+  await inicio();
 }
 
-// ---------- INFORMES ----------
 async function vistaInformes(){
+  vistaActual='informes';
+  if(esAdmin()) await cargarUsuariosServidor();
 
-const {data}=await sb.from("fichajes").select("*").eq("user_id",user.id);
+  const usuariosInforme=esAdmin()?leerUsuarios().filter(u=>u.activo!==false):[user];
+  const hoy=new Date();
+  const mesActual=String(hoy.getMonth()+1).padStart(2,"0");
+  const anioActual=hoy.getFullYear();
 
-let total=0;
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Informes PRO</h2>
+      <p>Resumen mensual por usuario con jornada normal, horas extra y festivos trabajados.</p>
 
-data.forEach(f=>{
-if(f.tipo=="entrada") total+=8*60;
+      <label>Usuario</label>
+      <select id="inf_user">
+        ${usuariosInforme.map(u=>`<option value="${u.id}">${u.nombre} · ${rolNombre(u.rol)}</option>`).join("")}
+      </select>
+
+      <label>Mes</label>
+      <select id="inf_mes">
+        ${Array.from({length:12},(_,i)=>String(i+1).padStart(2,"0")).map(m=>`<option value="${m}" ${m===mesActual?"selected":""}>${m}</option>`).join("")}
+      </select>
+
+      <label>Año</label>
+      <input id="inf_anio" type="number" value="${anioActual}">
+
+      <button class="btn blue full" onclick="generarInformeMensual()">Generar informe</button>
+    </div>
+
+    <div id="zonaInforme"></div>
+  `;
+}
+
+function fechaISOdesdePartes(anio,mes,dia){
+  return anio+"-"+String(mes).padStart(2,"0")+"-"+String(dia).padStart(2,"0");
+}
+
+function ultimoDiaMes(anio,mes){
+  return new Date(Number(anio),Number(mes),0).getDate();
+}
+
+async function cargarFichajesUsuarioPeriodo(uid,inicio,fin){
+  const {data,error}=await sb
+    .from("fichajes")
+    .select("*")
+    .eq("user_id",String(uid))
+    .gte("fecha",inicio+"T00:00:00")
+    .lte("fecha",fin+"T23:59:59")
+    .order("fecha",{ascending:true});
+
+  if(error){
+    alert("Error leyendo fichajes: "+error.message);
+    return [];
+  }
+
+  return (data||[]).map(f=>{
+    const d=fechaSupabaseADate(f.fecha);
+    return {
+      id:f.id,
+      fecha:fechaLocalISODesdeDate(d),
+      hora:horaLocalHHMMDesdeDate(d),
+      minutoDia:minutosDelDiaDesdeDate(d),
+      tipo:f.tipo,
+      ts:d.getTime(),
+      direccion:f.direccion_real||f.direccion||"",
+      lat:f.lat||null,
+      lng:f.lng||null
+    };
+  });
+}
+
+async function cargarFestivosPeriodo(inicio,fin){
+  const {data,error}=await sb
+    .from("calendario_festivos")
+    .select("*")
+    .gte("fecha",inicio)
+    .lte("fecha",fin);
+
+  if(error){
+    console.warn(error);
+    return [];
+  }
+
+  return data||[];
+}
+
+function resumenMovimientosDia(mov){
+  let trabajandoDesde=null, pausaDesde=null, comidaDesde=null;
+  let trabajo=0, pausa=0, comida=0;
+
+  for(const m of mov.sort((a,b)=>a.ts-b.ts)){
+    const mm=(m.minutoDia!=null)?m.minutoDia:minutos(m.hora);
+
+    if(m.tipo==="entrada"||m.tipo==="fin_pausa"||m.tipo==="fin_comida"){
+      trabajandoDesde=mm;
+      pausaDesde=null;
+      comidaDesde=null;
+    }
+    if(m.tipo==="inicio_pausa"){
+      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
+      trabajandoDesde=null;
+      pausaDesde=mm;
+    }
+    if(m.tipo==="fin_pausa"){
+      if(pausaDesde!=null)pausa+=mm-pausaDesde;
+      pausaDesde=null;
+      trabajandoDesde=mm;
+    }
+    if(m.tipo==="inicio_comida"){
+      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
+      trabajandoDesde=null;
+      comidaDesde=mm;
+    }
+    if(m.tipo==="fin_comida"){
+      if(comidaDesde!=null)comida+=mm-comidaDesde;
+      comidaDesde=null;
+      trabajandoDesde=mm;
+    }
+    if(m.tipo==="salida"){
+      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
+      trabajandoDesde=null;
+    }
+  }
+
+  return {trabajo,pausa,comida};
+}
+
+function agruparPorFecha(lista){
+  const mapa={};
+  for(const m of lista){
+    if(!mapa[m.fecha])mapa[m.fecha]=[];
+    mapa[m.fecha].push(m);
+  }
+  return mapa;
+}
+
+async function generarInformeMensual(){
+  const uid=document.getElementById("inf_user").value;
+  const mes=document.getElementById("inf_mes").value;
+  const anio=document.getElementById("inf_anio").value;
+  const u=usuarioPorId(uid)||user;
+
+  const inicio=fechaISOdesdePartes(anio,mes,1);
+  const fin=fechaISOdesdePartes(anio,mes,ultimoDiaMes(anio,mes));
+
+  const [fichajes,festivos]=await Promise.all([
+    cargarFichajesUsuarioPeriodo(uid,inicio,fin),
+    cargarFestivosPeriodo(inicio,fin)
+  ]);
+
+  const festivosPorFecha={};
+  for(const f of festivos){
+    festivosPorFecha[String(f.fecha).slice(0,10)]=f;
+  }
+
+  const porFecha=agruparPorFecha(fichajes);
+  const dias=Object.keys(porFecha).sort();
+
+  let totalTrabajo=0,totalNormal=0,totalExtra=0,totalPausa=0,totalComida=0,festivosTrabajados=0;
+
+  const filas=dias.map(fecha=>{
+    const res=resumenMovimientosDia(porFecha[fecha]);
+    const festivo=festivosPorFecha[fecha]||null;
+    const normal=festivo?0:res.trabajo;
+    const extra=festivo?res.trabajo:0;
+
+    totalTrabajo+=res.trabajo;
+    totalNormal+=normal;
+    totalExtra+=extra;
+    totalPausa+=res.pausa;
+    totalComida+=res.comida;
+    if(festivo && res.trabajo>0)festivosTrabajados++;
+
+    return {fecha,festivo,trabajo:res.trabajo,normal,extra,pausa:res.pausa,comida:res.comida,movimientos:porFecha[fecha]};
+  });
+
+  document.getElementById("zonaInforme").innerHTML=`
+    <div class="card">
+      <h2>${u.nombre}</h2>
+      <p>${mes}/${anio}</p>
+      <span class="badge">Trabajo total: ${textoMin(totalTrabajo)}</span>
+      <span class="badge green">Jornada normal: ${textoMin(totalNormal)}</span>
+      <span class="badge orange">Horas extra: ${textoMin(totalExtra)}</span>
+      <span class="badge red">Festivos trabajados: ${festivosTrabajados}</span>
+      <span class="badge">Pausas: ${textoMin(totalPausa)}</span>
+      <span class="badge">Comida: ${textoMin(totalComida)}</span>
+      <button class="btn gray full" onclick="copiarInformeMensual()">Copiar resumen</button>
+    </div>
+
+    <div class="card">
+      <h2>Detalle diario</h2>
+      ${filas.length?filas.map(d=>`
+        <div class="row">
+          <b>${fechaES(d.fecha)}</b><br>
+          ${d.festivo?`<span class="badge red">Festivo: ${d.festivo.nombre||"Festivo"}</span><br>`:""}
+          Trabajo: ${textoMin(d.trabajo)}<br>
+          Normal: ${textoMin(d.normal)}<br>
+          Extra: ${textoMin(d.extra)}<br>
+          Pausas: ${textoMin(d.pausa)} · Comida: ${textoMin(d.comida)}<br>
+          <details>
+            <summary>Movimientos</summary>
+            ${d.movimientos.map(m=>`${m.hora} · ${nombreAccion(m.tipo)}`).join("<br>")}
+          </details>
+        </div>
+      `).join(""):"<p>No hay fichajes en este periodo.</p>"}
+    </div>
+  `;
+
+  window.informeMensualActual={usuario:u.nombre,mes,anio,totalTrabajo,totalNormal,totalExtra,totalPausa,totalComida,festivosTrabajados,filas};
+}
+
+function copiarInformeMensual(){
+  const inf=window.informeMensualActual;
+  if(!inf){
+    alert("Genera primero el informe.");
+    return;
+  }
+
+  const texto=[
+    "INFORME MENSUAL ZENTRYX",
+    "Usuario: "+inf.usuario,
+    "Periodo: "+inf.mes+"/"+inf.anio,
+    "Trabajo total: "+textoMin(inf.totalTrabajo),
+    "Jornada normal: "+textoMin(inf.totalNormal),
+    "Horas extra: "+textoMin(inf.totalExtra),
+    "Festivos trabajados: "+inf.festivosTrabajados,
+    "Pausas: "+textoMin(inf.totalPausa),
+    "Comida: "+textoMin(inf.totalComida),
+    "",
+    "DETALLE:",
+    ...inf.filas.map(d=>`${fechaES(d.fecha)} | Trabajo ${textoMin(d.trabajo)} | Normal ${textoMin(d.normal)} | Extra ${textoMin(d.extra)}${d.festivo?" | Festivo "+(d.festivo.nombre||""):""}`)
+  ].join("\\n");
+
+  navigator.clipboard.writeText(texto).then(()=>alert("Informe copiado.")).catch(()=>alert(texto));
+}
+
+// ===== USUARIOS PRO SUPABASE =====
+const ADMIN_PASS="admin";
+
+async function cargarUsuariosServidor(){
+  if(cargandoUsuarios)return usuariosCache;
+  cargandoUsuarios=true;
+
+  const {data,error}=await sb.from("users").select("*").order("id",{ascending:true});
+
+  cargandoUsuarios=false;
+
+  if(error){
+    console.error(error);
+    aviso("Error leyendo usuarios: "+error.message,"error");
+    return usuariosCache;
+  }
+
+  usuariosCache=(data||[]).map(normalizarUsuario);
+  return usuariosCache;
+}
+
+function leerUsuarios(){
+  return usuariosCache.length?usuariosCache:[user];
+}
+
+function guardarUsuarios(lista){
+  usuariosCache=lista||usuariosCache;
+}
+
+function pedirClaveAdmin(){
+  const pass=prompt("Contraseña del administrador:");
+  return pass===ADMIN_PASS;
+}
+
+function usuarioPorId(id){
+  return leerUsuarios().find(u=>String(u.id)===String(id));
+}
+
+function rolNombre(rol){
+  const m={admin:"Administrador",encargado:"Encargado",operario:"Operario",oficina:"Oficina"};
+  return m[rol]||rol;
+}
+
+function estadoUsuario(u){
+  if(!u.activo)return '<span class="badge red">Inactivo</span>';
+  if(u.password_pendiente)return '<span class="badge orange">Contraseña pendiente</span>';
+  return '<span class="badge green">Activo</span>';
+}
+
+function filtrarUsuariosLista(lista){
+  const q=(document.getElementById("buscarUsuarios")?.value||"").toLowerCase().trim();
+  const rol=(document.getElementById("filtroRolUsuarios")?.value||"todos");
+  const estado=(document.getElementById("filtroEstadoUsuarios")?.value||"todos");
+
+  return lista.filter(u=>{
+    const texto=[u.nombre,u.usuario,u.rol,u.puesto,u.telefono,u.email,u.dni,u.direccion].join(" ").toLowerCase();
+
+    if(q && !texto.includes(q))return false;
+    if(rol!=="todos" && u.rol!==rol)return false;
+    if(estado==="activos" && u.activo===false)return false;
+    if(estado==="inactivos" && u.activo!==false)return false;
+
+    return true;
+  });
+}
+
+function refrescarListaUsuariosPro(){
+  let lista=leerUsuarios();
+
+  if(!esAdmin()){
+    lista=lista.filter(u=>String(u.id)===String(user.id));
+  }
+
+  lista=filtrarUsuariosLista(lista);
+  const cont=document.getElementById("listaUsuariosPro");
+  if(!cont)return;
+
+  cont.innerHTML=lista.length?lista.map(u=>usuarioRowProHTML(u)).join(""):"<p>No hay usuarios con esos filtros.</p>";
+}
+
+function usuarioRowProHTML(u){
+  return `
+    <div class="row">
+      <div class="user-row-pro">
+        ${fotoUsuarioHTML(u)}
+        <div class="user-row-info">
+          <b>${u.nombre}</b>
+          <span>${u.usuario} · ${rolNombre(u.rol)}</span><br>
+          <span class="small">${u.puesto||"Sin puesto"}</span><br>
+          ${estadoUsuario(u)}
+        </div>
+      </div>
+
+      <div class="user-row-actions">
+        <button class="btn green" onclick="abrirTelefono('${u.telefono||""}')">Llamar</button>
+        <button class="btn blue" onclick="abrirSMS('${u.telefono||""}')">SMS</button>
+        <button class="btn green" onclick="abrirWhatsApp('${u.telefono||""}')">WhatsApp</button>
+        <button class="btn blue" onclick="abrirEmail('${u.email||""}')">Email</button>
+        <button class="btn gray" onclick="abrirMapaDireccionCodificada('${encodeURIComponent(u.direccion||"")}')">Mapa</button>
+        <button class="btn dark" onclick="vistaFichaUsuarioPro('${u.id}')">Ficha</button>
+      </div>
+    </div>`;
+}
+
+async function vistaUsuariosPro(){
+  vistaActual='usuarios';
+  await cargarUsuariosServidor();
+
+  let lista=leerUsuarios();
+
+  if(!esAdmin()){
+    lista=lista.filter(u=>String(u.id)===String(user.id));
+  }
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Usuarios</h2>
+      <p>Lista rápida con búsqueda, foto y acciones directas.</p>
+      ${esAdmin()?`<button class="btn green full" onclick="vistaAltaUsuarioPro()">Crear usuario</button>`:""}
+    </div>
+
+    <div class="card">
+      <h2>Buscar usuarios</h2>
+      <div class="user-list-tools">
+        <input id="buscarUsuarios" placeholder="Buscar por nombre, usuario, teléfono, email, DNI, puesto..." oninput="refrescarListaUsuariosPro()">
+
+        <label>Rol</label>
+        <select id="filtroRolUsuarios" onchange="refrescarListaUsuariosPro()">
+          <option value="todos">Todos</option>
+          <option value="admin">Administrador</option>
+          <option value="encargado">Encargado</option>
+          <option value="operario">Operario</option>
+          <option value="oficina">Oficina</option>
+        </select>
+
+        <label>Estado</label>
+        <select id="filtroEstadoUsuarios" onchange="refrescarListaUsuariosPro()">
+          <option value="todos">Todos</option>
+          <option value="activos">Activos</option>
+          <option value="inactivos">Inactivos</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Lista de usuarios</h2>
+      <div id="listaUsuariosPro">
+        ${lista.length?lista.map(u=>usuarioRowProHTML(u)).join(""):"<p>No hay usuarios.</p>"}
+      </div>
+    </div>`;
+}
+
+function vistaAltaUsuarioPro(){
+  vistaActual='usuarios';
+
+  if(!esAdmin()){
+    alert("Solo admin puede crear usuarios.");
+    return;
+  }
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="vistaUsuariosPro()">← Usuarios</button>
+      <h2>Alta de usuario</h2>
+      <p>Al crear el usuario, la contraseña queda pendiente. El usuario la crea en su primer acceso.</p>
+
+      <label>Nombre y apellidos</label>
+      <input id="u_nombre" placeholder="Nombre y apellidos">
+
+      <label>Usuario / login</label>
+      <input id="u_usuario" placeholder="usuario">
+
+      <label>Rol</label>
+      <select id="u_rol">
+        <option value="operario">Operario</option>
+        <option value="encargado">Encargado</option>
+        <option value="oficina">Oficina</option>
+        <option value="admin">Administrador</option>
+      </select>
+
+      <label>Puesto / cargo real</label>
+      <input id="u_puesto" placeholder="Instalador, oficial, ayudante, oficina...">
+
+      <label>Teléfono</label>
+      <input id="u_telefono" placeholder="Teléfono">
+
+      <label>Email</label>
+      <input id="u_email" placeholder="Email">
+
+      <label>DNI</label>
+      <input id="u_dni" placeholder="DNI">
+
+      <label>Dirección</label>
+      <input id="u_direccion" placeholder="Calle, número, población...">
+
+      <label>Foto usuario</label>
+      <input id="u_foto" type="file" accept="image/*" capture="environment">
+      <p class="small">La foto se abrirá desde cámara/galería, se comprimirá y se subirá a Supabase Storage.</p>
+
+      <label>Días de vacaciones anuales</label>
+      <input id="u_vacaciones" type="number" value="22">
+
+      <label>Horas asuntos propios anuales</label>
+      <input id="u_asuntos" type="number" value="0">
+      <p class="small">Pendiente de guardar en Supabase hasta añadir su columna.</p>
+
+      <button class="btn green full" onclick="guardarAltaUsuarioPro()">Crear usuario</button>
+    </div>`;
+}
+
+function extraerColumnaFaltante(error){
+  const msg=(error&&error.message)?error.message:String(error||"");
+  const m=msg.match(/'([^']+)' column/);
+  return m?m[1]:null;
+}
+
+async function insertarUsuarioAdaptativo(payload){
+  let limpio={...payload};
+
+  for(let intento=0; intento<12; intento++){
+    const {data,error}=await sb.from("users").insert([limpio]).select().single();
+
+    if(!error)return {data,error:null};
+
+    const col=extraerColumnaFaltante(error);
+
+    if(col && Object.prototype.hasOwnProperty.call(limpio,col)){
+      delete limpio[col];
+      continue;
+    }
+
+    return {data:null,error};
+  }
+
+  return {data:null,error:{message:"No se pudo crear usuario por columnas no compatibles en users."}};
+}
+
+async function actualizarUsuarioAdaptativo(id,payload){
+  let limpio={...payload};
+
+  for(let intento=0; intento<12; intento++){
+    const {error}=await sb.from("users").update(limpio).eq("id",id);
+
+    if(!error)return {error:null};
+
+    const col=extraerColumnaFaltante(error);
+
+    if(col && Object.prototype.hasOwnProperty.call(limpio,col)){
+      delete limpio[col];
+      continue;
+    }
+
+    return {error};
+  }
+
+  return {error:{message:"No se pudo actualizar usuario por columnas no compatibles en users."}};
+}
+
+async function obtenerArchivoFoto(inputId){
+  const input=document.getElementById(inputId);
+  const file=input&&input.files&&input.files[0];
+
+  if(!file)return null;
+
+  if(!file.type.startsWith("image/")){
+    alert("La foto debe ser una imagen.");
+    return null;
+  }
+
+  return file;
+}
+
+function comprimirImagen(file,maxSize=900,calidad=0.78){
+  return new Promise((resolve)=>{
+    const img=new Image();
+    const reader=new FileReader();
+
+    reader.onload=e=>{
+      img.onload=()=>{
+        let w=img.width;
+        let h=img.height;
+
+        if(w>h && w>maxSize){
+          h=Math.round(h*(maxSize/w));
+          w=maxSize;
+        }else if(h>=w && h>maxSize){
+          w=Math.round(w*(maxSize/h));
+          h=maxSize;
+        }
+
+        const canvas=document.createElement("canvas");
+        canvas.width=w;
+        canvas.height=h;
+
+        const ctx=canvas.getContext("2d");
+        ctx.drawImage(img,0,0,w,h);
+
+        canvas.toBlob(blob=>{
+          if(!blob){
+            resolve(file);
+            return;
+          }
+
+          const comprimido=new File([blob],"foto_usuario.jpg",{type:"image/jpeg"});
+          resolve(comprimido);
+        },"image/jpeg",calidad);
+      };
+
+      img.onerror=()=>resolve(file);
+      img.src=e.target.result;
+    };
+
+    reader.onerror=()=>resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function subirFotoUsuarioStorage(inputId,uid){
+  const file=await obtenerArchivoFoto(inputId);
+  if(!file)return "";
+
+  const fotoComprimida=await comprimirImagen(file,900,0.78);
+  const nombre="usuarios/"+String(uid)+"/perfil_"+Date.now()+".jpg";
+
+  const {error}=await sb.storage
+    .from("usuarios")
+    .upload(nombre,fotoComprimida,{cacheControl:"3600",upsert:true,contentType:"image/jpeg"});
+
+  if(error){
+    console.error(error);
+    alert("No se pudo subir la foto. Revisa que exista el bucket usuarios en Supabase Storage.");
+    return "";
+  }
+
+  const {data}=sb.storage.from("usuarios").getPublicUrl(nombre);
+  return data&&data.publicUrl?data.publicUrl:"";
+}
+
+async function guardarFotoUsuarioEnBD(uid,url){
+  if(!url)return;
+
+  await actualizarUsuarioAdaptativo(uid,{
+    foto_url:url,
+    foto:url
+  });
+}
+
+async function guardarAltaUsuarioPro(){
+  const nombre=document.getElementById("u_nombre").value.trim();
+  const usuarioLogin=document.getElementById("u_usuario").value.trim();
+  const rol=document.getElementById("u_rol").value;
+  const puesto=document.getElementById("u_puesto").value.trim();
+  const telefono=document.getElementById("u_telefono").value.trim();
+  const email=document.getElementById("u_email").value.trim();
+  const dni=document.getElementById("u_dni").value.trim();
+  const direccion=document.getElementById("u_direccion").value.trim();
+  const fotoInput=document.getElementById("u_foto");
+  const vacaciones=Number(document.getElementById("u_vacaciones").value||22);
+  const asuntos=Number(document.getElementById("u_asuntos").value||0);
+
+  if(!nombre||!usuarioLogin){
+    alert("Nombre y usuario son obligatorios.");
+    return;
+  }
+
+  await cargarUsuariosServidor();
+
+  if(leerUsuarios().some(u=>u.usuario.toLowerCase()===usuarioLogin.toLowerCase())){
+    alert("Ese usuario ya existe.");
+    return;
+  }
+
+  const nuevo={
+    nombre,
+    usuario:usuarioLogin,
+    rol,
+    puesto,
+    telefono,
+    email,
+    dni,
+    activo:true,
+    password:"",
+    password_pendiente:true,
+    vacaciones
+  };
+  const {data,error}=await insertarUsuarioAdaptativo(nuevo);
+
+  if(error){
+    console.error(error);
+    alert("Error creando usuario: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
+  const creado=usuarioPorId(data?.id) || leerUsuarios().find(u=>u.usuario.toLowerCase()===usuarioLogin.toLowerCase());
+
+  if(creado){
+    const fotoUrl=await subirFotoUsuarioStorage("u_foto",creado.id);
+    if(fotoUrl){
+      await guardarFotoUsuarioEnBD(creado.id,fotoUrl);
+    }
+
+    await crearHorarioBaseServidor(creado.id);
+    await crearAvisosBaseServidor(creado.id);
+    await cargarUsuariosServidor();
+  }
+
+  alert("Usuario creado. La contraseña queda pendiente.");
+  vistaUsuariosPro();
+}
+
+async function crearHorarioBaseServidor(uid){
+  const dias=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+  const registros=dias.map(d=>({
+    user_id:String(uid),
+    dia:d,
+    trabaja:["lunes","martes","miércoles","jueves","viernes"].includes(d),
+    entrada:["lunes","martes","miércoles","jueves","viernes"].includes(d)?"08:00":null,
+    salida:["lunes","martes","miércoles","jueves","viernes"].includes(d)?"17:00":null,
+    inicio_comida:null,
+    fin_comida:null,
+    descanso_min:0
+  }));
+
+  try{await sb.from("horarios_usuario").insert(registros)}catch(e){console.warn("No se pudo crear horario base",e)}
+}
+
+async function crearAvisosBaseServidor(uid){
+  try{
+    await sb.from("avisos_fichaje").insert([{user_id:String(uid),activo:true,margen_entrada_min:10,antes_salida_min:10,max_comida_min:90,max_descanso_min:30,sonido:true,actualizado_en:new Date().toISOString()}]);
+  }catch(e){console.warn("No se pudo crear aviso base",e)}
+}
+
+async function vistaFichaUsuarioPro(id){
+  vistaActual='usuarios';
+
+  if(!esAdmin() && String(id)!==String(user.id)){
+    alert("No tienes acceso a este usuario.");
+    inicio();
+    return;
+  }
+
+  await cargarUsuariosServidor();
+
+  const u=usuarioPorId(id);
+  if(!u){
+    alert("Usuario no encontrado.");
+    return;
+  }
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="vistaUsuariosPro()">← Usuarios</button>
+      <div class="user-head">
+        ${fotoUsuarioHTML(u,"big")}
+        <div>
+          <h2>${u.nombre}</h2>
+          <p>${u.usuario} · ${rolNombre(u.rol)}</p>
+          <p>${u.puesto||"Sin puesto"}</p>
+          ${estadoUsuario(u)}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Datos</h2>
+      <p><b>Teléfono:</b> ${u.telefono||"-"}</p>
+      <p><b>Email:</b> ${u.email||"-"}</p>
+      <p><b>DNI:</b> ${u.dni||"-"}</p>
+      <p><b>Vacaciones:</b> ${u.vacaciones??22}</p>
+      <p><b>Horas asuntos propios:</b> ${u.asuntos??0} h</p>
+      <p><b>Asuntos usados:</b> ${u.asuntos_usados??0} h</p>
+      <p><b>Asuntos restantes:</b> ${Number(u.asuntos??0)-Number(u.asuntos_usados??0)} h</p>
+      <p><b>Vacaciones usadas:</b> ${u.vacaciones_usadas??0} días</p>
+      <p><b>Vacaciones restantes:</b> ${Number(u.vacaciones??22)-Number(u.vacaciones_usadas??0)} días</p>
+    </div>
+
+    <div class="card">
+      <h2>Contacto</h2>
+      <div class="actions">
+        <button class="btn green" onclick="abrirTelefono('${u.telefono||""}')">Llamar</button>
+        <button class="btn blue" onclick="abrirSMS('${u.telefono||""}')">SMS</button>
+      </div>
+      <div class="actions">
+        <button class="btn green" onclick="abrirWhatsApp('${u.telefono||""}')">WhatsApp</button>
+        <button class="btn blue" onclick="abrirEmail('${u.email||""}')">Email</button>
+      </div>
+      <button class="btn gray full" onclick="abrirMapaDireccionCodificada('${encodeURIComponent(u.direccion||u.direccion_completa||u.domicilio||"")}')">Mapa</button>
+      ${!(u.direccion||u.direccion_completa||u.domicilio)?`<p class="small">No hay dirección guardada todavía.</p>`:""}
+    </div>
+
+    ${esAdmin()?`
+    <div class="card">
+      <h2>Seguridad</h2>
+      <p><b>Estado:</b> ${u.password_pendiente?"Pendiente de crear":"Creada"}</p>
+      <p><b>Contraseña:</b> ${u.password?"Guardada en formato seguro":"Sin crear"}</p>
+      <p class="small">El admin puede resetearla. La contraseña no se muestra en claro.</p>
+      <button class="btn gray full" onclick="resetPasswordUsuarioPro('${u.id}')">Resetear contraseña</button>
+      <button class="btn blue full" onclick="simularPrimeraClave('${u.id}')">Crear contraseña de usuario</button>
+    </div>`:""}
+
+    ${esAdmin()?`
+    <div class="card">
+      <h2>Zona protegida</h2>
+      <button class="btn blue full" onclick="vistaEditarUsuarioPro('${u.id}')">Editar usuario</button>
+      <button class="btn orange full" onclick="toggleActivoUsuarioPro('${u.id}')">${u.activo?"Desactivar usuario":"Activar usuario"}</button>
+      ${String(u.id)!==String(user.id)?`<button class="btn red full" onclick="eliminarUsuarioPro('${u.id}')">Eliminar usuario</button>`:""}
+    </div>`:""}
+  `;
+}
+
+async function vistaEditarUsuarioPro(id){
+  vistaActual='usuarios';
+
+  if(!esAdmin()){
+    alert("Solo admin puede editar usuarios.");
+    return;
+  }
+
+  if(!pedirClaveAdmin()){
+    alert("Contraseña incorrecta.");
+    return;
+  }
+
+  await cargarUsuariosServidor();
+  const u=usuarioPorId(id);
+  if(!u)return;
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="vistaFichaUsuarioPro('${u.id}')">← Ficha</button>
+      <h2>Editar usuario</h2>
+
+      <label>Nombre y apellidos</label>
+      <input id="e_nombre" value="${u.nombre||""}">
+
+      <label>Usuario / login</label>
+      <input id="e_usuario" value="${u.usuario||""}">
+
+      <label>Rol</label>
+      <select id="e_rol">
+        <option value="operario" ${u.rol==="operario"?"selected":""}>Operario</option>
+        <option value="encargado" ${u.rol==="encargado"?"selected":""}>Encargado</option>
+        <option value="oficina" ${u.rol==="oficina"?"selected":""}>Oficina</option>
+        <option value="admin" ${u.rol==="admin"?"selected":""}>Administrador</option>
+      </select>
+
+      <label>Puesto / cargo real</label>
+      <input id="e_puesto" value="${u.puesto||""}">
+
+      <label>Teléfono</label>
+      <input id="e_telefono" value="${u.telefono||""}">
+
+      <label>Email</label>
+      <input id="e_email" value="${u.email||""}">
+
+      <label>DNI</label>
+      <input id="e_dni" value="${u.dni||""}">
+
+      <label>Dirección</label>
+      <input id="e_direccion" value="${u.direccion||""}" placeholder="Calle, número, población...">
+
+      <label>Foto actual</label>
+      <div>${fotoUsuarioHTML(u)}</div>
+
+      <label>Cambiar foto</label>
+      <input id="e_foto" type="file" accept="image/*" capture="environment">
+      <p class="small">La nueva foto se abrirá desde cámara/galería, se comprimirá y se subirá a Supabase Storage.</p>
+
+      <label>Días de vacaciones anuales</label>
+      <input id="e_vacaciones" type="number" value="${u.vacaciones??22}">
+
+      <label>Horas asuntos propios anuales</label>
+      <input id="e_asuntos" type="number" value="${u.asuntos??0}">
+      <p class="small">Pendiente de guardar en Supabase hasta añadir su columna.</p>
+
+      <button class="btn green full" onclick="guardarEdicionUsuarioPro('${u.id}')">Guardar cambios</button>
+    </div>`;
+}
+
+async function guardarEdicionUsuarioPro(id){
+  await cargarUsuariosServidor();
+
+  const nuevoUsuario=document.getElementById("e_usuario").value.trim();
+  const nuevoNombre=document.getElementById("e_nombre").value.trim();
+
+  if(!nuevoNombre||!nuevoUsuario){
+    alert("Nombre y usuario son obligatorios.");
+    return;
+  }
+
+  if(leerUsuarios().some(x=>String(x.id)!==String(id) && x.usuario.toLowerCase()===nuevoUsuario.toLowerCase())){
+    alert("Ese usuario ya existe.");
+    return;
+  }
+
+  const update={
+    nombre:nuevoNombre,
+    usuario:nuevoUsuario,
+    rol:document.getElementById("e_rol").value,
+    puesto:document.getElementById("e_puesto").value.trim(),
+    telefono:document.getElementById("e_telefono").value.trim(),
+    email:document.getElementById("e_email").value.trim(),
+    dni:document.getElementById("e_dni").value.trim(),
+    direccion:document.getElementById("e_direccion").value.trim(),
+    vacaciones:Number(document.getElementById("e_vacaciones").value||22)
+  };
+
+  const fotoUrl=await subirFotoUsuarioStorage("e_foto",id);
+  if(fotoUrl){
+    update.foto_url=fotoUrl;
+    update.foto=fotoUrl;
+  }
+
+  const {error}=await actualizarUsuarioAdaptativo(id,update);
+
+  if(error){
+    console.error(error);
+    alert("Error guardando usuario: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
+
+  if(String(id)===String(user.id)){
+    const actualizado=usuarioPorId(id);
+    if(actualizado){
+      user=actualizado;
+      localStorage.setItem("usuario",JSON.stringify(user));
+    }
+  }
+
+  alert("Usuario guardado.");
+  vistaFichaUsuarioPro(id);
+}
+
+async function toggleActivoUsuarioPro(id){
+  if(!pedirClaveAdmin()){
+    alert("Contraseña incorrecta.");
+    return;
+  }
+
+  await cargarUsuariosServidor();
+  const u=usuarioPorId(id);
+  if(!u)return;
+
+  if(String(u.id)===String(user.id)){
+    alert("No puedes desactivar el usuario actual.");
+    return;
+  }
+
+  const {error}=await sb.from("users").update({activo:!u.activo}).eq("id",id);
+
+  if(error){
+    alert("Error actualizando usuario: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
+  vistaFichaUsuarioPro(id);
+}
+
+async function resetPasswordUsuarioPro(id){
+  if(!esAdmin()){
+    alert("Solo admin puede resetear contraseñas.");
+    return;
+  }
+
+  if(!pedirClaveAdmin()){
+    alert("Contraseña incorrecta.");
+    return;
+  }
+
+  const {error}=await actualizarUsuarioAdaptativo(id,{password:"",password_pendiente:true});
+
+  if(error){
+    alert("Error reseteando contraseña: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
+  alert("Contraseña reseteada. El usuario deberá crear una nueva.");
+  vistaFichaUsuarioPro(id);
+}
+
+async function simularPrimeraClave(id){
+  if(!esAdmin()){
+    alert("Solo admin puede crear o cambiar contraseñas desde ficha.");
+    return;
+  }
+
+  const p1=prompt("Nueva contraseña del usuario:");
+  if(!p1)return;
+
+  const p2=prompt("Repite la contraseña:");
+  if(p1!==p2){
+    alert("No coinciden.");
+    return;
+  }
+
+  const passwordHash=await prepararPasswordParaGuardar(p1);
+  const {error}=await actualizarUsuarioAdaptativo(id,{password:passwordHash,password_pendiente:false});
+
+  if(error){
+    alert("Error guardando contraseña: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
+
+  if(String(id)===String(user?.id)){
+    const actualizado=usuarioPorId(id);
+    if(actualizado){
+      user=actualizado;
+      localStorage.setItem("usuario",JSON.stringify(user));
+    }
+  }
+
+  alert("Contraseña creada.");
+  vistaFichaUsuarioPro(id);
+}
+
+async function eliminarUsuarioPro(id){
+  if(!esAdmin()){
+    alert("Solo admin puede eliminar usuarios.");
+    return;
+  }
+
+  if(!pedirClaveAdmin()){
+    alert("Contraseña incorrecta.");
+    return;
+  }
+
+  if(String(id)===String(user.id)){
+    alert("No puedes eliminar el usuario actual.");
+    return;
+  }
+
+  await cargarUsuariosServidor();
+  const u=usuarioPorId(id);
+  if(!u)return;
+
+  if(!confirm("¿Eliminar a "+u.nombre+"?"))return;
+
+  await sb.from("fichajes").delete().eq("user_id",String(id));
+  await sb.from("notas_rapidas").delete().eq("user_id",String(id));
+  await sb.from("horarios_usuario").delete().eq("user_id",String(id));
+  await sb.from("avisos_fichaje").delete().eq("user_id",String(id));
+
+  const {error}=await sb.from("users").delete().eq("id",id);
+
+  if(error){
+    alert("Error eliminando usuario: "+error.message);
+    return;
+  }
+
+  await cargarUsuariosServidor();
+  alert("Usuario eliminado.");
+  vistaUsuariosPro();
+}
+
+
+function columnaFaltante(error){
+  const msg=(error&&error.message)?error.message:String(error||"");
+  const m=msg.match(/'([^']+)' column/);
+  return m?m[1]:null;
+}
+
+async function insertarAdaptativo(tabla,payload){
+  let limpio={...payload};
+
+  for(let i=0;i<12;i++){
+    const {error}=await sb.from(tabla).insert([limpio]);
+    if(!error)return {error:null};
+
+    const col=columnaFaltante(error);
+    if(col && Object.prototype.hasOwnProperty.call(limpio,col)){
+      delete limpio[col];
+      continue;
+    }
+
+    return {error};
+  }
+
+  return {error:{message:"No se pudo guardar por columnas incompatibles."}};
+}
+
+// ===== CONFIGURACIÓN PRO =====
+let configTabActual="horarios";
+
+function soloAdminConfig(){
+  if(!esAdmin()){
+    alert("Solo admin puede acceder a configuración.");
+    inicio();
+    return false;
+  }
+  return true;
+}
+
+async function vistaConfigPro(tab="horarios"){
+  vistaActual="config";
+  if(!soloAdminConfig())return;
+
+  configTabActual=tab;
+  await cargarUsuariosServidor();
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Configuración PRO</h2>
+      <p>Horarios, avisos, horas extra y calendario laboral.</p>
+
+      <div class="actions">
+        <button class="btn ${tab==="horarios"?"dark":"gray"}" onclick="vistaConfigPro('horarios')">Horarios</button>
+        <button class="btn ${tab==="avisos"?"dark":"gray"}" onclick="vistaConfigPro('avisos')">Avisos</button>
+        <button class="btn ${tab==="extras"?"dark":"gray"}" onclick="vistaConfigPro('extras')">Horas extra</button>
+        <button class="btn ${tab==="festivos"?"dark":"gray"}" onclick="vistaConfigPro('festivos')">Festivos</button>
+      </div>
+    </div>
+
+    <div id="zonaConfig"></div>
+  `;
+
+  if(tab==="horarios")await pintarConfigHorarios();
+  if(tab==="avisos")await pintarConfigAvisos();
+  if(tab==="extras")await pintarConfigExtras();
+  if(tab==="festivos")await pintarConfigFestivos();
+}
+
+async function cargarHorarioUsuario(uid){
+  const {data,error}=await sb.from("horarios_usuario").select("*").eq("user_id",String(uid));
+  if(error){console.error(error);return []}
+  return data||[];
+}
+
+function horarioPorDia(lista,dia){
+  return lista.find(x=>String(x.dia).toLowerCase()===dia.toLowerCase())||{
+    dia,trabaja:false,entrada:"",salida:"",inicio_comida:"",fin_comida:"",descanso_min:0
+  };
+}
+
+function horaInput(v){
+  if(!v)return "";
+  return String(v).slice(0,5);
+}
+
+async function pintarConfigHorarios(){
+  const usuarios=leerUsuarios();
+  const uid=document.getElementById("cfg_user")?.value || usuarios[0]?.id || user.id;
+  const horario=await cargarHorarioUsuario(uid);
+  const dias=["lunes","martes","miércoles","jueves","viernes","sábado","domingo"];
+
+  document.getElementById("zonaConfig").innerHTML=`
+    <div class="card">
+      <h2>Horario semanal</h2>
+      <label>Trabajador</label>
+      <select id="cfg_user" onchange="pintarConfigHorarios()">
+        ${usuarios.filter(u=>u.activo!==false).map(u=>`<option value="${u.id}" ${String(u.id)===String(uid)?"selected":""}>${u.nombre} · ${rolNombre(u.rol)}</option>`).join("")}
+      </select>
+
+      ${dias.map(d=>{
+        const h=horarioPorDia(horario,d);
+        return `
+          <div class="row">
+            <b>${d.charAt(0).toUpperCase()+d.slice(1)}</b>
+            <label>Trabaja</label>
+            <select id="h_trabaja_${d}">
+              <option value="true" ${h.trabaja?"selected":""}>Sí</option>
+              <option value="false" ${!h.trabaja?"selected":""}>No</option>
+            </select>
+
+            <label>Entrada</label>
+            <input id="h_entrada_${d}" type="time" value="${horaInput(h.entrada)}">
+
+            <label>Salida</label>
+            <input id="h_salida_${d}" type="time" value="${horaInput(h.salida)}">
+
+            <label>Inicio comida</label>
+            <input id="h_inicio_comida_${d}" type="time" value="${horaInput(h.inicio_comida)}">
+
+            <label>Fin comida</label>
+            <input id="h_fin_comida_${d}" type="time" value="${horaInput(h.fin_comida)}">
+
+            <label>Descanso minutos</label>
+            <input id="h_descanso_${d}" type="number" value="${h.descanso_min||0}">
+          </div>`;
+      }).join("")}
+
+      <button class="btn green full" onclick="guardarConfigHorarios('${uid}')">Guardar horario</button>
+    </div>`;
+}
+
+async function guardarConfigHorarios(uid){
+  if(!soloAdminConfig())return;
+  const dias=["lunes","martes","miércoles","jueves","viernes","sábado","domingo"];
+
+  for(const d of dias){
+    const payload={
+      user_id:String(uid),
+      dia:d,
+      trabaja:document.getElementById("h_trabaja_"+d).value==="true",
+      entrada:document.getElementById("h_entrada_"+d).value||null,
+      salida:document.getElementById("h_salida_"+d).value||null,
+      inicio_comida:document.getElementById("h_inicio_comida_"+d).value||null,
+      fin_comida:document.getElementById("h_fin_comida_"+d).value||null,
+      descanso_min:Number(document.getElementById("h_descanso_"+d).value||0)
+    };
+
+    const {data:existe}=await sb.from("horarios_usuario").select("id").eq("user_id",String(uid)).eq("dia",d).limit(1);
+
+    if(existe&&existe[0]){
+      const {error}=await sb.from("horarios_usuario").update(payload).eq("id",existe[0].id);
+      if(error){alert("Error guardando "+d+": "+error.message);return}
+    }else{
+      const {error}=await sb.from("horarios_usuario").insert([payload]);
+      if(error){alert("Error creando "+d+": "+error.message);return}
+    }
+  }
+
+  alert("Horario guardado.");
+  await pintarConfigHorarios();
+}
+
+async function pintarConfigAvisos(){
+  const usuarios=leerUsuarios();
+  const uid=document.getElementById("cfg_av_user")?.value || usuarios[0]?.id || user.id;
+
+  const {data}=await sb.from("avisos_fichaje").select("*").eq("user_id",String(uid)).limit(1);
+
+  const a=(data&&data[0])||{
+    activo:true,margen_entrada_min:10,antes_salida_min:10,max_comida_min:90,max_descanso_min:30,sonido:true
+  };
+
+  document.getElementById("zonaConfig").innerHTML=`
+    <div class="card">
+      <h2>Avisos de fichaje</h2>
+      <label>Trabajador</label>
+      <select id="cfg_av_user" onchange="pintarConfigAvisos()">
+        ${usuarios.filter(u=>u.activo!==false).map(u=>`<option value="${u.id}" ${String(u.id)===String(uid)?"selected":""}>${u.nombre} · ${rolNombre(u.rol)}</option>`).join("")}
+      </select>
+
+      <label>Activar avisos</label>
+      <select id="av_activo">
+        <option value="true" ${a.activo!==false?"selected":""}>Sí</option>
+        <option value="false" ${a.activo===false?"selected":""}>No</option>
+      </select>
+
+      <label>Margen entrada tarde (min)</label>
+      <input id="av_margen" type="number" value="${a.margen_entrada_min||10}">
+
+      <label>Aviso antes salida (min)</label>
+      <input id="av_salida" type="number" value="${a.antes_salida_min||10}">
+
+      <label>Máximo comida abierta (min)</label>
+      <input id="av_comida" type="number" value="${a.max_comida_min||90}">
+
+      <label>Máximo descanso abierto (min)</label>
+      <input id="av_descanso" type="number" value="${a.max_descanso_min||30}">
+
+      <label>Sonido interno</label>
+      <select id="av_sonido">
+        <option value="true" ${a.sonido!==false?"selected":""}>Sí</option>
+        <option value="false" ${a.sonido===false?"selected":""}>No</option>
+      </select>
+
+      <button class="btn green full" onclick="guardarConfigAvisos('${uid}')">Guardar avisos</button>
+    </div>`;
+}
+
+async function guardarConfigAvisos(uid){
+  const payload={
+    user_id:String(uid),
+    activo:document.getElementById("av_activo").value==="true",
+    margen_entrada_min:Number(document.getElementById("av_margen").value||10),
+    antes_salida_min:Number(document.getElementById("av_salida").value||10),
+    max_comida_min:Number(document.getElementById("av_comida").value||90),
+    max_descanso_min:Number(document.getElementById("av_descanso").value||30),
+    sonido:document.getElementById("av_sonido").value==="true",
+    actualizado_en:new Date().toISOString()
+  };
+
+  const {data}=await sb.from("avisos_fichaje").select("id").eq("user_id",String(uid)).limit(1);
+
+  if(data&&data[0]){
+    const {error}=await sb.from("avisos_fichaje").update(payload).eq("id",data[0].id);
+    if(error){alert("Error guardando avisos: "+error.message);return}
+  }else{
+    const {error}=await sb.from("avisos_fichaje").insert([payload]);
+    if(error){alert("Error creando avisos: "+error.message);return}
+  }
+
+  alert("Avisos guardados.");
+  await pintarConfigAvisos();
+}
+
+async function pintarConfigExtras(){
+  const {data}=await sb.from("tipos_horas_extra").select("*").order("nombre",{ascending:true});
+  const tipos=data||[];
+
+  document.getElementById("zonaConfig").innerHTML=`
+    <div class="card">
+      <h2>Tipos de horas extra</h2>
+
+      <label>Nombre</label>
+      <input id="extra_nombre" placeholder="Normal, nocturna, festiva...">
+
+      <label>Precio por hora (€)</label>
+      <input id="extra_precio" type="number" step="0.01" value="0">
+
+      <label>Hora inicio</label>
+      <input id="extra_inicio" type="time">
+
+      <label>Hora fin</label>
+      <input id="extra_fin" type="time">
+
+      <label>Días aplicables</label>
+      <input id="extra_dias" placeholder="lunes,martes,sábado,domingo o todos">
+
+      <button class="btn green full" onclick="crearTipoHoraExtra()">Crear tipo</button>
+    </div>
+
+    <div class="card">
+      <h2>Tipos actuales</h2>
+      ${tipos.length?tipos.map(t=>`
+        <div class="row">
+          <b>${t.nombre||"-"}</b><br>
+          Precio: ${t.precio_hora??t.precio??0} €/h<br>
+          ${t.hora_inicio||""} ${t.hora_fin?`→ ${t.hora_fin}`:""}<br>
+          <span class="small">${t.dias_aplicables||t.dias||"Sin días definidos"}</span><br>
+          <button class="btn red" onclick="eliminarTipoHoraExtra('${t.id}')">Eliminar</button>
+        </div>
+      `).join(""):"<p>No hay tipos creados.</p>"}
+    </div>`;
+}
+
+async function crearTipoHoraExtra(){
+  const payload={
+    nombre:document.getElementById("extra_nombre").value.trim(),
+    precio_hora:Number(document.getElementById("extra_precio").value||0),
+    hora_inicio:document.getElementById("extra_inicio").value||null,
+    hora_fin:document.getElementById("extra_fin").value||null,
+    dias_aplicables:document.getElementById("extra_dias").value.trim()||"todos",
+    activo:true
+  };
+
+  if(!payload.nombre){alert("Escribe el nombre.");return}
+
+  const {error}=await sb.from("tipos_horas_extra").insert([payload]);
+
+  if(error){alert("Error creando tipo: "+error.message);return}
+
+  await pintarConfigExtras();
+}
+
+async function eliminarTipoHoraExtra(id){
+  if(!confirm("¿Eliminar tipo de hora extra?"))return;
+  const {error}=await sb.from("tipos_horas_extra").delete().eq("id",id);
+  if(error){alert("Error eliminando: "+error.message);return}
+  await pintarConfigExtras();
+}
+
+async function pintarConfigFestivos(){
+  const {data,error}=await sb.from("calendario_festivos").select("*").order("fecha",{ascending:true});
+  const festivos=data||[];
+
+  document.getElementById("zonaConfig").innerHTML=`
+    <div class="card">
+      <h2>Asistente calendario laboral</h2>
+      <p>Rellena estos datos. Después me copias la petición y yo te preparo el bloque de festivos para importarlo de golpe.</p>
+
+      <label>Año</label>
+      <input id="cal_anio" type="number" value="${new Date().getFullYear()}">
+
+      <label>País</label>
+      <input id="cal_pais" value="España">
+
+      <label>Comunidad autónoma</label>
+      <input id="cal_comunidad" placeholder="Madrid, Castilla-La Mancha, Andalucía...">
+
+      <label>Provincia</label>
+      <input id="cal_provincia" placeholder="Madrid, Toledo, Guadalajara...">
+
+      <label>Población</label>
+      <input id="cal_poblacion" placeholder="Ciempozuelos, Madrid, Toledo...">
+
+      <label>Convenio</label>
+      <input id="cal_convenio" placeholder="Metal, construcción, empresa, general...">
+
+      <button class="btn blue full" onclick="prepararPeticionCalendario()">Preparar petición</button>
+
+      <label>Texto preparado</label>
+      <textarea id="cal_peticion" readonly placeholder="Pulsa Preparar petición..."></textarea>
+    </div>
+
+    <div class="card">
+      <h2>Importar festivos</h2>
+      <p>Pega aquí el bloque preparado. Una línea por festivo:</p>
+      <p class="small">dd/mm/aaaa | Nombre | Tipo | Convenio | Comunidad | Población</p>
+
+      <textarea id="festivos_importar" placeholder="01/01/2026 | Año Nuevo | nacional | general | España | general"></textarea>
+
+      <button class="btn green full" onclick="importarFestivosTexto()">Importar calendario</button>
+    </div>
+
+    <div class="card">
+      <h2>Añadir festivo manual</h2>
+
+      <label>Fecha</label>
+      <input id="festivo_fecha" placeholder="dd/mm/aaaa">
+
+      <label>Nombre</label>
+      <input id="festivo_nombre" placeholder="Fiesta nacional, autonómica, local...">
+
+      <label>Convenio</label>
+      <input id="festivo_convenio" placeholder="Metal, construcción, empresa, general...">
+
+      <label>Comunidad autónoma</label>
+      <input id="festivo_comunidad" placeholder="Madrid, Castilla-La Mancha...">
+
+      <label>Población</label>
+      <input id="festivo_poblacion" placeholder="Ciempozuelos, Madrid, Toledo...">
+
+      <label>Tipo</label>
+      <select id="festivo_tipo">
+        <option value="nacional">Nacional</option>
+        <option value="autonomico">Autonómico</option>
+        <option value="local">Local</option>
+        <option value="convenio">Convenio</option>
+        <option value="empresa">Empresa</option>
+      </select>
+
+      <button class="btn green full" onclick="crearFestivo()">Crear festivo manual</button>
+    </div>
+
+    <div class="card">
+      <h2>Festivos actuales</h2>
+      ${festivos.length?festivos.map(f=>`
+        <div class="row">
+          <b>${fechaES(f.fecha)}</b><br>
+          ${f.nombre||"-"}<br>
+          <span class="small">
+            Tipo: ${f.tipo||"-"}<br>
+            Convenio: ${f.convenio||"General"}<br>
+            Comunidad: ${f.comunidad||f.region||"General"}<br>
+            Población: ${f.poblacion||"General"}
+          </span><br>
+          <button class="btn red" onclick="eliminarFestivo('${f.id}')">Eliminar</button>
+        </div>
+      `).join(""):"<p>No hay festivos creados.</p>"}
+    </div>`;
+}
+
+function prepararPeticionCalendario(){
+  const anio=document.getElementById("cal_anio").value.trim();
+  const pais=document.getElementById("cal_pais").value.trim()||"España";
+  const comunidad=document.getElementById("cal_comunidad").value.trim();
+  const provincia=document.getElementById("cal_provincia").value.trim();
+  const poblacion=document.getElementById("cal_poblacion").value.trim();
+  const convenio=document.getElementById("cal_convenio").value.trim();
+
+  const texto=
+`Prepárame los festivos laborales para importar en Zentryx con este formato por línea:
+dd/mm/aaaa | Nombre | Tipo | Convenio | Comunidad | Población
+
+Datos:
+Año: ${anio}
+País: ${pais}
+Comunidad autónoma: ${comunidad||"general"}
+Provincia: ${provincia||"general"}
+Población: ${poblacion||"general"}
+Convenio: ${convenio||"general"}
+
+Incluye festivos nacionales, autonómicos, locales y de convenio si son públicos y verificables.`;
+
+  document.getElementById("cal_peticion").value=texto;
+}
+
+function parseLineaFestivo(linea){
+  const partes=linea.split("|").map(x=>x.trim());
+  if(partes.length<2)return null;
+  const fecha=fechaDisplayAInput(partes[0]);
+  if(!fecha)return null;
+
+  return {
+    fecha:fecha,
+    nombre:partes[1]||"Festivo",
+    tipo:partes[2]||"general",
+    convenio:partes[3]||null,
+    comunidad:partes[4]||null,
+    region:partes[4]||null,
+    poblacion:partes[5]||null
+  };
+}
+
+async function importarFestivosTexto(){
+  const txt=document.getElementById("festivos_importar").value.trim();
+  if(!txt){
+    alert("Pega primero el calendario.");
+    return;
+  }
+
+  const registros=txt.split("\n").map(x=>parseLineaFestivo(x)).filter(Boolean);
+
+  if(!registros.length){
+    alert("No se han detectado líneas válidas.");
+    return;
+  }
+
+  if(!confirm("Se van a importar "+registros.length+" festivos. ¿Continuar?"))return;
+
+  let creados=0;
+
+  for(const r of registros){
+    const {error}=await insertarAdaptativo("calendario_festivos",r);
+    if(!error)creados++;
+  }
+
+  alert("Importados "+creados+" festivos.");
+  await pintarConfigFestivos();
+}
+
+async function crearFestivo(){
+  const payload={
+    fecha:inputFechaTexto("festivo_fecha"),
+    nombre:document.getElementById("festivo_nombre").value.trim(),
+    convenio:document.getElementById("festivo_convenio").value.trim()||null,
+    comunidad:document.getElementById("festivo_comunidad").value.trim()||null,
+    region:document.getElementById("festivo_comunidad").value.trim()||null,
+    poblacion:document.getElementById("festivo_poblacion").value.trim()||null,
+    tipo:document.getElementById("festivo_tipo").value
+  };
+
+  if(!payload.fecha){
+    alert("Escribe la fecha en formato dd/mm/aaaa.");
+    return;
+  }
+
+  const {error}=await insertarAdaptativo("calendario_festivos",payload);
+  if(error){
+    alert("Error creando festivo: "+error.message);
+    return;
+  }
+
+  await pintarConfigFestivos();
+}
+
+async function eliminarFestivo(id){
+  if(!confirm("¿Eliminar festivo?"))return;
+  const {error}=await sb.from("calendario_festivos").delete().eq("id",id);
+  if(error){alert("Error eliminando: "+error.message);return}
+  await pintarConfigFestivos();
+}
+
+
+// ===== SOLICITUDES PRO =====
+function kSolicitudes(){return "zentryx_solicitudes_pro"}
+
+function leerSolicitudes(){
+  return JSON.parse(localStorage.getItem(kSolicitudes())||"[]");
+}
+
+function guardarSolicitudes(lista){
+  localStorage.setItem(kSolicitudes(),JSON.stringify(lista));
+}
+
+function tipoSolicitudNombre(t){
+  const m={
+    vacaciones:"Vacaciones",
+    asuntos_horas:"Asuntos propios por horas",
+    medico:"Médico",
+    permiso:"Permiso",
+    baja:"Baja",
+    formacion:"Formación",
+    ausencia:"Ausencia"
+  };
+  return m[t]||t;
+}
+
+function estadoSolicitudHTML(e){
+  if(e==="aprobada")return '<span class="badge green">Aprobada</span>';
+  if(e==="rechazada")return '<span class="badge red">Rechazada</span>';
+  return '<span class="badge orange">Pendiente</span>';
+}
+
+function solicitudesDeUsuario(uid){
+  const lista=leerSolicitudes();
+  if(esAdmin())return lista;
+  return lista.filter(s=>String(s.user_id)===String(uid));
+}
+
+function vistaSolicitudesPro(){
+  vistaActual='solicitudes';
+  const lista=solicitudesDeUsuario(user.id).sort((a,b)=>b.creada.localeCompare(a.creada));
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Solicitudes</h2>
+      <p>Vacaciones, asuntos propios por horas, médico, permisos, bajas y formación.</p>
+      <button class="btn green full" onclick="vistaNuevaSolicitudPro()">Nueva solicitud</button>
+    </div>
+
+    <div class="card">
+      <h2>${esAdmin()?"Todas las solicitudes":"Mis solicitudes"}</h2>
+      ${lista.length?lista.map(s=>solicitudHTML(s)).join(""):"<p>No hay solicitudes todavía.</p>"}
+    </div>`;
+}
+
+function solicitudHTML(s){
+  const u=usuarioPorId(s.user_id)||{nombre:s.user_id};
+  return `
+    <div class="row">
+      <b>${tipoSolicitudNombre(s.tipo)}</b><br>
+      ${esAdmin()?`<span class="muted">${u.nombre}</span><br>`:""}
+      ${fechaES(s.fecha_inicio)||"-"} ${s.fecha_fin?`→ ${fechaES(s.fecha_fin)}`:""}<br>
+      ${s.horas?`Horas solicitadas: ${s.horas} h<br>`:""}
+      ${s.motivo?`<span class="muted">${s.motivo}</span><br>`:""}
+      ${estadoSolicitudHTML(s.estado)}<br>
+      ${esAdmin()&&s.estado==="pendiente"?`
+        <button class="btn green" onclick="resolverSolicitudPro('${s.id}','aprobada')">Aprobar</button>
+        <button class="btn red" onclick="resolverSolicitudPro('${s.id}','rechazada')">Rechazar</button>
+      `:""}
+      ${s.estado==="pendiente"&&String(s.user_id)===String(user.id)?`
+        <button class="btn red" onclick="cancelarSolicitudPro('${s.id}')">Cancelar</button>
+      `:""}
+    </div>`;
+}
+
+function vistaNuevaSolicitudPro(){
+  vistaActual='solicitudes';
+  const usuarios=leerUsuarios();
+
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="vistaSolicitudesPro()">← Solicitudes</button>
+      <h2>Nueva solicitud</h2>
+
+      ${esAdmin()?`
+      <label>Trabajador</label>
+      <select id="sol_user">
+        ${usuarios.filter(u=>u.activo!==false).map(u=>`<option value="${u.id}">${u.nombre} · ${rolNombre(u.rol)}</option>`).join("")}
+      </select>`:""}
+
+      <label>Tipo</label>
+      <select id="sol_tipo" onchange="actualizarCamposSolicitud()">
+        <option value="vacaciones">Vacaciones</option>
+        <option value="asuntos_horas">Asuntos propios por horas</option>
+        <option value="medico">Médico</option>
+        <option value="permiso">Permiso</option>
+        <option value="baja">Baja</option>
+        <option value="formacion">Formación</option>
+        <option value="ausencia">Ausencia</option>
+      </select>
+
+      <label>Fecha inicio</label>
+      <input id="sol_inicio" placeholder="dd/mm/aaaa">
+
+      <label>Fecha fin</label>
+      <input id="sol_fin" placeholder="dd/mm/aaaa">
+
+      <div id="bloqueHorasSolicitud">
+        <label>Horas</label>
+        <input id="sol_horas" type="number" step="0.25" value="0">
+      </div>
+
+      <label>Motivo / comentario</label>
+      <textarea id="sol_motivo" placeholder="Explica brevemente la solicitud..."></textarea>
+
+      <button class="btn green full" onclick="guardarSolicitudPro()">Enviar solicitud</button>
+    </div>`;
+
+  actualizarCamposSolicitud();
+}
+
+function actualizarCamposSolicitud(){
+  const tipo=document.getElementById("sol_tipo")?.value;
+  const bloque=document.getElementById("bloqueHorasSolicitud");
+  if(!bloque)return;
+  bloque.style.display=(tipo==="asuntos_horas"||tipo==="medico"||tipo==="permiso")?"block":"none";
+}
+
+function diasEntreFechas(inicio,fin){
+  if(!inicio)return 0;
+  const a=new Date(inicio+"T00:00:00");
+  const b=new Date((fin||inicio)+"T00:00:00");
+  const d=Math.round((b-a)/(1000*60*60*24))+1;
+  return d<1?1:d;
+}
+
+function guardarSolicitudPro(){
+  const tipo=document.getElementById("sol_tipo").value;
+  const uid=esAdmin()?document.getElementById("sol_user").value:user.id;
+  const inicio=inputFechaTexto("sol_inicio");
+  const fin=inputFechaTexto("sol_fin");
+  const horas=Number(document.getElementById("sol_horas")?.value||0);
+  const motivo=document.getElementById("sol_motivo").value.trim();
+
+  if(!inicio){
+    alert("La fecha de inicio es obligatoria.");
+    return;
+  }
+
+  if((tipo==="asuntos_horas"||tipo==="medico"||tipo==="permiso") && horas<=0){
+    alert("Indica las horas solicitadas.");
+    return;
+  }
+
+  const lista=leerSolicitudes();
+  lista.unshift({
+    id:"s_"+Date.now(),
+    user_id:String(uid),
+    tipo,
+    fecha_inicio:inicio,
+    fecha_fin:fin||inicio,
+    horas:(tipo==="asuntos_horas"||tipo==="medico"||tipo==="permiso")?horas:0,
+    dias:diasEntreFechas(inicio,fin||inicio),
+    motivo,
+    estado:esAdmin()?"aprobada":"pendiente",
+    creada:new Date().toISOString(),
+    resuelta:"",
+    resuelta_por:"",
+    comentario_resolucion:""
+  });
+  guardarSolicitudes(lista);
+  alert(esAdmin()?"Solicitud creada como aprobada.":"Solicitud enviada.");
+  vistaSolicitudesPro();
+}
+
+function cancelarSolicitudPro(id){
+  if(!confirm("¿Cancelar solicitud?"))return;
+  guardarSolicitudes(leerSolicitudes().filter(s=>s.id!==id));
+  vistaSolicitudesPro();
+}
+
+async function resolverSolicitudPro(id,estado){
+  if(!pedirClaveAdmin()){
+    alert("Contraseña incorrecta.");
+    return;
+  }
+
+  const lista=leerSolicitudes();
+  const s=lista.find(x=>x.id===id);
+  if(!s)return;
+
+  const comentario=prompt("Comentario de resolución:")||"";
+  s.estado=estado;
+  s.resuelta=new Date().toISOString();
+  s.resuelta_por=user.id;
+  s.comentario_resolucion=comentario;
+
+  if(estado==="aprobada"){
+    await aplicarDescuentoSolicitud(s);
+  }
+
+  guardarSolicitudes(lista);
+  vistaSolicitudesPro();
+}
+
+async function aplicarDescuentoSolicitud(s){
+  await cargarUsuariosServidor();
+  const u=usuarioPorId(s.user_id);
+  if(!u)return;
+
+  const update={};
+
+  if(s.tipo==="vacaciones"){
+    update.vacaciones_usadas=Number(u.vacaciones_usadas||0)+Number(s.dias||0);
+  }
+
+  if(s.tipo==="asuntos_horas"){
+    // Pendiente de columna en Supabase: asuntos_usados o asuntos_horas_usadas.
+  }
+
+  if(Object.keys(update).length){
+    await sb.from("users").update(update).eq("id",s.user_id);
+    await cargarUsuariosServidor();
+  }
+}
+
+let intervaloSync=null;
+
+async function iniciarAppConUsuario(){
+  await cargarUsuarioActual();
+
+  if(!user){
+    mostrarLogin();
+    return;
+  }
+
+  await cargarUsuariosServidor();
+  await cargarFichajesServidor();
+  await cargarNotasServidor();
+  await inicio();
+
+  if(intervaloSync)clearInterval(intervaloSync);
+
+  intervaloSync=setInterval(async()=>{
+    if(!user)return;
+    await cargarFichajesServidor();
+    await cargarNotasServidor();
+    if(vistaActual==="inicio")await inicio();
+  },15000);
+}
+
+async function iniciarApp(){
+  const sesion=JSON.parse(localStorage.getItem("usuario")||"null");
+
+  if(!sesion || !sesion.id){
+    mostrarLogin();
+    return;
+  }
+
+  user=sesion;
+  await iniciarAppConUsuario();
+}
+
+iniciarApp().catch(err=>{
+  console.error(err);
+  const app=document.getElementById("app");
+  if(app){
+    app.innerHTML=`
+      <div class="card">
+        <h2>Error de carga</h2>
+        <p class="error">${err.message||err}</p>
+        <button class="btn gray full" onclick="location.reload()">Recargar</button>
+        <button class="btn red full" onclick="cerrarSesion()">Salir</button>
+      </div>`;
+  }
 });
-
-document.getElementById("app").innerHTML=`
-<div class="card">
-<h2>Informe</h2>
-Total horas aproximadas: ${total/60}h
-<button onclick="inicio()">Volver</button>
-</div>`;
-}
-
-// ---------- LOGOUT ----------
-function logout(){
-localStorage.removeItem("usuario");
-location.reload();
-}
-
 </script>
 </body>
 </html>
