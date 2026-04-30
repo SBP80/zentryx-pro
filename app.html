@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2543</title>
+<title>Zentryx V2544</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2543</h1>
+      <h1>Zentryx V2544</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2543";
+const VERSION="2544";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1331,9 +1331,11 @@ function usuarioRowProHTML(u){
 
       <div class="user-row-actions">
         <button class="btn green" onclick="abrirTelefono('${u.telefono||""}')">Llamar</button>
+        <button class="btn blue" onclick="abrirSMS('${u.telefono||""}')">SMS</button>
         <button class="btn green" onclick="abrirWhatsApp('${u.telefono||""}')">WhatsApp</button>
+        <button class="btn blue" onclick="abrirEmail('${u.email||""}')">Email</button>
         <button class="btn gray" onclick="abrirMapaDireccionCodificada('${encodeURIComponent(u.direccion||"")}')">Mapa</button>
-        <button class="btn blue" onclick="vistaFichaUsuarioPro('${u.id}')">Ficha</button>
+        <button class="btn dark" onclick="vistaFichaUsuarioPro('${u.id}')">Ficha</button>
       </div>
     </div>`;
 }
