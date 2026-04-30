@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2552</title>
+<title>Zentryx V2553</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2552</h1>
+      <h1>Zentryx V2553</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2552";
+const VERSION="2553";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1168,6 +1168,11 @@ async function inicio(){
         <p>Resumen mensual y fichajes.</p>
         <button class="btn blue" onclick="vistaInformes()">Abrir</button>
       </div>
+      <div class="module">
+        <h3>Ayuda</h3>
+        <p>Manual de uso y explicación de funciones.</p>
+        <button class="btn green" onclick="vistaAyuda()">Abrir</button>
+      </div>
     </div>
 
     <div class="card">
@@ -1803,6 +1808,216 @@ function copiarInformeMensual(){
   ].join("\\n");
 
   navigator.clipboard.writeText(texto).then(()=>alert("Informe copiado.")).catch(()=>alert(texto));
+}
+
+
+
+function textoManualZentryx(){
+  return `MANUAL DE USO ZENTRYX V2553
+
+1. INICIO
+La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
+
+Estados:
+- Fuera: no hay entrada abierta.
+- Trabajando: hay una entrada activa.
+- Pausa: hay una pausa abierta.
+- Comida: hay una comida abierta.
+
+2. FICHAJES
+Sirve para registrar entrada, salida, pausa y comida.
+
+Botones:
+- Fichar entrada: inicia la jornada.
+- Fichar salida: termina la jornada.
+- Inicio pausa / Fin pausa: registra descanso.
+- Inicio comida / Fin comida: registra comida.
+- Borrar fichajes de hoy: borra registros del día.
+- Generar fichajes de prueba: crea datos para probar informes.
+- Borrar fichajes de prueba: limpia pruebas.
+
+3. MOVIMIENTOS DE HOY
+Muestra acciones del día. Si hay ubicación, se puede abrir en mapa.
+
+4. USUARIOS
+El administrador gestiona usuarios, fotos, contacto, roles y estado.
+Desde la lista se puede llamar, enviar SMS, WhatsApp, email o abrir mapa.
+
+5. FOTOS
+Las fotos se guardan en Supabase Storage, bucket usuarios.
+La app reduce la imagen para mejorar carga en móvil.
+
+6. CONFIGURACIÓN
+Incluye horarios, avisos, horas extra y festivos.
+
+7. HORARIOS
+Define la jornada de cada trabajador.
+
+8. AVISOS
+Controla pausas, comidas o situaciones raras.
+
+9. HORAS EXTRA
+Define tipos y precios:
+- Normal
+- Festiva
+- Nocturna
+- Fin de semana
+- Urgencia
+
+Campos:
+- Nombre: tipo de hora.
+- Precio: importe por hora.
+- Hora inicio / fin: tramo horario.
+- Días aplicables: todos, sábado, domingo, etc.
+
+10. FESTIVOS
+Permite importar o añadir festivos nacionales, autonómicos, locales y de convenio.
+Formato visual recomendado: dd/mm/aaaa.
+
+11. INFORMES
+Muestra resumen mensual por trabajador:
+- Trabajo total
+- Jornada normal
+- Horas extra
+- Festivos trabajados
+- Pausas
+- Comida
+- Importes
+
+12. IMPORTES
+Los precios salen de Configuración → Horas extra.
+
+Normal:
+Horas normales multiplicadas por precio Normal.
+
+Extra normal:
+Horas por encima de la jornada base.
+
+Festiva:
+Horas en día festivo.
+
+Fin de semana:
+Horas en sábado o domingo.
+
+Nocturna:
+Horas entre 22:00 y 06:00.
+
+Total extras:
+Suma de extras en euros.
+
+Total final:
+Normal + extras.
+
+13. DATOS DE PRUEBA
+Sirven para comprobar cálculos.
+Antes de informes reales, borra los fichajes de prueba.
+
+14. ERRORES FRECUENTES
+No aparecen importes:
+- revisa que el mes tenga fichajes.
+- revisa tipos de horas extra con precio.
+
+Importe raro:
+- revisa el precio de Normal.
+
+No se guarda un tipo:
+- revisar tabla tipos_horas_extra en Supabase.
+- esta versión usa columna precio.
+
+Foto no carga:
+- revisar bucket usuarios.
+- revisar campo foto_url.
+
+15. ORDEN RECOMENDADO
+1. Crear usuarios.
+2. Revisar horarios.
+3. Crear tipos de horas extra.
+4. Importar festivos.
+5. Fichar.
+6. Generar informe mensual.
+
+16. PRÓXIMAS MEJORAS
+- precio base por usuario.
+- cierre mensual.
+- validación de horas extra.
+- marcar horas pagadas.
+- exportar PDF.
+`;
+}
+
+function vistaAyuda(){
+  vistaActual='ayuda';
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Ayuda / Manual</h2>
+      <p>Guía rápida para entender y usar Zentryx.</p>
+      <button class="btn blue full" onclick="copiarManualZentryx()">Copiar manual</button>
+    </div>
+
+    <div class="card">
+      <h2>Inicio</h2>
+      <p>Panel principal con usuario activo, estado, festivo del día y accesos.</p>
+      <p><b>Fuera:</b> no hay entrada abierta.</p>
+      <p><b>Trabajando:</b> jornada abierta.</p>
+      <p><b>Pausa / Comida:</b> tramo abierto.</p>
+    </div>
+
+    <div class="card">
+      <h2>Fichajes</h2>
+      <p>Registra entrada, salida, pausa y comida.</p>
+      <p>Estos datos alimentan informes, horas extra e importes.</p>
+    </div>
+
+    <div class="card">
+      <h2>Usuarios</h2>
+      <p>Permite gestionar trabajadores, fotos, teléfonos, email, dirección, roles y estado.</p>
+      <p>Desde la lista se puede llamar, enviar SMS, WhatsApp, email o abrir mapa.</p>
+    </div>
+
+    <div class="card">
+      <h2>Configuración</h2>
+      <p>Zona para horarios, avisos, horas extra y festivos.</p>
+    </div>
+
+    <div class="card">
+      <h2>Horas extra</h2>
+      <p>Define tipos y precios por hora.</p>
+      <p>El informe usa estos precios para calcular dinero.</p>
+      <p>Usa Editar para cambiar precios sin borrar el tipo.</p>
+    </div>
+
+    <div class="card">
+      <h2>Festivos</h2>
+      <p>Permite importar o añadir festivos nacionales, autonómicos, locales y de convenio.</p>
+    </div>
+
+    <div class="card">
+      <h2>Informes</h2>
+      <p><b>Trabajo total:</b> tiempo trabajado real.</p>
+      <p><b>Jornada normal:</b> horas normales.</p>
+      <p><b>Horas extra:</b> horas fuera de jornada, festivos, fines de semana o nocturnas.</p>
+      <p><b>Total final:</b> normal + extras en euros.</p>
+    </div>
+
+    <div class="card">
+      <h2>Errores frecuentes</h2>
+      <p><b>No aparecen importes:</b> revisa mes, fichajes y precios.</p>
+      <p><b>Importe raro:</b> revisa el precio de Normal.</p>
+      <p><b>No guarda:</b> puede faltar una columna en Supabase.</p>
+    </div>
+
+    <div class="card">
+      <h2>Manual completo</h2>
+      <textarea readonly style="width:100%;min-height:420px;font-size:16px;">${textoManualZentryx()}</textarea>
+      <button class="btn blue full" onclick="copiarManualZentryx()">Copiar manual</button>
+    </div>
+  `;
+}
+
+function copiarManualZentryx(){
+  const texto=textoManualZentryx();
+  navigator.clipboard.writeText(texto).then(()=>alert("Manual copiado.")).catch(()=>alert(texto));
 }
 
 
