@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2549</title>
+<title>Zentryx V2550</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2549</h1>
+      <h1>Zentryx V2550</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2549";
+const VERSION="2550";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1365,35 +1365,44 @@ async function borrarFichajesPrueba(){
 }
 
 
-function kPreciosHorasExtra(){
-  return "zentryx_precios_horas_extra";
-}
 
-function preciosHorasExtraDefecto(){
-  return {
-    normal:18,
-    festivo:28,
-    nocturna:24
-  };
-}
+async function leerTiposHorasExtraServidor(){
+  const {data,error}=await sb
+    .from("tipos_horas_extra")
+    .select("*")
+    .order("nombre",{ascending:true});
 
-function leerPreciosHorasExtra(){
-  try{
-    return {...preciosHorasExtraDefecto(),...JSON.parse(localStorage.getItem(kPreciosHorasExtra())||"{}")};
-  }catch(e){
-    return preciosHorasExtraDefecto();
+  if(error){
+    console.warn("No se pudieron leer tipos_horas_extra",error);
+    return [];
   }
+
+  return data||[];
 }
 
-function guardarPreciosHorasExtra(){
-  const precios={
-    normal:Number(document.getElementById("precio_extra_normal")?.value||0),
-    festivo:Number(document.getElementById("precio_extra_festivo")?.value||0),
-    nocturna:Number(document.getElementById("precio_extra_nocturna")?.value||0)
-  };
+function precioTipo(t){
+  return Number(t?.precio_hora ?? t?.precio ?? 0);
+}
 
-  localStorage.setItem(kPreciosHorasExtra(),JSON.stringify(precios));
-  alert("Precios guardados.");
+function buscarTipoExtra(tipos,nombres,precioDefecto){
+  const limpio=nombres.map(x=>x.toLowerCase());
+
+  const encontrado=(tipos||[]).find(t=>{
+    const n=String(t.nombre||"").toLowerCase();
+    return limpio.some(x=>n.includes(x));
+  });
+
+  if(encontrado){
+    return {
+      nombre:encontrado.nombre||nombres[0],
+      precio:precioTipo(encontrado)
+    };
+  }
+
+  return {
+    nombre:nombres[0],
+    precio:precioDefecto
+  };
 }
 
 function dinero(minutos,precioHora){
@@ -1402,8 +1411,7 @@ function dinero(minutos,precioHora){
 }
 
 function detectarMinutosNocturnos(movimientos){
-  // Versión base: nocturno 22:00 a 06:00.
-  // Se deja preparado para afinar con convenio.
+  // Nocturno base 22:00 a 06:00. Luego lo afinamos por convenio.
   let total=0;
   let entrada=null;
 
@@ -1469,17 +1477,7 @@ async function vistaInformes(){
       <label>Año</label>
       <input id="inf_anio" type="number" value="${anioActual}">
 
-      ${esAdmin()?`
-      <div class="card" style="margin-left:0;margin-right:0;">
-        <h3>Precios horas extra</h3>
-        <label>Extra normal €/h</label>
-        <input id="precio_extra_normal" type="number" step="0.01" value="${leerPreciosHorasExtra().normal}">
-        <label>Extra festivo €/h</label>
-        <input id="precio_extra_festivo" type="number" step="0.01" value="${leerPreciosHorasExtra().festivo}">
-        <label>Extra nocturna €/h</label>
-        <input id="precio_extra_nocturna" type="number" step="0.01" value="${leerPreciosHorasExtra().nocturna}">
-        <button class="btn gray full" onclick="guardarPreciosHorasExtra()">Guardar precios</button>
-      </div>`:""}
+      <p class="small">Los precios se leen desde Configuración → Horas extra.</p>
 
       <button class="btn blue full" onclick="generarInformeMensual()">Generar informe</button>
     </div>
@@ -1648,7 +1646,17 @@ async function generarInformeMensual(){
   const porFecha=agruparPorFecha(fichajes);
   const dias=Object.keys(porFecha).sort();
 
-  const precios=leerPreciosHorasExtra();
+  const tiposExtra=await leerTiposHorasExtraServidor();
+
+  const tipoNormal=buscarTipoExtra(tiposExtra,["normal"],12);
+  const tipoFestivo=buscarTipoExtra(tiposExtra,["festiva","festivo"],20);
+  const tipoNocturna=buscarTipoExtra(tiposExtra,["nocturna","nocturno"],15);
+
+  const precios={
+    normal:tipoNormal.precio,
+    festivo:tipoFestivo.precio,
+    nocturna:tipoNocturna.precio
+  };
 
   let totalTrabajo=0,totalNormal=0,totalExtra=0,totalExtraNormal=0,totalExtraFestivo=0,totalExtraNocturna=0;
   let totalPausa=0,totalComida=0,festivosTrabajados=0;
@@ -1720,9 +1728,9 @@ async function generarInformeMensual(){
       <span class="badge">Trabajo total: ${textoMin(totalTrabajo)}</span>
       <span class="badge green">Jornada normal: ${textoMin(totalNormal)}</span>
       <span class="badge orange">Horas extra total: ${textoMin(totalExtra)}</span>
-      <span class="badge orange">Extra normal: ${textoMin(totalExtraNormal)} · ${dinero(totalExtraNormal,precios.normal)}</span>
-      <span class="badge red">Extra festivo: ${textoMin(totalExtraFestivo)} · ${dinero(totalExtraFestivo,precios.festivo)}</span>
-      <span class="badge orange">Extra nocturna: ${textoMin(totalExtraNocturna)} · ${dinero(totalExtraNocturna,precios.nocturna)}</span>
+      <span class="badge orange">${tipoNormal.nombre}: ${textoMin(totalExtraNormal)} · ${dinero(totalExtraNormal,precios.normal)}</span>
+      <span class="badge red">${tipoFestivo.nombre}: ${textoMin(totalExtraFestivo)} · ${dinero(totalExtraFestivo,precios.festivo)}</span>
+      <span class="badge orange">${tipoNocturna.nombre}: ${textoMin(totalExtraNocturna)} · ${dinero(totalExtraNocturna,precios.nocturna)}</span>
       <span class="badge red">Festivos trabajados: ${festivosTrabajados}</span>
       <span class="badge green">Total extras: ${totalEurosExtra.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</span>
       <span class="badge">Pausas: ${textoMin(totalPausa)}</span>
@@ -1759,6 +1767,9 @@ async function generarInformeMensual(){
     totalPausa,totalComida,festivosTrabajados,
     totalEurosExtraNormal,totalEurosExtraFestivo,totalEurosExtraNocturna,totalEurosExtra,
     precios,
+    tipoNormal,
+    tipoFestivo,
+    tipoNocturna,
     filas
   };
 }
@@ -1777,9 +1788,9 @@ function copiarInformeMensual(){
     "Trabajo total: "+textoMin(inf.totalTrabajo),
     "Jornada normal: "+textoMin(inf.totalNormal),
     "Horas extra total: "+textoMin(inf.totalExtra),
-    "Extra normal: "+textoMin(inf.totalExtraNormal)+" · "+dinero(inf.totalExtraNormal,inf.precios.normal),
-    "Extra festivo: "+textoMin(inf.totalExtraFestivo)+" · "+dinero(inf.totalExtraFestivo,inf.precios.festivo),
-    "Extra nocturna: "+textoMin(inf.totalExtraNocturna)+" · "+dinero(inf.totalExtraNocturna,inf.precios.nocturna),
+    "Extra "+inf.tipoNormal.nombre+": "+textoMin(inf.totalExtraNormal)+" · "+dinero(inf.totalExtraNormal,inf.precios.normal),
+    "Extra "+inf.tipoFestivo.nombre+": "+textoMin(inf.totalExtraFestivo)+" · "+dinero(inf.totalExtraFestivo,inf.precios.festivo),
+    "Extra "+inf.tipoNocturna.nombre+": "+textoMin(inf.totalExtraNocturna)+" · "+dinero(inf.totalExtraNocturna,inf.precios.nocturna),
     "Total extras: "+inf.totalEurosExtra.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €",
     "Festivos trabajados: "+inf.festivosTrabajados,
     "Pausas: "+textoMin(inf.totalPausa),
