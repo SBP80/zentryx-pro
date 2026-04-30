@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2547</title>
+<title>Zentryx V2548</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2547</h1>
+      <h1>Zentryx V2548</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2547";
+const VERSION="2548";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1213,7 +1213,7 @@ async function generarFichajesPrueba(){
     return;
   }
 
-  if(!confirm("Esto creará fichajes de prueba REALISTAS para varios usuarios: días normales, cortos, largos, pausas, comidas y horas extra. ¿Continuar?")){
+  if(!confirm("Esto borrará los fichajes de prueba anteriores y creará nuevos datos realistas. ¿Continuar?")){
     return;
   }
 
@@ -1225,38 +1225,32 @@ async function generarFichajesPrueba(){
     return;
   }
 
+  // Limpieza previa de pruebas antiguas para que el informe no mezcle datos.
+  await sb.from("fichajes").delete().eq("direccion","Fichaje de prueba");
+  await sb.from("fichajes").delete().eq("direccion","PRUEBA");
+  await sb.from("fichajes").delete().like("direccion_real","Fichaje de prueba%");
+
   const hoy=new Date();
   let creados=0;
 
   const escenarios=[
     {
-      nombre:"Jornada normal",
+      nombre:"Jornada normal con pausa y comida",
       movimientos:[
         {hora:"08:00",tipo:"entrada"},
         {hora:"11:00",tipo:"inicio_pausa"},
         {hora:"11:15",tipo:"fin_pausa"},
         {hora:"14:00",tipo:"inicio_comida"},
         {hora:"15:00",tipo:"fin_comida"},
-        {hora:"17:00",tipo:"salida"}
-      ]
-    },
-    {
-      nombre:"Entrada tarde",
-      movimientos:[
-        {hora:"08:28",tipo:"entrada"},
-        {hora:"11:10",tipo:"inicio_pausa"},
-        {hora:"11:25",tipo:"fin_pausa"},
-        {hora:"14:05",tipo:"inicio_comida"},
-        {hora:"15:00",tipo:"fin_comida"},
-        {hora:"17:10",tipo:"salida"}
+        {hora:"17:15",tipo:"salida"}
       ]
     },
     {
       nombre:"Día largo con extra",
       movimientos:[
         {hora:"07:45",tipo:"entrada"},
-        {hora:"11:00",tipo:"inicio_pausa"},
-        {hora:"11:12",tipo:"fin_pausa"},
+        {hora:"10:50",tipo:"inicio_pausa"},
+        {hora:"11:05",tipo:"fin_pausa"},
         {hora:"14:00",tipo:"inicio_comida"},
         {hora:"14:45",tipo:"fin_comida"},
         {hora:"19:15",tipo:"salida"}
@@ -1274,15 +1268,6 @@ async function generarFichajesPrueba(){
       ]
     },
     {
-      nombre:"Sin pausa",
-      movimientos:[
-        {hora:"08:00",tipo:"entrada"},
-        {hora:"14:00",tipo:"inicio_comida"},
-        {hora:"14:50",tipo:"fin_comida"},
-        {hora:"18:20",tipo:"salida"}
-      ]
-    },
-    {
       nombre:"Sin comida",
       movimientos:[
         {hora:"08:05",tipo:"entrada"},
@@ -1292,7 +1277,14 @@ async function generarFichajesPrueba(){
       ]
     },
     {
-      nombre:"Obra larga",
+      nombre:"Media jornada",
+      movimientos:[
+        {hora:"08:00",tipo:"entrada"},
+        {hora:"12:30",tipo:"salida"}
+      ]
+    },
+    {
+      nombre:"Obra larga con pausa y comida",
       movimientos:[
         {hora:"07:20",tipo:"entrada"},
         {hora:"10:45",tipo:"inicio_pausa"},
@@ -1301,34 +1293,24 @@ async function generarFichajesPrueba(){
         {hora:"14:35",tipo:"fin_comida"},
         {hora:"18:45",tipo:"salida"}
       ]
-    },
-    {
-      nombre:"Media jornada",
-      movimientos:[
-        {hora:"08:00",tipo:"entrada"},
-        {hora:"12:30",tipo:"salida"}
-      ]
     }
   ];
 
   for(const u of usuarios){
-    for(let i=1;i<=22;i++){
+    for(let i=1;i<=18;i++){
       const d=new Date(hoy);
       d.setDate(hoy.getDate()-i);
 
-      // Saltamos domingos, pero dejamos algún sábado para simular urgencias.
       const diaSemana=d.getDay();
       if(diaSemana===0)continue;
-      if(diaSemana===6 && i%5!==0)continue;
+      if(diaSemana===6 && i%4!==0)continue;
 
       const fecha=fechaLocalISODesdeDate(d);
-
       let escenario=escenarios[i % escenarios.length];
 
-      // Algunos sábados: trabajo corto pero como día especial.
       if(diaSemana===6){
         escenario={
-          nombre:"Sábado / urgencia",
+          nombre:"Sábado urgencia",
           movimientos:[
             {hora:"08:30",tipo:"entrada"},
             {hora:"13:45",tipo:"salida"}
@@ -1353,7 +1335,7 @@ async function generarFichajesPrueba(){
   }
 
   await cargarFichajesServidor();
-  alert("Fichajes de prueba realistas creados: "+creados);
+  alert("Fichajes de prueba limpios creados: "+creados);
   await inicio();
 }
 
@@ -1471,44 +1453,79 @@ async function cargarFestivosPeriodo(inicio,fin){
 }
 
 function resumenMovimientosDia(mov){
-  let trabajandoDesde=null, pausaDesde=null, comidaDesde=null;
-  let trabajo=0, pausa=0, comida=0;
+  let trabajandoDesde=null;
+  let pausaDesde=null;
+  let comidaDesde=null;
 
-  for(const m of mov.sort((a,b)=>a.ts-b.ts)){
+  let trabajo=0;
+  let pausa=0;
+  let comida=0;
+
+  const ordenados=mov.slice().sort((a,b)=>a.ts-b.ts);
+
+  for(const m of ordenados){
     const mm=(m.minutoDia!=null)?m.minutoDia:minutos(m.hora);
+    const tipo=String(m.tipo||"").trim();
 
-    if(m.tipo==="entrada"||m.tipo==="fin_pausa"||m.tipo==="fin_comida"){
+    if(tipo==="entrada"){
       trabajandoDesde=mm;
       pausaDesde=null;
       comidaDesde=null;
+      continue;
     }
-    if(m.tipo==="inicio_pausa"){
-      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
-      trabajandoDesde=null;
+
+    if(tipo==="inicio_pausa"){
+      if(trabajandoDesde!=null){
+        trabajo+=mm-trabajandoDesde;
+        trabajandoDesde=null;
+      }
       pausaDesde=mm;
+      continue;
     }
-    if(m.tipo==="fin_pausa"){
-      if(pausaDesde!=null)pausa+=mm-pausaDesde;
-      pausaDesde=null;
+
+    if(tipo==="fin_pausa"){
+      if(pausaDesde!=null){
+        pausa+=mm-pausaDesde;
+        pausaDesde=null;
+      }
       trabajandoDesde=mm;
+      continue;
     }
-    if(m.tipo==="inicio_comida"){
-      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
-      trabajandoDesde=null;
+
+    if(tipo==="inicio_comida"){
+      if(trabajandoDesde!=null){
+        trabajo+=mm-trabajandoDesde;
+        trabajandoDesde=null;
+      }
       comidaDesde=mm;
+      continue;
     }
-    if(m.tipo==="fin_comida"){
-      if(comidaDesde!=null)comida+=mm-comidaDesde;
-      comidaDesde=null;
+
+    if(tipo==="fin_comida"){
+      if(comidaDesde!=null){
+        comida+=mm-comidaDesde;
+        comidaDesde=null;
+      }
       trabajandoDesde=mm;
+      continue;
     }
-    if(m.tipo==="salida"){
-      if(trabajandoDesde!=null)trabajo+=mm-trabajandoDesde;
-      trabajandoDesde=null;
+
+    if(tipo==="salida"){
+      if(trabajandoDesde!=null){
+        trabajo+=mm-trabajandoDesde;
+        trabajandoDesde=null;
+      }
+      pausaDesde=null;
+      comidaDesde=null;
+      continue;
     }
   }
 
-  return {trabajo,pausa,comida};
+  return {
+    trabajo:Math.max(0,trabajo),
+    pausa:Math.max(0,pausa),
+    comida:Math.max(0,comida)
+  };
 }
 
 function agruparPorFecha(lista){
@@ -1584,9 +1601,10 @@ async function generarInformeMensual(){
           Normal: ${textoMin(d.normal)}<br>
           Extra: ${textoMin(d.extra)}<br>
           Pausas: ${textoMin(d.pausa)} · Comida: ${textoMin(d.comida)}<br>
+          <span class="small">Movimientos registrados: ${d.movimientos.length}</span><br>
           <details>
             <summary>Movimientos</summary>
-            ${d.movimientos.map(m=>`${m.hora} · ${nombreAccion(m.tipo)}`).join("<br>")}
+            ${d.movimientos.map(m=>`${m.hora} · ${nombreAccion(m.tipo)}${m.direccion?` · ${m.direccion}`:""}`).join("<br>")}
           </details>
         </div>
       `).join(""):"<p>No hay fichajes en este periodo.</p>"}
