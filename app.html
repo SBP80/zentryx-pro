@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2551</title>
+<title>Zentryx V2552</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2551</h1>
+      <h1>Zentryx V2552</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2551";
+const VERSION="2552";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1381,7 +1381,7 @@ async function leerTiposHorasExtraServidor(){
 }
 
 function precioTipo(t){
-  return Number(t?.precio_hora ?? t?.precio ?? 0);
+  return Number(t?.precio ?? t?.precio_hora ?? 0);
 }
 
 function buscarTipoExtra(tipos,nombres,precioDefecto){
@@ -2836,6 +2836,7 @@ async function pintarConfigExtras(){
           Precio: ${t.precio_hora??t.precio??0} €/h<br>
           ${t.hora_inicio||""} ${t.hora_fin?`→ ${t.hora_fin}`:""}<br>
           <span class="small">${t.dias_aplicables||t.dias||"Sin días definidos"}</span><br>
+          <button class="btn blue" onclick="editarTipoHoraExtra('${t.id}')">Editar</button>
           <button class="btn red" onclick="eliminarTipoHoraExtra('${t.id}')">Eliminar</button>
         </div>
       `).join(""):"<p>No hay tipos creados.</p>"}
@@ -2845,7 +2846,7 @@ async function pintarConfigExtras(){
 async function crearTipoHoraExtra(){
   const payload={
     nombre:document.getElementById("extra_nombre").value.trim(),
-    precio_hora:Number(document.getElementById("extra_precio").value||0),
+    precio:Number(document.getElementById("extra_precio").value||0),
     hora_inicio:document.getElementById("extra_inicio").value||null,
     hora_fin:document.getElementById("extra_fin").value||null,
     dias_aplicables:document.getElementById("extra_dias").value.trim()||"todos",
@@ -2857,6 +2858,48 @@ async function crearTipoHoraExtra(){
   const {error}=await sb.from("tipos_horas_extra").insert([payload]);
 
   if(error){alert("Error creando tipo: "+error.message);return}
+
+  await pintarConfigExtras();
+}
+
+async function editarTipoHoraExtra(id){
+  const {data,error}=await sb.from("tipos_horas_extra").select("*").eq("id",id).single();
+
+  if(error||!data){
+    alert("No se pudo cargar el tipo.");
+    return;
+  }
+
+  const nombre=prompt("Nombre:",data.nombre||"");
+  if(!nombre)return;
+
+  const precio=prompt("Precio por hora (€):",String(data.precio_hora??data.precio??0));
+  if(precio===null)return;
+
+  const horaInicio=prompt("Hora inicio (opcional, formato HH:MM):",data.hora_inicio||"");
+  if(horaInicio===null)return;
+
+  const horaFin=prompt("Hora fin (opcional, formato HH:MM):",data.hora_fin||"");
+  if(horaFin===null)return;
+
+  const dias=prompt("Días aplicables:",data.dias_aplicables||data.dias||"todos");
+  if(dias===null)return;
+
+  const payload={
+    nombre:nombre.trim(),
+    precio:Number(precio||0),
+    hora_inicio:horaInicio||null,
+    hora_fin:horaFin||null,
+    dias_aplicables:dias.trim()||"todos",
+    activo:true
+  };
+
+  const {error:updateError}=await sb.from("tipos_horas_extra").update(payload).eq("id",id);
+
+  if(updateError){
+    alert("Error editando tipo: "+updateError.message);
+    return;
+  }
 
   await pintarConfigExtras();
 }
