@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2542</title>
+<title>Zentryx V2543</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -132,13 +132,49 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
   font-size:34px;
 }
 
+
+.user-list-tools{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.user-row-pro{
+  display:flex;
+  gap:12px;
+  align-items:flex-start;
+}
+.user-row-info{
+  flex:1;
+  min-width:0;
+}
+.user-row-info b{
+  display:block;
+  font-size:19px;
+}
+.user-row-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  margin-top:10px;
+}
+.user-row-actions .btn{
+  margin:0;
+  padding:11px 8px;
+  font-size:15px;
+}
+@media(min-width:760px){
+  .user-row-actions{
+    grid-template-columns:repeat(4,1fr);
+  }
+}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2542</h1>
+      <h1>Zentryx V2543</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -148,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2542";
+const VERSION="2543";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -524,6 +560,10 @@ function abrirMapaElegido(tipo,qEncoded){
 
 function abrirMapaDireccion(direccion){
   abrirSelectorMapa(null,null,direccion);
+}
+
+function abrirMapaDireccionCodificada(direccionCodificada){
+  abrirSelectorMapa(null,null,decodeURIComponent(direccionCodificada||""));
 }
 
 function ahora(){return new Date()}
@@ -1245,9 +1285,63 @@ function estadoUsuario(u){
   return '<span class="badge green">Activo</span>';
 }
 
+function filtrarUsuariosLista(lista){
+  const q=(document.getElementById("buscarUsuarios")?.value||"").toLowerCase().trim();
+  const rol=(document.getElementById("filtroRolUsuarios")?.value||"todos");
+  const estado=(document.getElementById("filtroEstadoUsuarios")?.value||"todos");
+
+  return lista.filter(u=>{
+    const texto=[u.nombre,u.usuario,u.rol,u.puesto,u.telefono,u.email,u.dni,u.direccion].join(" ").toLowerCase();
+
+    if(q && !texto.includes(q))return false;
+    if(rol!=="todos" && u.rol!==rol)return false;
+    if(estado==="activos" && u.activo===false)return false;
+    if(estado==="inactivos" && u.activo!==false)return false;
+
+    return true;
+  });
+}
+
+function refrescarListaUsuariosPro(){
+  let lista=leerUsuarios();
+
+  if(!esAdmin()){
+    lista=lista.filter(u=>String(u.id)===String(user.id));
+  }
+
+  lista=filtrarUsuariosLista(lista);
+  const cont=document.getElementById("listaUsuariosPro");
+  if(!cont)return;
+
+  cont.innerHTML=lista.length?lista.map(u=>usuarioRowProHTML(u)).join(""):"<p>No hay usuarios con esos filtros.</p>";
+}
+
+function usuarioRowProHTML(u){
+  return `
+    <div class="row">
+      <div class="user-row-pro">
+        ${fotoUsuarioHTML(u)}
+        <div class="user-row-info">
+          <b>${u.nombre}</b>
+          <span>${u.usuario} · ${rolNombre(u.rol)}</span><br>
+          <span class="small">${u.puesto||"Sin puesto"}</span><br>
+          ${estadoUsuario(u)}
+        </div>
+      </div>
+
+      <div class="user-row-actions">
+        <button class="btn green" onclick="abrirTelefono('${u.telefono||""}')">Llamar</button>
+        <button class="btn green" onclick="abrirWhatsApp('${u.telefono||""}')">WhatsApp</button>
+        <button class="btn gray" onclick="abrirMapaDireccionCodificada('${encodeURIComponent(u.direccion||"")}')">Mapa</button>
+        <button class="btn blue" onclick="vistaFichaUsuarioPro('${u.id}')">Ficha</button>
+      </div>
+    </div>`;
+}
+
 async function vistaUsuariosPro(){
   vistaActual='usuarios';
   await cargarUsuariosServidor();
+
   let lista=leerUsuarios();
 
   if(!esAdmin()){
@@ -1258,26 +1352,38 @@ async function vistaUsuariosPro(){
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
       <h2>Usuarios</h2>
-      <p>Alta, edición protegida, contraseña y estado.</p>
+      <p>Lista rápida con búsqueda, foto y acciones directas.</p>
       ${esAdmin()?`<button class="btn green full" onclick="vistaAltaUsuarioPro()">Crear usuario</button>`:""}
     </div>
 
     <div class="card">
+      <h2>Buscar usuarios</h2>
+      <div class="user-list-tools">
+        <input id="buscarUsuarios" placeholder="Buscar por nombre, usuario, teléfono, email, DNI, puesto..." oninput="refrescarListaUsuariosPro()">
+
+        <label>Rol</label>
+        <select id="filtroRolUsuarios" onchange="refrescarListaUsuariosPro()">
+          <option value="todos">Todos</option>
+          <option value="admin">Administrador</option>
+          <option value="encargado">Encargado</option>
+          <option value="operario">Operario</option>
+          <option value="oficina">Oficina</option>
+        </select>
+
+        <label>Estado</label>
+        <select id="filtroEstadoUsuarios" onchange="refrescarListaUsuariosPro()">
+          <option value="todos">Todos</option>
+          <option value="activos">Activos</option>
+          <option value="inactivos">Inactivos</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Lista de usuarios</h2>
-      ${lista.map(u=>`
-        <div class="row">
-          <div class="user-head">
-            ${fotoUsuarioHTML(u)}
-            <div>
-              <b>${u.nombre}</b><br>
-              ${u.usuario} · ${rolNombre(u.rol)}<br>
-              <span class="muted">${u.puesto||"Sin puesto"}</span><br>
-              ${estadoUsuario(u)}
-            </div>
-          </div>
-          <button class="btn blue" onclick="vistaFichaUsuarioPro('${u.id}')">Abrir ficha</button>
-        </div>
-      `).join("")}
+      <div id="listaUsuariosPro">
+        ${lista.length?lista.map(u=>usuarioRowProHTML(u)).join(""):"<p>No hay usuarios.</p>"}
+      </div>
     </div>`;
 }
 
@@ -1616,7 +1722,7 @@ async function vistaFichaUsuarioPro(id){
         <button class="btn green" onclick="abrirWhatsApp('${u.telefono||""}')">WhatsApp</button>
         <button class="btn blue" onclick="abrirEmail('${u.email||""}')">Email</button>
       </div>
-      <button class="btn gray full" onclick="abrirMapaDireccion('${u.direccion||u.direccion_completa||u.domicilio||""}')">Mapa</button>
+      <button class="btn gray full" onclick="abrirMapaDireccionCodificada('${encodeURIComponent(u.direccion||u.direccion_completa||u.domicilio||"")}')">Mapa</button>
       ${!(u.direccion||u.direccion_completa||u.domicilio)?`<p class="small">No hay dirección guardada todavía.</p>`:""}
     </div>
 
