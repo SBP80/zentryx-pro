@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2546.1</title>
+<title>Zentryx V2547</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2546.1</h1>
+      <h1>Zentryx V2547</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2546.1";
+const VERSION="2547";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1213,7 +1213,7 @@ async function generarFichajesPrueba(){
     return;
   }
 
-  if(!confirm("Esto creará fichajes de prueba para varios días y usuarios activos. ¿Continuar?")){
+  if(!confirm("Esto creará fichajes de prueba REALISTAS para varios usuarios: días normales, cortos, largos, pausas, comidas y horas extra. ¿Continuar?")){
     return;
   }
 
@@ -1228,31 +1228,122 @@ async function generarFichajesPrueba(){
   const hoy=new Date();
   let creados=0;
 
-  for(const u of usuarios){
-    for(let i=1;i<=14;i++){
-      const d=new Date(hoy);
-      d.setDate(hoy.getDate()-i);
-
-      if(d.getDay()===0)continue;
-
-      const fecha=fechaLocalISODesdeDate(d);
-
-      const base=[
+  const escenarios=[
+    {
+      nombre:"Jornada normal",
+      movimientos:[
         {hora:"08:00",tipo:"entrada"},
         {hora:"11:00",tipo:"inicio_pausa"},
         {hora:"11:15",tipo:"fin_pausa"},
         {hora:"14:00",tipo:"inicio_comida"},
         {hora:"15:00",tipo:"fin_comida"},
-        {hora:i%3===0?"19:00":"18:00",tipo:"salida"}
-      ];
+        {hora:"17:00",tipo:"salida"}
+      ]
+    },
+    {
+      nombre:"Entrada tarde",
+      movimientos:[
+        {hora:"08:28",tipo:"entrada"},
+        {hora:"11:10",tipo:"inicio_pausa"},
+        {hora:"11:25",tipo:"fin_pausa"},
+        {hora:"14:05",tipo:"inicio_comida"},
+        {hora:"15:00",tipo:"fin_comida"},
+        {hora:"17:10",tipo:"salida"}
+      ]
+    },
+    {
+      nombre:"Día largo con extra",
+      movimientos:[
+        {hora:"07:45",tipo:"entrada"},
+        {hora:"11:00",tipo:"inicio_pausa"},
+        {hora:"11:12",tipo:"fin_pausa"},
+        {hora:"14:00",tipo:"inicio_comida"},
+        {hora:"14:45",tipo:"fin_comida"},
+        {hora:"19:15",tipo:"salida"}
+      ]
+    },
+    {
+      nombre:"Día corto",
+      movimientos:[
+        {hora:"08:10",tipo:"entrada"},
+        {hora:"11:30",tipo:"inicio_pausa"},
+        {hora:"11:45",tipo:"fin_pausa"},
+        {hora:"14:00",tipo:"inicio_comida"},
+        {hora:"14:45",tipo:"fin_comida"},
+        {hora:"16:05",tipo:"salida"}
+      ]
+    },
+    {
+      nombre:"Sin pausa",
+      movimientos:[
+        {hora:"08:00",tipo:"entrada"},
+        {hora:"14:00",tipo:"inicio_comida"},
+        {hora:"14:50",tipo:"fin_comida"},
+        {hora:"18:20",tipo:"salida"}
+      ]
+    },
+    {
+      nombre:"Sin comida",
+      movimientos:[
+        {hora:"08:05",tipo:"entrada"},
+        {hora:"11:05",tipo:"inicio_pausa"},
+        {hora:"11:20",tipo:"fin_pausa"},
+        {hora:"16:30",tipo:"salida"}
+      ]
+    },
+    {
+      nombre:"Obra larga",
+      movimientos:[
+        {hora:"07:20",tipo:"entrada"},
+        {hora:"10:45",tipo:"inicio_pausa"},
+        {hora:"11:00",tipo:"fin_pausa"},
+        {hora:"13:50",tipo:"inicio_comida"},
+        {hora:"14:35",tipo:"fin_comida"},
+        {hora:"18:45",tipo:"salida"}
+      ]
+    },
+    {
+      nombre:"Media jornada",
+      movimientos:[
+        {hora:"08:00",tipo:"entrada"},
+        {hora:"12:30",tipo:"salida"}
+      ]
+    }
+  ];
 
-      for(const m of base){
+  for(const u of usuarios){
+    for(let i=1;i<=22;i++){
+      const d=new Date(hoy);
+      d.setDate(hoy.getDate()-i);
+
+      // Saltamos domingos, pero dejamos algún sábado para simular urgencias.
+      const diaSemana=d.getDay();
+      if(diaSemana===0)continue;
+      if(diaSemana===6 && i%5!==0)continue;
+
+      const fecha=fechaLocalISODesdeDate(d);
+
+      let escenario=escenarios[i % escenarios.length];
+
+      // Algunos sábados: trabajo corto pero como día especial.
+      if(diaSemana===6){
+        escenario={
+          nombre:"Sábado / urgencia",
+          movimientos:[
+            {hora:"08:30",tipo:"entrada"},
+            {hora:"13:45",tipo:"salida"}
+          ]
+        };
+      }
+
+      for(const m of escenario.movimientos){
         const payload={
           user_id:String(u.id),
           tipo:m.tipo,
           fecha:fecha+"T"+m.hora+":00",
           direccion:"Fichaje de prueba",
-          direccion_real:"Fichaje de prueba"
+          direccion_real:"Fichaje de prueba - "+escenario.nombre,
+          nota:escenario.nombre
         };
 
         const {error}=await sb.from("fichajes").insert([payload]);
@@ -1262,7 +1353,7 @@ async function generarFichajesPrueba(){
   }
 
   await cargarFichajesServidor();
-  alert("Fichajes de prueba creados: "+creados);
+  alert("Fichajes de prueba realistas creados: "+creados);
   await inicio();
 }
 
@@ -1304,7 +1395,7 @@ async function vistaInformes(){
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
       <h2>Informes PRO</h2>
-      <p>Resumen mensual por usuario con jornada normal, horas extra y festivos trabajados.</p>
+      <p>Resumen mensual por usuario con jornada normal, horas extra, días largos y festivos trabajados.</p>
 
       <label>Usuario</label>
       <select id="inf_user">
@@ -1456,8 +1547,9 @@ async function generarInformeMensual(){
   const filas=dias.map(fecha=>{
     const res=resumenMovimientosDia(porFecha[fecha]);
     const festivo=festivosPorFecha[fecha]||null;
-    const normal=festivo?0:res.trabajo;
-    const extra=festivo?res.trabajo:0;
+    const jornadaBase=8*60;
+    const normal=festivo?0:Math.min(res.trabajo,jornadaBase);
+    const extra=festivo?res.trabajo:Math.max(0,res.trabajo-jornadaBase);
 
     totalTrabajo+=res.trabajo;
     totalNormal+=normal;
