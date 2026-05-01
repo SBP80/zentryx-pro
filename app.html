@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2568</title>
+<title>Zentryx V2569</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2568</h1>
+      <h1>Zentryx V2569</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2568";
+const VERSION="2569";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1127,32 +1127,96 @@ function extraerCoordenadasDesdeTextoMapa(texto){
   return null;
 }
 
-async function crearZonaTrabajoDesdeMapa(){
+
+function abrirMapaParaMarcar(){
+  const proveedor=document.getElementById("zona_mapa_proveedor")?.value||"google";
+  const busqueda=document.getElementById("zona_mapa_busqueda")?.value||"El Ejido";
+  const q=encodeURIComponent(busqueda);
+
+  if(proveedor==="google"){
+    window.open(`https://www.google.com/maps/search/?api=1&query=${q}`,"_blank");
+  }
+
+  if(proveedor==="apple"){
+    window.open(`https://maps.apple.com/?q=${q}`,"_blank");
+  }
+
+  if(proveedor==="waze"){
+    window.open(`https://waze.com/ul?q=${q}&navigate=no`,"_blank");
+  }
+}
+
+function limpiarTextoMapaCompartido(t){
+  return String(t||"")
+    .replace(/&amp;/g,"&")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+function extraerCoordenadasDesdeTextoMapaPro(texto){
+  const t=limpiarTextoMapaCompartido(texto);
+  if(!t)return null;
+
+  const decoded=decodeURIComponent(t);
+
+  const patrones=[
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&]ll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&]center=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /ll=(-?\d+(?:\.\d+)?)%2C(-?\d+(?:\.\d+)?)/,
+    /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/
+  ];
+
+  for(const textoPrueba of [t,decoded]){
+    for(const p of patrones){
+      const m=textoPrueba.match(p);
+      if(m){
+        const lat=Number(m[1]);
+        const lng=Number(m[2]);
+        if(!Number.isNaN(lat) && !Number.isNaN(lng) && Math.abs(lat)<=90 && Math.abs(lng)<=180){
+          return {lat,lng};
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+async function crearZonaDesdeFormularioMapa(){
   if(!esAdmin()){alert("Solo administrador.");return}
 
-  const nombre=prompt("Nombre de la zona:");
-  if(!nombre || !nombre.trim())return;
+  const nombre=document.getElementById("zona_mapa_nombre")?.value?.trim();
+  const enlace=document.getElementById("zona_mapa_enlace")?.value?.trim();
+  const radio=Number(document.getElementById("zona_mapa_radio")?.value||100);
 
-  const enlace=prompt("Pega enlace o coordenadas de Google Maps, Apple Maps o Waze:");
-  if(!enlace || !enlace.trim())return;
-
-  const coords=extraerCoordenadasDesdeTextoMapa(enlace);
-
-  if(!coords){
-    alert("No he podido sacar coordenadas del enlace. Abre el mapa, comparte ubicación y pega el enlace completo.");
+  if(!nombre){
+    alert("Pon nombre a la zona.");
     return;
   }
 
-  const radio=Number(prompt("Radio permitido en metros:", "100")||100);
+  if(!enlace){
+    alert("Pega el enlace compartido del punto marcado en el mapa.");
+    return;
+  }
+
+  const coords=extraerCoordenadasDesdeTextoMapaPro(enlace);
+
+  if(!coords){
+    alert("No he podido sacar la ubicación del enlace. En el mapa, mantén pulsado sobre el punto, pulsa Compartir y pega aquí el enlace completo.");
+    return;
+  }
+
   const direccionReal=await obtenerDireccionReal(coords.lat,coords.lng);
 
-  if(!confirm("Zona encontrada:\\n"+(direccionReal||("Lat "+coords.lat+", Lng "+coords.lng))+"\\n\\n¿Crear zona aquí?")){
+  if(!confirm("Ubicación detectada:\\n"+(direccionReal||("Lat "+coords.lat+", Lng "+coords.lng))+"\\n\\n¿Crear zona aquí?")){
     return;
   }
 
   const payload={
-    nombre:nombre.trim(),
-    direccion:direccionReal||enlace.trim(),
+    nombre,
+    direccion:direccionReal||enlace,
     lat:coords.lat,
     lng:coords.lng,
     radio_metros:radio,
@@ -1167,16 +1231,36 @@ async function crearZonaTrabajoDesdeMapa(){
   }
 
   await registrarCambio({
-    accion:"crear_zona_mapa",
+    accion:"crear_zona_mapa_guiado",
     tabla:"zonas_trabajo",
     registro_id:data?.id||"",
-    motivo:"Creación de zona desde enlace de mapa",
+    motivo:"Creación de zona desde mapa elegido por el usuario",
     antes:null,
     despues:data||payload
   });
 
   alert("Zona creada.");
   await pintarConfigZonas();
+}
+
+async function crearZonaTrabajoDesdeMapa(){
+  const proveedor=prompt("Elige mapa: google, apple o waze","google");
+  if(!proveedor)return;
+
+  const busqueda=prompt("Lugar para abrir en el mapa:","El Ejido");
+  if(!busqueda)return;
+
+  const q=encodeURIComponent(busqueda);
+
+  if(proveedor.toLowerCase().includes("apple")){
+    window.open(`https://maps.apple.com/?q=${q}`,"_blank");
+  }else if(proveedor.toLowerCase().includes("waze")){
+    window.open(`https://waze.com/ul?q=${q}&navigate=no`,"_blank");
+  }else{
+    window.open(`https://www.google.com/maps/search/?api=1&query=${q}`,"_blank");
+  }
+
+  alert("Marca el punto en el mapa, pulsa Compartir, copia el enlace y vuelve a Zentryx para pegarlo en el formulario.");
 }
 
 function abrirMapaZona(selectId,lat,lng){
@@ -1379,10 +1463,40 @@ async function pintarConfigZonas(){
   document.getElementById("zonaConfig").innerHTML=`
     <div class="card">
       <h2>Zonas de trabajo PRO</h2>
-      <p class="small">Crea zonas desde tu ubicación actual, por dirección o pegando un enlace de Google Maps, Apple Maps o Waze.</p>
+      <p class="small">Crea zonas desde tu ubicación actual, por dirección o marcando un punto en Google Maps, Apple Maps o Waze.</p>
+
       <button class="btn green full" onclick="crearZonaTrabajoDesdeGPS()">Crear con mi ubicación actual</button>
       <button class="btn blue full" onclick="crearZonaTrabajoPorDireccion()">Crear por dirección</button>
-      <button class="btn orange full" onclick="crearZonaTrabajoDesdeMapa()">Crear desde enlace de mapa</button>
+    </div>
+
+    <div class="card">
+      <h2>Crear zona desde mapa</h2>
+      <label>Mapa</label>
+      <select id="zona_mapa_proveedor">
+        <option value="google">Google Maps</option>
+        <option value="apple">Apple Maps</option>
+        <option value="waze">Waze</option>
+      </select>
+
+      <label>Buscar zona</label>
+      <input id="zona_mapa_busqueda" value="El Ejido" placeholder="Ej: El Ejido, Almería">
+
+      <button class="btn orange full" onclick="abrirMapaParaMarcar()">1 · Abrir mapa y marcar punto</button>
+
+      <p class="small">
+        En el mapa: mantén pulsado sobre el punto exacto, pulsa Compartir, copia el enlace y pégalo abajo.
+      </p>
+
+      <label>Nombre de la zona</label>
+      <input id="zona_mapa_nombre" placeholder="Ej: Obra El Ejido">
+
+      <label>Radio permitido en metros</label>
+      <input id="zona_mapa_radio" type="number" value="100">
+
+      <label>Enlace compartido del punto marcado</label>
+      <textarea id="zona_mapa_enlace" rows="3" placeholder="Pega aquí el enlace compartido de Google Maps, Apple Maps o Waze"></textarea>
+
+      <button class="btn green full" onclick="crearZonaDesdeFormularioMapa()">2 · Crear zona con este punto</button>
     </div>
 
     <div class="card">
@@ -1394,7 +1508,7 @@ async function pintarConfigZonas(){
           ${z.direccion?`<span class="small">${z.direccion}</span><br>`:""}
           <span class="small">Radio: ${z.radio_metros||0} m</span><br>
 
-          <label>Abrir en mapa</label>
+          <label>Abrir zona en mapa</label>
           <select id="mapa_zona_${i}" onchange="abrirMapaZona('mapa_zona_${i}',${z.lat},${z.lng})">
             <option value="">Seleccionar mapa...</option>
             <option value="google">Google Maps</option>
@@ -2845,7 +2959,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2568
+  return `MANUAL DE USO ZENTRYX V2569
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3047,7 +3161,19 @@ Las zonas pueden crearse pegando un enlace de Google Maps, Apple Maps o Waze.
 También se aceptan coordenadas copiadas desde un mapa.
 Para abrir una zona existente se usa un desplegable con Google Maps, Apple Maps o Waze, evitando tener demasiados botones visibles.
 
-27. PRÓXIMAS MEJORAS
+
+27. ZONAS DESDE MAPA GUIADO
+Para crear una zona desde mapa:
+1. Selecciona Google Maps, Apple Maps o Waze.
+2. Escribe la zona a abrir, por ejemplo El Ejido.
+3. Marca el punto exacto en el mapa.
+4. Pulsa Compartir en la app del mapa.
+5. Copia el enlace y pégalo en Zentryx.
+6. Crea la zona.
+
+Este flujo evita introducir latitud y longitud manualmente.
+
+28. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
