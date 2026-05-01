@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2571</title>
+<title>Zentryx V2571.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2571</h1>
+      <h1>Zentryx V2571.1</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2571";
+const VERSION="2571.1";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1165,6 +1165,119 @@ async function eliminarZonaTrabajo(id){
 
   await pintarConfigZonas();
 }
+
+
+async function cambiarRadioZonaTrabajo(id){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const antes=await leerRegistroPorId("zonas_trabajo",id);
+  const actual=antes?.radio_metros || 100;
+
+  const nuevo=prompt("Nuevo radio permitido en metros:", String(actual));
+  if(nuevo===null)return;
+
+  const radio=Number(nuevo);
+
+  if(Number.isNaN(radio) || radio<=0){
+    alert("Radio no válido.");
+    return;
+  }
+
+  const {data,error}=await sb
+    .from("zonas_trabajo")
+    .update({radio_metros:radio})
+    .eq("id",id)
+    .select()
+    .single();
+
+  if(error){
+    alert("Error actualizando radio: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"editar_radio_zona",
+    tabla:"zonas_trabajo",
+    registro_id:id,
+    motivo:"Cambio de radio permitido",
+    antes,
+    despues:data
+  });
+
+  alert("Radio actualizado.");
+  await pintarConfigZonas();
+}
+
+async function cambiarEstadoZonaTrabajo(id,activa){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const antes=await leerRegistroPorId("zonas_trabajo",id);
+
+  const {data,error}=await sb
+    .from("zonas_trabajo")
+    .update({activa:!!activa})
+    .eq("id",id)
+    .select()
+    .single();
+
+  if(error){
+    alert("Error actualizando zona: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:activa?"activar_zona":"desactivar_zona",
+    tabla:"zonas_trabajo",
+    registro_id:id,
+    motivo:activa?"Activación de zona":"Desactivación de zona",
+    antes,
+    despues:data
+  });
+
+  await pintarConfigZonas();
+}
+
+async function eliminarZonaTrabajo(id){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const antes=await leerRegistroPorId("zonas_trabajo",id);
+
+  if(!confirm("¿Eliminar esta zona de trabajo?")){
+    return;
+  }
+
+  const {error}=await sb
+    .from("zonas_trabajo")
+    .delete()
+    .eq("id",id);
+
+  if(error){
+    alert("Error eliminando zona: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"eliminar_zona",
+    tabla:"zonas_trabajo",
+    registro_id:id,
+    motivo:"Eliminación de zona de trabajo",
+    antes,
+    despues:null
+  });
+
+  alert("Zona eliminada.");
+  await pintarConfigZonas();
+}
+
 
 async function pintarConfigZonas(){
   const zonas=await leerZonasTrabajo();
@@ -2686,7 +2799,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2571
+  return `MANUAL DE USO ZENTRYX V2571.1
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2919,7 +3032,13 @@ Si está fuera, la app avisa, pide motivo y registra la incidencia en Auditoría
 El fichaje se permite de momento para no bloquear trabajos urgentes, mala cobertura o desplazamientos reales.
 En cada fichaje se guarda zona, distancia, radio, precisión GPS y motivo si está fuera.
 
-30. PRÓXIMAS MEJORAS
+
+30. CORRECCIÓN ZONAS
+Se corrige la edición de radio de las zonas.
+El cambio de radio queda registrado en Auditoría.
+También quedan disponibles activar, desactivar y eliminar zona desde la pantalla de configuración.
+
+31. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
