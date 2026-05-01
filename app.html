@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2556</title>
+<title>Zentryx V2557</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2556</h1>
+      <h1>Zentryx V2557</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2556";
+const VERSION="2557";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1816,14 +1816,14 @@ async function generarInformeMensual(){
       <span class="badge">Comida: ${textoMin(totalComida)}</span>
 
       <div class="row">
-        <h3>Importes</h3>
-        <p><b>${tipoNormal.nombre}:</b> ${textoMin(totalNormal)} · ${eurosNormalTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</p>
+        <h3>Importes de horas extra</h3>
+        <p class="small">La jornada normal se muestra solo en horas. Zentryx no calcula nóminas ni IRPF; solo calcula importes de horas extra.</p>
+        <p><b>Jornada normal:</b> ${textoMin(totalNormal)}</p>
         <p><b>Extra ${tipoNormal.nombre}:</b> ${textoMin(totalExtraNormal)} · ${eurosExtraNormalTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</p>
         <p><b>${tipoFestivo.nombre}:</b> ${textoMin(totalExtraFestivo)} · ${eurosExtraFestivoTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</p>
         <p><b>${tipoFinSemana.nombre}:</b> ${textoMin(totalExtraFinSemana)} · ${eurosExtraFinSemanaTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</p>
         <p><b>${tipoNocturna.nombre}:</b> ${textoMin(totalExtraNocturna)} · ${eurosExtraNocturnaTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</p>
-        <h3>Total extras: ${totalEurosExtra.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</h3>
-        <h2>Total final: ${totalEuros.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</h2>
+        <h2>Total extras a pagar: ${totalEurosExtra.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</h2>
       </div>
 
       <button class="btn gray full" onclick="copiarInformeMensual()">Copiar resumen</button>
@@ -1838,7 +1838,7 @@ async function generarInformeMensual(){
           ${d.esFinSemana&&!d.festivo?`<span class="badge orange">Fin de semana</span><br>`:""}
           ${d.horarioDia?.trabaja?`<span class="small">Horario: ${horaInput(d.horarioDia.entrada||d.horarioDia.hora_inicio)||"-"} → ${horaInput(d.horarioDia.salida||d.horarioDia.hora_fin)||"-"}</span><br>`:`<span class="small">Sin horario de trabajo definido para este día</span><br>`}
           Trabajo: ${textoMin(d.trabajo)}<br>
-          Normal: ${textoMin(d.normal)} · ${d.eurosNormal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €<br>
+          Normal: ${textoMin(d.normal)}<br>
           Extra total: ${textoMin(d.extra)}<br>
           ${d.extraNormal?`Extra normal: ${textoMin(d.extraNormal)} · ${d.eurosExtraNormal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €<br>`:""}
           ${d.extraFestivo?`Extra festivo: ${textoMin(d.extraFestivo)} · ${d.eurosExtraFestivo.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €<br>`:""}
@@ -1846,7 +1846,7 @@ async function generarInformeMensual(){
           ${d.nocturna?`Extra nocturna: ${textoMin(d.nocturna)} · ${d.eurosExtraNocturna.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €<br>`:""}
           Pausas: ${textoMin(d.pausa)} · Comida: ${textoMin(d.comida)}<br>
           <span class="small">Movimientos registrados: ${d.movimientos.length}</span><br>
-          <b>Total día: ${d.eurosDia.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</b>
+          <b>Total extras día: ${(d.eurosExtraNormal+d.eurosExtraFestivo+d.eurosExtraFinSemana+d.eurosExtraNocturna).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</b>
           <details>
             <summary>Movimientos</summary>
             ${d.movimientos.map(m=>`${m.hora} · ${nombreAccion(m.tipo)}${m.direccion?` · ${m.direccion}`:""}`).join("<br>")}
@@ -1880,17 +1880,16 @@ function copiarInformeMensual(){
     "Pausas: "+textoMin(inf.totalPausa),
     "Comida: "+textoMin(inf.totalComida),
     "",
-    "IMPORTES:",
-    inf.tipoNormal.nombre+": "+textoMin(inf.totalNormal)+" · "+inf.eurosNormalTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €",
+    "IMPORTES DE HORAS EXTRA:",
+    "Jornada normal: "+textoMin(inf.totalNormal)+" (sin cálculo económico)",
     "Extra normal: "+textoMin(inf.totalExtraNormal)+" · "+inf.eurosExtraNormalTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €",
     inf.tipoFestivo.nombre+": "+textoMin(inf.totalExtraFestivo)+" · "+inf.eurosExtraFestivoTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €",
     inf.tipoFinSemana.nombre+": "+textoMin(inf.totalExtraFinSemana)+" · "+inf.eurosExtraFinSemanaTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €",
     inf.tipoNocturna.nombre+": "+textoMin(inf.totalExtraNocturna)+" · "+inf.eurosExtraNocturnaTotal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €",
-    "Total extras: "+inf.totalEurosExtra.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €",
-    "Total final: "+inf.totalEuros.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €",
+    "Total extras a pagar: "+inf.totalEurosExtra.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €",
     "",
     "DETALLE:",
-    ...inf.filas.map(d=>`${fechaES(d.fecha)} | Trabajo ${textoMin(d.trabajo)} | Normal ${textoMin(d.normal)} | Extra ${textoMin(d.extra)} | Total día ${d.eurosDia.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €${d.festivo?" | Festivo "+(d.festivo.nombre||""):""}`)
+    ...inf.filas.map(d=>`${fechaES(d.fecha)} | Trabajo ${textoMin(d.trabajo)} | Normal ${textoMin(d.normal)} | Extra ${textoMin(d.extra)} | Extras a pagar ${(d.eurosExtraNormal+d.eurosExtraFestivo+d.eurosExtraFinSemana+d.eurosExtraNocturna).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €${d.festivo?" | Festivo "+(d.festivo.nombre||""):""}`)
   ].join("\\n");
 
   navigator.clipboard.writeText(texto).then(()=>alert("Informe copiado.")).catch(()=>alert(texto));
@@ -1899,7 +1898,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2556
+  return `MANUAL DE USO ZENTRYX V2557
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -1991,7 +1990,7 @@ Horas entre 22:00 y 06:00.
 Total extras:
 Suma de extras en euros.
 
-Total final:
+Total extras a pagar:
 Normal + extras.
 
 13. DATOS DE PRUEBA
@@ -2083,7 +2082,7 @@ function vistaAyuda(){
       <p><b>Trabajo total:</b> tiempo trabajado real.</p>
       <p><b>Jornada normal:</b> horas normales.</p>
       <p><b>Horas extra:</b> horas fuera de jornada, festivos, fines de semana o nocturnas.</p>
-      <p><b>Total final:</b> normal + extras en euros.</p>
+      <p><b>Total extras a pagar:</b> importe de horas extra. La jornada normal se muestra solo como tiempo.</p>
     </div>
 
     <div class="card">
