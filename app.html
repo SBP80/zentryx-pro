@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2564</title>
+<title>Zentryx V2565</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2564</h1>
+      <h1>Zentryx V2565</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -990,12 +990,30 @@ function avisoEstadoFichaje(tipo){
 }
 
 
-function obtenerGPS(){
-  return new Promise(resolve=>{
+
+async function obtenerGPS(){
+  return new Promise((resolve)=>{
     if(!navigator.geolocation){
-      resolve({lat:null,lng:null,direccion:"GPS no disponible"});
+      resolve({ok:false,msg:"GPS no disponible"});
       return;
     }
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        resolve({
+          ok:true,
+          lat:pos.coords.latitude,
+          lng:pos.coords.longitude,
+          precision:pos.coords.accuracy
+        });
+      },
+      ()=>{
+        resolve({ok:false,msg:"GPS denegado"});
+      },
+      {enableHighAccuracy:true,timeout:5000}
+    );
+  });
+}
+
 
     navigator.geolocation.getCurrentPosition(
       pos=>{
@@ -2369,7 +2387,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2564
+  return `MANUAL DE USO ZENTRYX V2565
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
