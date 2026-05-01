@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2562</title>
+<title>Zentryx V2563</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2562</h1>
+      <h1>Zentryx V2563</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2562";
+const VERSION="2563";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -2319,7 +2319,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2562
+  return `MANUAL DE USO ZENTRYX V2563
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2477,7 +2477,13 @@ Toda modificación exige un motivo obligatorio.
 Cada cambio queda registrado en Auditoría con datos antes/después.
 Si el mes está pagado, la app bloquea la edición y eliminación de fichajes.
 
-21. PRÓXIMAS MEJORAS
+
+21. AUDITORÍA PRO LEGIBLE
+La auditoría muestra los cambios en formato claro.
+Permite filtrar por acción y por tabla.
+Cada registro tiene una vista sencilla y una vista técnica para revisar datos completos.
+
+22. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -2498,12 +2504,169 @@ async function leerRegistroPorId(tabla,id){
   return data||null;
 }
 
+
+function parseAuditJSON(valor){
+  if(!valor)return null;
+  if(typeof valor==="object")return valor;
+  try{
+    const primero=JSON.parse(valor);
+    if(typeof primero==="string"){
+      try{return JSON.parse(primero)}catch(e){return primero}
+    }
+    return primero;
+  }catch(e){
+    return valor;
+  }
+}
+
+function valorCorto(v){
+  if(v===null||v===undefined||v==="")return "-";
+  if(typeof v==="boolean")return v?"Sí":"No";
+  return String(v);
+}
+
+function camposImportantesAuditoria(obj){
+  const data=parseAuditJSON(obj);
+  if(!data || typeof data!=="object")return [];
+
+  const campos=[
+    "nombre","usuario","rol","activo","tipo","fecha","hora","precio","precio_hora",
+    "estado","periodo","total_extras","motivo","nota_modificacion",
+    "entrada","salida","inicio_comida","fin_comida","descanso_min",
+    "telefono","email","direccion"
+  ];
+
+  return campos
+    .filter(c=>Object.prototype.hasOwnProperty.call(data,c))
+    .map(c=>({campo:c,valor:data[c]}));
+}
+
+function resumenAuditoria(x){
+  const antes=parseAuditJSON(x.datos_antes);
+  const despues=parseAuditJSON(x.datos_despues);
+
+  if(x.accion==="editar_tipo_hora_extra"){
+    return `Tipo: ${valorCorto(despues?.nombre||antes?.nombre)} · precio ${valorCorto(antes?.precio??antes?.precio_hora)} → ${valorCorto(despues?.precio??despues?.precio_hora)} €/h`;
+  }
+
+  if(x.accion==="editar_fichaje"){
+    return `Fichaje: ${valorCorto(antes?.tipo)} → ${valorCorto(despues?.tipo)} · ${valorCorto(antes?.fecha)} → ${valorCorto(despues?.fecha)}`;
+  }
+
+  if(x.accion==="eliminar_fichaje"){
+    return `Fichaje eliminado: ${valorCorto(antes?.tipo)} · ${valorCorto(antes?.fecha)}`;
+  }
+
+  if(x.accion==="crear_usuario"){
+    return `Usuario creado: ${valorCorto(despues?.nombre||despues?.usuario)}`;
+  }
+
+  if(x.accion==="editar_usuario"){
+    return `Usuario editado: ${valorCorto(despues?.nombre||antes?.nombre||despues?.usuario||antes?.usuario)}`;
+  }
+
+  if(x.accion==="eliminar_usuario"){
+    return `Usuario eliminado: ${valorCorto(antes?.nombre||antes?.usuario)}`;
+  }
+
+  if(x.accion==="validar_horas_operario"||x.accion==="confirmar_horas_admin"||x.accion==="marcar_horas_pagadas"){
+    return `Periodo ${valorCorto(despues?.periodo||antes?.periodo)} · estado ${valorCorto(antes?.estado)} → ${valorCorto(despues?.estado)}`;
+  }
+
+  return x.motivo||"Cambio registrado";
+}
+
+function tablaCambiosAuditoria(antesValor,despuesValor){
+  const antes=parseAuditJSON(antesValor);
+  const despues=parseAuditJSON(despuesValor);
+
+  if(!antes && !despues)return "<p class='small'>Sin datos detallados.</p>";
+
+  const campos=new Set();
+
+  if(antes && typeof antes==="object"){
+    Object.keys(antes).forEach(k=>campos.add(k));
+  }
+  if(despues && typeof despues==="object"){
+    Object.keys(despues).forEach(k=>campos.add(k));
+  }
+
+  const preferidos=[
+    "nombre","usuario","rol","activo","tipo","fecha","precio","precio_hora",
+    "estado","periodo","total_extras","entrada","salida","inicio_comida","fin_comida",
+    "descanso_min","nota_modificacion","modificado_por","modificado_en"
+  ];
+
+  const orden=[...preferidos.filter(k=>campos.has(k)),...[...campos].filter(k=>!preferidos.includes(k)).slice(0,10)];
+
+  return `
+    <div class="row">
+      <b>Cambios principales</b>
+      ${orden.map(k=>`
+        <p class="small"><b>${k}:</b> ${valorCorto(antes?.[k])} → ${valorCorto(despues?.[k])}</p>
+      `).join("")}
+    </div>
+  `;
+}
+
+function opcionesUnicasAuditoria(lista,campo){
+  const valores=[...new Set((lista||[]).map(x=>x[campo]).filter(Boolean))].sort();
+  return valores.map(v=>`<option value="${v}">${v}</option>`).join("");
+}
+
+function renderAuditoria(lista){
+  const accion=document.getElementById("audit_accion")?.value||"";
+  const tabla=document.getElementById("audit_tabla")?.value||"";
+
+  const filtrada=(lista||[]).filter(x=>{
+    if(accion && x.accion!==accion)return false;
+    if(tabla && x.tabla!==tabla)return false;
+    return true;
+  });
+
+  const total=document.getElementById("audit_total");
+  if(total)total.innerHTML=`${filtrada.length} registros`;
+
+  document.getElementById("audit_list").innerHTML=filtrada.length?filtrada.map(x=>`
+    <div class="row">
+      <b>${x.accion}</b><br>
+      <span class="badge">${x.tabla||"-"}</span>
+      <p>${resumenAuditoria(x)}</p>
+      <span class="small">Usuario: ${x.usuario_nombre||x.user_id||"-"}</span><br>
+      <span class="small">${new Date(x.fecha).toLocaleString("es-ES")}</span>
+      <details>
+        <summary>Ver cambios</summary>
+        ${tablaCambiosAuditoria(x.datos_antes,x.datos_despues)}
+      </details>
+      <details>
+        <summary>Ver datos técnicos</summary>
+        <pre style="white-space:pre-wrap;font-size:12px;">Antes: ${x.datos_antes?JSON.stringify(parseAuditJSON(x.datos_antes),null,2):"-"}\nDespués: ${x.datos_despues?JSON.stringify(parseAuditJSON(x.datos_despues),null,2):"-"}</pre>
+      </details>
+    </div>
+  `).join(""):"<p>No hay registros con esos filtros.</p>";
+}
+
+let auditoriaCache=[];
+
 function vistaAuditoria(){
   vistaActual='auditoria';
   document.getElementById("app").innerHTML=`
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
-      <h2>Auditoría</h2>
+      <h2>Auditoría PRO</h2>
+      <p>Historial legible de cambios importantes.</p>
+
+      <label>Acción</label>
+      <select id="audit_accion" onchange="renderAuditoria(auditoriaCache)">
+        <option value="">Todas</option>
+      </select>
+
+      <label>Tabla</label>
+      <select id="audit_tabla" onchange="renderAuditoria(auditoriaCache)">
+        <option value="">Todas</option>
+      </select>
+
+      <span id="audit_total" class="badge">Cargando...</span>
       <div id="audit_list">Cargando...</div>
     </div>
   `;
@@ -2511,20 +2674,30 @@ function vistaAuditoria(){
 }
 
 async function cargarAuditoria(){
-  const {data}=await sb.from("historial_modificaciones").select("*").order("fecha",{ascending:false}).limit(100);
-  document.getElementById("audit_list").innerHTML=
-    data.map(x=>`
-      <div class="row">
-        <b>${x.accion}</b><br>
-        ${x.tabla} · ${x.motivo||""}<br>
-        <span class="small">Usuario: ${x.usuario_nombre||x.user_id||"-"}</span><br>
-        <span class="small">${new Date(x.fecha).toLocaleString("es-ES")}</span>
-        <details>
-          <summary>Ver datos</summary>
-          <pre style="white-space:pre-wrap;font-size:12px;">Antes: ${x.datos_antes?JSON.stringify(x.datos_antes,null,2):"-"}\nDespués: ${x.datos_despues?JSON.stringify(x.datos_despues,null,2):"-"}</pre>
-        </details>
-      </div>
-    `).join("");
+  const {data,error}=await sb
+    .from("historial_modificaciones")
+    .select("*")
+    .order("fecha",{ascending:false})
+    .limit(200);
+
+  if(error){
+    document.getElementById("audit_list").innerHTML="<p>Error leyendo auditoría: "+error.message+"</p>";
+    return;
+  }
+
+  auditoriaCache=data||[];
+
+  const acc=document.getElementById("audit_accion");
+  const tab=document.getElementById("audit_tabla");
+
+  if(acc){
+    acc.innerHTML=`<option value="">Todas</option>${opcionesUnicasAuditoria(auditoriaCache,"accion")}`;
+  }
+  if(tab){
+    tab.innerHTML=`<option value="">Todas</option>${opcionesUnicasAuditoria(auditoriaCache,"tabla")}`;
+  }
+
+  renderAuditoria(auditoriaCache);
 }
 
 function vistaAyuda(){
