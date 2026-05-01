@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2554</title>
+<title>Zentryx V2555</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2554</h1>
+      <h1>Zentryx V2555</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2554";
+const VERSION="2555";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1659,7 +1659,7 @@ function normalMaximaPorHorario(horarioDia){
   if(comida>0)total-=comida;
 
   const descanso=Number(horarioDia.descanso_min||0);
-  if(descanso>0)total-=descanso;
+  if(!Number.isNaN(descanso) && descanso>0)total-=descanso;
 
   return Math.max(0,total);
 }
@@ -1899,7 +1899,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2554
+  return `MANUAL DE USO ZENTRYX V2555
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -1937,7 +1937,7 @@ La app reduce la imagen para mejorar carga en móvil.
 Incluye horarios, avisos, horas extra y festivos.
 
 7. HORARIOS
-Define la jornada de cada trabajador.
+Define la jornada de cada trabajador. En esta versión se guardan entrada, salida y comida. El campo descanso queda preparado para cuando se añada la columna descanso_min en Supabase.
 
 8. AVISOS
 Controla pausas, comidas o situaciones raras.
@@ -2993,6 +2993,7 @@ async function pintarConfigHorarios(){
 
             <label>Descanso minutos</label>
             <input id="h_descanso_${d}" type="number" value="${h.descanso_min||0}">
+            <span class="small">Pendiente de guardar en Supabase hasta añadir la columna descanso_min.</span>
           </div>`;
       }).join("")}
 
@@ -3012,8 +3013,7 @@ async function guardarConfigHorarios(uid){
       entrada:document.getElementById("h_entrada_"+d).value||null,
       salida:document.getElementById("h_salida_"+d).value||null,
       inicio_comida:document.getElementById("h_inicio_comida_"+d).value||null,
-      fin_comida:document.getElementById("h_fin_comida_"+d).value||null,
-      descanso_min:Number(document.getElementById("h_descanso_"+d).value||0)
+      fin_comida:document.getElementById("h_fin_comida_"+d).value||null
     };
 
     const {data:existe}=await sb.from("horarios_usuario").select("id").eq("user_id",String(uid)).eq("dia",d).limit(1);
