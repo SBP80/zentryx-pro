@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2560</title>
+<title>Zentryx V2561</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2560</h1>
+      <h1>Zentryx V2561</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2560";
+const VERSION="2561";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1809,7 +1809,8 @@ async function bloquearSiMesPagado(uid,fechaISO,mensaje){
 async function registrarCambio({accion,tabla,registro_id,motivo,antes,despues}){
   try{
     await sb.from("historial_modificaciones").insert([{
-      user_id:String(user.id),
+      user_id:String(user?.id||""),
+      usuario_nombre:String(user?.nombre||user?.usuario||""),
       accion,
       tabla,
       registro_id:String(registro_id||""),
@@ -1910,7 +1911,15 @@ async function validarHorasOperario(){
     total_extras:Number(inf.totalEurosExtra||0)
   };
 
-  await guardarCierreMensual(payload);
+  const cierreGuardado=await guardarCierreMensual(payload);
+  await registrarCambio({
+    accion:"validar_horas_operario",
+    tabla:"cierre_mensual",
+    registro_id:cierreGuardado?.id||"",
+    motivo:"El trabajador valida sus horas del periodo "+inf.periodo,
+    antes:inf.cierre||null,
+    despues:cierreGuardado||payload
+  });
   await generarInformeMensual();
 }
 
@@ -1931,7 +1940,15 @@ async function confirmarHorasAdmin(){
     total_extras:Number(inf.totalEurosExtra||0)
   };
 
-  await guardarCierreMensual(payload);
+  const cierreGuardado=await guardarCierreMensual(payload);
+  await registrarCambio({
+    accion:"confirmar_horas_admin",
+    tabla:"cierre_mensual",
+    registro_id:cierreGuardado?.id||"",
+    motivo:"Administrador confirma horas del periodo "+inf.periodo,
+    antes:inf.cierre||null,
+    despues:cierreGuardado||payload
+  });
   await generarInformeMensual();
 }
 
@@ -1953,7 +1970,15 @@ async function marcarHorasPagadas(){
     total_extras:Number(inf.totalEurosExtra||0)
   };
 
-  await guardarCierreMensual(payload);
+  const cierreGuardado=await guardarCierreMensual(payload);
+  await registrarCambio({
+    accion:"marcar_horas_pagadas",
+    tabla:"cierre_mensual",
+    registro_id:cierreGuardado?.id||"",
+    motivo:"Administrador marca horas extra como pagadas del periodo "+inf.periodo,
+    antes:inf.cierre||null,
+    despues:cierreGuardado||payload
+  });
   await generarInformeMensual();
 }
 
@@ -2138,7 +2163,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2560
+  return `MANUAL DE USO ZENTRYX V2561
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2279,7 +2304,17 @@ Cuando un mes está marcado como pagado, Zentryx bloquea la creación y borrado 
 Esto evita modificar horas después del pago.
 Las correcciones posteriores deberán hacerse con un sistema de auditoría administrativa.
 
-19. PRÓXIMAS MEJORAS
+
+19. AUDITORÍA AMPLIADA
+La auditoría registra cambios importantes:
+- altas, ediciones y eliminaciones de usuarios.
+- creación, edición y eliminación de tipos de horas extra.
+- validación, confirmación y pago de cierres mensuales.
+- borrados de fichajes de prueba o del día.
+
+Cada registro guarda quién hizo el cambio, cuándo, qué tabla se tocó y datos anteriores/posteriores si existen.
+
+20. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -2288,6 +2323,17 @@ Las correcciones posteriores deberán hacerse con un sistema de auditoría admin
 `;
 }
 
+
+
+async function leerRegistroPorId(tabla,id){
+  if(!tabla||!id)return null;
+  const {data,error}=await sb.from(tabla).select("*").eq("id",id).maybeSingle();
+  if(error){
+    console.warn("No se pudo leer registro anterior",tabla,id,error);
+    return null;
+  }
+  return data||null;
+}
 
 function vistaAuditoria(){
   vistaActual='auditoria';
@@ -2308,7 +2354,12 @@ async function cargarAuditoria(){
       <div class="row">
         <b>${x.accion}</b><br>
         ${x.tabla} · ${x.motivo||""}<br>
-        <span class="small">${new Date(x.fecha).toLocaleString()}</span>
+        <span class="small">Usuario: ${x.usuario_nombre||x.user_id||"-"}</span><br>
+        <span class="small">${new Date(x.fecha).toLocaleString("es-ES")}</span>
+        <details>
+          <summary>Ver datos</summary>
+          <pre style="white-space:pre-wrap;font-size:12px;">Antes: ${x.datos_antes?JSON.stringify(x.datos_antes,null,2):"-"}\nDespués: ${x.datos_despues?JSON.stringify(x.datos_despues,null,2):"-"}</pre>
+        </details>
       </div>
     `).join("");
 }
@@ -2805,6 +2856,15 @@ async function guardarAltaUsuarioPro(){
     await cargarUsuariosServidor();
   }
 
+  await registrarCambio({
+    accion:"crear_usuario",
+    tabla:"users",
+    registro_id:creado?.id||"",
+    motivo:"Alta de usuario",
+    antes:null,
+    despues:creado||{usuario:usuarioLogin,nombre:nombre}
+  });
+
   alert("Usuario creado. La contraseña queda pendiente.");
   vistaUsuariosPro();
 }
@@ -3012,6 +3072,7 @@ async function guardarEdicionUsuarioPro(id){
     update.foto=fotoUrl;
   }
 
+  const antes=await leerRegistroPorId("users",id);
   const {error}=await actualizarUsuarioAdaptativo(id,update);
 
   if(error){
@@ -3147,6 +3208,7 @@ async function eliminarUsuarioPro(id){
   await sb.from("horarios_usuario").delete().eq("user_id",String(id));
   await sb.from("avisos_fichaje").delete().eq("user_id",String(id));
 
+  const antes=await leerRegistroPorId("users",id);
   const {error}=await sb.from("users").delete().eq("id",id);
 
   if(error){
@@ -3154,6 +3216,14 @@ async function eliminarUsuarioPro(id){
     return;
   }
 
+  await registrarCambio({
+    accion:"eliminar_usuario",
+    tabla:"users",
+    registro_id:id,
+    motivo:"Eliminación de usuario",
+    antes,
+    despues:null
+  });
   await cargarUsuariosServidor();
   alert("Usuario eliminado.");
   vistaUsuariosPro();
@@ -3447,9 +3517,18 @@ async function crearTipoHoraExtra(){
 
   if(!payload.nombre){alert("Escribe el nombre.");return}
 
-  const {error}=await sb.from("tipos_horas_extra").insert([payload]);
+  const {data,error}=await sb.from("tipos_horas_extra").insert([payload]).select().single();
 
   if(error){alert("Error creando tipo: "+error.message);return}
+
+  await registrarCambio({
+    accion:"crear_tipo_hora_extra",
+    tabla:"tipos_horas_extra",
+    registro_id:data?.id||"",
+    motivo:"Creación de tipo de hora extra",
+    antes:null,
+    despues:data||payload
+  });
 
   await pintarConfigExtras();
 }
@@ -3486,6 +3565,7 @@ async function editarTipoHoraExtra(id){
     activo:true
   };
 
+  const antes=await leerRegistroPorId("tipos_horas_extra",id);
   const {error:updateError}=await sb.from("tipos_horas_extra").update(payload).eq("id",id);
 
   if(updateError){
@@ -3493,11 +3573,22 @@ async function editarTipoHoraExtra(id){
     return;
   }
 
+  const despues=await leerRegistroPorId("tipos_horas_extra",id);
+  await registrarCambio({
+    accion:"editar_tipo_hora_extra",
+    tabla:"tipos_horas_extra",
+    registro_id:id,
+    motivo:"Edición de tipo de hora extra",
+    antes,
+    despues
+  });
+
   await pintarConfigExtras();
 }
 
 async function eliminarTipoHoraExtra(id){
   if(!confirm("¿Eliminar tipo de hora extra?"))return;
+  const antes=await leerRegistroPorId("tipos_horas_extra",id);
   const {error}=await sb.from("tipos_horas_extra").delete().eq("id",id);
   if(error){alert("Error eliminando: "+error.message);return}
   await pintarConfigExtras();
