@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2565.1</title>
+<title>Zentryx V2566</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2565.1</h1>
+      <h1>Zentryx V2566</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2565.1";
+const VERSION="2566";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -879,6 +879,9 @@ async function cargarFichajesServidor(){
       lat:f.lat||null,
       lng:f.lng||null,
       precision_gps:f.precision_gps||null,
+      zona_ok:f.zona_ok,
+      zona_nombre:f.zona_nombre||"",
+      zona_distancia:f.zona_distancia||null,
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -991,6 +994,171 @@ function avisoEstadoFichaje(tipo){
 }
 
 
+
+function calcularDistanciaMetros(lat1,lon1,lat2,lon2){
+  const R=6371000;
+  const toRad=n=>Number(n)*Math.PI/180;
+  const dLat=toRad(lat2-lat1);
+  const dLon=toRad(lon2-lon1);
+  const a=
+    Math.sin(dLat/2)*Math.sin(dLat/2)+
+    Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*
+    Math.sin(dLon/2)*Math.sin(dLon/2);
+  const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  return R*c;
+}
+
+async function leerZonasTrabajo(){
+  const {data,error}=await sb
+    .from("zonas_trabajo")
+    .select("*")
+    .order("nombre",{ascending:true});
+
+  if(error){
+    console.warn("No se pudieron leer zonas_trabajo",error);
+    return [];
+  }
+  return data||[];
+}
+
+async function comprobarZonaTrabajo(lat,lng){
+  if(lat==null || lng==null){
+    return {ok:false,modo:"sin_gps",mensaje:"Sin GPS",zona:null,distancia:null};
+  }
+
+  const zonas=await leerZonasTrabajo();
+
+  if(!zonas.length){
+    return {ok:true,modo:"sin_zonas",mensaje:"No hay zonas configuradas",zona:null,distancia:null};
+  }
+
+  let masCercana=null;
+
+  for(const z of zonas){
+    if(z.lat==null || z.lng==null)continue;
+
+    const distancia=calcularDistanciaMetros(Number(lat),Number(lng),Number(z.lat),Number(z.lng));
+    const radio=Number(z.radio_metros||0);
+
+    if(!masCercana || distancia<masCercana.distancia){
+      masCercana={zona:z,distancia,radio};
+    }
+
+    if(radio>0 && distancia<=radio){
+      return {
+        ok:true,
+        modo:"dentro",
+        mensaje:"Dentro de zona",
+        zona:z.nombre||"Zona",
+        zona_id:z.id,
+        distancia:Math.round(distancia),
+        radio:radio
+      };
+    }
+  }
+
+  return {
+    ok:false,
+    modo:"fuera",
+    mensaje:"Fuera de zona de trabajo",
+    zona:masCercana?.zona?.nombre||null,
+    zona_id:masCercana?.zona?.id||null,
+    distancia:masCercana?Math.round(masCercana.distancia):null,
+    radio:masCercana?.radio||null
+  };
+}
+
+async function crearZonaTrabajoDesdeGPS(){
+  if(!esAdmin()){alert("Solo administrador.");return}
+
+  const nombre=prompt("Nombre de la zona:");
+  if(!nombre || !nombre.trim())return;
+
+  const radio=Number(prompt("Radio permitido en metros:", "100")||100);
+  const gps=await obtenerGPS();
+
+  if(!gps.ok){
+    alert("No se pudo obtener GPS: "+gps.msg);
+    return;
+  }
+
+  const payload={
+    nombre:nombre.trim(),
+    lat:gps.lat,
+    lng:gps.lng,
+    radio_metros:radio,
+    activa:true
+  };
+
+  const {data,error}=await sb.from("zonas_trabajo").insert([payload]).select().single();
+
+  if(error){
+    alert("Error creando zona: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"crear_zona_trabajo",
+    tabla:"zonas_trabajo",
+    registro_id:data?.id||"",
+    motivo:"Creación de zona desde GPS actual",
+    antes:null,
+    despues:data||payload
+  });
+
+  alert("Zona creada.");
+  await pintarConfigZonas();
+}
+
+async function eliminarZonaTrabajo(id){
+  if(!esAdmin()){alert("Solo administrador.");return}
+
+  const antes=await leerRegistroPorId("zonas_trabajo",id);
+  if(!confirm("¿Eliminar zona de trabajo?"))return;
+
+  const {error}=await sb.from("zonas_trabajo").delete().eq("id",id);
+
+  if(error){
+    alert("Error eliminando zona: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"eliminar_zona_trabajo",
+    tabla:"zonas_trabajo",
+    registro_id:id,
+    motivo:"Eliminación de zona de trabajo",
+    antes,
+    despues:null
+  });
+
+  await pintarConfigZonas();
+}
+
+async function pintarConfigZonas(){
+  const zonas=await leerZonasTrabajo();
+
+  document.getElementById("zonaConfig").innerHTML=`
+    <div class="card">
+      <h2>Zonas de trabajo</h2>
+      <p class="small">Las zonas permiten revisar si un fichaje se hizo dentro de una ubicación autorizada. En esta versión se avisa y se registra en auditoría; todavía no se bloquea el fichaje.</p>
+      <button class="btn green full" onclick="crearZonaTrabajoDesdeGPS()">Crear zona con mi ubicación actual</button>
+    </div>
+
+    <div class="card">
+      <h2>Zonas actuales</h2>
+      ${zonas.length?zonas.map(z=>`
+        <div class="row">
+          <b>${z.nombre||"Zona"}</b><br>
+          <span class="small">Lat: ${z.lat} · Lng: ${z.lng}</span><br>
+          <span class="small">Radio: ${z.radio_metros||0} m</span><br>
+          <button class="btn red" onclick="eliminarZonaTrabajo('${z.id}')">Eliminar</button>
+        </div>
+      `).join(""):"<p>No hay zonas configuradas.</p>"}
+    </div>
+  `;
+}
+
 async function obtenerGPS(){
   return new Promise(resolve=>{
     if(!navigator.geolocation){
@@ -1081,6 +1249,17 @@ async function guardarMovimiento(tipo){
   }
 
   const direccionReal=await obtenerDireccionReal(gps.lat,gps.lng);
+  const zona=await comprobarZonaTrabajo(gps.lat,gps.lng);
+
+  if(!zona.ok){
+    await registrarCambio({
+      accion:"fichaje_fuera_zona",
+      tabla:"fichajes",
+      motivo:zona.mensaje+(zona.zona?(" · Zona más cercana: "+zona.zona):""),
+      despues:zona
+    });
+    alert("Aviso: fichaje fuera de zona de trabajo. Queda registrado en auditoría.");
+  }
 
   const payload={
     user_id:String(user.id),
@@ -1089,6 +1268,9 @@ async function guardarMovimiento(tipo){
     lat:gps.lat,
     lng:gps.lng,
     precision_gps:gps.precision,
+    zona_ok:zona.ok,
+    zona_nombre:zona.zona,
+    zona_distancia:zona.distancia,
     direccion:gps.direccion,
     direccion_real:direccionReal
   };
@@ -1426,6 +1608,8 @@ async function inicio(){
           ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
           ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
           ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m</span>`:""}
+          ${m.zona_ok===false?`<br><span class="badge red">Fuera de zona</span>`:""}
+          ${m.zona_ok===true && m.zona_nombre?`<br><span class="badge green">Zona: ${m.zona_nombre}</span>`:""}
           ${esAdmin()?`<button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
           ${m.nota_modificacion?`<br><span class="small">Modificado: ${m.nota_modificacion}</span>`:""}
         </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
@@ -1784,6 +1968,9 @@ async function cargarFichajesUsuarioPeriodo(uid,inicio,fin){
       lat:f.lat||null,
       lng:f.lng||null,
       precision_gps:f.precision_gps||null,
+      zona_ok:f.zona_ok,
+      zona_nombre:f.zona_nombre||"",
+      zona_distancia:f.zona_distancia||null,
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -2347,6 +2534,8 @@ async function generarInformeMensual(){
                 ${m.hora} · ${nombreAccion(m.tipo)}${m.direccion?` · ${m.direccion}`:""}
                 ${m.nota_modificacion?`<br><span class="small">Motivo modificación: ${m.nota_modificacion}</span>`:""}
                 ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m</span>`:""}
+                ${m.zona_ok===false?`<br><span class="badge red">Fuera de zona</span>`:""}
+                ${m.zona_ok===true && m.zona_nombre?`<br><span class="badge green">Zona: ${m.zona_nombre}</span>`:""}
                 ${esAdmin()?`<br><button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
               </div>
             `).join("")}
@@ -2400,7 +2589,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2565.1
+  return `MANUAL DE USO ZENTRYX V2566
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2579,7 +2768,14 @@ Zentryx guarda latitud, longitud y precisión GPS cuando el dispositivo lo permi
 Si el usuario deniega el GPS o no hay señal, queda registrado en Auditoría como fichaje_sin_gps.
 La precisión se muestra en metros: cuanto menor sea el número, más fiable es la ubicación.
 
-24. PRÓXIMAS MEJORAS
+
+24. ZONAS DE TRABAJO
+Las zonas de trabajo permiten revisar si un fichaje se ha hecho dentro de una ubicación autorizada.
+Cada zona tiene nombre, latitud, longitud y radio permitido en metros.
+En esta versión Zentryx no bloquea el fichaje fuera de zona: avisa y registra el caso en Auditoría.
+Esto permite controlar incidencias sin impedir trabajar cuando hay mala cobertura o urgencias.
+
+25. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -3717,6 +3913,7 @@ async function vistaConfigPro(tab="horarios"){
         <button class="btn ${tab==="avisos"?"dark":"gray"}" onclick="vistaConfigPro('avisos')">Avisos</button>
         <button class="btn ${tab==="extras"?"dark":"gray"}" onclick="vistaConfigPro('extras')">Horas extra</button>
         <button class="btn ${tab==="festivos"?"dark":"gray"}" onclick="vistaConfigPro('festivos')">Festivos</button>
+        <button class="btn ${tab==="zonas"?"dark":"gray"}" onclick="vistaConfigPro('zonas')">Zonas</button>
       </div>
     </div>
 
@@ -3727,6 +3924,7 @@ async function vistaConfigPro(tab="horarios"){
   if(tab==="avisos")await pintarConfigAvisos();
   if(tab==="extras")await pintarConfigExtras();
   if(tab==="festivos")await pintarConfigFestivos();
+  if(tab==="zonas")await pintarConfigZonas();
 }
 
 async function cargarHorarioUsuario(uid){
