@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2572</title>
+<title>Zentryx V2573</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2572</h1>
+      <h1>Zentryx V2573</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2572";
+const VERSION="2573";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -885,6 +885,10 @@ async function cargarFichajesServidor(){
       zona_radio:f.zona_radio||null,
       zona_modo:f.zona_modo||"",
       zona_motivo:f.zona_motivo||"",
+      precision_ok:f.precision_ok,
+      precision_maxima:f.precision_maxima||null,
+      precision_modo:f.precision_modo||"",
+      precision_motivo:f.precision_motivo||"",
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -1028,7 +1032,9 @@ async function leerZonasTrabajo(){
 async function leerConfigZonas(){
   const defecto={
     modo_fuera_zona:"motivo",
-    modo_sin_gps:"motivo"
+    modo_sin_gps:"motivo",
+    modo_precision_gps:"motivo",
+    precision_maxima_metros:10
   };
 
   try{
@@ -1037,7 +1043,9 @@ async function leerConfigZonas(){
 
     return {
       modo_fuera_zona:data.modo_fuera_zona||defecto.modo_fuera_zona,
-      modo_sin_gps:data.modo_sin_gps||defecto.modo_sin_gps
+      modo_sin_gps:data.modo_sin_gps||defecto.modo_sin_gps,
+      modo_precision_gps:data.modo_precision_gps||defecto.modo_precision_gps,
+      precision_maxima_metros:Number(data.precision_maxima_metros||defecto.precision_maxima_metros)
     };
   }catch(e){
     return defecto;
@@ -1052,11 +1060,20 @@ async function guardarConfigZonas(){
 
   const modoFuera=document.getElementById("cfg_modo_fuera_zona")?.value||"motivo";
   const modoSinGps=document.getElementById("cfg_modo_sin_gps")?.value||"motivo";
+  const modoPrecision=document.getElementById("cfg_modo_precision_gps")?.value||"motivo";
+  const precisionMax=Number(document.getElementById("cfg_precision_maxima_metros")?.value||10);
+
+  if(Number.isNaN(precisionMax) || precisionMax<=0){
+    alert("Precisión máxima no válida.");
+    return;
+  }
 
   const payload={
     id:"global",
     modo_fuera_zona:modoFuera,
     modo_sin_gps:modoSinGps,
+    modo_precision_gps:modoPrecision,
+    precision_maxima_metros:precisionMax,
     updated_at:new Date().toISOString()
   };
 
@@ -1082,6 +1099,57 @@ async function guardarConfigZonas(){
 
   alert("Configuración guardada.");
   await pintarConfigZonas();
+}
+
+
+function evaluarPrecisionGPS(gps,config){
+  const precision=Number(gps?.precision||0);
+  const max=Number(config?.precision_maxima_metros||10);
+
+  if(!gps || !gps.ok){
+    return {
+      ok:false,
+      modo:"sin_gps",
+      precision:null,
+      max,
+      mensaje:"Sin GPS"
+    };
+  }
+
+  if(!precision || Number.isNaN(precision)){
+    return {
+      ok:false,
+      modo:"sin_precision",
+      precision:null,
+      max,
+      mensaje:"No se ha podido leer la precisión del GPS"
+    };
+  }
+
+  if(precision<=max){
+    return {
+      ok:true,
+      modo:"precision_ok",
+      precision,
+      max,
+      mensaje:"Precisión GPS correcta"
+    };
+  }
+
+  return {
+    ok:false,
+    modo:"precision_mala",
+    precision,
+    max,
+    mensaje:`Precisión GPS insuficiente: ${Math.round(precision)} m. Máximo permitido: ${max} m`
+  };
+}
+
+function textoResultadoPrecisionGPS(r){
+  if(!r)return "";
+  if(r.ok)return `Precisión GPS correcta: ${Math.round(r.precision)} m`;
+  if(r.modo==="precision_mala")return `GPS impreciso: ${Math.round(r.precision)} m / máximo ${r.max} m`;
+  return r.mensaje||"Precisión GPS no válida";
 }
 
 function textoModoZona(modo){
@@ -1375,6 +1443,16 @@ async function pintarConfigZonas(){
         <option value="bloquear" ${cfg.modo_sin_gps==="bloquear"?"selected":""}>Bloquear fichaje</option>
       </select>
 
+      <label>Precisión GPS máxima permitida (metros)</label>
+      <input id="cfg_precision_maxima_metros" type="number" value="${cfg.precision_maxima_metros||10}">
+
+      <label>Si la precisión GPS supera el máximo</label>
+      <select id="cfg_modo_precision_gps">
+        <option value="avisar" ${cfg.modo_precision_gps==="avisar"?"selected":""}>Avisar y permitir</option>
+        <option value="motivo" ${cfg.modo_precision_gps==="motivo"?"selected":""}>Pedir motivo y permitir</option>
+        <option value="bloquear" ${cfg.modo_precision_gps==="bloquear"?"selected":""}>Bloquear fichaje</option>
+      </select>
+
       <button class="btn dark full" onclick="guardarConfigZonas()">Guardar control de zona</button>
     </div>
 
@@ -1533,7 +1611,41 @@ async function guardarMovimiento(tipo){
   const zona=await comprobarZonaTrabajo(gps.lat,gps.lng);
 
   let motivoFueraZona="";
+  let motivoPrecisionGPS="";
   const configZonas=await leerConfigZonas();
+  const precisionGPS=evaluarPrecisionGPS(gps,configZonas);
+
+  if(!precisionGPS.ok && precisionGPS.modo==="precision_mala"){
+    const modoPrecision=configZonas.modo_precision_gps||"motivo";
+
+    if(modoPrecision==="bloquear"){
+      await registrarCambio({
+        accion:"fichaje_bloqueado_precision_gps",
+        tabla:"fichajes",
+        motivo:precisionGPS.mensaje,
+        despues:{precisionGPS,modoPrecision}
+      });
+
+      alert("Fichaje bloqueado: "+textoResultadoPrecisionGPS(precisionGPS));
+      return;
+    }
+
+    if(modoPrecision==="motivo"){
+      motivoPrecisionGPS=prompt(
+        "La precisión del GPS es baja. Indica motivo para continuar:",
+        "Precisión GPS insuficiente"
+      )||"Sin motivo indicado";
+    }
+
+    await registrarCambio({
+      accion:"fichaje_precision_gps_baja",
+      tabla:"fichajes",
+      motivo:precisionGPS.mensaje+(motivoPrecisionGPS?(" · Motivo: "+motivoPrecisionGPS):""),
+      despues:{precisionGPS,modoPrecision,motivoPrecisionGPS}
+    });
+
+    alert("Aviso: "+textoResultadoPrecisionGPS(precisionGPS)+". Modo: "+textoModoZona(modoPrecision)+". Queda registrado en auditoría.");
+  }
 
   if(!zona.ok){
     const modoControl=zona.modo==="sin_gps" ? configZonas.modo_sin_gps : configZonas.modo_fuera_zona;
@@ -1582,6 +1694,10 @@ async function guardarMovimiento(tipo){
     zona_radio:zona.radio,
     zona_modo:zona.modo,
     zona_motivo:motivoFueraZona,
+    precision_ok:precisionGPS.ok,
+    precision_maxima:precisionGPS.max,
+    precision_modo:precisionGPS.modo,
+    precision_motivo:motivoPrecisionGPS,
     direccion:gps.direccion,
     direccion_real:direccionReal
   };
@@ -1918,7 +2034,8 @@ async function inicio(){
           ${m.hora}<br>
           ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
           ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
-          ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m</span>`:""}
+          ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m${m.precision_maxima?` / máx ${m.precision_maxima} m`:""}</span>`:""}
+          ${m.precision_ok===false?`<br><span class="badge red">GPS impreciso</span>${m.precision_motivo?`<br><span class="small">Motivo GPS: ${m.precision_motivo}</span>`:""}`:""}
           ${m.zona_ok===false?`<br><span class="badge red">Fuera de zona</span>${m.zona_nombre?`<br><span class="small">Zona más cercana: ${m.zona_nombre} · ${m.zona_distancia||"-"} m</span>`:""}${m.zona_motivo?`<br><span class="small">Motivo: ${m.zona_motivo}</span>`:""}`:""}
           ${m.zona_ok===true && m.zona_nombre?`<br><span class="badge green">Zona: ${m.zona_nombre}</span>${m.zona_distancia?`<br><span class="small">Distancia: ${m.zona_distancia} m</span>`:""}`:""}
           ${esAdmin()?`<button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
@@ -2285,6 +2402,10 @@ async function cargarFichajesUsuarioPeriodo(uid,inicio,fin){
       zona_radio:f.zona_radio||null,
       zona_modo:f.zona_modo||"",
       zona_motivo:f.zona_motivo||"",
+      precision_ok:f.precision_ok,
+      precision_maxima:f.precision_maxima||null,
+      precision_modo:f.precision_modo||"",
+      precision_motivo:f.precision_motivo||"",
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -2847,7 +2968,8 @@ async function generarInformeMensual(){
               <div class="row">
                 ${m.hora} · ${nombreAccion(m.tipo)}${m.direccion?` · ${m.direccion}`:""}
                 ${m.nota_modificacion?`<br><span class="small">Motivo modificación: ${m.nota_modificacion}</span>`:""}
-                ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m</span>`:""}
+                ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m${m.precision_maxima?` / máx ${m.precision_maxima} m`:""}</span>`:""}
+                ${m.precision_ok===false?`<br><span class="badge red">GPS impreciso</span>${m.precision_motivo?`<br><span class="small">Motivo GPS: ${m.precision_motivo}</span>`:""}`:""}
                 ${m.zona_ok===false?`<br><span class="badge red">Fuera de zona</span>${m.zona_nombre?`<br><span class="small">Zona más cercana: ${m.zona_nombre} · ${m.zona_distancia||"-"} m</span>`:""}${m.zona_motivo?`<br><span class="small">Motivo: ${m.zona_motivo}</span>`:""}`:""}
                 ${m.zona_ok===true && m.zona_nombre?`<br><span class="badge green">Zona: ${m.zona_nombre}</span>${m.zona_distancia?`<br><span class="small">Distancia: ${m.zona_distancia} m</span>`:""}`:""}
                 ${esAdmin()?`<br><button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
@@ -2903,7 +3025,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2572
+  return `MANUAL DE USO ZENTRYX V2573
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3152,7 +3274,18 @@ En Configuración > Zonas se puede decidir qué ocurre cuando alguien ficha fuer
 También se puede configurar qué ocurre si no hay GPS.
 Los bloqueos y avisos quedan registrados en Auditoría.
 
-32. PRÓXIMAS MEJORAS
+
+32. CONTROL DE PRECISIÓN GPS
+La precisión GPS se controla de forma independiente al radio de zona.
+Ejemplo: aunque el trabajador esté dentro de la zona, si el GPS tiene 12 m de precisión y el máximo configurado es 10 m, Zentryx aplicará la regla configurada.
+Opciones:
+- Avisar y permitir.
+- Pedir motivo y permitir.
+- Bloquear fichaje.
+
+Cada fichaje guarda precisión real, precisión máxima configurada y motivo si procede.
+
+33. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
