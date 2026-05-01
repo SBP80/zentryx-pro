@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2567</title>
+<title>Zentryx V2568</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2567</h1>
+      <h1>Zentryx V2568</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2567";
+const VERSION="2568";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1104,6 +1104,90 @@ function abrirWaze(lat,lng){
   window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,"_blank");
 }
 
+
+function extraerCoordenadasDesdeTextoMapa(texto){
+  const t=String(texto||"").trim();
+  if(!t)return null;
+
+  const patrones=[
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /ll=(-?\d+\.\d+)%2C(-?\d+\.\d+)/,
+    /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/
+  ];
+
+  for(const p of patrones){
+    const m=t.match(p);
+    if(m){
+      return {lat:Number(m[1]),lng:Number(m[2])};
+    }
+  }
+
+  return null;
+}
+
+async function crearZonaTrabajoDesdeMapa(){
+  if(!esAdmin()){alert("Solo administrador.");return}
+
+  const nombre=prompt("Nombre de la zona:");
+  if(!nombre || !nombre.trim())return;
+
+  const enlace=prompt("Pega enlace o coordenadas de Google Maps, Apple Maps o Waze:");
+  if(!enlace || !enlace.trim())return;
+
+  const coords=extraerCoordenadasDesdeTextoMapa(enlace);
+
+  if(!coords){
+    alert("No he podido sacar coordenadas del enlace. Abre el mapa, comparte ubicación y pega el enlace completo.");
+    return;
+  }
+
+  const radio=Number(prompt("Radio permitido en metros:", "100")||100);
+  const direccionReal=await obtenerDireccionReal(coords.lat,coords.lng);
+
+  if(!confirm("Zona encontrada:\\n"+(direccionReal||("Lat "+coords.lat+", Lng "+coords.lng))+"\\n\\n¿Crear zona aquí?")){
+    return;
+  }
+
+  const payload={
+    nombre:nombre.trim(),
+    direccion:direccionReal||enlace.trim(),
+    lat:coords.lat,
+    lng:coords.lng,
+    radio_metros:radio,
+    activa:true
+  };
+
+  const {data,error}=await sb.from("zonas_trabajo").insert([payload]).select().single();
+
+  if(error){
+    alert("Error creando zona: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"crear_zona_mapa",
+    tabla:"zonas_trabajo",
+    registro_id:data?.id||"",
+    motivo:"Creación de zona desde enlace de mapa",
+    antes:null,
+    despues:data||payload
+  });
+
+  alert("Zona creada.");
+  await pintarConfigZonas();
+}
+
+function abrirMapaZona(selectId,lat,lng){
+  const valor=document.getElementById(selectId)?.value||"";
+  if(valor==="google")abrirGoogleMaps(lat,lng);
+  if(valor==="apple")abrirAppleMaps(lat,lng);
+  if(valor==="waze")abrirWaze(lat,lng);
+  const s=document.getElementById(selectId);
+  if(s)s.value="";
+}
+
 async function crearZonaTrabajoPorDireccion(){
   if(!esAdmin()){alert("Solo administrador.");return}
 
@@ -1295,24 +1379,29 @@ async function pintarConfigZonas(){
   document.getElementById("zonaConfig").innerHTML=`
     <div class="card">
       <h2>Zonas de trabajo PRO</h2>
-      <p class="small">Crea zonas desde tu ubicación actual o escribiendo una dirección. No hace falta introducir coordenadas manualmente.</p>
-      <button class="btn green full" onclick="crearZonaTrabajoDesdeGPS()">Crear zona con mi ubicación actual</button>
-      <button class="btn blue full" onclick="crearZonaTrabajoPorDireccion()">Crear zona por dirección</button>
+      <p class="small">Crea zonas desde tu ubicación actual, por dirección o pegando un enlace de Google Maps, Apple Maps o Waze.</p>
+      <button class="btn green full" onclick="crearZonaTrabajoDesdeGPS()">Crear con mi ubicación actual</button>
+      <button class="btn blue full" onclick="crearZonaTrabajoPorDireccion()">Crear por dirección</button>
+      <button class="btn orange full" onclick="crearZonaTrabajoDesdeMapa()">Crear desde enlace de mapa</button>
     </div>
 
     <div class="card">
       <h2>Zonas actuales</h2>
-      ${zonas.length?zonas.map(z=>`
+      ${zonas.length?zonas.map((z,i)=>`
         <div class="row">
           <b>${z.nombre||"Zona"}</b>
           ${z.activa===false?`<span class="badge red">Inactiva</span>`:`<span class="badge green">Activa</span>`}<br>
           ${z.direccion?`<span class="small">${z.direccion}</span><br>`:""}
           <span class="small">Radio: ${z.radio_metros||0} m</span><br>
-          <div class="actions">
-            <button class="btn gray" onclick="abrirGoogleMaps(${z.lat},${z.lng})">Google Maps</button>
-            <button class="btn gray" onclick="abrirAppleMaps(${z.lat},${z.lng})">Apple Maps</button>
-            <button class="btn gray" onclick="abrirWaze(${z.lat},${z.lng})">Waze</button>
-          </div>
+
+          <label>Abrir en mapa</label>
+          <select id="mapa_zona_${i}" onchange="abrirMapaZona('mapa_zona_${i}',${z.lat},${z.lng})">
+            <option value="">Seleccionar mapa...</option>
+            <option value="google">Google Maps</option>
+            <option value="apple">Apple Maps</option>
+            <option value="waze">Waze</option>
+          </select>
+
           <div class="actions">
             <button class="btn blue" onclick="cambiarRadioZonaTrabajo('${z.id}')">Cambiar radio</button>
             ${z.activa===false
@@ -2756,7 +2845,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2567
+  return `MANUAL DE USO ZENTRYX V2568
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2952,7 +3041,13 @@ Cada zona puede abrirse en Google Maps, Apple Maps o Waze para comprobar la posi
 También se puede cambiar el radio permitido y activar o desactivar una zona.
 No se introducen latitud y longitud manualmente en el uso normal.
 
-26. PRÓXIMAS MEJORAS
+
+26. ZONAS DESDE MAPAS
+Las zonas pueden crearse pegando un enlace de Google Maps, Apple Maps o Waze.
+También se aceptan coordenadas copiadas desde un mapa.
+Para abrir una zona existente se usa un desplegable con Google Maps, Apple Maps o Waze, evitando tener demasiados botones visibles.
+
+27. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
