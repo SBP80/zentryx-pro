@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2566</title>
+<title>Zentryx V2567</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2566</h1>
+      <h1>Zentryx V2567</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2566";
+const VERSION="2567";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1026,7 +1026,7 @@ async function comprobarZonaTrabajo(lat,lng){
     return {ok:false,modo:"sin_gps",mensaje:"Sin GPS",zona:null,distancia:null};
   }
 
-  const zonas=await leerZonasTrabajo();
+  const zonas=(await leerZonasTrabajo()).filter(z=>z.activa!==false);
 
   if(!zonas.length){
     return {ok:true,modo:"sin_zonas",mensaje:"No hay zonas configuradas",zona:null,distancia:null};
@@ -1068,6 +1068,157 @@ async function comprobarZonaTrabajo(lat,lng){
   };
 }
 
+
+async function geocodificarDireccion(direccion){
+  const q=String(direccion||"").trim();
+  if(!q)return null;
+
+  const url="https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q);
+
+  try{
+    const res=await fetch(url,{headers:{"Accept":"application/json"}});
+    const data=await res.json();
+
+    if(!data || !data.length)return null;
+
+    return {
+      lat:Number(data[0].lat),
+      lng:Number(data[0].lon),
+      direccion:data[0].display_name||q
+    };
+  }catch(e){
+    console.warn("Error geocodificando",e);
+    return null;
+  }
+}
+
+function abrirGoogleMaps(lat,lng){
+  window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,"_blank");
+}
+
+function abrirAppleMaps(lat,lng){
+  window.open(`https://maps.apple.com/?q=${lat},${lng}`,"_blank");
+}
+
+function abrirWaze(lat,lng){
+  window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,"_blank");
+}
+
+async function crearZonaTrabajoPorDireccion(){
+  if(!esAdmin()){alert("Solo administrador.");return}
+
+  const nombre=prompt("Nombre de la zona:");
+  if(!nombre || !nombre.trim())return;
+
+  const direccion=prompt("Dirección de la zona:");
+  if(!direccion || !direccion.trim())return;
+
+  const radio=Number(prompt("Radio permitido en metros:", "100")||100);
+
+  const geo=await geocodificarDireccion(direccion);
+
+  if(!geo){
+    alert("No se pudo localizar la dirección. Prueba con una dirección más completa.");
+    return;
+  }
+
+  if(!confirm("Dirección encontrada:\\n"+geo.direccion+"\\n\\n¿Crear zona aquí?")){
+    return;
+  }
+
+  const payload={
+    nombre:nombre.trim(),
+    direccion:geo.direccion,
+    lat:geo.lat,
+    lng:geo.lng,
+    radio_metros:radio,
+    activa:true
+  };
+
+  const {data,error}=await sb.from("zonas_trabajo").insert([payload]).select().single();
+
+  if(error){
+    alert("Error creando zona: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"crear_zona_direccion",
+    tabla:"zonas_trabajo",
+    registro_id:data?.id||"",
+    motivo:"Creación de zona desde dirección",
+    antes:null,
+    despues:data||payload
+  });
+
+  alert("Zona creada.");
+  await pintarConfigZonas();
+}
+
+async function cambiarEstadoZonaTrabajo(id,activa){
+  if(!esAdmin()){alert("Solo administrador.");return}
+
+  const antes=await leerRegistroPorId("zonas_trabajo",id);
+
+  const {data,error}=await sb
+    .from("zonas_trabajo")
+    .update({activa:!!activa})
+    .eq("id",id)
+    .select()
+    .single();
+
+  if(error){
+    alert("Error actualizando zona: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:activa?"activar_zona_trabajo":"desactivar_zona_trabajo",
+    tabla:"zonas_trabajo",
+    registro_id:id,
+    motivo:"Cambio de estado de zona",
+    antes,
+    despues:data
+  });
+
+  await pintarConfigZonas();
+}
+
+async function cambiarRadioZonaTrabajo(id){
+  if(!esAdmin()){alert("Solo administrador.");return}
+
+  const antes=await leerRegistroPorId("zonas_trabajo",id);
+  const radio=Number(prompt("Nuevo radio en metros:", antes?.radio_metros||100)||0);
+
+  if(!radio || radio<=0){
+    alert("Radio no válido.");
+    return;
+  }
+
+  const {data,error}=await sb
+    .from("zonas_trabajo")
+    .update({radio_metros:radio})
+    .eq("id",id)
+    .select()
+    .single();
+
+  if(error){
+    alert("Error actualizando radio: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"editar_radio_zona",
+    tabla:"zonas_trabajo",
+    registro_id:id,
+    motivo:"Cambio de radio de zona",
+    antes,
+    despues:data
+  });
+
+  await pintarConfigZonas();
+}
+
 async function crearZonaTrabajoDesdeGPS(){
   if(!esAdmin()){alert("Solo administrador.");return}
 
@@ -1082,8 +1233,11 @@ async function crearZonaTrabajoDesdeGPS(){
     return;
   }
 
+  const direccionReal=await obtenerDireccionReal(gps.lat,gps.lng);
+
   const payload={
     nombre:nombre.trim(),
+    direccion:direccionReal||gps.direccion||"",
     lat:gps.lat,
     lng:gps.lng,
     radio_metros:radio,
@@ -1140,19 +1294,32 @@ async function pintarConfigZonas(){
 
   document.getElementById("zonaConfig").innerHTML=`
     <div class="card">
-      <h2>Zonas de trabajo</h2>
-      <p class="small">Las zonas permiten revisar si un fichaje se hizo dentro de una ubicación autorizada. En esta versión se avisa y se registra en auditoría; todavía no se bloquea el fichaje.</p>
+      <h2>Zonas de trabajo PRO</h2>
+      <p class="small">Crea zonas desde tu ubicación actual o escribiendo una dirección. No hace falta introducir coordenadas manualmente.</p>
       <button class="btn green full" onclick="crearZonaTrabajoDesdeGPS()">Crear zona con mi ubicación actual</button>
+      <button class="btn blue full" onclick="crearZonaTrabajoPorDireccion()">Crear zona por dirección</button>
     </div>
 
     <div class="card">
       <h2>Zonas actuales</h2>
       ${zonas.length?zonas.map(z=>`
         <div class="row">
-          <b>${z.nombre||"Zona"}</b><br>
-          <span class="small">Lat: ${z.lat} · Lng: ${z.lng}</span><br>
+          <b>${z.nombre||"Zona"}</b>
+          ${z.activa===false?`<span class="badge red">Inactiva</span>`:`<span class="badge green">Activa</span>`}<br>
+          ${z.direccion?`<span class="small">${z.direccion}</span><br>`:""}
           <span class="small">Radio: ${z.radio_metros||0} m</span><br>
-          <button class="btn red" onclick="eliminarZonaTrabajo('${z.id}')">Eliminar</button>
+          <div class="actions">
+            <button class="btn gray" onclick="abrirGoogleMaps(${z.lat},${z.lng})">Google Maps</button>
+            <button class="btn gray" onclick="abrirAppleMaps(${z.lat},${z.lng})">Apple Maps</button>
+            <button class="btn gray" onclick="abrirWaze(${z.lat},${z.lng})">Waze</button>
+          </div>
+          <div class="actions">
+            <button class="btn blue" onclick="cambiarRadioZonaTrabajo('${z.id}')">Cambiar radio</button>
+            ${z.activa===false
+              ?`<button class="btn green" onclick="cambiarEstadoZonaTrabajo('${z.id}',true)">Activar</button>`
+              :`<button class="btn orange" onclick="cambiarEstadoZonaTrabajo('${z.id}',false)">Desactivar</button>`}
+            <button class="btn red" onclick="eliminarZonaTrabajo('${z.id}')">Eliminar</button>
+          </div>
         </div>
       `).join(""):"<p>No hay zonas configuradas.</p>"}
     </div>
@@ -2589,7 +2756,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2566
+  return `MANUAL DE USO ZENTRYX V2567
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2775,7 +2942,17 @@ Cada zona tiene nombre, latitud, longitud y radio permitido en metros.
 En esta versión Zentryx no bloquea el fichaje fuera de zona: avisa y registra el caso en Auditoría.
 Esto permite controlar incidencias sin impedir trabajar cuando hay mala cobertura o urgencias.
 
-25. PRÓXIMAS MEJORAS
+
+25. ZONAS PRO POR DIRECCIÓN
+Las zonas de trabajo pueden crearse de dos formas:
+- Con la ubicación actual del dispositivo.
+- Escribiendo una dirección.
+
+Cada zona puede abrirse en Google Maps, Apple Maps o Waze para comprobar la posición.
+También se puede cambiar el radio permitido y activar o desactivar una zona.
+No se introducen latitud y longitud manualmente en el uso normal.
+
+26. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
