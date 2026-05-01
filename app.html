@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2570</title>
+<title>Zentryx V2571</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2570</h1>
+      <h1>Zentryx V2571</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2570";
+const VERSION="2571";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -882,6 +882,9 @@ async function cargarFichajesServidor(){
       zona_ok:f.zona_ok,
       zona_nombre:f.zona_nombre||"",
       zona_distancia:f.zona_distancia||null,
+      zona_radio:f.zona_radio||null,
+      zona_modo:f.zona_modo||"",
+      zona_motivo:f.zona_motivo||"",
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -1023,13 +1026,29 @@ async function leerZonasTrabajo(){
 
 async function comprobarZonaTrabajo(lat,lng){
   if(lat==null || lng==null){
-    return {ok:false,modo:"sin_gps",mensaje:"Sin GPS",zona:null,distancia:null};
+    return {
+      ok:false,
+      modo:"sin_gps",
+      mensaje:"No se ha podido comprobar zona porque no hay GPS.",
+      zona:null,
+      zona_id:null,
+      distancia:null,
+      radio:null
+    };
   }
 
   const zonas=(await leerZonasTrabajo()).filter(z=>z.activa!==false);
 
   if(!zonas.length){
-    return {ok:true,modo:"sin_zonas",mensaje:"No hay zonas configuradas",zona:null,distancia:null};
+    return {
+      ok:true,
+      modo:"sin_zonas",
+      mensaje:"No hay zonas configuradas. El fichaje no se valida por zona.",
+      zona:null,
+      zona_id:null,
+      distancia:null,
+      radio:null
+    };
   }
 
   let masCercana=null;
@@ -1048,7 +1067,7 @@ async function comprobarZonaTrabajo(lat,lng){
       return {
         ok:true,
         modo:"dentro",
-        mensaje:"Dentro de zona",
+        mensaje:"Fichaje dentro de zona autorizada.",
         zona:z.nombre||"Zona",
         zona_id:z.id,
         distancia:Math.round(distancia),
@@ -1060,7 +1079,7 @@ async function comprobarZonaTrabajo(lat,lng){
   return {
     ok:false,
     modo:"fuera",
-    mensaje:"Fuera de zona de trabajo",
+    mensaje:"Fichaje fuera de zona autorizada.",
     zona:masCercana?.zona?.nombre||null,
     zona_id:masCercana?.zona?.id||null,
     distancia:masCercana?Math.round(masCercana.distancia):null,
@@ -1068,408 +1087,13 @@ async function comprobarZonaTrabajo(lat,lng){
   };
 }
 
-
-async function geocodificarDireccion(direccion){
-  const q=String(direccion||"").trim();
-  if(!q)return null;
-
-  const url="https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q);
-
-  try{
-    const res=await fetch(url,{headers:{"Accept":"application/json"}});
-    const data=await res.json();
-
-    if(!data || !data.length)return null;
-
-    return {
-      lat:Number(data[0].lat),
-      lng:Number(data[0].lon),
-      direccion:data[0].display_name||q
-    };
-  }catch(e){
-    console.warn("Error geocodificando",e);
-    return null;
-  }
-}
-
-function abrirGoogleMaps(lat,lng){
-  window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,"_blank");
-}
-
-function abrirAppleMaps(lat,lng){
-  window.open(`https://maps.apple.com/?q=${lat},${lng}`,"_blank");
-}
-
-function abrirWaze(lat,lng){
-  window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,"_blank");
-}
-
-
-function extraerCoordenadasDesdeTextoMapa(texto){
-  const t=String(texto||"").trim();
-  if(!t)return null;
-
-  const patrones=[
-    /@(-?\d+\.\d+),(-?\d+\.\d+)/,
-    /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/,
-    /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/,
-    /ll=(-?\d+\.\d+)%2C(-?\d+\.\d+)/,
-    /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/
-  ];
-
-  for(const p of patrones){
-    const m=t.match(p);
-    if(m){
-      return {lat:Number(m[1]),lng:Number(m[2])};
-    }
-  }
-
-  return null;
-}
-
-
-function abrirMapaParaMarcar(){
-  const proveedor=document.getElementById("zona_mapa_proveedor")?.value||"google";
-  const busqueda=document.getElementById("zona_mapa_busqueda")?.value||"El Ejido";
-  const q=encodeURIComponent(busqueda);
-
-  if(proveedor==="google"){
-    window.open(`https://www.google.com/maps/search/?api=1&query=${q}`,"_blank");
-  }
-
-  if(proveedor==="apple"){
-    window.open(`https://maps.apple.com/?q=${q}`,"_blank");
-  }
-
-  if(proveedor==="waze"){
-    window.open(`https://waze.com/ul?q=${q}&navigate=no`,"_blank");
-  }
-}
-
-function limpiarTextoMapaCompartido(t){
-  return String(t||"")
-    .replace(/&amp;/g,"&")
-    .replace(/\s+/g," ")
-    .trim();
-}
-
-
-function esEnlaceCortoAppleMaps(texto){
-  const t=String(texto||"").trim().toLowerCase();
-  return t.includes("maps.apple/p/") || t.includes("maps.apple.com/p/");
-}
-
-function esEnlaceCortoGoogleMaps(texto){
-  const t=String(texto||"").trim().toLowerCase();
-  return t.includes("maps.app.goo.gl") || t.includes("goo.gl/maps");
-}
-
-function esEnlaceCortoWaze(texto){
-  const t=String(texto||"").trim().toLowerCase();
-  return t.includes("waze.com/ul/") && !t.includes("ll=");
-}
-
-function explicarEnlaceMapaNoValido(texto){
-  const t=String(texto||"").trim();
-
-  if(esEnlaceCortoAppleMaps(t)){
-    return "El enlace de Apple Maps que has pegado es corto y no trae coordenadas visibles. Abre ese enlace en Safari, deja que cargue Apple Maps/Safari y copia la URL completa si aparece con ll=lat,lng. También puedes usar Google Maps para compartir el punto.";
-  }
-
-  if(esEnlaceCortoGoogleMaps(t)){
-    return "El enlace de Google Maps parece acortado. Abre el enlace en Safari/Chrome y copia la URL completa cuando aparezcan coordenadas, o mantén pulsado el punto y copia las coordenadas.";
-  }
-
-  if(esEnlaceCortoWaze(t)){
-    return "El enlace de Waze no trae coordenadas visibles. En Waze comparte la ubicación exacta o usa Google/Apple Maps para copiar el punto.";
-  }
-
-  return "No he podido sacar la ubicación del enlace. Mantén pulsado sobre el punto exacto, pulsa Compartir y pega aquí un enlace completo que incluya coordenadas.";
-}
-
-function extraerCoordenadasDesdeTextoMapaPro(texto){
-  const t=limpiarTextoMapaCompartido(texto);
-  if(!t)return null;
-
-  let decoded=t;
-  for(let i=0;i<3;i++){
-    try{
-      const nuevo=decodeURIComponent(decoded);
-      if(nuevo===decoded)break;
-      decoded=nuevo;
-    }catch(e){break}
-  }
-
-  const textos=[t,decoded];
-
-  const patrones=[
-    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
-    /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
-    /[?&]ll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
-    /[?&]center=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
-    /[?&]sll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
-    /[?&]coordinate=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
-    /ll=(-?\d+(?:\.\d+)?)%2C(-?\d+(?:\.\d+)?)/,
-    /q=(-?\d+(?:\.\d+)?)%2C(-?\d+(?:\.\d+)?)/,
-    /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/
-  ];
-
-  for(const textoPrueba of textos){
-    for(const p of patrones){
-      const m=textoPrueba.match(p);
-      if(m){
-        const lat=Number(m[1]);
-        const lng=Number(m[2]);
-        if(!Number.isNaN(lat) && !Number.isNaN(lng) && Math.abs(lat)<=90 && Math.abs(lng)<=180){
-          return {lat,lng};
-        }
-      }
-    }
-  }
-
-  return null;
-}
-
-function validarEnlaceMapaPegado(){
-  const enlace=document.getElementById("zona_mapa_enlace")?.value||"";
-  const aviso=document.getElementById("zona_mapa_aviso");
-  if(!aviso)return;
-
-  const coords=extraerCoordenadasDesdeTextoMapaPro(enlace);
-
-  if(!enlace.trim()){
-    aviso.innerHTML="";
-    return;
-  }
-
-  if(coords){
-    aviso.innerHTML=`<span class="badge green">Ubicación detectada</span><p class="small">Lat ${coords.lat}, Lng ${coords.lng}</p>`;
-    return;
-  }
-
-  aviso.innerHTML=`<span class="badge red">Enlace no válido todavía</span><p class="small">${explicarEnlaceMapaNoValido(enlace)}</p>`;
-}
-
-function pegarCoordenadasManual(){
-  const texto=prompt("Pega coordenadas copiadas del mapa, por ejemplo: 36.776,-2.814");
-  if(!texto)return;
-
-  const coords=extraerCoordenadasDesdeTextoMapaPro(texto);
-
-  if(!coords){
-    alert("No he podido leer esas coordenadas.");
-    return;
-  }
-
-  const input=document.getElementById("zona_mapa_enlace");
-  if(input){
-    input.value=`${coords.lat},${coords.lng}`;
-    validarEnlaceMapaPegado();
-  }
-}
-
-async function crearZonaDesdeFormularioMapa(){
-  if(!esAdmin()){alert("Solo administrador.");return}
-
-  const nombre=document.getElementById("zona_mapa_nombre")?.value?.trim();
-  const enlace=document.getElementById("zona_mapa_enlace")?.value?.trim();
-  const radio=Number(document.getElementById("zona_mapa_radio")?.value||100);
-
-  if(!nombre){
-    alert("Pon nombre a la zona.");
-    return;
-  }
-
-  if(!enlace){
-    alert("Pega el enlace compartido del punto marcado en el mapa.");
-    return;
-  }
-
-  const coords=extraerCoordenadasDesdeTextoMapaPro(enlace);
-
-  if(!coords){
-    alert(explicarEnlaceMapaNoValido(enlace));
-    validarEnlaceMapaPegado();
-    return;
-  }
-
-  const direccionReal=await obtenerDireccionReal(coords.lat,coords.lng);
-
-  if(!confirm("Ubicación detectada:\\n"+(direccionReal||("Lat "+coords.lat+", Lng "+coords.lng))+"\\n\\n¿Crear zona aquí?")){
-    return;
-  }
-
-  const payload={
-    nombre,
-    direccion:direccionReal||enlace,
-    lat:coords.lat,
-    lng:coords.lng,
-    radio_metros:radio,
-    activa:true
-  };
-
-  const {data,error}=await sb.from("zonas_trabajo").insert([payload]).select().single();
-
-  if(error){
-    alert("Error creando zona: "+error.message);
-    return;
-  }
-
-  await registrarCambio({
-    accion:"crear_zona_mapa_guiado",
-    tabla:"zonas_trabajo",
-    registro_id:data?.id||"",
-    motivo:"Creación de zona desde mapa elegido por el usuario",
-    antes:null,
-    despues:data||payload
-  });
-
-  alert("Zona creada.");
-  await pintarConfigZonas();
-}
-
-async function crearZonaTrabajoDesdeMapa(){
-  const proveedor=prompt("Elige mapa: google, apple o waze","google");
-  if(!proveedor)return;
-
-  const busqueda=prompt("Lugar para abrir en el mapa:","El Ejido");
-  if(!busqueda)return;
-
-  const q=encodeURIComponent(busqueda);
-
-  if(proveedor.toLowerCase().includes("apple")){
-    window.open(`https://maps.apple.com/?q=${q}`,"_blank");
-  }else if(proveedor.toLowerCase().includes("waze")){
-    window.open(`https://waze.com/ul?q=${q}&navigate=no`,"_blank");
-  }else{
-    window.open(`https://www.google.com/maps/search/?api=1&query=${q}`,"_blank");
-  }
-
-  alert("Marca el punto en el mapa, pulsa Compartir, copia el enlace y vuelve a Zentryx para pegarlo en el formulario.");
-}
-
-function abrirMapaZona(selectId,lat,lng){
-  const valor=document.getElementById(selectId)?.value||"";
-  if(valor==="google")abrirGoogleMaps(lat,lng);
-  if(valor==="apple")abrirAppleMaps(lat,lng);
-  if(valor==="waze")abrirWaze(lat,lng);
-  const s=document.getElementById(selectId);
-  if(s)s.value="";
-}
-
-async function crearZonaTrabajoPorDireccion(){
-  if(!esAdmin()){alert("Solo administrador.");return}
-
-  const nombre=prompt("Nombre de la zona:");
-  if(!nombre || !nombre.trim())return;
-
-  const direccion=prompt("Dirección de la zona:");
-  if(!direccion || !direccion.trim())return;
-
-  const radio=Number(prompt("Radio permitido en metros:", "100")||100);
-
-  const geo=await geocodificarDireccion(direccion);
-
-  if(!geo){
-    alert("No se pudo localizar la dirección. Prueba con una dirección más completa.");
-    return;
-  }
-
-  if(!confirm("Dirección encontrada:\\n"+geo.direccion+"\\n\\n¿Crear zona aquí?")){
-    return;
-  }
-
-  const payload={
-    nombre:nombre.trim(),
-    direccion:geo.direccion,
-    lat:geo.lat,
-    lng:geo.lng,
-    radio_metros:radio,
-    activa:true
-  };
-
-  const {data,error}=await sb.from("zonas_trabajo").insert([payload]).select().single();
-
-  if(error){
-    alert("Error creando zona: "+error.message);
-    return;
-  }
-
-  await registrarCambio({
-    accion:"crear_zona_direccion",
-    tabla:"zonas_trabajo",
-    registro_id:data?.id||"",
-    motivo:"Creación de zona desde dirección",
-    antes:null,
-    despues:data||payload
-  });
-
-  alert("Zona creada.");
-  await pintarConfigZonas();
-}
-
-async function cambiarEstadoZonaTrabajo(id,activa){
-  if(!esAdmin()){alert("Solo administrador.");return}
-
-  const antes=await leerRegistroPorId("zonas_trabajo",id);
-
-  const {data,error}=await sb
-    .from("zonas_trabajo")
-    .update({activa:!!activa})
-    .eq("id",id)
-    .select()
-    .single();
-
-  if(error){
-    alert("Error actualizando zona: "+error.message);
-    return;
-  }
-
-  await registrarCambio({
-    accion:activa?"activar_zona_trabajo":"desactivar_zona_trabajo",
-    tabla:"zonas_trabajo",
-    registro_id:id,
-    motivo:"Cambio de estado de zona",
-    antes,
-    despues:data
-  });
-
-  await pintarConfigZonas();
-}
-
-async function cambiarRadioZonaTrabajo(id){
-  if(!esAdmin()){alert("Solo administrador.");return}
-
-  const antes=await leerRegistroPorId("zonas_trabajo",id);
-  const radio=Number(prompt("Nuevo radio en metros:", antes?.radio_metros||100)||0);
-
-  if(!radio || radio<=0){
-    alert("Radio no válido.");
-    return;
-  }
-
-  const {data,error}=await sb
-    .from("zonas_trabajo")
-    .update({radio_metros:radio})
-    .eq("id",id)
-    .select()
-    .single();
-
-  if(error){
-    alert("Error actualizando radio: "+error.message);
-    return;
-  }
-
-  await registrarCambio({
-    accion:"editar_radio_zona",
-    tabla:"zonas_trabajo",
-    registro_id:id,
-    motivo:"Cambio de radio de zona",
-    antes,
-    despues:data
-  });
-
-  await pintarConfigZonas();
+function textoResultadoZona(zona){
+  if(!zona)return "";
+  if(zona.modo==="sin_zonas")return "Sin zonas configuradas";
+  if(zona.modo==="sin_gps")return "Sin GPS";
+  if(zona.ok && zona.zona)return `Dentro de ${zona.zona} · ${zona.distancia} m`;
+  if(!zona.ok && zona.zona)return `Fuera de zona · más cercana: ${zona.zona} · ${zona.distancia} m`;
+  return zona.mensaje||"Zona no comprobada";
 }
 
 async function crearZonaTrabajoDesdeGPS(){
@@ -1708,14 +1332,24 @@ async function guardarMovimiento(tipo){
   const direccionReal=await obtenerDireccionReal(gps.lat,gps.lng);
   const zona=await comprobarZonaTrabajo(gps.lat,gps.lng);
 
+  let motivoFueraZona="";
+
   if(!zona.ok){
+    if(zona.modo==="fuera"){
+      motivoFueraZona=prompt(
+        "Estás fuera de zona de trabajo. Indica motivo para continuar:",
+        "Trabajo fuera de zona autorizada"
+      )||"Sin motivo indicado";
+    }
+
     await registrarCambio({
-      accion:"fichaje_fuera_zona",
+      accion:zona.modo==="sin_gps"?"fichaje_sin_comprobacion_zona":"fichaje_fuera_zona",
       tabla:"fichajes",
-      motivo:zona.mensaje+(zona.zona?(" · Zona más cercana: "+zona.zona):""),
+      motivo:(zona.mensaje||"Zona no válida")+(zona.zona?(" · Zona más cercana: "+zona.zona):"")+(motivoFueraZona?(" · Motivo: "+motivoFueraZona):""),
       despues:zona
     });
-    alert("Aviso: fichaje fuera de zona de trabajo. Queda registrado en auditoría.");
+
+    alert("Aviso: "+textoResultadoZona(zona)+". Queda registrado en auditoría.");
   }
 
   const payload={
@@ -1728,6 +1362,9 @@ async function guardarMovimiento(tipo){
     zona_ok:zona.ok,
     zona_nombre:zona.zona,
     zona_distancia:zona.distancia,
+    zona_radio:zona.radio,
+    zona_modo:zona.modo,
+    zona_motivo:motivoFueraZona,
     direccion:gps.direccion,
     direccion_real:direccionReal
   };
@@ -2065,8 +1702,8 @@ async function inicio(){
           ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
           ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
           ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m</span>`:""}
-          ${m.zona_ok===false?`<br><span class="badge red">Fuera de zona</span>`:""}
-          ${m.zona_ok===true && m.zona_nombre?`<br><span class="badge green">Zona: ${m.zona_nombre}</span>`:""}
+          ${m.zona_ok===false?`<br><span class="badge red">Fuera de zona</span>${m.zona_nombre?`<br><span class="small">Zona más cercana: ${m.zona_nombre} · ${m.zona_distancia||"-"} m</span>`:""}${m.zona_motivo?`<br><span class="small">Motivo: ${m.zona_motivo}</span>`:""}`:""}
+          ${m.zona_ok===true && m.zona_nombre?`<br><span class="badge green">Zona: ${m.zona_nombre}</span>${m.zona_distancia?`<br><span class="small">Distancia: ${m.zona_distancia} m</span>`:""}`:""}
           ${esAdmin()?`<button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
           ${m.nota_modificacion?`<br><span class="small">Modificado: ${m.nota_modificacion}</span>`:""}
         </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
@@ -2428,6 +2065,9 @@ async function cargarFichajesUsuarioPeriodo(uid,inicio,fin){
       zona_ok:f.zona_ok,
       zona_nombre:f.zona_nombre||"",
       zona_distancia:f.zona_distancia||null,
+      zona_radio:f.zona_radio||null,
+      zona_modo:f.zona_modo||"",
+      zona_motivo:f.zona_motivo||"",
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -2991,8 +2631,8 @@ async function generarInformeMensual(){
                 ${m.hora} · ${nombreAccion(m.tipo)}${m.direccion?` · ${m.direccion}`:""}
                 ${m.nota_modificacion?`<br><span class="small">Motivo modificación: ${m.nota_modificacion}</span>`:""}
                 ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m</span>`:""}
-                ${m.zona_ok===false?`<br><span class="badge red">Fuera de zona</span>`:""}
-                ${m.zona_ok===true && m.zona_nombre?`<br><span class="badge green">Zona: ${m.zona_nombre}</span>`:""}
+                ${m.zona_ok===false?`<br><span class="badge red">Fuera de zona</span>${m.zona_nombre?`<br><span class="small">Zona más cercana: ${m.zona_nombre} · ${m.zona_distancia||"-"} m</span>`:""}${m.zona_motivo?`<br><span class="small">Motivo: ${m.zona_motivo}</span>`:""}`:""}
+                ${m.zona_ok===true && m.zona_nombre?`<br><span class="badge green">Zona: ${m.zona_nombre}</span>${m.zona_distancia?`<br><span class="small">Distancia: ${m.zona_distancia} m</span>`:""}`:""}
                 ${esAdmin()?`<br><button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
               </div>
             `).join("")}
@@ -3046,7 +2686,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2570
+  return `MANUAL DE USO ZENTRYX V2571
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3271,7 +2911,15 @@ Si ocurre:
 
 Zentryx avisa automáticamente cuando el enlace no trae ubicación útil.
 
-29. PRÓXIMAS MEJORAS
+
+29. CONTROL REAL DE ZONA EN FICHAJES
+Al fichar, Zentryx compara la ubicación GPS con las zonas activas.
+Si el trabajador está dentro del radio permitido, el fichaje queda marcado como dentro de zona.
+Si está fuera, la app avisa, pide motivo y registra la incidencia en Auditoría.
+El fichaje se permite de momento para no bloquear trabajos urgentes, mala cobertura o desplazamientos reales.
+En cada fichaje se guarda zona, distancia, radio, precisión GPS y motivo si está fuera.
+
+30. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
