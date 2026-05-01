@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2571.1</title>
+<title>Zentryx V2572</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2571.1</h1>
+      <h1>Zentryx V2572</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2571.1";
+const VERSION="2572";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1024,6 +1024,73 @@ async function leerZonasTrabajo(){
   return data||[];
 }
 
+
+async function leerConfigZonas(){
+  const defecto={
+    modo_fuera_zona:"motivo",
+    modo_sin_gps:"motivo"
+  };
+
+  try{
+    const {data,error}=await sb.from("configuracion_zonas").select("*").limit(1).maybeSingle();
+    if(error || !data)return defecto;
+
+    return {
+      modo_fuera_zona:data.modo_fuera_zona||defecto.modo_fuera_zona,
+      modo_sin_gps:data.modo_sin_gps||defecto.modo_sin_gps
+    };
+  }catch(e){
+    return defecto;
+  }
+}
+
+async function guardarConfigZonas(){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const modoFuera=document.getElementById("cfg_modo_fuera_zona")?.value||"motivo";
+  const modoSinGps=document.getElementById("cfg_modo_sin_gps")?.value||"motivo";
+
+  const payload={
+    id:"global",
+    modo_fuera_zona:modoFuera,
+    modo_sin_gps:modoSinGps,
+    updated_at:new Date().toISOString()
+  };
+
+  const {data,error}=await sb
+    .from("configuracion_zonas")
+    .upsert(payload,{onConflict:"id"})
+    .select()
+    .single();
+
+  if(error){
+    alert("Error guardando configuración de zonas: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"configurar_control_zonas",
+    tabla:"configuracion_zonas",
+    registro_id:"global",
+    motivo:"Cambio de comportamiento del control de zona",
+    antes:null,
+    despues:data||payload
+  });
+
+  alert("Configuración guardada.");
+  await pintarConfigZonas();
+}
+
+function textoModoZona(modo){
+  if(modo==="avisar")return "Avisar y permitir";
+  if(modo==="motivo")return "Pedir motivo y permitir";
+  if(modo==="bloquear")return "Bloquear fichaje";
+  return modo||"";
+}
+
 async function comprobarZonaTrabajo(lat,lng){
   if(lat==null || lng==null){
     return {
@@ -1281,6 +1348,7 @@ async function eliminarZonaTrabajo(id){
 
 async function pintarConfigZonas(){
   const zonas=await leerZonasTrabajo();
+  const cfg=await leerConfigZonas();
 
   document.getElementById("zonaConfig").innerHTML=`
     <div class="card">
@@ -1289,6 +1357,25 @@ async function pintarConfigZonas(){
 
       <button class="btn green full" onclick="crearZonaTrabajoDesdeGPS()">Crear con mi ubicación actual</button>
       <button class="btn blue full" onclick="crearZonaTrabajoPorDireccion()">Crear por dirección</button>
+    </div>
+
+    <div class="card">
+      <h2>Control al fichar</h2>
+      <label>Si el trabajador está fuera de zona</label>
+      <select id="cfg_modo_fuera_zona">
+        <option value="avisar" ${cfg.modo_fuera_zona==="avisar"?"selected":""}>Avisar y permitir</option>
+        <option value="motivo" ${cfg.modo_fuera_zona==="motivo"?"selected":""}>Pedir motivo y permitir</option>
+        <option value="bloquear" ${cfg.modo_fuera_zona==="bloquear"?"selected":""}>Bloquear fichaje</option>
+      </select>
+
+      <label>Si no hay GPS</label>
+      <select id="cfg_modo_sin_gps">
+        <option value="avisar" ${cfg.modo_sin_gps==="avisar"?"selected":""}>Avisar y permitir</option>
+        <option value="motivo" ${cfg.modo_sin_gps==="motivo"?"selected":""}>Pedir motivo y permitir</option>
+        <option value="bloquear" ${cfg.modo_sin_gps==="bloquear"?"selected":""}>Bloquear fichaje</option>
+      </select>
+
+      <button class="btn dark full" onclick="guardarConfigZonas()">Guardar control de zona</button>
     </div>
 
     <div class="card">
@@ -1446,12 +1533,29 @@ async function guardarMovimiento(tipo){
   const zona=await comprobarZonaTrabajo(gps.lat,gps.lng);
 
   let motivoFueraZona="";
+  const configZonas=await leerConfigZonas();
 
   if(!zona.ok){
-    if(zona.modo==="fuera"){
+    const modoControl=zona.modo==="sin_gps" ? configZonas.modo_sin_gps : configZonas.modo_fuera_zona;
+
+    if(modoControl==="bloquear"){
+      await registrarCambio({
+        accion:zona.modo==="sin_gps"?"fichaje_bloqueado_sin_gps":"fichaje_bloqueado_fuera_zona",
+        tabla:"fichajes",
+        motivo:(zona.mensaje||"Zona no válida")+(zona.zona?(" · Zona más cercana: "+zona.zona):""),
+        despues:{zona,modoControl}
+      });
+
+      alert("Fichaje bloqueado: "+textoResultadoZona(zona));
+      return;
+    }
+
+    if(modoControl==="motivo"){
       motivoFueraZona=prompt(
-        "Estás fuera de zona de trabajo. Indica motivo para continuar:",
-        "Trabajo fuera de zona autorizada"
+        zona.modo==="sin_gps"
+          ?"No se puede comprobar la zona porque no hay GPS. Indica motivo para continuar:"
+          :"Estás fuera de zona de trabajo. Indica motivo para continuar:",
+        zona.modo==="sin_gps"?"GPS no disponible":"Trabajo fuera de zona autorizada"
       )||"Sin motivo indicado";
     }
 
@@ -1459,10 +1563,10 @@ async function guardarMovimiento(tipo){
       accion:zona.modo==="sin_gps"?"fichaje_sin_comprobacion_zona":"fichaje_fuera_zona",
       tabla:"fichajes",
       motivo:(zona.mensaje||"Zona no válida")+(zona.zona?(" · Zona más cercana: "+zona.zona):"")+(motivoFueraZona?(" · Motivo: "+motivoFueraZona):""),
-      despues:zona
+      despues:{zona,modoControl,motivoFueraZona}
     });
 
-    alert("Aviso: "+textoResultadoZona(zona)+". Queda registrado en auditoría.");
+    alert("Aviso: "+textoResultadoZona(zona)+". Modo: "+textoModoZona(modoControl)+". Queda registrado en auditoría.");
   }
 
   const payload={
@@ -2799,7 +2903,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2571.1
+  return `MANUAL DE USO ZENTRYX V2572
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3038,7 +3142,17 @@ Se corrige la edición de radio de las zonas.
 El cambio de radio queda registrado en Auditoría.
 También quedan disponibles activar, desactivar y eliminar zona desde la pantalla de configuración.
 
-31. PRÓXIMAS MEJORAS
+
+31. CONTROL CONFIGURABLE DE ZONAS
+En Configuración > Zonas se puede decidir qué ocurre cuando alguien ficha fuera de zona:
+- Avisar y permitir.
+- Pedir motivo y permitir.
+- Bloquear fichaje.
+
+También se puede configurar qué ocurre si no hay GPS.
+Los bloqueos y avisos quedan registrados en Auditoría.
+
+32. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
