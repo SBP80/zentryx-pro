@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2565</title>
+<title>Zentryx V2565.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2565</h1>
+      <h1>Zentryx V2565.1</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2564";
+const VERSION="2565.1";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -878,6 +878,7 @@ async function cargarFichajesServidor(){
       direccion:f.direccion_real||f.direccion||"",
       lat:f.lat||null,
       lng:f.lng||null,
+      precision_gps:f.precision_gps||null,
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -990,41 +991,40 @@ function avisoEstadoFichaje(tipo){
 }
 
 
-
 async function obtenerGPS(){
-  return new Promise((resolve)=>{
+  return new Promise(resolve=>{
     if(!navigator.geolocation){
-      resolve({ok:false,msg:"GPS no disponible"});
+      resolve({
+        ok:false,
+        lat:null,
+        lng:null,
+        precision:null,
+        direccion:"GPS no disponible",
+        msg:"GPS no disponible"
+      });
       return;
     }
+
     navigator.geolocation.getCurrentPosition(
       pos=>{
         resolve({
           ok:true,
           lat:pos.coords.latitude,
           lng:pos.coords.longitude,
-          precision:pos.coords.accuracy
-        });
-      },
-      ()=>{
-        resolve({ok:false,msg:"GPS denegado"});
-      },
-      {enableHighAccuracy:true,timeout:5000}
-    );
-  });
-}
-
-
-    navigator.geolocation.getCurrentPosition(
-      pos=>{
-        resolve({
-          lat:pos.coords.latitude,
-          lng:pos.coords.longitude,
-          direccion:"Lat "+pos.coords.latitude+", Lng "+pos.coords.longitude
+          precision:pos.coords.accuracy,
+          direccion:"Lat "+pos.coords.latitude+", Lng "+pos.coords.longitude,
+          msg:"GPS correcto"
         });
       },
       err=>{
-        resolve({lat:null,lng:null,direccion:"GPS denegado o sin señal"});
+        resolve({
+          ok:false,
+          lat:null,
+          lng:null,
+          precision:null,
+          direccion:"GPS denegado o sin señal",
+          msg:"GPS denegado o sin señal"
+        });
       },
       {enableHighAccuracy:true,timeout:10000,maximumAge:0}
     );
@@ -1071,6 +1071,15 @@ async function guardarMovimiento(tipo){
   }
 
   const gps=await obtenerGPS();
+
+  if(!gps.ok){
+    await registrarCambio({
+      accion:"fichaje_sin_gps",
+      tabla:"fichajes",
+      motivo:gps.msg||"GPS no disponible"
+    });
+  }
+
   const direccionReal=await obtenerDireccionReal(gps.lat,gps.lng);
 
   const payload={
@@ -1079,6 +1088,7 @@ async function guardarMovimiento(tipo){
     fecha:new Date().toISOString(),
     lat:gps.lat,
     lng:gps.lng,
+    precision_gps:gps.precision,
     direccion:gps.direccion,
     direccion_real:direccionReal
   };
@@ -1415,6 +1425,7 @@ async function inicio(){
           ${m.hora}<br>
           ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
           ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
+          ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m</span>`:""}
           ${esAdmin()?`<button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
           ${m.nota_modificacion?`<br><span class="small">Modificado: ${m.nota_modificacion}</span>`:""}
         </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
@@ -1772,6 +1783,7 @@ async function cargarFichajesUsuarioPeriodo(uid,inicio,fin){
       direccion:f.direccion_real||f.direccion||"",
       lat:f.lat||null,
       lng:f.lng||null,
+      precision_gps:f.precision_gps||null,
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -2334,6 +2346,7 @@ async function generarInformeMensual(){
               <div class="row">
                 ${m.hora} · ${nombreAccion(m.tipo)}${m.direccion?` · ${m.direccion}`:""}
                 ${m.nota_modificacion?`<br><span class="small">Motivo modificación: ${m.nota_modificacion}</span>`:""}
+                ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m</span>`:""}
                 ${esAdmin()?`<br><button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
               </div>
             `).join("")}
@@ -2387,7 +2400,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2565
+  return `MANUAL DE USO ZENTRYX V2565.1
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2560,7 +2573,13 @@ Zentryx controla el orden correcto de los fichajes:
 - No permite finalizar pausa o comida si no estaban iniciadas.
 - Muestra mensajes claros para corregir el error.
 
-23. PRÓXIMAS MEJORAS
+
+23. GPS PRO
+Zentryx guarda latitud, longitud y precisión GPS cuando el dispositivo lo permite.
+Si el usuario deniega el GPS o no hay señal, queda registrado en Auditoría como fichaje_sin_gps.
+La precisión se muestra en metros: cuanto menor sea el número, más fiable es la ubicación.
+
+24. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
