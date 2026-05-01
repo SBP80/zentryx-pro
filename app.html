@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2563</title>
+<title>Zentryx V2564</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2563</h1>
+      <h1>Zentryx V2564</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2563";
+const VERSION="2564";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -922,25 +922,73 @@ function nombreAccion(a){
   return map[a]||a;
 }
 
+
+function estadoFichajeActual(){
+  const u=ultimoMovimiento();
+  if(!u)return "fuera";
+
+  const tipo=String(u.tipo||"");
+
+  if(tipo==="entrada"||tipo==="fin_pausa"||tipo==="fin_comida")return "trabajando";
+  if(tipo==="inicio_pausa")return "pausa";
+  if(tipo==="inicio_comida")return "comida";
+  if(tipo==="salida")return "fuera";
+
+  return "fuera";
+}
+
 function movimientoPermitido(tipo){
-  const est=estadoActual().txt;
+  const estado=estadoFichajeActual();
 
-  if(est==="Fuera")return tipo==="entrada";
-  if(est==="Trabajando")return ["salida","inicio_pausa","inicio_comida"].includes(tipo);
-  if(est==="En pausa")return tipo==="fin_pausa";
-  if(est==="En comida")return tipo==="fin_comida";
+  if(tipo==="entrada")return estado==="fuera";
+  if(tipo==="salida")return estado==="trabajando";
+  if(tipo==="inicio_pausa")return estado==="trabajando";
+  if(tipo==="fin_pausa")return estado==="pausa";
+  if(tipo==="inicio_comida")return estado==="trabajando";
+  if(tipo==="fin_comida")return estado==="comida";
 
-  return tipo==="entrada";
+  return false;
 }
 
 function textoMovimientoNoPermitido(tipo){
-  const est=estadoActual().txt;
-  if(est==="Fuera")return "No puedes iniciar pausa, comida o salida sin haber fichado entrada.";
-  if(est==="Trabajando"&&tipo==="entrada")return "Ya estás trabajando.";
-  if(est==="En pausa")return "Estás en pausa. Primero finaliza la pausa.";
-  if(est==="En comida")return "Estás en comida. Primero finaliza la comida.";
-  return "Movimiento no permitido.";
+  const estado=estadoFichajeActual();
+
+  if(tipo==="entrada" && estado==="trabajando")return "Ya estás trabajando. No puedes fichar otra entrada.";
+  if(tipo==="entrada" && estado==="pausa")return "Estás en pausa. Primero finaliza la pausa.";
+  if(tipo==="entrada" && estado==="comida")return "Estás en comida. Primero finaliza la comida.";
+
+  if(tipo==="salida" && estado==="fuera")return "Primero debes fichar entrada.";
+  if(tipo==="salida" && estado==="pausa")return "No puedes salir estando en pausa. Primero finaliza la pausa.";
+  if(tipo==="salida" && estado==="comida")return "No puedes salir estando en comida. Primero finaliza la comida.";
+
+  if(tipo==="inicio_pausa" && estado==="fuera")return "Primero debes fichar entrada para iniciar una pausa.";
+  if(tipo==="inicio_pausa" && estado==="pausa")return "Ya tienes una pausa abierta.";
+  if(tipo==="inicio_pausa" && estado==="comida")return "No puedes iniciar pausa mientras estás en comida.";
+
+  if(tipo==="fin_pausa" && estado==="fuera")return "No hay pausa abierta.";
+  if(tipo==="fin_pausa" && estado==="trabajando")return "No estás en pausa.";
+  if(tipo==="fin_pausa" && estado==="comida")return "Estás en comida, no en pausa.";
+
+  if(tipo==="inicio_comida" && estado==="fuera")return "Primero debes fichar entrada para iniciar comida.";
+  if(tipo==="inicio_comida" && estado==="pausa")return "No puedes iniciar comida mientras estás en pausa.";
+  if(tipo==="inicio_comida" && estado==="comida")return "Ya tienes una comida abierta.";
+
+  if(tipo==="fin_comida" && estado==="fuera")return "No hay comida abierta.";
+  if(tipo==="fin_comida" && estado==="trabajando")return "No estás en comida.";
+  if(tipo==="fin_comida" && estado==="pausa")return "Estás en pausa, no en comida.";
+
+  return "Movimiento no permitido según el estado actual.";
 }
+
+function avisoEstadoFichaje(tipo){
+  const estado=estadoFichajeActual();
+  return {
+    estado,
+    permitido:movimientoPermitido(tipo),
+    mensaje:movimientoPermitido(tipo)?"":textoMovimientoNoPermitido(tipo)
+  };
+}
+
 
 function obtenerGPS(){
   return new Promise(resolve=>{
@@ -993,8 +1041,9 @@ async function guardarMovimiento(tipo){
     return;
   }
 
-  if(!movimientoPermitido(tipo)){
-    alert(textoMovimientoNoPermitido(tipo));
+  const validacion=avisoEstadoFichaje(tipo);
+  if(!validacion.permitido){
+    alert(validacion.mensaje);
     return;
   }
 
@@ -1264,6 +1313,7 @@ async function inicio(){
       <b>${user.nombre}</b>
       <p>${user.usuario} · ${user.rol}</p>
       <span class="badge ${est.clase}">${est.txt}</span>
+      <span class="badge">Estado interno: ${estadoFichajeActual()}</span>
       ${festivoHoyCache?`<span class="badge red">Festivo: ${textoFestivoHoy()}</span>`:""}
       ${leerAviso()}
     </div>
@@ -2319,7 +2369,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2563
+  return `MANUAL DE USO ZENTRYX V2564
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2483,7 +2533,16 @@ La auditoría muestra los cambios en formato claro.
 Permite filtrar por acción y por tabla.
 Cada registro tiene una vista sencilla y una vista técnica para revisar datos completos.
 
-22. PRÓXIMAS MEJORAS
+
+22. VALIDACIÓN PRO DE FICHAJES
+Zentryx controla el orden correcto de los fichajes:
+- No permite salida sin entrada.
+- No permite dos entradas seguidas.
+- No permite salir si hay una pausa o comida abierta.
+- No permite finalizar pausa o comida si no estaban iniciadas.
+- Muestra mensajes claros para corregir el error.
+
+23. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
