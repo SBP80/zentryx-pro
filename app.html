@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2558</title>
+<title>Zentryx V2559</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2558</h1>
+      <h1>Zentryx V2559</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2558";
+const VERSION="2559";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -839,6 +839,10 @@ function abrirMapaMovimiento(lat,lng,direccion){
 async function guardarMovimiento(tipo){
   await cargarFichajesServidor();
 
+  if(await bloquearSiMesPagado(user.id,new Date().toISOString(),"Este mes está pagado. No puedes crear nuevos fichajes.")){
+    return;
+  }
+
   if(!movimientoPermitido(tipo)){
     alert(textoMovimientoNoPermitido(tipo));
     return;
@@ -1073,6 +1077,10 @@ async function limpiarPrueba(){
   const inicio=hoyISO()+"T00:00:00";
   const fin=hoyISO()+"T23:59:59";
 
+  if(await bloquearSiMesPagado(user.id,inicio,"Este mes está pagado. No puedes borrar fichajes de hoy.")){
+    return;
+  }
+
   const {error}=await sb
     .from("fichajes")
     .delete()
@@ -1224,6 +1232,10 @@ async function generarFichajesPrueba(){
 
   await cargarUsuariosServidor();
 
+  if(await bloquearSiMesPagado(user.id,new Date().toISOString(),"El mes actual está pagado. No puedes generar fichajes de prueba.")){
+    return;
+  }
+
   const usuarios=leerUsuarios().filter(u=>u.activo!==false);
   if(!usuarios.length){
     alert("No hay usuarios activos.");
@@ -1351,6 +1363,10 @@ async function borrarFichajesPrueba(){
   }
 
   if(!confirm("¿Borrar todos los fichajes de prueba?")){
+    return;
+  }
+
+  if(await bloquearSiMesPagado(user.id,new Date().toISOString(),"El mes actual está pagado. No puedes borrar fichajes de prueba.")){
     return;
   }
 
@@ -1749,6 +1765,30 @@ async function cargarCierreMensual(uid,mes,anio){
   return data;
 }
 
+
+async function cierrePeriodoPorFecha(uid,fechaISO){
+  const fecha=new Date(fechaISO);
+  if(Number.isNaN(fecha.getTime()))return null;
+
+  const mes=String(fecha.getMonth()+1).padStart(2,"0");
+  const anio=fecha.getFullYear();
+  return await cargarCierreMensual(uid,mes,anio);
+}
+
+async function mesPagado(uid,fechaISO){
+  const cierre=await cierrePeriodoPorFecha(uid,fechaISO);
+  return cierre?.estado==="pagado";
+}
+
+async function bloquearSiMesPagado(uid,fechaISO,mensaje){
+  const bloqueado=await mesPagado(uid,fechaISO);
+  if(bloqueado){
+    alert(mensaje||"Este mes está cerrado y pagado. No se puede modificar.");
+    return true;
+  }
+  return false;
+}
+
 async function guardarCierreMensual(payload){
   const {data,error}=await sb
     .from("cierre_mensual")
@@ -1816,7 +1856,7 @@ function pintarBloqueCierreMensual(inf){
       ${puedeConfirmarAdmin(cierre)?`<button class="btn blue full" onclick="confirmarHorasAdmin()">Confirmar horas</button>`:""}
       ${puedeMarcarPagado(cierre)?`<button class="btn green full" onclick="marcarHorasPagadas()">Marcar como pagadas</button>`:""}
 
-      ${estado==="pagado"?`<p class="small">Este periodo está pagado. No debería modificarse salvo corrección administrativa documentada.</p>`:""}
+      ${estado==="pagado"?`<span class="badge green">MES CERRADO Y PAGADO</span><p class="small">Este periodo está pagado. Los fichajes de este mes quedan bloqueados.</p>`:""}
     </div>
   `;
 }
@@ -2064,7 +2104,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2558
+  return `MANUAL DE USO ZENTRYX V2559
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2199,7 +2239,13 @@ Estados:
 
 Zentryx calcula y controla importes de horas extra. No calcula nóminas completas, IRPF ni salarios mensuales.
 
-18. PRÓXIMAS MEJORAS
+
+18. BLOQUEO DE MESES PAGADOS
+Cuando un mes está marcado como pagado, Zentryx bloquea la creación y borrado de fichajes de ese periodo.
+Esto evita modificar horas después del pago.
+Las correcciones posteriores deberán hacerse con un sistema de auditoría administrativa.
+
+19. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
