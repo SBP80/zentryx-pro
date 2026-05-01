@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2561</title>
+<title>Zentryx V2562</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2561</h1>
+      <h1>Zentryx V2562</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2561";
+const VERSION="2562";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -705,6 +705,148 @@ function minutosDelDiaDesdeDate(d){
 
 function kFichajes(){return "zentryx_fichajes_"+user.id}
 
+
+function fechaHoraInputDesdeFichaje(f){
+  if(!f)return "";
+  if(f.fecha && f.hora)return `${f.fecha}T${String(f.hora).slice(0,5)}`;
+  return "";
+}
+
+function fechaISODesdeInputLocal(valor){
+  if(!valor)return null;
+  const d=new Date(valor);
+  if(Number.isNaN(d.getTime()))return null;
+  return d.toISOString();
+}
+
+async function abrirEditarFichaje(id){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const {data,error}=await sb.from("fichajes").select("*").eq("id",id).maybeSingle();
+  if(error||!data){
+    alert("No se pudo cargar el fichaje.");
+    return;
+  }
+
+  if(await bloquearSiMesPagado(data.user_id||user.id,data.fecha,"Este mes está pagado. No se puede editar este fichaje.")){
+    return;
+  }
+
+  const d=fechaSupabaseADate(data.fecha);
+  const fechaLocal=fechaLocalISODesdeDate(d);
+  const horaLocal=horaLocalHHMMDesdeDate(d);
+
+  const motivo=prompt("Motivo obligatorio de la modificación:");
+  if(!motivo || !motivo.trim()){
+    alert("Debes indicar un motivo.");
+    return;
+  }
+
+  const tipo=prompt("Tipo de movimiento:",data.tipo||"");
+  if(!tipo)return;
+
+  const fechaHora=prompt("Fecha y hora local (YYYY-MM-DDTHH:MM):",`${fechaLocal}T${horaLocal}`);
+  if(!fechaHora)return;
+
+  const nuevaFecha=fechaISODesdeInputLocal(fechaHora);
+  if(!nuevaFecha){
+    alert("Fecha/hora no válida.");
+    return;
+  }
+
+  if(await bloquearSiMesPagado(data.user_id||user.id,nuevaFecha,"El mes de destino está pagado. No se puede mover el fichaje.")){
+    return;
+  }
+
+  const update={
+    tipo:tipo.trim(),
+    fecha:nuevaFecha,
+    nota_modificacion:motivo.trim(),
+    modificado_por:String(user.id),
+    modificado_en:new Date().toISOString()
+  };
+
+  const antes=data;
+  const {data:despues,error:updateError}=await sb.from("fichajes").update(update).eq("id",id).select().single();
+
+  if(updateError){
+    alert("Error editando fichaje: "+updateError.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"editar_fichaje",
+    tabla:"fichajes",
+    registro_id:id,
+    motivo:motivo.trim(),
+    antes,
+    despues
+  });
+
+  await cargarFichajesServidor();
+  alert("Fichaje modificado.");
+  if(vistaActual==="informes"){
+    await generarInformeMensual();
+  }else{
+    await inicio();
+  }
+}
+
+async function eliminarFichajePro(id){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const {data,error}=await sb.from("fichajes").select("*").eq("id",id).maybeSingle();
+  if(error||!data){
+    alert("No se pudo cargar el fichaje.");
+    return;
+  }
+
+  if(await bloquearSiMesPagado(data.user_id||user.id,data.fecha,"Este mes está pagado. No se puede eliminar este fichaje.")){
+    return;
+  }
+
+  const motivo=prompt("Motivo obligatorio para eliminar el fichaje:");
+  if(!motivo || !motivo.trim()){
+    alert("Debes indicar un motivo.");
+    return;
+  }
+
+  if(!confirm("¿Eliminar este fichaje?")){
+    return;
+  }
+
+  const antes=data;
+  const {error:deleteError}=await sb.from("fichajes").delete().eq("id",id);
+
+  if(deleteError){
+    alert("Error eliminando fichaje: "+deleteError.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"eliminar_fichaje",
+    tabla:"fichajes",
+    registro_id:id,
+    motivo:motivo.trim(),
+    antes,
+    despues:null
+  });
+
+  await cargarFichajesServidor();
+  alert("Fichaje eliminado.");
+  if(vistaActual==="informes"){
+    await generarInformeMensual();
+  }else{
+    await inicio();
+  }
+}
+
 async function cargarFichajesServidor(){
   if(cargandoFichajes)return;
   cargandoFichajes=true;
@@ -735,7 +877,10 @@ async function cargarFichajesServidor(){
       ts:d.getTime(),
       direccion:f.direccion_real||f.direccion||"",
       lat:f.lat||null,
-      lng:f.lng||null
+      lng:f.lng||null,
+      nota_modificacion:f.nota_modificacion||"",
+      modificado_por:f.modificado_por||"",
+      modificado_en:f.modificado_en||""
     };
   });
 
@@ -1202,6 +1347,8 @@ async function inicio(){
           ${m.hora}<br>
           ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
           ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
+          ${esAdmin()?`<button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
+          ${m.nota_modificacion?`<br><span class="small">Modificado: ${m.nota_modificacion}</span>`:""}
         </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
     </div>
   `;
@@ -1556,7 +1703,10 @@ async function cargarFichajesUsuarioPeriodo(uid,inicio,fin){
       ts:d.getTime(),
       direccion:f.direccion_real||f.direccion||"",
       lat:f.lat||null,
-      lng:f.lng||null
+      lng:f.lng||null,
+      nota_modificacion:f.nota_modificacion||"",
+      modificado_por:f.modificado_por||"",
+      modificado_en:f.modificado_en||""
     };
   });
 }
@@ -2112,7 +2262,13 @@ async function generarInformeMensual(){
           <b>Total extras día: ${(d.eurosExtraNormal+d.eurosExtraFestivo+d.eurosExtraFinSemana+d.eurosExtraNocturna).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</b>
           <details>
             <summary>Movimientos</summary>
-            ${d.movimientos.map(m=>`${m.hora} · ${nombreAccion(m.tipo)}${m.direccion?` · ${m.direccion}`:""}`).join("<br>")}
+            ${d.movimientos.map(m=>`
+              <div class="row">
+                ${m.hora} · ${nombreAccion(m.tipo)}${m.direccion?` · ${m.direccion}`:""}
+                ${m.nota_modificacion?`<br><span class="small">Motivo modificación: ${m.nota_modificacion}</span>`:""}
+                ${esAdmin()?`<br><button class="btn blue" onclick="abrirEditarFichaje('${m.id}')">Editar</button> <button class="btn red" onclick="eliminarFichajePro('${m.id}')">Eliminar</button>`:""}
+              </div>
+            `).join("")}
           </details>
         </div>
       `).join(""):"<p>No hay fichajes en este periodo.</p>"}
@@ -2163,7 +2319,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2561
+  return `MANUAL DE USO ZENTRYX V2562
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2314,7 +2470,14 @@ La auditoría registra cambios importantes:
 
 Cada registro guarda quién hizo el cambio, cuándo, qué tabla se tocó y datos anteriores/posteriores si existen.
 
-20. PRÓXIMAS MEJORAS
+
+20. FICHAJES PRO
+Los administradores pueden editar o eliminar fichajes desde Movimientos de hoy o desde el detalle diario del informe.
+Toda modificación exige un motivo obligatorio.
+Cada cambio queda registrado en Auditoría con datos antes/después.
+Si el mes está pagado, la app bloquea la edición y eliminación de fichajes.
+
+21. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
