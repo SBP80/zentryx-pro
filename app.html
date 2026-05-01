@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2559</title>
+<title>Zentryx V2560</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2559</h1>
+      <h1>Zentryx V2560</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2559";
+const VERSION="2560";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -837,7 +837,12 @@ function abrirMapaMovimiento(lat,lng,direccion){
 }
 
 async function guardarMovimiento(tipo){
-  await cargarFichajesServidor();
+  await registrarCambio({
+      accion:"borrado_hoy",
+      tabla:"fichajes",
+      motivo:"Borrado manual de fichajes del día"
+    });
+    await cargarFichajesServidor();
 
   if(await bloquearSiMesPagado(user.id,new Date().toISOString(),"Este mes está pagado. No puedes crear nuevos fichajes.")){
     return;
@@ -1177,6 +1182,12 @@ async function inicio(){
         <button class="btn blue" onclick="vistaInformes()">Abrir</button>
       </div>
       <div class="module">
+        <h3>Auditoría</h3>
+        <p>Historial de cambios</p>
+        <button class="btn red" onclick="vistaAuditoria()">Abrir</button>
+      </div>
+
+      <div class="module">
         <h3>Ayuda</h3>
         <p>Manual de uso y explicación de funciones.</p>
         <button class="btn green" onclick="vistaAyuda()">Abrir</button>
@@ -1381,7 +1392,12 @@ async function borrarFichajesPrueba(){
   }
 
   await cargarFichajesServidor();
-  alert("Fichajes de prueba borrados.");
+  await registrarCambio({
+      accion:"borrado_pruebas",
+      tabla:"fichajes",
+      motivo:"Limpieza de datos de prueba"
+    });
+    alert("Fichajes de prueba borrados.");
   await inicio();
 }
 
@@ -1789,6 +1805,24 @@ async function bloquearSiMesPagado(uid,fechaISO,mensaje){
   return false;
 }
 
+
+async function registrarCambio({accion,tabla,registro_id,motivo,antes,despues}){
+  try{
+    await sb.from("historial_modificaciones").insert([{
+      user_id:String(user.id),
+      accion,
+      tabla,
+      registro_id:String(registro_id||""),
+      motivo:motivo||"",
+      datos_antes:antes?JSON.stringify(antes):null,
+      datos_despues:despues?JSON.stringify(despues):null,
+      fecha:new Date().toISOString()
+    }]);
+  }catch(e){
+    console.warn("Error registrando auditoría",e);
+  }
+}
+
 async function guardarCierreMensual(payload){
   const {data,error}=await sb
     .from("cierre_mensual")
@@ -2104,7 +2138,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2559
+  return `MANUAL DE USO ZENTRYX V2560
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2252,6 +2286,31 @@ Las correcciones posteriores deberán hacerse con un sistema de auditoría admin
 - marcar horas pagadas.
 - exportar PDF.
 `;
+}
+
+
+function vistaAuditoria(){
+  vistaActual='auditoria';
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Auditoría</h2>
+      <div id="audit_list">Cargando...</div>
+    </div>
+  `;
+  cargarAuditoria();
+}
+
+async function cargarAuditoria(){
+  const {data}=await sb.from("historial_modificaciones").select("*").order("fecha",{ascending:false}).limit(100);
+  document.getElementById("audit_list").innerHTML=
+    data.map(x=>`
+      <div class="row">
+        <b>${x.accion}</b><br>
+        ${x.tabla} · ${x.motivo||""}<br>
+        <span class="small">${new Date(x.fecha).toLocaleString()}</span>
+      </div>
+    `).join("");
 }
 
 function vistaAyuda(){
