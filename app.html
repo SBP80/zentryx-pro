@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2557</title>
+<title>Zentryx V2558</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2557</h1>
+      <h1>Zentryx V2558</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2557";
+const VERSION="2558";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1731,6 +1731,158 @@ function calcularClasificacionDiaPRO({fecha,res,movs,festivo,horarioDia,tipos}){
   };
 }
 
+
+async function cargarCierreMensual(uid,mes,anio){
+  const periodo=`${anio}-${String(mes).padStart(2,"0")}`;
+  const {data,error}=await sb
+    .from("cierre_mensual")
+    .select("*")
+    .eq("user_id",String(uid))
+    .eq("periodo",periodo)
+    .maybeSingle();
+
+  if(error){
+    console.warn("No se pudo leer cierre_mensual",error);
+    return null;
+  }
+
+  return data;
+}
+
+async function guardarCierreMensual(payload){
+  const {data,error}=await sb
+    .from("cierre_mensual")
+    .upsert(payload,{onConflict:"user_id,periodo"})
+    .select()
+    .single();
+
+  if(error){
+    alert("Error guardando cierre: "+error.message);
+    return null;
+  }
+
+  return data;
+}
+
+function estadoCierreTexto(estado){
+  const e=estado||"abierto";
+  const map={
+    abierto:"Abierto",
+    validado_operario:"Validado por trabajador",
+    validado_admin:"Confirmado por administrador",
+    pagado:"Pagado"
+  };
+  return map[e]||e;
+}
+
+function claseEstadoCierre(estado){
+  if(estado==="pagado")return "green";
+  if(estado==="validado_admin")return "orange";
+  if(estado==="validado_operario")return "orange";
+  return "";
+}
+
+function puedeValidarOperario(cierre,uid){
+  const estado=cierre?.estado||"abierto";
+  return String(user.id)===String(uid) && estado==="abierto";
+}
+
+function puedeConfirmarAdmin(cierre){
+  const estado=cierre?.estado||"abierto";
+  return esAdmin() && (estado==="abierto" || estado==="validado_operario");
+}
+
+function puedeMarcarPagado(cierre){
+  const estado=cierre?.estado||"abierto";
+  return esAdmin() && estado==="validado_admin";
+}
+
+function pintarBloqueCierreMensual(inf){
+  const cierre=inf.cierre||null;
+  const estado=cierre?.estado||"abierto";
+
+  return `
+    <div class="card">
+      <h2>Cierre mensual</h2>
+      <span class="badge ${claseEstadoCierre(estado)}">${estadoCierreTexto(estado)}</span>
+      <p class="small">Periodo: ${inf.periodo}</p>
+      <p><b>Total extras a pagar:</b> ${inf.totalEurosExtra.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €</p>
+
+      ${cierre?.fecha_validacion_operario?`<p class="small">Validado por trabajador: ${new Date(cierre.fecha_validacion_operario).toLocaleString("es-ES")}</p>`:""}
+      ${cierre?.fecha_validacion_admin?`<p class="small">Confirmado por administrador: ${new Date(cierre.fecha_validacion_admin).toLocaleString("es-ES")}</p>`:""}
+      ${cierre?.fecha_pago?`<p class="small">Pagado: ${new Date(cierre.fecha_pago).toLocaleString("es-ES")}</p>`:""}
+
+      ${puedeValidarOperario(cierre,inf.uid)?`<button class="btn green full" onclick="validarHorasOperario()">Validar mis horas</button>`:""}
+      ${puedeConfirmarAdmin(cierre)?`<button class="btn blue full" onclick="confirmarHorasAdmin()">Confirmar horas</button>`:""}
+      ${puedeMarcarPagado(cierre)?`<button class="btn green full" onclick="marcarHorasPagadas()">Marcar como pagadas</button>`:""}
+
+      ${estado==="pagado"?`<p class="small">Este periodo está pagado. No debería modificarse salvo corrección administrativa documentada.</p>`:""}
+    </div>
+  `;
+}
+
+async function validarHorasOperario(){
+  const inf=window.informeMensualActual;
+  if(!inf)return alert("Genera primero el informe.");
+  if(!confirm("¿Validas tus horas de este mes?"))return;
+
+  const payload={
+    user_id:String(inf.uid),
+    periodo:inf.periodo,
+    mes:inf.mes,
+    anio:Number(inf.anio),
+    estado:"validado_operario",
+    fecha_validacion_operario:new Date().toISOString(),
+    total_extras:Number(inf.totalEurosExtra||0)
+  };
+
+  await guardarCierreMensual(payload);
+  await generarInformeMensual();
+}
+
+async function confirmarHorasAdmin(){
+  const inf=window.informeMensualActual;
+  if(!inf)return alert("Genera primero el informe.");
+  if(!esAdmin())return alert("Solo administrador.");
+  if(!confirm("¿Confirmar horas de este trabajador?"))return;
+
+  const payload={
+    user_id:String(inf.uid),
+    periodo:inf.periodo,
+    mes:inf.mes,
+    anio:Number(inf.anio),
+    estado:"validado_admin",
+    fecha_validacion_operario:inf.cierre?.fecha_validacion_operario||null,
+    fecha_validacion_admin:new Date().toISOString(),
+    total_extras:Number(inf.totalEurosExtra||0)
+  };
+
+  await guardarCierreMensual(payload);
+  await generarInformeMensual();
+}
+
+async function marcarHorasPagadas(){
+  const inf=window.informeMensualActual;
+  if(!inf)return alert("Genera primero el informe.");
+  if(!esAdmin())return alert("Solo administrador.");
+  if(!confirm("¿Marcar horas extra como pagadas?"))return;
+
+  const payload={
+    user_id:String(inf.uid),
+    periodo:inf.periodo,
+    mes:inf.mes,
+    anio:Number(inf.anio),
+    estado:"pagado",
+    fecha_validacion_operario:inf.cierre?.fecha_validacion_operario||null,
+    fecha_validacion_admin:inf.cierre?.fecha_validacion_admin||new Date().toISOString(),
+    fecha_pago:new Date().toISOString(),
+    total_extras:Number(inf.totalEurosExtra||0)
+  };
+
+  await guardarCierreMensual(payload);
+  await generarInformeMensual();
+}
+
 async function generarInformeMensual(){
   const uid=document.getElementById("inf_user").value;
   const mes=document.getElementById("inf_mes").value;
@@ -1740,11 +1892,14 @@ async function generarInformeMensual(){
   const inicio=fechaISOdesdePartes(anio,mes,1);
   const fin=fechaISOdesdePartes(anio,mes,ultimoDiaMes(anio,mes));
 
-  const [fichajes,festivos,tiposExtra,horariosUsuario]=await Promise.all([
+  const periodo=`${anio}-${String(mes).padStart(2,"0")}`;
+
+  const [fichajes,festivos,tiposExtra,horariosUsuario,cierreMensual]=await Promise.all([
     cargarFichajesUsuarioPeriodo(uid,inicio,fin),
     cargarFestivosPeriodo(inicio,fin),
     leerTiposHorasExtraServidor(),
-    cargarHorarioUsuario(uid)
+    cargarHorarioUsuario(uid),
+    cargarCierreMensual(uid,mes,anio)
   ]);
 
   const tipoNormal=buscarTipoExtra(tiposExtra,["normal"],12);
@@ -1829,6 +1984,15 @@ async function generarInformeMensual(){
       <button class="btn gray full" onclick="copiarInformeMensual()">Copiar resumen</button>
     </div>
 
+    ${pintarBloqueCierreMensual({
+      uid:uid,
+      periodo:periodo,
+      mes:mes,
+      anio:anio,
+      totalEurosExtra:totalEurosExtra,
+      cierre:cierreMensual
+    })}
+
     <div class="card">
       <h2>Detalle diario</h2>
       ${filas.length?filas.map(d=>`
@@ -1857,7 +2021,9 @@ async function generarInformeMensual(){
   `;
 
   window.informeMensualActual={
-    usuario:u.nombre,mes,anio,totalTrabajo,totalNormal,totalExtra,totalExtraNormal,totalExtraFestivo,totalExtraFinSemana,totalExtraNocturna,totalPausa,totalComida,festivosTrabajados,
+    uid:String(uid),
+    usuario:u.nombre,mes,anio,periodo,cierre:cierreMensual,
+    totalTrabajo,totalNormal,totalExtra,totalExtraNormal,totalExtraFestivo,totalExtraFinSemana,totalExtraNocturna,totalPausa,totalComida,festivosTrabajados,
     eurosNormalTotal,eurosExtraNormalTotal,eurosExtraFestivoTotal,eurosExtraFinSemanaTotal,eurosExtraNocturnaTotal,totalEurosExtra,totalEuros,
     tipoNormal,tipoFestivo,tipoFinSemana,tipoNocturna,precios,filas
   };
@@ -1898,7 +2064,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2557
+  return `MANUAL DE USO ZENTRYX V2558
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -2021,7 +2187,19 @@ Foto no carga:
 5. Fichar.
 6. Generar informe mensual.
 
-16. PRÓXIMAS MEJORAS
+
+17. CIERRE MENSUAL
+El cierre mensual controla el estado del informe de un trabajador en un mes.
+
+Estados:
+- Abierto: se pueden revisar los datos.
+- Validado por trabajador: el trabajador confirma que sus horas son correctas.
+- Confirmado por administrador: administración revisa y aprueba.
+- Pagado: las horas extra se consideran abonadas.
+
+Zentryx calcula y controla importes de horas extra. No calcula nóminas completas, IRPF ni salarios mensuales.
+
+18. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -2083,6 +2261,14 @@ function vistaAyuda(){
       <p><b>Jornada normal:</b> horas normales.</p>
       <p><b>Horas extra:</b> horas fuera de jornada, festivos, fines de semana o nocturnas.</p>
       <p><b>Total extras a pagar:</b> importe de horas extra. La jornada normal se muestra solo como tiempo.</p>
+    </div>
+
+    <div class="card">
+      <h2>Cierre mensual</h2>
+      <p>Permite validar y controlar el pago de horas extra.</p>
+      <p><b>Validar mis horas:</b> lo usa el trabajador.</p>
+      <p><b>Confirmar horas:</b> lo usa administración.</p>
+      <p><b>Marcar como pagadas:</b> cierra el pago de extras.</p>
     </div>
 
     <div class="card">
