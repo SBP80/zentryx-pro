@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2569</title>
+<title>Zentryx V2570</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2569</h1>
+      <h1>Zentryx V2570</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2569";
+const VERSION="2570";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1153,22 +1153,68 @@ function limpiarTextoMapaCompartido(t){
     .trim();
 }
 
+
+function esEnlaceCortoAppleMaps(texto){
+  const t=String(texto||"").trim().toLowerCase();
+  return t.includes("maps.apple/p/") || t.includes("maps.apple.com/p/");
+}
+
+function esEnlaceCortoGoogleMaps(texto){
+  const t=String(texto||"").trim().toLowerCase();
+  return t.includes("maps.app.goo.gl") || t.includes("goo.gl/maps");
+}
+
+function esEnlaceCortoWaze(texto){
+  const t=String(texto||"").trim().toLowerCase();
+  return t.includes("waze.com/ul/") && !t.includes("ll=");
+}
+
+function explicarEnlaceMapaNoValido(texto){
+  const t=String(texto||"").trim();
+
+  if(esEnlaceCortoAppleMaps(t)){
+    return "El enlace de Apple Maps que has pegado es corto y no trae coordenadas visibles. Abre ese enlace en Safari, deja que cargue Apple Maps/Safari y copia la URL completa si aparece con ll=lat,lng. También puedes usar Google Maps para compartir el punto.";
+  }
+
+  if(esEnlaceCortoGoogleMaps(t)){
+    return "El enlace de Google Maps parece acortado. Abre el enlace en Safari/Chrome y copia la URL completa cuando aparezcan coordenadas, o mantén pulsado el punto y copia las coordenadas.";
+  }
+
+  if(esEnlaceCortoWaze(t)){
+    return "El enlace de Waze no trae coordenadas visibles. En Waze comparte la ubicación exacta o usa Google/Apple Maps para copiar el punto.";
+  }
+
+  return "No he podido sacar la ubicación del enlace. Mantén pulsado sobre el punto exacto, pulsa Compartir y pega aquí un enlace completo que incluya coordenadas.";
+}
+
 function extraerCoordenadasDesdeTextoMapaPro(texto){
   const t=limpiarTextoMapaCompartido(texto);
   if(!t)return null;
 
-  const decoded=decodeURIComponent(t);
+  let decoded=t;
+  for(let i=0;i<3;i++){
+    try{
+      const nuevo=decodeURIComponent(decoded);
+      if(nuevo===decoded)break;
+      decoded=nuevo;
+    }catch(e){break}
+  }
+
+  const textos=[t,decoded];
 
   const patrones=[
     /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
     /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
     /[?&]ll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
     /[?&]center=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&]sll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&]coordinate=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
     /ll=(-?\d+(?:\.\d+)?)%2C(-?\d+(?:\.\d+)?)/,
+    /q=(-?\d+(?:\.\d+)?)%2C(-?\d+(?:\.\d+)?)/,
     /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/
   ];
 
-  for(const textoPrueba of [t,decoded]){
+  for(const textoPrueba of textos){
     for(const p of patrones){
       const m=textoPrueba.match(p);
       if(m){
@@ -1182,6 +1228,44 @@ function extraerCoordenadasDesdeTextoMapaPro(texto){
   }
 
   return null;
+}
+
+function validarEnlaceMapaPegado(){
+  const enlace=document.getElementById("zona_mapa_enlace")?.value||"";
+  const aviso=document.getElementById("zona_mapa_aviso");
+  if(!aviso)return;
+
+  const coords=extraerCoordenadasDesdeTextoMapaPro(enlace);
+
+  if(!enlace.trim()){
+    aviso.innerHTML="";
+    return;
+  }
+
+  if(coords){
+    aviso.innerHTML=`<span class="badge green">Ubicación detectada</span><p class="small">Lat ${coords.lat}, Lng ${coords.lng}</p>`;
+    return;
+  }
+
+  aviso.innerHTML=`<span class="badge red">Enlace no válido todavía</span><p class="small">${explicarEnlaceMapaNoValido(enlace)}</p>`;
+}
+
+function pegarCoordenadasManual(){
+  const texto=prompt("Pega coordenadas copiadas del mapa, por ejemplo: 36.776,-2.814");
+  if(!texto)return;
+
+  const coords=extraerCoordenadasDesdeTextoMapaPro(texto);
+
+  if(!coords){
+    alert("No he podido leer esas coordenadas.");
+    return;
+  }
+
+  const input=document.getElementById("zona_mapa_enlace");
+  if(input){
+    input.value=`${coords.lat},${coords.lng}`;
+    validarEnlaceMapaPegado();
+  }
 }
 
 async function crearZonaDesdeFormularioMapa(){
@@ -1204,7 +1288,8 @@ async function crearZonaDesdeFormularioMapa(){
   const coords=extraerCoordenadasDesdeTextoMapaPro(enlace);
 
   if(!coords){
-    alert("No he podido sacar la ubicación del enlace. En el mapa, mantén pulsado sobre el punto, pulsa Compartir y pega aquí el enlace completo.");
+    alert(explicarEnlaceMapaNoValido(enlace));
+    validarEnlaceMapaPegado();
     return;
   }
 
@@ -1484,7 +1569,7 @@ async function pintarConfigZonas(){
       <button class="btn orange full" onclick="abrirMapaParaMarcar()">1 · Abrir mapa y marcar punto</button>
 
       <p class="small">
-        En el mapa: mantén pulsado sobre el punto exacto, pulsa Compartir, copia el enlace y pégalo abajo.
+        En el mapa: mantén pulsado sobre el punto exacto y pulsa Compartir. Si Apple Maps da un enlace corto tipo maps.apple/p/..., no sirve directamente: abre ese enlace en Safari o pega coordenadas copiadas del mapa.
       </p>
 
       <label>Nombre de la zona</label>
@@ -1494,8 +1579,10 @@ async function pintarConfigZonas(){
       <input id="zona_mapa_radio" type="number" value="100">
 
       <label>Enlace compartido del punto marcado</label>
-      <textarea id="zona_mapa_enlace" rows="3" placeholder="Pega aquí el enlace compartido de Google Maps, Apple Maps o Waze"></textarea>
+      <textarea id="zona_mapa_enlace" rows="3" oninput="validarEnlaceMapaPegado()" placeholder="Pega aquí el enlace compartido de Google Maps, Apple Maps o Waze"></textarea>
+      <div id="zona_mapa_aviso"></div>
 
+      <button class="btn gray full" onclick="pegarCoordenadasManual()">Pegar coordenadas copiadas del mapa</button>
       <button class="btn green full" onclick="crearZonaDesdeFormularioMapa()">2 · Crear zona con este punto</button>
     </div>
 
@@ -2959,7 +3046,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2569
+  return `MANUAL DE USO ZENTRYX V2570
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3173,7 +3260,18 @@ Para crear una zona desde mapa:
 
 Este flujo evita introducir latitud y longitud manualmente.
 
-28. PRÓXIMAS MEJORAS
+
+28. ENLACES DE MAPAS Y COORDENADAS
+Algunos mapas comparten enlaces cortos que no contienen coordenadas visibles.
+Apple Maps puede generar enlaces tipo maps.apple/p/...; esos enlaces no se pueden leer directamente.
+Si ocurre:
+- Abre el enlace en Safari y copia una URL más completa si aparece.
+- O pega coordenadas copiadas del mapa.
+- O usa Google Maps para compartir el punto exacto.
+
+Zentryx avisa automáticamente cuando el enlace no trae ubicación útil.
+
+29. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
