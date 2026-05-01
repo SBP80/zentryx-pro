@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2555</title>
+<title>Zentryx V2556</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2555</h1>
+      <h1>Zentryx V2556</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2555";
+const VERSION="2556";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1645,8 +1645,8 @@ function minutosEntreHoras(inicio,fin){
 function normalMaximaPorHorario(horarioDia){
   if(!horarioDia||!horarioDia.trabaja)return 0;
 
-  const entrada=horaInput(horarioDia.entrada);
-  const salida=horaInput(horarioDia.salida);
+  const entrada=horaInput(horarioDia.entrada || horarioDia.hora_inicio);
+  const salida=horaInput(horarioDia.salida || horarioDia.hora_fin);
 
   if(!entrada||!salida)return 8*60;
 
@@ -1836,7 +1836,7 @@ async function generarInformeMensual(){
           <b>${fechaES(d.fecha)}</b><br>
           ${d.festivo?`<span class="badge red">Festivo: ${d.festivo.nombre||"Festivo"}</span><br>`:""}
           ${d.esFinSemana&&!d.festivo?`<span class="badge orange">Fin de semana</span><br>`:""}
-          ${d.horarioDia?.trabaja?`<span class="small">Horario: ${horaInput(d.horarioDia.entrada)||"-"} → ${horaInput(d.horarioDia.salida)||"-"}</span><br>`:`<span class="small">Sin horario de trabajo definido para este día</span><br>`}
+          ${d.horarioDia?.trabaja?`<span class="small">Horario: ${horaInput(d.horarioDia.entrada||d.horarioDia.hora_inicio)||"-"} → ${horaInput(d.horarioDia.salida||d.horarioDia.hora_fin)||"-"}</span><br>`:`<span class="small">Sin horario de trabajo definido para este día</span><br>`}
           Trabajo: ${textoMin(d.trabajo)}<br>
           Normal: ${textoMin(d.normal)} · ${d.eurosNormal.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €<br>
           Extra total: ${textoMin(d.extra)}<br>
@@ -1899,7 +1899,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2555
+  return `MANUAL DE USO ZENTRYX V2556
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -1937,7 +1937,7 @@ La app reduce la imagen para mejorar carga en móvil.
 Incluye horarios, avisos, horas extra y festivos.
 
 7. HORARIOS
-Define la jornada de cada trabajador. En esta versión se guardan entrada, salida y comida. El campo descanso queda preparado para cuando se añada la columna descanso_min en Supabase.
+Define la jornada de cada trabajador. Se guardan entrada, salida, comida y descanso_min. El informe usa entrada y salida como base oficial para separar jornada normal y extras.
 
 8. AVISOS
 Controla pausas, comidas o situaciones raras.
@@ -2963,6 +2963,7 @@ async function pintarConfigHorarios(){
   document.getElementById("zonaConfig").innerHTML=`
     <div class="card">
       <h2>Horario semanal</h2>
+      <p class="small">Este horario se usa en Informes para separar jornada normal y horas extra.</p>
       <label>Trabajador</label>
       <select id="cfg_user" onchange="pintarConfigHorarios()">
         ${usuarios.filter(u=>u.activo!==false).map(u=>`<option value="${u.id}" ${String(u.id)===String(uid)?"selected":""}>${u.nombre} · ${rolNombre(u.rol)}</option>`).join("")}
@@ -2993,7 +2994,6 @@ async function pintarConfigHorarios(){
 
             <label>Descanso minutos</label>
             <input id="h_descanso_${d}" type="number" value="${h.descanso_min||0}">
-            <span class="small">Pendiente de guardar en Supabase hasta añadir la columna descanso_min.</span>
           </div>`;
       }).join("")}
 
@@ -3013,7 +3013,8 @@ async function guardarConfigHorarios(uid){
       entrada:document.getElementById("h_entrada_"+d).value||null,
       salida:document.getElementById("h_salida_"+d).value||null,
       inicio_comida:document.getElementById("h_inicio_comida_"+d).value||null,
-      fin_comida:document.getElementById("h_fin_comida_"+d).value||null
+      fin_comida:document.getElementById("h_fin_comida_"+d).value||null,
+      descanso_min:Number(document.getElementById("h_descanso_"+d).value||0)
     };
 
     const {data:existe}=await sb.from("horarios_usuario").select("id").eq("user_id",String(uid)).eq("dia",d).limit(1);
@@ -3023,7 +3024,7 @@ async function guardarConfigHorarios(uid){
       if(error){alert("Error guardando "+d+": "+error.message);return}
     }else{
       const {error}=await sb.from("horarios_usuario").insert([payload]);
-      if(error){alert("Error creando "+d+": "+error.message);return}
+      if(error){alert("Error guardando "+d+": "+error.message);return}
     }
   }
 
