@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2578</title>
+<title>Zentryx V2578.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -227,7 +227,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2578</h1>
+      <h1>Zentryx V2578.1</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -237,7 +237,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2578";
+const VERSION="2578.1";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -2172,6 +2172,28 @@ function resumenHoy(){
 
 function kNotas(){return "zentryx_notas_"+user.id}
 
+
+let guardandoNotaPro=false;
+
+function bloquearBotonNota(id,texto="Guardando..."){
+  const b=document.getElementById(id);
+  if(b){
+    b.disabled=true;
+    b.dataset.oldText=b.textContent;
+    b.textContent=texto;
+    b.style.opacity=".65";
+  }
+}
+
+function desbloquearBotonNota(id){
+  const b=document.getElementById(id);
+  if(b){
+    b.disabled=false;
+    b.textContent=b.dataset.oldText||"Guardar";
+    b.style.opacity="1";
+  }
+}
+
 async function cargarNotasServidor(){
   if(cargandoNotas)return;
   cargandoNotas=true;
@@ -2304,69 +2326,78 @@ function crearNota(){
         <option value="true">Sí</option>
       </select>
 
-      <button class="btn green full" onclick="guardarNotaNueva()">Guardar nota</button>
+      <button id="btnGuardarNotaNueva" class="btn green full" onclick="guardarNotaNueva()">Guardar nota</button>
       <button class="btn gray full" onclick="vistaNotasPro()">Ver notas</button>
     </div>`;
 }
 
 async function guardarNotaNueva(){
-  const titulo=document.getElementById("notaTitulo").value.trim();
-  const descripcion=document.getElementById("notaTxt").value.trim();
+  if(guardandoNotaPro)return;
+  guardandoNotaPro=true;
+  bloquearBotonNota("btnGuardarNotaNueva");
 
-  if(!titulo && !descripcion){
-    alert("Escribe título o descripción.");
-    return;
-  }
+  try{
+    const titulo=document.getElementById("notaTitulo").value.trim();
+    const descripcion=document.getElementById("notaTxt").value.trim();
 
-  const prioridad=document.getElementById("notaPrioridad").value||"normal";
-  const visibilidad=document.getElementById("notaVisibilidad").value||"personal";
-  const responsable=document.getElementById("notaResponsable").value.trim();
+    if(!titulo && !descripcion){
+      alert("Escribe título o descripción.");
+      return;
+    }
 
-  const payload={
-    user_id:String(user.id),
-    titulo:titulo||descripcion.slice(0,50),
-    descripcion:descripcion,
-    texto:titulo?`${titulo}\n${descripcion}`:descripcion,
-    fecha_aviso:inputFechaTexto("notaFecha")||null,
-    hora_aviso:document.getElementById("notaHora").value||null,
-    fija:document.getElementById("notaFija").value==="true",
-    hecha:false,
-    prioridad:prioridad,
-    prioridad_orden:prioridadOrden(prioridad),
-    visibilidad:visibilidad,
-    responsable:responsable,
-    creada_por:String(user.id),
-    creada_en:new Date().toISOString(),
-    meta_json:{
-      titulo:titulo,
+    const prioridad=document.getElementById("notaPrioridad").value||"normal";
+    const visibilidad=document.getElementById("notaVisibilidad").value||"personal";
+    const responsable=document.getElementById("notaResponsable").value.trim();
+
+    const payload={
+      user_id:String(user.id),
+      titulo:titulo||descripcion.slice(0,50),
       descripcion:descripcion,
+      texto:titulo?`${titulo}\n${descripcion}`:descripcion,
+      fecha_aviso:inputFechaTexto("notaFecha")||null,
+      hora_aviso:document.getElementById("notaHora").value||null,
+      fija:document.getElementById("notaFija").value==="true",
+      hecha:false,
       prioridad:prioridad,
+      prioridad_orden:prioridadOrden(prioridad),
       visibilidad:visibilidad,
       responsable:responsable,
-      prioridad_orden:prioridadOrden(prioridad)
+      creada_por:String(user.id),
+      creada_en:new Date().toISOString(),
+      meta_json:{
+        titulo:titulo,
+        descripcion:descripcion,
+        prioridad:prioridad,
+        visibilidad:visibilidad,
+        responsable:responsable,
+        prioridad_orden:prioridadOrden(prioridad)
+      }
+    };
+
+    const {data,error}=await sb.from("notas_rapidas").insert([payload]).select().single();
+
+    if(error){
+      console.error(error);
+      alert("Error guardando nota: "+error.message);
+      return;
     }
-  };
 
-  const {data,error}=await sb.from("notas_rapidas").insert([payload]).select().single();
+    await registrarCambio({
+      accion:"nota_creada",
+      tabla:"notas_rapidas",
+      registro_id:data?.id||"",
+      motivo:"Creación de nota PRO",
+      antes:null,
+      despues:data||payload
+    });
 
-  if(error){
-    console.error(error);
-    alert("Error guardando nota: "+error.message);
-    return;
+    await cargarNotasServidor();
+    aviso("Nota guardada.","ok");
+    await vistaNotasPro("pendientes");
+  }finally{
+    guardandoNotaPro=false;
+    desbloquearBotonNota("btnGuardarNotaNueva");
   }
-
-  await registrarCambio({
-    accion:"nota_creada",
-    tabla:"notas_rapidas",
-    registro_id:data?.id||"",
-    motivo:"Creación de nota PRO",
-    antes:null,
-    despues:data||payload
-  });
-
-  await cargarNotasServidor();
-  aviso("Nota guardada.","ok");
-  inicio();
 }
 
 async function editarNota(id){
@@ -2422,58 +2453,73 @@ async function editarNota(id){
         <option value="true" ${nota.fija?"selected":""}>Sí</option>
       </select>
 
-      <button class="btn green full" onclick="guardarEdicionNota('${id}')">Guardar cambios</button>
+      <button id="btnGuardarEdicionNota" class="btn green full" onclick="guardarEdicionNota('${id}')">Guardar cambios</button>
     </div>`;
 }
 
 async function guardarEdicionNota(id){
-  const antes=await leerRegistroPorId("notas_rapidas",id);
+  if(guardandoNotaPro)return;
+  guardandoNotaPro=true;
+  bloquearBotonNota("btnGuardarEdicionNota");
 
-  const titulo=document.getElementById("notaTitulo").value.trim();
-  const descripcion=document.getElementById("notaTxt").value.trim();
-  const prioridad=document.getElementById("notaPrioridad").value||"normal";
-  const visibilidad=document.getElementById("notaVisibilidad").value||"personal";
-  const responsable=document.getElementById("notaResponsable").value.trim();
+  try{
+    const antes=await leerRegistroPorId("notas_rapidas",id);
 
-  const payload={
-    titulo:titulo||descripcion.slice(0,50)||"Nota",
-    descripcion,
-    texto:titulo?`${titulo}\n${descripcion}`:descripcion,
-    fecha_aviso:inputFechaTexto("notaFecha")||null,
-    hora_aviso:document.getElementById("notaHora").value||null,
-    fija:document.getElementById("notaFija").value==="true",
-    prioridad,
-    prioridad_orden:prioridadOrden(prioridad),
-    visibilidad,
-    responsable,
-    meta_json:{
-      titulo,
+    const titulo=document.getElementById("notaTitulo").value.trim();
+    const descripcion=document.getElementById("notaTxt").value.trim();
+    const prioridad=document.getElementById("notaPrioridad").value||"normal";
+    const visibilidad=document.getElementById("notaVisibilidad").value||"personal";
+    const responsable=document.getElementById("notaResponsable").value.trim();
+
+    if(!titulo && !descripcion){
+      alert("Escribe título o descripción.");
+      return;
+    }
+
+    const payload={
+      titulo:titulo||descripcion.slice(0,50)||"Nota",
       descripcion,
+      texto:titulo?`${titulo}\n${descripcion}`:descripcion,
+      fecha_aviso:inputFechaTexto("notaFecha")||null,
+      hora_aviso:document.getElementById("notaHora").value||null,
+      fija:document.getElementById("notaFija").value==="true",
       prioridad,
+      prioridad_orden:prioridadOrden(prioridad),
       visibilidad,
       responsable,
-      prioridad_orden:prioridadOrden(prioridad)
+      meta_json:{
+        titulo,
+        descripcion,
+        prioridad,
+        visibilidad,
+        responsable,
+        prioridad_orden:prioridadOrden(prioridad)
+      }
+    };
+
+    const {data,error}=await sb.from("notas_rapidas").update(payload).eq("id",id).select().single();
+
+    if(error){
+      alert("Error editando nota: "+error.message);
+      return;
     }
-  };
 
-  const {data,error}=await sb.from("notas_rapidas").update(payload).eq("id",id).select().single();
+    await registrarCambio({
+      accion:"nota_editada",
+      tabla:"notas_rapidas",
+      registro_id:id,
+      motivo:"Edición de nota PRO",
+      antes,
+      despues:data
+    });
 
-  if(error){
-    alert("Error editando nota: "+error.message);
-    return;
+    await cargarNotasServidor();
+    aviso("Nota actualizada.","ok");
+    await vistaNotasPro("pendientes");
+  }finally{
+    guardandoNotaPro=false;
+    desbloquearBotonNota("btnGuardarEdicionNota");
   }
-
-  await registrarCambio({
-    accion:"nota_editada",
-    tabla:"notas_rapidas",
-    registro_id:id,
-    motivo:"Edición de nota PRO",
-    antes,
-    despues:data
-  });
-
-  await cargarNotasServidor();
-  vistaNotasPro();
 }
 
 async function marcarNotaHecha(id){
@@ -3717,7 +3763,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2578
+  return `MANUAL DE USO ZENTRYX V2578.1
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -4028,7 +4074,13 @@ Las notas fijas y vencidas aparecen destacadas en Inicio.
 Se puede filtrar por pendientes, fijas, vencidas, hechas y todas.
 Crear, editar, resolver y eliminar notas queda registrado en Auditoría.
 
-38. PRÓXIMAS MEJORAS
+
+38. CORRECCIÓN NOTAS
+Se evita que una nota se duplique por pulsar varias veces Guardar.
+Al guardar una nota nueva o editar una existente, el botón se desactiva y la app vuelve automáticamente al listado de Notas.
+Esto evita copias repetidas y deja el flujo de edición cerrado.
+
+39. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
