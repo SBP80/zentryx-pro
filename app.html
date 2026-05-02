@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2576</title>
+<title>Zentryx V2577</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -168,13 +168,66 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
   }
 }
 
+
+/* ===== V2577 UI PRO / MULTI-DISPOSITIVO ===== */
+:root{
+  --zx-bg:#eef2f7;
+  --zx-dark:#0f172a;
+  --zx-panel:#111827;
+  --zx-card:#ffffff;
+  --zx-muted:#64748b;
+  --zx-border:#e5e7eb;
+  --zx-shadow:0 14px 35px rgba(15,23,42,.12);
+  --zx-radius:18px;
+}
+*{box-sizing:border-box}
+body{overflow-x:hidden}
+#app{width:100%;max-width:1280px;margin:0 auto;padding:14px}
+.card{border-radius:var(--zx-radius)!important;box-shadow:var(--zx-shadow);overflow:hidden}
+.grid{display:grid;grid-template-columns:1fr;gap:14px}
+.module{min-height:132px;border:1px solid var(--zx-border);border-radius:var(--zx-radius)!important;box-shadow:0 8px 22px rgba(15,23,42,.08);transition:transform .15s ease}
+.module:active{transform:scale(.99)}
+.module h3{margin-top:0;font-size:20px}
+.module p{min-height:38px}
+.actions{display:flex;flex-wrap:wrap;gap:10px}
+.actions .btn{flex:1 1 150px}
+.btn{min-height:44px;border-radius:12px!important;font-weight:700}
+input,select,textarea{border:1px solid var(--zx-border)!important;border-radius:12px!important;min-height:44px;font-size:16px!important;background:#fff;max-width:100%}
+textarea{width:100%;padding:10px}
+.row{border:1px solid #eef2f7;border-radius:14px;padding:12px;margin:10px 0;background:#f8fafc}
+.small{line-height:1.45}
+.zx-login-shell{min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;padding:22px;background:radial-gradient(circle at top left,rgba(37,99,235,.28),transparent 32%),radial-gradient(circle at bottom right,rgba(22,163,74,.18),transparent 34%),linear-gradient(135deg,#0f172a 0%,#111827 52%,#020617 100%)}
+.zx-login-card{width:100%;max-width:430px;background:rgba(255,255,255,.97);color:#0f172a;border:1px solid rgba(255,255,255,.55);border-radius:26px;box-shadow:0 30px 80px rgba(0,0,0,.32);padding:26px}
+.zx-login-logo{width:62px;height:62px;border-radius:20px;background:linear-gradient(135deg,#2563eb,#16a34a);color:white;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;margin-bottom:16px}
+.zx-login-title{margin:0;font-size:30px;letter-spacing:-.04em}
+.zx-login-subtitle{margin:8px 0 22px;color:#64748b}
+.zx-login-card label{display:block;margin-top:14px;color:#334155;font-weight:700}
+.zx-login-card input{margin-top:7px}
+.zx-login-row{display:flex;gap:10px;align-items:center}
+.zx-login-row input{flex:1}
+.zx-login-row button{width:auto;min-width:88px;margin-top:7px;background:#334155}
+.zx-login-error{margin-top:14px;padding:10px 12px;border-radius:12px;background:#fef2f2;color:#b91c1c;display:none}
+.zx-topbar{position:sticky;top:0;z-index:20;margin:-14px -14px 14px;padding:12px 14px;background:rgba(15,23,42,.95);backdrop-filter:blur(12px);color:white;border-bottom:1px solid rgba(255,255,255,.08)}
+.zx-topbar-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.zx-brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:-.02em}
+.zx-brand-mark{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#16a34a);display:flex;align-items:center;justify-content:center}
+.zx-nav{display:flex;gap:8px;overflow:auto;padding-bottom:2px}
+.zx-nav button{width:auto;white-space:nowrap;margin:0;min-height:38px;padding:8px 12px;background:rgba(255,255,255,.10);color:white}
+.zx-hero{background:linear-gradient(135deg,#ffffff,#eef5ff)}
+.zx-hero h2{font-size:28px;letter-spacing:-.04em;margin-bottom:6px}
+.zx-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 2px 10px}
+.zx-section-title h2{margin:0}
+@media(min-width:700px){#app{padding:20px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:1024px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.card{padding:20px}.module{padding:20px}}
+@media(max-width:520px){#app{padding:10px}.card{margin:10px 0!important}.actions{display:grid;grid-template-columns:1fr}.actions .btn{width:100%}.btn{width:100%}.zx-topbar-inner{align-items:flex-start;flex-direction:column}.zx-nav{width:100%}}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2576</h1>
+      <h1>Zentryx V2577</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +237,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2576";
+const VERSION="2577";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -275,20 +328,72 @@ async function prepararPasswordParaGuardar(pass){
   return await hashPassword(pass);
 }
 
+
+function mostrarErrorLogin(msg){
+  const el=document.getElementById("login_error");
+  if(el){
+    el.style.display="block";
+    el.textContent=msg;
+  }else{
+    alert(msg);
+  }
+}
+
+function togglePasswordLogin(){
+  const p=document.getElementById("login_password");
+  if(!p)return;
+  p.type=p.type==="password"?"text":"password";
+}
+
+function topbarHTML(){
+  if(!user)return "";
+  return `
+    <div class="zx-topbar">
+      <div class="zx-topbar-inner">
+        <div class="zx-brand">
+          <div class="zx-brand-mark">Z</div>
+          <div>
+            <div>Zentryx PRO</div>
+            <div class="small" style="color:#cbd5e1">${user.nombre||""} · ${user.rol||""}</div>
+          </div>
+        </div>
+        <div class="zx-nav">
+          <button onclick="inicio()">Inicio</button>
+          <button onclick="vistaUsuariosPro()">Usuarios</button>
+          <button onclick="vistaIncidenciasFichaje()">Incidencias</button>
+          <button onclick="vistaInformes()">Informes</button>
+          <button onclick="vistaConfigPro()">Config</button>
+          <button onclick="vistaAyuda()">Ayuda</button>
+          <button onclick="logout()">Salir</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function mostrarLogin(){
   vistaActual='login';
+  const lastUser=localStorage.getItem("zentryx_last_user")||"";
   document.getElementById("app").innerHTML=`
-    <div class="card">
-      <h2>Entrar</h2>
-      <p>Introduce tu usuario y contraseña.</p>
+    <div class="zx-login-shell">
+      <div class="zx-login-card">
+        <div class="zx-login-logo">Z</div>
+        <h1 class="zx-login-title">Zentryx PRO</h1>
+        <p class="zx-login-subtitle">Gestión profesional de fichajes, usuarios, zonas, incidencias e informes.</p>
 
-      <label>Usuario</label>
-      <input id="login_usuario" placeholder="usuario">
+        <label>Usuario</label>
+        <input id="login_usuario" placeholder="usuario" value="${lastUser}" autocomplete="username">
 
-      <label>Contraseña</label>
-      <input id="login_password" type="password" placeholder="contraseña">
+        <label>Contraseña</label>
+        <div class="zx-login-row">
+          <input id="login_password" type="password" placeholder="contraseña" autocomplete="current-password">
+          <button type="button" onclick="togglePasswordLogin()">Ver</button>
+        </div>
 
-      <button class="btn green full" onclick="loginUsuario()">Entrar</button>
+        <button class="btn green full" onclick="loginUsuario()">Entrar</button>
+        <div id="login_error" class="zx-login-error"></div>
+        <p class="small" style="margin-top:18px">Versión 2577 · Optimizado para móvil, tablet y PC</p>
+      </div>
     </div>`;
 }
 
@@ -297,26 +402,26 @@ async function loginUsuario(){
   const pass=document.getElementById("login_password").value;
 
   if(!usuarioLogin){
-    alert("Escribe el usuario.");
+    mostrarErrorLogin("Escribe el usuario.");
     return;
   }
 
   const {data,error}=await sb.from("users").select("*").eq("usuario",usuarioLogin).limit(1);
 
   if(error){
-    alert("Error leyendo usuario: "+error.message);
+    mostrarErrorLogin("Error leyendo usuario: "+error.message);
     return;
   }
 
   if(!data||!data[0]){
-    alert("Usuario no encontrado.");
+    mostrarErrorLogin("Usuario no encontrado.");
     return;
   }
 
   const u=normalizarUsuario(data[0]);
 
   if(u.activo===false){
-    alert("Usuario inactivo.");
+    mostrarErrorLogin("Usuario inactivo.");
     return;
   }
 
@@ -336,12 +441,13 @@ async function loginUsuario(){
   const okPass=await passwordCoincide(pass,u.password);
 
   if(!okPass){
-    alert("Contraseña incorrecta.");
+    mostrarErrorLogin("Contraseña incorrecta.");
     return;
   }
 
   user=u;
   localStorage.setItem("usuario",JSON.stringify(user));
+  localStorage.setItem("zentryx_last_user",usuarioLogin);
   await iniciarAppConUsuario();
 }
 
@@ -1182,6 +1288,7 @@ function nombreTipoIncidencia(tipo){
 async function vistaIncidenciasFichaje(filtro="pendientes"){
   vistaActual="incidencias_fichaje";
   document.getElementById("app").innerHTML=`
+    ${topbarHTML()}
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
       <h2>Incidencias de fichaje</h2>
@@ -2237,8 +2344,9 @@ async function inicio(){
   const otras=notas.filter(n=>!n.fija&&!notaVencida(n)).slice(0,5);
 
   document.getElementById("app").innerHTML=`
-    <div class="card">
-      <h2>Inicio</h2>
+    ${topbarHTML()}
+    <div class="card zx-hero">
+      <h2>Panel principal</h2>
       <b>${user.nombre}</b>
       <p>${user.usuario} · ${user.rol}</p>
       <span class="badge ${est.clase}">${est.txt}</span>
@@ -2284,42 +2392,46 @@ async function inicio(){
       ${otras.length?otras.map(n=>notaHTML(n)).join(""):"<p>No hay notas pendientes.</p>"}
     </div>
 
+    <div class="zx-section-title"><h2>Módulos</h2><span class="badge">Accesos rápidos</span></div>
     <div class="grid">
       <div class="module">
+        <h3>Fichajes</h3>
+        <p>Entrada, salida, pausas, comida, GPS y zona.</p>
+        <button class="btn green" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+      </div>
+      <div class="module">
         <h3>Usuarios</h3>
-        <p>Alta, ficha, horarios y documentos.</p>
+        <p>Alta, ficha, horarios, documentos y permisos.</p>
         <button class="btn dark" onclick="vistaUsuariosPro()">Abrir</button>
       </div>
       <div class="module">
-        <h3>Solicitudes</h3>
-        <p>Vacaciones, permisos y bajas.</p>
-        <button class="btn blue" onclick="vistaSolicitudesPro()">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Configuración</h3>
-        <p>Horarios, avisos y horas extra.</p>
-        <button class="btn gray" onclick="vistaConfigPro()">Abrir</button>
+        <h3>Incidencias</h3>
+        <p>Revisión de GPS, zonas, precisión y bloqueos.</p>
+        <button class="btn orange" onclick="vistaIncidenciasFichaje()">Abrir</button>
       </div>
       <div class="module">
         <h3>Informes</h3>
-        <p>Resumen mensual y fichajes.</p>
+        <p>Resumen mensual, extras, cierres y pagos.</p>
         <button class="btn blue" onclick="vistaInformes()">Abrir</button>
       </div>
       <div class="module">
-        <h3>Incidencias</h3>
-        <p>GPS, zona y precisión.</p>
-        <button class="btn orange" onclick="vistaIncidenciasFichaje()">Abrir</button>
+        <h3>Configuración</h3>
+        <p>Horarios, zonas, avisos, festivos y reglas.</p>
+        <button class="btn gray" onclick="vistaConfigPro()">Abrir</button>
       </div>
-
+      <div class="module">
+        <h3>Notas</h3>
+        <p>Notas rápidas, avisos y seguimiento interno.</p>
+        <button class="btn green" onclick="crearNota()">Nueva nota</button>
+      </div>
       <div class="module">
         <h3>Auditoría</h3>
-        <p>Historial de cambios</p>
+        <p>Historial de cambios, datos antes/después y control.</p>
         <button class="btn red" onclick="vistaAuditoria()">Abrir</button>
       </div>
-
       <div class="module">
         <h3>Ayuda</h3>
-        <p>Manual de uso y explicación de funciones.</p>
+        <p>Manual interno y explicación de funciones.</p>
         <button class="btn green" onclick="vistaAyuda()">Abrir</button>
       </div>
     </div>
@@ -2637,6 +2749,7 @@ async function vistaInformes(){
   const anioActual=hoy.getFullYear();
 
   document.getElementById("app").innerHTML=`
+    ${topbarHTML()}
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
       <h2>Informes PRO</h2>
@@ -3328,7 +3441,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2576
+  return `MANUAL DE USO ZENTRYX V2577
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3624,7 +3737,14 @@ Si un control está configurado como bloquear, un usuario normal queda bloqueado
 Un usuario autorizado puede continuar y el salto queda registrado en Auditoría.
 Los cambios de permisos pueden registrarse como usuario_cambia_permisos.
 
-36. PRÓXIMAS MEJORAS
+
+36. INTERFAZ PRO Y MULTI-DISPOSITIVO
+Se reorganiza la interfaz para uso real en móvil, tablet y PC.
+El login se mejora con diseño profesional, usuario recordado y ver/ocultar contraseña.
+El inicio queda ordenado por módulos: Fichajes, Usuarios, Incidencias, Informes, Configuración, Notas, Auditoría y Ayuda.
+La navegación superior permite moverse rápido entre zonas principales sin perder claridad.
+
+37. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -3792,6 +3912,7 @@ let auditoriaCache=[];
 function vistaAuditoria(){
   vistaActual='auditoria';
   document.getElementById("app").innerHTML=`
+    ${topbarHTML()}
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
       <h2>Auditoría PRO</h2>
@@ -4752,6 +4873,7 @@ async function vistaConfigPro(tab="horarios"){
   await cargarUsuariosServidor();
 
   document.getElementById("app").innerHTML=`
+    ${topbarHTML()}
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
       <h2>Configuración PRO</h2>
