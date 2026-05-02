@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2580</title>
+<title>Zentryx V2581</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -392,13 +392,20 @@ textarea{width:100%;padding:10px}
   .zx-simple-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
 
+
+/* ===== V2581 ORGANIZACIÓN BASE ===== */
+.zx-tabs{display:flex;gap:8px;overflow:auto;padding:8px 0 12px}
+.zx-tabs .btn{width:auto;white-space:nowrap;flex:0 0 auto}
+.zx-org-intro{background:linear-gradient(135deg,#ffffff,#eef5ff)}
+.zx-org-pill{display:inline-flex;align-items:center;padding:7px 10px;border-radius:999px;background:#e0f2fe;color:#075985;font-size:13px;font-weight:800;margin:4px 4px 4px 0}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2580</h1>
+      <h1>Zentryx V2581</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -408,7 +415,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2580";
+const VERSION="2581";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -548,6 +555,7 @@ function menuPerfilHTML(){
       <button onclick="vistaUsuariosPro()">Usuarios</button>
       <button onclick="vistaIncidenciasFichaje()">Incidencias</button>
       <button onclick="vistaInformes()">Informes</button>
+      <button onclick="vistaOrganizacion()">Organización</button>
       <button onclick="vistaConfigPro()">Config</button>
       <button onclick="vistaAuditoria()">Auditoría</button>
       <button onclick="vistaAyuda()">Ayuda</button>
@@ -702,8 +710,13 @@ function modulosPorPerfilHTML(est){
         <button class="btn blue full" onclick="vistaInformes()">Abrir</button>
       </div>
       <div class="zx-mini-card">
+        <h3>Organización</h3>
+        <p>Empresa, centros, flota, almacén y proveedores.</p>
+        <button class="btn dark full" onclick="vistaOrganizacion()">Abrir</button>
+      </div>
+      <div class="zx-mini-card">
         <h3>Config</h3>
-        <p>Empresa, horarios, zonas y reglas.</p>
+        <p>Horarios, zonas, reglas y ajustes generales.</p>
         <button class="btn gray full" onclick="vistaConfigPro()">Abrir</button>
         <button class="btn red full" onclick="vistaAuditoria()">Auditoría</button>
       </div>
@@ -4152,7 +4165,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2580
+  return `MANUAL DE USO ZENTRYX V2581
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -4494,7 +4507,22 @@ Administrador ve panel, gestión, informes y configuración.
 Las notas pasan a gestionarse desde un botón flotante pequeño, con panel de notas rápido.
 Las notas fijas aparecen como post-it reducido y no ocupan tarjetas grandes.
 
-42. PRÓXIMAS MEJORAS
+
+42. ORGANIZACIÓN BASE
+Se añade el módulo Organización como base modular y vendible.
+Solo lo ve administración.
+Apartados preparados:
+- Empresa.
+- Centros / sedes.
+- Vehículos.
+- Almacén.
+- Proveedores.
+- Documentación.
+
+Esta versión crea la estructura visual y de navegación sin añadir todavía tablas nuevas.
+El siguiente paso será activar cada apartado con formularios y datos reales en Supabase.
+
+43. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -4717,6 +4745,123 @@ async function cargarAuditoria(){
 
   renderAuditoria(auditoriaCache);
 }
+
+
+// ===============================
+// ORGANIZACIÓN (V2581 BASE)
+// ===============================
+
+function puedeVerOrganizacion(){
+  return esPerfilAdmin();
+}
+
+function vistaOrganizacion(tab="inicio"){
+  if(!puedeVerOrganizacion()){
+    alert("Solo administrador.");
+    inicio();
+    return;
+  }
+
+  vistaActual="organizacion";
+
+  document.getElementById("app").innerHTML=`
+    ${topbarHTML()}
+    ${notaFloatingButtonHTML()}
+
+    <div class="card zx-org-intro">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Organización</h2>
+      <p>Módulo empresarial modular para gestionar la estructura interna de cualquier empresa.</p>
+      <span class="zx-org-pill">Módulo vendible</span>
+      <span class="zx-org-pill">Configurable por empresa</span>
+      <span class="zx-org-pill">Solo administración</span>
+
+      <div class="zx-tabs">
+        <button class="btn ${tab==="inicio"?"dark":"gray"}" onclick="vistaOrganizacion('inicio')">Inicio</button>
+        <button class="btn ${tab==="empresa"?"dark":"gray"}" onclick="vistaOrganizacion('empresa')">Empresa</button>
+        <button class="btn ${tab==="centros"?"dark":"gray"}" onclick="vistaOrganizacion('centros')">Centros</button>
+        <button class="btn ${tab==="vehiculos"?"dark":"gray"}" onclick="vistaOrganizacion('vehiculos')">Vehículos</button>
+        <button class="btn ${tab==="almacen"?"dark":"gray"}" onclick="vistaOrganizacion('almacen')">Almacén</button>
+        <button class="btn ${tab==="proveedores"?"dark":"gray"}" onclick="vistaOrganizacion('proveedores')">Proveedores</button>
+        <button class="btn ${tab==="documentos"?"dark":"gray"}" onclick="vistaOrganizacion('documentos')">Documentación</button>
+      </div>
+    </div>
+
+    <div id="orgBody"></div>
+  `;
+
+  pintarOrganizacion(tab);
+}
+
+function pintarOrganizacion(tab){
+  const body=document.getElementById("orgBody");
+  if(!body)return;
+
+  if(tab==="inicio"){
+    body.innerHTML=`
+      <div class="card">
+        <h2>Panel Organización</h2>
+        <p>Esta es la base del módulo Organización. Cada apartado podrá activarse o venderse como módulo independiente según la empresa.</p>
+
+        <div class="zx-simple-grid">
+          <div class="zx-mini-card">
+            <h3>Empresa</h3>
+            <p>Datos fiscales, contacto, dirección y configuración general.</p>
+            <button class="btn blue full" onclick="vistaOrganizacion('empresa')">Abrir</button>
+          </div>
+          <div class="zx-mini-card">
+            <h3>Centros</h3>
+            <p>Sedes, oficinas, almacenes, delegaciones o centros de trabajo.</p>
+            <button class="btn blue full" onclick="vistaOrganizacion('centros')">Abrir</button>
+          </div>
+          <div class="zx-mini-card">
+            <h3>Vehículos</h3>
+            <p>Flota, ITV, seguro, asignaciones e incidencias.</p>
+            <button class="btn blue full" onclick="vistaOrganizacion('vehiculos')">Abrir</button>
+          </div>
+          <div class="zx-mini-card">
+            <h3>Almacén</h3>
+            <p>Material, stock, entradas, salidas y mínimos.</p>
+            <button class="btn blue full" onclick="vistaOrganizacion('almacen')">Abrir</button>
+          </div>
+          <div class="zx-mini-card">
+            <h3>Proveedores</h3>
+            <p>Distribuidores, contactos, condiciones y notas.</p>
+            <button class="btn blue full" onclick="vistaOrganizacion('proveedores')">Abrir</button>
+          </div>
+          <div class="zx-mini-card">
+            <h3>Documentación</h3>
+            <p>Documentos generales, caducidades y archivos internos.</p>
+            <button class="btn blue full" onclick="vistaOrganizacion('documentos')">Abrir</button>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const textos={
+    empresa:["Empresa","Datos generales de la empresa: razón social, CIF/NIF, dirección, teléfono, email y configuración básica."],
+    centros:["Centros / sedes","Centros de trabajo, delegaciones, oficinas, almacenes o zonas operativas."],
+    vehiculos:["Vehículos","Control de flota, matrículas, responsables, ITV, seguros, revisiones e incidencias."],
+    almacen:["Almacén","Material, stock mínimo, entradas, salidas, ubicación y avisos."],
+    proveedores:["Proveedores / distribuidores","Listado de proveedores, contactos, teléfonos, emails, condiciones y notas comerciales."],
+    documentos:["Documentación","Archivos de empresa, documentación legal, seguros, contratos y caducidades."]
+  };
+
+  const t=textos[tab]||textos.empresa;
+
+  body.innerHTML=`
+    <div class="card">
+      <h2>${t[0]}</h2>
+      <p>${t[1]}</p>
+      <span class="badge orange">Base preparada</span>
+      <span class="badge">Siguiente fase: datos reales en Supabase</span>
+      <p class="small">En esta versión se crea la estructura del módulo sin tocar todavía tablas nuevas. El siguiente paso será activar este apartado con SQL y formularios reales.</p>
+    </div>
+  `;
+}
+
 
 function vistaAyuda(){
   vistaActual='ayuda';
