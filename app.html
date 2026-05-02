@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2584</title>
+<title>Zentryx V2585</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -450,7 +450,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2584</h1>
+      <h1>Zentryx V2585</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2584";
+const VERSION="2585";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -4210,7 +4210,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2584
+  return `MANUAL DE USO ZENTRYX V2585
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -5156,11 +5156,44 @@ async function leerVehiculosOrg(){
   return data||[];
 }
 
+
+async function cargarUsuariosParaVehiculos(){
+  const {data,error}=await sb
+    .from("users")
+    .select("id,nombre,usuario,rol,activo")
+    .order("nombre",{ascending:true});
+
+  if(error){
+    console.warn("Error leyendo usuarios para vehículos",error);
+    return [];
+  }
+
+  return (data||[]).filter(u=>u.activo!==false);
+}
+
+function nombreUsuarioVehiculo(id,usuarios){
+  if(!id)return "-";
+  const u=(usuarios||[]).find(x=>String(x.id)===String(id));
+  return u ? (u.nombre||u.usuario||"-") : "-";
+}
+
+function opcionesUsuariosVehiculoHTML(usuarios,seleccionado=""){
+  return `
+    <option value="">Sin asignar</option>
+    ${(usuarios||[]).map(u=>`
+      <option value="${u.id}" ${String(seleccionado||"")===String(u.id)?"selected":""}>
+        ${u.nombre||u.usuario||"Usuario"}${u.rol?` · ${u.rol}`:""}
+      </option>
+    `).join("")}
+  `;
+}
+
 async function pintarOrganizacionVehiculos(){
   const body=document.getElementById("orgBody");
   if(!body)return;
 
   const vehiculos=await leerVehiculosOrg();
+  const usuariosVehiculos=await cargarUsuariosParaVehiculos();
 
   body.innerHTML=`
     ${panelAlertasVehiculosHTML(vehiculos)}
@@ -5184,8 +5217,10 @@ async function pintarOrganizacionVehiculos(){
 
         <div>
           <label>Asignado a</label>
-          <input id="veh_asignado" placeholder="Usuario, equipo o departamento">
-          <span class="zx-help-field">Persona o equipo responsable habitual.</span>
+          <select id="veh_asignado_id">
+            ${opcionesUsuariosVehiculoHTML(usuariosVehiculos)}
+          </select>
+          <span class="zx-help-field">Usuario real responsable habitual del vehículo.</span>
         </div>
 
         <div>
@@ -5216,12 +5251,12 @@ async function pintarOrganizacionVehiculos(){
 
     <div class="card">
       <h2>Vehículos registrados</h2>
-      ${vehiculos.length?vehiculos.map(v=>vehiculoOrgHTML(v)).join(""):"<p>No hay vehículos registrados.</p>"}
+      ${vehiculos.length?vehiculos.map(v=>vehiculoOrgHTML(v,usuariosVehiculos)).join(""):"<p>No hay vehículos registrados.</p>"}
     </div>
   `;
 }
 
-function vehiculoOrgHTML(v){
+function vehiculoOrgHTML(v,usuariosVehiculos=[]){
   const itv=fechaEstadoVehiculo(v.itv);
   const seguro=fechaEstadoVehiculo(v.seguro);
   const mant=fechaEstadoVehiculo(v.mantenimiento);
@@ -5230,7 +5265,7 @@ function vehiculoOrgHTML(v){
     <div class="zx-data-card">
       <h3>${v.matricula||"Sin matrícula"}</h3>
       <p><b>Modelo:</b> ${v.modelo||"-"}</p>
-      <p><b>Asignado:</b> ${v.asignado||"-"}</p>
+      <p><b>Asignado:</b> ${nombreUsuarioVehiculo(v.asignado_id,usuariosVehiculos) || v.asignado || "-"}</p>
 
       ${badgeFechaVehiculo("ITV",v.itv)}
       ${badgeFechaVehiculo("Seguro",v.seguro)}
@@ -5267,7 +5302,8 @@ async function crearVehiculoOrg(){
     const payload={
       matricula:campoVeh("veh_matricula").toUpperCase(),
       modelo:campoVeh("veh_modelo"),
-      asignado:campoVeh("veh_asignado"),
+      asignado_id:campoVeh("veh_asignado_id"),
+      asignado:nombreUsuarioVehiculo(campoVeh("veh_asignado_id"),await cargarUsuariosParaVehiculos()),
       itv:campoVeh("veh_itv")||null,
       seguro:campoVeh("veh_seguro")||null,
       mantenimiento:campoVeh("veh_mantenimiento")||null,
@@ -5324,6 +5360,7 @@ async function editarVehiculoOrg(id){
     return;
   }
 
+  const usuariosVehiculos=await cargarUsuariosParaVehiculos();
   const body=document.getElementById("orgBody");
 
   body.innerHTML=`
@@ -5346,8 +5383,10 @@ async function editarVehiculoOrg(id){
 
         <div>
           <label>Asignado a</label>
-          <input id="veh_asignado" value="${v.asignado||""}">
-          <span class="zx-help-field">Persona o equipo responsable habitual.</span>
+          <select id="veh_asignado_id">
+            ${opcionesUsuariosVehiculoHTML(usuariosVehiculos,v.asignado_id)}
+          </select>
+          <span class="zx-help-field">Usuario real responsable habitual del vehículo.</span>
         </div>
 
         <div>
@@ -5388,7 +5427,8 @@ async function guardarEdicionVehiculoOrg(id){
   const payload={
     matricula:campoVeh("veh_matricula").toUpperCase(),
     modelo:campoVeh("veh_modelo"),
-    asignado:campoVeh("veh_asignado"),
+    asignado_id:campoVeh("veh_asignado_id"),
+    asignado:nombreUsuarioVehiculo(campoVeh("veh_asignado_id"),await cargarUsuariosParaVehiculos()),
     itv:campoVeh("veh_itv")||null,
     seguro:campoVeh("veh_seguro")||null,
     mantenimiento:campoVeh("veh_mantenimiento")||null,
@@ -7247,3 +7287,5 @@ iniciarApp().catch(err=>{
 </html>
 
 <!-- Manual V2584: Alertas de vehículos añadidas -->
+
+<!-- Manual V2585: Asignación real de vehículos -->
