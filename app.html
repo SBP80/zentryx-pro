@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2575</title>
+<title>Zentryx V2576</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2575</h1>
+      <h1>Zentryx V2576</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2575";
+const VERSION="2576";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -720,8 +720,8 @@ function fechaISODesdeInputLocal(valor){
 }
 
 async function abrirEditarFichaje(id){
-  if(!esAdmin()){
-    alert("Solo administrador.");
+  if(!esAdmin() && !puedeEditarFichajes()){
+    alert("No tienes permiso para editar fichajes.");
     return;
   }
 
@@ -796,8 +796,8 @@ async function abrirEditarFichaje(id){
 }
 
 async function eliminarFichajePro(id){
-  if(!esAdmin()){
-    alert("Solo administrador.");
+  if(!esAdmin() && !puedeEditarFichajes()){
+    alert("No tienes permiso para eliminar fichajes.");
     return;
   }
 
@@ -1050,6 +1050,105 @@ async function registrarIncidenciaFichaje({tipo,descripcion,fichaje_id,datos}){
   }
 }
 
+
+
+function permisoUsuario(nombre){
+  if(!user)return false;
+  if(user.es_admin===true || user.es_admin==="true" || user.es_admin===1)return true;
+  if(user.rol && String(user.rol).toLowerCase().includes("admin"))return true;
+  return user[nombre]===true || user[nombre]==="true" || user[nombre]===1;
+}
+
+function puedeSaltarZona(){
+  return permisoUsuario("puede_saltar_zona");
+}
+
+function puedeSaltarGPS(){
+  return permisoUsuario("puede_saltar_gps");
+}
+
+function puedeEditarFichajes(){
+  return permisoUsuario("puede_editar_fichajes");
+}
+
+function puedeVerInformes(){
+  return permisoUsuario("puede_ver_informes");
+}
+
+function puedeGestionarHoras(){
+  return permisoUsuario("puede_gestionar_horas");
+}
+
+async function recargarUsuarioActual(){
+  if(!user?.id)return user;
+
+  try{
+    const {data,error}=await sb
+      .from("users")
+      .select("*")
+      .eq("id",String(user.id))
+      .maybeSingle();
+
+    if(!error && data){
+      user={...user,...data};
+      localStorage.setItem("zentryx_user",JSON.stringify(user));
+      localStorage.setItem("usuario",JSON.stringify(user));
+    }
+  }catch(e){
+    console.warn("No se pudo recargar usuario",e);
+  }
+
+  return user;
+}
+
+async function editarPermisosUsuario(id){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const antes=await leerRegistroPorId("users",id);
+
+  if(!antes){
+    alert("No se pudo cargar usuario.");
+    return;
+  }
+
+  const actual=(campo)=>antes[campo]===true || antes[campo]==="true" || antes[campo]===1;
+
+  const payload={
+    puede_saltar_zona:confirm("Permitir saltar control de zona? Actual: "+(actual("puede_saltar_zona")?"Sí":"No")),
+    puede_saltar_gps:confirm("Permitir saltar control GPS/precisión? Actual: "+(actual("puede_saltar_gps")?"Sí":"No")),
+    puede_editar_fichajes:confirm("Permitir editar fichajes? Actual: "+(actual("puede_editar_fichajes")?"Sí":"No")),
+    puede_ver_informes:confirm("Permitir ver informes? Actual: "+(actual("puede_ver_informes")?"Sí":"No")),
+    puede_gestionar_horas:confirm("Permitir gestionar/cerrar horas? Actual: "+(actual("puede_gestionar_horas")?"Sí":"No")),
+    es_admin:confirm("Marcar como administrador? Actual: "+(actual("es_admin")?"Sí":"No"))
+  };
+
+  const {data,error}=await sb
+    .from("users")
+    .update(payload)
+    .eq("id",String(id))
+    .select()
+    .single();
+
+  if(error){
+    alert("Error guardando permisos: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"usuario_cambia_permisos",
+    tabla:"users",
+    registro_id:String(id),
+    motivo:"Cambio de permisos de usuario",
+    antes,
+    despues:data
+  });
+
+  alert("Permisos actualizados.");
+  if(typeof vistaUsuarios==="function")vistaUsuarios();
+}
 
 async function registrarIncidenciaBloqueoFichaje({tipo,descripcion,datos}){
   await registrarIncidenciaFichaje({
@@ -1709,6 +1808,7 @@ function abrirMapaMovimiento(lat,lng,direccion){
 }
 
 async function guardarMovimiento(tipo){
+  await recargarUsuarioActual();
   await registrarCambio({
       accion:"borrado_hoy",
       tabla:"fichajes",
@@ -1752,22 +1852,33 @@ async function guardarMovimiento(tipo){
   if(!precisionGPS.ok && precisionGPS.modo==="precision_mala"){
     const modoPrecision=configZonas.modo_precision_gps||"motivo";
 
-    if(modoPrecision==="bloquear"){
+    if(modoPrecision==="bloquear" && !puedeSaltarGPS()){
       await registrarCambio({
         accion:"fichaje_bloqueado_precision_gps",
         tabla:"fichajes",
         motivo:precisionGPS.mensaje,
-        despues:{precisionGPS,modoPrecision}
+        despues:{precisionGPS,modoPrecision,permiso_saltar_gps:false}
       });
 
       await registrarIncidenciaBloqueoFichaje({
         tipo:"bloqueado_precision_baja",
         descripcion:"Fichaje bloqueado por GPS impreciso. "+textoResultadoPrecisionGPS(precisionGPS),
-        datos:{precisionGPS,modoPrecision,user_id:user?.id||""}
+        datos:{precisionGPS,modoPrecision,user_id:user?.id||"",permiso_saltar_gps:false}
       });
 
       alert("Fichaje bloqueado: "+textoResultadoPrecisionGPS(precisionGPS));
       return;
+    }
+
+    if(modoPrecision==="bloquear" && puedeSaltarGPS()){
+      motivoPrecisionGPS="Usuario autorizado para saltar control GPS";
+
+      await registrarCambio({
+        accion:"usuario_salto_control_gps",
+        tabla:"fichajes",
+        motivo:"Usuario autorizado para fichar con GPS impreciso",
+        despues:{precisionGPS,modoPrecision,user_id:user?.id||"",permiso_saltar_gps:true}
+      });
     }
 
     if(modoPrecision==="motivo"){
@@ -1790,22 +1901,37 @@ async function guardarMovimiento(tipo){
   if(!zona.ok){
     const modoControl=zona.modo==="sin_gps" ? configZonas.modo_sin_gps : configZonas.modo_fuera_zona;
 
-    if(modoControl==="bloquear"){
+    const permisoSaltoControl = zona.modo==="sin_gps" ? puedeSaltarGPS() : puedeSaltarZona();
+
+    if(modoControl==="bloquear" && !permisoSaltoControl){
       await registrarCambio({
         accion:zona.modo==="sin_gps"?"fichaje_bloqueado_sin_gps":"fichaje_bloqueado_fuera_zona",
         tabla:"fichajes",
         motivo:(zona.mensaje||"Zona no válida")+(zona.zona?(" · Zona más cercana: "+zona.zona):""),
-        despues:{zona,modoControl}
+        despues:{zona,modoControl,permiso_salto:false}
       });
 
       await registrarIncidenciaBloqueoFichaje({
         tipo:zona.modo==="sin_gps"?"bloqueado_sin_gps":"bloqueado_fuera_zona",
         descripcion:"Fichaje bloqueado. "+textoResultadoZona(zona),
-        datos:{zona,modoControl,user_id:user?.id||""}
+        datos:{zona,modoControl,user_id:user?.id||"",permiso_salto:false}
       });
 
       alert("Fichaje bloqueado: "+textoResultadoZona(zona));
       return;
+    }
+
+    if(modoControl==="bloquear" && permisoSaltoControl){
+      motivoFueraZona = zona.modo==="sin_gps"
+        ? "Usuario autorizado para saltar control GPS"
+        : "Usuario autorizado para saltar control de zona";
+
+      await registrarCambio({
+        accion:zona.modo==="sin_gps"?"usuario_salto_control_gps":"usuario_salto_control_zona",
+        tabla:"fichajes",
+        motivo:motivoFueraZona,
+        despues:{zona,modoControl,user_id:user?.id||"",permiso_salto:true}
+      });
     }
 
     if(modoControl==="motivo"){
@@ -2497,6 +2623,11 @@ function minutosNocturnosEntre(inicio,fin){
 }
 
 async function vistaInformes(){
+  if(!esAdmin() && !puedeVerInformes()){
+    alert("No tienes permiso para ver informes.");
+    inicio();
+    return;
+  }
   vistaActual='informes';
   if(esAdmin()) await cargarUsuariosServidor();
 
@@ -3197,7 +3328,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2575
+  return `MANUAL DE USO ZENTRYX V2576
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3479,7 +3610,21 @@ Los bloqueos disponibles son:
 
 Esto permite pasar de modo aviso a modo control real cuando la empresa quiera exigir presencia dentro de zona.
 
-35. PRÓXIMAS MEJORAS
+
+35. USUARIOS PRO Y PERMISOS
+Se añaden permisos por usuario:
+- puede_saltar_zona.
+- puede_saltar_gps.
+- puede_editar_fichajes.
+- puede_ver_informes.
+- puede_gestionar_horas.
+- es_admin.
+
+Si un control está configurado como bloquear, un usuario normal queda bloqueado.
+Un usuario autorizado puede continuar y el salto queda registrado en Auditoría.
+Los cambios de permisos pueden registrarse como usuario_cambia_permisos.
+
+36. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
