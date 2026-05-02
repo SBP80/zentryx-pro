@@ -413,6 +413,26 @@ textarea{width:100%;padding:10px}
   .zx-form-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 
+
+/* ===== V2583 VEHÍCULOS REALES ===== */
+.zx-data-card{
+  border:1px solid #e5e7eb;
+  border-radius:16px;
+  padding:14px;
+  margin:10px 0;
+  background:#f8fafc;
+}
+.zx-help-field{
+  display:block;
+  font-size:13px;
+  color:#64748b;
+  margin-top:4px;
+  line-height:1.3;
+}
+.zx-status-ok{background:#dcfce7!important;color:#166534!important}
+.zx-status-warn{background:#fef3c7!important;color:#92400e!important}
+.zx-status-bad{background:#fee2e2!important;color:#991b1b!important}
+
 </style>
 </head>
 <body>
@@ -4179,7 +4199,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2582
+  return `MANUAL DE USO ZENTRYX V2583
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -4550,7 +4570,27 @@ Campos incluidos:
 
 Los cambios quedan registrados en Auditoría como organizacion_empresa_guardada.
 
-44. PRÓXIMAS MEJORAS
+
+44. VEHÍCULOS REALES
+El apartado Organización > Vehículos permite:
+- Crear vehículos.
+- Editar vehículos.
+- Eliminar vehículos.
+- Controlar ITV, seguro y próximo mantenimiento.
+- Ver estado visual correcto, próximo o caducado.
+
+Campos:
+- Matrícula: identificación única del vehículo.
+- Marca / modelo: permite reconocer el vehículo.
+- Asignado a: persona, equipo o departamento responsable.
+- ITV: fecha de caducidad legal.
+- Seguro: fecha de vencimiento del seguro.
+- Próximo mantenimiento: fecha prevista de revisión, aceite, neumáticos u otros trabajos.
+- Notas: observaciones internas.
+
+Los cambios quedan registrados en Auditoría.
+
+45. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -4978,70 +5018,330 @@ async function guardarDatosEmpresaOrg(){
 
 
 // ===============================
-// VEHICULOS PRO (V2583)
+// VEHÍCULOS REALES (V2583)
 // ===============================
+
+function fechaEstadoVehiculo(fecha){
+  if(!fecha)return {txt:"Sin fecha",clase:""};
+  const hoy=new Date();
+  hoy.setHours(0,0,0,0);
+  const f=new Date(fecha+"T00:00:00");
+  const dias=Math.ceil((f-hoy)/86400000);
+
+  if(dias<0)return {txt:"Caducado",clase:"zx-status-bad"};
+  if(dias<=30)return {txt:"Próximo",clase:"zx-status-warn"};
+  return {txt:"Correcto",clase:"zx-status-ok"};
+}
+
+async function leerVehiculosOrg(){
+  const {data,error}=await sb
+    .from("org_vehiculos")
+    .select("*")
+    .order("created_at",{ascending:false});
+
+  if(error){
+    console.warn("Error leyendo vehículos",error);
+    alert("Error leyendo vehículos: "+error.message);
+    return [];
+  }
+
+  return data||[];
+}
 
 async function pintarOrganizacionVehiculos(){
   const body=document.getElementById("orgBody");
+  if(!body)return;
 
-  const {data}=await sb.from("org_vehiculos").select("*").order("created_at",{ascending:false});
+  const vehiculos=await leerVehiculosOrg();
 
   body.innerHTML=`
     <div class="card">
       <h2>Vehículos</h2>
-      <p>Gestión de flota. Cada campo sirve para control legal y operativo.</p>
+      <p>Gestión de flota para cualquier empresa. Sirve para controlar vehículos, responsables, documentación y mantenimiento.</p>
 
       <div class="zx-form-grid">
-        <div><label>Matrícula (identificación única)</label><input id="veh_mat"></div>
-        <div><label>Marca / modelo</label><input id="veh_mod"></div>
-        <div><label>Asignado (usuario)</label><input id="veh_asig"></div>
-        <div><label>ITV (caducidad)</label><input id="veh_itv" type="date"></div>
-        <div><label>Seguro (caducidad)</label><input id="veh_seg" type="date"></div>
-        <div><label>Próx. mantenimiento</label><input id="veh_mant" type="date"></div>
+        <div>
+          <label>Matrícula</label>
+          <input id="veh_matricula" placeholder="0000 XXX">
+          <span class="zx-help-field">Identificación única del vehículo.</span>
+        </div>
+
+        <div>
+          <label>Marca / modelo</label>
+          <input id="veh_modelo" placeholder="Ej: Citroën Jumpy">
+          <span class="zx-help-field">Modelo visible para reconocer el vehículo.</span>
+        </div>
+
+        <div>
+          <label>Asignado a</label>
+          <input id="veh_asignado" placeholder="Usuario, equipo o departamento">
+          <span class="zx-help-field">Persona o equipo responsable habitual.</span>
+        </div>
+
+        <div>
+          <label>ITV</label>
+          <input id="veh_itv" type="date">
+          <span class="zx-help-field">Fecha de caducidad de la ITV.</span>
+        </div>
+
+        <div>
+          <label>Seguro</label>
+          <input id="veh_seguro" type="date">
+          <span class="zx-help-field">Fecha de vencimiento del seguro.</span>
+        </div>
+
+        <div>
+          <label>Próximo mantenimiento</label>
+          <input id="veh_mantenimiento" type="date">
+          <span class="zx-help-field">Fecha prevista de revisión, aceite, neumáticos u otro mantenimiento.</span>
+        </div>
       </div>
 
       <label>Notas</label>
-      <textarea id="veh_notas"></textarea>
+      <textarea id="veh_notas" rows="3" placeholder="Averías, uso, equipamiento, observaciones..."></textarea>
+      <span class="zx-help-field">Notas internas del vehículo.</span>
 
-      <button class="btn green full" onclick="crearVehiculo()">Guardar vehículo</button>
+      <button id="btnGuardarVehiculo" class="btn green full" onclick="crearVehiculoOrg()">Guardar vehículo</button>
     </div>
 
     <div class="card">
-      <h2>Listado</h2>
-      ${(data||[]).map(v=>`
-        <div class="zx-data-card">
-          <b>${v.matricula}</b><br>
-          ${v.modelo||""}<br>
-          <span class="small">Asignado: ${v.asignado||"-"}</span><br>
-          <span class="small">ITV: ${v.itv||"-"} · Seguro: ${v.seguro||"-"}</span><br>
-          <span class="small">Mantenimiento: ${v.mantenimiento||"-"}</span>
-          <div class="actions">
-            <button class="btn red" onclick="eliminarVehiculo('${v.id}')">Eliminar</button>
-          </div>
-        </div>
-      `).join("")}
+      <h2>Vehículos registrados</h2>
+      ${vehiculos.length?vehiculos.map(v=>vehiculoOrgHTML(v)).join(""):"<p>No hay vehículos registrados.</p>"}
     </div>
   `;
 }
 
-async function crearVehiculo(){
-  const payload={
-    matricula:document.getElementById("veh_mat").value,
-    modelo:document.getElementById("veh_mod").value,
-    asignado:document.getElementById("veh_asig").value,
-    itv:document.getElementById("veh_itv").value,
-    seguro:document.getElementById("veh_seg").value,
-    mantenimiento:document.getElementById("veh_mant").value,
-    notas:document.getElementById("veh_notas").value
-  };
+function vehiculoOrgHTML(v){
+  const itv=fechaEstadoVehiculo(v.itv);
+  const seguro=fechaEstadoVehiculo(v.seguro);
+  const mant=fechaEstadoVehiculo(v.mantenimiento);
 
-  await sb.from("org_vehiculos").insert([payload]);
-  pintarOrganizacionVehiculos();
+  return `
+    <div class="zx-data-card">
+      <h3>${v.matricula||"Sin matrícula"}</h3>
+      <p><b>Modelo:</b> ${v.modelo||"-"}</p>
+      <p><b>Asignado:</b> ${v.asignado||"-"}</p>
+
+      <span class="badge ${itv.clase}">ITV: ${fechaES(v.itv)||"-"} · ${itv.txt}</span>
+      <span class="badge ${seguro.clase}">Seguro: ${fechaES(v.seguro)||"-"} · ${seguro.txt}</span>
+      <span class="badge ${mant.clase}">Mantenimiento: ${fechaES(v.mantenimiento)||"-"} · ${mant.txt}</span>
+
+      ${v.notas?`<p><b>Notas:</b> ${v.notas}</p>`:""}
+
+      <div class="actions">
+        <button class="btn blue" onclick="editarVehiculoOrg('${v.id}')">Editar</button>
+        <button class="btn red" onclick="eliminarVehiculoOrg('${v.id}')">Eliminar</button>
+      </div>
+    </div>
+  `;
 }
 
-async function eliminarVehiculo(id){
-  await sb.from("org_vehiculos").delete().eq("id",id);
-  pintarOrganizacionVehiculos();
+function campoVeh(id){
+  return document.getElementById(id)?.value?.trim() || "";
+}
+
+async function crearVehiculoOrg(){
+  if(!esPerfilAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const btn=document.getElementById("btnGuardarVehiculo");
+  if(btn){
+    btn.disabled=true;
+    btn.textContent="Guardando...";
+    btn.style.opacity=".65";
+  }
+
+  try{
+    const payload={
+      matricula:campoVeh("veh_matricula").toUpperCase(),
+      modelo:campoVeh("veh_modelo"),
+      asignado:campoVeh("veh_asignado"),
+      itv:campoVeh("veh_itv")||null,
+      seguro:campoVeh("veh_seguro")||null,
+      mantenimiento:campoVeh("veh_mantenimiento")||null,
+      notas:campoVeh("veh_notas")
+    };
+
+    if(!payload.matricula){
+      alert("La matrícula es obligatoria.");
+      return;
+    }
+
+    const {data,error}=await sb
+      .from("org_vehiculos")
+      .insert([payload])
+      .select()
+      .single();
+
+    if(error){
+      alert("Error guardando vehículo: "+error.message);
+      return;
+    }
+
+    await registrarCambio({
+      accion:"organizacion_vehiculo_creado",
+      tabla:"org_vehiculos",
+      registro_id:data?.id||"",
+      motivo:"Creación de vehículo",
+      antes:null,
+      despues:data||payload
+    });
+
+    aviso("Vehículo guardado.","ok");
+    await pintarOrganizacionVehiculos();
+  }finally{
+    if(btn){
+      btn.disabled=false;
+      btn.textContent="Guardar vehículo";
+      btn.style.opacity="1";
+    }
+  }
+}
+
+async function editarVehiculoOrg(id){
+  if(!esPerfilAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const vehiculos=await leerVehiculosOrg();
+  const v=vehiculos.find(x=>String(x.id)===String(id));
+
+  if(!v){
+    alert("No se encuentra el vehículo.");
+    return;
+  }
+
+  const body=document.getElementById("orgBody");
+
+  body.innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="vistaOrganizacion('vehiculos')">← Volver</button>
+      <h2>Editar vehículo</h2>
+
+      <div class="zx-form-grid">
+        <div>
+          <label>Matrícula</label>
+          <input id="veh_matricula" value="${v.matricula||""}">
+          <span class="zx-help-field">Identificación única del vehículo.</span>
+        </div>
+
+        <div>
+          <label>Marca / modelo</label>
+          <input id="veh_modelo" value="${v.modelo||""}">
+          <span class="zx-help-field">Modelo visible para reconocer el vehículo.</span>
+        </div>
+
+        <div>
+          <label>Asignado a</label>
+          <input id="veh_asignado" value="${v.asignado||""}">
+          <span class="zx-help-field">Persona o equipo responsable habitual.</span>
+        </div>
+
+        <div>
+          <label>ITV</label>
+          <input id="veh_itv" type="date" value="${v.itv||""}">
+          <span class="zx-help-field">Fecha de caducidad de la ITV.</span>
+        </div>
+
+        <div>
+          <label>Seguro</label>
+          <input id="veh_seguro" type="date" value="${v.seguro||""}">
+          <span class="zx-help-field">Fecha de vencimiento del seguro.</span>
+        </div>
+
+        <div>
+          <label>Próximo mantenimiento</label>
+          <input id="veh_mantenimiento" type="date" value="${v.mantenimiento||""}">
+          <span class="zx-help-field">Fecha prevista de revisión o mantenimiento.</span>
+        </div>
+      </div>
+
+      <label>Notas</label>
+      <textarea id="veh_notas" rows="3">${v.notas||""}</textarea>
+
+      <button id="btnGuardarVehiculo" class="btn green full" onclick="guardarEdicionVehiculoOrg('${id}')">Guardar cambios</button>
+    </div>
+  `;
+}
+
+async function guardarEdicionVehiculoOrg(id){
+  if(!esPerfilAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const antes=await leerRegistroPorId("org_vehiculos",id);
+
+  const payload={
+    matricula:campoVeh("veh_matricula").toUpperCase(),
+    modelo:campoVeh("veh_modelo"),
+    asignado:campoVeh("veh_asignado"),
+    itv:campoVeh("veh_itv")||null,
+    seguro:campoVeh("veh_seguro")||null,
+    mantenimiento:campoVeh("veh_mantenimiento")||null,
+    notas:campoVeh("veh_notas")
+  };
+
+  if(!payload.matricula){
+    alert("La matrícula es obligatoria.");
+    return;
+  }
+
+  const {data,error}=await sb
+    .from("org_vehiculos")
+    .update(payload)
+    .eq("id",id)
+    .select()
+    .single();
+
+  if(error){
+    alert("Error actualizando vehículo: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"organizacion_vehiculo_editado",
+    tabla:"org_vehiculos",
+    registro_id:id,
+    motivo:"Edición de vehículo",
+    antes,
+    despues:data
+  });
+
+  aviso("Vehículo actualizado.","ok");
+  await vistaOrganizacion("vehiculos");
+}
+
+async function eliminarVehiculoOrg(id){
+  if(!esPerfilAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  if(!confirm("¿Eliminar vehículo?"))return;
+
+  const antes=await leerRegistroPorId("org_vehiculos",id);
+  const {error}=await sb.from("org_vehiculos").delete().eq("id",id);
+
+  if(error){
+    alert("Error eliminando vehículo: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"organizacion_vehiculo_eliminado",
+    tabla:"org_vehiculos",
+    registro_id:id,
+    motivo:"Eliminación de vehículo",
+    antes,
+    despues:null
+  });
+
+  aviso("Vehículo eliminado.","ok");
+  await pintarOrganizacionVehiculos();
 }
 
 function pintarOrganizacion(tab){
@@ -5050,6 +5350,11 @@ function pintarOrganizacion(tab){
 
   if(tab==="empresa"){
     pintarOrganizacionEmpresa();
+    return;
+  }
+
+  if(tab==="vehiculos"){
+    pintarOrganizacionVehiculos();
     return;
   }
 
