@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2574</title>
+<title>Zentryx V2575</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2574</h1>
+      <h1>Zentryx V2575</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2574";
+const VERSION="2575";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1050,12 +1050,34 @@ async function registrarIncidenciaFichaje({tipo,descripcion,fichaje_id,datos}){
   }
 }
 
+
+async function registrarIncidenciaBloqueoFichaje({tipo,descripcion,datos}){
+  await registrarIncidenciaFichaje({
+    tipo:tipo||"bloqueo_fichaje",
+    descripcion:descripcion||"Fichaje bloqueado",
+    fichaje_id:"",
+    datos:datos||null
+  });
+}
+
 async function cargarIncidenciasFichaje(filtro="pendientes"){
   let query=sb.from("incidencias_fichaje").select("*").order("created_at",{ascending:false}).limit(200);
   if(filtro==="pendientes")query=query.eq("resuelta",false);
   if(filtro==="resueltas")query=query.eq("resuelta",true);
   const {data,error}=await query;
   return {data:data||[],error};
+}
+
+
+function nombreTipoIncidencia(tipo){
+  const t=String(tipo||"");
+  if(t==="fuera_zona")return "Fuera de zona";
+  if(t==="sin_gps")return "Sin GPS";
+  if(t==="precision_baja")return "Precisión GPS baja";
+  if(t==="bloqueado_precision_baja")return "Bloqueado por GPS impreciso";
+  if(t==="bloqueado_sin_gps")return "Bloqueado por falta de GPS";
+  if(t==="bloqueado_fuera_zona")return "Bloqueado fuera de zona";
+  return t||"Incidencia";
 }
 
 async function vistaIncidenciasFichaje(filtro="pendientes"){
@@ -1085,7 +1107,7 @@ async function vistaIncidenciasFichaje(filtro="pendientes"){
 
   document.getElementById("incidencias_list").innerHTML=data.length?data.map(i=>`
     <div class="row">
-      <b>${i.tipo||"incidencia"}</b>
+      <b>${nombreTipoIncidencia(i.tipo)}</b>
       ${i.resuelta?`<span class="badge green">Resuelta</span>`:`<span class="badge red">Pendiente</span>`}<br>
       <span>${i.descripcion||""}</span><br>
       <span class="small">Usuario: ${i.user_id||"-"} · Fecha: ${i.fecha||""}</span><br>
@@ -1738,6 +1760,12 @@ async function guardarMovimiento(tipo){
         despues:{precisionGPS,modoPrecision}
       });
 
+      await registrarIncidenciaBloqueoFichaje({
+        tipo:"bloqueado_precision_baja",
+        descripcion:"Fichaje bloqueado por GPS impreciso. "+textoResultadoPrecisionGPS(precisionGPS),
+        datos:{precisionGPS,modoPrecision,user_id:user?.id||""}
+      });
+
       alert("Fichaje bloqueado: "+textoResultadoPrecisionGPS(precisionGPS));
       return;
     }
@@ -1768,6 +1796,12 @@ async function guardarMovimiento(tipo){
         tabla:"fichajes",
         motivo:(zona.mensaje||"Zona no válida")+(zona.zona?(" · Zona más cercana: "+zona.zona):""),
         despues:{zona,modoControl}
+      });
+
+      await registrarIncidenciaBloqueoFichaje({
+        tipo:zona.modo==="sin_gps"?"bloqueado_sin_gps":"bloqueado_fuera_zona",
+        descripcion:"Fichaje bloqueado. "+textoResultadoZona(zona),
+        datos:{zona,modoControl,user_id:user?.id||""}
       });
 
       alert("Fichaje bloqueado: "+textoResultadoZona(zona));
@@ -3163,7 +3197,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2574
+  return `MANUAL DE USO ZENTRYX V2575
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3434,7 +3468,18 @@ Las incidencias se gestionan desde la pantalla Incidencias.
 Un administrador puede marcarlas como resueltas y añadir observaciones.
 La auditoría sigue guardando el historial técnico, mientras que incidencias sirve para gestión diaria.
 
-34. PRÓXIMAS MEJORAS
+
+34. BLOQUEO PRO DE FICHAJES
+Si en Configuración > Zonas se elige bloquear, Zentryx no guarda el fichaje.
+También crea una incidencia de bloqueo y registra el intento en Auditoría.
+Los bloqueos disponibles son:
+- fuera de zona.
+- sin GPS.
+- precisión GPS baja.
+
+Esto permite pasar de modo aviso a modo control real cuando la empresa quiera exigir presencia dentro de zona.
+
+35. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
