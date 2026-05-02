@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2577</title>
+<title>Zentryx V2578</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -227,7 +227,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2577</h1>
+      <h1>Zentryx V2578</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -237,7 +237,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2577";
+const VERSION="2578";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -2179,7 +2179,9 @@ async function cargarNotasServidor(){
   const {data,error}=await sb
     .from("notas_rapidas")
     .select("*")
-    .eq("user_id",String(user.id))
+    .or(`user_id.eq.${String(user.id)},visibilidad.eq.general`)
+    .order("fija",{ascending:false})
+    .order("prioridad_orden",{ascending:false})
     .order("creada_en",{ascending:false});
 
   cargandoNotas=false;
@@ -2191,17 +2193,41 @@ async function cargarNotasServidor(){
     return;
   }
 
-  notasCache=(data||[]).map(n=>({
+  notasCache=(data||[]).map(n=>normalizarNotaPro(n));
+  localStorage.setItem(kNotas(),JSON.stringify(notasCache));
+}
+
+function normalizarNotaPro(n){
+  let extra={};
+  try{
+    if(n.meta_json)extra=typeof n.meta_json==="string"?JSON.parse(n.meta_json):n.meta_json;
+  }catch(e){extra={}}
+
+  const texto=n.texto||n.txt||"";
+
+  return {
     id:n.id,
-    txt:n.texto||n.txt||"",
+    titulo:n.titulo||extra.titulo||texto.split("\n")[0]||"Nota",
+    descripcion:n.descripcion||extra.descripcion||texto||"",
+    txt:n.titulo||extra.titulo||texto||"",
     fecha:n.fecha_aviso||n.fecha||"",
     hora:n.hora_aviso?String(n.hora_aviso).slice(0,5):(n.hora||""),
     fija:!!n.fija,
     hecha:!!n.hecha,
-    creada:n.creada_en||n.creada||""
-  }));
+    creada:n.creada_en||n.creada||"",
+    prioridad:n.prioridad||extra.prioridad||"normal",
+    prioridad_orden:Number(n.prioridad_orden||extra.prioridad_orden||prioridadOrden(extra.prioridad||"normal")),
+    visibilidad:n.visibilidad||extra.visibilidad||"personal",
+    responsable:n.responsable||extra.responsable||"",
+    creada_por:n.creada_por||extra.creada_por||""
+  };
+}
 
-  localStorage.setItem(kNotas(),JSON.stringify(notasCache));
+function prioridadOrden(p){
+  if(p==="alta")return 3;
+  if(p==="normal")return 2;
+  if(p==="baja")return 1;
+  return 2;
 }
 
 function leerNotas(){
@@ -2220,42 +2246,108 @@ function notaVencida(n){
   return new Date(n.fecha+"T"+n.hora) <= new Date();
 }
 
+function badgePrioridad(p){
+  if(p==="alta")return `<span class="badge red">Prioridad alta</span>`;
+  if(p==="baja")return `<span class="badge">Prioridad baja</span>`;
+  return `<span class="badge green">Prioridad normal</span>`;
+}
+
 function crearNota(){
   vistaActual='nota';
   document.getElementById("app").innerHTML=`
+    ${topbarHTML()}
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
-      <h2>Nueva nota rápida</h2>
-      <label>Nota</label>
-      <textarea id="notaTxt" placeholder="Escribe aquí la nota..."></textarea>
-      <label>Fecha aviso</label>
-      <input id="notaFecha" placeholder="dd/mm/aaaa">
-      <label>Hora aviso</label>
-      <input id="notaHora" type="time">
-      <label>Fijar permanente</label>
+      <h2>Nueva nota PRO</h2>
+
+      <label>Título</label>
+      <input id="notaTitulo" placeholder="Ej: Revisar documentación de obra">
+
+      <label>Descripción</label>
+      <textarea id="notaTxt" rows="4" placeholder="Detalle de la nota..."></textarea>
+
+      <div class="grid">
+        <div>
+          <label>Prioridad</label>
+          <select id="notaPrioridad">
+            <option value="normal">Normal</option>
+            <option value="alta">Alta</option>
+            <option value="baja">Baja</option>
+          </select>
+        </div>
+        <div>
+          <label>Visibilidad</label>
+          <select id="notaVisibilidad">
+            <option value="personal">Personal</option>
+            <option value="general">General empresa</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Responsable</label>
+      <input id="notaResponsable" placeholder="Nombre o usuario responsable">
+
+      <div class="grid">
+        <div>
+          <label>Fecha aviso</label>
+          <input id="notaFecha" placeholder="dd/mm/aaaa">
+        </div>
+        <div>
+          <label>Hora aviso</label>
+          <input id="notaHora" type="time">
+        </div>
+      </div>
+
+      <label>Fijar en inicio</label>
       <select id="notaFija">
         <option value="false">No</option>
         <option value="true">Sí</option>
       </select>
+
       <button class="btn green full" onclick="guardarNotaNueva()">Guardar nota</button>
+      <button class="btn gray full" onclick="vistaNotasPro()">Ver notas</button>
     </div>`;
 }
 
 async function guardarNotaNueva(){
-  const txt=document.getElementById("notaTxt").value.trim();
-  if(!txt){alert("Escribe una nota.");return}
+  const titulo=document.getElementById("notaTitulo").value.trim();
+  const descripcion=document.getElementById("notaTxt").value.trim();
+
+  if(!titulo && !descripcion){
+    alert("Escribe título o descripción.");
+    return;
+  }
+
+  const prioridad=document.getElementById("notaPrioridad").value||"normal";
+  const visibilidad=document.getElementById("notaVisibilidad").value||"personal";
+  const responsable=document.getElementById("notaResponsable").value.trim();
 
   const payload={
     user_id:String(user.id),
-    texto:txt,
+    titulo:titulo||descripcion.slice(0,50),
+    descripcion:descripcion,
+    texto:titulo?`${titulo}\n${descripcion}`:descripcion,
     fecha_aviso:inputFechaTexto("notaFecha")||null,
     hora_aviso:document.getElementById("notaHora").value||null,
     fija:document.getElementById("notaFija").value==="true",
     hecha:false,
-    creada_en:new Date().toISOString()
+    prioridad:prioridad,
+    prioridad_orden:prioridadOrden(prioridad),
+    visibilidad:visibilidad,
+    responsable:responsable,
+    creada_por:String(user.id),
+    creada_en:new Date().toISOString(),
+    meta_json:{
+      titulo:titulo,
+      descripcion:descripcion,
+      prioridad:prioridad,
+      visibilidad:visibilidad,
+      responsable:responsable,
+      prioridad_orden:prioridadOrden(prioridad)
+    }
   };
 
-  const {error}=await sb.from("notas_rapidas").insert([payload]);
+  const {data,error}=await sb.from("notas_rapidas").insert([payload]).select().single();
 
   if(error){
     console.error(error);
@@ -2263,32 +2355,229 @@ async function guardarNotaNueva(){
     return;
   }
 
+  await registrarCambio({
+    accion:"nota_creada",
+    tabla:"notas_rapidas",
+    registro_id:data?.id||"",
+    motivo:"Creación de nota PRO",
+    antes:null,
+    despues:data||payload
+  });
+
   await cargarNotasServidor();
   aviso("Nota guardada.","ok");
   inicio();
 }
 
+async function editarNota(id){
+  const nota=leerNotas().find(n=>String(n.id)===String(id));
+  if(!nota){
+    alert("No se encuentra la nota.");
+    return;
+  }
+
+  vistaActual='nota';
+  document.getElementById("app").innerHTML=`
+    ${topbarHTML()}
+    <div class="card">
+      <button class="btn gray" onclick="vistaNotasPro()">← Volver</button>
+      <h2>Editar nota</h2>
+
+      <label>Título</label>
+      <input id="notaTitulo" value="${(nota.titulo||"").replaceAll('"',"&quot;")}">
+
+      <label>Descripción</label>
+      <textarea id="notaTxt" rows="4">${nota.descripcion||""}</textarea>
+
+      <label>Prioridad</label>
+      <select id="notaPrioridad">
+        <option value="normal" ${nota.prioridad==="normal"?"selected":""}>Normal</option>
+        <option value="alta" ${nota.prioridad==="alta"?"selected":""}>Alta</option>
+        <option value="baja" ${nota.prioridad==="baja"?"selected":""}>Baja</option>
+      </select>
+
+      <label>Visibilidad</label>
+      <select id="notaVisibilidad">
+        <option value="personal" ${nota.visibilidad==="personal"?"selected":""}>Personal</option>
+        <option value="general" ${nota.visibilidad==="general"?"selected":""}>General empresa</option>
+      </select>
+
+      <label>Responsable</label>
+      <input id="notaResponsable" value="${nota.responsable||""}">
+
+      <div class="grid">
+        <div>
+          <label>Fecha aviso</label>
+          <input id="notaFecha" value="${fechaES(nota.fecha)||""}">
+        </div>
+        <div>
+          <label>Hora aviso</label>
+          <input id="notaHora" type="time" value="${nota.hora||""}">
+        </div>
+      </div>
+
+      <label>Fijar en inicio</label>
+      <select id="notaFija">
+        <option value="false" ${!nota.fija?"selected":""}>No</option>
+        <option value="true" ${nota.fija?"selected":""}>Sí</option>
+      </select>
+
+      <button class="btn green full" onclick="guardarEdicionNota('${id}')">Guardar cambios</button>
+    </div>`;
+}
+
+async function guardarEdicionNota(id){
+  const antes=await leerRegistroPorId("notas_rapidas",id);
+
+  const titulo=document.getElementById("notaTitulo").value.trim();
+  const descripcion=document.getElementById("notaTxt").value.trim();
+  const prioridad=document.getElementById("notaPrioridad").value||"normal";
+  const visibilidad=document.getElementById("notaVisibilidad").value||"personal";
+  const responsable=document.getElementById("notaResponsable").value.trim();
+
+  const payload={
+    titulo:titulo||descripcion.slice(0,50)||"Nota",
+    descripcion,
+    texto:titulo?`${titulo}\n${descripcion}`:descripcion,
+    fecha_aviso:inputFechaTexto("notaFecha")||null,
+    hora_aviso:document.getElementById("notaHora").value||null,
+    fija:document.getElementById("notaFija").value==="true",
+    prioridad,
+    prioridad_orden:prioridadOrden(prioridad),
+    visibilidad,
+    responsable,
+    meta_json:{
+      titulo,
+      descripcion,
+      prioridad,
+      visibilidad,
+      responsable,
+      prioridad_orden:prioridadOrden(prioridad)
+    }
+  };
+
+  const {data,error}=await sb.from("notas_rapidas").update(payload).eq("id",id).select().single();
+
+  if(error){
+    alert("Error editando nota: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"nota_editada",
+    tabla:"notas_rapidas",
+    registro_id:id,
+    motivo:"Edición de nota PRO",
+    antes,
+    despues:data
+  });
+
+  await cargarNotasServidor();
+  vistaNotasPro();
+}
+
 async function marcarNotaHecha(id){
-  const {error}=await sb.from("notas_rapidas").update({hecha:true}).eq("id",id);
+  const antes=await leerRegistroPorId("notas_rapidas",id);
+  const {data,error}=await sb.from("notas_rapidas").update({hecha:true}).eq("id",id).select().single();
+
   if(error){
     console.error(error);
     alert("Error actualizando nota: "+error.message);
     return;
   }
+
+  await registrarCambio({
+    accion:"nota_resuelta",
+    tabla:"notas_rapidas",
+    registro_id:id,
+    motivo:"Nota marcada como hecha",
+    antes,
+    despues:data
+  });
+
   await cargarNotasServidor();
-  inicio();
+  if(vistaActual==="notas_pro")vistaNotasPro();
+  else inicio();
 }
 
 async function eliminarNota(id){
   if(!confirm("¿Eliminar nota?"))return;
+
+  const antes=await leerRegistroPorId("notas_rapidas",id);
   const {error}=await sb.from("notas_rapidas").delete().eq("id",id);
+
   if(error){
     console.error(error);
     alert("Error eliminando nota: "+error.message);
     return;
   }
+
+  await registrarCambio({
+    accion:"nota_eliminada",
+    tabla:"notas_rapidas",
+    registro_id:id,
+    motivo:"Eliminación de nota",
+    antes,
+    despues:null
+  });
+
   await cargarNotasServidor();
-  inicio();
+  if(vistaActual==="notas_pro")vistaNotasPro();
+  else inicio();
+}
+
+function notaHTML(n){
+  return `
+    <div class="row">
+      <b>${n.titulo||n.txt}</b><br>
+      ${n.descripcion?`<span>${n.descripcion}</span><br>`:""}
+      ${badgePrioridad(n.prioridad)}
+      ${n.visibilidad==="general"?`<span class="badge green">General</span>`:`<span class="badge">Personal</span>`}
+      ${n.responsable?`<span class="badge">Responsable: ${n.responsable}</span>`:""}
+      ${n.fecha||n.hora?`<br><span class="small">Aviso: ${fechaES(n.fecha)||""} ${n.hora||""}</span>`:""}
+      ${n.fija?`<span class="badge orange">Fija</span>`:""}
+      ${notaVencida(n)?`<span class="badge red">Vencida</span>`:""}
+      <div class="actions">
+        <button class="btn green" onclick="marcarNotaHecha('${n.id}')">Hecha</button>
+        <button class="btn blue" onclick="editarNota('${n.id}')">Editar</button>
+        <button class="btn red" onclick="eliminarNota('${n.id}')">Eliminar</button>
+      </div>
+    </div>`;
+}
+
+async function vistaNotasPro(filtro="pendientes"){
+  vistaActual="notas_pro";
+  await cargarNotasServidor();
+
+  let notas=leerNotas();
+
+  if(filtro==="pendientes")notas=notas.filter(n=>!n.hecha);
+  if(filtro==="hechas")notas=notas.filter(n=>n.hecha);
+  if(filtro==="fijas")notas=notas.filter(n=>n.fija && !n.hecha);
+  if(filtro==="vencidas")notas=notas.filter(notaVencida);
+
+  document.getElementById("app").innerHTML=`
+    ${topbarHTML()}
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Notas PRO</h2>
+      <p>Notas personales, generales, fijas, vencidas y por prioridad.</p>
+
+      <button class="btn green full" onclick="crearNota()">+ Nueva nota</button>
+
+      <div class="actions">
+        <button class="btn ${filtro==="pendientes"?"dark":"gray"}" onclick="vistaNotasPro('pendientes')">Pendientes</button>
+        <button class="btn ${filtro==="fijas"?"dark":"gray"}" onclick="vistaNotasPro('fijas')">Fijas</button>
+        <button class="btn ${filtro==="vencidas"?"dark":"gray"}" onclick="vistaNotasPro('vencidas')">Vencidas</button>
+        <button class="btn ${filtro==="hechas"?"dark":"gray"}" onclick="vistaNotasPro('hechas')">Hechas</button>
+        <button class="btn ${filtro==="todas"?"dark":"gray"}" onclick="vistaNotasPro('todas')">Todas</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>${filtro==="todas"?"Todas":filtro.charAt(0).toUpperCase()+filtro.slice(1)}</h2>
+      ${notas.length?notas.map(n=>notaHTML(n)).join(""):"<p>No hay notas en este filtro.</p>"}
+    </div>`;
 }
 
 function aviso(texto,tipo){
@@ -2422,7 +2711,7 @@ async function inicio(){
       <div class="module">
         <h3>Notas</h3>
         <p>Notas rápidas, avisos y seguimiento interno.</p>
-        <button class="btn green" onclick="crearNota()">Nueva nota</button>
+        <button class="btn green" onclick="vistaNotasPro()">Abrir</button>
       </div>
       <div class="module">
         <h3>Auditoría</h3>
@@ -2453,19 +2742,6 @@ async function inicio(){
         </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
     </div>
   `;
-}
-
-function notaHTML(n){
-  return `
-    <div class="row">
-      <b>${n.txt}</b><br>
-      ${n.fecha||n.hora?`<span class="small">Aviso: ${fechaES(n.fecha)||""} ${n.hora||""}</span><br>`:""}
-      ${n.fija?`<span class="badge orange">Fija</span>`:""}
-      ${notaVencida(n)?`<span class="badge red">Vencida</span>`:""}
-      <br>
-      <button class="btn green" onclick="marcarNotaHecha(${n.id})">Hecha</button>
-      <button class="btn red" onclick="eliminarNota(${n.id})">Eliminar</button>
-    </div>`;
 }
 
 function vistaPendiente(titulo){
@@ -3441,7 +3717,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2577
+  return `MANUAL DE USO ZENTRYX V2578
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3744,7 +4020,15 @@ El login se mejora con diseño profesional, usuario recordado y ver/ocultar cont
 El inicio queda ordenado por módulos: Fichajes, Usuarios, Incidencias, Informes, Configuración, Notas, Auditoría y Ayuda.
 La navegación superior permite moverse rápido entre zonas principales sin perder claridad.
 
-37. PRÓXIMAS MEJORAS
+
+37. NOTAS PRO
+El módulo Notas permite gestionar notas personales y generales de empresa.
+Cada nota puede tener título, descripción, prioridad, responsable, fecha, hora y estado.
+Las notas fijas y vencidas aparecen destacadas en Inicio.
+Se puede filtrar por pendientes, fijas, vencidas, hechas y todas.
+Crear, editar, resolver y eliminar notas queda registrado en Auditoría.
+
+38. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
