@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2573</title>
+<title>Zentryx V2574</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -174,7 +174,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2573</h1>
+      <h1>Zentryx V2574</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -184,7 +184,7 @@ label{display:block;font-size:15px;font-weight:bold;margin-top:6px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2573";
+const VERSION="2574";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1029,6 +1029,118 @@ async function leerZonasTrabajo(){
 }
 
 
+
+async function registrarIncidenciaFichaje({tipo,descripcion,fichaje_id,datos}){
+  try{
+    const payload={
+      user_id:String(user?.id||""),
+      fecha:new Date().toISOString().slice(0,10),
+      tipo:tipo||"incidencia",
+      descripcion:descripcion||"",
+      fichaje_id:fichaje_id?String(fichaje_id):"",
+      datos:datos||null,
+      resuelta:false,
+      observaciones:""
+    };
+
+    const {error}=await sb.from("incidencias_fichaje").insert([payload]);
+    if(error)console.warn("Error registrando incidencia",error);
+  }catch(e){
+    console.warn("Error registrando incidencia",e);
+  }
+}
+
+async function cargarIncidenciasFichaje(filtro="pendientes"){
+  let query=sb.from("incidencias_fichaje").select("*").order("created_at",{ascending:false}).limit(200);
+  if(filtro==="pendientes")query=query.eq("resuelta",false);
+  if(filtro==="resueltas")query=query.eq("resuelta",true);
+  const {data,error}=await query;
+  return {data:data||[],error};
+}
+
+async function vistaIncidenciasFichaje(filtro="pendientes"){
+  vistaActual="incidencias_fichaje";
+  document.getElementById("app").innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="inicio()">← Volver</button>
+      <h2>Incidencias de fichaje</h2>
+      <p class="small">Aquí aparecen fichajes con problemas de zona, GPS o precisión.</p>
+
+      <div class="actions">
+        <button class="btn ${filtro==="pendientes"?"dark":"gray"}" onclick="vistaIncidenciasFichaje('pendientes')">Pendientes</button>
+        <button class="btn ${filtro==="todas"?"dark":"gray"}" onclick="vistaIncidenciasFichaje('todas')">Todas</button>
+        <button class="btn ${filtro==="resueltas"?"dark":"gray"}" onclick="vistaIncidenciasFichaje('resueltas')">Resueltas</button>
+      </div>
+
+      <div id="incidencias_list">Cargando...</div>
+    </div>
+  `;
+
+  const {data,error}=await cargarIncidenciasFichaje(filtro);
+
+  if(error){
+    document.getElementById("incidencias_list").innerHTML=`<p>Error leyendo incidencias: ${error.message}</p>`;
+    return;
+  }
+
+  document.getElementById("incidencias_list").innerHTML=data.length?data.map(i=>`
+    <div class="row">
+      <b>${i.tipo||"incidencia"}</b>
+      ${i.resuelta?`<span class="badge green">Resuelta</span>`:`<span class="badge red">Pendiente</span>`}<br>
+      <span>${i.descripcion||""}</span><br>
+      <span class="small">Usuario: ${i.user_id||"-"} · Fecha: ${i.fecha||""}</span><br>
+      <span class="small">${i.created_at?new Date(i.created_at).toLocaleString("es-ES"):""}</span>
+      ${i.observaciones?`<p class="small"><b>Observaciones:</b> ${i.observaciones}</p>`:""}
+      ${!i.resuelta?`<button class="btn green" onclick="resolverIncidenciaFichaje('${i.id}')">Resolver</button>`:""}
+      <details>
+        <summary>Ver datos</summary>
+        <pre style="white-space:pre-wrap;font-size:12px;">${i.datos?JSON.stringify(i.datos,null,2):"-"}</pre>
+      </details>
+    </div>
+  `).join(""):"<p>No hay incidencias.</p>";
+}
+
+async function resolverIncidenciaFichaje(id){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const obs=prompt("Observaciones de resolución:", "Revisado");
+  if(obs===null)return;
+
+  const antes=await leerRegistroPorId("incidencias_fichaje",id);
+
+  const {data,error}=await sb
+    .from("incidencias_fichaje")
+    .update({
+      resuelta:true,
+      observaciones:obs,
+      resuelta_por:String(user?.id||""),
+      resuelta_en:new Date().toISOString()
+    })
+    .eq("id",id)
+    .select()
+    .single();
+
+  if(error){
+    alert("Error resolviendo incidencia: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"resolver_incidencia_fichaje",
+    tabla:"incidencias_fichaje",
+    registro_id:id,
+    motivo:obs,
+    antes,
+    despues:data
+  });
+
+  alert("Incidencia resuelta.");
+  await vistaIncidenciasFichaje("pendientes");
+}
+
 async function leerConfigZonas(){
   const defecto={
     modo_fuera_zona:"motivo",
@@ -1702,12 +1814,32 @@ async function guardarMovimiento(tipo){
     direccion_real:direccionReal
   };
 
-  const {error}=await sb.from("fichajes").insert([payload]);
+  const {data:fichajeCreado,error}=await sb.from("fichajes").insert([payload]).select().single();
 
   if(error){
     console.error(error);
     alert("Error guardando fichaje: "+error.message);
     return;
+  }
+
+  if(zona && !zona.ok){
+    await registrarIncidenciaFichaje({
+      tipo:zona.modo==="sin_gps"?"sin_gps":"fuera_zona",
+      descripcion:zona.modo==="sin_gps"
+        ?"Fichaje sin comprobación de zona por falta de GPS"
+        :("Fichaje fuera de zona. "+textoResultadoZona(zona)),
+      fichaje_id:fichajeCreado?.id||"",
+      datos:{zona,motivo:motivoFueraZona,payload:fichajeCreado||payload}
+    });
+  }
+
+  if(precisionGPS && !precisionGPS.ok && precisionGPS.modo==="precision_mala"){
+    await registrarIncidenciaFichaje({
+      tipo:"precision_baja",
+      descripcion:textoResultadoPrecisionGPS(precisionGPS),
+      fichaje_id:fichajeCreado?.id||"",
+      datos:{precisionGPS,motivo:motivoPrecisionGPS,payload:fichajeCreado||payload}
+    });
   }
 
   await cargarFichajesServidor();
@@ -2013,6 +2145,12 @@ async function inicio(){
         <p>Resumen mensual y fichajes.</p>
         <button class="btn blue" onclick="vistaInformes()">Abrir</button>
       </div>
+      <div class="module">
+        <h3>Incidencias</h3>
+        <p>GPS, zona y precisión.</p>
+        <button class="btn orange" onclick="vistaIncidenciasFichaje()">Abrir</button>
+      </div>
+
       <div class="module">
         <h3>Auditoría</h3>
         <p>Historial de cambios</p>
@@ -3025,7 +3163,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2573
+  return `MANUAL DE USO ZENTRYX V2574
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -3285,7 +3423,18 @@ Opciones:
 
 Cada fichaje guarda precisión real, precisión máxima configurada y motivo si procede.
 
-33. PRÓXIMAS MEJORAS
+
+33. INCIDENCIAS AUTOMÁTICAS DE FICHAJE
+Zentryx crea incidencias cuando detecta:
+- fichaje fuera de zona.
+- fichaje sin GPS.
+- fichaje con precisión GPS baja.
+
+Las incidencias se gestionan desde la pantalla Incidencias.
+Un administrador puede marcarlas como resueltas y añadir observaciones.
+La auditoría sigue guardando el historial técnico, mientras que incidencias sirve para gestión diaria.
+
+34. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -4421,6 +4570,7 @@ async function vistaConfigPro(tab="horarios"){
       <div class="actions">
         <button class="btn ${tab==="horarios"?"dark":"gray"}" onclick="vistaConfigPro('horarios')">Horarios</button>
         <button class="btn ${tab==="avisos"?"dark":"gray"}" onclick="vistaConfigPro('avisos')">Avisos</button>
+        <button class="btn ${tab==="incidencias"?"dark":"gray"}" onclick="vistaIncidenciasFichaje()">Incidencias</button>
         <button class="btn ${tab==="extras"?"dark":"gray"}" onclick="vistaConfigPro('extras')">Horas extra</button>
         <button class="btn ${tab==="festivos"?"dark":"gray"}" onclick="vistaConfigPro('festivos')">Festivos</button>
         <button class="btn ${tab==="zonas"?"dark":"gray"}" onclick="vistaConfigPro('zonas')">Zonas</button>
