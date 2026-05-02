@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2579</title>
+<title>Zentryx V2580</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -280,13 +280,125 @@ textarea{width:100%;padding:10px}
   }
 }
 
+
+/* ===== V2580 INICIO SIMPLE + NOTAS FLOTANTES ===== */
+.zx-simple-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:14px;
+}
+.zx-big-action{
+  background:linear-gradient(135deg,#2563eb,#1d4ed8);
+  color:white;
+  border-radius:24px;
+  padding:24px;
+  box-shadow:0 18px 45px rgba(37,99,235,.30);
+}
+.zx-big-action h2{color:white;margin:0 0 8px;font-size:32px}
+.zx-big-action p{color:#dbeafe}
+.zx-big-action .btn{
+  background:white!important;
+  color:#1d4ed8!important;
+  width:100%;
+  font-size:22px;
+  min-height:60px;
+}
+.zx-mini-card{
+  background:white;
+  border:1px solid #e5e7eb;
+  border-radius:20px;
+  padding:16px;
+  box-shadow:0 10px 24px rgba(15,23,42,.08);
+}
+.zx-mini-card h3{margin:0 0 6px}
+.zx-mini-card p{margin:0 0 12px}
+.zx-note-fab{
+  position:fixed;
+  right:16px;
+  bottom:22px;
+  width:58px;
+  height:58px;
+  border-radius:50%;
+  background:#f59e0b;
+  color:#111827;
+  border:0;
+  box-shadow:0 18px 40px rgba(0,0,0,.25);
+  z-index:80;
+  font-size:25px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.zx-note-fab-count{
+  position:absolute;
+  right:-3px;
+  top:-6px;
+  min-width:22px;
+  height:22px;
+  border-radius:999px;
+  background:#dc2626;
+  color:white;
+  font-size:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:900;
+}
+.zx-notes-panel-bg{
+  position:fixed;
+  inset:0;
+  background:rgba(15,23,42,.45);
+  z-index:90;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+}
+.zx-notes-panel{
+  width:100%;
+  max-width:520px;
+  max-height:82vh;
+  overflow:auto;
+  background:#fff;
+  color:#0f172a;
+  border-radius:26px 26px 0 0;
+  padding:16px;
+  box-shadow:0 -20px 60px rgba(0,0,0,.25);
+}
+.zx-notes-panel-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.zx-notes-panel-head h2{margin:0}
+.zx-note-line{
+  border:1px solid #e5e7eb;
+  border-radius:16px;
+  padding:12px;
+  margin:10px 0;
+  background:#f8fafc;
+}
+.zx-note-line.alta{background:#fef2f2;border-color:#fecaca}
+.zx-postit-wrap{
+  bottom:94px!important;
+}
+@media(min-width:760px){
+  .zx-simple-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .zx-notes-panel-bg{align-items:center}
+  .zx-notes-panel{border-radius:26px;max-height:76vh}
+}
+@media(min-width:1100px){
+  .zx-simple-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2579</h1>
+      <h1>Zentryx V2580</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -296,7 +408,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2579";
+const VERSION="2580";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -517,50 +629,84 @@ function modulosPorPerfilHTML(est){
 
   if(perfil==="operario"){
     return `
-      <div class="grid">
-        <div class="module">
-          <h3>Fichar</h3>
-          <p>Acción principal de jornada.</p>
-          <button class="btn green" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+      <div class="zx-big-action">
+        <h2>Fichar</h2>
+        <p>${estadoFichajeActual()} · ${user.nombre||""}</p>
+        <button class="btn" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+      </div>
+
+      <div class="zx-simple-grid">
+        <div class="zx-mini-card">
+          <h3>Mi jornada</h3>
+          <p>Resumen de hoy y movimientos.</p>
+          <button class="btn blue full" onclick="document.getElementById('movimientos_hoy')?.scrollIntoView({behavior:'smooth'})">Ver jornada</button>
         </div>
-        ${moduloHTML("Mis notas","Notas personales, avisos y tareas.","green","vistaNotasPro()")}
-        ${moduloHTML("Mis incidencias","GPS, zona y precisión de mis fichajes.","orange","vistaIncidenciasFichaje()")}
-        ${moduloHTML("Mi ayuda","Manual de uso para operario.","blue","vistaAyuda()")}
+        <div class="zx-mini-card">
+          <h3>Mis incidencias</h3>
+          <p>GPS, zona y precisión.</p>
+          <button class="btn orange full" onclick="vistaIncidenciasFichaje()">Abrir</button>
+        </div>
+        <div class="zx-mini-card">
+          <h3>Ayuda</h3>
+          <p>Guía rápida de uso.</p>
+          <button class="btn gray full" onclick="vistaAyuda()">Abrir</button>
+        </div>
       </div>
     `;
   }
 
   if(perfil==="encargado"){
     return `
-      <div class="grid">
-        <div class="module">
-          <h3>Fichar</h3>
-          <p>Acción principal de jornada.</p>
-          <button class="btn green" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+      <div class="zx-big-action">
+        <h2>Fichar</h2>
+        <p>${estadoFichajeActual()} · control personal</p>
+        <button class="btn" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+      </div>
+
+      <div class="zx-simple-grid">
+        <div class="zx-mini-card">
+          <h3>Equipo</h3>
+          <p>Usuarios, horarios y fichajes.</p>
+          <button class="btn dark full" onclick="vistaUsuariosPro()">Abrir</button>
         </div>
-        ${moduloHTML("Equipo","Usuarios, horarios y fichajes del equipo.","dark","vistaUsuariosPro()")}
-        ${moduloHTML("Incidencias","Revisión diaria de incidencias.","orange","vistaIncidenciasFichaje()")}
-        ${moduloHTML("Notas equipo","Notas generales y seguimiento.","green","vistaNotasPro()")}
-        ${moduloHTML("Informes","Resumen de fichajes y horas.","blue","vistaInformes()")}
-        ${moduloHTML("Ayuda","Manual para encargado.","gray","vistaAyuda()")}
+        <div class="zx-mini-card">
+          <h3>Incidencias</h3>
+          <p>Revisión del equipo.</p>
+          <button class="btn orange full" onclick="vistaIncidenciasFichaje()">Abrir</button>
+        </div>
+        <div class="zx-mini-card">
+          <h3>Informes</h3>
+          <p>Resumen operativo.</p>
+          <button class="btn blue full" onclick="vistaInformes()">Abrir</button>
+        </div>
       </div>
     `;
   }
 
   return `
-    <div class="grid">
-      <div class="module">
-        <h3>Fichajes</h3>
-        <p>Entrada, salida, pausas, comida, GPS y zona.</p>
-        <button class="btn green" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+    <div class="zx-simple-grid">
+      <div class="zx-mini-card">
+        <h3>Panel</h3>
+        <p>Resumen general y fichajes.</p>
+        <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
       </div>
-      ${moduloHTML("Usuarios","Alta, ficha, horarios, documentos y permisos.","dark","vistaUsuariosPro()")}
-      ${moduloHTML("Incidencias","GPS, zona, precisión y bloqueos.","orange","vistaIncidenciasFichaje()")}
-      ${moduloHTML("Informes","Resumen mensual, extras, cierres y pagos.","blue","vistaInformes()")}
-      ${moduloHTML("Configuración","Horarios, zonas, avisos, festivos y reglas.","gray","vistaConfigPro()")}
-      ${moduloHTML("Notas","Notas rápidas, fijas y seguimiento.","green","vistaNotasPro()")}
-      ${moduloHTML("Auditoría","Historial de cambios y control.","red","vistaAuditoria()")}
-      ${moduloHTML("Ayuda","Manual interno por perfil.","green","vistaAyuda()")}
+      <div class="zx-mini-card">
+        <h3>Gestión</h3>
+        <p>Usuarios, permisos e incidencias.</p>
+        <button class="btn dark full" onclick="vistaUsuariosPro()">Usuarios</button>
+        <button class="btn orange full" onclick="vistaIncidenciasFichaje()">Incidencias</button>
+      </div>
+      <div class="zx-mini-card">
+        <h3>Informes</h3>
+        <p>Horas, extras, cierres y pagos.</p>
+        <button class="btn blue full" onclick="vistaInformes()">Abrir</button>
+      </div>
+      <div class="zx-mini-card">
+        <h3>Config</h3>
+        <p>Empresa, horarios, zonas y reglas.</p>
+        <button class="btn gray full" onclick="vistaConfigPro()">Abrir</button>
+        <button class="btn red full" onclick="vistaAuditoria()">Auditoría</button>
+      </div>
     </div>
   `;
 }
@@ -2759,7 +2905,8 @@ async function marcarNotaHecha(id){
   });
 
   await cargarNotasServidor();
-  if(vistaActual==="notas_pro")vistaNotasPro();
+  if(document.getElementById("zx_notes_panel_root"))abrirPanelNotasFlotante();
+  else if(vistaActual==="notas_pro")vistaNotasPro();
   else inicio();
 }
 
@@ -2785,7 +2932,8 @@ async function eliminarNota(id){
   });
 
   await cargarNotasServidor();
-  if(vistaActual==="notas_pro")vistaNotasPro();
+  if(document.getElementById("zx_notes_panel_root"))abrirPanelNotasFlotante();
+  else if(vistaActual==="notas_pro")vistaNotasPro();
   else inicio();
 }
 
@@ -2806,6 +2954,76 @@ function notaHTML(n){
         <button class="btn red" onclick="eliminarNota('${n.id}')">Eliminar</button>
       </div>
     </div>`;
+}
+
+
+function notaFloatingButtonHTML(){
+  const pendientes=leerNotas().filter(n=>!n.hecha).length;
+  return `
+    <button class="zx-note-fab" onclick="abrirPanelNotasFlotante()" title="Notas">
+      📝
+      ${pendientes?`<span class="zx-note-fab-count">${pendientes}</span>`:""}
+    </button>
+  `;
+}
+
+function abrirPanelNotasFlotante(filtro="pendientes"){
+  const notasTodas=leerNotas();
+  let notas=notasTodas;
+
+  if(filtro==="pendientes")notas=notas.filter(n=>!n.hecha);
+  if(filtro==="fijas")notas=notas.filter(n=>n.fija&&!n.hecha);
+  if(filtro==="vencidas")notas=notas.filter(notaVencida);
+
+  const html=`
+    <div class="zx-notes-panel-bg" onclick="cerrarPanelNotasFlotante(event)">
+      <div class="zx-notes-panel" onclick="event.stopPropagation()">
+        <div class="zx-notes-panel-head">
+          <h2>Notas</h2>
+          <button class="btn gray" style="width:auto" onclick="document.getElementById('zx_notes_panel_root')?.remove()">Cerrar</button>
+        </div>
+
+        <button class="btn green full" onclick="document.getElementById('zx_notes_panel_root')?.remove();crearNota()">+ Nueva nota</button>
+
+        <div class="actions">
+          <button class="btn ${filtro==="pendientes"?"dark":"gray"}" onclick="abrirPanelNotasFlotante('pendientes')">Pendientes</button>
+          <button class="btn ${filtro==="fijas"?"dark":"gray"}" onclick="abrirPanelNotasFlotante('fijas')">Fijas</button>
+          <button class="btn ${filtro==="vencidas"?"dark":"gray"}" onclick="abrirPanelNotasFlotante('vencidas')">Vencidas</button>
+          <button class="btn ${filtro==="todas"?"dark":"gray"}" onclick="abrirPanelNotasFlotante('todas')">Todas</button>
+        </div>
+
+        ${notas.length?notas.map(n=>`
+          <div class="zx-note-line ${n.prioridad==="alta"?"alta":""}">
+            <b>${n.titulo||n.txt||"Nota"}</b><br>
+            ${n.descripcion?`<span class="small">${n.descripcion}</span><br>`:""}
+            ${badgePrioridad(n.prioridad)}
+            ${n.fija?`<span class="badge orange">Fija</span>`:""}
+            ${notaVencida(n)?`<span class="badge red">Vencida</span>`:""}
+            ${n.fecha||n.hora?`<br><span class="small">${fechaES(n.fecha)||""} ${n.hora||""}</span>`:""}
+            <div class="actions">
+              <button class="btn green" onclick="marcarNotaHecha('${n.id}')">Hecha</button>
+              <button class="btn blue" onclick="document.getElementById('zx_notes_panel_root')?.remove();editarNota('${n.id}')">Editar</button>
+              <button class="btn red" onclick="eliminarNota('${n.id}')">Eliminar</button>
+            </div>
+          </div>
+        `).join(""):"<p>No hay notas.</p>"}
+      </div>
+    </div>
+  `;
+
+  let root=document.getElementById("zx_notes_panel_root");
+  if(!root){
+    root=document.createElement("div");
+    root.id="zx_notes_panel_root";
+    document.body.appendChild(root);
+  }
+  root.innerHTML=html;
+}
+
+function cerrarPanelNotasFlotante(e){
+  if(e.target.classList.contains("zx-notes-panel-bg")){
+    document.getElementById("zx_notes_panel_root")?.remove();
+  }
 }
 
 async function vistaNotasPro(filtro="pendientes"){
@@ -2907,18 +3125,6 @@ async function inicio(){
       ${leerAviso()}
     </div>
 
-    ${fijas.length?`
-    <div class="card note-fixed">
-      <h2>Notas fijas</h2>
-      ${fijas.map(n=>notaHTML(n)).join("")}
-    </div>`:""}
-
-    ${vencidas.length?`
-    <div class="card note-fixed">
-      <h2>Avisos pendientes</h2>
-      ${vencidas.map(n=>notaHTML(n)).join("")}
-    </div>`:""}
-
     <div class="card">
       <h2>Jornada de hoy</h2>
       ${festivoHoyCache?`<p class="error"><b>Hoy es festivo:</b> ${textoFestivoHoy()}</p>`:""}
@@ -2945,6 +3151,7 @@ async function inicio(){
     </div>
 
     ${notasPostItHTML()}
+    ${notaFloatingButtonHTML()}
 
     <div class="zx-section-title">
       <h2>${perfilUsuario()==="admin"?"Panel administrador":perfilUsuario()==="encargado"?"Panel encargado":"Mi jornada"}</h2>
@@ -2953,7 +3160,7 @@ async function inicio(){
 
     ${modulosPorPerfilHTML(est)}
 
-    <div class="card">
+    <div id="movimientos_hoy" class="card">
       <h2>Movimientos de hoy</h2>
       ${res.mov.length?res.mov.slice().reverse().map(m=>`
         <div class="row">
@@ -3945,7 +4152,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2579
+  return `MANUAL DE USO ZENTRYX V2580
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -4278,7 +4485,16 @@ La pantalla de inicio y el menú se adaptan al perfil:
 Las notas fijas aparecen como post-it flotante pequeño en Inicio.
 El objetivo es que cada usuario vea lo que necesita según su trabajo y dispositivo.
 
-41. PRÓXIMAS MEJORAS
+
+41. INICIO SIMPLE Y NOTAS FLOTANTES
+Se simplifica el inicio por perfil.
+Operario ve fichar, mi jornada, incidencias y ayuda.
+Encargado ve fichar, equipo, incidencias e informes.
+Administrador ve panel, gestión, informes y configuración.
+Las notas pasan a gestionarse desde un botón flotante pequeño, con panel de notas rápido.
+Las notas fijas aparecen como post-it reducido y no ocupan tarjetas grandes.
+
+42. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
