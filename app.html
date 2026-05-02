@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2583</title>
+<title>Zentryx V2584</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -433,13 +433,24 @@ textarea{width:100%;padding:10px}
 .zx-status-warn{background:#fef3c7!important;color:#92400e!important}
 .zx-status-bad{background:#fee2e2!important;color:#991b1b!important}
 
+
+/* ===== V2584 ALERTAS VEHÍCULOS ===== */
+.zx-alert-panel{border:1px solid #fde68a;background:#fffbeb;border-radius:18px;padding:14px;margin:12px 0}
+.zx-alert-panel.ok{border-color:#bbf7d0;background:#f0fdf4}
+.zx-alert-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.zx-alert-item{border-radius:14px;padding:12px;background:#fff;border:1px solid #e5e7eb}
+.zx-alert-item.bad{background:#fef2f2;border-color:#fecaca;color:#7f1d1d}
+.zx-alert-item.warn{background:#fffbeb;border-color:#fde68a;color:#78350f}
+.zx-alert-item.ok{background:#f0fdf4;border-color:#bbf7d0;color:#14532d}
+@media(min-width:760px){.zx-alert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2583</h1>
+      <h1>Zentryx V2584</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -449,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2583";
+const VERSION="2584";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -4199,7 +4210,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2583
+  return `MANUAL DE USO ZENTRYX V2584
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -5033,6 +5044,103 @@ function fechaEstadoVehiculo(fecha){
   return {txt:"Correcto",clase:"zx-status-ok"};
 }
 
+function diasHastaFecha(fecha){
+  if(!fecha)return null;
+  const hoy=new Date();
+  hoy.setHours(0,0,0,0);
+  const f=new Date(fecha+"T00:00:00");
+  return Math.ceil((f-hoy)/86400000);
+}
+
+function resumenAlertasVehiculos(vehiculos){
+  const res={itvCaducada:0,itvProxima:0,seguroCaducado:0,seguroProximo:0,mantCaducado:0,mantProximo:0};
+
+  (vehiculos||[]).forEach(v=>{
+    const itv=diasHastaFecha(v.itv);
+    const seguro=diasHastaFecha(v.seguro);
+    const mant=diasHastaFecha(v.mantenimiento);
+
+    if(itv!==null){
+      if(itv<0)res.itvCaducada++;
+      else if(itv<=30)res.itvProxima++;
+    }
+
+    if(seguro!==null){
+      if(seguro<0)res.seguroCaducado++;
+      else if(seguro<=30)res.seguroProximo++;
+    }
+
+    if(mant!==null){
+      if(mant<0)res.mantCaducado++;
+      else if(mant<=30)res.mantProximo++;
+    }
+  });
+
+  return res;
+}
+
+function totalAlertasVehiculos(r){
+  return r.itvCaducada+r.itvProxima+r.seguroCaducado+r.seguroProximo+r.mantCaducado+r.mantProximo;
+}
+
+function panelAlertasVehiculosHTML(vehiculos){
+  const r=resumenAlertasVehiculos(vehiculos);
+  const total=totalAlertasVehiculos(r);
+
+  if(!total){
+    return `
+      <div class="zx-alert-panel ok">
+        <h3>Estado de flota</h3>
+        <div class="zx-alert-grid">
+          <div class="zx-alert-item ok"><b>ITV</b><br>Sin alertas</div>
+          <div class="zx-alert-item ok"><b>Seguro</b><br>Sin alertas</div>
+          <div class="zx-alert-item ok"><b>Mantenimiento</b><br>Sin alertas</div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="zx-alert-panel">
+      <h3>Alertas de flota</h3>
+      <p>Revisa vencimientos próximos o caducados.</p>
+      <div class="zx-alert-grid">
+        <div class="zx-alert-item ${r.itvCaducada?"bad":r.itvProxima?"warn":"ok"}">
+          <b>ITV</b><br>
+          ${r.itvCaducada?`${r.itvCaducada} caducada(s)<br>`:""}
+          ${r.itvProxima?`${r.itvProxima} próxima(s)`:""}
+          ${!r.itvCaducada&&!r.itvProxima?"Sin alertas":""}
+        </div>
+        <div class="zx-alert-item ${r.seguroCaducado?"bad":r.seguroProximo?"warn":"ok"}">
+          <b>Seguro</b><br>
+          ${r.seguroCaducado?`${r.seguroCaducado} caducado(s)<br>`:""}
+          ${r.seguroProximo?`${r.seguroProximo} próximo(s)`:""}
+          ${!r.seguroCaducado&&!r.seguroProximo?"Sin alertas":""}
+        </div>
+        <div class="zx-alert-item ${r.mantCaducado?"bad":r.mantProximo?"warn":"ok"}">
+          <b>Mantenimiento</b><br>
+          ${r.mantCaducado?`${r.mantCaducado} vencido(s)<br>`:""}
+          ${r.mantProximo?`${r.mantProximo} próximo(s)`:""}
+          ${!r.mantCaducado&&!r.mantProximo?"Sin alertas":""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function badgeFechaVehiculo(label,fecha){
+  const estado=fechaEstadoVehiculo(fecha);
+  const dias=diasHastaFecha(fecha);
+  let extra="";
+  if(dias!==null){
+    if(dias<0)extra=` · vencido hace ${Math.abs(dias)} día(s)`;
+    else extra=` · faltan ${dias} día(s)`;
+  }
+  return `<span class="badge ${estado.clase}">${label}: ${fechaES(fecha)||"-"} · ${estado.txt}${extra}</span>`;
+}
+
+
+
 async function leerVehiculosOrg(){
   const {data,error}=await sb
     .from("org_vehiculos")
@@ -5055,6 +5163,8 @@ async function pintarOrganizacionVehiculos(){
   const vehiculos=await leerVehiculosOrg();
 
   body.innerHTML=`
+    ${panelAlertasVehiculosHTML(vehiculos)}
+
     <div class="card">
       <h2>Vehículos</h2>
       <p>Gestión de flota para cualquier empresa. Sirve para controlar vehículos, responsables, documentación y mantenimiento.</p>
@@ -5122,9 +5232,9 @@ function vehiculoOrgHTML(v){
       <p><b>Modelo:</b> ${v.modelo||"-"}</p>
       <p><b>Asignado:</b> ${v.asignado||"-"}</p>
 
-      <span class="badge ${itv.clase}">ITV: ${fechaES(v.itv)||"-"} · ${itv.txt}</span>
-      <span class="badge ${seguro.clase}">Seguro: ${fechaES(v.seguro)||"-"} · ${seguro.txt}</span>
-      <span class="badge ${mant.clase}">Mantenimiento: ${fechaES(v.mantenimiento)||"-"} · ${mant.txt}</span>
+      ${badgeFechaVehiculo("ITV",v.itv)}
+      ${badgeFechaVehiculo("Seguro",v.seguro)}
+      ${badgeFechaVehiculo("Mantenimiento",v.mantenimiento)}
 
       ${v.notas?`<p><b>Notas:</b> ${v.notas}</p>`:""}
 
@@ -7135,3 +7245,5 @@ iniciarApp().catch(err=>{
 </script>
 </body>
 </html>
+
+<!-- Manual V2584: Alertas de vehículos añadidas -->
