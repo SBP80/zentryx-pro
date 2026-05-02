@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2578.1</title>
+<title>Zentryx V2579</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -221,13 +221,72 @@ textarea{width:100%;padding:10px}
 @media(min-width:1024px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.card{padding:20px}.module{padding:20px}}
 @media(max-width:520px){#app{padding:10px}.card{margin:10px 0!important}.actions{display:grid;grid-template-columns:1fr}.actions .btn{width:100%}.btn{width:100%}.zx-topbar-inner{align-items:flex-start;flex-direction:column}.zx-nav{width:100%}}
 
+
+/* ===== V2579 PERFILES + POST-IT ===== */
+.zx-profile-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:8px 12px;
+  border-radius:999px;
+  background:#e0f2fe;
+  color:#075985;
+  font-weight:800;
+  margin-top:8px;
+}
+.zx-postit-wrap{
+  position:fixed;
+  right:10px;
+  bottom:84px;
+  z-index:50;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-width:190px;
+}
+.zx-postit{
+  background:#fef08a;
+  color:#422006;
+  border:1px solid #facc15;
+  box-shadow:0 12px 28px rgba(0,0,0,.20);
+  border-radius:12px;
+  padding:10px;
+  font-size:13px;
+  transform:rotate(-1.5deg);
+}
+.zx-postit b{
+  display:block;
+  line-height:1.15;
+}
+.zx-postit small{
+  display:block;
+  margin-top:5px;
+  opacity:.75;
+}
+.zx-postit-alta{
+  background:#fecaca;
+  border-color:#f87171;
+  color:#7f1d1d;
+}
+@media(max-width:520px){
+  .zx-postit-wrap{
+    right:8px;
+    bottom:74px;
+    max-width:150px;
+  }
+  .zx-postit{
+    font-size:12px;
+    padding:8px;
+  }
+}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2578.1</h1>
+      <h1>Zentryx V2579</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -237,7 +296,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2578.1";
+const VERSION="2579";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -345,8 +404,69 @@ function togglePasswordLogin(){
   p.type=p.type==="password"?"text":"password";
 }
 
+function perfilUsuario(){
+  if(!user)return "operario";
+  const rol=String(user.rol||"").toLowerCase();
+
+  if(user.es_admin===true || user.es_admin==="true" || user.es_admin===1)return "admin";
+  if(rol.includes("admin"))return "admin";
+  if(rol.includes("encargado") || rol.includes("jefe") || rol.includes("responsable"))return "encargado";
+
+  return "operario";
+}
+
+function esPerfilAdmin(){
+  return perfilUsuario()==="admin";
+}
+
+function esPerfilEncargado(){
+  return perfilUsuario()==="encargado";
+}
+
+function esPerfilOperario(){
+  return perfilUsuario()==="operario";
+}
+
+function menuPerfilHTML(){
+  const perfil=perfilUsuario();
+
+  if(perfil==="admin"){
+    return `
+      <button onclick="inicio()">Inicio</button>
+      <button onclick="vistaUsuariosPro()">Usuarios</button>
+      <button onclick="vistaIncidenciasFichaje()">Incidencias</button>
+      <button onclick="vistaInformes()">Informes</button>
+      <button onclick="vistaConfigPro()">Config</button>
+      <button onclick="vistaAuditoria()">Auditoría</button>
+      <button onclick="vistaAyuda()">Ayuda</button>
+      <button onclick="logout()">Salir</button>
+    `;
+  }
+
+  if(perfil==="encargado"){
+    return `
+      <button onclick="inicio()">Inicio</button>
+      <button onclick="vistaUsuariosPro()">Equipo</button>
+      <button onclick="vistaIncidenciasFichaje()">Incidencias</button>
+      <button onclick="vistaNotasPro()">Notas</button>
+      <button onclick="vistaInformes()">Informes</button>
+      <button onclick="vistaAyuda()">Ayuda</button>
+      <button onclick="logout()">Salir</button>
+    `;
+  }
+
+  return `
+    <button onclick="inicio()">Inicio</button>
+    <button onclick="vistaNotasPro()">Notas</button>
+    <button onclick="vistaIncidenciasFichaje()">Incidencias</button>
+    <button onclick="vistaAyuda()">Ayuda</button>
+    <button onclick="logout()">Salir</button>
+  `;
+}
+
 function topbarHTML(){
   if(!user)return "";
+  const perfil=perfilUsuario();
   return `
     <div class="zx-topbar">
       <div class="zx-topbar-inner">
@@ -354,22 +474,97 @@ function topbarHTML(){
           <div class="zx-brand-mark">Z</div>
           <div>
             <div>Zentryx PRO</div>
-            <div class="small" style="color:#cbd5e1">${user.nombre||""} · ${user.rol||""}</div>
+            <div class="small" style="color:#cbd5e1">${user.nombre||""} · ${perfil}</div>
           </div>
         </div>
         <div class="zx-nav">
-          <button onclick="inicio()">Inicio</button>
-          <button onclick="vistaUsuariosPro()">Usuarios</button>
-          <button onclick="vistaIncidenciasFichaje()">Incidencias</button>
-          <button onclick="vistaInformes()">Informes</button>
-          <button onclick="vistaConfigPro()">Config</button>
-          <button onclick="vistaAyuda()">Ayuda</button>
-          <button onclick="logout()">Salir</button>
+          ${menuPerfilHTML()}
         </div>
       </div>
     </div>
   `;
 }
+
+function notasPostItHTML(){
+  const notas=leerNotas().filter(n=>!n.hecha && n.fija).slice(0,3);
+  if(!notas.length)return "";
+
+  return `
+    <div class="zx-postit-wrap">
+      ${notas.map(n=>`
+        <div class="zx-postit ${n.prioridad==="alta"?"zx-postit-alta":""}" onclick="editarNota('${n.id}')">
+          <b>${n.titulo||n.txt||"Nota"}</b>
+          ${n.hora||n.fecha?`<small>${fechaES(n.fecha)||""} ${n.hora||""}</small>`:""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function moduloHTML(titulo,descripcion,color,accion,visible=true){
+  if(!visible)return "";
+  return `
+    <div class="module">
+      <h3>${titulo}</h3>
+      <p>${descripcion}</p>
+      <button class="btn ${color}" onclick="${accion}">Abrir</button>
+    </div>
+  `;
+}
+
+function modulosPorPerfilHTML(est){
+  const perfil=perfilUsuario();
+
+  if(perfil==="operario"){
+    return `
+      <div class="grid">
+        <div class="module">
+          <h3>Fichar</h3>
+          <p>Acción principal de jornada.</p>
+          <button class="btn green" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+        </div>
+        ${moduloHTML("Mis notas","Notas personales, avisos y tareas.","green","vistaNotasPro()")}
+        ${moduloHTML("Mis incidencias","GPS, zona y precisión de mis fichajes.","orange","vistaIncidenciasFichaje()")}
+        ${moduloHTML("Mi ayuda","Manual de uso para operario.","blue","vistaAyuda()")}
+      </div>
+    `;
+  }
+
+  if(perfil==="encargado"){
+    return `
+      <div class="grid">
+        <div class="module">
+          <h3>Fichar</h3>
+          <p>Acción principal de jornada.</p>
+          <button class="btn green" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+        </div>
+        ${moduloHTML("Equipo","Usuarios, horarios y fichajes del equipo.","dark","vistaUsuariosPro()")}
+        ${moduloHTML("Incidencias","Revisión diaria de incidencias.","orange","vistaIncidenciasFichaje()")}
+        ${moduloHTML("Notas equipo","Notas generales y seguimiento.","green","vistaNotasPro()")}
+        ${moduloHTML("Informes","Resumen de fichajes y horas.","blue","vistaInformes()")}
+        ${moduloHTML("Ayuda","Manual para encargado.","gray","vistaAyuda()")}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="grid">
+      <div class="module">
+        <h3>Fichajes</h3>
+        <p>Entrada, salida, pausas, comida, GPS y zona.</p>
+        <button class="btn green" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
+      </div>
+      ${moduloHTML("Usuarios","Alta, ficha, horarios, documentos y permisos.","dark","vistaUsuariosPro()")}
+      ${moduloHTML("Incidencias","GPS, zona, precisión y bloqueos.","orange","vistaIncidenciasFichaje()")}
+      ${moduloHTML("Informes","Resumen mensual, extras, cierres y pagos.","blue","vistaInformes()")}
+      ${moduloHTML("Configuración","Horarios, zonas, avisos, festivos y reglas.","gray","vistaConfigPro()")}
+      ${moduloHTML("Notas","Notas rápidas, fijas y seguimiento.","green","vistaNotasPro()")}
+      ${moduloHTML("Auditoría","Historial de cambios y control.","red","vistaAuditoria()")}
+      ${moduloHTML("Ayuda","Manual interno por perfil.","green","vistaAyuda()")}
+    </div>
+  `;
+}
+
 
 function mostrarLogin(){
   vistaActual='login';
@@ -2252,6 +2447,28 @@ function prioridadOrden(p){
   return 2;
 }
 
+function fechaInputISO(v){
+  if(!v)return "";
+  const s=String(v).trim();
+
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+
+  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m){
+    const d=String(m[1]).padStart(2,"0");
+    const mo=String(m[2]).padStart(2,"0");
+    return `${m[3]}-${mo}-${d}`;
+  }
+
+  return "";
+}
+
+function leerFechaAvisoNota(id){
+  return document.getElementById(id)?.value || null;
+}
+
+
+
 function leerNotas(){
   if(notasCache.length)return notasCache;
   return JSON.parse(localStorage.getItem(kNotas())||"[]");
@@ -2312,7 +2529,7 @@ function crearNota(){
       <div class="grid">
         <div>
           <label>Fecha aviso</label>
-          <input id="notaFecha" placeholder="dd/mm/aaaa">
+          <input id="notaFecha" type="date">
         </div>
         <div>
           <label>Hora aviso</label>
@@ -2354,7 +2571,7 @@ async function guardarNotaNueva(){
       titulo:titulo||descripcion.slice(0,50),
       descripcion:descripcion,
       texto:titulo?`${titulo}\n${descripcion}`:descripcion,
-      fecha_aviso:inputFechaTexto("notaFecha")||null,
+      fecha_aviso:leerFechaAvisoNota("notaFecha")||null,
       hora_aviso:document.getElementById("notaHora").value||null,
       fija:document.getElementById("notaFija").value==="true",
       hecha:false,
@@ -2439,7 +2656,7 @@ async function editarNota(id){
       <div class="grid">
         <div>
           <label>Fecha aviso</label>
-          <input id="notaFecha" value="${fechaES(nota.fecha)||""}">
+          <input id="notaFecha" type="date" value="${fechaInputISO(nota.fecha)}">
         </div>
         <div>
           <label>Hora aviso</label>
@@ -2480,7 +2697,7 @@ async function guardarEdicionNota(id){
       titulo:titulo||descripcion.slice(0,50)||"Nota",
       descripcion,
       texto:titulo?`${titulo}\n${descripcion}`:descripcion,
-      fecha_aviso:inputFechaTexto("notaFecha")||null,
+      fecha_aviso:leerFechaAvisoNota("notaFecha")||null,
       hora_aviso:document.getElementById("notaHora").value||null,
       fija:document.getElementById("notaFija").value==="true",
       prioridad,
@@ -2727,49 +2944,14 @@ async function inicio(){
       ${otras.length?otras.map(n=>notaHTML(n)).join(""):"<p>No hay notas pendientes.</p>"}
     </div>
 
-    <div class="zx-section-title"><h2>Módulos</h2><span class="badge">Accesos rápidos</span></div>
-    <div class="grid">
-      <div class="module">
-        <h3>Fichajes</h3>
-        <p>Entrada, salida, pausas, comida, GPS y zona.</p>
-        <button class="btn green" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
-      </div>
-      <div class="module">
-        <h3>Usuarios</h3>
-        <p>Alta, ficha, horarios, documentos y permisos.</p>
-        <button class="btn dark" onclick="vistaUsuariosPro()">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Incidencias</h3>
-        <p>Revisión de GPS, zonas, precisión y bloqueos.</p>
-        <button class="btn orange" onclick="vistaIncidenciasFichaje()">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Informes</h3>
-        <p>Resumen mensual, extras, cierres y pagos.</p>
-        <button class="btn blue" onclick="vistaInformes()">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Configuración</h3>
-        <p>Horarios, zonas, avisos, festivos y reglas.</p>
-        <button class="btn gray" onclick="vistaConfigPro()">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Notas</h3>
-        <p>Notas rápidas, avisos y seguimiento interno.</p>
-        <button class="btn green" onclick="vistaNotasPro()">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Auditoría</h3>
-        <p>Historial de cambios, datos antes/después y control.</p>
-        <button class="btn red" onclick="vistaAuditoria()">Abrir</button>
-      </div>
-      <div class="module">
-        <h3>Ayuda</h3>
-        <p>Manual interno y explicación de funciones.</p>
-        <button class="btn green" onclick="vistaAyuda()">Abrir</button>
-      </div>
+    ${notasPostItHTML()}
+
+    <div class="zx-section-title">
+      <h2>${perfilUsuario()==="admin"?"Panel administrador":perfilUsuario()==="encargado"?"Panel encargado":"Mi jornada"}</h2>
+      <span class="zx-profile-badge">${perfilUsuario()}</span>
     </div>
+
+    ${modulosPorPerfilHTML(est)}
 
     <div class="card">
       <h2>Movimientos de hoy</h2>
@@ -3763,7 +3945,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2578.1
+  return `MANUAL DE USO ZENTRYX V2579
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -4080,7 +4262,23 @@ Se evita que una nota se duplique por pulsar varias veces Guardar.
 Al guardar una nota nueva o editar una existente, el botón se desactiva y la app vuelve automáticamente al listado de Notas.
 Esto evita copias repetidas y deja el flujo de edición cerrado.
 
-39. PRÓXIMAS MEJORAS
+
+39. CALENDARIO EN NOTAS
+La fecha de aviso de las notas usa selector de calendario nativo del dispositivo.
+En iPhone, Android, tablet y PC permite elegir fecha sin escribirla a mano.
+Las notas antiguas siguen mostrándose correctamente.
+
+
+40. PANTALLAS POR PERFIL
+La pantalla de inicio y el menú se adaptan al perfil:
+- Administrador: ve gestión completa, usuarios, informes, configuración, auditoría e incidencias.
+- Encargado: ve equipo, incidencias, notas e informes operativos.
+- Operario: ve fichaje, sus notas, sus incidencias y ayuda.
+
+Las notas fijas aparecen como post-it flotante pequeño en Inicio.
+El objetivo es que cada usuario vea lo que necesita según su trabajo y dispositivo.
+
+41. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -4246,6 +4444,12 @@ function renderAuditoria(lista){
 let auditoriaCache=[];
 
 function vistaAuditoria(){
+  if(!esPerfilAdmin()){
+    alert("Solo administrador puede ver Auditoría.");
+    inicio();
+    return;
+  }
+
   vistaActual='auditoria';
   document.getElementById("app").innerHTML=`
     ${topbarHTML()}
@@ -4303,7 +4507,7 @@ function vistaAyuda(){
   document.getElementById("app").innerHTML=`
     <div class="card">
       <button class="btn gray" onclick="inicio()">← Volver</button>
-      <h2>Ayuda / Manual</h2>
+      <h2>Ayuda / Manual</h2><p><b>Manual adaptado a perfil:</b> ${perfilUsuario()}</p>
       <p>Guía rápida para entender y usar Zentryx.</p>
       <button class="btn blue full" onclick="copiarManualZentryx()">Copiar manual</button>
     </div>
@@ -5202,6 +5406,12 @@ function soloAdminConfig(){
 }
 
 async function vistaConfigPro(tab="horarios"){
+  if(!esPerfilAdmin()){
+    alert("Solo administrador puede abrir Configuración general.");
+    inicio();
+    return;
+  }
+
   vistaActual="config";
   if(!soloAdminConfig())return;
 
