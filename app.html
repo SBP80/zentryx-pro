@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2585</title>
+<title>Zentryx V2586</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -450,7 +450,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2585</h1>
+      <h1>Zentryx V2586</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2585";
+const VERSION="2586";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1394,6 +1394,7 @@ async function cargarFichajesServidor(){
       precision_maxima:f.precision_maxima||null,
       precision_modo:f.precision_modo||"",
       precision_motivo:f.precision_motivo||"",
+      vehiculo_id:f.vehiculo_id||"",
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -2313,6 +2314,48 @@ function abrirMapaMovimiento(lat,lng,direccion){
   abrirSelectorMapa(lat,lng,direccion);
 }
 
+
+let vehiculosFichajeCache=[];
+
+async function cargarVehiculosFichaje(){
+  const {data,error}=await sb
+    .from("org_vehiculos")
+    .select("id,matricula,modelo,asignado_id,asignado")
+    .order("matricula",{ascending:true});
+
+  if(error){
+    console.warn("Error leyendo vehículos para fichaje",error);
+    vehiculosFichajeCache=[];
+    return [];
+  }
+
+  vehiculosFichajeCache=data||[];
+  return vehiculosFichajeCache;
+}
+
+function nombreVehiculoFichaje(id){
+  if(!id)return "";
+  const v=(vehiculosFichajeCache||[]).find(x=>String(x.id)===String(id));
+  if(!v)return "";
+  return `${v.matricula||""}${v.modelo?(" · "+v.modelo):""}`.trim();
+}
+
+function opcionesVehiculosFichajeHTML(seleccionado=""){
+  const vehiculos=vehiculosFichajeCache||[];
+  return `
+    <option value="">Sin vehículo</option>
+    ${vehiculos.map(v=>`
+      <option value="${v.id}" ${String(seleccionado||"")===String(v.id)?"selected":""}>
+        ${v.matricula||"Vehículo"}${v.modelo?` · ${v.modelo}`:""}
+      </option>
+    `).join("")}
+  `;
+}
+
+function vehiculoSeleccionadoFichaje(){
+  return document.getElementById("fichaje_vehiculo_id")?.value || null;
+}
+
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
   await registrarCambio({
@@ -2477,7 +2520,8 @@ async function guardarMovimiento(tipo){
     precision_modo:precisionGPS.modo,
     precision_motivo:motivoPrecisionGPS,
     direccion:gps.direccion,
-    direccion_real:direccionReal
+    direccion_real:direccionReal,
+    vehiculo_id:vehiculoSeleccionadoFichaje()
   };
 
   const {data:fichajeCreado,error}=await sb.from("fichajes").insert([payload]).select().single();
@@ -3163,6 +3207,7 @@ async function limpiarPrueba(){
 async function inicio(){
   vistaActual='inicio';
   await comprobarFestivoHoy();
+  await cargarVehiculosFichaje();
   const est=estadoActual();
   const res=resumenHoy();
   const extras=calcularExtrasHoy(res);
@@ -3192,6 +3237,13 @@ async function inicio(){
       ${extras.motivo?`<span class="badge red">Motivo extra: ${extras.motivo}</span>`:""}
       <span class="badge">Pausas: ${textoMin(res.pausa)}</span>
       <span class="badge">Comida: ${textoMin(res.comida)}</span>
+
+      <label>Vehículo usado en este fichaje</label>
+      <select id="fichaje_vehiculo_id">
+        ${opcionesVehiculosFichajeHTML(ultimoMovimiento()?.vehiculo_id||"")}
+      </select>
+      <span class="zx-help-field">Opcional. Permite saber qué vehículo se usó en cada entrada, salida o pausa.</span>
+
       <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
       <div class="actions">
         <button class="btn orange" onclick="guardarMovimiento('inicio_pausa')">Inicio pausa</button>
@@ -3224,6 +3276,7 @@ async function inicio(){
         <div class="row">
           <b>${nombreAccion(m.tipo)}</b><br>
           ${m.hora}<br>
+          ${m.vehiculo_id?`<span class="badge blue">Vehículo: ${nombreVehiculoFichaje(m.vehiculo_id)||m.vehiculo_id}</span><br>`:""}
           ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
           ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
           ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m${m.precision_maxima?` / máx ${m.precision_maxima} m`:""}</span>`:""}
@@ -4210,7 +4263,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2585
+  return `MANUAL DE USO ZENTRYX V2586
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -7289,3 +7342,5 @@ iniciarApp().catch(err=>{
 <!-- Manual V2584: Alertas de vehículos añadidas -->
 
 <!-- Manual V2585: Asignación real de vehículos -->
+
+<!-- Manual V2586: Vehículo en fichaje -->
