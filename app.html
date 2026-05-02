@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2581</title>
+<title>Zentryx V2582</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -399,13 +399,27 @@ textarea{width:100%;padding:10px}
 .zx-org-intro{background:linear-gradient(135deg,#ffffff,#eef5ff)}
 .zx-org-pill{display:inline-flex;align-items:center;padding:7px 10px;border-radius:999px;background:#e0f2fe;color:#075985;font-size:13px;font-weight:800;margin:4px 4px 4px 0}
 
+
+/* ===== V2582 EMPRESA REAL ===== */
+.zx-form-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:12px;
+}
+@media(min-width:760px){
+  .zx-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:1100px){
+  .zx-form-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2581</h1>
+      <h1>Zentryx V2582</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -415,7 +429,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2581";
+const VERSION="2582";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -4165,7 +4179,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2581
+  return `MANUAL DE USO ZENTRYX V2582
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -4522,7 +4536,21 @@ Apartados preparados:
 Esta versión crea la estructura visual y de navegación sin añadir todavía tablas nuevas.
 El siguiente paso será activar cada apartado con formularios y datos reales en Supabase.
 
-43. PRÓXIMAS MEJORAS
+
+43. EMPRESA REAL
+El apartado Organización > Empresa ya guarda datos reales en Supabase.
+Campos incluidos:
+- Nombre comercial.
+- Razón social.
+- CIF/NIF.
+- Teléfono, email y web.
+- Dirección completa.
+- Sector.
+- Notas internas.
+
+Los cambios quedan registrados en Auditoría como organizacion_empresa_guardada.
+
+44. PRÓXIMAS MEJORAS
 - precio base por usuario.
 - cierre mensual.
 - validación de horas extra.
@@ -4793,9 +4821,169 @@ function vistaOrganizacion(tab="inicio"){
   pintarOrganizacion(tab);
 }
 
+
+async function leerDatosEmpresaOrg(){
+  const {data,error}=await sb
+    .from("org_empresa")
+    .select("*")
+    .eq("id","principal")
+    .maybeSingle();
+
+  if(error){
+    console.warn("Error leyendo org_empresa",error);
+    return null;
+  }
+
+  return data||null;
+}
+
+async function pintarOrganizacionEmpresa(){
+  const d=await leerDatosEmpresaOrg() || {};
+
+  const body=document.getElementById("orgBody");
+  if(!body)return;
+
+  body.innerHTML=`
+    <div class="card">
+      <h2>Empresa</h2>
+      <p>Datos generales de la organización. Esta información servirá como base para documentos, informes y configuración empresarial.</p>
+
+      <div class="zx-form-grid">
+        <div>
+          <label>Nombre comercial</label>
+          <input id="org_emp_nombre" value="${d.nombre||""}" placeholder="Nombre de la empresa">
+        </div>
+        <div>
+          <label>Razón social</label>
+          <input id="org_emp_razon_social" value="${d.razon_social||""}" placeholder="Razón social">
+        </div>
+        <div>
+          <label>CIF / NIF</label>
+          <input id="org_emp_cif" value="${d.cif||""}" placeholder="CIF/NIF">
+        </div>
+        <div>
+          <label>Teléfono</label>
+          <input id="org_emp_telefono" value="${d.telefono||""}" placeholder="Teléfono">
+        </div>
+        <div>
+          <label>Email</label>
+          <input id="org_emp_email" value="${d.email||""}" placeholder="Email">
+        </div>
+        <div>
+          <label>Web</label>
+          <input id="org_emp_web" value="${d.web||""}" placeholder="Web">
+        </div>
+        <div>
+          <label>Dirección</label>
+          <input id="org_emp_direccion" value="${d.direccion||""}" placeholder="Dirección">
+        </div>
+        <div>
+          <label>Población</label>
+          <input id="org_emp_poblacion" value="${d.poblacion||""}" placeholder="Población">
+        </div>
+        <div>
+          <label>Provincia</label>
+          <input id="org_emp_provincia" value="${d.provincia||""}" placeholder="Provincia">
+        </div>
+        <div>
+          <label>Código postal</label>
+          <input id="org_emp_cp" value="${d.cp||""}" placeholder="CP">
+        </div>
+        <div>
+          <label>País</label>
+          <input id="org_emp_pais" value="${d.pais||"España"}" placeholder="País">
+        </div>
+        <div>
+          <label>Sector</label>
+          <input id="org_emp_sector" value="${d.sector||""}" placeholder="Ej: instalaciones, construcción, comercio...">
+        </div>
+      </div>
+
+      <label>Notas internas</label>
+      <textarea id="org_emp_notas" rows="4" placeholder="Notas internas de empresa">${d.notas||""}</textarea>
+
+      <button id="btnGuardarEmpresaOrg" class="btn green full" onclick="guardarDatosEmpresaOrg()">Guardar datos de empresa</button>
+    </div>
+  `;
+}
+
+function campoOrg(id){
+  return document.getElementById(id)?.value?.trim() || "";
+}
+
+async function guardarDatosEmpresaOrg(){
+  if(!esPerfilAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const btn=document.getElementById("btnGuardarEmpresaOrg");
+  if(btn){
+    btn.disabled=true;
+    btn.textContent="Guardando...";
+    btn.style.opacity=".65";
+  }
+
+  try{
+    const antes=await leerDatosEmpresaOrg();
+
+    const payload={
+      id:"principal",
+      nombre:campoOrg("org_emp_nombre"),
+      razon_social:campoOrg("org_emp_razon_social"),
+      cif:campoOrg("org_emp_cif"),
+      telefono:campoOrg("org_emp_telefono"),
+      email:campoOrg("org_emp_email"),
+      web:campoOrg("org_emp_web"),
+      direccion:campoOrg("org_emp_direccion"),
+      poblacion:campoOrg("org_emp_poblacion"),
+      provincia:campoOrg("org_emp_provincia"),
+      cp:campoOrg("org_emp_cp"),
+      pais:campoOrg("org_emp_pais"),
+      sector:campoOrg("org_emp_sector"),
+      notas:campoOrg("org_emp_notas"),
+      updated_at:new Date().toISOString()
+    };
+
+    const {data,error}=await sb
+      .from("org_empresa")
+      .upsert(payload,{onConflict:"id"})
+      .select()
+      .single();
+
+    if(error){
+      alert("Error guardando empresa: "+error.message);
+      return;
+    }
+
+    await registrarCambio({
+      accion:"organizacion_empresa_guardada",
+      tabla:"org_empresa",
+      registro_id:"principal",
+      motivo:"Actualización de datos de empresa",
+      antes,
+      despues:data||payload
+    });
+
+    aviso("Datos de empresa guardados.","ok");
+    await pintarOrganizacionEmpresa();
+  }finally{
+    if(btn){
+      btn.disabled=false;
+      btn.textContent="Guardar datos de empresa";
+      btn.style.opacity="1";
+    }
+  }
+}
+
 function pintarOrganizacion(tab){
   const body=document.getElementById("orgBody");
   if(!body)return;
+
+  if(tab==="empresa"){
+    pintarOrganizacionEmpresa();
+    return;
+  }
 
   if(tab==="inicio"){
     body.innerHTML=`
