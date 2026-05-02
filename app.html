@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2582</title>
+<title>Zentryx V2583</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -419,7 +419,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2582</h1>
+      <h1>Zentryx V2583</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -429,7 +429,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2582";
+const VERSION="2583";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -4974,6 +4974,74 @@ async function guardarDatosEmpresaOrg(){
       btn.style.opacity="1";
     }
   }
+}
+
+
+// ===============================
+// VEHICULOS PRO (V2583)
+// ===============================
+
+async function pintarOrganizacionVehiculos(){
+  const body=document.getElementById("orgBody");
+
+  const {data}=await sb.from("org_vehiculos").select("*").order("created_at",{ascending:false});
+
+  body.innerHTML=`
+    <div class="card">
+      <h2>Vehículos</h2>
+      <p>Gestión de flota. Cada campo sirve para control legal y operativo.</p>
+
+      <div class="zx-form-grid">
+        <div><label>Matrícula (identificación única)</label><input id="veh_mat"></div>
+        <div><label>Marca / modelo</label><input id="veh_mod"></div>
+        <div><label>Asignado (usuario)</label><input id="veh_asig"></div>
+        <div><label>ITV (caducidad)</label><input id="veh_itv" type="date"></div>
+        <div><label>Seguro (caducidad)</label><input id="veh_seg" type="date"></div>
+        <div><label>Próx. mantenimiento</label><input id="veh_mant" type="date"></div>
+      </div>
+
+      <label>Notas</label>
+      <textarea id="veh_notas"></textarea>
+
+      <button class="btn green full" onclick="crearVehiculo()">Guardar vehículo</button>
+    </div>
+
+    <div class="card">
+      <h2>Listado</h2>
+      ${(data||[]).map(v=>`
+        <div class="zx-data-card">
+          <b>${v.matricula}</b><br>
+          ${v.modelo||""}<br>
+          <span class="small">Asignado: ${v.asignado||"-"}</span><br>
+          <span class="small">ITV: ${v.itv||"-"} · Seguro: ${v.seguro||"-"}</span><br>
+          <span class="small">Mantenimiento: ${v.mantenimiento||"-"}</span>
+          <div class="actions">
+            <button class="btn red" onclick="eliminarVehiculo('${v.id}')">Eliminar</button>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function crearVehiculo(){
+  const payload={
+    matricula:document.getElementById("veh_mat").value,
+    modelo:document.getElementById("veh_mod").value,
+    asignado:document.getElementById("veh_asig").value,
+    itv:document.getElementById("veh_itv").value,
+    seguro:document.getElementById("veh_seg").value,
+    mantenimiento:document.getElementById("veh_mant").value,
+    notas:document.getElementById("veh_notas").value
+  };
+
+  await sb.from("org_vehiculos").insert([payload]);
+  pintarOrganizacionVehiculos();
+}
+
+async function eliminarVehiculo(id){
+  await sb.from("org_vehiculos").delete().eq("id",id);
+  pintarOrganizacionVehiculos();
 }
 
 function pintarOrganizacion(tab){
