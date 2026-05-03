@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2587</title>
+<title>Zentryx V2587.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -450,7 +450,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2587</h1>
+      <h1>Zentryx V2587.1</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2587";
+const VERSION="2587.1";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1978,8 +1978,7 @@ async function crearZonaTrabajoDesdeGPS(){
   if(!nombre || !nombre.trim())return;
 
   const radio=Number(prompt("Radio permitido en metros:", "100")||100);
-  const vehiculoIdFichaje=vehiculoSeleccionadoFichaje();
-
+  
   if(vehiculoIdFichaje){
     const usoOtro=await comprobarUsoVehiculoHoy(vehiculoIdFichaje);
     if(usoOtro){
@@ -2331,6 +2330,7 @@ function abrirMapaMovimiento(lat,lng,direccion){
 }
 
 
+let vehiculoIdFichaje=null;
 let vehiculosFichajeCache=[];
 
 async function cargarVehiculosFichaje(){
@@ -2406,6 +2406,15 @@ function vehiculoSeleccionadoFichaje(){
 
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
+
+  // V2587.1: vehículo seleccionado leído de forma segura.
+  vehiculoIdFichaje = null;
+  try{
+    vehiculoIdFichaje = (typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : null;
+  }catch(e){
+    console.warn("No se pudo leer el vehículo seleccionado", e);
+    vehiculoIdFichaje = null;
+  }
   await registrarCambio({
       accion:"borrado_hoy",
       tabla:"fichajes",
@@ -3268,6 +3277,22 @@ async function limpiarPrueba(){
   await cargarFichajesServidor();
   inicio();
 }
+
+async 
+function mensajeErrorUsuario(error){
+  const msg=String(error?.message||error||"");
+
+  if(msg.includes("vehiculoIdFichaje")){
+    return "Error interno al preparar el vehículo del fichaje. Actualiza a V2587.1 y vuelve a intentarlo.";
+  }
+
+  if(msg.includes("Failed to fetch") || msg.includes("Load failed")){
+    return "No se ha podido conectar con el servidor. Revisa conexión y recarga.";
+  }
+
+  return msg || "Error interno de la aplicación.";
+}
+
 
 async function inicio(){
   vistaActual='inicio';
@@ -4328,7 +4353,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2587
+  return `MANUAL DE USO ZENTRYX V2587.1
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -7411,3 +7436,5 @@ iniciarApp().catch(err=>{
 <!-- Manual V2586: Vehículo en fichaje -->
 
 <!-- Manual V2587: Control de uso de vehículo -->
+
+<!-- Manual V2587.1: Corrección vehiculoIdFichaje -->
