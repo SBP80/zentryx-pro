@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2588</title>
+<title>Zentryx V2588.1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -450,7 +450,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2588</h1>
+      <h1>Zentryx V2588.1</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2588";
+const VERSION="2588.1";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1998,12 +1998,6 @@ async function crearZonaTrabajoDesdeGPS(){
     }
   }
 
-  const kmValidacion=await validarKmSalidaFichaje(tipo,vehiculoIdFichaje);
-  if(!kmValidacion.ok){
-    alert(kmValidacion.mensaje);
-    return;
-  }
-
   const gps=await obtenerGPS();
 
   if(!gps.ok){
@@ -2474,7 +2468,7 @@ let kmSalidaFichaje=null;
 function mostrarCampoKmSalida(tipo){
   const input=document.getElementById("fichaje_km_salida");
   const ayuda=document.getElementById("fichaje_km_ayuda");
-  const vehiculoId=vehiculoSeleccionadoFichaje ? vehiculoSeleccionadoFichaje() : "";
+  const vehiculoId=(typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : "";
 
   if(!input)return;
 
@@ -2488,7 +2482,7 @@ function mostrarCampoKmSalida(tipo){
   }
 }
 
-async function validarKmSalidaFichaje(tipo,vehiculoId){
+async function validarKmSalidaObligatorio(tipo,vehiculoId){
   kmSalidaFichaje=null;
 
   if(tipo!=="salida" || !vehiculoId){
@@ -2501,7 +2495,7 @@ async function validarKmSalidaFichaje(tipo,vehiculoId){
   if(!km || Number.isNaN(km) || km<=0){
     return {
       ok:false,
-      mensaje:"Para fichar salida con vehículo debes introducir los kilómetros actuales."
+      mensaje:"Debes introducir los kilómetros actuales para poder cerrar la jornada con vehículo."
     };
   }
 
@@ -2512,10 +2506,7 @@ async function validarKmSalidaFichaje(tipo,vehiculoId){
     .maybeSingle();
 
   if(error){
-    return {
-      ok:false,
-      mensaje:"No se han podido comprobar los kilómetros del vehículo: "+error.message
-    };
+    return {ok:false,mensaje:"No se han podido comprobar los kilómetros del vehículo: "+error.message};
   }
 
   const kmActual=Number(data?.km_actual||0);
@@ -2531,7 +2522,7 @@ async function validarKmSalidaFichaje(tipo,vehiculoId){
   return {ok:true,km,vehiculo:data};
 }
 
-async function actualizarKmVehiculoDespuesFichaje(vehiculoId,km){
+async function actualizarKmVehiculoSalida(vehiculoId,km){
   if(!vehiculoId || !km)return;
 
   const {error}=await sb
@@ -2540,7 +2531,7 @@ async function actualizarKmVehiculoDespuesFichaje(vehiculoId,km){
     .eq("id",vehiculoId);
 
   if(error){
-    console.warn("No se pudo actualizar km_actual del vehículo",error);
+    console.warn("No se pudo actualizar km_actual",error);
     await registrarCambio({
       accion:"error_actualizando_km_vehiculo",
       tabla:"org_vehiculos",
@@ -2554,7 +2545,7 @@ async function actualizarKmVehiculoDespuesFichaje(vehiculoId,km){
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
 
-  // V2588: vehículo seleccionado leído de forma segura.
+  // V2588.1: vehículo seleccionado leído de forma segura.
   vehiculoIdFichaje = null;
   try{
     vehiculoIdFichaje = (typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : null;
@@ -2562,6 +2553,14 @@ async function guardarMovimiento(tipo){
     console.warn("No se pudo leer el vehículo seleccionado", e);
     vehiculoIdFichaje = null;
   }
+
+  // V2588.1: bloqueo real de salida sin kilómetros.
+  const kmValidacionForzada=await validarKmSalidaObligatorio(tipo,vehiculoIdFichaje);
+  if(!kmValidacionForzada.ok){
+    alert(kmValidacionForzada.mensaje);
+    return;
+  }
+
   await registrarCambio({
       accion:"borrado_hoy",
       tabla:"fichajes",
@@ -2757,7 +2756,7 @@ async function guardarMovimiento(tipo){
   }
 
   if(tipo==="salida" && vehiculoIdFichaje && kmSalidaFichaje){
-    await actualizarKmVehiculoDespuesFichaje(vehiculoIdFichaje,kmSalidaFichaje);
+    await actualizarKmVehiculoSalida(vehiculoIdFichaje,kmSalidaFichaje);
   }
 
   if(vehiculoIdFichaje){
@@ -3455,11 +3454,11 @@ function mensajeErrorUsuario(error){
   const msg=String(error?.message||error||"");
 
   if(msg.includes("intervaloSync")){
-    return "Error interno de sincronización. Versión corregida V2588.";
+    return "Error interno de sincronización. Versión corregida V2588.1.";
   }
 
   if(msg.includes("vehiculoIdFichaje")){
-    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2588.";
+    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2588.1.";
   }
 
   if(msg.includes("Failed to fetch") || msg.includes("Load failed")){
@@ -3511,7 +3510,7 @@ async function inicio(){
       <span class="zx-help-field">Opcional. Si tienes vehículo asignado, aparece seleccionado automáticamente. Si otro usuario lo tiene en uso, se bloqueará el fichaje.</span>
 
       <input id="fichaje_km_salida" type="number" inputmode="numeric" placeholder="Kilómetros actuales al salir" style="display:none;">
-      <span id="fichaje_km_ayuda" class="zx-help-field" style="display:none;">Obligatorio al fichar salida con vehículo. Debe ser igual o superior al kilometraje actual del vehículo.</span>
+      <span id="fichaje_km_ayuda" class="zx-help-field" style="display:none;">Obligatorio para cerrar jornada con vehículo. Debe ser igual o superior al kilometraje actual.</span>
 
       <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
       <div class="actions">
@@ -4534,7 +4533,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2588
+  return `MANUAL DE USO ZENTRYX V2588.1
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -5568,7 +5567,7 @@ async function pintarOrganizacionVehiculos(){
         <div>
           <label>Kilómetros actuales</label>
           <input id="veh_km_actual" type="number" inputmode="numeric" placeholder="Ej: 125000">
-          <span class="zx-help-field">Kilometraje actual del vehículo. Se actualizará automáticamente al fichar salida.</span>
+          <span class="zx-help-field">Kilometraje actual. Se actualizará automáticamente al fichar salida.</span>
         </div>
       </div>
 
@@ -5819,7 +5818,7 @@ async function editarVehiculoOrg(id){
         <div>
           <label>Kilómetros actuales</label>
           <input id="veh_km_actual" type="number" inputmode="numeric" value="${v.km_actual||0}">
-          <span class="zx-help-field">Kilometraje actual del vehículo. Se actualizará automáticamente al fichar salida.</span>
+          <span class="zx-help-field">Kilometraje actual. Se actualizará automáticamente al fichar salida.</span>
         </div>
       </div>
 
@@ -7721,12 +7720,12 @@ iniciarApp().catch(err=>{
 
 <!-- Manual V2587: Control de uso de vehículo -->
 
-<!-- V2588: corregido intervaloSync y vehiculoIdFichaje -->
+<!-- V2588.1: corregido intervaloSync y vehiculoIdFichaje -->
 
-<!-- Manual V2588: Corrección asignación única de vehículos -->
+<!-- Manual V2588.1: Corrección asignación única de vehículos -->
 
-<!-- Manual V2588: Bloqueo vehículo en uso -->
+<!-- Manual V2588.1: Bloqueo vehículo en uso -->
 
-<!-- Manual V2588: Bloqueo reforzado vehículo en uso -->
+<!-- Manual V2588.1: Bloqueo reforzado vehículo en uso -->
 
-<!-- Manual V2588: Kilómetros obligatorios al fichar salida -->
+<!-- Manual V2588.1: Kilómetros obligatorios al fichar salida -->
