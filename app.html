@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2587.1</title>
+<title>Zentryx V2587.2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -450,7 +450,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2587.1</h1>
+      <h1>Zentryx V2587.2</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2587.1";
+const VERSION="2587.2";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -2330,7 +2330,7 @@ function abrirMapaMovimiento(lat,lng,direccion){
 }
 
 
-let vehiculoIdFichaje=null;
+var vehiculoIdFichaje=null;
 let vehiculosFichajeCache=[];
 
 async function cargarVehiculosFichaje(){
@@ -2407,7 +2407,7 @@ function vehiculoSeleccionadoFichaje(){
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
 
-  // V2587.1: vehículo seleccionado leído de forma segura.
+  // V2587.2: vehículo seleccionado leído de forma segura.
   vehiculoIdFichaje = null;
   try{
     vehiculoIdFichaje = (typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : null;
@@ -3282,8 +3282,12 @@ async
 function mensajeErrorUsuario(error){
   const msg=String(error?.message||error||"");
 
+  if(msg.includes("intervaloSync")){
+    return "Error interno de sincronización. Versión corregida V2587.2.";
+  }
+
   if(msg.includes("vehiculoIdFichaje")){
-    return "Error interno al preparar el vehículo del fichaje. Actualiza a V2587.1 y vuelve a intentarlo.";
+    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2587.2.";
   }
 
   if(msg.includes("Failed to fetch") || msg.includes("Load failed")){
@@ -4353,7 +4357,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2587.1
+  return `MANUAL DE USO ZENTRYX V2587.2
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -7375,7 +7379,7 @@ async function aplicarDescuentoSolicitud(s){
   }
 }
 
-let intervaloSync=null;
+var intervaloSync=null;
 
 async function iniciarAppConUsuario(){
   await cargarUsuarioActual();
@@ -7419,7 +7423,7 @@ iniciarApp().catch(err=>{
     app.innerHTML=`
       <div class="card">
         <h2>Error de carga</h2>
-        <p class="error">${err.message||err}</p>
+        <p class="error">${mensajeErrorUsuario(err)}</p>
         <button class="btn gray full" onclick="location.reload()">Recargar</button>
         <button class="btn red full" onclick="cerrarSesion()">Salir</button>
       </div>`;
@@ -7437,4 +7441,4 @@ iniciarApp().catch(err=>{
 
 <!-- Manual V2587: Control de uso de vehículo -->
 
-<!-- Manual V2587.1: Corrección vehiculoIdFichaje -->
+<!-- V2587.2: corregido intervaloSync y vehiculoIdFichaje -->
