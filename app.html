@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2587.2</title>
+<title>Zentryx V2587.3</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -450,7 +450,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2587.2</h1>
+      <h1>Zentryx V2587.3</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2587.2";
+const VERSION="2587.3";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -2407,7 +2407,7 @@ function vehiculoSeleccionadoFichaje(){
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
 
-  // V2587.2: vehículo seleccionado leído de forma segura.
+  // V2587.3: vehículo seleccionado leído de forma segura.
   vehiculoIdFichaje = null;
   try{
     vehiculoIdFichaje = (typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : null;
@@ -3283,11 +3283,11 @@ function mensajeErrorUsuario(error){
   const msg=String(error?.message||error||"");
 
   if(msg.includes("intervaloSync")){
-    return "Error interno de sincronización. Versión corregida V2587.2.";
+    return "Error interno de sincronización. Versión corregida V2587.3.";
   }
 
   if(msg.includes("vehiculoIdFichaje")){
-    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2587.2.";
+    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2587.3.";
   }
 
   if(msg.includes("Failed to fetch") || msg.includes("Load failed")){
@@ -4357,7 +4357,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2587.2
+  return `MANUAL DE USO ZENTRYX V2587.3
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -5367,7 +5367,7 @@ async function pintarOrganizacionVehiculos(){
           <select id="veh_asignado_id">
             ${opcionesUsuariosVehiculoHTML(usuariosVehiculos)}
           </select>
-          <span class="zx-help-field">Usuario real responsable habitual del vehículo.</span>
+          <span class="zx-help-field">Usuario real responsable habitual. Un usuario no puede tener más de un vehículo asignado principal.</span>
         </div>
 
         <div>
@@ -5412,7 +5412,7 @@ function vehiculoOrgHTML(v,usuariosVehiculos=[]){
     <div class="zx-data-card">
       <h3>${v.matricula||"Sin matrícula"}</h3>
       <p><b>Modelo:</b> ${v.modelo||"-"}</p>
-      <p><b>Asignado:</b> ${nombreUsuarioVehiculo(v.asignado_id,usuariosVehiculos) || v.asignado || "-"}</p>
+      <p><b>Asignado:</b> ${textoAsignacionVehiculo(v,usuariosVehiculos)}</p>
 
       ${badgeFechaVehiculo("ITV",v.itv)}
       ${badgeFechaVehiculo("Seguro",v.seguro)}
@@ -5430,6 +5430,73 @@ function vehiculoOrgHTML(v,usuariosVehiculos=[]){
 
 function campoVeh(id){
   return document.getElementById(id)?.value?.trim() || "";
+}
+
+
+async function comprobarAsignacionVehiculoDuplicada({vehiculoId="", matricula="", asignadoId=""}={}){
+  const resultado={
+    ok:true,
+    mensaje:"",
+    usuarioTieneVehiculo:null,
+    matriculaAsignada:null
+  };
+
+  const asig=String(asignadoId||"").trim();
+  const mat=String(matricula||"").trim().toUpperCase();
+  const vid=String(vehiculoId||"").trim();
+
+  if(asig){
+    const {data,error}=await sb
+      .from("org_vehiculos")
+      .select("id,matricula,modelo,asignado_id,asignado")
+      .eq("asignado_id",asig);
+
+    if(error){
+      console.warn("Error comprobando asignación de usuario",error);
+    }
+
+    const otro=(data||[]).find(v=>String(v.id)!==vid);
+    if(otro){
+      resultado.ok=false;
+      resultado.usuarioTieneVehiculo=otro;
+      resultado.mensaje=`Este usuario ya tiene asignado el vehículo ${otro.matricula||""}${otro.modelo?(" · "+otro.modelo):""}. Quita primero esa asignación o deja este vehículo sin asignar.`;
+      return resultado;
+    }
+  }
+
+  if(mat){
+    const {data,error}=await sb
+      .from("org_vehiculos")
+      .select("id,matricula,modelo,asignado_id,asignado")
+      .eq("matricula",mat);
+
+    if(error){
+      console.warn("Error comprobando matrícula",error);
+    }
+
+    const otro=(data||[]).find(v=>String(v.id)!==vid);
+    if(otro && otro.asignado_id && asig && String(otro.asignado_id)!==asig){
+      resultado.ok=false;
+      resultado.matriculaAsignada=otro;
+      resultado.mensaje=`La matrícula ${mat} ya existe y está asignada a otro usuario. No se puede duplicar.`;
+      return resultado;
+    }
+
+    if(otro){
+      resultado.ok=false;
+      resultado.matriculaAsignada=otro;
+      resultado.mensaje=`La matrícula ${mat} ya existe. Edita el vehículo existente en lugar de crear otro duplicado.`;
+      return resultado;
+    }
+  }
+
+  return resultado;
+}
+
+function textoAsignacionVehiculo(v,usuariosVehiculos=[]){
+  const nombre=nombreUsuarioVehiculo(v.asignado_id,usuariosVehiculos);
+  if(v.asignado_id)return nombre || v.asignado || "-";
+  return v.asignado || "-";
 }
 
 async function crearVehiculoOrg(){
@@ -5459,6 +5526,16 @@ async function crearVehiculoOrg(){
 
     if(!payload.matricula){
       alert("La matrícula es obligatoria.");
+      return;
+    }
+
+    const comprobacion=await comprobarAsignacionVehiculoDuplicada({
+      matricula:payload.matricula,
+      asignadoId:payload.asignado_id
+    });
+
+    if(!comprobacion.ok){
+      alert(comprobacion.mensaje);
       return;
     }
 
@@ -5533,7 +5610,7 @@ async function editarVehiculoOrg(id){
           <select id="veh_asignado_id">
             ${opcionesUsuariosVehiculoHTML(usuariosVehiculos,v.asignado_id)}
           </select>
-          <span class="zx-help-field">Usuario real responsable habitual del vehículo.</span>
+          <span class="zx-help-field">Usuario real responsable habitual. Un usuario no puede tener más de un vehículo asignado principal.</span>
         </div>
 
         <div>
@@ -5584,6 +5661,17 @@ async function guardarEdicionVehiculoOrg(id){
 
   if(!payload.matricula){
     alert("La matrícula es obligatoria.");
+    return;
+  }
+
+  const comprobacion=await comprobarAsignacionVehiculoDuplicada({
+    vehiculoId:id,
+    matricula:payload.matricula,
+    asignadoId:payload.asignado_id
+  });
+
+  if(!comprobacion.ok){
+    alert(comprobacion.mensaje);
     return;
   }
 
@@ -7441,4 +7529,6 @@ iniciarApp().catch(err=>{
 
 <!-- Manual V2587: Control de uso de vehículo -->
 
-<!-- V2587.2: corregido intervaloSync y vehiculoIdFichaje -->
+<!-- V2587.3: corregido intervaloSync y vehiculoIdFichaje -->
+
+<!-- Manual V2587.3: Corrección asignación única de vehículos -->
