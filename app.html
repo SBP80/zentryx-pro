@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2588.4</title>
+<title>Zentryx V2589</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -445,7 +445,7 @@ textarea{width:100%;padding:10px}
 @media(min-width:760px){.zx-alert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
 
-/* ===== V2588.4 MANTENIMIENTO POR KM ===== */
+/* ===== V2589 MANTENIMIENTO POR KM ===== */
 .zx-maint-grid{
   display:grid;
   grid-template-columns:1fr;
@@ -474,13 +474,21 @@ textarea{width:100%;padding:10px}
   .zx-maint-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
+
+/* ===== V2589 ALERTAS FLOTA EN INICIO ===== */
+.zx-flota-alertas{border-radius:18px;padding:14px;margin:12px 0;border:1px solid #e5e7eb;background:#fff}
+.zx-flota-alertas.ok{background:#f0fdf4;border-color:#bbf7d0}
+.zx-flota-alertas.warn{background:#fffbeb;border-color:#fde68a}
+.zx-flota-alertas.bad{background:#fef2f2;border-color:#fecaca}
+.zx-flota-row{padding:10px;border-radius:12px;margin:8px 0;background:rgba(255,255,255,.65);border:1px solid rgba(0,0,0,.06)}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2588.4</h1>
+      <h1>Zentryx V2589</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -490,7 +498,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2588.4";
+const VERSION="2589"
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -2575,7 +2583,7 @@ async function actualizarKmVehiculoSalida(vehiculoId,km){
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
 
-  // V2588.4: vehículo seleccionado leído de forma segura.
+  // V2589: vehículo seleccionado leído de forma segura.
   vehiculoIdFichaje = null;
   try{
     vehiculoIdFichaje = (typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : null;
@@ -2584,7 +2592,7 @@ async function guardarMovimiento(tipo){
     vehiculoIdFichaje = null;
   }
 
-  // V2588.4: bloqueo real de salida sin kilómetros.
+  // V2589: bloqueo real de salida sin kilómetros.
   const kmValidacionForzada=await validarKmSalidaObligatorio(tipo,vehiculoIdFichaje);
   if(!kmValidacionForzada.ok){
     alert(kmValidacionForzada.mensaje);
@@ -3507,11 +3515,11 @@ function mensajeErrorUsuario(error){
   const msg=String(error?.message||error||"");
 
   if(msg.includes("intervaloSync")){
-    return "Error interno de sincronización. Versión corregida V2588.4.";
+    return "Error interno de sincronización. Versión corregida V2589.";
   }
 
   if(msg.includes("vehiculoIdFichaje")){
-    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2588.4.";
+    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2589.";
   }
 
   if(msg.includes("Failed to fetch") || msg.includes("Load failed")){
@@ -3519,6 +3527,54 @@ function mensajeErrorUsuario(error){
   }
 
   return msg || "Error interno de la aplicación.";
+}
+
+
+
+async function calcularAlertasFlotaInicio(){
+  if(!esPerfilAdmin())return {html:""};
+
+  const {data:vehiculos,error}=await sb.from("org_vehiculos").select("id,matricula,modelo,km_actual");
+  if(error || !vehiculos || !vehiculos.length)return {html:""};
+
+  const filas=[];
+  let rojos=0, amarillos=0;
+
+  for(const v of vehiculos){
+    const comps=await leerConfigMantenimientoVehiculo(v.id);
+    const km=Number(v.km_actual||0);
+
+    for(const c of comps){
+      if(!c.id)continue;
+      const est=estadoMantenimientoComponente(c,km);
+      if(est.estado==="bad"){
+        rojos++;
+        filas.push({tipo:"bad",vehiculo:v,comp:c,est});
+      }else if(est.estado==="warn"){
+        amarillos++;
+        filas.push({tipo:"warn",vehiculo:v,comp:c,est});
+      }
+    }
+  }
+
+  const clase=rojos?"bad":amarillos?"warn":"ok";
+  return {html:`
+    <div class="card zx-flota-alertas ${clase}">
+      <h2>Alertas de flota</h2>
+      ${rojos||amarillos?`
+        <p><b>${rojos}</b> vencidas · <b>${amarillos}</b> próximas/pendientes</p>
+        ${filas.slice(0,6).map(x=>`
+          <div class="zx-flota-row">
+            <b>${x.vehiculo.matricula||"Vehículo"} ${x.vehiculo.modelo||""}</b><br>
+            ${x.tipo==="bad"?"🔴":"🟡"} ${x.comp.nombre}: ${x.est.txt}
+            ${x.est.faltan!==null?` · faltan ${x.est.faltan} km`:""}
+          </div>
+        `).join("")}
+        ${filas.length>6?`<p class="small">Hay ${filas.length-6} alertas más.</p>`:""}
+      `:`<p>🟢 Sin alertas de mantenimiento.</p>`}
+      <button class="btn dark full" onclick="vistaOrganizacion('vehiculos')">Abrir vehículos</button>
+    </div>
+  `};
 }
 
 
@@ -3533,6 +3589,7 @@ async function inicio(){
   const fijas=notas.filter(n=>n.fija);
   const vencidas=notas.filter(notaVencida);
   const otras=notas.filter(n=>!n.fija&&!notaVencida(n)).slice(0,5);
+  const alertasFlota=await calcularAlertasFlotaInicio();
 
   document.getElementById("app").innerHTML=`
     ${topbarHTML()}
@@ -3545,6 +3602,8 @@ async function inicio(){
       ${festivoHoyCache?`<span class="badge red">Festivo: ${textoFestivoHoy()}</span>`:""}
       ${leerAviso()}
     </div>
+
+    ${alertasFlota.html}
 
     <div class="card">
       <h2>Jornada de hoy</h2>
@@ -4586,7 +4645,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2588.4
+  return `MANUAL DE USO ZENTRYX V2589
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -5566,7 +5625,7 @@ function opcionesUsuariosVehiculoHTML(usuarios,seleccionado=""){
 
 
 // ===============================
-// MANTENIMIENTO POR KILÓMETROS (V2588.4)
+// MANTENIMIENTO POR KILÓMETROS (V2589)
 // ===============================
 
 function componentesMantenimientoDefecto(){
@@ -5592,7 +5651,7 @@ async function leerConfigMantenimientoVehiculo(vehiculoId){
 
   if(error){
     console.warn("Error leyendo mantenimiento",error);
-    alert("No se puede abrir mantenimiento. Revisa que el SQL V2588.4 esté ejecutado. Detalle: "+error.message);
+    alert("No se puede abrir mantenimiento. Revisa que el SQL V2589 esté ejecutado. Detalle: "+error.message);
     return componentesMantenimientoDefecto();
   }
 
@@ -5615,8 +5674,20 @@ function estadoMantenimientoComponente(c,kmActual){
   const ultimo=Number(c.ultimo_km||0);
   const km=Number(kmActual||0);
 
-  if(!cada){
-    return {estado:"ok",txt:"Sin intervalo",faltan:null,proximo:null,kmActual:km,clase:"ok",incoherente:false};
+  if(!cada)return {estado:"ok",txt:"Sin intervalo",faltan:null,proximo:null,kmActual:km,clase:"ok",inicial:false,incoherente:false};
+
+  if(!ultimo){
+    return {
+      estado:"warn",
+      txt:"Pendiente inicial",
+      faltan:null,
+      proximo:null,
+      kmActual:km,
+      clase:"warn",
+      inicial:true,
+      incoherente:false,
+      mensaje:"Este componente aún no tiene registrado el primer cambio."
+    };
   }
 
   if(ultimo>km){
@@ -5627,6 +5698,7 @@ function estadoMantenimientoComponente(c,kmActual){
       proximo:ultimo+cada,
       kmActual:km,
       clase:"bad",
+      inicial:false,
       incoherente:true,
       mensaje:`El último cambio (${ultimo} km) no puede ser mayor que los kilómetros actuales del vehículo (${km} km).`
     };
@@ -5635,9 +5707,9 @@ function estadoMantenimientoComponente(c,kmActual){
   const proximo=ultimo+cada;
   const faltan=proximo-km;
 
-  if(faltan<=0)return {estado:"bad",txt:"Vencido",faltan,proximo,kmActual:km,clase:"bad",incoherente:false};
-  if(faltan<=aviso)return {estado:"warn",txt:"Próximo",faltan,proximo,kmActual:km,clase:"warn",incoherente:false};
-  return {estado:"ok",txt:"Correcto",faltan,proximo,kmActual:km,clase:"ok",incoherente:false};
+  if(faltan<=0)return {estado:"bad",txt:"Vencido",faltan,proximo,kmActual:km,clase:"bad",inicial:false,incoherente:false};
+  if(faltan<=aviso)return {estado:"warn",txt:"Próximo",faltan,proximo,kmActual:km,clase:"warn",inicial:false,incoherente:false};
+  return {estado:"ok",txt:"Correcto",faltan,proximo,kmActual:km,clase:"ok",inicial:false,incoherente:false};
 }
 
 
@@ -5701,6 +5773,7 @@ async function pintarMantenimientoVehiculo(vehiculoId){
             <p><b>Último cambio:</b> ${c.ultimo_km||0} km</p>
             ${est.proximo!==null?`<p><b>Próximo cambio:</b> ${est.proximo} km</p>`:""}
             ${est.faltan!==null?`<p><b>Faltan:</b> ${est.faltan} km</p>`:""}
+            ${est.inicial?`<p class="error"><b>Pendiente:</b> ${est.mensaje}</p>`:""}
             ${est.incoherente?`<p class="error"><b>Error:</b> ${est.mensaje}</p>`:""}
             ${c.notas?`<p><b>Notas:</b> ${c.notas}</p>`:""}
             <div class="actions">
@@ -5718,6 +5791,7 @@ async function pintarMantenimientoVehiculo(vehiculoId){
 async function crearMantenimientoDefecto(vehiculoId){
   const existentes=await leerConfigMantenimientoVehiculo(vehiculoId);
   const hayReales=existentes.some(x=>x.id);
+  const kmActual=await kmActualVehiculo(vehiculoId);
 
   if(hayReales && !confirm("Ya hay componentes creados. ¿Añadir igualmente los recomendados que falten?"))return;
 
@@ -5738,8 +5812,8 @@ async function crearMantenimientoDefecto(vehiculoId){
         nombre:c.nombre,
         cada_km:c.cada_km,
         aviso_km:c.aviso_km,
-        ultimo_km:0,
-        notas:""
+        ultimo_km:kmActual,
+        notas:"Inicializado con los kilómetros actuales del vehículo"
       }]);
     }
   }
@@ -5774,8 +5848,8 @@ async function crearComponenteMantenimiento(vehiculoId){
   }
 
   const aviso=Number(prompt("¿Cuántos km antes quieres aviso?", "1000")||0);
-  const ultimo=Number(prompt("Kilómetros del último cambio:", "0")||0);
   const kmActual=await kmActualVehiculo(vehiculoId);
+  const ultimo=Number(prompt("Kilómetros del último cambio:", String(kmActual))||0);
 
   if(ultimo>kmActual){
     alert(`El último cambio (${ultimo} km) no puede ser mayor que los kilómetros actuales del vehículo (${kmActual} km).`);
@@ -8152,18 +8226,20 @@ iniciarApp().catch(err=>{
 
 <!-- Manual V2587: Control de uso de vehículo -->
 
-<!-- V2588.4: corregido intervaloSync y vehiculoIdFichaje -->
+<!-- V2589: corregido intervaloSync y vehiculoIdFichaje -->
 
-<!-- Manual V2588.4: Corrección asignación única de vehículos -->
+<!-- Manual V2589: Corrección asignación única de vehículos -->
 
-<!-- Manual V2588.4: Bloqueo vehículo en uso -->
+<!-- Manual V2589: Bloqueo vehículo en uso -->
 
-<!-- Manual V2588.4: Bloqueo reforzado vehículo en uso -->
+<!-- Manual V2589: Bloqueo reforzado vehículo en uso -->
 
-<!-- Manual V2588.4: Kilómetros obligatorios al fichar salida -->
+<!-- Manual V2589: Kilómetros obligatorios al fichar salida -->
 
-<!-- Manual V2588.4: Mantenimiento por kilómetros -->
+<!-- Manual V2589: Mantenimiento por kilómetros -->
 
-<!-- V2588.4: botón mantenimiento corregido -->
+<!-- V2589: botón mantenimiento corregido -->
 
-<!-- V2588.4: cálculo mantenimiento corregido -->
+<!-- V2589: cálculo mantenimiento corregido -->
+
+<!-- V2589: componentes inicializados con km actual y alertas de flota en inicio -->
