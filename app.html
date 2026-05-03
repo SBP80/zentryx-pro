@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2587.3</title>
+<title>Zentryx V2587.4</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -450,7 +450,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2587.3</h1>
+      <h1>Zentryx V2587.4</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2587.3";
+const VERSION="2587.4";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1979,17 +1979,21 @@ async function crearZonaTrabajoDesdeGPS(){
 
   const radio=Number(prompt("Radio permitido en metros:", "100")||100);
   
-  if(vehiculoIdFichaje){
-    const usoOtro=await comprobarUsoVehiculoHoy(vehiculoIdFichaje);
-    if(usoOtro){
+  if(vehiculoIdFichaje && tipo!=="salida"){
+    const usoActivo=await comprobarVehiculoEnUsoActivo(vehiculoIdFichaje);
+
+    if(usoActivo.enUso){
       const nombreVeh=nombreVehiculoFichaje(vehiculoIdFichaje)||"vehículo";
-      alert("Aviso: "+nombreVeh+" ya ha sido usado hoy por otro usuario. Se permite continuar, pero queda registrado.");
+
       await registrarCambio({
-        accion:"aviso_vehiculo_usado_por_otro_usuario",
+        accion:"fichaje_bloqueado_vehiculo_en_uso",
         tabla:"fichajes",
-        motivo:"Vehículo usado por otro usuario en el mismo día",
-        despues:{vehiculo_id:vehiculoIdFichaje,uso_existente:usoOtro,user_id:user?.id||""}
+        motivo:"Intento de fichar con vehículo en uso por otro usuario",
+        despues:{vehiculo_id:vehiculoIdFichaje,vehiculo:nombreVeh,uso_activo:usoActivo,user_id:user?.id||"",tipo}
       });
+
+      alert("No se puede fichar con este vehículo. "+nombreVeh+" está en uso por otro usuario. Debe registrar salida o elegir otro vehículo.");
+      return;
     }
   }
 
@@ -2380,6 +2384,52 @@ async function comprobarUsoVehiculoHoy(vehiculoId){
   return otro||null;
 }
 
+async function comprobarVehiculoEnUsoActivo(vehiculoId){
+  if(!vehiculoId)return {enUso:false};
+
+  const hoy=hoyISO();
+
+  const {data,error}=await sb
+    .from("fichajes")
+    .select("id,user_id,tipo,fecha,vehiculo_id")
+    .eq("vehiculo_id",vehiculoId)
+    .gte("fecha",hoy+"T00:00:00")
+    .lte("fecha",hoy+"T23:59:59")
+    .order("fecha",{ascending:true});
+
+  if(error){
+    console.warn("No se pudo comprobar uso activo del vehículo",error);
+    return {enUso:false,error};
+  }
+
+  const porUsuario={};
+
+  (data||[]).forEach(f=>{
+    const uid=String(f.user_id||"");
+    porUsuario[uid]=f;
+  });
+
+  const actual=String(user?.id||"");
+
+  for(const uid of Object.keys(porUsuario)){
+    if(uid===actual)continue;
+
+    const ultimo=porUsuario[uid];
+    if(ultimo && ultimo.tipo!=="salida"){
+      return {
+        enUso:true,
+        user_id:uid,
+        ultimo,
+        vehiculo_id:vehiculoId
+      };
+    }
+  }
+
+  return {enUso:false};
+}
+
+
+
 
 function nombreVehiculoFichaje(id){
   if(!id)return "";
@@ -2407,7 +2457,7 @@ function vehiculoSeleccionadoFichaje(){
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
 
-  // V2587.3: vehículo seleccionado leído de forma segura.
+  // V2587.4: vehículo seleccionado leído de forma segura.
   vehiculoIdFichaje = null;
   try{
     vehiculoIdFichaje = (typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : null;
@@ -3283,11 +3333,11 @@ function mensajeErrorUsuario(error){
   const msg=String(error?.message||error||"");
 
   if(msg.includes("intervaloSync")){
-    return "Error interno de sincronización. Versión corregida V2587.3.";
+    return "Error interno de sincronización. Versión corregida V2587.4.";
   }
 
   if(msg.includes("vehiculoIdFichaje")){
-    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2587.3.";
+    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2587.4.";
   }
 
   if(msg.includes("Failed to fetch") || msg.includes("Load failed")){
@@ -3336,7 +3386,7 @@ async function inicio(){
       <select id="fichaje_vehiculo_id">
         ${opcionesVehiculosFichajeHTML(vehiculoSugeridoFichaje())}
       </select>
-      <span class="zx-help-field">Opcional. Si tienes vehículo asignado, aparece seleccionado automáticamente. Si otro usuario ya lo usó hoy, se avisará.</span>
+      <span class="zx-help-field">Opcional. Si tienes vehículo asignado, aparece seleccionado automáticamente. Si otro usuario lo tiene en uso, se bloqueará el fichaje.</span>
 
       <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
       <div class="actions">
@@ -4357,7 +4407,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2587.3
+  return `MANUAL DE USO ZENTRYX V2587.4
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -7529,6 +7579,8 @@ iniciarApp().catch(err=>{
 
 <!-- Manual V2587: Control de uso de vehículo -->
 
-<!-- V2587.3: corregido intervaloSync y vehiculoIdFichaje -->
+<!-- V2587.4: corregido intervaloSync y vehiculoIdFichaje -->
 
-<!-- Manual V2587.3: Corrección asignación única de vehículos -->
+<!-- Manual V2587.4: Corrección asignación única de vehículos -->
+
+<!-- Manual V2587.4: Bloqueo vehículo en uso -->
