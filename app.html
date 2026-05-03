@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2588.2</title>
+<title>Zentryx V2588.3</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -445,7 +445,7 @@ textarea{width:100%;padding:10px}
 @media(min-width:760px){.zx-alert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
 
-/* ===== V2588.2 MANTENIMIENTO POR KM ===== */
+/* ===== V2588.3 MANTENIMIENTO POR KM ===== */
 .zx-maint-grid{
   display:grid;
   grid-template-columns:1fr;
@@ -480,7 +480,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2588.2</h1>
+      <h1>Zentryx V2588.3</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -490,7 +490,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2588.2";
+const VERSION="2588.3";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -2575,7 +2575,7 @@ async function actualizarKmVehiculoSalida(vehiculoId,km){
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
 
-  // V2588.2: vehículo seleccionado leído de forma segura.
+  // V2588.3: vehículo seleccionado leído de forma segura.
   vehiculoIdFichaje = null;
   try{
     vehiculoIdFichaje = (typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : null;
@@ -2584,7 +2584,7 @@ async function guardarMovimiento(tipo){
     vehiculoIdFichaje = null;
   }
 
-  // V2588.2: bloqueo real de salida sin kilómetros.
+  // V2588.3: bloqueo real de salida sin kilómetros.
   const kmValidacionForzada=await validarKmSalidaObligatorio(tipo,vehiculoIdFichaje);
   if(!kmValidacionForzada.ok){
     alert(kmValidacionForzada.mensaje);
@@ -3507,11 +3507,11 @@ function mensajeErrorUsuario(error){
   const msg=String(error?.message||error||"");
 
   if(msg.includes("intervaloSync")){
-    return "Error interno de sincronización. Versión corregida V2588.2.";
+    return "Error interno de sincronización. Versión corregida V2588.3.";
   }
 
   if(msg.includes("vehiculoIdFichaje")){
-    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2588.2.";
+    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2588.3.";
   }
 
   if(msg.includes("Failed to fetch") || msg.includes("Load failed")){
@@ -4586,7 +4586,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2588.2
+  return `MANUAL DE USO ZENTRYX V2588.3
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -5566,7 +5566,7 @@ function opcionesUsuariosVehiculoHTML(usuarios,seleccionado=""){
 
 
 // ===============================
-// MANTENIMIENTO POR KILÓMETROS (V2588.2)
+// MANTENIMIENTO POR KILÓMETROS (V2588.3)
 // ===============================
 
 function componentesMantenimientoDefecto(){
@@ -5592,6 +5592,7 @@ async function leerConfigMantenimientoVehiculo(vehiculoId){
 
   if(error){
     console.warn("Error leyendo mantenimiento",error);
+    alert("No se puede abrir mantenimiento. Revisa que el SQL V2588.3 esté ejecutado. Detalle: "+error.message);
     return componentesMantenimientoDefecto();
   }
 
@@ -5622,6 +5623,20 @@ function estadoMantenimientoComponente(c,kmActual){
   if(faltan<=0)return {estado:"bad",txt:"Vencido",faltan,clase:"bad"};
   if(faltan<=aviso)return {estado:"warn",txt:"Próximo",faltan,clase:"warn"};
   return {estado:"ok",txt:"Correcto",faltan,clase:"ok"};
+}
+
+
+async function abrirMantenimientoVehiculo(vehiculoId){
+  try{
+    if(!vehiculoId){
+      alert("Vehículo no válido.");
+      return;
+    }
+    await pintarMantenimientoVehiculo(vehiculoId);
+  }catch(e){
+    console.error("Error abriendo mantenimiento",e);
+    alert("No se ha podido abrir mantenimiento: "+(e?.message||e));
+  }
 }
 
 async function pintarMantenimientoVehiculo(vehiculoId){
@@ -5968,7 +5983,7 @@ function vehiculoOrgHTML(v,usuariosVehiculos=[]){
 
       <div class="actions">
         <button class="btn blue" onclick="editarVehiculoOrg('${v.id}')">Editar</button>
-        <button class="btn green" onclick="pintarMantenimientoVehiculo('${v.id}')">Mantenimiento</button>
+        <button class="btn green" onclick="abrirMantenimientoVehiculo('${v.id}')">Mantenimiento</button>
         <button class="btn red" onclick="eliminarVehiculoOrg('${v.id}')">Eliminar</button>
       </div>
     </div>
@@ -8084,14 +8099,16 @@ iniciarApp().catch(err=>{
 
 <!-- Manual V2587: Control de uso de vehículo -->
 
-<!-- V2588.2: corregido intervaloSync y vehiculoIdFichaje -->
+<!-- V2588.3: corregido intervaloSync y vehiculoIdFichaje -->
 
-<!-- Manual V2588.2: Corrección asignación única de vehículos -->
+<!-- Manual V2588.3: Corrección asignación única de vehículos -->
 
-<!-- Manual V2588.2: Bloqueo vehículo en uso -->
+<!-- Manual V2588.3: Bloqueo vehículo en uso -->
 
-<!-- Manual V2588.2: Bloqueo reforzado vehículo en uso -->
+<!-- Manual V2588.3: Bloqueo reforzado vehículo en uso -->
 
-<!-- Manual V2588.2: Kilómetros obligatorios al fichar salida -->
+<!-- Manual V2588.3: Kilómetros obligatorios al fichar salida -->
 
-<!-- Manual V2588.2: Mantenimiento por kilómetros -->
+<!-- Manual V2588.3: Mantenimiento por kilómetros -->
+
+<!-- V2588.3: botón mantenimiento corregido -->
