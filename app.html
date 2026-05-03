@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2586</title>
+<title>Zentryx V2587</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -450,7 +450,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2586</h1>
+      <h1>Zentryx V2587</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2586";
+const VERSION="2587";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1978,6 +1978,22 @@ async function crearZonaTrabajoDesdeGPS(){
   if(!nombre || !nombre.trim())return;
 
   const radio=Number(prompt("Radio permitido en metros:", "100")||100);
+  const vehiculoIdFichaje=vehiculoSeleccionadoFichaje();
+
+  if(vehiculoIdFichaje){
+    const usoOtro=await comprobarUsoVehiculoHoy(vehiculoIdFichaje);
+    if(usoOtro){
+      const nombreVeh=nombreVehiculoFichaje(vehiculoIdFichaje)||"vehículo";
+      alert("Aviso: "+nombreVeh+" ya ha sido usado hoy por otro usuario. Se permite continuar, pero queda registrado.");
+      await registrarCambio({
+        accion:"aviso_vehiculo_usado_por_otro_usuario",
+        tabla:"fichajes",
+        motivo:"Vehículo usado por otro usuario en el mismo día",
+        despues:{vehiculo_id:vehiculoIdFichaje,uso_existente:usoOtro,user_id:user?.id||""}
+      });
+    }
+  }
+
   const gps=await obtenerGPS();
 
   if(!gps.ok){
@@ -2333,6 +2349,38 @@ async function cargarVehiculosFichaje(){
   return vehiculosFichajeCache;
 }
 
+function vehiculoAsignadoAlUsuario(){
+  const v=(vehiculosFichajeCache||[]).find(x=>String(x.asignado_id||"")===String(user?.id||""));
+  return v?.id||"";
+}
+
+function vehiculoSugeridoFichaje(){
+  const ultimo=ultimoMovimiento?.();
+  if(ultimo?.vehiculo_id)return ultimo.vehiculo_id;
+  return vehiculoAsignadoAlUsuario();
+}
+
+async function comprobarUsoVehiculoHoy(vehiculoId){
+  if(!vehiculoId)return null;
+
+  const hoy=hoyISO();
+  const {data,error}=await sb
+    .from("fichajes")
+    .select("id,user_id,fecha,vehiculo_id")
+    .eq("vehiculo_id",vehiculoId)
+    .gte("fecha",hoy+"T00:00:00")
+    .lte("fecha",hoy+"T23:59:59");
+
+  if(error){
+    console.warn("No se pudo comprobar uso de vehículo",error);
+    return null;
+  }
+
+  const otro=(data||[]).find(f=>String(f.user_id)!==String(user?.id||""));
+  return otro||null;
+}
+
+
 function nombreVehiculoFichaje(id){
   if(!id)return "";
   const v=(vehiculosFichajeCache||[]).find(x=>String(x.id)===String(id));
@@ -2521,7 +2569,7 @@ async function guardarMovimiento(tipo){
     precision_motivo:motivoPrecisionGPS,
     direccion:gps.direccion,
     direccion_real:direccionReal,
-    vehiculo_id:vehiculoSeleccionadoFichaje()
+    vehiculo_id:vehiculoIdFichaje
   };
 
   const {data:fichajeCreado,error}=await sb.from("fichajes").insert([payload]).select().single();
@@ -2530,6 +2578,23 @@ async function guardarMovimiento(tipo){
     console.error(error);
     alert("Error guardando fichaje: "+error.message);
     return;
+  }
+
+  if(vehiculoIdFichaje){
+    await registrarCambio({
+      accion:"fichaje_con_vehiculo",
+      tabla:"fichajes",
+      registro_id:fichajeCreado?.id||"",
+      motivo:"Fichaje registrado con vehículo",
+      antes:null,
+      despues:{
+        fichaje_id:fichajeCreado?.id||"",
+        vehiculo_id:vehiculoIdFichaje,
+        vehiculo:nombreVehiculoFichaje(vehiculoIdFichaje),
+        user_id:user?.id||"",
+        tipo
+      }
+    });
   }
 
   if(zona && !zona.ok){
@@ -3240,9 +3305,9 @@ async function inicio(){
 
       <label>Vehículo usado en este fichaje</label>
       <select id="fichaje_vehiculo_id">
-        ${opcionesVehiculosFichajeHTML(ultimoMovimiento()?.vehiculo_id||"")}
+        ${opcionesVehiculosFichajeHTML(vehiculoSugeridoFichaje())}
       </select>
-      <span class="zx-help-field">Opcional. Permite saber qué vehículo se usó en cada entrada, salida o pausa.</span>
+      <span class="zx-help-field">Opcional. Si tienes vehículo asignado, aparece seleccionado automáticamente. Si otro usuario ya lo usó hoy, se avisará.</span>
 
       <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
       <div class="actions">
@@ -4263,7 +4328,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2586
+  return `MANUAL DE USO ZENTRYX V2587
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -7344,3 +7409,5 @@ iniciarApp().catch(err=>{
 <!-- Manual V2585: Asignación real de vehículos -->
 
 <!-- Manual V2586: Vehículo en fichaje -->
+
+<!-- Manual V2587: Control de uso de vehículo -->
