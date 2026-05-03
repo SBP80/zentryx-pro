@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2587.5</title>
+<title>Zentryx V2588</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -450,7 +450,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2587.5</h1>
+      <h1>Zentryx V2588</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +460,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2587.5";
+const VERSION="2588";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -1395,6 +1395,7 @@ async function cargarFichajesServidor(){
       precision_modo:f.precision_modo||"",
       precision_motivo:f.precision_motivo||"",
       vehiculo_id:f.vehiculo_id||"",
+      km_salida:f.km_salida||null,
       nota_modificacion:f.nota_modificacion||"",
       modificado_por:f.modificado_por||"",
       modificado_en:f.modificado_en||""
@@ -1997,6 +1998,12 @@ async function crearZonaTrabajoDesdeGPS(){
     }
   }
 
+  const kmValidacion=await validarKmSalidaFichaje(tipo,vehiculoIdFichaje);
+  if(!kmValidacion.ok){
+    alert(kmValidacion.mensaje);
+    return;
+  }
+
   const gps=await obtenerGPS();
 
   if(!gps.ok){
@@ -2461,10 +2468,93 @@ function vehiculoSeleccionadoFichaje(){
   return document.getElementById("fichaje_vehiculo_id")?.value || null;
 }
 
+
+let kmSalidaFichaje=null;
+
+function mostrarCampoKmSalida(tipo){
+  const input=document.getElementById("fichaje_km_salida");
+  const ayuda=document.getElementById("fichaje_km_ayuda");
+  const vehiculoId=vehiculoSeleccionadoFichaje ? vehiculoSeleccionadoFichaje() : "";
+
+  if(!input)return;
+
+  if(tipo==="salida" && vehiculoId){
+    input.style.display="block";
+    if(ayuda)ayuda.style.display="block";
+  }else{
+    input.style.display="none";
+    input.value="";
+    if(ayuda)ayuda.style.display="none";
+  }
+}
+
+async function validarKmSalidaFichaje(tipo,vehiculoId){
+  kmSalidaFichaje=null;
+
+  if(tipo!=="salida" || !vehiculoId){
+    return {ok:true};
+  }
+
+  const input=document.getElementById("fichaje_km_salida");
+  const km=Number(input?.value||0);
+
+  if(!km || Number.isNaN(km) || km<=0){
+    return {
+      ok:false,
+      mensaje:"Para fichar salida con vehículo debes introducir los kilómetros actuales."
+    };
+  }
+
+  const {data,error}=await sb
+    .from("org_vehiculos")
+    .select("id,matricula,modelo,km_actual")
+    .eq("id",vehiculoId)
+    .maybeSingle();
+
+  if(error){
+    return {
+      ok:false,
+      mensaje:"No se han podido comprobar los kilómetros del vehículo: "+error.message
+    };
+  }
+
+  const kmActual=Number(data?.km_actual||0);
+
+  if(kmActual && km<kmActual){
+    return {
+      ok:false,
+      mensaje:`Los kilómetros introducidos (${km}) no pueden ser menores que los actuales del vehículo (${kmActual}).`
+    };
+  }
+
+  kmSalidaFichaje=km;
+  return {ok:true,km,vehiculo:data};
+}
+
+async function actualizarKmVehiculoDespuesFichaje(vehiculoId,km){
+  if(!vehiculoId || !km)return;
+
+  const {error}=await sb
+    .from("org_vehiculos")
+    .update({km_actual:km})
+    .eq("id",vehiculoId);
+
+  if(error){
+    console.warn("No se pudo actualizar km_actual del vehículo",error);
+    await registrarCambio({
+      accion:"error_actualizando_km_vehiculo",
+      tabla:"org_vehiculos",
+      registro_id:vehiculoId,
+      motivo:error.message,
+      despues:{vehiculo_id:vehiculoId,km}
+    });
+  }
+}
+
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
 
-  // V2587.5: vehículo seleccionado leído de forma segura.
+  // V2588: vehículo seleccionado leído de forma segura.
   vehiculoIdFichaje = null;
   try{
     vehiculoIdFichaje = (typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : null;
@@ -2654,7 +2744,8 @@ async function guardarMovimiento(tipo){
     precision_motivo:motivoPrecisionGPS,
     direccion:gps.direccion,
     direccion_real:direccionReal,
-    vehiculo_id:vehiculoIdFichaje
+    vehiculo_id:vehiculoIdFichaje,
+    km_salida:kmSalidaFichaje
   };
 
   const {data:fichajeCreado,error}=await sb.from("fichajes").insert([payload]).select().single();
@@ -2663,6 +2754,10 @@ async function guardarMovimiento(tipo){
     console.error(error);
     alert("Error guardando fichaje: "+error.message);
     return;
+  }
+
+  if(tipo==="salida" && vehiculoIdFichaje && kmSalidaFichaje){
+    await actualizarKmVehiculoDespuesFichaje(vehiculoIdFichaje,kmSalidaFichaje);
   }
 
   if(vehiculoIdFichaje){
@@ -2677,7 +2772,8 @@ async function guardarMovimiento(tipo){
         vehiculo_id:vehiculoIdFichaje,
         vehiculo:nombreVehiculoFichaje(vehiculoIdFichaje),
         user_id:user?.id||"",
-        tipo
+        tipo,
+        km_salida:kmSalidaFichaje
       }
     });
   }
@@ -3359,11 +3455,11 @@ function mensajeErrorUsuario(error){
   const msg=String(error?.message||error||"");
 
   if(msg.includes("intervaloSync")){
-    return "Error interno de sincronización. Versión corregida V2587.5.";
+    return "Error interno de sincronización. Versión corregida V2588.";
   }
 
   if(msg.includes("vehiculoIdFichaje")){
-    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2587.5.";
+    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2588.";
   }
 
   if(msg.includes("Failed to fetch") || msg.includes("Load failed")){
@@ -3409,10 +3505,13 @@ async function inicio(){
       <span class="badge">Comida: ${textoMin(res.comida)}</span>
 
       <label>Vehículo usado en este fichaje</label>
-      <select id="fichaje_vehiculo_id">
+      <select id="fichaje_vehiculo_id" onchange="mostrarCampoKmSalida(estadoActual().accion)">
         ${opcionesVehiculosFichajeHTML(vehiculoSugeridoFichaje())}
       </select>
       <span class="zx-help-field">Opcional. Si tienes vehículo asignado, aparece seleccionado automáticamente. Si otro usuario lo tiene en uso, se bloqueará el fichaje.</span>
+
+      <input id="fichaje_km_salida" type="number" inputmode="numeric" placeholder="Kilómetros actuales al salir" style="display:none;">
+      <span id="fichaje_km_ayuda" class="zx-help-field" style="display:none;">Obligatorio al fichar salida con vehículo. Debe ser igual o superior al kilometraje actual del vehículo.</span>
 
       <button class="btn green full" onclick="accionPrincipal()">${nombreAccion(est.accion)}</button>
       <div class="actions">
@@ -3446,7 +3545,7 @@ async function inicio(){
         <div class="row">
           <b>${nombreAccion(m.tipo)}</b><br>
           ${m.hora}<br>
-          ${m.vehiculo_id?`<span class="badge blue">Vehículo: ${nombreVehiculoFichaje(m.vehiculo_id)||m.vehiculo_id}</span><br>`:""}
+          ${m.vehiculo_id?`<span class="badge blue">Vehículo: ${nombreVehiculoFichaje(m.vehiculo_id)||m.vehiculo_id}</span>${m.km_salida?`<span class="badge">Km salida: ${m.km_salida}</span>`:""}<br>`:""}
           ${m.direccion?`<span class="small">${m.direccion}</span><br>`:""}
           ${m.lat&&m.lng?`<button class="btn gray" onclick="abrirMapaMovimiento(${m.lat},${m.lng})">Abrir mapa</button>`:""}
           ${m.precision_gps?`<br><span class="small">Precisión GPS: ${Math.round(m.precision_gps)} m${m.precision_maxima?` / máx ${m.precision_maxima} m`:""}</span>`:""}
@@ -3458,6 +3557,8 @@ async function inicio(){
         </div>`).join(""):"<p>No hay movimientos todavía.</p>"}
     </div>
   `;
+
+  mostrarCampoKmSalida(est.accion);
 }
 
 function vistaPendiente(titulo){
@@ -4433,7 +4534,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2587.5
+  return `MANUAL DE USO ZENTRYX V2588
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -5463,6 +5564,12 @@ async function pintarOrganizacionVehiculos(){
           <input id="veh_mantenimiento" type="date">
           <span class="zx-help-field">Fecha prevista de revisión, aceite, neumáticos u otro mantenimiento.</span>
         </div>
+
+        <div>
+          <label>Kilómetros actuales</label>
+          <input id="veh_km_actual" type="number" inputmode="numeric" placeholder="Ej: 125000">
+          <span class="zx-help-field">Kilometraje actual del vehículo. Se actualizará automáticamente al fichar salida.</span>
+        </div>
       </div>
 
       <label>Notas</label>
@@ -5489,6 +5596,7 @@ function vehiculoOrgHTML(v,usuariosVehiculos=[]){
       <h3>${v.matricula||"Sin matrícula"}</h3>
       <p><b>Modelo:</b> ${v.modelo||"-"}</p>
       <p><b>Asignado:</b> ${textoAsignacionVehiculo(v,usuariosVehiculos)}</p>
+      <p><b>Kilómetros actuales:</b> ${v.km_actual||0}</p>
 
       ${badgeFechaVehiculo("ITV",v.itv)}
       ${badgeFechaVehiculo("Seguro",v.seguro)}
@@ -5597,6 +5705,7 @@ async function crearVehiculoOrg(){
       itv:campoVeh("veh_itv")||null,
       seguro:campoVeh("veh_seguro")||null,
       mantenimiento:campoVeh("veh_mantenimiento")||null,
+      km_actual:Number(campoVeh("veh_km_actual")||0),
       notas:campoVeh("veh_notas")
     };
 
@@ -5706,6 +5815,12 @@ async function editarVehiculoOrg(id){
           <input id="veh_mantenimiento" type="date" value="${v.mantenimiento||""}">
           <span class="zx-help-field">Fecha prevista de revisión o mantenimiento.</span>
         </div>
+
+        <div>
+          <label>Kilómetros actuales</label>
+          <input id="veh_km_actual" type="number" inputmode="numeric" value="${v.km_actual||0}">
+          <span class="zx-help-field">Kilometraje actual del vehículo. Se actualizará automáticamente al fichar salida.</span>
+        </div>
       </div>
 
       <label>Notas</label>
@@ -5732,6 +5847,7 @@ async function guardarEdicionVehiculoOrg(id){
     itv:campoVeh("veh_itv")||null,
     seguro:campoVeh("veh_seguro")||null,
     mantenimiento:campoVeh("veh_mantenimiento")||null,
+    km_actual:Number(campoVeh("veh_km_actual")||0),
     notas:campoVeh("veh_notas")
   };
 
@@ -7605,10 +7721,12 @@ iniciarApp().catch(err=>{
 
 <!-- Manual V2587: Control de uso de vehículo -->
 
-<!-- V2587.5: corregido intervaloSync y vehiculoIdFichaje -->
+<!-- V2588: corregido intervaloSync y vehiculoIdFichaje -->
 
-<!-- Manual V2587.5: Corrección asignación única de vehículos -->
+<!-- Manual V2588: Corrección asignación única de vehículos -->
 
-<!-- Manual V2587.5: Bloqueo vehículo en uso -->
+<!-- Manual V2588: Bloqueo vehículo en uso -->
 
-<!-- Manual V2587.5: Bloqueo reforzado vehículo en uso -->
+<!-- Manual V2588: Bloqueo reforzado vehículo en uso -->
+
+<!-- Manual V2588: Kilómetros obligatorios al fichar salida -->
