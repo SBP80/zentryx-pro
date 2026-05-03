@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2588.1</title>
+<title>Zentryx V2588.2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -444,13 +444,43 @@ textarea{width:100%;padding:10px}
 .zx-alert-item.ok{background:#f0fdf4;border-color:#bbf7d0;color:#14532d}
 @media(min-width:760px){.zx-alert-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
+
+/* ===== V2588.2 MANTENIMIENTO POR KM ===== */
+.zx-maint-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+}
+.zx-maint-item{
+  border:1px solid #e5e7eb;
+  background:#f8fafc;
+  border-radius:14px;
+  padding:12px;
+  margin:8px 0;
+}
+.zx-maint-item.bad{
+  background:#fef2f2;
+  border-color:#fecaca;
+}
+.zx-maint-item.warn{
+  background:#fffbeb;
+  border-color:#fde68a;
+}
+.zx-maint-item.ok{
+  background:#f0fdf4;
+  border-color:#bbf7d0;
+}
+@media(min-width:760px){
+  .zx-maint-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
 </style>
 </head>
 <body>
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2588.1</h1>
+      <h1>Zentryx V2588.2</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -460,7 +490,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2588.1";
+const VERSION="2588.2";
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -2545,7 +2575,7 @@ async function actualizarKmVehiculoSalida(vehiculoId,km){
 async function guardarMovimiento(tipo){
   await recargarUsuarioActual();
 
-  // V2588.1: vehículo seleccionado leído de forma segura.
+  // V2588.2: vehículo seleccionado leído de forma segura.
   vehiculoIdFichaje = null;
   try{
     vehiculoIdFichaje = (typeof vehiculoSeleccionadoFichaje==="function") ? vehiculoSeleccionadoFichaje() : null;
@@ -2554,7 +2584,7 @@ async function guardarMovimiento(tipo){
     vehiculoIdFichaje = null;
   }
 
-  // V2588.1: bloqueo real de salida sin kilómetros.
+  // V2588.2: bloqueo real de salida sin kilómetros.
   const kmValidacionForzada=await validarKmSalidaObligatorio(tipo,vehiculoIdFichaje);
   if(!kmValidacionForzada.ok){
     alert(kmValidacionForzada.mensaje);
@@ -2756,7 +2786,30 @@ async function guardarMovimiento(tipo){
   }
 
   if(tipo==="salida" && vehiculoIdFichaje && kmSalidaFichaje){
-    await actualizarKmVehiculoSalida(vehiculoIdFichaje,kmSalidaFichaje);
+    const {error:errorKm}=await sb
+      .from("org_vehiculos")
+      .update({km_actual:kmSalidaFichaje})
+      .eq("id",vehiculoIdFichaje);
+
+    if(errorKm){
+      console.error("Error actualizando km vehículo",errorKm);
+      await registrarCambio({
+        accion:"error_km_vehiculo",
+        tabla:"org_vehiculos",
+        registro_id:vehiculoIdFichaje,
+        motivo:errorKm.message,
+        despues:{km_intentado:kmSalidaFichaje}
+      });
+      alert("Fichaje guardado, pero no se pudieron actualizar los kilómetros del vehículo.");
+    }else{
+      await registrarCambio({
+        accion:"km_vehiculo_actualizados",
+        tabla:"org_vehiculos",
+        registro_id:vehiculoIdFichaje,
+        motivo:"Actualización automática al fichar salida",
+        despues:{km_actual:kmSalidaFichaje,fichaje_id:fichajeCreado?.id||""}
+      });
+    }
   }
 
   if(vehiculoIdFichaje){
@@ -3454,11 +3507,11 @@ function mensajeErrorUsuario(error){
   const msg=String(error?.message||error||"");
 
   if(msg.includes("intervaloSync")){
-    return "Error interno de sincronización. Versión corregida V2588.1.";
+    return "Error interno de sincronización. Versión corregida V2588.2.";
   }
 
   if(msg.includes("vehiculoIdFichaje")){
-    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2588.1.";
+    return "Error interno al preparar el vehículo del fichaje. Versión corregida V2588.2.";
   }
 
   if(msg.includes("Failed to fetch") || msg.includes("Load failed")){
@@ -4533,7 +4586,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2588.1
+  return `MANUAL DE USO ZENTRYX V2588.2
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -5511,6 +5564,316 @@ function opcionesUsuariosVehiculoHTML(usuarios,seleccionado=""){
   `;
 }
 
+
+// ===============================
+// MANTENIMIENTO POR KILÓMETROS (V2588.2)
+// ===============================
+
+function componentesMantenimientoDefecto(){
+  return [
+    {clave:"aceite",nombre:"Aceite motor",cada_km:15000,aviso_km:1000},
+    {clave:"filtro_aceite",nombre:"Filtro aceite",cada_km:15000,aviso_km:1000},
+    {clave:"filtro_aire",nombre:"Filtro aire",cada_km:30000,aviso_km:2000},
+    {clave:"filtro_gasoil",nombre:"Filtro combustible",cada_km:30000,aviso_km:2000},
+    {clave:"neumaticos",nombre:"Neumáticos",cada_km:40000,aviso_km:3000},
+    {clave:"frenos",nombre:"Frenos",cada_km:50000,aviso_km:3000},
+    {clave:"distribucion",nombre:"Correa distribución",cada_km:120000,aviso_km:5000}
+  ];
+}
+
+async function leerConfigMantenimientoVehiculo(vehiculoId){
+  if(!vehiculoId)return componentesMantenimientoDefecto();
+
+  const {data,error}=await sb
+    .from("org_vehiculos_mantenimiento")
+    .select("*")
+    .eq("vehiculo_id",vehiculoId)
+    .order("created_at",{ascending:true});
+
+  if(error){
+    console.warn("Error leyendo mantenimiento",error);
+    return componentesMantenimientoDefecto();
+  }
+
+  if(!data || !data.length)return componentesMantenimientoDefecto();
+
+  return data.map(x=>({
+    id:x.id,
+    clave:x.clave,
+    nombre:x.nombre,
+    cada_km:Number(x.cada_km||0),
+    aviso_km:Number(x.aviso_km||0),
+    ultimo_km:Number(x.ultimo_km||0),
+    notas:x.notas||""
+  }));
+}
+
+function estadoMantenimientoComponente(c,kmActual){
+  const cada=Number(c.cada_km||0);
+  const aviso=Number(c.aviso_km||0);
+  const ultimo=Number(c.ultimo_km||0);
+  const km=Number(kmActual||0);
+
+  if(!cada)return {estado:"ok",txt:"Sin intervalo",faltan:null,clase:"ok"};
+
+  const proximo=ultimo+cada;
+  const faltan=proximo-km;
+
+  if(faltan<=0)return {estado:"bad",txt:"Vencido",faltan,clase:"bad"};
+  if(faltan<=aviso)return {estado:"warn",txt:"Próximo",faltan,clase:"warn"};
+  return {estado:"ok",txt:"Correcto",faltan,clase:"ok"};
+}
+
+async function pintarMantenimientoVehiculo(vehiculoId){
+  if(!esPerfilAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const {data:vehiculo,error}=await sb
+    .from("org_vehiculos")
+    .select("*")
+    .eq("id",vehiculoId)
+    .maybeSingle();
+
+  if(error || !vehiculo){
+    alert("No se encuentra el vehículo.");
+    return;
+  }
+
+  const componentes=await leerConfigMantenimientoVehiculo(vehiculoId);
+  const kmActual=Number(vehiculo.km_actual||0);
+  const body=document.getElementById("orgBody");
+
+  body.innerHTML=`
+    <div class="card">
+      <button class="btn gray" onclick="vistaOrganizacion('vehiculos')">← Volver</button>
+      <h2>Mantenimiento</h2>
+      <p><b>${vehiculo.matricula||""}</b> ${vehiculo.modelo||""}</p>
+      <span class="badge">Km actuales: ${kmActual}</span>
+      <p class="small">Configura cada cuántos kilómetros se cambia cada componente y desde qué kilometraje se quiere avisar.</p>
+
+      <button class="btn blue full" onclick="crearComponenteMantenimiento('${vehiculoId}')">+ Añadir componente</button>
+      <button class="btn gray full" onclick="crearMantenimientoDefecto('${vehiculoId}')">Crear componentes recomendados</button>
+    </div>
+
+    <div class="card">
+      <h2>Componentes</h2>
+      ${componentes.length?componentes.map(c=>{
+        const est=estadoMantenimientoComponente(c,kmActual);
+        return `
+          <div class="zx-maint-item ${est.clase}">
+            <h3>${c.nombre||"Componente"}</h3>
+            <span class="badge ${est.clase==="bad"?"red":est.clase==="warn"?"orange":"green"}">${est.txt}</span>
+            <p><b>Cada:</b> ${c.cada_km||0} km</p>
+            <p><b>Avisar cuando falten:</b> ${c.aviso_km||0} km</p>
+            <p><b>Último cambio:</b> ${c.ultimo_km||0} km</p>
+            ${est.faltan!==null?`<p><b>Faltan:</b> ${est.faltan} km</p>`:""}
+            ${c.notas?`<p><b>Notas:</b> ${c.notas}</p>`:""}
+            <div class="actions">
+              <button class="btn blue" onclick="editarComponenteMantenimiento('${vehiculoId}','${c.id||""}','${c.clave||""}')">Editar</button>
+              <button class="btn green" onclick="marcarComponenteCambiado('${vehiculoId}','${c.id||""}','${c.clave||""}',${kmActual})">Marcar cambiado ahora</button>
+              ${c.id?`<button class="btn red" onclick="eliminarComponenteMantenimiento('${vehiculoId}','${c.id}')">Eliminar</button>`:""}
+            </div>
+          </div>
+        `;
+      }).join(""):"<p>No hay componentes configurados.</p>"}
+    </div>
+  `;
+}
+
+async function crearMantenimientoDefecto(vehiculoId){
+  const existentes=await leerConfigMantenimientoVehiculo(vehiculoId);
+  const hayReales=existentes.some(x=>x.id);
+
+  if(hayReales && !confirm("Ya hay componentes creados. ¿Añadir igualmente los recomendados que falten?"))return;
+
+  const defaults=componentesMantenimientoDefecto();
+
+  for(const c of defaults){
+    const {data:ya}=await sb
+      .from("org_vehiculos_mantenimiento")
+      .select("id")
+      .eq("vehiculo_id",vehiculoId)
+      .eq("clave",c.clave)
+      .maybeSingle();
+
+    if(!ya){
+      await sb.from("org_vehiculos_mantenimiento").insert([{
+        vehiculo_id:vehiculoId,
+        clave:c.clave,
+        nombre:c.nombre,
+        cada_km:c.cada_km,
+        aviso_km:c.aviso_km,
+        ultimo_km:0,
+        notas:""
+      }]);
+    }
+  }
+
+  await pintarMantenimientoVehiculo(vehiculoId);
+}
+
+async function crearComponenteMantenimiento(vehiculoId){
+  const nombre=prompt("Nombre del componente:", "Aceite motor");
+  if(!nombre)return;
+
+  const cada=Number(prompt("¿Cada cuántos kilómetros se cambia?", "15000")||0);
+  if(!cada){
+    alert("Introduce kilómetros válidos.");
+    return;
+  }
+
+  const aviso=Number(prompt("¿Cuántos km antes quieres aviso?", "1000")||0);
+  const ultimo=Number(prompt("Kilómetros del último cambio:", "0")||0);
+  const clave=nombre.toLowerCase().replaceAll(" ","_").replace(/[^a-z0-9_]/g,"");
+
+  const {error}=await sb.from("org_vehiculos_mantenimiento").insert([{
+    vehiculo_id:vehiculoId,
+    clave,
+    nombre,
+    cada_km:cada,
+    aviso_km:aviso,
+    ultimo_km:ultimo,
+    notas:""
+  }]);
+
+  if(error){
+    alert("Error creando componente: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"mantenimiento_componente_creado",
+    tabla:"org_vehiculos_mantenimiento",
+    registro_id:vehiculoId,
+    motivo:"Creación de componente de mantenimiento",
+    despues:{vehiculo_id:vehiculoId,nombre,cada,aviso,ultimo}
+  });
+
+  await pintarMantenimientoVehiculo(vehiculoId);
+}
+
+async function editarComponenteMantenimiento(vehiculoId,id,clave){
+  let componente=null;
+
+  if(id){
+    const {data}=await sb.from("org_vehiculos_mantenimiento").select("*").eq("id",id).maybeSingle();
+    componente=data;
+  }
+
+  if(!componente){
+    const defs=componentesMantenimientoDefecto();
+    componente=defs.find(x=>x.clave===clave);
+  }
+
+  if(!componente){
+    alert("No se encuentra el componente.");
+    return;
+  }
+
+  const nombre=prompt("Nombre:", componente.nombre||"");
+  if(!nombre)return;
+
+  const cada=Number(prompt("Cada cuántos km:", componente.cada_km||15000)||0);
+  const aviso=Number(prompt("Avisar cuando falten km:", componente.aviso_km||1000)||0);
+  const ultimo=Number(prompt("Kilómetros del último cambio:", componente.ultimo_km||0)||0);
+  const notas=prompt("Notas:", componente.notas||"")||"";
+
+  const payload={
+    vehiculo_id:vehiculoId,
+    clave:componente.clave||nombre.toLowerCase().replaceAll(" ","_").replace(/[^a-z0-9_]/g,""),
+    nombre,
+    cada_km:cada,
+    aviso_km:aviso,
+    ultimo_km:ultimo,
+    notas
+  };
+
+  let error=null;
+
+  if(id){
+    const res=await sb.from("org_vehiculos_mantenimiento").update(payload).eq("id",id);
+    error=res.error;
+  }else{
+    const res=await sb.from("org_vehiculos_mantenimiento").insert([payload]);
+    error=res.error;
+  }
+
+  if(error){
+    alert("Error guardando componente: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"mantenimiento_componente_editado",
+    tabla:"org_vehiculos_mantenimiento",
+    registro_id:id||vehiculoId,
+    motivo:"Edición de componente de mantenimiento",
+    despues:payload
+  });
+
+  await pintarMantenimientoVehiculo(vehiculoId);
+}
+
+async function marcarComponenteCambiado(vehiculoId,id,clave,kmActual){
+  const km=Number(prompt("Kilómetros actuales del cambio:", String(kmActual||0))||0);
+  if(!km){
+    alert("Introduce kilómetros válidos.");
+    return;
+  }
+
+  if(!id){
+    await editarComponenteMantenimiento(vehiculoId,id,clave);
+    return;
+  }
+
+  const {data,error}=await sb
+    .from("org_vehiculos_mantenimiento")
+    .update({ultimo_km:km})
+    .eq("id",id)
+    .select()
+    .single();
+
+  if(error){
+    alert("Error marcando cambio: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"mantenimiento_componente_cambiado",
+    tabla:"org_vehiculos_mantenimiento",
+    registro_id:id,
+    motivo:"Componente marcado como cambiado",
+    despues:data
+  });
+
+  await pintarMantenimientoVehiculo(vehiculoId);
+}
+
+async function eliminarComponenteMantenimiento(vehiculoId,id){
+  if(!confirm("¿Eliminar componente de mantenimiento?"))return;
+
+  const antes=await leerRegistroPorId("org_vehiculos_mantenimiento",id);
+  const {error}=await sb.from("org_vehiculos_mantenimiento").delete().eq("id",id);
+
+  if(error){
+    alert("Error eliminando componente: "+error.message);
+    return;
+  }
+
+  await registrarCambio({
+    accion:"mantenimiento_componente_eliminado",
+    tabla:"org_vehiculos_mantenimiento",
+    registro_id:id,
+    motivo:"Eliminación de componente de mantenimiento",
+    antes,
+    despues:null
+  });
+
+  await pintarMantenimientoVehiculo(vehiculoId);
+}
+
 async function pintarOrganizacionVehiculos(){
   const body=document.getElementById("orgBody");
   if(!body)return;
@@ -5605,6 +5968,7 @@ function vehiculoOrgHTML(v,usuariosVehiculos=[]){
 
       <div class="actions">
         <button class="btn blue" onclick="editarVehiculoOrg('${v.id}')">Editar</button>
+        <button class="btn green" onclick="pintarMantenimientoVehiculo('${v.id}')">Mantenimiento</button>
         <button class="btn red" onclick="eliminarVehiculoOrg('${v.id}')">Eliminar</button>
       </div>
     </div>
@@ -7720,12 +8084,14 @@ iniciarApp().catch(err=>{
 
 <!-- Manual V2587: Control de uso de vehículo -->
 
-<!-- V2588.1: corregido intervaloSync y vehiculoIdFichaje -->
+<!-- V2588.2: corregido intervaloSync y vehiculoIdFichaje -->
 
-<!-- Manual V2588.1: Corrección asignación única de vehículos -->
+<!-- Manual V2588.2: Corrección asignación única de vehículos -->
 
-<!-- Manual V2588.1: Bloqueo vehículo en uso -->
+<!-- Manual V2588.2: Bloqueo vehículo en uso -->
 
-<!-- Manual V2588.1: Bloqueo reforzado vehículo en uso -->
+<!-- Manual V2588.2: Bloqueo reforzado vehículo en uso -->
 
-<!-- Manual V2588.1: Kilómetros obligatorios al fichar salida -->
+<!-- Manual V2588.2: Kilómetros obligatorios al fichar salida -->
+
+<!-- Manual V2588.2: Mantenimiento por kilómetros -->
