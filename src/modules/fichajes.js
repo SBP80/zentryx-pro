@@ -1,23 +1,25 @@
 // ===============================
-// ZENTRYX V2604 - KM EN SALIDA DESDE MODULO
+// ZENTRYX V2605 - KM INTEGRADO REAL
 // ===============================
 
 (function(){
   "use strict";
 
+  let kmCapturado = null;
+
   const MODULO = {
     nombre: "fichajes",
-    version: "2604",
+    version: "2605",
 
     init: function(){
-      console.log("Fichajes módulo control km activo");
-      controlarSalida();
+      console.log("Módulo fichajes V2605 activo");
+      interceptarSalida();
     }
   };
 
-  function controlarSalida(){
+  function interceptarSalida(){
 
-    document.addEventListener("click", async function(e){
+    document.addEventListener("click", function(e){
 
       const btn = e.target.closest("button");
       if(!btn) return;
@@ -26,30 +28,33 @@
 
       if(!texto.includes("salida")) return;
 
-      console.log("Interceptado salida");
+      // evitar bucle
+      if(btn.dataset.zxProcesado === "1") return;
 
-      // Bloquear ejecución original momentáneamente
       e.preventDefault();
       e.stopPropagation();
 
-      // Pedir km
-      const km = prompt("Introduce los km actuales del vehículo:");
+      const km = prompt("Introduce los km actuales:");
 
       if(!km || isNaN(km)){
         alert("Debes introducir un número válido");
         return;
       }
 
-      console.log("KM introducidos:", km);
+      kmCapturado = Number(km);
 
-      // Guardar en variable global temporal
-      window.ZENTRYX_KM_SALIDA = Number(km);
+      // guardar en global REAL
+      window.ZENTRYX_KM_SALIDA = kmCapturado;
 
-      // 🔥 IMPORTANTE:
-      // volver a lanzar el click original SIN bloquear
+      console.log("KM enviados al sistema:", kmCapturado);
+
+      // marcar botón para evitar loop
+      btn.dataset.zxProcesado = "1";
+
+      // relanzar click original
       setTimeout(()=>{
         btn.click();
-      }, 100);
+      }, 50);
 
     }, true);
   }
