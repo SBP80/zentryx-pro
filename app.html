@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2602</title>
+<title>Zentryx V2603</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -504,7 +504,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2602</h1>
+      <h1>Zentryx V2603</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -514,7 +514,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2602"
+const VERSION="2603"
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -3527,7 +3527,6 @@ async function limpiarPrueba(){
   inicio();
 }
 
-async 
 function mensajeErrorUsuario(error){
   const msg=String(error?.message||error||"");
 
@@ -4687,7 +4686,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2602
+  return `MANUAL DE USO ZENTRYX V2603
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -8381,7 +8380,7 @@ iniciarApp().catch(err=>{
 });
 </script>
 
-<!-- ZENTRYX V2602 - LOADER MODULAR -->
+<!-- ZENTRYX V2603 - LOADER MODULAR -->
 <script src="src/app.js"></script>
 <script src="src/modules/fichajes.js"></script>
 </body>
@@ -8419,4 +8418,4 @@ iniciarApp().catch(err=>{
 
 <!-- V2592: histórico real de mantenimiento por vehículo y componente -->
 
-<!-- V2602: app completa estable + loader modular conectado -->
+<!-- V2603: app completa estable + loader modular conectado -->
