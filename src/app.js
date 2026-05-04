@@ -1,13 +1,11 @@
 // ===============================
-// ZENTRYX V2605 - ARRANQUE MODULAR
+// ZENTRYX V2606 - ARRANQUE MODULAR
 // ===============================
-// Este archivo NO sustituye todavía la app grande.
-// Solo crea la base modular para ir sacando módulos poco a poco sin romper nada.
 
 (function(){
   "use strict";
 
-  const VERSION = "2605";
+  const VERSION = "2606";
 
   window.ZENTRYX = window.ZENTRYX || {
     version: VERSION,
@@ -16,6 +14,7 @@
   };
 
   window.ZENTRYX.version = VERSION;
+  window.ZENTRYX.modulos = window.ZENTRYX.modulos || {};
 
   window.ZENTRYX.registrarModulo = function(nombre, modulo){
     if(!nombre){
