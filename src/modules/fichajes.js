@@ -1,107 +1,96 @@
 // ===============================
-// ZENTRYX V2605 - MÓDULO FICHAJES
+// ZENTRYX V2606 - MÓDULO FICHAJES
 // ===============================
-// Controla la petición de kilómetros al pulsar salida.
-// app.html usa window.ZENTRYX_KM_SALIDA como valor oficial.
 
 (function(){
   "use strict";
 
-  let ultimoBotonProcesado = null;
-
   const MODULO = {
     nombre: "fichajes",
-    version: "2605",
+    version: "2606",
     activo: true,
 
     init: function(){
-      console.log("Módulo fichajes V2605 activo");
-      crearIndicadorModulo();
+      console.log("Módulo fichajes V2606 activo");
+      crearAvisoVisible();
       interceptarSalida();
       return true;
     }
   };
 
-  function crearIndicadorModulo(){
-    if(document.getElementById("zx_mod_fichajes_badge")) return;
+  function crearAvisoVisible(){
+    var viejo = document.getElementById("zx_mod_fichajes_banner");
+    if(viejo) viejo.remove();
 
-    const badge = document.createElement("div");
-    badge.id = "zx_mod_fichajes_badge";
-    badge.textContent = "Fichajes módulo OK";
-    badge.style.position = "fixed";
-    badge.style.left = "10px";
-    badge.style.bottom = "10px";
-    badge.style.zIndex = "99999";
-    badge.style.background = "#dcfce7";
-    badge.style.color = "#166534";
-    badge.style.border = "1px solid #86efac";
-    badge.style.borderRadius = "999px";
-    badge.style.padding = "7px 10px";
-    badge.style.fontSize = "12px";
-    badge.style.fontWeight = "800";
-    badge.style.boxShadow = "0 8px 20px rgba(0,0,0,.18)";
-
-    document.body.appendChild(badge);
+    var aviso = document.createElement("div");
+    aviso.id = "zx_mod_fichajes_banner";
+    aviso.textContent = "MÓDULO FICHAJES CARGADO V2606";
+    aviso.style.position = "fixed";
+    aviso.style.top = "10px";
+    aviso.style.left = "10px";
+    aviso.style.right = "10px";
+    aviso.style.zIndex = "999999";
+    aviso.style.background = "#dcfce7";
+    aviso.style.color = "#166534";
+    aviso.style.border = "2px solid #22c55e";
+    aviso.style.borderRadius = "14px";
+    aviso.style.padding = "12px";
+    aviso.style.fontWeight = "900";
+    aviso.style.textAlign = "center";
+    aviso.style.boxShadow = "0 10px 24px rgba(0,0,0,.22)";
+    document.body.appendChild(aviso);
 
     setTimeout(function(){
-      badge.style.opacity = ".45";
-    }, 5000);
-  }
-
-  function textoBoton(btn){
-    return String(btn.innerText || btn.textContent || "").toLowerCase();
+      aviso.style.opacity = ".55";
+    }, 6000);
   }
 
   function esBotonSalida(btn){
-    return textoBoton(btn).indexOf("salida") !== -1;
+    var texto = String(btn.innerText || btn.textContent || "").toLowerCase();
+    return texto.indexOf("salida") !== -1;
   }
 
   async function vehiculoSeleccionado(){
     if(typeof window.vehiculoSeleccionadoFichaje === "function"){
       return window.vehiculoSeleccionadoFichaje();
     }
-
-    const select = document.getElementById("fichaje_vehiculo_id");
+    var select = document.getElementById("fichaje_vehiculo_id");
     return select ? select.value : "";
   }
 
   async function leerVehiculo(vehiculoId){
-    if(!vehiculoId || !window.sb){
-      return null;
-    }
+    if(!vehiculoId || !window.sb) return null;
 
-    const {data,error} = await window.sb
+    var res = await window.sb
       .from("org_vehiculos")
       .select("id,matricula,modelo,km_actual")
       .eq("id", vehiculoId)
       .maybeSingle();
 
-    if(error){
-      console.warn("No se pudo leer vehículo desde módulo fichajes", error);
+    if(res.error){
+      console.warn("No se pudo leer vehículo desde módulo fichajes", res.error);
       return null;
     }
 
-    return data || null;
+    return res.data || null;
   }
 
   async function pedirKmSalida(vehiculoId){
-    const vehiculo = await leerVehiculo(vehiculoId);
-    const kmActual = Number(vehiculo && vehiculo.km_actual ? vehiculo.km_actual : 0);
-    const nombre = vehiculo
+    var vehiculo = await leerVehiculo(vehiculoId);
+    var kmActual = Number(vehiculo && vehiculo.km_actual ? vehiculo.km_actual : 0);
+    var nombre = vehiculo
       ? String((vehiculo.matricula || "Vehículo") + " " + (vehiculo.modelo || "")).trim()
       : "vehículo";
 
     while(true){
-      const valor = prompt(
+      var valor = prompt(
         "Introduce los kilómetros actuales de " + nombre + ".\n\nKm actuales guardados: " + kmActual,
         kmActual ? String(kmActual) : ""
       );
 
-      if(valor === null){
-        return {ok:false, cancelado:true};
-      }
+      if(valor === null) return {ok:false, cancelado:true};
 
-      const km = Number(String(valor).replace(",", ".").trim());
+      var km = Number(String(valor).replace(",", ".").trim());
 
       if(!km || Number.isNaN(km) || km <= 0){
         alert("Introduce kilómetros válidos.");
@@ -119,44 +108,30 @@
 
   function interceptarSalida(){
     document.addEventListener("click", async function(e){
-      const btn = e.target.closest("button");
+      var btn = e.target.closest("button");
       if(!btn) return;
       if(!esBotonSalida(btn)) return;
 
-      // Si este click lo relanza el módulo, se deja pasar a la app principal.
       if(btn.dataset.zxKmModuloListo === "1"){
         btn.dataset.zxKmModuloListo = "0";
         return;
       }
 
-      // Evita dobles pulsaciones seguidas.
-      if(ultimoBotonProcesado === btn && btn.dataset.zxKmModuloProcesando === "1"){
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        return;
-      }
-
-      ultimoBotonProcesado = btn;
-      btn.dataset.zxKmModuloProcesando = "1";
-
       e.preventDefault();
       e.stopImmediatePropagation();
 
       try{
-        const vehiculoId = await vehiculoSeleccionado();
+        var vehiculoId = await vehiculoSeleccionado();
 
         if(!vehiculoId){
-          // Sin vehículo, deja que el sistema original continúe.
           btn.dataset.zxKmModuloListo = "1";
-          btn.dataset.zxKmModuloProcesando = "0";
           setTimeout(function(){ btn.click(); }, 30);
           return;
         }
 
-        const res = await pedirKmSalida(vehiculoId);
+        var res = await pedirKmSalida(vehiculoId);
 
         if(!res.ok){
-          btn.dataset.zxKmModuloProcesando = "0";
           window.ZENTRYX_KM_SALIDA = null;
           alert("Salida cancelada. Para cerrar jornada con vehículo debes introducir los kilómetros.");
           return;
@@ -170,15 +145,10 @@
         };
 
         btn.dataset.zxKmModuloListo = "1";
-        btn.dataset.zxKmModuloProcesando = "0";
-
-        setTimeout(function(){
-          btn.click();
-        }, 30);
+        setTimeout(function(){ btn.click(); }, 30);
 
       }catch(err){
-        console.error("Error en módulo fichajes V2605", err);
-        btn.dataset.zxKmModuloProcesando = "0";
+        console.error("Error en módulo fichajes V2606", err);
         window.ZENTRYX_KM_SALIDA = null;
         alert("No se pudo preparar la salida: " + ((err && err.message) || err));
       }
