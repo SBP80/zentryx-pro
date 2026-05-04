@@ -1,17 +1,19 @@
 // ===============================
-// ZENTRYX V2602 - MÓDULO FICHAJES
+// ZENTRYX V2603 - MÓDULO FICHAJES
 // ===============================
+// Módulo externo visible y seguro.
+// No modifica todavía la lógica interna de fichaje.
 
 (function(){
   "use strict";
 
   const MODULO = {
     nombre: "fichajes",
-    version: "2602",
+    version: "2603",
     activo: true,
 
     init: function(){
-      console.log("Módulo fichajes V2602 cargado");
+      console.log("Módulo fichajes V2603 cargado");
 
       window.ZENTRYX.ficharDebug = function(){
         alert("Módulo fichajes externo cargado correctamente");
@@ -58,7 +60,7 @@
 
       const texto = String(btn.innerText || btn.textContent || "").toLowerCase();
 
-      if(texto.includes("salida")){
+      if(texto.indexOf("salida") !== -1){
         console.log("Módulo fichajes detectó botón de salida");
         window.ZENTRYX.ultimoEventoModuloFichajes = {
           tipo: "boton_salida_detectado",
