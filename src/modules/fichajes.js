@@ -1,94 +1,69 @@
 // ===============================
-// ZENTRYX V2603 - MÓDULO FICHAJES
+// ZENTRYX V2604 - KM EN SALIDA DESDE MODULO
 // ===============================
-// Módulo externo visible y seguro.
-// No modifica todavía la lógica interna de fichaje.
 
 (function(){
   "use strict";
 
   const MODULO = {
     nombre: "fichajes",
-    version: "2603",
-    activo: true,
+    version: "2604",
 
     init: function(){
-      console.log("Módulo fichajes V2603 cargado");
-
-      window.ZENTRYX.ficharDebug = function(){
-        alert("Módulo fichajes externo cargado correctamente");
-        console.log("Fichaje desde módulo externo OK");
-        return true;
-      };
-
-      crearIndicadorModulo();
-      activarDetectorBotones();
-      return true;
+      console.log("Fichajes módulo control km activo");
+      controlarSalida();
     }
   };
 
-  function crearIndicadorModulo(){
-    if(document.getElementById("zx_mod_fichajes_badge")) return;
+  function controlarSalida(){
 
-    const badge = document.createElement("div");
-    badge.id = "zx_mod_fichajes_badge";
-    badge.textContent = "Fichajes módulo OK";
-    badge.style.position = "fixed";
-    badge.style.left = "10px";
-    badge.style.bottom = "10px";
-    badge.style.zIndex = "99999";
-    badge.style.background = "#dcfce7";
-    badge.style.color = "#166534";
-    badge.style.border = "1px solid #86efac";
-    badge.style.borderRadius = "999px";
-    badge.style.padding = "7px 10px";
-    badge.style.fontSize = "12px";
-    badge.style.fontWeight = "800";
-    badge.style.boxShadow = "0 8px 20px rgba(0,0,0,.18)";
+    document.addEventListener("click", async function(e){
 
-    document.body.appendChild(badge);
-
-    setTimeout(function(){
-      badge.style.opacity = ".45";
-    }, 5000);
-  }
-
-  function activarDetectorBotones(){
-    document.addEventListener("click", function(e){
       const btn = e.target.closest("button");
       if(!btn) return;
 
-      const texto = String(btn.innerText || btn.textContent || "").toLowerCase();
+      const texto = (btn.innerText || "").toLowerCase();
 
-      if(texto.indexOf("salida") !== -1){
-        console.log("Módulo fichajes detectó botón de salida");
-        window.ZENTRYX.ultimoEventoModuloFichajes = {
-          tipo: "boton_salida_detectado",
-          fecha: new Date().toISOString()
-        };
+      if(!texto.includes("salida")) return;
+
+      console.log("Interceptado salida");
+
+      // Bloquear ejecución original momentáneamente
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Pedir km
+      const km = prompt("Introduce los km actuales del vehículo:");
+
+      if(!km || isNaN(km)){
+        alert("Debes introducir un número válido");
+        return;
       }
+
+      console.log("KM introducidos:", km);
+
+      // Guardar en variable global temporal
+      window.ZENTRYX_KM_SALIDA = Number(km);
+
+      // 🔥 IMPORTANTE:
+      // volver a lanzar el click original SIN bloquear
+      setTimeout(()=>{
+        btn.click();
+      }, 100);
+
     }, true);
   }
 
   function registrar(){
-    if(!window.ZENTRYX || typeof window.ZENTRYX.registrarModulo !== "function"){
+    if(!window.ZENTRYX){
       setTimeout(registrar, 100);
       return;
     }
 
     window.ZENTRYX.registrarModulo("fichajes", MODULO);
-
-    try{
-      MODULO.init();
-    }catch(e){
-      console.error("Error inicializando módulo fichajes:", e);
-      alert("Error cargando módulo fichajes: " + ((e && e.message) || e));
-    }
+    MODULO.init();
   }
 
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", registrar);
-  }else{
-    registrar();
-  }
+  registrar();
+
 })();
