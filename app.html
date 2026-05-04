@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2603</title>
+<title>Zentryx V2605</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -504,7 +504,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2603</h1>
+      <h1>Zentryx V2605</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -514,7 +514,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2603"
+const VERSION="2605"
 
 window.addEventListener('error',function(e){
   const app=document.getElementById("app");
@@ -2545,6 +2545,24 @@ async function validarKmSalidaObligatorio(tipo,vehiculoId){
   const kmActual=Number(data?.km_actual||0);
   const nombreVehiculo=`${data?.matricula||"Vehículo"} ${data?.modelo||""}`.trim();
 
+  // V2605: prioridad al módulo externo src/modules/fichajes.js
+  let kmDesdeModulo=Number(window.ZENTRYX_KM_SALIDA||0);
+
+  if(kmDesdeModulo){
+    if(kmDesdeModulo<kmActual){
+      window.ZENTRYX_KM_SALIDA=null;
+      return {
+        ok:false,
+        mensaje:`Los kilómetros introducidos (${kmDesdeModulo}) no pueden ser menores que los actuales del vehículo (${kmActual}).`
+      };
+    }
+
+    kmSalidaFichaje=kmDesdeModulo;
+    window.ZENTRYX_KM_SALIDA=null;
+    return {ok:true,km:kmSalidaFichaje,vehiculo:data};
+  }
+
+  // Seguridad: si el módulo no ha cargado, se mantiene el sistema antiguo.
   let km=null;
 
   while(true){
@@ -4686,7 +4704,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2603
+  return `MANUAL DE USO ZENTRYX V2605
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -8380,7 +8398,7 @@ iniciarApp().catch(err=>{
 });
 </script>
 
-<!-- ZENTRYX V2603 - LOADER MODULAR -->
+<!-- ZENTRYX V2605 - LOADER MODULAR -->
 <script src="src/app.js"></script>
 <script src="src/modules/fichajes.js"></script>
 </body>
@@ -8418,4 +8436,4 @@ iniciarApp().catch(err=>{
 
 <!-- V2592: histórico real de mantenimiento por vehículo y componente -->
 
-<!-- V2603: app completa estable + loader modular conectado -->
+<!-- V2605: app completa estable + loader modular conectado -->
