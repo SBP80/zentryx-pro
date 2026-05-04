@@ -1,5 +1,5 @@
 // ===============================
-// ZENTRYX V2607 - SIMPLE Y ROBUSTO
+// ZENTRYX V2608 - KM + VEHÍCULO + HISTÓRICO
 // ===============================
 
 (function(){
@@ -7,39 +7,22 @@
 
   const MODULO = {
     nombre: "fichajes",
-    version: "2607",
+    version: "2608",
 
     init: function(){
-      console.log("Módulo fichajes limpio activo");
-      aviso();
-      interceptar();
+      console.log("Módulo fichajes V2608 activo");
+      interceptarSalida();
     }
   };
 
-  function aviso(){
-    const a = document.createElement("div");
-    a.textContent = "FICHAJES MOD OK V2607";
-    a.style.position="fixed";
-    a.style.top="10px";
-    a.style.left="10px";
-    a.style.right="10px";
-    a.style.zIndex="999999";
-    a.style.background="#dcfce7";
-    a.style.color="#166534";
-    a.style.padding="10px";
-    a.style.textAlign="center";
-    a.style.fontWeight="900";
-    document.body.appendChild(a);
-  }
-
-  function interceptar(){
+  function interceptarSalida(){
 
     document.addEventListener("click", function(e){
 
       const btn = e.target.closest("button");
       if(!btn) return;
 
-      const txt = (btn.innerText||"").toLowerCase();
+      const txt = (btn.innerText || "").toLowerCase();
 
       if(!txt.includes("salida")) return;
 
@@ -63,12 +46,52 @@
         return;
       }
 
-      // 🔥 SOLO PASAMOS EL DATO
       window.ZENTRYX_KM_SALIDA = Number(km);
 
       btn.dataset.ok="1";
 
-      setTimeout(()=>btn.click(),50);
+      setTimeout(async ()=>{
+
+        btn.click();
+
+        // 🔥 DESPUÉS DE FICHAR → actualizar vehículo
+        setTimeout(async ()=>{
+
+          try{
+
+            if(!window.sb) return;
+
+            const vehiculoId = document.getElementById("fichaje_vehiculo_id")?.value;
+            if(!vehiculoId) return;
+
+            const kmFinal = window.ZENTRYX_KM_SALIDA;
+
+            // actualizar km actual
+            await window.sb
+              .from("org_vehiculos")
+              .update({ km_actual: kmFinal })
+              .eq("id", vehiculoId);
+
+            console.log("Vehículo actualizado con km:", kmFinal);
+
+            // 🔥 guardar histórico
+            await window.sb
+              .from("org_vehiculos_km_historial")
+              .insert({
+                vehiculo_id: vehiculoId,
+                km: kmFinal,
+                fecha: new Date().toISOString()
+              });
+
+            console.log("Histórico guardado");
+
+          }catch(err){
+            console.error("Error guardando km:", err);
+          }
+
+        }, 300);
+
+      }, 50);
 
     }, true);
   }
