@@ -1,65 +1,64 @@
 // ===============================
-// ZENTRYX V2609 - MODULO VEHICULOS BASE
+// ZENTRYX V2609 - MÓDULO VEHÍCULOS
 // ===============================
-
 (function(){
   "use strict";
-
   const MODULO = {
     nombre: "vehiculos",
     version: "2609",
-
+    activo: true,
     init: function(){
-      console.log("Módulo vehículos activo");
-      aviso();
-      detectarVista();
+      console.log("Módulo vehículos V2609 activo");
+      crearMarcaDiscreta();
+      detectarVehiculos();
+      return true;
     }
   };
 
-  function aviso(){
-    const a = document.createElement("div");
-    a.textContent = "VEHÍCULOS MOD OK V2609";
-    a.style.position="fixed";
-    a.style.top="50px";
-    a.style.left="10px";
-    a.style.right="10px";
-    a.style.zIndex="999999";
-    a.style.background="#dbeafe";
-    a.style.color="#1e3a8a";
-    a.style.padding="10px";
-    a.style.textAlign="center";
-    a.style.fontWeight="900";
-    document.body.appendChild(a);
+  function crearMarcaDiscreta(){
+    if(document.getElementById("zx_mod_vehiculos_badge")) return;
+    var b = document.createElement("div");
+    b.id = "zx_mod_vehiculos_badge";
+    b.textContent = "Vehículos OK";
+    b.style.position = "fixed";
+    b.style.left = "92px";
+    b.style.bottom = "8px";
+    b.style.zIndex = "99999";
+    b.style.background = "#dbeafe";
+    b.style.color = "#1e3a8a";
+    b.style.border = "1px solid #93c5fd";
+    b.style.borderRadius = "999px";
+    b.style.padding = "5px 8px";
+    b.style.fontSize = "11px";
+    b.style.fontWeight = "800";
+    b.style.opacity = ".55";
+    document.body.appendChild(b);
   }
 
-  function detectarVista(){
-
-    // detecta cuando entras en vehículos
+  function detectarVehiculos(){
     document.addEventListener("click", function(e){
-
-      const el = e.target.closest("button, a");
+      var el = e.target.closest("button, a");
       if(!el) return;
-
-      const txt = (el.innerText||"").toLowerCase();
-
-      if(txt.includes("vehículo") || txt.includes("vehiculos")){
-        console.log("Entrando en módulo vehículos desde menú");
+      var texto = String(el.innerText || el.textContent || "").toLowerCase();
+      if(texto.indexOf("vehículo") !== -1 || texto.indexOf("vehiculos") !== -1 || texto.indexOf("vehículos") !== -1){
+        console.log("Módulo vehículos detectó acceso a vehículos");
+        window.ZENTRYX.ultimoEventoModuloVehiculos = { tipo: "vehiculos_detectado", fecha: new Date().toISOString() };
       }
-
-    });
-
+    }, true);
   }
 
-  function start(){
-    if(!window.ZENTRYX){
-      setTimeout(start,100);
+  function registrar(){
+    if(!window.ZENTRYX || typeof window.ZENTRYX.registrarModulo !== "function"){
+      setTimeout(registrar, 100);
       return;
     }
-
     window.ZENTRYX.registrarModulo("vehiculos", MODULO);
-    MODULO.init();
+    try{ MODULO.init(); }catch(e){
+      console.error("Error inicializando módulo vehículos:", e);
+      alert("Error cargando módulo vehículos: " + ((e && e.message) || e));
+    }
   }
 
-  start();
-
+  if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", registrar); }
+  else{ registrar(); }
 })();
