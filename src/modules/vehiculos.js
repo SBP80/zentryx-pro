@@ -1,5 +1,5 @@
 // ===============================
-// ZENTRYX V2612 - MÓDULO VEHÍCULOS FUNCIONAL
+// ZENTRYX V2613 - VEHÍCULOS PANTALLA REAL
 // ===============================
 
 (function(){
@@ -7,29 +7,20 @@
 
   const MODULO = {
     nombre: "vehiculos",
-    version: "2612",
+    version: "2613",
     activo: true,
 
     init: function(){
-      console.log("Vehículos activo V2612");
+      console.log("Vehículos pantalla activa V2613");
       crearAviso();
-      activarEventos();
-      window.ZENTRYX_UI_abrirVehiculos = mostrarPanelVehiculos;
+      registrarUI();
       return true;
-    },
-
-    abrir: function(){
-      mostrarPanelVehiculos();
     }
   };
 
   function crearAviso(){
-    var viejo = document.getElementById("zx_mod_vehiculos_banner");
-    if(viejo) viejo.remove();
-
-    var aviso = document.createElement("div");
-    aviso.id = "zx_mod_vehiculos_banner";
-    aviso.textContent = "VEHÍCULOS LISTO V2612";
+    let aviso = document.createElement("div");
+    aviso.textContent = "VEHÍCULOS PANTALLA ACTIVA";
     aviso.style.position = "fixed";
     aviso.style.top = "60px";
     aviso.style.left = "10px";
@@ -42,112 +33,113 @@
     aviso.style.padding = "10px";
     aviso.style.fontWeight = "800";
     aviso.style.textAlign = "center";
-    aviso.style.boxShadow = "0 10px 24px rgba(0,0,0,.22)";
 
     document.body.appendChild(aviso);
 
-    setTimeout(function(){
-      aviso.remove();
-    }, 3500);
+    setTimeout(()=> aviso.remove(), 3000);
   }
 
-  function activarEventos(){
-    document.addEventListener("click", function(e){
-      var btn = e.target.closest("button, a");
-      if(!btn) return;
-
-      var texto = String(btn.innerText || btn.textContent || "").toLowerCase();
-
-      if(
-        texto.indexOf("vehiculo") !== -1 ||
-        texto.indexOf("vehículo") !== -1 ||
-        texto.indexOf("vehículos") !== -1 ||
-        texto.indexOf("vehiculos") !== -1 ||
-        texto.indexOf("abrir vehículos") !== -1
-      ){
-        // No bloquear los botones internos del propio panel
-        if(btn.id === "zx_cerrar_panel_vehiculos") return;
-        mostrarPanelVehiculos();
-      }
-    }, true);
+  function registrarUI(){
+    window.ZENTRYX_UI_abrirVehiculos = mostrarPantallaVehiculos;
   }
 
-  function mostrarPanelVehiculos(){
-    var existente = document.getElementById("zx_panel_vehiculos_modulo");
-    if(existente) existente.remove();
+  function mostrarPantallaVehiculos(){
 
-    var fondo = document.createElement("div");
-    fondo.id = "zx_panel_vehiculos_modulo";
-    fondo.style.position = "fixed";
-    fondo.style.inset = "0";
-    fondo.style.background = "rgba(15,23,42,.55)";
-    fondo.style.zIndex = "999998";
-    fondo.style.display = "flex";
-    fondo.style.alignItems = "center";
-    fondo.style.justifyContent = "center";
-    fondo.style.padding = "18px";
+    let contenedor = document.querySelector(".container");
+    if(!contenedor) return;
 
-    var panel = document.createElement("div");
-    panel.style.background = "#fff";
-    panel.style.color = "#111827";
-    panel.style.padding = "22px";
-    panel.style.borderRadius = "18px";
-    panel.style.width = "100%";
-    panel.style.maxWidth = "420px";
-    panel.style.boxShadow = "0 22px 45px rgba(0,0,0,.35)";
+    contenedor.innerHTML = `
+      <div class="card">
+        <h1>Vehículos</h1>
 
-    panel.innerHTML = `
-      <h2 style="margin-top:0;font-size:28px;">Vehículos</h2>
-      <p><b>Módulo externo funcionando.</b></p>
-      <p style="color:#64748b;">Siguiente paso: mover aquí el listado real de vehículos desde Supabase.</p>
-      <button id="zx_cerrar_panel_vehiculos" style="
-        width:100%;
-        padding:14px;
-        border:0;
-        border-radius:12px;
-        background:#0f172a;
-        color:#fff;
-        font-weight:800;
-        font-size:16px;
-      ">Cerrar</button>
+        <button onclick="crearVehiculo()" style="
+          width:100%;
+          padding:14px;
+          margin-bottom:15px;
+          background:#2563eb;
+          color:#fff;
+          border:none;
+          border-radius:10px;
+          font-weight:700;
+        ">+ Añadir vehículo</button>
+
+        <div id="listaVehiculos"></div>
+      </div>
     `;
 
-    fondo.appendChild(panel);
-    document.body.appendChild(fondo);
-
-    document.getElementById("zx_cerrar_panel_vehiculos").onclick = function(){
-      fondo.remove();
-    };
-
-    fondo.addEventListener("click", function(e){
-      if(e.target === fondo) fondo.remove();
-    });
+    cargarVehiculos();
   }
 
+  // ===============================
+  // DATOS TEMPORALES (luego Supabase)
+  // ===============================
+
+  function cargarVehiculos(){
+
+    let lista = document.getElementById("listaVehiculos");
+
+    let vehiculos = JSON.parse(localStorage.getItem("vehiculos") || "[]");
+
+    if(vehiculos.length === 0){
+      lista.innerHTML = "<p>No hay vehículos</p>";
+      return;
+    }
+
+    lista.innerHTML = vehiculos.map(v => `
+      <div style="
+        background:#fff;
+        padding:12px;
+        border-radius:10px;
+        margin-bottom:10px;
+        border:1px solid #ddd;
+      ">
+        <b>${v.matricula}</b><br>
+        Km: ${v.km}
+      </div>
+    `).join("");
+  }
+
+  // ===============================
+  // CREAR VEHÍCULO
+  // ===============================
+
+  window.crearVehiculo = function(){
+
+    let matricula = prompt("Matrícula:");
+    if(!matricula) return;
+
+    let km = parseInt(prompt("Kilómetros:"), 10) || 0;
+
+    let vehiculos = JSON.parse(localStorage.getItem("vehiculos") || "[]");
+
+    vehiculos.push({
+      matricula: matricula.toUpperCase(),
+      km: km
+    });
+
+    localStorage.setItem("vehiculos", JSON.stringify(vehiculos));
+
+    cargarVehiculos();
+  }
+
+  // ===============================
+  // REGISTRO
+  // ===============================
+
   function registrar(){
-    if(!window.ZENTRYX || typeof window.ZENTRYX.registrarModulo !== "function"){
+    if(!window.ZENTRYX){
       setTimeout(registrar, 100);
       return;
     }
 
     window.ZENTRYX.registrarModulo("vehiculos", MODULO);
-    window.ZENTRYX_UI_abrirVehiculos = mostrarPanelVehiculos;
-
-    try{
-      MODULO.init();
-    }catch(e){
-      console.error("Error inicializando módulo vehículos:", e);
-      alert("Error cargando módulo vehículos: " + ((e && e.message) || e));
-    }
+    MODULO.init();
   }
-
-  window.ZENTRYX_UI_abrirVehiculos = function(){
-    mostrarPanelVehiculos();
-  };
 
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", registrar);
-  }else{
+  } else {
     registrar();
   }
+
 })();
