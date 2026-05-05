@@ -1,111 +1,95 @@
 // ===============================
-// ZENTRYX V2608 - KM + VEHÍCULO + HISTÓRICO
+// ZENTRYX V2609 - MÓDULO FICHAJES
 // ===============================
-
 (function(){
   "use strict";
-
   const MODULO = {
     nombre: "fichajes",
-    version: "2608",
-
+    version: "2609",
+    activo: true,
     init: function(){
-      console.log("Módulo fichajes V2608 activo");
+      console.log("Módulo fichajes V2609 activo");
+      crearMarcaDiscreta();
       interceptarSalida();
+      return true;
     }
   };
 
+  function crearMarcaDiscreta(){
+    if(document.getElementById("zx_mod_fichajes_badge")) return;
+    var b = document.createElement("div");
+    b.id = "zx_mod_fichajes_badge";
+    b.textContent = "Fichajes OK";
+    b.style.position = "fixed";
+    b.style.left = "8px";
+    b.style.bottom = "8px";
+    b.style.zIndex = "99999";
+    b.style.background = "#dcfce7";
+    b.style.color = "#166534";
+    b.style.border = "1px solid #86efac";
+    b.style.borderRadius = "999px";
+    b.style.padding = "5px 8px";
+    b.style.fontSize = "11px";
+    b.style.fontWeight = "800";
+    b.style.opacity = ".55";
+    document.body.appendChild(b);
+  }
+
+  function esBotonSalida(btn){
+    var texto = String(btn.innerText || btn.textContent || "").toLowerCase();
+    return texto.indexOf("salida") !== -1;
+  }
+
   function interceptarSalida(){
-
     document.addEventListener("click", function(e){
-
-      const btn = e.target.closest("button");
+      var btn = e.target.closest("button");
       if(!btn) return;
+      if(!esBotonSalida(btn)) return;
 
-      const txt = (btn.innerText || "").toLowerCase();
-
-      if(!txt.includes("salida")) return;
-
-      if(btn.dataset.ok==="1"){
-        btn.dataset.ok="0";
+      if(btn.dataset.zxKmModuloListo === "1"){
+        btn.dataset.zxKmModuloListo = "0";
         return;
       }
 
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
 
-      const km = prompt("Introduce km del vehículo:");
-
-      if(km===null){
-        alert("Debes introducir km");
+      var km = prompt("Introduce km del vehículo:");
+      if(km === null){
+        alert("Debes introducir km para cerrar salida con vehículo.");
+        window.ZENTRYX_KM_SALIDA = null;
         return;
       }
 
-      if(isNaN(km) || km<=0){
-        alert("Km no válido");
+      km = Number(String(km).replace(",", ".").trim());
+      if(!km || Number.isNaN(km) || km <= 0){
+        alert("Km no válido.");
+        window.ZENTRYX_KM_SALIDA = null;
         return;
       }
 
-      window.ZENTRYX_KM_SALIDA = Number(km);
+      window.ZENTRYX_KM_SALIDA = km;
+      if(window.ZENTRYX){
+        window.ZENTRYX.ultimoEventoModuloFichajes = { tipo: "km_salida_capturado", km: km, fecha: new Date().toISOString() };
+      }
 
-      btn.dataset.ok="1";
-
-      setTimeout(async ()=>{
-
-        btn.click();
-
-        // 🔥 DESPUÉS DE FICHAR → actualizar vehículo
-        setTimeout(async ()=>{
-
-          try{
-
-            if(!window.sb) return;
-
-            const vehiculoId = document.getElementById("fichaje_vehiculo_id")?.value;
-            if(!vehiculoId) return;
-
-            const kmFinal = window.ZENTRYX_KM_SALIDA;
-
-            // actualizar km actual
-            await window.sb
-              .from("org_vehiculos")
-              .update({ km_actual: kmFinal })
-              .eq("id", vehiculoId);
-
-            console.log("Vehículo actualizado con km:", kmFinal);
-
-            // 🔥 guardar histórico
-            await window.sb
-              .from("org_vehiculos_km_historial")
-              .insert({
-                vehiculo_id: vehiculoId,
-                km: kmFinal,
-                fecha: new Date().toISOString()
-              });
-
-            console.log("Histórico guardado");
-
-          }catch(err){
-            console.error("Error guardando km:", err);
-          }
-
-        }, 300);
-
-      }, 50);
-
+      btn.dataset.zxKmModuloListo = "1";
+      setTimeout(function(){ btn.click(); }, 50);
     }, true);
   }
 
-  function start(){
-    if(!window.ZENTRYX){
-      setTimeout(start,100);
+  function registrar(){
+    if(!window.ZENTRYX || typeof window.ZENTRYX.registrarModulo !== "function"){
+      setTimeout(registrar, 100);
       return;
     }
-
     window.ZENTRYX.registrarModulo("fichajes", MODULO);
-    MODULO.init();
+    try{ MODULO.init(); }catch(e){
+      console.error("Error inicializando módulo fichajes:", e);
+      alert("Error cargando módulo fichajes: " + ((e && e.message) || e));
+    }
   }
 
-  start();
-
+  if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", registrar); }
+  else{ registrar(); }
 })();
