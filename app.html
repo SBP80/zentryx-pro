@@ -504,7 +504,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2606</h1>
+      <h1>Zentryx V2609</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -514,9 +514,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2606"
-
-window.addEventListener('error',function(e){
+const VERSION="2609";window.addEventListener('error',function(e){
   const app=document.getElementById("app");
   if(app){
     app.innerHTML=`
@@ -4704,7 +4702,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2606
+  return `MANUAL DE USO ZENTRYX V2609
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -8397,32 +8395,11 @@ iniciarApp().catch(err=>{
   }
 });
 </script>
-
-<!-- ZENTRYX V2606 - LOADER MODULAR -->
-<script src="src/app.js?v=2606"></script>
-<script src="src/modules/fichajes.js?v=2606"></script>
+<!-- ZENTRYX V2609 - LOADER MODULAR REAL -->
+<script src="src/app.js?v=2609"></script>
+<script src="src/modules/fichajes.js?v=2609"></script>
 <script src="src/modules/vehiculos.js?v=2609"></script>
-<script>
-setTimeout(function(){
-  if(!window.ZENTRYX || !window.ZENTRYX.modulos || !window.ZENTRYX.modulos.fichajes){
-    var aviso=document.createElement("div");
-    aviso.textContent="ERROR: módulo fichajes NO cargado";
-    aviso.style.position="fixed";
-    aviso.style.top="10px";
-    aviso.style.left="10px";
-    aviso.style.right="10px";
-    aviso.style.zIndex="999999";
-    aviso.style.background="#fee2e2";
-    aviso.style.color="#991b1b";
-    aviso.style.border="2px solid #ef4444";
-    aviso.style.borderRadius="14px";
-    aviso.style.padding="12px";
-    aviso.style.fontWeight="900";
-    aviso.style.textAlign="center";
-    document.body.appendChild(aviso);
-  }
-},1500);
-</script>
+
 </body>
 </html>
 
