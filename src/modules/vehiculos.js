@@ -1,87 +1,104 @@
 // ===============================
-// ZENTRYX V2610 - MÓDULO VEHÍCULOS
+// ZENTRYX V2611 - MÓDULO VEHÍCULOS FUNCIONAL
 // ===============================
-// Aviso visible arriba para confirmar que el archivo carga.
 
 (function(){
   "use strict";
 
   const MODULO = {
     nombre: "vehiculos",
-    version: "2610",
+    version: "2611",
     activo: true,
 
     init: function(){
-      console.log("Módulo vehículos V2610 activo");
-      crearAvisoVisible();
-      detectarVehiculos();
+      console.log("Vehículos activo V2611");
+      crearAviso();
+      activarEventos();
       return true;
     }
   };
 
-  function crearAvisoVisible(){
-    var viejo = document.getElementById("zx_mod_vehiculos_banner");
-    if(viejo) viejo.remove();
-
-    var aviso = document.createElement("div");
-    aviso.id = "zx_mod_vehiculos_banner";
-    aviso.textContent = "MÓDULO VEHÍCULOS CARGADO V2610";
+  function crearAviso(){
+    let aviso = document.createElement("div");
+    aviso.textContent = "VEHÍCULOS LISTO";
     aviso.style.position = "fixed";
-    aviso.style.top = "58px";
+    aviso.style.top = "60px";
     aviso.style.left = "10px";
     aviso.style.right = "10px";
     aviso.style.zIndex = "999999";
-    aviso.style.background = "#dbeafe";
-    aviso.style.color = "#1e3a8a";
-    aviso.style.border = "2px solid #60a5fa";
+    aviso.style.background = "#dcfce7";
+    aviso.style.color = "#166534";
+    aviso.style.border = "2px solid #22c55e";
     aviso.style.borderRadius = "14px";
-    aviso.style.padding = "12px";
-    aviso.style.fontWeight = "900";
+    aviso.style.padding = "10px";
+    aviso.style.fontWeight = "800";
     aviso.style.textAlign = "center";
-    aviso.style.boxShadow = "0 10px 24px rgba(0,0,0,.22)";
+
     document.body.appendChild(aviso);
 
-    setTimeout(function(){
-      aviso.style.opacity = ".45";
-    }, 6000);
+    setTimeout(()=> aviso.remove(), 4000);
   }
 
-  function detectarVehiculos(){
+  function activarEventos(){
     document.addEventListener("click", function(e){
-      var el = e.target.closest("button, a");
-      if(!el) return;
 
-      var texto = String(el.innerText || el.textContent || "").toLowerCase();
+      let btn = e.target.closest("button, a");
+      if(!btn) return;
 
-      if(texto.indexOf("vehículo") !== -1 || texto.indexOf("vehiculos") !== -1 || texto.indexOf("vehículos") !== -1){
-        console.log("Módulo vehículos detectó acceso a vehículos");
-        window.ZENTRYX.ultimoEventoModuloVehiculos = {
-          tipo: "vehiculos_detectado",
-          fecha: new Date().toISOString()
-        };
+      let texto = (btn.innerText || "").toLowerCase();
+
+      if(texto.includes("vehiculo") || texto.includes("vehículos")){
+        
+        mostrarPanelVehiculos();
+
       }
+
     }, true);
   }
 
+  function mostrarPanelVehiculos(){
+
+    let panel = document.createElement("div");
+
+    panel.style.position = "fixed";
+    panel.style.top = "50%";
+    panel.style.left = "50%";
+    panel.style.transform = "translate(-50%, -50%)";
+    panel.style.background = "#fff";
+    panel.style.padding = "20px";
+    panel.style.borderRadius = "16px";
+    panel.style.zIndex = "999999";
+    panel.style.boxShadow = "0 20px 40px rgba(0,0,0,.3)";
+    panel.style.width = "90%";
+    panel.style.maxWidth = "400px";
+
+    panel.innerHTML = `
+      <h2>Vehículos</h2>
+      <p>Aquí irá gestión real de vehículos</p>
+      <button id="cerrarVehiculos">Cerrar</button>
+    `;
+
+    document.body.appendChild(panel);
+
+    document.getElementById("cerrarVehiculos").onclick = ()=>{
+      panel.remove();
+    };
+  }
+
   function registrar(){
-    if(!window.ZENTRYX || typeof window.ZENTRYX.registrarModulo !== "function"){
+    if(!window.ZENTRYX){
       setTimeout(registrar, 100);
       return;
     }
 
     window.ZENTRYX.registrarModulo("vehiculos", MODULO);
-
-    try{
-      MODULO.init();
-    }catch(e){
-      console.error("Error inicializando módulo vehículos:", e);
-      alert("Error cargando módulo vehículos: " + ((e && e.message) || e));
-    }
+    MODULO.init();
   }
 
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", registrar);
-  }else{
+  } else {
     registrar();
   }
+
 })();
