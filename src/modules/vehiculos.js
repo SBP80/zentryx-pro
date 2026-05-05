@@ -19,8 +19,12 @@
   };
 
   function crearAviso(){
-    let aviso = document.createElement("div");
-    aviso.textContent = "VEHÍCULOS LISTO";
+    var viejo = document.getElementById("zx_mod_vehiculos_banner");
+    if(viejo) viejo.remove();
+
+    var aviso = document.createElement("div");
+    aviso.id = "zx_mod_vehiculos_banner";
+    aviso.textContent = "VEHÍCULOS LISTO V2611";
     aviso.style.position = "fixed";
     aviso.style.top = "60px";
     aviso.style.left = "10px";
@@ -33,72 +37,105 @@
     aviso.style.padding = "10px";
     aviso.style.fontWeight = "800";
     aviso.style.textAlign = "center";
+    aviso.style.boxShadow = "0 10px 24px rgba(0,0,0,.22)";
 
     document.body.appendChild(aviso);
 
-    setTimeout(()=> aviso.remove(), 4000);
+    setTimeout(function(){
+      aviso.remove();
+    }, 4500);
   }
 
   function activarEventos(){
     document.addEventListener("click", function(e){
-
-      let btn = e.target.closest("button, a");
+      var btn = e.target.closest("button, a");
       if(!btn) return;
 
-      let texto = (btn.innerText || "").toLowerCase();
+      var texto = String(btn.innerText || btn.textContent || "").toLowerCase();
 
-      if(texto.includes("vehiculo") || texto.includes("vehículos")){
-        
+      if(
+        texto.indexOf("vehiculo") !== -1 ||
+        texto.indexOf("vehículo") !== -1 ||
+        texto.indexOf("vehículos") !== -1 ||
+        texto.indexOf("vehiculos") !== -1 ||
+        texto.indexOf("abrir vehículos") !== -1
+      ){
         mostrarPanelVehiculos();
-
       }
-
     }, true);
   }
 
   function mostrarPanelVehiculos(){
+    var existente = document.getElementById("zx_panel_vehiculos_modulo");
+    if(existente) existente.remove();
 
-    let panel = document.createElement("div");
+    var fondo = document.createElement("div");
+    fondo.id = "zx_panel_vehiculos_modulo";
+    fondo.style.position = "fixed";
+    fondo.style.inset = "0";
+    fondo.style.background = "rgba(15,23,42,.55)";
+    fondo.style.zIndex = "999998";
+    fondo.style.display = "flex";
+    fondo.style.alignItems = "center";
+    fondo.style.justifyContent = "center";
+    fondo.style.padding = "18px";
 
-    panel.style.position = "fixed";
-    panel.style.top = "50%";
-    panel.style.left = "50%";
-    panel.style.transform = "translate(-50%, -50%)";
+    var panel = document.createElement("div");
     panel.style.background = "#fff";
-    panel.style.padding = "20px";
-    panel.style.borderRadius = "16px";
-    panel.style.zIndex = "999999";
-    panel.style.boxShadow = "0 20px 40px rgba(0,0,0,.3)";
-    panel.style.width = "90%";
-    panel.style.maxWidth = "400px";
+    panel.style.color = "#111827";
+    panel.style.padding = "22px";
+    panel.style.borderRadius = "18px";
+    panel.style.width = "100%";
+    panel.style.maxWidth = "420px";
+    panel.style.boxShadow = "0 22px 45px rgba(0,0,0,.35)";
 
     panel.innerHTML = `
-      <h2>Vehículos</h2>
-      <p>Aquí irá gestión real de vehículos</p>
-      <button id="cerrarVehiculos">Cerrar</button>
+      <h2 style="margin-top:0;font-size:28px;">Vehículos</h2>
+      <p>El módulo de vehículos ya responde desde archivo externo.</p>
+      <p style="color:#64748b;">Siguiente paso: mover aquí el listado real de vehículos.</p>
+      <button id="zx_cerrar_panel_vehiculos" style="
+        width:100%;
+        padding:14px;
+        border:0;
+        border-radius:12px;
+        background:#0f172a;
+        color:#fff;
+        font-weight:800;
+        font-size:16px;
+      ">Cerrar</button>
     `;
 
-    document.body.appendChild(panel);
+    fondo.appendChild(panel);
+    document.body.appendChild(fondo);
 
-    document.getElementById("cerrarVehiculos").onclick = ()=>{
-      panel.remove();
+    document.getElementById("zx_cerrar_panel_vehiculos").onclick = function(){
+      fondo.remove();
     };
+
+    fondo.addEventListener("click", function(e){
+      if(e.target === fondo) fondo.remove();
+    });
   }
 
   function registrar(){
-    if(!window.ZENTRYX){
+    if(!window.ZENTRYX || typeof window.ZENTRYX.registrarModulo !== "function"){
       setTimeout(registrar, 100);
       return;
     }
 
     window.ZENTRYX.registrarModulo("vehiculos", MODULO);
-    MODULO.init();
+
+    try{
+      MODULO.init();
+    }catch(e){
+      console.error("Error inicializando módulo vehículos:", e);
+      alert("Error cargando módulo vehículos: " + ((e && e.message) || e));
+    }
   }
 
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", registrar);
-  } else {
+  }else{
     registrar();
   }
-
 })();
