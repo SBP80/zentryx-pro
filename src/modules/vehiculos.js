@@ -1,5 +1,5 @@
 // ===============================
-// ZENTRYX V2611 - MÓDULO VEHÍCULOS FUNCIONAL
+// ZENTRYX V2612 - MÓDULO VEHÍCULOS FUNCIONAL
 // ===============================
 
 (function(){
@@ -7,14 +7,19 @@
 
   const MODULO = {
     nombre: "vehiculos",
-    version: "2611",
+    version: "2612",
     activo: true,
 
     init: function(){
-      console.log("Vehículos activo V2611");
+      console.log("Vehículos activo V2612");
       crearAviso();
       activarEventos();
+      window.ZENTRYX_UI_abrirVehiculos = mostrarPanelVehiculos;
       return true;
+    },
+
+    abrir: function(){
+      mostrarPanelVehiculos();
     }
   };
 
@@ -24,7 +29,7 @@
 
     var aviso = document.createElement("div");
     aviso.id = "zx_mod_vehiculos_banner";
-    aviso.textContent = "VEHÍCULOS LISTO V2611";
+    aviso.textContent = "VEHÍCULOS LISTO V2612";
     aviso.style.position = "fixed";
     aviso.style.top = "60px";
     aviso.style.left = "10px";
@@ -43,7 +48,7 @@
 
     setTimeout(function(){
       aviso.remove();
-    }, 4500);
+    }, 3500);
   }
 
   function activarEventos(){
@@ -60,6 +65,8 @@
         texto.indexOf("vehiculos") !== -1 ||
         texto.indexOf("abrir vehículos") !== -1
       ){
+        // No bloquear los botones internos del propio panel
+        if(btn.id === "zx_cerrar_panel_vehiculos") return;
         mostrarPanelVehiculos();
       }
     }, true);
@@ -91,8 +98,8 @@
 
     panel.innerHTML = `
       <h2 style="margin-top:0;font-size:28px;">Vehículos</h2>
-      <p>El módulo de vehículos ya responde desde archivo externo.</p>
-      <p style="color:#64748b;">Siguiente paso: mover aquí el listado real de vehículos.</p>
+      <p><b>Módulo externo funcionando.</b></p>
+      <p style="color:#64748b;">Siguiente paso: mover aquí el listado real de vehículos desde Supabase.</p>
       <button id="zx_cerrar_panel_vehiculos" style="
         width:100%;
         padding:14px;
@@ -124,6 +131,7 @@
     }
 
     window.ZENTRYX.registrarModulo("vehiculos", MODULO);
+    window.ZENTRYX_UI_abrirVehiculos = mostrarPanelVehiculos;
 
     try{
       MODULO.init();
@@ -132,6 +140,10 @@
       alert("Error cargando módulo vehículos: " + ((e && e.message) || e));
     }
   }
+
+  window.ZENTRYX_UI_abrirVehiculos = function(){
+    mostrarPanelVehiculos();
+  };
 
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", registrar);
