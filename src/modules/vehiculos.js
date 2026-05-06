@@ -1,14 +1,14 @@
 // ===============================
-// ZENTRYX V2615 - VEHÍCULOS SUPABASE
+// ZENTRYX V2616 - VEHÍCULOS SUPABASE
 // ===============================
 (function(){
   "use strict";
   const MODULO = {
     nombre: "vehiculos",
-    version: "2615",
+    version: "2616",
     activo: true,
     init: function(){
-      console.log("Vehículos Supabase activo V2615");
+      console.log("Vehículos Supabase activo V2616");
       crearAviso();
       crearBotonFlotante();
       registrarUI();
@@ -19,14 +19,16 @@
   };
 
   function clienteSupabase(){
-    return window.sb || window.supabaseClient || window.supabase || null;
+    if(window.sb && typeof window.sb.from === "function") return window.sb;
+    if(window.supabaseClient && typeof window.supabaseClient.from === "function") return window.supabaseClient;
+    return null;
   }
 
   function crearAviso(){
     var viejo = document.getElementById("zx_mod_vehiculos_banner");
     if(viejo) viejo.remove();
     var aviso = document.createElement("div");
-    aviso.textContent = "VEHÍCULOS SUPABASE V2615";
+    aviso.textContent = "VEHÍCULOS SUPABASE V2616";
     aviso.style.position = "fixed";
     aviso.style.top = "60px";
     aviso.style.left = "10px";
@@ -98,7 +100,7 @@
     contenedor.innerHTML = `
       <div class="card" style="margin:16px;">
         <h1>Vehículos</h1>
-        <p class="muted">Módulo externo de vehículos V2615 conectado a Supabase</p>
+        <p class="muted">Módulo externo de vehículos V2616 conectado a Supabase</p>
         <button id="zx_crear_vehiculo_modulo" style="width:100%;padding:14px;margin-bottom:10px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-weight:700;">+ Añadir vehículo</button>
         <button id="zx_recargar_vehiculos_modulo" style="width:100%;padding:14px;margin-bottom:15px;background:#e5e7eb;color:#111827;border:none;border-radius:10px;font-weight:700;">Recargar</button>
         <div id="listaVehiculosModulo"></div>
