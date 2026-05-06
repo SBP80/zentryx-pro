@@ -19,8 +19,11 @@
   };
 
   function crearAviso(){
-    let aviso = document.createElement("div");
-    aviso.textContent = "VEHÍCULOS PANTALLA ACTIVA";
+    var viejo = document.getElementById("zx_mod_vehiculos_banner");
+    if(viejo) viejo.remove();
+
+    var aviso = document.createElement("div");
+    aviso.textContent = "VEHÍCULOS PANTALLA ACTIVA V2613";
     aviso.style.position = "fixed";
     aviso.style.top = "60px";
     aviso.style.left = "10px";
@@ -36,23 +39,33 @@
 
     document.body.appendChild(aviso);
 
-    setTimeout(()=> aviso.remove(), 3000);
+    setTimeout(function(){
+      aviso.remove();
+    }, 3000);
   }
 
   function registrarUI(){
     window.ZENTRYX_UI_abrirVehiculos = mostrarPantallaVehiculos;
   }
 
-  function mostrarPantallaVehiculos(){
+  function contenedorPrincipal(){
+    return document.getElementById("app") || document.querySelector(".container") || document.querySelector("main");
+  }
 
-    let contenedor = document.querySelector(".container");
-    if(!contenedor) return;
+  function mostrarPantallaVehiculos(){
+    var contenedor = contenedorPrincipal();
+
+    if(!contenedor){
+      alert("No encuentro el contenedor principal de la app.");
+      return;
+    }
 
     contenedor.innerHTML = `
       <div class="card">
         <h1>Vehículos</h1>
+        <p class="muted">Módulo externo de vehículos V2613</p>
 
-        <button onclick="crearVehiculo()" style="
+        <button onclick="crearVehiculoModulo()" style="
           width:100%;
           padding:14px;
           margin-bottom:15px;
@@ -63,83 +76,80 @@
           font-weight:700;
         ">+ Añadir vehículo</button>
 
-        <div id="listaVehiculos"></div>
+        <div id="listaVehiculosModulo"></div>
       </div>
     `;
 
-    cargarVehiculos();
+    cargarVehiculosModulo();
   }
 
-  // ===============================
-  // DATOS TEMPORALES (luego Supabase)
-  // ===============================
+  function cargarVehiculosModulo(){
+    var lista = document.getElementById("listaVehiculosModulo");
+    if(!lista) return;
 
-  function cargarVehiculos(){
-
-    let lista = document.getElementById("listaVehiculos");
-
-    let vehiculos = JSON.parse(localStorage.getItem("vehiculos") || "[]");
+    var vehiculos = JSON.parse(localStorage.getItem("vehiculos_modulo") || "[]");
 
     if(vehiculos.length === 0){
-      lista.innerHTML = "<p>No hay vehículos</p>";
+      lista.innerHTML = "<p>No hay vehículos creados en este módulo.</p>";
       return;
     }
 
-    lista.innerHTML = vehiculos.map(v => `
-      <div style="
-        background:#fff;
-        padding:12px;
-        border-radius:10px;
-        margin-bottom:10px;
-        border:1px solid #ddd;
-      ">
-        <b>${v.matricula}</b><br>
-        Km: ${v.km}
-      </div>
-    `).join("");
+    lista.innerHTML = vehiculos.map(function(v){
+      return `
+        <div style="
+          background:#fff;
+          padding:12px;
+          border-radius:10px;
+          margin-bottom:10px;
+          border:1px solid #ddd;
+        ">
+          <b>${v.matricula}</b><br>
+          <span>Km: ${v.km}</span>
+        </div>
+      `;
+    }).join("");
   }
 
-  // ===============================
-  // CREAR VEHÍCULO
-  // ===============================
-
-  window.crearVehiculo = function(){
-
-    let matricula = prompt("Matrícula:");
+  window.crearVehiculoModulo = function(){
+    var matricula = prompt("Matrícula:");
     if(!matricula) return;
 
-    let km = parseInt(prompt("Kilómetros:"), 10) || 0;
+    var km = Number(prompt("Kilómetros:", "0") || 0);
 
-    let vehiculos = JSON.parse(localStorage.getItem("vehiculos") || "[]");
+    var vehiculos = JSON.parse(localStorage.getItem("vehiculos_modulo") || "[]");
 
     vehiculos.push({
-      matricula: matricula.toUpperCase(),
+      matricula: String(matricula).toUpperCase(),
       km: km
     });
 
-    localStorage.setItem("vehiculos", JSON.stringify(vehiculos));
+    localStorage.setItem("vehiculos_modulo", JSON.stringify(vehiculos));
 
-    cargarVehiculos();
-  }
-
-  // ===============================
-  // REGISTRO
-  // ===============================
+    cargarVehiculosModulo();
+  };
 
   function registrar(){
-    if(!window.ZENTRYX){
+    if(!window.ZENTRYX || typeof window.ZENTRYX.registrarModulo !== "function"){
       setTimeout(registrar, 100);
       return;
     }
 
     window.ZENTRYX.registrarModulo("vehiculos", MODULO);
-    MODULO.init();
+    window.ZENTRYX_UI_abrirVehiculos = mostrarPantallaVehiculos;
+
+    try{
+      MODULO.init();
+    }catch(e){
+      console.error("Error inicializando módulo vehículos:", e);
+      alert("Error cargando módulo vehículos: " + ((e && e.message) || e));
+    }
   }
+
+  window.ZENTRYX_UI_abrirVehiculos = mostrarPantallaVehiculos;
 
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", registrar);
-  } else {
+  }else{
     registrar();
   }
-
 })();
