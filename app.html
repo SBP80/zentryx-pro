@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx V2615</title>
+<title>Zentryx V2616</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -504,7 +504,7 @@ textarea{width:100%;padding:10px}
 <div class="header">
   <div class="headerTop">
     <div>
-      <h1>Zentryx V2615</h1>
+      <h1>Zentryx V2616</h1>
       <div class="fecha" id="fechaActual"></div>
       <div class="hora" id="horaActual"></div>
     </div>
@@ -514,7 +514,7 @@ textarea{width:100%;padding:10px}
 <div class="page" id="app"></div>
 
 <script>
-const VERSION="2615";window.addEventListener('error',function(e){
+const VERSION="2616";window.addEventListener('error',function(e){
   const app=document.getElementById("app");
   if(app){
     app.innerHTML=`
@@ -544,6 +544,8 @@ window.addEventListener('unhandledrejection',function(e){
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.sb=sb;
+window.supabaseClient=sb;
 
 let user=JSON.parse(localStorage.getItem("usuario")||"null");
 
@@ -4703,7 +4705,7 @@ function copiarInformeMensual(){
 
 
 function textoManualZentryx(){
-  return `MANUAL DE USO ZENTRYX V2615
+  return `MANUAL DE USO ZENTRYX V2616
 
 1. INICIO
 La pantalla de inicio muestra el usuario activo, estado de fichaje, festivo del día y accesos principales.
@@ -8396,10 +8398,10 @@ iniciarApp().catch(err=>{
   }
 });
 </script>
-<!-- ZENTRYX V2615 - LOADER MODULAR REAL -->
-<script src="src/app.js?v=2615"></script>
-<script src="src/modules/fichajes.js?v=2615"></script>
-<script src="src/modules/vehiculos.js?v=2615"></script>
+<!-- ZENTRYX V2616 - LOADER MODULAR REAL -->
+<script src="src/app.js?v=2616"></script>
+<script src="src/modules/fichajes.js?v=2616"></script>
+<script src="src/modules/vehiculos.js?v=2616"></script>
 
 </body>
 </html>
