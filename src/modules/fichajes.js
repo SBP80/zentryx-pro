@@ -93,3 +93,4 @@
   if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", registrar); }
   else{ registrar(); }
 })();
+
