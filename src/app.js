@@ -1,10 +1,10 @@
 // ===============================
-// ZENTRYX V2612 - CORE MODULAR
+// ZENTRYX V2613 - CORE MODULAR
 // ===============================
 (function(){
   "use strict";
 
-  const VERSION = "2612";
+  const VERSION = "2613";
 
   window.ZENTRYX = window.ZENTRYX || {
     version: VERSION,
