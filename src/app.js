@@ -1,9 +1,9 @@
 // ===============================
-// ZENTRYX V2614 - CORE MODULAR
+// ZENTRYX V2615 - CORE MODULAR
 // ===============================
 (function(){
   "use strict";
-  const VERSION = "2614";
+  const VERSION = "2615";
   window.ZENTRYX = window.ZENTRYX || {version:VERSION,modulos:{},estado:"base modular cargada"};
   window.ZENTRYX.version = VERSION;
   window.ZENTRYX.modulos = window.ZENTRYX.modulos || {};
