@@ -1,10 +1,10 @@
 // ===============================
-// ZENTRYX V2616 - CORE MODULAR
+// ZENTRYX V2617 - CORE MODULAR
 // ===============================
 (function(){
   "use strict";
-  const VERSION = "2616";
-  window.ZENTRYX = window.ZENTRYX || {version:VERSION,modulos:{},estado:"base modular cargada"};
+  const VERSION = "2617";
+  window.ZENTRYX = window.ZENTRYX || {version: VERSION, modulos: {}, estado: "base modular cargada"};
   window.ZENTRYX.version = VERSION;
   window.ZENTRYX.modulos = window.ZENTRYX.modulos || {};
   window.ZENTRYX.registrarModulo = function(nombre, modulo){
@@ -14,8 +14,8 @@
   };
   window.ZENTRYX.obtenerModulo = function(nombre){ return window.ZENTRYX.modulos[nombre] || null; };
   window.ZENTRYX.estadoSistema = function(){
-    return {version:window.ZENTRYX.version, modulos:Object.keys(window.ZENTRYX.modulos), fecha:new Date().toISOString()};
+    return {version: window.ZENTRYX.version, modulos: Object.keys(window.ZENTRYX.modulos), fecha: new Date().toISOString()};
   };
-  window.ZENTRYX.registrarModulo("core", {nombre:"Core", activo:true, descripcion:"Base modular inicial"});
+  window.ZENTRYX.registrarModulo("core", {nombre: "Core", activo: true, descripcion: "Base modular inicial"});
   console.log("Zentryx modular cargado V" + VERSION);
 })();
