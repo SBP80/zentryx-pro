@@ -1,14 +1,14 @@
 // ===============================
-// ZENTRYX V2614 - MÓDULO FICHAJES
+// ZENTRYX V2615 - MÓDULO FICHAJES
 // ===============================
 (function(){
   "use strict";
   const MODULO = {
     nombre: "fichajes",
-    version: "2614",
+    version: "2615",
     activo: true,
     init: function(){
-      console.log("Módulo fichajes V2614 activo");
+      console.log("Módulo fichajes V2615 activo");
       crearMarcaDiscreta();
       interceptarSalida();
       return true;
@@ -93,4 +93,3 @@
   if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", registrar); }
   else{ registrar(); }
 })();
-
