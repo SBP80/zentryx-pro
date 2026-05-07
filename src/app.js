@@ -31,4 +31,14 @@ console.log("SUPABASE GLOBAL OK");
   };
   window.ZENTRYX.registrarModulo("core", {nombre: "Core", activo: true, descripcion: "Base modular inicial"});
   console.log("Zentryx modular cargado V" + VERSION);
+  import "./core/session.js";
+import "./core/store.js";
+
+import "./ui/layout.js";
+
+import "./modules/inicio.js";
+import "./modules/usuarios.js";
+import "./modules/fichajes.js";
+import "./modules/vehiculos.js";
+import "./modules/configuracion.js";
 })();
