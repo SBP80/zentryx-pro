@@ -1,457 +1,536 @@
 // ===============================
-// ZENTRYX V2621 - UI LAYOUT CENTRAL
+// ZENTRYX V2622 - UI LAYOUT CENTRAL
 // Archivo: src/ui/layout.js
 // ===============================
-// Objetivo:
-// - Centralizar cabecera, reloj, navegación y panel principal.
-// - Preparar app.html para ir vaciándolo poco a poco.
-// - No rompe los módulos actuales: vehículos, fichajes, usuarios, etc.
 
 (function(){
-  "use strict";
+"use strict";
 
-  const VERSION_UI = "2621";
+window.ZENTRYX = window.ZENTRYX || {};
+window.ZENTRYX.version = "2622";
 
-  let relojInterval = null;
+function usuarioActual(){
+  try{
+    return JSON.parse(localStorage.getItem("usuario") || "{}");
+  }catch(e){
+    return {};
+  }
+}
 
-  function usuarioActual(){
-    try{
-      return JSON.parse(localStorage.getItem("usuario") || "{}");
-    }catch(e){
-      return {};
+function formatoFecha(){
+  return new Date().toLocaleDateString("es-ES",{
+    weekday:"long",
+    day:"numeric",
+    month:"long",
+    year:"numeric"
+  });
+}
+
+function formatoHora(){
+  return new Date().toLocaleTimeString("es-ES",{
+    hour:"2-digit",
+    minute:"2-digit",
+    second:"2-digit"
+  });
+}
+
+function crearEstilos(){
+
+  const viejo = document.getElementById("zx_layout_styles");
+  if(viejo) viejo.remove();
+
+  const css = document.createElement("style");
+  css.id = "zx_layout_styles";
+
+  css.innerHTML = `
+
+  body{
+    margin:0;
+    background:#eef2f7;
+    font-family:Arial,Helvetica,sans-serif;
+    color:#111827;
+  }
+
+  #zx_header{
+    background:#0f172a;
+    color:white;
+    padding:24px 20px;
+  }
+
+  #zx_top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+  }
+
+  #zx_titulo{
+    font-size:38px;
+    font-weight:900;
+    margin:0;
+  }
+
+  #zx_fecha{
+    margin-top:10px;
+    font-size:20px;
+    color:#cbd5e1;
+  }
+
+  #zx_hora{
+    margin-top:12px;
+    font-size:34px;
+    font-weight:900;
+  }
+
+  #zx_salir{
+    background:#dc2626;
+    color:white;
+    border:0;
+    border-radius:18px;
+    padding:18px 24px;
+    font-size:22px;
+    font-weight:900;
+  }
+
+  #zx_usuario_barra{
+    background:#111827;
+    color:white;
+    padding:18px 20px;
+    display:flex;
+    align-items:center;
+    gap:16px;
+  }
+
+  #zx_logo{
+    width:54px;
+    height:54px;
+    border-radius:14px;
+    background:linear-gradient(135deg,#2563eb,#16a34a);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:30px;
+    font-weight:900;
+  }
+
+  #zx_nombre_app{
+    font-size:20px;
+    font-weight:900;
+  }
+
+  #zx_usuario_texto{
+    color:#cbd5e1;
+    margin-top:4px;
+    font-size:16px;
+  }
+
+  #zx_nav{
+    background:#1f2937;
+    padding:12px 20px 18px;
+    display:flex;
+    gap:12px;
+    overflow-x:auto;
+  }
+
+  .zx_btn_nav{
+    flex:0 0 auto;
+    background:#374151;
+    color:white;
+    border:1px solid rgba(255,255,255,.5);
+    padding:14px 18px;
+    font-size:17px;
+    font-weight:800;
+  }
+
+  #app{
+    padding:18px;
+  }
+
+  .zx_card{
+    background:white;
+    border-radius:24px;
+    padding:24px;
+    margin-bottom:18px;
+    border:1px solid #d1d5db;
+    box-shadow:0 10px 30px rgba(0,0,0,.06);
+  }
+
+  .zx_card h1{
+    margin:0 0 16px;
+    font-size:34px;
+    font-weight:900;
+  }
+
+  .zx_estado{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-top:20px;
+  }
+
+  .zx_badge_rojo{
+    background:#fee2e2;
+    color:#991b1b;
+    border-radius:999px;
+    padding:10px 14px;
+    font-weight:900;
+  }
+
+  .zx_badge_gris{
+    background:#e5e7eb;
+    color:#111827;
+    border-radius:999px;
+    padding:10px 14px;
+    font-weight:900;
+  }
+
+  .zx_oculto{
+    display:none !important;
+  }
+
+  `;
+
+  document.head.appendChild(css);
+}
+
+function limpiarViejo(){
+
+  document.querySelectorAll("header").forEach(function(el){
+    if(el.id !== "zx_header"){
+      el.classList.add("zx_oculto");
     }
-  }
+  });
 
-  function textoUsuario(){
-    const u = usuarioActual();
-    const nombre = u.nombre || u.usuario || "Usuario";
-    const rol = u.rol || u.tipo || "usuario";
-    return {
-      nombre,
-      rol,
-      linea: nombre + " · " + rol
-    };
-  }
+  document.querySelectorAll("button").forEach(function(el){
 
-  function contenedorApp(){
-    let app = document.getElementById("app");
+    const txt = (el.innerText || "").trim();
 
-    if(!app){
-      app = document.createElement("div");
-      app.id = "app";
-      document.body.appendChild(app);
+    if(
+      txt === "Vehículos" ||
+      txt === "📝" ||
+      txt === "✏️"
+    ){
+      if(!el.id.startsWith("zx_")){
+        el.classList.add("zx_oculto");
+      }
     }
+  });
 
-    return app;
-  }
+  document.querySelectorAll("section,div,article").forEach(function(el){
 
-  function formatoFecha(){
-    const ahora = new Date();
+    const txt = (el.innerText || "");
 
-    return ahora.toLocaleDateString("es-ES", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric"
-    });
-  }
-
-  function formatoHora(){
-    const ahora = new Date();
-
-    return ahora.toLocaleTimeString("es-ES", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    });
-  }
-
-  function pintarHeader(){
-    let header = document.getElementById("zx_header_principal");
-
-    if(!header){
-      header = document.createElement("header");
-      header.id = "zx_header_principal";
-      document.body.prepend(header);
+    if(
+      txt.includes("Alertas de flota") ||
+      txt.includes("Fichajes OK") ||
+      txt.includes("Trabajo total") ||
+      txt.includes("Jornada")
+    ){
+      if(!el.id.startsWith("zx_")){
+        el.classList.add("zx_oculto");
+      }
     }
+  });
 
-    header.className = "zx-header-principal";
-    header.innerHTML = `
-      <div class="zx-header-top">
-        <div>
-          <h1 class="zx-header-title">Zentryx V${window.ZENTRYX?.version || VERSION_UI}</h1>
-          <div id="zx_fecha" class="zx-header-fecha">${formatoFecha()}</div>
-          <div id="zx_reloj" class="zx-header-reloj">${formatoHora()}</div>
+}
+
+function pintarHeader(){
+
+  let header = document.getElementById("zx_header");
+
+  if(!header){
+    header = document.createElement("header");
+    header.id = "zx_header";
+    document.body.prepend(header);
+  }
+
+  header.innerHTML = `
+    <div id="zx_top">
+
+      <div>
+        <h1 id="zx_titulo">
+          Zentryx V2622
+        </h1>
+
+        <div id="zx_fecha">
+          ${formatoFecha()}
         </div>
 
-        <button class="zx-btn-salir" onclick="ZENTRYX_UI_salir()">Salir</button>
+        <div id="zx_hora">
+          ${formatoHora()}
+        </div>
       </div>
-    `;
 
-    if(relojInterval){
-      clearInterval(relojInterval);
-    }
+      <button id="zx_salir">
+        Salir
+      </button>
 
-    relojInterval = setInterval(function(){
-      const f = document.getElementById("zx_fecha");
-      const r = document.getElementById("zx_reloj");
+    </div>
+  `;
 
-      if(f) f.textContent = formatoFecha();
-      if(r) r.textContent = formatoHora();
-    }, 1000);
-  }
+  document.getElementById("zx_salir").onclick = function(){
 
-  function pintarBarraUsuario(){
-    let barra = document.getElementById("zx_barra_usuario");
-
-    if(!barra){
-      barra = document.createElement("section");
-      barra.id = "zx_barra_usuario";
-
-      const header = document.getElementById("zx_header_principal");
-      if(header && header.nextSibling){
-        document.body.insertBefore(barra, header.nextSibling);
-      }else{
-        document.body.appendChild(barra);
-      }
-    }
-
-    const u = textoUsuario();
-
-    barra.className = "zx-barra-usuario";
-    barra.innerHTML = `
-      <div class="zx-logo">Z</div>
-
-      <div class="zx-user-info">
-        <div class="zx-user-title">Zentryx PRO</div>
-        <div class="zx-user-subtitle">${u.linea}</div>
-      </div>
-    `;
-  }
-
-  function botonNav(texto, accion){
-    return `<button class="zx-nav-btn" onclick="${accion}">${texto}</button>`;
-  }
-
-  function pintarNav(){
-    let nav = document.getElementById("zx_nav_principal");
-
-    if(!nav){
-      nav = document.createElement("nav");
-      nav.id = "zx_nav_principal";
-
-      const barra = document.getElementById("zx_barra_usuario");
-      if(barra && barra.nextSibling){
-        document.body.insertBefore(nav, barra.nextSibling);
-      }else{
-        document.body.appendChild(nav);
-      }
-    }
-
-    nav.className = "zx-nav-principal";
-    nav.innerHTML = `
-      ${botonNav("Inicio", "ZENTRYX_UI_inicio()")}
-      ${botonNav("Usuarios", "ZENTRYX_UI_usuarios()")}
-      ${botonNav("Incidencias", "ZENTRYX_UI_incidencias()")}
-      ${botonNav("Informes", "ZENTRYX_UI_informes()")}
-      ${botonNav("Vehículos", "ZENTRYX_UI_abrirVehiculos()")}
-    `;
-  }
-
-  function pintarPanelPrincipal(){
-    const app = contenedorApp();
-    const u = textoUsuario();
-
-    app.innerHTML = `
-      <main class="zx-main">
-        <section class="zx-card">
-          <h1>Panel principal</h1>
-          <h2>${u.nombre}</h2>
-          <p class="zx-muted">${u.rol}</p>
-
-          <div class="zx-badges">
-            <span class="zx-badge zx-badge-red">Fuera</span>
-            <span class="zx-badge zx-badge-gray">Estado interno: fuera</span>
-          </div>
-        </section>
-
-        <section class="zx-card zx-card-soft">
-          <h1>Resumen</h1>
-          <p class="zx-muted">Base visual V2621 cargada desde <b>src/ui/layout.js</b>.</p>
-          <p class="zx-muted">Los módulos actuales siguen funcionando encima de esta estructura.</p>
-        </section>
-      </main>
-    `;
-  }
-
-  function aplicarEstilosLayout(){
-    if(document.getElementById("zx_layout_styles")) return;
-
-    const style = document.createElement("style");
-    style.id = "zx_layout_styles";
-    style.textContent = `
-      :root{
-        --zx-dark:#0f172a;
-        --zx-bg:#eef2f7;
-        --zx-card:#ffffff;
-        --zx-text:#111827;
-        --zx-muted:#6b7280;
-        --zx-blue:#2563eb;
-        --zx-red:#dc2626;
-        --zx-green:#16a34a;
-        --zx-line:#d1d5db;
-      }
-
-      body{
-        margin:0;
-        background:var(--zx-bg);
-        color:var(--zx-text);
-        font-family:Arial, Helvetica, sans-serif;
-      }
-
-      .zx-header-principal{
-        background:var(--zx-dark);
-        color:#fff;
-        padding:24px 20px 26px;
-      }
-
-      .zx-header-top{
-        display:flex;
-        align-items:flex-start;
-        justify-content:space-between;
-        gap:18px;
-      }
-
-      .zx-header-title{
-        margin:0;
-        font-size:38px;
-        line-height:1.05;
-        font-weight:900;
-        letter-spacing:-1px;
-      }
-
-      .zx-header-fecha{
-        margin-top:12px;
-        color:#cbd5e1;
-        font-size:22px;
-      }
-
-      .zx-header-reloj{
-        margin-top:12px;
-        font-size:34px;
-        line-height:1;
-        font-weight:900;
-      }
-
-      .zx-btn-salir{
-        border:0;
-        border-radius:16px;
-        background:var(--zx-red);
-        color:#fff;
-        font-size:20px;
-        font-weight:900;
-        padding:16px 24px;
-      }
-
-      .zx-barra-usuario{
-        background:linear-gradient(180deg,#111827,#1f2937);
-        color:#fff;
-        display:flex;
-        align-items:center;
-        gap:16px;
-        padding:18px 20px 12px;
-      }
-
-      .zx-logo{
-        width:52px;
-        height:52px;
-        border-radius:14px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        background:linear-gradient(135deg,#2563eb,#16a34a);
-        font-size:30px;
-        font-weight:900;
-      }
-
-      .zx-user-title{
-        font-size:22px;
-        font-weight:900;
-      }
-
-      .zx-user-subtitle{
-        margin-top:4px;
-        color:#cbd5e1;
-        font-size:17px;
-        font-weight:700;
-      }
-
-      .zx-nav-principal{
-        background:#1f2937;
-        display:flex;
-        gap:10px;
-        overflow-x:auto;
-        padding:10px 20px 18px;
-        border-bottom:1px solid rgba(255,255,255,.15);
-      }
-
-      .zx-nav-btn{
-        flex:0 0 auto;
-        background:transparent;
-        color:#fff;
-        border:1px solid rgba(255,255,255,.85);
-        padding:12px 18px;
-        font-size:16px;
-        font-weight:800;
-        border-radius:0;
-      }
-
-      .zx-main{
-        padding:16px;
-      }
-
-      .zx-card{
-        background:var(--zx-card);
-        border:1px solid var(--zx-line);
-        border-radius:20px;
-        padding:22px;
-        margin-bottom:16px;
-        box-shadow:0 10px 25px rgba(15,23,42,.08);
-      }
-
-      .zx-card h1{
-        margin:0 0 14px;
-        font-size:34px;
-        line-height:1.05;
-        font-weight:900;
-      }
-
-      .zx-card h2{
-        margin:0 0 8px;
-        font-size:22px;
-      }
-
-      .zx-muted{
-        color:var(--zx-muted);
-        font-size:18px;
-        line-height:1.35;
-      }
-
-      .zx-card-soft{
-        background:#f8fafc;
-      }
-
-      .zx-badges{
-        display:flex;
-        flex-wrap:wrap;
-        gap:10px;
-        margin-top:20px;
-      }
-
-      .zx-badge{
-        display:inline-block;
-        border-radius:999px;
-        padding:10px 14px;
-        font-weight:900;
-      }
-
-      .zx-badge-red{
-        background:#fee2e2;
-        color:#991b1b;
-      }
-
-      .zx-badge-gray{
-        background:#e5e7eb;
-        color:#111827;
-      }
-    `;
-
-    document.head.appendChild(style);
-  }
-
-  function limpiarElementosViejosDuplicados(){
-    // No borra app vieja agresivamente. Solo evita duplicados del layout nuevo.
-    const duplicadosHeader = document.querySelectorAll("#zx_header_principal");
-    duplicadosHeader.forEach(function(el, i){
-      if(i > 0) el.remove();
-    });
-
-    const duplicadosNav = document.querySelectorAll("#zx_nav_principal");
-    duplicadosNav.forEach(function(el, i){
-      if(i > 0) el.remove();
-    });
-  }
-
-  function iniciarLayout(){
-    aplicarEstilosLayout();
-    limpiarElementosViejosDuplicados();
-    pintarHeader();
-    pintarBarraUsuario();
-    pintarNav();
-
-    const app = contenedorApp();
-
-    if(!app.dataset.zxLayoutInicializado){
-      pintarPanelPrincipal();
-      app.dataset.zxLayoutInicializado = "1";
-    }
-  }
-
-  // ===============================
-  // FUNCIONES GLOBALES UI
-  // ===============================
-
-  window.ZENTRYX_UI_inicio = function(){
-    pintarPanelPrincipal();
-  };
-
-  window.ZENTRYX_UI_salir = function(){
     localStorage.removeItem("usuario");
-    window.location.href = "index.html";
+    location.href = "index.html";
+
   };
 
-  window.ZENTRYX_UI_usuarios = function(){
-    const app = contenedorApp();
-    app.innerHTML = `
-      <main class="zx-main">
-        <section class="zx-card">
-          <h1>Usuarios</h1>
-          <p class="zx-muted">El módulo usuarios seguirá moviéndose aquí.</p>
-        </section>
-      </main>
-    `;
-  };
+  setInterval(function(){
 
-  window.ZENTRYX_UI_incidencias = function(){
-    const app = contenedorApp();
-    app.innerHTML = `
-      <main class="zx-main">
-        <section class="zx-card">
-          <h1>Incidencias</h1>
-          <p class="zx-muted">Módulo pendiente de limpieza.</p>
-        </section>
-      </main>
-    `;
-  };
+    const hora = document.getElementById("zx_hora");
+    const fecha = document.getElementById("zx_fecha");
 
-  window.ZENTRYX_UI_informes = function(){
-    const app = contenedorApp();
-    app.innerHTML = `
-      <main class="zx-main">
-        <section class="zx-card">
-          <h1>Informes</h1>
-          <p class="zx-muted">Módulo pendiente de limpieza.</p>
-        </section>
-      </main>
-    `;
-  };
+    if(hora) hora.innerHTML = formatoHora();
+    if(fecha) fecha.innerHTML = formatoFecha();
 
-  window.ZENTRYX_UI_iniciarLayout = iniciarLayout;
+  },1000);
 
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", iniciarLayout);
-  }else{
-    iniciarLayout();
+}
+
+function pintarUsuario(){
+
+  let barra = document.getElementById("zx_usuario_barra");
+
+  if(!barra){
+
+    barra = document.createElement("div");
+    barra.id = "zx_usuario_barra";
+
+    document.body.appendChild(barra);
+
   }
+
+  const u = usuarioActual();
+
+  barra.innerHTML = `
+
+    <div id="zx_logo">
+      Z
+    </div>
+
+    <div>
+
+      <div id="zx_nombre_app">
+        Zentryx PRO
+      </div>
+
+      <div id="zx_usuario_texto">
+        ${(u.usuario || "admin")} · ${(u.rol || "Administrador")}
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+function boton(txt,accion){
+
+  return `
+    <button class="zx_btn_nav" onclick="${accion}">
+      ${txt}
+    </button>
+  `;
+
+}
+
+function pintarNav(){
+
+  let nav = document.getElementById("zx_nav");
+
+  if(!nav){
+
+    nav = document.createElement("div");
+    nav.id = "zx_nav";
+
+    document.body.appendChild(nav);
+
+  }
+
+  nav.innerHTML = `
+
+    ${boton("Inicio","ZX_inicio()")}
+    ${boton("Usuarios","ZX_usuarios()")}
+    ${boton("Incidencias","ZX_incidencias()")}
+    ${boton("Informes","ZX_informes()")}
+    ${boton("Vehículos","ZX_vehiculos()")}
+
+  `;
+
+}
+
+function pantallaInicio(){
+
+  const app = document.getElementById("app");
+
+  if(!app) return;
+
+  const u = usuarioActual();
+
+  app.innerHTML = `
+
+    <div class="zx_card">
+
+      <h1>
+        Panel principal
+      </h1>
+
+      <h2>
+        ${(u.usuario || "Administrador")}
+      </h2>
+
+      <div style="color:#6b7280;font-size:18px;margin-top:8px;">
+        ${(u.rol || "admin")}
+      </div>
+
+      <div class="zx_estado">
+
+        <div class="zx_badge_rojo">
+          Fuera
+        </div>
+
+        <div class="zx_badge_gris">
+          Estado interno: fuera
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="zx_card">
+
+      <h1>
+        Sistema modular activo
+      </h1>
+
+      <div style="font-size:18px;color:#6b7280;line-height:1.5;">
+        Layout V2622 funcionando.<br><br>
+
+        Estructura modular detectada:
+        <br><br>
+
+        • core/<br>
+        • modules/<br>
+        • ui/<br>
+
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+window.ZX_inicio = function(){
+
+  pantallaInicio();
+  limpiarViejo();
+
+};
+
+window.ZX_usuarios = function(){
+
+  const app = document.getElementById("app");
+
+  app.innerHTML = `
+
+    <div class="zx_card">
+
+      <h1>
+        Usuarios
+      </h1>
+
+      <div style="font-size:18px;color:#6b7280;">
+        Módulo preparado para continuar.
+      </div>
+
+    </div>
+
+  `;
+
+};
+
+window.ZX_incidencias = function(){
+
+  const app = document.getElementById("app");
+
+  app.innerHTML = `
+
+    <div class="zx_card">
+
+      <h1>
+        Incidencias
+      </h1>
+
+      <div style="font-size:18px;color:#6b7280;">
+        Módulo preparado para continuar.
+      </div>
+
+    </div>
+
+  `;
+
+};
+
+window.ZX_informes = function(){
+
+  const app = document.getElementById("app");
+
+  app.innerHTML = `
+
+    <div class="zx_card">
+
+      <h1>
+        Informes
+      </h1>
+
+      <div style="font-size:18px;color:#6b7280;">
+        Módulo preparado para continuar.
+      </div>
+
+    </div>
+
+  `;
+
+};
+
+window.ZX_vehiculos = function(){
+
+  if(window.ZX_VEHICULOS_ABRIR){
+
+    window.ZX_VEHICULOS_ABRIR();
+    return;
+
+  }
+
+  alert("vehiculos.js no cargado");
+
+};
+
+function iniciar(){
+
+  crearEstilos();
+  pintarHeader();
+  pintarUsuario();
+  pintarNav();
+  pantallaInicio();
+
+  limpiarViejo();
+
+  setInterval(function(){
+    limpiarViejo();
+  },1000);
+
+}
+
+if(document.readyState === "loading"){
+
+  document.addEventListener("DOMContentLoaded",iniciar);
+
+}else{
+
+  iniciar();
+
+}
 
 })();
