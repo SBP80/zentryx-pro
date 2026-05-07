@@ -3,6 +3,19 @@
 // ===============================
 (function(){
   "use strict";
+  const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
+
+  const SUPABASE_KEY = "TU_KEY_COMPLETA";
+
+  const sb = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
+
+window.sb = sb;
+window.supabaseClient = sb;
+
+console.log("SUPABASE GLOBAL OK");
   const VERSION = "2619";
   window.ZENTRYX = window.ZENTRYX || {version: VERSION, modulos: {}, estado: "base modular cargada"};
   window.ZENTRYX.version = VERSION;
