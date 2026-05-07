@@ -5,7 +5,7 @@
   "use strict";
   const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
 
-  const SUPABASE_KEY = "TU_KEY_COMPLETA";
+  const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
   const sb = window.supabase.createClient(
     SUPABASE_URL,
