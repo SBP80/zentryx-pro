@@ -1,10 +1,10 @@
 // ===============================
-// ZENTRYX V2617 - MÓDULO VEHÍCULOS SUPABASE + USO
+// ZENTRYX V2619 - MÓDULO VEHÍCULOS SUPABASE + USO
 // ===============================
 (function(){
   "use strict";
 
-  const MODULO = {nombre:"vehiculos", version:"2617", activo:true, init:init, abrir:mostrarPantallaVehiculos};
+  const MODULO = {nombre:"vehiculos", version:"2619", activo:true, init:init, abrir:mostrarPantallaVehiculos};
 
   function clienteSupabase(){
     if(window.sb && typeof window.sb.from === "function") return window.sb;
@@ -20,7 +20,7 @@
   }
 
   function init(){
-    console.log("Vehículos PRO V2617 activo");
+    console.log("Vehículos PRO V2619 activo");
     crearAviso();
     crearBotonFlotante();
     activarEventos();
@@ -111,7 +111,7 @@
     var viejo = document.getElementById("zx_mod_vehiculos_banner");
     if(viejo) viejo.remove();
     var aviso = document.createElement("div");
-    aviso.textContent = "VEHÍCULOS PRO V2617";
+    aviso.textContent = "VEHÍCULOS PRO V2619";
     aviso.style.position="fixed"; aviso.style.top="60px"; aviso.style.left="10px"; aviso.style.right="10px";
     aviso.style.zIndex="999999"; aviso.style.background="#dcfce7"; aviso.style.color="#166534";
     aviso.style.border="2px solid #22c55e"; aviso.style.borderRadius="14px"; aviso.style.padding="10px";
@@ -158,7 +158,7 @@
     contenedor.innerHTML = `
       <div class="card" style="margin:16px;">
         <h1>Vehículos</h1>
-        <p class="muted">Módulo externo de vehículos V2617 conectado a Supabase</p>
+        <p class="muted">Módulo externo de vehículos V2619 conectado a Supabase</p>
         <button id="zx_crear_vehiculo_modulo" style="width:100%;padding:14px;margin-bottom:10px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-weight:700;">+ Añadir vehículo</button>
         <button id="zx_recargar_vehiculos_modulo" style="width:100%;padding:14px;margin-bottom:15px;background:#e5e7eb;color:#111827;border:none;border-radius:10px;font-weight:700;">Recargar</button>
         <div id="listaVehiculosModulo"></div>
@@ -226,4 +226,25 @@
   window.ZENTRYX_UI_abrirVehiculos = mostrarPantallaVehiculos;
   if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", registrar);
   else registrar();
+})();
+
+
+// ===============================
+// V2619 - Mejora navegación vehículos
+// ===============================
+(function(){
+  function addNav(){
+    var panel=document.getElementById('listaVehiculosModulo');
+    if(!panel) return;
+    if(document.getElementById('zx_nav_mod_vehiculos')) return;
+    var box=document.createElement('div');
+    box.id='zx_nav_mod_vehiculos';
+    box.style.display='flex';box.style.gap='8px';box.style.margin='0 0 12px 0';
+    box.innerHTML='<button id="zx_volver_vehiculos_modulo" style="flex:1;padding:12px;border:0;border-radius:12px;background:#e5e7eb;font-weight:900;">← Volver</button><button id="zx_cerrar_vehiculos_modulo" style="flex:1;padding:12px;border:0;border-radius:12px;background:#fee2e2;color:#991b1b;font-weight:900;">✕ Cerrar</button>';
+    panel.parentNode.insertBefore(box,panel);
+    document.getElementById('zx_volver_vehiculos_modulo').onclick=function(){ location.reload(); };
+    document.getElementById('zx_cerrar_vehiculos_modulo').onclick=function(){ location.reload(); };
+  }
+  document.addEventListener('click',function(){ setTimeout(addNav,100); },true);
+  setInterval(addNav,1000);
 })();
