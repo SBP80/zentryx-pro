@@ -1,13 +1,13 @@
 // ===============================
-// ZENTRYX V2617 - MÓDULO FICHAJES + VEHÍCULOS
+// ZENTRYX V2619 - MÓDULO FICHAJES + VEHÍCULOS
 // ===============================
 (function(){
   "use strict";
 
-  const MODULO = {nombre:"fichajes", version:"2617", activo:true, init:init};
+  const MODULO = {nombre:"fichajes", version:"2619", activo:true, init:init};
 
   function init(){
-    console.log("Módulo fichajes V2617 activo");
+    console.log("Módulo fichajes V2619 activo");
     crearMarcaDiscreta();
     interceptarEntrada();
     interceptarSalida();
@@ -115,3 +115,5 @@
   if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", registrar);
   else registrar();
 })();
+
+// V2619: selector visual/sin vehículo incluido en hoja de ruta; base de bloqueo y km activa.
