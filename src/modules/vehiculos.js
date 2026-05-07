@@ -229,22 +229,3 @@
 })();
 
 
-// ===============================
-// V2619 - Mejora navegación vehículos
-// ===============================
-(function(){
-  function addNav(){
-    var panel=document.getElementById('listaVehiculosModulo');
-    if(!panel) return;
-    if(document.getElementById('zx_nav_mod_vehiculos')) return;
-    var box=document.createElement('div');
-    box.id='zx_nav_mod_vehiculos';
-    box.style.display='flex';box.style.gap='8px';box.style.margin='0 0 12px 0';
-    box.innerHTML='<button id="zx_volver_vehiculos_modulo" style="flex:1;padding:12px;border:0;border-radius:12px;background:#e5e7eb;font-weight:900;">← Volver</button><button id="zx_cerrar_vehiculos_modulo" style="flex:1;padding:12px;border:0;border-radius:12px;background:#fee2e2;color:#991b1b;font-weight:900;">✕ Cerrar</button>';
-    panel.parentNode.insertBefore(box,panel);
-    document.getElementById('zx_volver_vehiculos_modulo').onclick=function(){ location.reload(); };
-    document.getElementById('zx_cerrar_vehiculos_modulo').onclick=function(){ location.reload(); };
-  }
-  document.addEventListener('click',function(){ setTimeout(addNav,100); },true);
-  setInterval(addNav,1000);
-})();
