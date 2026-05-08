@@ -1,17 +1,25 @@
+<!-- =============================== -->
+<!-- ZENTRYX V2629 - CARGA MODULAR -->
+<!-- app.html -->
+<!-- =============================== -->
+
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
 
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 
-<title>Zentryx V2626</title>
+<title>Zentryx PRO V2629</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
 
+html,
 body{
   margin:0;
+  padding:0;
   background:#eef2f7;
   font-family:Arial,Helvetica,sans-serif;
 }
@@ -20,102 +28,30 @@ body{
   min-height:100vh;
 }
 
-#zx_loader{
-  position:fixed;
-  inset:0;
-  background:#0f172a;
-  color:white;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  flex-direction:column;
-  z-index:999999;
-}
-
-#zx_loader h1{
-  margin:0;
-  font-size:42px;
-  font-weight:900;
-}
-
-#zx_loader p{
-  margin-top:14px;
-  color:#cbd5e1;
-  font-size:20px;
-}
-
 </style>
 
 </head>
 
 <body>
 
-<div id="zx_loader">
-
-  <h1>
-    Zentryx
-  </h1>
-
-  <p>
-    Cargando sistema modular...
-  </p>
-
-</div>
-
 <div id="app"></div>
 
-<!-- SUPABASE -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <!-- CORE -->
-<script src="src/app.js?v=2626"></script>
+<script src="src/app.js?v=2629"></script>
 
-<script src="src/core/session.js?v=2626"></script>
-<script src="src/core/store.js?v=2626"></script>
+<!-- CORE SISTEMA -->
+<script src="src/core/session.js?v=2629"></script>
+<script src="src/core/store.js?v=2629"></script>
 
 <!-- UI -->
-<script src="src/ui/layout.js?v=2626"></script>
+<script src="src/ui/layout.js?v=2629"></script>
 
-<!-- MODULOS -->
-<script src="src/modules/inicio.js?v=2626"></script>
-<script src="src/modules/usuarios.js?v=2626"></script>
-<script src="src/modules/fichajes.js?v=2626"></script>
-<script src="src/modules/vehiculos.js?v=2626"></script>
-<script src="src/modules/configuracion.js?v=2626"></script>
-
-<script>
-
-window.addEventListener("load",function(){
-
-  setTimeout(function(){
-
-    const loader =
-      document.getElementById("zx_loader");
-
-    if(loader){
-
-      loader.style.transition = "0.4s";
-      loader.style.opacity = "0";
-
-      setTimeout(function(){
-
-        loader.remove();
-
-      },400);
-
-    }
-
-    if(window.ZENTRYX_UI_inicio){
-
-      window.ZENTRYX_UI_inicio();
-
-    }
-
-  },300);
-
-});
-
-</script>
+<!-- MÓDULOS -->
+<script src="src/modules/inicio.js?v=2629"></script>
+<script src="src/modules/usuarios.js?v=2629"></script>
+<script src="src/modules/fichajes.js?v=2629"></script>
+<script src="src/modules/vehiculos.js?v=2629"></script>
+<script src="src/modules/configuracion.js?v=2629"></script>
 
 </body>
 </html>
