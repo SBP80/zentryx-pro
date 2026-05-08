@@ -2,7 +2,7 @@
 "use strict";
 
 window.ZENTRYX = window.ZENTRYX || {};
-window.ZENTRYX.version = "2631";
+window.ZENTRYX.version = "2632";
 
 let relojTimer = null;
 
@@ -53,8 +53,29 @@ function estilos(){
     #zx_logo{width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#16a34a);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900}
     #zx_nombre_app{font-size:20px;font-weight:900}
     #zx_usuario_texto{color:#cbd5e1;margin-top:4px;font-size:16px}
-    #zx_nav{background:#1f2937;padding:12px 20px 18px;display:flex;gap:12px;overflow-x:auto}
-    .zx_btn_nav{flex:0 0 auto;background:#374151;color:white;border:1px solid rgba(255,255,255,.6);padding:14px 18px;font-size:17px;font-weight:800}
+
+    #zx_nav{
+      position:sticky;
+      top:0;
+      z-index:9999;
+      background:#1f2937;
+      padding:12px 20px 18px;
+      display:flex;
+      gap:12px;
+      overflow-x:auto;
+      box-shadow:0 8px 20px rgba(15,23,42,.25);
+    }
+
+    .zx_btn_nav{
+      flex:0 0 auto;
+      background:#374151;
+      color:white;
+      border:1px solid rgba(255,255,255,.6);
+      padding:14px 18px;
+      font-size:17px;
+      font-weight:800;
+    }
+
     #app{padding:18px;min-height:60vh}
     .zx_card{background:white;border-radius:24px;padding:24px;margin-bottom:18px;border:1px solid #d1d5db;box-shadow:0 10px 30px rgba(0,0,0,.06)}
     .zx_card h1{margin:0 0 16px;font-size:34px;font-weight:900;line-height:1.05}
@@ -73,20 +94,32 @@ function header(){
   h.innerHTML=`
     <div id="zx_top">
       <div>
-        <h1 id="zx_titulo">Zentryx V2631</h1>
+        <h1 id="zx_titulo">Zentryx V2632</h1>
         <div id="zx_fecha">${fecha()}</div>
         <div id="zx_hora">${hora()}</div>
       </div>
-      <button id="zx_salir">Salir</button>
+      <button id="zx_salir" type="button">Salir</button>
     </div>
   `;
 
-  document.getElementById("zx_salir").onclick=function(){
-    localStorage.clear();
-    window.location.href="index.html?v=2631";
+  const salir=document.getElementById("zx_salir");
+
+  salir.onclick=function(e){
+    e.preventDefault();
+    e.stopPropagation();
+
+    localStorage.removeItem("usuario");
+    localStorage.removeItem("zx_estado_jornada");
+    localStorage.removeItem("zx_ultimo_fichaje");
+    localStorage.removeItem("zentryx_vehiculo_fichaje_id");
+    localStorage.removeItem("zentryx_vehiculo_fichaje_matricula");
+    localStorage.removeItem("zentryx_vehiculo_fichaje_km");
+
+    window.location.replace("./index.html?v=2632");
   };
 
   if(relojTimer) clearInterval(relojTimer);
+
   relojTimer=setInterval(function(){
     const f=document.getElementById("zx_fecha");
     const r=document.getElementById("zx_hora");
@@ -115,7 +148,7 @@ function barraUsuario(){
 }
 
 function boton(t,a){
-  return `<button class="zx_btn_nav" onclick="${a}">${t}</button>`;
+  return `<button class="zx_btn_nav" type="button" onclick="${a}">${t}</button>`;
 }
 
 function nav(){
@@ -155,6 +188,7 @@ window.ZX_vehiculos=function(){
 };
 
 window.ZX_fichaje=function(){
+  if(window.ZENTRYX_UI_fichaje){ window.ZENTRYX_UI_fichaje(); return; }
   app().innerHTML=`<div class="zx_card"><h1>Fichaje</h1><p>No cargado.</p></div>`;
 };
 
