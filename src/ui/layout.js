@@ -2,7 +2,7 @@
 "use strict";
 
 window.ZENTRYX = window.ZENTRYX || {};
-window.ZENTRYX.version = "2637";
+window.ZENTRYX.version = "2638";
 
 let relojTimer = null;
 
@@ -38,27 +38,22 @@ function hora(){
 function estilos(){
 
   const viejo=document.getElementById("zx_layout_styles");
-
-  if(viejo){
-    viejo.remove();
-  }
+  if(viejo) viejo.remove();
 
   const css=document.createElement("style");
-
   css.id="zx_layout_styles";
 
   css.innerHTML=`
 
     *{
       box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
     }
 
     html,
     body{
       margin:0;
       padding:0;
-      width:100%;
-      max-width:100%;
       overflow-x:hidden;
       background:#eef2f7;
       font-family:Arial,Helvetica,sans-serif;
@@ -66,82 +61,106 @@ function estilos(){
     }
 
     body{
-      padding-bottom:240px;
+      padding-bottom:110px;
+    }
+
+    #app{
+      width:100%;
+      padding:14px;
+      min-height:100vh;
     }
 
     #zx_header{
-      background:#0f172a;
+      background:#071330;
       color:white;
-      padding:
-        calc(env(safe-area-inset-top) + 22px)
-        20px
-        22px;
+      padding:18px 16px 20px;
     }
 
     #zx_top{
       display:flex;
       flex-direction:column;
-      gap:20px;
+      gap:14px;
     }
 
     #zx_titulo{
       margin:0;
-      font-size:62px;
+      font-size:24px;
+      line-height:1.1;
       font-weight:900;
-      line-height:1;
-      word-break:break-word;
     }
 
     #zx_fecha{
-      margin-top:18px;
+      margin-top:8px;
+      font-size:14px;
       color:#cbd5e1;
-      font-size:28px;
       line-height:1.3;
     }
 
     #zx_hora{
-      margin-top:18px;
-      font-size:64px;
-      font-weight:900;
+      margin-top:10px;
+      font-size:28px;
       line-height:1;
+      font-weight:900;
     }
 
     #zx_salir{
       width:100%;
       border:0;
-      border-radius:28px;
+      border-radius:16px;
       background:#dc2626;
       color:white;
-      padding:26px;
-      font-size:34px;
+      padding:14px;
+      font-size:16px;
       font-weight:900;
     }
 
-    #app{
-      width:100%;
-      max-width:100%;
-      padding:18px;
-      overflow-x:hidden;
+    #zx_usuario_barra{
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:74px;
+      z-index:9998;
+
+      background:#071330;
+      color:white;
+
+      display:flex;
+      align-items:center;
+      gap:12px;
+
+      padding:12px 14px;
+
+      border-top:1px solid rgba(255,255,255,.08);
     }
 
-    .zx_card{
-      width:100%;
-      background:white;
-      border-radius:34px;
-      padding:34px;
-      margin-bottom:22px;
-      border:1px solid #d1d5db;
-      box-shadow:0 10px 30px rgba(0,0,0,.05);
-      overflow:hidden;
-    }
+    #zx_logo{
+      width:48px;
+      height:48px;
+      border-radius:14px;
 
-    .zx_card h1{
-      margin:0 0 24px;
-      font-size:76px;
-      line-height:1;
+      background:linear-gradient(135deg,#2563eb,#10b981);
+
+      display:flex;
+      align-items:center;
+      justify-content:center;
+
+      font-size:24px;
       font-weight:900;
-      word-break:break-word;
-      color:#0f172a;
+
+      flex-shrink:0;
+    }
+
+    #zx_nombre_app{
+      font-size:16px;
+      font-weight:900;
+      line-height:1.1;
+    }
+
+    #zx_usuario_texto{
+      margin-top:3px;
+      color:#cbd5e1;
+      font-size:13px;
+      line-height:1.2;
     }
 
     #zx_nav{
@@ -149,28 +168,18 @@ function estilos(){
       left:0;
       right:0;
       bottom:0;
-      z-index:99999;
-
-      background:#0f172a;
-
-      padding:
-        18px
-        18px
-        calc(env(safe-area-inset-bottom) + 24px);
-
-      border-top:1px solid rgba(255,255,255,.08);
-
-      overflow-x:auto;
-      overflow-y:hidden;
-
-      white-space:nowrap;
+      z-index:9999;
 
       display:flex;
-      gap:16px;
+      gap:10px;
 
-      -webkit-overflow-scrolling:touch;
+      overflow-x:auto;
 
-      box-shadow:0 -10px 30px rgba(0,0,0,.25);
+      padding:12px 14px;
+
+      background:#071330;
+
+      border-top:1px solid rgba(255,255,255,.08);
     }
 
     #zx_nav::-webkit-scrollbar{
@@ -180,133 +189,110 @@ function estilos(){
     .zx_btn_nav{
       flex:0 0 auto;
 
-      min-width:190px;
-
-      border-radius:24px;
-
-      border:2px solid rgba(255,255,255,.18);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
 
       background:#374151;
       color:white;
 
-      padding:24px 22px;
+      padding:12px 18px;
 
-      font-size:26px;
-      font-weight:900;
+      font-size:14px;
+      font-weight:800;
 
       white-space:nowrap;
     }
 
-    #zx_usuario_barra{
-      position:fixed;
+    .zx_card{
+      width:100%;
 
-      left:0;
-      right:0;
+      background:white;
 
-      bottom:132px;
-
-      z-index:99998;
-
-      display:flex;
-      align-items:center;
-      gap:18px;
-
-      padding:22px 20px;
-
-      background:#111827;
-
-      border-top:1px solid rgba(255,255,255,.08);
-
-      box-shadow:0 -8px 24px rgba(0,0,0,.25);
-    }
-
-    #zx_logo{
-      width:90px;
-      height:90px;
       border-radius:24px;
 
-      background:linear-gradient(
-        135deg,
-        #2563eb,
-        #10b981
-      );
+      padding:20px;
 
-      display:flex;
-      align-items:center;
-      justify-content:center;
+      margin-bottom:16px;
 
-      color:white;
-      font-size:52px;
-      font-weight:900;
+      border:1px solid #d1d5db;
 
-      flex:none;
+      box-shadow:0 8px 24px rgba(0,0,0,.05);
     }
 
-    #zx_nombre_app{
-      color:white;
-      font-size:30px;
-      font-weight:900;
+    .zx_card h1{
+      margin:0 0 16px;
+      font-size:24px;
       line-height:1.1;
+      font-weight:900;
+      color:#0f172a;
     }
 
-    #zx_usuario_texto{
-      margin-top:8px;
-      color:#d1d5db;
-      font-size:22px;
-    }
+    @media(min-width:768px){
 
-    @media (max-width:700px){
+      #zx_header{
+        padding:28px;
+      }
 
       #zx_titulo{
-        font-size:42px;
+        font-size:40px;
       }
 
       #zx_fecha{
-        font-size:20px;
+        font-size:18px;
       }
 
       #zx_hora{
-        font-size:48px;
+        font-size:46px;
       }
 
       #zx_salir{
-        font-size:28px;
-        padding:22px;
+        width:auto;
+        padding:16px 28px;
+        font-size:18px;
+      }
+
+      #zx_top{
+        flex-direction:row;
+        align-items:flex-start;
+        justify-content:space-between;
+      }
+
+      #app{
+        padding:24px;
+        padding-bottom:140px;
       }
 
       .zx_card{
-        padding:24px;
-        border-radius:26px;
+        padding:28px;
       }
 
       .zx_card h1{
-        font-size:42px;
+        font-size:34px;
       }
 
       .zx_btn_nav{
-        min-width:170px;
-        font-size:22px;
-        padding:20px 18px;
-      }
-
-      #zx_logo{
-        width:70px;
-        height:70px;
-        font-size:38px;
-      }
-
-      #zx_nombre_app{
-        font-size:22px;
-      }
-
-      #zx_usuario_texto{
         font-size:16px;
+        padding:14px 20px;
       }
 
       #zx_usuario_barra{
-        bottom:118px;
+        bottom:82px;
+        padding:14px 22px;
       }
 
+      #zx_logo{
+        width:54px;
+        height:54px;
+        font-size:28px;
+      }
+
+      #zx_nombre_app{
+        font-size:20px;
+      }
+
+      #zx_usuario_texto{
+        font-size:15px;
+      }
     }
 
   `;
@@ -319,10 +305,8 @@ function header(){
   let h=document.getElementById("zx_header");
 
   if(!h){
-
     h=document.createElement("header");
     h.id="zx_header";
-
     document.body.prepend(h);
   }
 
@@ -330,9 +314,8 @@ function header(){
     <div id="zx_top">
 
       <div>
-
         <h1 id="zx_titulo">
-          Zentryx V2637
+          Zentryx V2638
         </h1>
 
         <div id="zx_fecha">
@@ -342,23 +325,31 @@ function header(){
         <div id="zx_hora">
           ${hora()}
         </div>
-
       </div>
 
-      <button id="zx_salir">
+      <button id="zx_salir" type="button">
         Salir
       </button>
 
     </div>
   `;
 
-  document.getElementById("zx_salir").onclick=function(){
+  const salir=document.getElementById("zx_salir");
+
+  salir.onclick=function(e){
+
+    e.preventDefault();
+    e.stopPropagation();
 
     localStorage.removeItem("usuario");
+    localStorage.removeItem("zx_estado_jornada");
+    localStorage.removeItem("zx_ultimo_fichaje");
 
-    window.location.replace(
-      "./index.html?v=2637"
-    );
+    localStorage.removeItem("zentryx_vehiculo_fichaje_id");
+    localStorage.removeItem("zentryx_vehiculo_fichaje_matricula");
+    localStorage.removeItem("zentryx_vehiculo_fichaje_km");
+
+    window.location.replace("./index.html?v=2638");
   };
 
   if(relojTimer){
@@ -370,32 +361,25 @@ function header(){
     const f=document.getElementById("zx_fecha");
     const r=document.getElementById("zx_hora");
 
-    if(f){
-      f.textContent=fecha();
-    }
-
-    if(r){
-      r.textContent=hora();
-    }
+    if(f) f.textContent=fecha();
+    if(r) r.textContent=hora();
 
   },1000);
 }
 
 function barraUsuario(){
 
-  let barra=document.getElementById("zx_usuario_barra");
+  let b=document.getElementById("zx_usuario_barra");
 
-  if(!barra){
-
-    barra=document.createElement("div");
-    barra.id="zx_usuario_barra";
-
-    document.body.appendChild(barra);
+  if(!b){
+    b=document.createElement("div");
+    b.id="zx_usuario_barra";
+    document.body.appendChild(b);
   }
 
   const u=usuario();
 
-  barra.innerHTML=`
+  b.innerHTML=`
 
     <div id="zx_logo">
       Z
@@ -408,7 +392,7 @@ function barraUsuario(){
       </div>
 
       <div id="zx_usuario_texto">
-        ${u.usuario || "admin"} · ${u.rol || "admin"}
+        ${(u.usuario || "admin")} · ${(u.rol || "admin")}
       </div>
 
     </div>
@@ -421,6 +405,7 @@ function boton(texto,accion){
   return `
     <button
       class="zx_btn_nav"
+      type="button"
       onclick="${accion}"
     >
       ${texto}
@@ -430,24 +415,23 @@ function boton(texto,accion){
 
 function nav(){
 
-  let nav=document.getElementById("zx_nav");
+  let n=document.getElementById("zx_nav");
 
-  if(!nav){
-
-    nav=document.createElement("div");
-    nav.id="zx_nav";
-
-    document.body.appendChild(nav);
+  if(!n){
+    n=document.createElement("div");
+    n.id="zx_nav";
+    document.body.appendChild(n);
   }
 
-  nav.innerHTML=`
+  n.innerHTML=`
+
     ${boton("Inicio","ZX_inicio()")}
     ${boton("Fichaje","ZX_fichaje()")}
     ${boton("Usuarios","ZX_usuarios()")}
     ${boton("Vehículos","ZX_vehiculos()")}
     ${boton("Incidencias","ZX_incidencias()")}
     ${boton("Informes","ZX_informes()")}
-    ${boton("Configuración","ZX_configuracion()")}
+
   `;
 }
 
@@ -481,26 +465,14 @@ window.ZX_informes=function(){
   `;
 };
 
-window.ZX_configuracion=function(){
-
-  app().innerHTML=`
-    <div class="zx_card">
-      <h1>Configuración</h1>
-      <p>Módulo configuración pendiente.</p>
-    </div>
-  `;
-};
-
 window.ZX_vehiculos=function(){
 
   if(window.ZENTRYX_UI_abrirVehiculos){
-
     window.ZENTRYX_UI_abrirVehiculos();
     return;
   }
 
   if(window.ZX_VEHICULOS_ABRIR){
-
     window.ZX_VEHICULOS_ABRIR();
     return;
   }
@@ -516,7 +488,6 @@ window.ZX_vehiculos=function(){
 window.ZX_fichaje=function(){
 
   if(window.ZENTRYX_UI_fichaje){
-
     window.ZENTRYX_UI_fichaje();
     return;
   }
@@ -532,17 +503,13 @@ window.ZX_fichaje=function(){
 function iniciar(){
 
   estilos();
-
   header();
-
-  nav();
-
   barraUsuario();
+  nav();
 
   setTimeout(function(){
 
     if(window.ZX_inicio){
-
       window.ZX_inicio();
     }
 
@@ -559,6 +526,7 @@ if(document.readyState==="loading"){
 }else{
 
   iniciar();
+
 }
 
 })();
