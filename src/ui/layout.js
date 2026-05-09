@@ -1,13 +1,8 @@
-// ===============================
-// ZENTRYX V2634 - LAYOUT LIMPIO
-// Archivo: src/ui/layout.js
-// ===============================
-
 (function(){
 "use strict";
 
 window.ZENTRYX = window.ZENTRYX || {};
-window.ZENTRYX.version = "2634";
+window.ZENTRYX.version = "2635";
 
 let relojTimer = null;
 
@@ -63,17 +58,14 @@ function estilos(){
       margin:0;
       padding:0;
       background:#eef2f7;
-      color:#111827;
       font-family:Arial,Helvetica,sans-serif;
+      color:#111827;
       overflow-x:hidden;
     }
 
     body{
-      min-height:100vh;
-    }
-
-    #zx_layout{
-      width:100%;
+      display:flex;
+      flex-direction:column;
       min-height:100vh;
     }
 
@@ -92,76 +84,45 @@ function estilos(){
 
     #zx_titulo{
       margin:0;
-      font-size:42px;
+      font-size:38px;
       line-height:1;
       font-weight:900;
     }
 
     #zx_fecha{
       margin-top:12px;
-      color:#cbd5e1;
       font-size:20px;
       line-height:1.4;
+      color:#cbd5e1;
     }
 
     #zx_hora{
       margin-top:14px;
-      font-size:40px;
+      font-size:34px;
       font-weight:900;
     }
 
     #zx_salir{
       border:0;
-      border-radius:20px;
       background:#dc2626;
       color:white;
-      padding:18px 24px;
-      font-size:24px;
-      font-weight:900;
-    }
-
-    #zx_usuario_barra{
-      background:#111827;
-      color:white;
-      display:flex;
-      align-items:center;
-      gap:16px;
-      padding:18px 20px;
-    }
-
-    #zx_logo{
-      width:58px;
-      height:58px;
-      border-radius:16px;
-      background:linear-gradient(135deg,#2563eb,#16a34a);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:32px;
-      font-weight:900;
-      flex:0 0 auto;
-    }
-
-    #zx_nombre_app{
+      border-radius:20px;
+      padding:18px 26px;
       font-size:22px;
       font-weight:900;
+      cursor:pointer;
     }
 
-    #zx_usuario_texto{
-      margin-top:4px;
-      color:#cbd5e1;
-      font-size:17px;
-    }
-        #zx_nav{
+    #zx_nav{
       position:sticky;
       top:0;
       z-index:9999;
-      background:#1f2937;
+      background:#111827;
       display:flex;
       gap:12px;
       overflow-x:auto;
-      padding:14px 20px;
-      box-shadow:0 10px 24px rgba(0,0,0,.18);
+      padding:14px 18px;
+      box-shadow:0 8px 20px rgba(0,0,0,.18);
     }
 
     #zx_nav::-webkit-scrollbar{
@@ -170,24 +131,57 @@ function estilos(){
 
     .zx_btn_nav{
       flex:0 0 auto;
-      border:1px solid rgba(255,255,255,.35);
+      border:1px solid rgba(255,255,255,.25);
       background:#374151;
       color:white;
-      border-radius:14px;
+      border-radius:16px;
       padding:14px 18px;
       font-size:17px;
       font-weight:800;
       white-space:nowrap;
+      cursor:pointer;
     }
 
     .zx_btn_nav:active{
       transform:scale(.98);
     }
 
+    #zx_usuario_barra{
+      background:#0f172a;
+      color:white;
+      padding:18px 20px;
+      display:flex;
+      align-items:center;
+      gap:16px;
+    }
+
+    #zx_logo{
+      width:56px;
+      height:56px;
+      border-radius:16px;
+      background:linear-gradient(135deg,#2563eb,#16a34a);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:30px;
+      font-weight:900;
+    }
+
+    #zx_nombre_app{
+      font-size:20px;
+      font-weight:900;
+    }
+
+    #zx_usuario_texto{
+      margin-top:4px;
+      color:#cbd5e1;
+      font-size:16px;
+    }
+
     #app{
       width:100%;
       padding:18px;
-      padding-bottom:40px;
+      flex:1;
     }
 
     .zx_card{
@@ -207,10 +201,6 @@ function estilos(){
       font-weight:900;
       color:#0f172a;
       word-break:break-word;
-    }
-
-    button{
-      cursor:pointer;
     }
 
     @media (max-width:640px){
@@ -267,7 +257,7 @@ function header(){
       <div>
 
         <h1 id="zx_titulo">
-          Zentryx V2634
+          Zentryx V2635
         </h1>
 
         <div id="zx_fecha">
@@ -286,7 +276,8 @@ function header(){
 
     </div>
   `;
-    const salir = document.getElementById("zx_salir");
+
+  const salir = document.getElementById("zx_salir");
 
   if(salir){
 
@@ -304,7 +295,7 @@ function header(){
       localStorage.removeItem("zentryx_vehiculo_fichaje_matricula");
       localStorage.removeItem("zentryx_vehiculo_fichaje_km");
 
-      window.location.href = "index.html?v=2634";
+      window.location.href = "index.html?v=2635";
 
     };
 
@@ -380,6 +371,7 @@ function boton(texto,accion){
   `;
 
 }
+
 function nav(){
 
   let nav = document.getElementById("zx_nav");
@@ -467,6 +459,7 @@ window.ZX_configuracion = function(){
   `;
 
 };
+
 window.ZX_vehiculos = function(){
 
   if(window.ZENTRYX_UI_abrirVehiculos){
@@ -533,9 +526,9 @@ function iniciar(){
 
   header();
 
-  barraUsuario();
-
   nav();
+
+  barraUsuario();
 
   setTimeout(function(){
 
