@@ -1,36 +1,751 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2638</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+/>
+
+<title>Zentryx PRO</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 
 <style>
-*{box-sizing:border-box}
-html,body{
+
+*{
+  box-sizing:border-box;
   margin:0;
   padding:0;
-  background:#eef2f7;
-  font-family:Arial,Helvetica,sans-serif;
+}
+
+html,
+body{
+
+  background:#e9eef3;
+
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  color:#0f172a;
+
   overflow-x:hidden;
 }
+
+/* ===================================== */
+/* APP */
+/* ===================================== */
+
 #app{
+
   min-height:100vh;
+
+  padding-bottom:220px;
 }
+
+/* ===================================== */
+/* HEADER */
+/* ===================================== */
+
+#zx_top{
+
+  background:#02163a;
+
+  padding:
+    26px
+    22px
+    34px;
+
+  color:white;
+}
+
+#zx_top h1{
+
+  font-size:38px;
+
+  font-weight:900;
+
+  margin-bottom:14px;
+}
+
+#zx_fecha{
+
+  font-size:22px;
+
+  opacity:0.8;
+
+  margin-bottom:20px;
+}
+
+#zx_hora{
+
+  font-size:62px;
+
+  font-weight:900;
+
+  margin-bottom:28px;
+}
+
+#zx_logout{
+
+  width:100%;
+
+  border:0;
+
+  border-radius:22px;
+
+  background:#ef2026;
+
+  color:white;
+
+  padding:22px;
+
+  font-size:30px;
+
+  font-weight:900;
+}
+
+/* ===================================== */
+/* TARJETAS */
+/* ===================================== */
+
+.zx_card{
+
+  background:white;
+
+  margin:22px;
+
+  border-radius:28px;
+
+  padding:28px;
+
+  border:1px solid #d4dbe3;
+
+  box-shadow:
+    0 4px 16px rgba(0,0,0,0.04);
+}
+
+.zx_card h2{
+
+  font-size:36px;
+
+  margin-bottom:20px;
+
+  font-weight:900;
+}
+
+/* ===================================== */
+/* BOTONES */
+/* ===================================== */
+
+.zx_btn{
+
+  width:100%;
+
+  border:0;
+
+  border-radius:22px;
+
+  padding:22px;
+
+  margin-bottom:16px;
+
+  color:white;
+
+  font-size:24px;
+
+  font-weight:900;
+}
+
+.zx_rojo{
+  background:#ef2026;
+}
+
+.zx_azul{
+  background:#3464e8;
+}
+
+.zx_verde{
+  background:#1fad49;
+}
+
+.zx_naranja{
+  background:#f97316;
+}
+
+.zx_morado{
+  background:#7c3aed;
+}
+
+/* ===================================== */
+/* FOOTER */
+/* ===================================== */
+
+#zx_footer{
+
+  position:fixed;
+
+  left:0;
+  right:0;
+  bottom:0;
+
+  background:#02163a;
+
+  border-top:1px solid rgba(255,255,255,0.08);
+
+  padding-top:10px;
+  padding-bottom:10px;
+
+  z-index:9999;
+
+  backdrop-filter:blur(20px);
+
+  box-shadow:
+    0 -10px 30px rgba(0,0,0,0.35);
+}
+
+/* CABECERA */
+
+#zx_footer_top{
+
+  display:flex;
+
+  align-items:center;
+
+  gap:12px;
+
+  padding-left:16px;
+  padding-right:16px;
+
+  padding-bottom:10px;
+}
+
+#zx_footer_logo{
+
+  width:56px;
+  height:56px;
+
+  border-radius:16px;
+
+  background:linear-gradient(
+    135deg,
+    #3b82f6,
+    #10b981
+  );
+
+  display:flex;
+
+  align-items:center;
+  justify-content:center;
+
+  color:white;
+
+  font-size:34px;
+
+  font-weight:900;
+}
+
+#zx_footer_info{
+
+  flex:1;
+}
+
+#zx_footer_info h3{
+
+  margin:0;
+
+  color:white;
+
+  font-size:18px;
+
+  font-weight:800;
+}
+
+#zx_footer_info p{
+
+  margin-top:2px;
+
+  color:rgba(255,255,255,0.7);
+
+  font-size:13px;
+}
+
+/* MENÚ */
+
+#zx_footer_menu{
+
+  display:flex;
+
+  gap:10px;
+
+  overflow-x:auto;
+
+  padding-left:16px;
+  padding-right:16px;
+
+  padding-top:10px;
+
+  -webkit-overflow-scrolling:touch;
+
+  scrollbar-width:none;
+}
+
+#zx_footer_menu::-webkit-scrollbar{
+  display:none;
+}
+
+.zx_footer_btn{
+
+  flex:none;
+
+  border:0;
+
+  border-radius:18px;
+
+  background:rgba(255,255,255,0.12);
+
+  color:white;
+
+  padding:14px 22px;
+
+  font-size:16px;
+
+  font-weight:800;
+
+  min-width:140px;
+}
+
+.zx_footer_btn:active{
+
+  transform:scale(0.96);
+
+  background:#2563eb;
+}
+
 </style>
+
 </head>
 
 <body>
 
+<div id="zx_top">
+
+  <h1 id="zx_version">
+    Zentryx V2639
+  </h1>
+
+  <div id="zx_fecha"></div>
+
+  <div id="zx_hora"></div>
+
+  <button
+    id="zx_logout"
+    onclick="logout()"
+  >
+    Salir
+  </button>
+
+</div>
+
 <div id="app"></div>
 
-<script src="src/app.js?v=2638"></script>
-<script src="src/ui/layout.js?v=2638"></script>
-<script src="src/modules/inicio.js?v=2638"></script>
-<script src="src/modules/fichajes.js?v=2638"></script>
-<script src="src/modules/vehiculos.js?v=2638"></script>
+<div id="zx_footer">
+
+  <div id="zx_footer_top">
+
+    <div id="zx_footer_logo">
+      Z
+    </div>
+
+    <div id="zx_footer_info">
+
+      <h3>Zentryx PRO</h3>
+
+      <p>admin · admin</p>
+
+    </div>
+
+  </div>
+
+  <div id="zx_footer_menu">
+
+    <button
+      class="zx_footer_btn"
+      onclick="ZX_inicio()"
+    >
+      Inicio
+    </button>
+
+    <button
+      class="zx_footer_btn"
+      onclick="ZX_fichaje()"
+    >
+      Fichaje
+    </button>
+
+    <button
+      class="zx_footer_btn"
+      onclick="ZX_usuarios()"
+    >
+      Usuarios
+    </button>
+
+    <button
+      class="zx_footer_btn"
+      onclick="ZX_vehiculos()"
+    >
+      Vehículos
+    </button>
+
+    <button
+      class="zx_footer_btn"
+      onclick="ZX_incidencias()"
+    >
+      Incidencias
+    </button>
+
+    <button
+      class="zx_footer_btn"
+      onclick="ZX_informes()"
+    >
+      Informes
+    </button>
+
+  </div>
+
+</div>
+
+<script>
+
+/* ===================================== */
+/* SUPABASE */
+/* ===================================== */
+
+const SUPABASE_URL =
+"https://TU-PROYECTO.supabase.co";
+
+const SUPABASE_KEY =
+"TU-ANON-KEY";
+
+window.sb =
+supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
+/* ===================================== */
+/* RELOJ */
+/* ===================================== */
+
+function actualizarReloj(){
+
+  const ahora = new Date();
+
+  document.getElementById(
+    "zx_fecha"
+  ).innerHTML =
+  ahora.toLocaleDateString(
+    "es-ES",
+    {
+      weekday:"long",
+      year:"numeric",
+      month:"long",
+      day:"numeric"
+    }
+  );
+
+  document.getElementById(
+    "zx_hora"
+  ).innerHTML =
+  ahora.toLocaleTimeString(
+    "es-ES"
+  );
+}
+
+setInterval(
+  actualizarReloj,
+  1000
+);
+
+actualizarReloj();
+
+/* ===================================== */
+/* LOGOUT */
+/* ===================================== */
+
+function logout(){
+
+  localStorage.removeItem("usuario");
+
+  location.href = "index.html";
+}
+
+/* ===================================== */
+/* MÓDULOS */
+/* ===================================== */
+
+function ZX_inicio(){
+
+  document.getElementById(
+    "app"
+  ).innerHTML = `
+
+    <div class="zx_card">
+
+      <h2>Inicio</h2>
+
+      <div style="
+        font-size:22px;
+        line-height:1.5;
+        color:#6b7280;
+      ">
+        Sistema principal
+        Zentryx PRO
+        modular activo.
+      </div>
+
+    </div>
+
+    <div class="zx_card">
+
+      <h2>Módulos rápidos</h2>
+
+      <button class="zx_btn zx_rojo">
+        Fichaje
+      </button>
+
+      <button class="zx_btn zx_azul">
+        Usuarios
+      </button>
+
+      <button class="zx_btn zx_verde">
+        Vehículos
+      </button>
+
+      <button class="zx_btn zx_naranja">
+        Incidencias
+      </button>
+
+      <button class="zx_btn zx_morado">
+        Informes
+      </button>
+
+    </div>
+
+    <div class="zx_card">
+
+      <h2>Estado sistema</h2>
+
+      <div style="
+        font-size:22px;
+        line-height:1.8;
+        color:#374151;
+      ">
+
+        <b>Versión:</b> V2639
+        <br><br>
+
+        Layout modular activo
+        <br><br>
+
+        Supabase conectado
+
+      </div>
+
+    </div>
+
+  `;
+}
+
+function ZX_fichaje(){
+
+  document.getElementById(
+    "app"
+  ).innerHTML = `
+
+    <div class="zx_card">
+
+      <h2>Fichaje</h2>
+
+      <div style="
+        font-size:22px;
+        color:#6b7280;
+        margin-bottom:20px;
+      ">
+        Usuario:
+        <b>admin</b>
+      </div>
+
+      <div style="
+        display:inline-block;
+        padding:12px 18px;
+        border-radius:999px;
+        background:#fee2e2;
+        color:#991b1b;
+        font-weight:800;
+        margin-bottom:20px;
+      ">
+        Fuera
+      </div>
+
+      <button class="zx_btn zx_verde">
+        Entrada
+      </button>
+
+      <button class="zx_btn zx_rojo">
+        Salida
+      </button>
+
+      <button class="zx_btn zx_naranja">
+        Inicio pausa
+      </button>
+
+      <button class="zx_btn zx_naranja">
+        Inicio comida
+      </button>
+
+    </div>
+
+  `;
+}
+
+function ZX_usuarios(){
+
+  document.getElementById(
+    "app"
+  ).innerHTML = `
+
+    <div class="zx_card">
+
+      <h2>Usuarios</h2>
+
+      <div style="
+        font-size:22px;
+        color:#374151;
+      ">
+        Módulo usuarios pendiente.
+      </div>
+
+    </div>
+
+  `;
+}
+
+function ZX_vehiculos(){
+
+  document.getElementById(
+    "app"
+  ).innerHTML = `
+
+    <div class="zx_card">
+
+      <h2>Vehículos</h2>
+
+      <button
+        class="zx_btn zx_azul"
+      >
+        Recargar
+      </button>
+
+      <div style="
+        background:white;
+        border-radius:20px;
+        padding:18px;
+        margin-top:10px;
+        border:1px solid #d1d5db;
+      ">
+
+        <div style="
+          font-size:28px;
+          font-weight:900;
+          margin-bottom:12px;
+        ">
+          TEST123
+        </div>
+
+        <div style="
+          font-size:20px;
+          margin-bottom:12px;
+          color:#374151;
+        ">
+          Kilómetros: 1000
+        </div>
+
+        <div style="
+          display:inline-block;
+          padding:10px 16px;
+          border-radius:999px;
+          background:#dcfce7;
+          color:#166534;
+          font-weight:900;
+        ">
+          Libre
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+}
+
+function ZX_incidencias(){
+
+  document.getElementById(
+    "app"
+  ).innerHTML = `
+
+    <div class="zx_card">
+
+      <h2>Incidencias</h2>
+
+      <div style="
+        font-size:22px;
+        color:#374151;
+      ">
+        Módulo incidencias pendiente.
+      </div>
+
+    </div>
+
+  `;
+}
+
+function ZX_informes(){
+
+  document.getElementById(
+    "app"
+  ).innerHTML = `
+
+    <div class="zx_card">
+
+      <h2>Informes</h2>
+
+      <div style="
+        font-size:22px;
+        color:#374151;
+      ">
+        Módulo informes pendiente.
+      </div>
+
+    </div>
+
+  `;
+}
+
+/* ===================================== */
+/* INICIO */
+/* ===================================== */
+
+ZX_inicio();
+
+</script>
 
 </body>
 </html>
