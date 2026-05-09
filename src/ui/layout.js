@@ -2,7 +2,7 @@
 "use strict";
 
 window.ZENTRYX = window.ZENTRYX || {};
-window.ZENTRYX.version = "2635";
+window.ZENTRYX.version = "2637";
 
 let relojTimer = null;
 
@@ -37,17 +37,17 @@ function hora(){
 
 function estilos(){
 
-  const viejo = document.getElementById("zx_layout_styles");
+  const viejo=document.getElementById("zx_layout_styles");
 
   if(viejo){
     viejo.remove();
   }
 
-  const css = document.createElement("style");
+  const css=document.createElement("style");
 
-  css.id = "zx_layout_styles";
+  css.id="zx_layout_styles";
 
-  css.innerHTML = `
+  css.innerHTML=`
 
     *{
       box-sizing:border-box;
@@ -57,72 +57,120 @@ function estilos(){
     body{
       margin:0;
       padding:0;
+      width:100%;
+      max-width:100%;
+      overflow-x:hidden;
       background:#eef2f7;
       font-family:Arial,Helvetica,sans-serif;
       color:#111827;
-      overflow-x:hidden;
     }
 
     body{
-      display:flex;
-      flex-direction:column;
-      min-height:100vh;
+      padding-bottom:240px;
     }
 
     #zx_header{
       background:#0f172a;
       color:white;
-      padding:24px 20px;
+      padding:
+        calc(env(safe-area-inset-top) + 22px)
+        20px
+        22px;
     }
 
     #zx_top{
       display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:18px;
+      flex-direction:column;
+      gap:20px;
     }
 
     #zx_titulo{
       margin:0;
-      font-size:38px;
-      line-height:1;
+      font-size:62px;
       font-weight:900;
+      line-height:1;
+      word-break:break-word;
     }
 
     #zx_fecha{
-      margin-top:12px;
-      font-size:20px;
-      line-height:1.4;
+      margin-top:18px;
       color:#cbd5e1;
+      font-size:28px;
+      line-height:1.3;
     }
 
     #zx_hora{
-      margin-top:14px;
+      margin-top:18px;
+      font-size:64px;
+      font-weight:900;
+      line-height:1;
+    }
+
+    #zx_salir{
+      width:100%;
+      border:0;
+      border-radius:28px;
+      background:#dc2626;
+      color:white;
+      padding:26px;
       font-size:34px;
       font-weight:900;
     }
 
-    #zx_salir{
-      border:0;
-      background:#dc2626;
-      color:white;
-      border-radius:20px;
-      padding:18px 26px;
-      font-size:22px;
+    #app{
+      width:100%;
+      max-width:100%;
+      padding:18px;
+      overflow-x:hidden;
+    }
+
+    .zx_card{
+      width:100%;
+      background:white;
+      border-radius:34px;
+      padding:34px;
+      margin-bottom:22px;
+      border:1px solid #d1d5db;
+      box-shadow:0 10px 30px rgba(0,0,0,.05);
+      overflow:hidden;
+    }
+
+    .zx_card h1{
+      margin:0 0 24px;
+      font-size:76px;
+      line-height:1;
       font-weight:900;
-      cursor:pointer;
+      word-break:break-word;
+      color:#0f172a;
     }
 
     #zx_nav{
-      position:sticky;
-      top:0;
-      z-index:9999;
-      background:#111827;
-      display:flex;
-      gap:12px;
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:0;
+      z-index:99999;
+
+      background:#0f172a;
+
+      padding:
+        18px
+        18px
+        calc(env(safe-area-inset-bottom) + 24px);
+
+      border-top:1px solid rgba(255,255,255,.08);
+
       overflow-x:auto;
-      padding:14px 18px;
-      box-shadow:0 8px 20px rgba(0,0,0,.18);
+      overflow-y:hidden;
+
+      white-space:nowrap;
+
+      display:flex;
+      gap:16px;
+
+      -webkit-overflow-scrolling:touch;
+
+      box-shadow:0 -10px 30px rgba(0,0,0,.25);
     }
 
     #zx_nav::-webkit-scrollbar{
@@ -131,102 +179,132 @@ function estilos(){
 
     .zx_btn_nav{
       flex:0 0 auto;
-      border:1px solid rgba(255,255,255,.25);
+
+      min-width:190px;
+
+      border-radius:24px;
+
+      border:2px solid rgba(255,255,255,.18);
+
       background:#374151;
       color:white;
-      border-radius:16px;
-      padding:14px 18px;
-      font-size:17px;
-      font-weight:800;
-      white-space:nowrap;
-      cursor:pointer;
-    }
 
-    .zx_btn_nav:active{
-      transform:scale(.98);
+      padding:24px 22px;
+
+      font-size:26px;
+      font-weight:900;
+
+      white-space:nowrap;
     }
 
     #zx_usuario_barra{
-      background:#0f172a;
-      color:white;
-      padding:18px 20px;
+      position:fixed;
+
+      left:0;
+      right:0;
+
+      bottom:132px;
+
+      z-index:99998;
+
       display:flex;
       align-items:center;
-      gap:16px;
+      gap:18px;
+
+      padding:22px 20px;
+
+      background:#111827;
+
+      border-top:1px solid rgba(255,255,255,.08);
+
+      box-shadow:0 -8px 24px rgba(0,0,0,.25);
     }
 
     #zx_logo{
-      width:56px;
-      height:56px;
-      border-radius:16px;
-      background:linear-gradient(135deg,#2563eb,#16a34a);
+      width:90px;
+      height:90px;
+      border-radius:24px;
+
+      background:linear-gradient(
+        135deg,
+        #2563eb,
+        #10b981
+      );
+
       display:flex;
       align-items:center;
       justify-content:center;
-      font-size:30px;
+
+      color:white;
+      font-size:52px;
       font-weight:900;
+
+      flex:none;
     }
 
     #zx_nombre_app{
-      font-size:20px;
+      color:white;
+      font-size:30px;
       font-weight:900;
+      line-height:1.1;
     }
 
     #zx_usuario_texto{
-      margin-top:4px;
-      color:#cbd5e1;
-      font-size:16px;
+      margin-top:8px;
+      color:#d1d5db;
+      font-size:22px;
     }
 
-    #app{
-      width:100%;
-      padding:18px;
-      flex:1;
-    }
-
-    .zx_card{
-      background:white;
-      border-radius:26px;
-      padding:24px;
-      margin-bottom:18px;
-      border:1px solid #d1d5db;
-      box-shadow:0 10px 30px rgba(0,0,0,.06);
-      overflow:hidden;
-    }
-
-    .zx_card h1{
-      margin:0 0 18px;
-      font-size:34px;
-      line-height:1.1;
-      font-weight:900;
-      color:#0f172a;
-      word-break:break-word;
-    }
-
-    @media (max-width:640px){
-
-      #zx_top{
-        flex-direction:column;
-      }
-
-      #zx_salir{
-        width:100%;
-      }
+    @media (max-width:700px){
 
       #zx_titulo{
-        font-size:34px;
+        font-size:42px;
+      }
+
+      #zx_fecha{
+        font-size:20px;
       }
 
       #zx_hora{
-        font-size:34px;
+        font-size:48px;
+      }
+
+      #zx_salir{
+        font-size:28px;
+        padding:22px;
       }
 
       .zx_card{
-        padding:20px;
+        padding:24px;
+        border-radius:26px;
       }
 
       .zx_card h1{
-        font-size:30px;
+        font-size:42px;
+      }
+
+      .zx_btn_nav{
+        min-width:170px;
+        font-size:22px;
+        padding:20px 18px;
+      }
+
+      #zx_logo{
+        width:70px;
+        height:70px;
+        font-size:38px;
+      }
+
+      #zx_nombre_app{
+        font-size:22px;
+      }
+
+      #zx_usuario_texto{
+        font-size:16px;
+      }
+
+      #zx_usuario_barra{
+        bottom:118px;
       }
 
     }
@@ -234,30 +312,27 @@ function estilos(){
   `;
 
   document.head.appendChild(css);
-
 }
 
 function header(){
 
-  let h = document.getElementById("zx_header");
+  let h=document.getElementById("zx_header");
 
   if(!h){
 
-    h = document.createElement("header");
-
-    h.id = "zx_header";
+    h=document.createElement("header");
+    h.id="zx_header";
 
     document.body.prepend(h);
-
   }
 
-  h.innerHTML = `
+  h.innerHTML=`
     <div id="zx_top">
 
       <div>
 
         <h1 id="zx_titulo">
-          Zentryx V2635
+          Zentryx V2637
         </h1>
 
         <div id="zx_fecha">
@@ -270,75 +345,58 @@ function header(){
 
       </div>
 
-      <button id="zx_salir" type="button">
+      <button id="zx_salir">
         Salir
       </button>
 
     </div>
   `;
 
-  const salir = document.getElementById("zx_salir");
+  document.getElementById("zx_salir").onclick=function(){
 
-  if(salir){
+    localStorage.removeItem("usuario");
 
-    salir.onclick = function(e){
-
-      e.preventDefault();
-
-      e.stopPropagation();
-
-      localStorage.removeItem("usuario");
-      localStorage.removeItem("zx_estado_jornada");
-      localStorage.removeItem("zx_ultimo_fichaje");
-
-      localStorage.removeItem("zentryx_vehiculo_fichaje_id");
-      localStorage.removeItem("zentryx_vehiculo_fichaje_matricula");
-      localStorage.removeItem("zentryx_vehiculo_fichaje_km");
-
-      window.location.href = "index.html?v=2635";
-
-    };
-
-  }
+    window.location.replace(
+      "./index.html?v=2637"
+    );
+  };
 
   if(relojTimer){
     clearInterval(relojTimer);
   }
 
-  relojTimer = setInterval(function(){
+  relojTimer=setInterval(function(){
 
-    const f = document.getElementById("zx_fecha");
-    const r = document.getElementById("zx_hora");
+    const f=document.getElementById("zx_fecha");
+    const r=document.getElementById("zx_hora");
 
     if(f){
-      f.textContent = fecha();
+      f.textContent=fecha();
     }
 
     if(r){
-      r.textContent = hora();
+      r.textContent=hora();
     }
 
   },1000);
-
 }
 
 function barraUsuario(){
 
-  let barra = document.getElementById("zx_usuario_barra");
+  let barra=document.getElementById("zx_usuario_barra");
 
   if(!barra){
 
-    barra = document.createElement("div");
-
-    barra.id = "zx_usuario_barra";
+    barra=document.createElement("div");
+    barra.id="zx_usuario_barra";
 
     document.body.appendChild(barra);
-
   }
 
-  const u = usuario();
+  const u=usuario();
 
-  barra.innerHTML = `
+  barra.innerHTML=`
+
     <div id="zx_logo">
       Z
     </div>
@@ -354,8 +412,8 @@ function barraUsuario(){
       </div>
 
     </div>
-  `;
 
+  `;
 }
 
 function boton(texto,accion){
@@ -363,161 +421,112 @@ function boton(texto,accion){
   return `
     <button
       class="zx_btn_nav"
-      type="button"
       onclick="${accion}"
     >
       ${texto}
     </button>
   `;
-
 }
 
 function nav(){
 
-  let nav = document.getElementById("zx_nav");
+  let nav=document.getElementById("zx_nav");
 
   if(!nav){
 
-    nav = document.createElement("div");
-
-    nav.id = "zx_nav";
+    nav=document.createElement("div");
+    nav.id="zx_nav";
 
     document.body.appendChild(nav);
-
   }
 
-  nav.innerHTML = `
-
+  nav.innerHTML=`
     ${boton("Inicio","ZX_inicio()")}
-
     ${boton("Fichaje","ZX_fichaje()")}
-
     ${boton("Usuarios","ZX_usuarios()")}
-
     ${boton("Vehículos","ZX_vehiculos()")}
-
     ${boton("Incidencias","ZX_incidencias()")}
-
     ${boton("Informes","ZX_informes()")}
-
     ${boton("Configuración","ZX_configuracion()")}
-
   `;
-
 }
 
-window.ZX_incidencias = function(){
+window.ZX_usuarios=function(){
 
-  app().innerHTML = `
+  app().innerHTML=`
     <div class="zx_card">
-
-      <h1>
-        Incidencias
-      </h1>
-
-      <p>
-        Módulo incidencias pendiente.
-      </p>
-
+      <h1>Usuarios</h1>
+      <p>Módulo usuarios pendiente.</p>
     </div>
   `;
-
 };
 
-window.ZX_informes = function(){
+window.ZX_incidencias=function(){
 
-  app().innerHTML = `
+  app().innerHTML=`
     <div class="zx_card">
-
-      <h1>
-        Informes
-      </h1>
-
-      <p>
-        Módulo informes pendiente.
-      </p>
-
+      <h1>Incidencias</h1>
+      <p>Módulo incidencias pendiente.</p>
     </div>
   `;
-
 };
 
-window.ZX_configuracion = function(){
+window.ZX_informes=function(){
 
-  app().innerHTML = `
+  app().innerHTML=`
     <div class="zx_card">
-
-      <h1>
-        Configuración
-      </h1>
-
-      <p>
-        Módulo configuración pendiente.
-      </p>
-
+      <h1>Informes</h1>
+      <p>Módulo informes pendiente.</p>
     </div>
   `;
-
 };
 
-window.ZX_vehiculos = function(){
+window.ZX_configuracion=function(){
+
+  app().innerHTML=`
+    <div class="zx_card">
+      <h1>Configuración</h1>
+      <p>Módulo configuración pendiente.</p>
+    </div>
+  `;
+};
+
+window.ZX_vehiculos=function(){
 
   if(window.ZENTRYX_UI_abrirVehiculos){
 
     window.ZENTRYX_UI_abrirVehiculos();
-
     return;
-
   }
 
   if(window.ZX_VEHICULOS_ABRIR){
 
     window.ZX_VEHICULOS_ABRIR();
-
     return;
-
   }
 
-  app().innerHTML = `
+  app().innerHTML=`
     <div class="zx_card">
-
-      <h1>
-        Vehículos
-      </h1>
-
-      <p>
-        No cargado.
-      </p>
-
+      <h1>Vehículos</h1>
+      <p>No cargado.</p>
     </div>
   `;
-
 };
 
-window.ZX_fichaje = function(){
+window.ZX_fichaje=function(){
 
   if(window.ZENTRYX_UI_fichaje){
 
     window.ZENTRYX_UI_fichaje();
-
     return;
-
   }
 
-  app().innerHTML = `
+  app().innerHTML=`
     <div class="zx_card">
-
-      <h1>
-        Fichaje
-      </h1>
-
-      <p>
-        No cargado.
-      </p>
-
+      <h1>Fichaje</h1>
+      <p>No cargado.</p>
     </div>
   `;
-
 };
 
 function iniciar(){
@@ -535,14 +544,12 @@ function iniciar(){
     if(window.ZX_inicio){
 
       window.ZX_inicio();
-
     }
 
   },100);
-
 }
 
-if(document.readyState === "loading"){
+if(document.readyState==="loading"){
 
   document.addEventListener(
     "DOMContentLoaded",
@@ -552,7 +559,6 @@ if(document.readyState === "loading"){
 }else{
 
   iniciar();
-
 }
 
 })();
