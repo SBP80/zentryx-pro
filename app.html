@@ -3,12 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2641</title>
+
+<title>Zentryx PRO V2642</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
+
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+}
 
 html,body{
   background:#eef2f7;
@@ -18,13 +24,13 @@ html,body{
 }
 
 body{
-  padding-bottom:150px;
+  padding-bottom:160px;
 }
 
 #zx_top{
   background:#071330;
   color:white;
-  padding:18px 18px 20px;
+  padding:18px;
 }
 
 #zx_top h1{
@@ -34,8 +40,8 @@ body{
 }
 
 #zx_fecha{
-  font-size:16px;
   color:#cbd5e1;
+  font-size:16px;
   margin-bottom:14px;
 }
 
@@ -52,63 +58,76 @@ body{
   background:#dc2626;
   color:white;
   padding:15px;
-  font-size:21px;
+  font-size:20px;
   font-weight:900;
 }
 
 #app{
   padding:16px;
-  padding-bottom:170px;
 }
 
 .zx_card{
   background:white;
-  border-radius:22px;
-  padding:22px;
-  margin-bottom:16px;
+  border-radius:24px;
+  padding:20px;
+  margin-bottom:18px;
   border:1px solid #d1d5db;
   box-shadow:0 8px 24px rgba(0,0,0,.05);
 }
 
 .zx_card h2{
-  font-size:28px;
+  font-size:30px;
   font-weight:900;
-  margin-bottom:16px;
+  margin-bottom:18px;
 }
 
 .zx_text{
-  font-size:17px;
-  line-height:1.45;
   color:#6b7280;
+  font-size:17px;
+  line-height:1.5;
 }
 
 .zx_btn{
   width:100%;
   border:0;
-  border-radius:17px;
-  padding:16px;
-  margin-bottom:12px;
+  border-radius:18px;
+  padding:18px;
   color:white;
   font-size:20px;
   font-weight:900;
+  margin-bottom:12px;
 }
 
-.zx_rojo{background:#dc2626}
-.zx_azul{background:#2563eb}
-.zx_verde{background:#16a34a}
-.zx_naranja{background:#ea580c}
-.zx_morado{background:#7c3aed}
+.zx_rojo{
+  background:#dc2626;
+}
+
+.zx_verde{
+  background:#16a34a;
+}
+
+.zx_azul{
+  background:#2563eb;
+}
+
+.zx_naranja{
+  background:#ea580c;
+}
+
+.zx_morado{
+  background:#7c3aed;
+}
 
 #zx_footer{
   position:fixed;
   left:0;
   right:0;
   bottom:0;
-  z-index:9999;
   background:#071330;
-  border-top:1px solid rgba(255,255,255,.08);
-  padding:10px 12px calc(env(safe-area-inset-bottom) + 10px);
-  box-shadow:0 -8px 24px rgba(0,0,0,.25);
+  padding:10px;
+  padding-bottom:calc(env(safe-area-inset-bottom) + 10px);
+  z-index:9999;
+  box-shadow:0 -8px 24px rgba(0,0,0,.3);
 }
 
 #zx_footer_top{
@@ -121,7 +140,7 @@ body{
 #zx_footer_logo{
   width:44px;
   height:44px;
-  border-radius:13px;
+  border-radius:12px;
   background:linear-gradient(135deg,#2563eb,#10b981);
   display:flex;
   align-items:center;
@@ -141,171 +160,553 @@ body{
 #zx_footer_info p{
   color:#cbd5e1;
   font-size:13px;
-  margin-top:2px;
 }
 
 #zx_footer_menu{
   display:flex;
-  gap:9px;
+  gap:8px;
   overflow-x:auto;
-  -webkit-overflow-scrolling:touch;
   scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
 }
 
-#zx_footer_menu::-webkit-scrollbar{display:none}
+#zx_footer_menu::-webkit-scrollbar{
+  display:none;
+}
 
 .zx_footer_btn{
   flex:none;
+  min-width:110px;
   border:0;
-  border-radius:14px;
+  border-radius:16px;
   background:#374151;
   color:white;
-  padding:11px 16px;
-  min-width:105px;
+  padding:12px 14px;
   font-size:14px;
   font-weight:800;
 }
 
-.zx_footer_btn:active{
-  transform:scale(.96);
+.zx_estado{
+  display:inline-block;
+  padding:10px 16px;
+  border-radius:999px;
+  font-size:16px;
+  font-weight:900;
+  margin-bottom:18px;
 }
+
+.zx_estado_ok{
+  background:#dcfce7;
+  color:#166534;
+}
+
+.zx_estado_bad{
+  background:#fee2e2;
+  color:#991b1b;
+}
+
 </style>
 </head>
 
 <body>
 
 <div id="zx_top">
-  <h1>Zentryx V2641</h1>
+
+  <h1>Zentryx V2642</h1>
+
   <div id="zx_fecha"></div>
+
   <div id="zx_hora"></div>
-  <button id="zx_logout" onclick="logout()">Salir</button>
+
+  <button id="zx_logout" onclick="logout()">
+    Salir
+  </button>
+
 </div>
 
 <div id="app"></div>
 
 <div id="zx_footer">
+
   <div id="zx_footer_top">
-    <div id="zx_footer_logo">Z</div>
+
+    <div id="zx_footer_logo">
+      Z
+    </div>
+
     <div id="zx_footer_info">
       <h3>Zentryx PRO</h3>
       <p>admin · admin</p>
     </div>
+
   </div>
 
   <div id="zx_footer_menu">
-    <button class="zx_footer_btn" onclick="ZX_inicio()">Inicio</button>
-    <button class="zx_footer_btn" onclick="ZX_fichaje()">Fichaje</button>
-    <button class="zx_footer_btn" onclick="ZX_usuarios()">Usuarios</button>
-    <button class="zx_footer_btn" onclick="ZX_vehiculos()">Vehículos</button>
-    <button class="zx_footer_btn" onclick="ZX_incidencias()">Incidencias</button>
-    <button class="zx_footer_btn" onclick="ZX_informes()">Informes</button>
+
+    <button class="zx_footer_btn" onclick="ZX_inicio()">
+      Inicio
+    </button>
+
+    <button class="zx_footer_btn" onclick="ZX_fichaje()">
+      Fichaje
+    </button>
+
+    <button class="zx_footer_btn" onclick="ZX_usuarios()">
+      Usuarios
+    </button>
+
+    <button class="zx_footer_btn" onclick="ZX_vehiculos()">
+      Vehículos
+    </button>
+
+    <button class="zx_footer_btn" onclick="ZX_incidencias()">
+      Incidencias
+    </button>
+
+    <button class="zx_footer_btn" onclick="ZX_informes()">
+      Informes
+    </button>
+
   </div>
+
 </div>
 
 <script>
+
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
+
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
-window.sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+window.sb=supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
 function actualizarReloj(){
+
   const ahora=new Date();
-  document.getElementById("zx_fecha").textContent=ahora.toLocaleDateString("es-ES",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
-  document.getElementById("zx_hora").textContent=ahora.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+
+  document.getElementById("zx_fecha").textContent=
+    ahora.toLocaleDateString(
+      "es-ES",
+      {
+        weekday:"long",
+        year:"numeric",
+        month:"long",
+        day:"numeric"
+      }
+    );
+
+  document.getElementById("zx_hora").textContent=
+    ahora.toLocaleTimeString(
+      "es-ES",
+      {
+        hour:"2-digit",
+        minute:"2-digit",
+        second:"2-digit"
+      }
+    );
 }
+
 setInterval(actualizarReloj,1000);
+
 actualizarReloj();
 
 function logout(){
+
   localStorage.removeItem("usuario");
-  location.href="index.html?v=2640";
+
+  location.href="index.html?v=2642";
 }
 
 function ZX_inicio(){
+
   document.getElementById("app").innerHTML=`
+
     <div class="zx_card">
+
       <h2>Inicio</h2>
-      <div class="zx_text">Sistema principal Zentryx PRO modular activo.</div>
-    </div>
 
-    <div class="zx_card">
-      <h2>Módulos rápidos</h2>
-      <button class="zx_btn zx_rojo" onclick="ZX_fichaje()">Fichaje</button>
-      <button class="zx_btn zx_azul" onclick="ZX_usuarios()">Usuarios</button>
-      <button class="zx_btn zx_verde" onclick="ZX_vehiculos()">Vehículos</button>
-      <button class="zx_btn zx_naranja" onclick="ZX_incidencias()">Incidencias</button>
-      <button class="zx_btn zx_morado" onclick="ZX_informes()">Informes</button>
-    </div>
-
-    <div class="zx_card">
-      <h2>Estado sistema</h2>
       <div class="zx_text">
-        <b>Versión:</b> V2640<br><br>
-        Layout compacto activo<br><br>
-        Supabase conectado
+        Sistema principal Zentryx PRO modular activo.
       </div>
+
     </div>
+
+    <div class="zx_card">
+
+      <h2>Módulos rápidos</h2>
+
+      <button class="zx_btn zx_rojo" onclick="ZX_fichaje()">
+        Fichaje
+      </button>
+
+      <button class="zx_btn zx_azul" onclick="ZX_usuarios()">
+        Usuarios
+      </button>
+
+      <button class="zx_btn zx_verde" onclick="ZX_vehiculos()">
+        Vehículos
+      </button>
+
+      <button class="zx_btn zx_naranja" onclick="ZX_incidencias()">
+        Incidencias
+      </button>
+
+      <button class="zx_btn zx_morado" onclick="ZX_informes()">
+        Informes
+      </button>
+
+    </div>
+
+    <div class="zx_card">
+
+      <h2>Estado sistema</h2>
+
+      <div class="zx_text">
+
+        <b>Versión:</b> V2642
+
+        <br><br>
+
+        Historial real activo
+
+        <br><br>
+
+        Supabase conectado
+
+      </div>
+
+    </div>
+
   `;
+}
+
+async function guardarFichaje(tipo){
+
+  try{
+
+    const res=await window.sb
+      .from("fichajes")
+      .insert({
+        usuario:"admin",
+        tipo:tipo,
+        empresa_id:"demo",
+        fecha:new Date().toISOString()
+      });
+
+    if(res.error){
+      throw res.error;
+    }
+
+    ZX_fichaje();
+
+  }catch(e){
+
+    alert("Error guardando fichaje: "+e.message);
+
+    console.error(e);
+  }
+}
+
+async function ZX_cargarHistorial(){
+
+  const cont=document.getElementById("zx_historial");
+
+  if(!cont) return;
+
+  try{
+
+    const res=await window.sb
+      .from("fichajes")
+      .select("*")
+      .order("fecha",{ascending:false})
+      .limit(20);
+
+    if(res.error){
+      throw res.error;
+    }
+
+    const datos=res.data || [];
+
+    if(datos.length===0){
+
+      cont.innerHTML=`
+        <div class="zx_text">
+          Sin fichajes todavía.
+        </div>
+      `;
+
+      return;
+    }
+
+    cont.innerHTML=datos.map(f=>{
+
+      const fecha=new Date(f.fecha);
+
+      return `
+
+        <div style="
+          border:1px solid #d1d5db;
+          border-radius:18px;
+          padding:14px;
+          margin-bottom:10px;
+          background:white;
+        ">
+
+          <div style="
+            font-size:18px;
+            font-weight:900;
+            margin-bottom:6px;
+          ">
+            ${f.tipo}
+          </div>
+
+          <div style="
+            color:#6b7280;
+            font-size:15px;
+          ">
+            ${fecha.toLocaleDateString("es-ES")}
+            —
+            ${fecha.toLocaleTimeString("es-ES")}
+          </div>
+
+        </div>
+
+      `;
+
+    }).join("");
+
+  }catch(e){
+
+    console.error(e);
+
+    cont.innerHTML=`
+      <div class="zx_text">
+        Error cargando historial.
+      </div>
+    `;
+  }
 }
 
 function ZX_fichaje(){
-  if(window.ZENTRYX_UI_fichaje){
-    window.ZENTRYX_UI_fichaje();
-    return;
-  }
 
   document.getElementById("app").innerHTML=`
+
     <div class="zx_card">
+
       <h2>Fichaje</h2>
-      <div class="zx_text">El archivo fichajes.js no está cargado.</div>
+
+      <div class="zx_text" style="margin-bottom:14px;">
+        Usuario: <b>admin</b>
+      </div>
+
+      <div class="zx_estado zx_estado_ok">
+        Dentro
+      </div>
+
+      <button
+        class="zx_btn zx_verde"
+        onclick="guardarFichaje('Entrada')"
+      >
+        Entrada
+      </button>
+
+      <button
+        class="zx_btn zx_rojo"
+        onclick="guardarFichaje('Salida')"
+      >
+        Salida
+      </button>
+
+      <button
+        class="zx_btn zx_naranja"
+        onclick="guardarFichaje('Inicio pausa')"
+      >
+        Inicio pausa
+      </button>
+
+      <button
+        class="zx_btn zx_naranja"
+        onclick="guardarFichaje('Inicio comida')"
+      >
+        Inicio comida
+      </button>
+
     </div>
+
+    <div class="zx_card">
+
+      <h2>Historial</h2>
+
+      <div id="zx_historial">
+        Cargando historial...
+      </div>
+
+    </div>
+
   `;
+
+  ZX_cargarHistorial();
 }
 
 function ZX_usuarios(){
+
   document.getElementById("app").innerHTML=`
+
     <div class="zx_card">
+
       <h2>Usuarios</h2>
-      <div class="zx_text">Módulo usuarios pendiente.</div>
+
+      <div class="zx_text">
+        Módulo usuarios pendiente.
+      </div>
+
     </div>
+
   `;
 }
 
-function ZX_vehiculos(){
-  document.getElementById("app").innerHTML=`
+async function ZX_vehiculos(){
+
+  const app=document.getElementById("app");
+
+  app.innerHTML=`
+
     <div class="zx_card">
+
       <h2>Vehículos</h2>
-      <button class="zx_btn zx_azul">Recargar</button>
-      <div style="border:1px solid #d1d5db;border-radius:18px;padding:16px;margin-top:10px;">
-        <div style="font-size:22px;font-weight:900;margin-bottom:8px;">TEST123</div>
-        <div style="font-size:16px;color:#374151;margin-bottom:10px;">Kilómetros: 1000</div>
-        <div style="display:inline-block;padding:8px 13px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:900;">Libre</div>
+
+      <button
+        class="zx_btn zx_azul"
+        onclick="ZX_vehiculos()"
+      >
+        Recargar
+      </button>
+
+      <div id="zx_lista_vehiculos">
+        Cargando...
       </div>
+
     </div>
+
   `;
+
+  const cont=document.getElementById("zx_lista_vehiculos");
+
+  try{
+
+    const res=await window.sb
+      .from("vehiculos")
+      .select("*")
+      .order("created_at",{ascending:false});
+
+    if(res.error){
+      throw res.error;
+    }
+
+    const datos=res.data || [];
+
+    if(datos.length===0){
+
+      cont.innerHTML=`
+        <div class="zx_text">
+          No hay vehículos.
+        </div>
+      `;
+
+      return;
+    }
+
+    cont.innerHTML=datos.map(v=>`
+
+      <div style="
+        border:1px solid #d1d5db;
+        border-radius:18px;
+        padding:16px;
+        margin-top:12px;
+      ">
+
+        <div style="
+          font-size:22px;
+          font-weight:900;
+          margin-bottom:8px;
+        ">
+          ${v.matricula || "-"}
+        </div>
+
+        <div style="
+          font-size:16px;
+          color:#374151;
+          margin-bottom:10px;
+        ">
+          Kilómetros: ${v.km_actual || 0}
+        </div>
+
+        <div style="
+          display:inline-block;
+          padding:8px 13px;
+          border-radius:999px;
+          background:${v.en_uso ? '#fee2e2' : '#dcfce7'};
+          color:${v.en_uso ? '#991b1b' : '#166534'};
+          font-weight:900;
+        ">
+          ${v.en_uso ? 'En uso' : 'Libre'}
+        </div>
+
+      </div>
+
+    `).join("");
+
+  }catch(e){
+
+    console.error(e);
+
+    cont.innerHTML=`
+      <div class="zx_text">
+        Error cargando vehículos.
+      </div>
+    `;
+  }
 }
 
 function ZX_incidencias(){
+
   document.getElementById("app").innerHTML=`
+
     <div class="zx_card">
+
       <h2>Incidencias</h2>
-      <div class="zx_text">Módulo incidencias pendiente.</div>
+
+      <div class="zx_text">
+        Módulo incidencias pendiente.
+      </div>
+
     </div>
+
   `;
 }
 
 function ZX_informes(){
+
   document.getElementById("app").innerHTML=`
+
     <div class="zx_card">
+
       <h2>Informes</h2>
-      <div class="zx_text">Módulo informes pendiente.</div>
+
+      <div class="zx_text">
+        Módulo informes pendiente.
+      </div>
+
     </div>
+
   `;
 }
 
 ZX_inicio();
-</script>
 
-<script src="src/modules/fichajes.js?v=2641"></script>
+</script>
 
 </body>
 </html>
