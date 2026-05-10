@@ -102,60 +102,184 @@ async function obtenerVehiculosLibres(){
 }
 
 async function seleccionarVehiculoEntrada(){
+
   const vehiculos = await obtenerVehiculosLibres();
 
-  let texto = "Selecciona vehículo:\n\n";
-  texto += "0 - Sin vehículo\n";
+  return new Promise(function(resolve){
 
-  vehiculos.forEach(function(v,i){
-    texto += (i + 1) + " - " + (v.matricula || "Sin matrícula") + " · " + (v.km_actual || 0) + " km\n";
+    const viejo = document.getElementById("zx_modal_vehiculo");
+    if(viejo) viejo.remove();
+
+    const fondo = document.createElement("div");
+    fondo.id = "zx_modal_vehiculo";
+
+    fondo.style.position = "fixed";
+    fondo.style.inset = "0";
+    fondo.style.zIndex = "999999";
+    fondo.style.background = "rgba(15,23,42,.65)";
+    fondo.style.display = "flex";
+    fondo.style.alignItems = "center";
+    fondo.style.justifyContent = "center";
+    fondo.style.padding = "18px";
+
+    const listaVehiculos = vehiculos.map(function(v){
+      return `
+        <button
+          class="zx_opcion_vehiculo"
+          data-id="${v.id}"
+          style="
+            width:100%;
+            border:1px solid #d1d5db;
+            border-radius:16px;
+            background:white;
+            color:#111827;
+            padding:16px;
+            margin-bottom:10px;
+            text-align:left;
+            font-size:18px;
+            font-weight:900;
+          "
+        >
+          ${v.matricula || "Sin matrícula"}
+          <div style="
+            font-size:14px;
+            color:#6b7280;
+            margin-top:4px;
+            font-weight:700;
+          ">
+            ${v.km_actual || 0} km
+          </div>
+        </button>
+      `;
+    }).join("");
+
+    fondo.innerHTML = `
+      <div style="
+        width:100%;
+        max-width:440px;
+        background:white;
+        border-radius:24px;
+        padding:22px;
+        box-shadow:0 20px 60px rgba(0,0,0,.35);
+      ">
+
+        <h2 style="
+          margin:0 0 14px;
+          font-size:28px;
+          font-weight:900;
+          color:#111827;
+        ">
+          Vehículo
+        </h2>
+
+        <div style="
+          color:#6b7280;
+          font-size:16px;
+          margin-bottom:18px;
+          line-height:1.4;
+        ">
+          Elige vehículo para esta jornada.
+        </div>
+
+        <button
+          id="zx_sin_vehiculo"
+          style="
+            width:100%;
+            border:0;
+            border-radius:16px;
+            background:#64748b;
+            color:white;
+            padding:16px;
+            margin-bottom:14px;
+            font-size:18px;
+            font-weight:900;
+          "
+        >
+          Sin vehículo
+        </button>
+
+        ${listaVehiculos || `
+          <div style="
+            color:#6b7280;
+            font-size:16px;
+            margin-bottom:14px;
+          ">
+            No hay vehículos libres.
+          </div>
+        `}
+
+        <button
+          id="zx_cancelar_vehiculo"
+          style="
+            width:100%;
+            border:0;
+            border-radius:16px;
+            background:#e5e7eb;
+            color:#111827;
+            padding:16px;
+            margin-top:6px;
+            font-size:18px;
+            font-weight:900;
+          "
+        >
+          Cancelar
+        </button>
+
+      </div>
+    `;
+
+    document.body.appendChild(fondo);
+
+    document.getElementById("zx_sin_vehiculo").onclick = function(){
+      limpiarVehiculoJornada();
+      fondo.remove();
+      resolve(true);
+    };
+
+    document.getElementById("zx_cancelar_vehiculo").onclick = function(){
+      fondo.remove();
+      resolve(false);
+    };
+
+    document.querySelectorAll(".zx_opcion_vehiculo").forEach(function(btn){
+
+      btn.onclick = async function(){
+
+        const id = btn.getAttribute("data-id");
+
+        const vehiculo = vehiculos.find(function(v){
+          return String(v.id) === String(id);
+        });
+
+        if(!vehiculo){
+          alert("Vehículo no válido.");
+          return;
+        }
+
+        const cliente = sb();
+
+        const ocupar = await cliente
+          .from("vehiculos")
+          .update({
+            en_uso:true,
+            usuario_asignado:usuarioActual()
+          })
+          .eq("id",vehiculo.id);
+
+        if(ocupar.error){
+          alert("No se pudo ocupar el vehículo: " + ocupar.error.message);
+          return;
+        }
+
+        localStorage.setItem("zx_vehiculo_jornada_id",vehiculo.id);
+        localStorage.setItem("zx_vehiculo_jornada_matricula",vehiculo.matricula || "");
+        localStorage.setItem("zx_vehiculo_jornada_km",String(vehiculo.km_actual || 0));
+
+        fondo.remove();
+        resolve(true);
+      };
+    });
   });
-
-  const opcion = prompt(texto,"0");
-
-  if(opcion === null){
-    return false;
-  }
-
-  const numero = Number(opcion);
-
-  if(Number.isNaN(numero)){
-    alert("Opción no válida.");
-    return false;
-  }
-
-  if(numero === 0){
-    limpiarVehiculoJornada();
-    return true;
-  }
-
-  const vehiculo = vehiculos[numero - 1];
-
-  if(!vehiculo){
-    alert("Vehículo no válido.");
-    return false;
-  }
-
-  const cliente = sb();
-
-  const ocupar = await cliente
-    .from("vehiculos")
-    .update({
-      en_uso:true,
-      usuario_asignado:usuarioActual()
-    })
-    .eq("id",vehiculo.id);
-
-  if(ocupar.error){
-    alert("No se pudo ocupar el vehículo: " + ocupar.error.message);
-    return false;
-  }
-
-  localStorage.setItem("zx_vehiculo_jornada_id",vehiculo.id);
-  localStorage.setItem("zx_vehiculo_jornada_matricula",vehiculo.matricula || "");
-  localStorage.setItem("zx_vehiculo_jornada_km",String(vehiculo.km_actual || 0));
-
-  return true;
 }
 
 async function guardarFichaje(tipo,extra){
