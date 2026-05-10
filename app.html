@@ -371,7 +371,9 @@ function ZX_inicio(){
 }
 
 async function guardarFichaje(tipo){
+
   try{
+
     const estado=estadoActual();
     const pausa=pausaActual();
     const comida=comidaActual();
@@ -381,15 +383,60 @@ async function guardarFichaje(tipo){
 
     const gps=await pedirGPS();
 
+    // =========================
+    // ENTRADA
+    // =========================
     if(tipo==="entrada"){
+
       if(estado==="dentro"){
         alert("Ya estás dentro.");
         return;
       }
 
-      vehiculo=await obtenerVehiculoUsuario();
+      const resVehiculos=await window.sb
+        .from("vehiculos")
+        .select("*")
+        .eq("en_uso",false)
+        .order("matricula",{ascending:true});
 
-      if(vehiculo){
+      if(resVehiculos.error){
+        alert("Error cargando vehículos.");
+        return;
+      }
+
+      const vehiculos=resVehiculos.data || [];
+
+      let mensaje="Selecciona vehículo:\n\n";
+      mensaje+="0 - Sin vehículo\n\n";
+
+      vehiculos.forEach((v,index)=>{
+        mensaje+=`${index+1} - ${v.matricula || "-"}\n`;
+      });
+
+      const seleccion=prompt(mensaje,"0");
+
+      if(seleccion===null){
+        return;
+      }
+
+      const numero=Number(seleccion);
+
+      if(Number.isNaN(numero)){
+        alert("Selección inválida.");
+        return;
+      }
+
+      if(numero>0){
+
+        const elegido=vehiculos[numero-1];
+
+        if(!elegido){
+          alert("Vehículo inválido.");
+          return;
+        }
+
+        vehiculo=elegido;
+
         await window.sb
           .from("vehiculos")
           .update({
@@ -397,6 +444,18 @@ async function guardarFichaje(tipo){
             usuario_asignado:usuarioActual()
           })
           .eq("id",vehiculo.id);
+
+        localStorage.setItem(
+          "zx_vehiculo_activo",
+          JSON.stringify({
+            id:vehiculo.id,
+            matricula:vehiculo.matricula
+          })
+        );
+
+      }else{
+
+        localStorage.removeItem("zx_vehiculo_activo");
       }
 
       localStorage.setItem("zx_estado","dentro");
@@ -404,56 +463,74 @@ async function guardarFichaje(tipo){
       localStorage.setItem("zx_comida","no");
     }
 
+    // =========================
+    // SALIDA
+    // =========================
     if(tipo==="salida"){
+
       if(estado==="fuera"){
         alert("No puedes hacer salida sin entrada.");
         return;
       }
 
       if(pausa==="si"){
-        alert("Primero debes finalizar la pausa.");
+        alert("Finaliza la pausa primero.");
         return;
       }
 
       if(comida==="si"){
-        alert("Primero debes finalizar la comida.");
+        alert("Finaliza la comida primero.");
         return;
       }
 
-      vehiculo=await obtenerVehiculoUsuario();
+      const vehiculoActivo=localStorage.getItem("zx_vehiculo_activo");
 
-      if(vehiculo){
-        const km=prompt(
-          "Kilómetros actuales del vehículo " + (vehiculo.matricula || ""),
-          vehiculo.km_actual || 0
-        );
+      if(vehiculoActivo){
 
-        if(km===null || String(km).trim()===""){
-          alert("Debes introducir los kilómetros.");
-          return;
-        }
+        vehiculo=JSON.parse(vehiculoActivo);
 
-        const kmNumero=Number(String(km).replace(",","."));
-
-        if(Number.isNaN(kmNumero) || kmNumero<0){
-          alert("Kilómetros no válidos.");
-          return;
-        }
-
-        if(Number(vehiculo.km_actual || 0)>kmNumero){
-          alert("Los kilómetros no pueden ser menores que los actuales.");
-          return;
-        }
-
-        km_salida=kmNumero;
-
-        await window.sb
+        const resVehiculo=await window.sb
           .from("vehiculos")
-          .update({
-            km_actual:kmNumero,
-            en_uso:false
-          })
-          .eq("id",vehiculo.id);
+          .select("*")
+          .eq("id",vehiculo.id)
+          .maybeSingle();
+
+        if(resVehiculo.data){
+
+          vehiculo=resVehiculo.data;
+
+          const km=prompt(
+            "Introduce kilómetros actuales del vehículo " + vehiculo.matricula,
+            vehiculo.km_actual || 0
+          );
+
+          if(km===null || String(km).trim()===""){
+            alert("Debes introducir kilómetros.");
+            return;
+          }
+
+          const kmNumero=Number(
+            String(km).replace(",",".")
+          );
+
+          if(Number.isNaN(kmNumero)){
+            alert("Kilómetros inválidos.");
+            return;
+          }
+
+          km_salida=kmNumero;
+
+          await window.sb
+            .from("vehiculos")
+            .update({
+              km_actual:kmNumero,
+              en_uso:false,
+              usuario_asignado:null
+            })
+            .eq("id",vehiculo.id);
+        }
+
+        localStorage.removeItem("zx_vehiculo_activo");
       }
 
       localStorage.setItem("zx_estado","fuera");
@@ -461,7 +538,11 @@ async function guardarFichaje(tipo){
       localStorage.setItem("zx_comida","no");
     }
 
+    // =========================
+    // PAUSA
+    // =========================
     if(tipo==="inicio_pausa"){
+
       if(estado==="fuera"){
         alert("No puedes iniciar pausa sin entrada.");
         return;
@@ -472,19 +553,10 @@ async function guardarFichaje(tipo){
         return;
       }
 
-      if(comida==="si"){
-        alert("No puedes iniciar pausa durante la comida.");
-        return;
-      }
-
       localStorage.setItem("zx_pausa","si");
     }
 
     if(tipo==="fin_pausa"){
-      if(estado==="fuera"){
-        alert("No puedes finalizar pausa sin entrada.");
-        return;
-      }
 
       if(pausa==="no"){
         alert("No hay pausa iniciada.");
@@ -494,19 +566,13 @@ async function guardarFichaje(tipo){
       localStorage.setItem("zx_pausa","no");
     }
 
+    // =========================
+    // COMIDA
+    // =========================
     if(tipo==="inicio_comida"){
+
       if(estado==="fuera"){
-        alert("No puedes iniciar comida sin entrada.");
-        return;
-      }
-
-      if(comida==="si"){
-        alert("Ya estás en comida.");
-        return;
-      }
-
-      if(pausa==="si"){
-        alert("No puedes iniciar comida durante una pausa.");
+        alert("No puedes iniciar comida.");
         return;
       }
 
@@ -514,10 +580,6 @@ async function guardarFichaje(tipo){
     }
 
     if(tipo==="fin_comida"){
-      if(estado==="fuera"){
-        alert("No puedes finalizar comida sin entrada.");
-        return;
-      }
 
       if(comida==="no"){
         alert("No hay comida iniciada.");
@@ -528,15 +590,24 @@ async function guardarFichaje(tipo){
     }
 
     const registro={
+
       empresa_id:"demo",
       usuario:usuarioActual(),
       tipo:tipo,
       fecha:new Date().toISOString(),
-      estado_jornada:localStorage.getItem("zx_estado") || "fuera",
+
+      estado_jornada:
+        localStorage.getItem("zx_estado") || "fuera",
+
       latitud:gps.latitud,
       longitud:gps.longitud,
-      vehiculo_id:vehiculo ? vehiculo.id : null,
-      vehiculo_matricula:vehiculo ? vehiculo.matricula : null,
+
+      vehiculo_id:
+        vehiculo ? vehiculo.id : null,
+
+      vehiculo_matricula:
+        vehiculo ? vehiculo.matricula : null,
+
       km_salida:km_salida
     };
 
@@ -551,8 +622,12 @@ async function guardarFichaje(tipo){
     ZX_fichaje();
 
   }catch(e){
-    alert("Error guardando fichaje: "+e.message);
+
     console.error(e);
+
+    alert(
+      "Error guardando fichaje: " + e.message
+    );
   }
 }
 
