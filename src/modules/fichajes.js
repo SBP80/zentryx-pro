@@ -1,5 +1,5 @@
 // ===============================
-// ZENTRYX V2641 - FICHAJES SUPABASE REAL
+// ZENTRYX V2646 - FICHAJES CON VEHÍCULO EN ENTRADA
 // ===============================
 (function(){
 "use strict";
@@ -29,19 +29,25 @@ function guardarEstado(valor){
   localStorage.setItem("zx_estado_jornada",valor);
 }
 
+function vehiculoJornada(){
+  return {
+    id: localStorage.getItem("zx_vehiculo_jornada_id"),
+    matricula: localStorage.getItem("zx_vehiculo_jornada_matricula"),
+    km: Number(localStorage.getItem("zx_vehiculo_jornada_km") || 0)
+  };
+}
+
+function limpiarVehiculoJornada(){
+  localStorage.removeItem("zx_vehiculo_jornada_id");
+  localStorage.removeItem("zx_vehiculo_jornada_matricula");
+  localStorage.removeItem("zx_vehiculo_jornada_km");
+}
+
 function badgeEstado(){
   const dentro = estadoActual() === "dentro";
 
   return `
-    <span style="
-      display:inline-block;
-      padding:10px 14px;
-      border-radius:999px;
-      font-weight:900;
-      background:${dentro ? "#dcfce7" : "#fee2e2"};
-      color:${dentro ? "#166534" : "#991b1b"};
-      margin-bottom:16px;
-    ">
+    <span class="zx_estado ${dentro ? "zx_dentro" : "zx_fuera"}">
       ${dentro ? "Dentro" : "Fuera"}
     </span>
   `;
@@ -50,10 +56,7 @@ function badgeEstado(){
 function obtenerUbicacion(){
   return new Promise(function(resolve){
     if(!navigator.geolocation){
-      resolve({
-        latitud:null,
-        longitud:null
-      });
+      resolve({latitud:null,longitud:null});
       return;
     }
 
@@ -65,10 +68,7 @@ function obtenerUbicacion(){
         });
       },
       function(){
-        resolve({
-          latitud:null,
-          longitud:null
-        });
+        resolve({latitud:null,longitud:null});
       },
       {
         enableHighAccuracy:true,
@@ -77,6 +77,85 @@ function obtenerUbicacion(){
       }
     );
   });
+}
+
+async function obtenerVehiculosLibres(){
+  const cliente = sb();
+
+  if(!cliente){
+    return [];
+  }
+
+  const res = await cliente
+    .from("vehiculos")
+    .select("*")
+    .eq("activo",true)
+    .or("en_uso.is.false,en_uso.is.null")
+    .order("matricula",{ascending:true});
+
+  if(res.error){
+    alert("Error cargando vehículos: " + res.error.message);
+    return [];
+  }
+
+  return res.data || [];
+}
+
+async function seleccionarVehiculoEntrada(){
+  const vehiculos = await obtenerVehiculosLibres();
+
+  let texto = "Selecciona vehículo:\n\n";
+  texto += "0 - Sin vehículo\n";
+
+  vehiculos.forEach(function(v,i){
+    texto += (i + 1) + " - " + (v.matricula || "Sin matrícula") + " · " + (v.km_actual || 0) + " km\n";
+  });
+
+  const opcion = prompt(texto,"0");
+
+  if(opcion === null){
+    return false;
+  }
+
+  const numero = Number(opcion);
+
+  if(Number.isNaN(numero)){
+    alert("Opción no válida.");
+    return false;
+  }
+
+  if(numero === 0){
+    limpiarVehiculoJornada();
+    return true;
+  }
+
+  const vehiculo = vehiculos[numero - 1];
+
+  if(!vehiculo){
+    alert("Vehículo no válido.");
+    return false;
+  }
+
+  const cliente = sb();
+
+  const ocupar = await cliente
+    .from("vehiculos")
+    .update({
+      en_uso:true,
+      usuario_asignado:usuarioActual()
+    })
+    .eq("id",vehiculo.id);
+
+  if(ocupar.error){
+    alert("No se pudo ocupar el vehículo: " + ocupar.error.message);
+    return false;
+  }
+
+  localStorage.setItem("zx_vehiculo_jornada_id",vehiculo.id);
+  localStorage.setItem("zx_vehiculo_jornada_matricula",vehiculo.matricula || "");
+  localStorage.setItem("zx_vehiculo_jornada_km",String(vehiculo.km_actual || 0));
+
+  return true;
 }
 
 async function guardarFichaje(tipo,extra){
@@ -93,6 +172,7 @@ async function guardarFichaje(tipo,extra){
     empresa_id:"demo",
     usuario:usuarioActual(),
     tipo:tipo,
+    fecha:new Date().toISOString(),
     estado_jornada:estadoActual(),
     latitud:ubicacion.latitud,
     longitud:ubicacion.longitud,
@@ -141,8 +221,8 @@ async function cargarHistorico(){
     .from("fichajes")
     .select("*")
     .eq("usuario",usuarioActual())
-    .order("created_at",{ascending:false})
-    .limit(10);
+    .order("fecha",{ascending:false})
+    .limit(20);
 
   if(res.error){
     cont.innerHTML = "Error cargando historial.";
@@ -152,77 +232,62 @@ async function cargarHistorico(){
   const datos = res.data || [];
 
   if(datos.length === 0){
-    cont.innerHTML = `
-      <div style="color:#6b7280;">
-        Sin fichajes registrados.
-      </div>
-    `;
+    cont.innerHTML = `<div class="zx_text">Sin fichajes registrados.</div>`;
     return;
   }
 
   cont.innerHTML = datos.map(function(f){
-
-    const fecha = f.created_at
-      ? new Date(f.created_at).toLocaleString("es-ES")
-      : "-";
+    const fecha = f.fecha ? new Date(f.fecha).toLocaleString("es-ES") : "-";
 
     return `
-      <div style="
-        border:1px solid #d1d5db;
-        border-radius:16px;
-        padding:12px;
-        margin-bottom:10px;
-        background:white;
-      ">
-        <div style="font-weight:900;font-size:16px;">
-          ${f.tipo || "-"}
-        </div>
-
-        <div style="color:#6b7280;font-size:14px;margin-top:4px;">
-          ${fecha}
-        </div>
-
-        <div style="color:#374151;font-size:14px;margin-top:4px;">
-          Estado: ${f.estado_jornada || "-"}
-        </div>
+      <div class="zx_hist_item">
+        <div class="zx_hist_tipo">${nombreTipo(f.tipo)}</div>
+        <div class="zx_hist_fecha">${fecha}</div>
+        ${f.vehiculo_matricula ? `<div class="zx_hist_fecha">Vehículo: ${f.vehiculo_matricula}</div>` : ""}
+        ${f.km_salida ? `<div class="zx_hist_fecha">Km salida: ${f.km_salida}</div>` : ""}
+        ${(f.latitud && f.longitud) ? `<div class="zx_hist_fecha">GPS: ${f.latitud}, ${f.longitud}</div>` : ""}
       </div>
     `;
   }).join("");
+}
+
+function nombreTipo(tipo){
+  const mapa = {
+    entrada:"Entrada",
+    salida:"Salida",
+    inicio_pausa:"Inicio pausa",
+    inicio_comida:"Inicio comida"
+  };
+
+  return mapa[tipo] || tipo || "-";
 }
 
 function pintarPantalla(){
   const root = app();
   if(!root) return;
 
+  const v = vehiculoJornada();
+
   root.innerHTML = `
     <div class="zx_card">
       <h2>Fichaje</h2>
 
-      <div style="
-        font-size:17px;
-        color:#6b7280;
-        margin-bottom:12px;
-      ">
+      <div class="zx_text" style="margin-bottom:12px;">
         Usuario: <b>${usuarioActual()}</b>
       </div>
 
       ${badgeEstado()}
 
-      <button id="zx_fichar_entrada" class="zx_btn zx_verde">
-        Entrada
-      </button>
+      ${
+        v.id
+        ? `<div class="zx_text" style="margin-bottom:12px;">Vehículo jornada: <b>${v.matricula}</b></div>`
+        : `<div class="zx_text" style="margin-bottom:12px;">Vehículo jornada: <b>Sin vehículo</b></div>`
+      }
 
-      <button id="zx_fichar_salida" class="zx_btn zx_rojo">
-        Salida
-      </button>
-
-      <button id="zx_fichar_pausa" class="zx_btn zx_naranja">
-        Inicio pausa
-      </button>
-
-      <button id="zx_fichar_comida" class="zx_btn zx_naranja">
-        Inicio comida
-      </button>
+      <button id="zx_fichar_entrada" class="zx_btn zx_verde">Entrada</button>
+      <button id="zx_fichar_salida" class="zx_btn zx_rojo">Salida</button>
+      <button id="zx_fichar_pausa" class="zx_btn zx_naranja">Inicio pausa</button>
+      <button id="zx_fichar_comida" class="zx_btn zx_naranja">Inicio comida</button>
     </div>
 
     <div class="zx_card">
@@ -244,12 +309,24 @@ function activarBotones(){
       return;
     }
 
+    const seleccionado = await seleccionarVehiculoEntrada();
+
+    if(seleccionado === false){
+      return;
+    }
+
     guardarEstado("dentro");
 
-    const ok = await guardarFichaje("entrada",{});
+    const v = vehiculoJornada();
+
+    const ok = await guardarFichaje("entrada",{
+      vehiculo_id:v.id || null,
+      vehiculo_matricula:v.matricula || null
+    });
 
     if(!ok){
       guardarEstado("fuera");
+      limpiarVehiculoJornada();
       return;
     }
 
@@ -263,12 +340,54 @@ function activarBotones(){
       return;
     }
 
-    const km = prompt("Km salida si usaste vehículo. Déjalo vacío si no corresponde.","");
+    const v = vehiculoJornada();
+    let kmSalida = null;
+
+    if(v.id){
+      const km = prompt(
+        "Introduce km actuales de " + (v.matricula || "vehículo") + ":\n\nKm guardados: " + v.km,
+        v.km ? String(v.km) : ""
+      );
+
+      if(km === null || String(km).trim() === ""){
+        alert("Debes introducir km para cerrar salida.");
+        return;
+      }
+
+      kmSalida = Number(String(km).replace(",","."));
+
+      if(Number.isNaN(kmSalida) || kmSalida <= 0){
+        alert("Km no válido.");
+        return;
+      }
+
+      if(kmSalida < v.km){
+        alert("Los km no pueden ser menores que los actuales.");
+        return;
+      }
+
+      const cliente = sb();
+
+      const act = await cliente
+        .from("vehiculos")
+        .update({
+          km_actual:kmSalida,
+          en_uso:false
+        })
+        .eq("id",v.id);
+
+      if(act.error){
+        alert("Error actualizando vehículo: " + act.error.message);
+        return;
+      }
+    }
 
     guardarEstado("fuera");
 
     const ok = await guardarFichaje("salida",{
-      km_salida:km ? Number(km) : null
+      vehiculo_id:v.id || null,
+      vehiculo_matricula:v.matricula || null,
+      km_salida:kmSalida
     });
 
     if(!ok){
@@ -276,6 +395,7 @@ function activarBotones(){
       return;
     }
 
+    limpiarVehiculoJornada();
     pintarPantalla();
   };
 
@@ -286,7 +406,12 @@ function activarBotones(){
       return;
     }
 
-    const ok = await guardarFichaje("inicio_pausa",{});
+    const v = vehiculoJornada();
+
+    const ok = await guardarFichaje("inicio_pausa",{
+      vehiculo_id:v.id || null,
+      vehiculo_matricula:v.matricula || null
+    });
 
     if(ok){
       alert("Pausa registrada.");
@@ -301,7 +426,12 @@ function activarBotones(){
       return;
     }
 
-    const ok = await guardarFichaje("inicio_comida",{});
+    const v = vehiculoJornada();
+
+    const ok = await guardarFichaje("inicio_comida",{
+      vehiculo_id:v.id || null,
+      vehiculo_matricula:v.matricula || null
+    });
 
     if(ok){
       alert("Comida registrada.");
@@ -313,6 +443,6 @@ function activarBotones(){
 window.ZX_fichaje = pintarPantalla;
 window.ZENTRYX_UI_fichaje = pintarPantalla;
 
-console.log("Fichajes Supabase V2641 cargado");
+console.log("Fichajes Supabase V2646 cargado");
 
 })();
