@@ -248,14 +248,15 @@ function ZX_inicio(){
 }
 
 function ZX_fichaje(){
+  if(window.ZENTRYX_UI_fichaje){
+    window.ZENTRYX_UI_fichaje();
+    return;
+  }
+
   document.getElementById("app").innerHTML=`
     <div class="zx_card">
       <h2>Fichaje</h2>
-      <div class="zx_text" style="margin-bottom:14px;">Usuario: <b>admin</b></div>
-      <button class="zx_btn zx_verde">Entrada</button>
-      <button class="zx_btn zx_rojo">Salida</button>
-      <button class="zx_btn zx_naranja">Inicio pausa</button>
-      <button class="zx_btn zx_naranja">Inicio comida</button>
+      <div class="zx_text">El archivo fichajes.js no está cargado.</div>
     </div>
   `;
 }
