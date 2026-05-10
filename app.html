@@ -3,16 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2643</title>
+<title>Zentryx PRO V2644</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{
-  box-sizing:border-box;
-  margin:0;
-  padding:0;
-}
+*{box-sizing:border-box;margin:0;padding:0}
 
 html,body{
   background:#eef2f7;
@@ -21,9 +17,7 @@ html,body{
   overflow-x:hidden;
 }
 
-body{
-  padding-bottom:170px;
-}
+body{padding-bottom:170px}
 
 #zx_top{
   background:#071330;
@@ -60,9 +54,7 @@ body{
   font-weight:900;
 }
 
-#app{
-  padding:16px;
-}
+#app{padding:16px}
 
 .zx_card{
   background:white;
@@ -96,11 +88,12 @@ body{
   margin-top:14px;
 }
 
-.zx_rojo{background:#dc2626;}
-.zx_verde{background:#16a34a;}
-.zx_azul{background:#2563eb;}
-.zx_naranja{background:#ea580c;}
-.zx_morado{background:#7c3aed;}
+.zx_rojo{background:#dc2626}
+.zx_verde{background:#16a34a}
+.zx_azul{background:#2563eb}
+.zx_naranja{background:#ea580c}
+.zx_morado{background:#7c3aed}
+.zx_gris{background:#64748b}
 
 #zx_footer{
   position:fixed;
@@ -151,9 +144,7 @@ body{
   scrollbar-width:none;
 }
 
-#zx_footer_menu::-webkit-scrollbar{
-  display:none;
-}
+#zx_footer_menu::-webkit-scrollbar{display:none}
 
 .zx_footer_btn{
   flex:none;
@@ -176,21 +167,17 @@ body{
   margin-bottom:12px;
 }
 
-.zx_dentro{
-  background:#dcfce7;
-  color:#166534;
-}
-
-.zx_fuera{
-  background:#fee2e2;
-  color:#991b1b;
-}
+.zx_dentro{background:#dcfce7;color:#166534}
+.zx_fuera{background:#fee2e2;color:#991b1b}
+.zx_pausa{background:#ffedd5;color:#9a3412}
+.zx_comida{background:#fef3c7;color:#92400e}
 
 .zx_hist_item{
   border:1px solid #d1d5db;
   border-radius:18px;
   padding:16px;
   margin-top:14px;
+  background:white;
 }
 
 .zx_hist_tipo{
@@ -209,7 +196,7 @@ body{
 <body>
 
 <div id="zx_top">
-  <h1>Zentryx V2643</h1>
+  <h1>Zentryx V2644</h1>
   <div id="zx_fecha"></div>
   <div id="zx_hora"></div>
   <button id="zx_logout" onclick="logout()">Salir</button>
@@ -220,7 +207,6 @@ body{
 <div id="zx_footer">
   <div id="zx_footer_top">
     <div id="zx_footer_logo">Z</div>
-
     <div id="zx_footer_info">
       <h3>Zentryx PRO</h3>
       <p>admin · admin</p>
@@ -243,8 +229,23 @@ const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 
 window.sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-function actualizarReloj(){
+function usuarioActual(){
+  return "admin";
+}
 
+function estadoActual(){
+  return localStorage.getItem("zx_estado") || "fuera";
+}
+
+function pausaActual(){
+  return localStorage.getItem("zx_pausa") || "no";
+}
+
+function comidaActual(){
+  return localStorage.getItem("zx_comida") || "no";
+}
+
+function actualizarReloj(){
   const ahora=new Date();
 
   document.getElementById("zx_fecha").textContent=
@@ -268,116 +269,213 @@ actualizarReloj();
 
 function logout(){
   localStorage.removeItem("usuario");
-  location.href="index.html?v=2643";
+  location.href="index.html?v=2644";
+}
+
+function estadoVisual(){
+  const estado=estadoActual();
+  const pausa=pausaActual();
+  const comida=comidaActual();
+
+  if(estado==="fuera"){
+    return `<div class="zx_estado zx_fuera">Fuera</div>`;
+  }
+
+  if(pausa==="si"){
+    return `<div class="zx_estado zx_pausa">En pausa</div>`;
+  }
+
+  if(comida==="si"){
+    return `<div class="zx_estado zx_comida">En comida</div>`;
+  }
+
+  return `<div class="zx_estado zx_dentro">Dentro</div>`;
 }
 
 function ZX_inicio(){
-
   document.getElementById("app").innerHTML=`
-
     <div class="zx_card">
       <h2>Inicio</h2>
-
-      <div class="zx_text">
-        Sistema principal Zentryx PRO modular activo.
-      </div>
+      <div class="zx_text">Sistema principal Zentryx PRO modular activo.</div>
     </div>
 
     <div class="zx_card">
       <h2>Módulos rápidos</h2>
-
-      <button class="zx_btn zx_rojo" onclick="ZX_fichaje()">
-        Fichaje
-      </button>
-
-      <button class="zx_btn zx_azul" onclick="ZX_usuarios()">
-        Usuarios
-      </button>
-
-      <button class="zx_btn zx_verde" onclick="ZX_vehiculos()">
-        Vehículos
-      </button>
-
-      <button class="zx_btn zx_naranja" onclick="ZX_incidencias()">
-        Incidencias
-      </button>
-
-      <button class="zx_btn zx_morado" onclick="ZX_informes()">
-        Informes
-      </button>
+      <button class="zx_btn zx_rojo" onclick="ZX_fichaje()">Fichaje</button>
+      <button class="zx_btn zx_azul" onclick="ZX_usuarios()">Usuarios</button>
+      <button class="zx_btn zx_verde" onclick="ZX_vehiculos()">Vehículos</button>
+      <button class="zx_btn zx_naranja" onclick="ZX_incidencias()">Incidencias</button>
+      <button class="zx_btn zx_morado" onclick="ZX_informes()">Informes</button>
     </div>
 
+    <div class="zx_card">
+      <h2>Estado sistema</h2>
+      <div class="zx_text">
+        <b>Versión:</b> V2644<br><br>
+        Control real de fichaje activo<br><br>
+        Supabase conectado
+      </div>
+    </div>
   `;
 }
 
 async function guardarFichaje(tipo){
-
   try{
+    const estado=estadoActual();
+    const pausa=pausaActual();
+    const comida=comidaActual();
 
-    const estado=localStorage.getItem("zx_estado") || "fuera";
+    let km_salida=null;
+    let observaciones=null;
 
-    if(tipo==="entrada" && estado==="dentro"){
-      alert("Ya estás dentro");
-      return;
-    }
+    if(tipo==="entrada"){
+      if(estado==="dentro"){
+        alert("Ya estás dentro.");
+        return;
+      }
 
-    if(tipo!=="entrada" && estado==="fuera"){
-      alert("Primero debes hacer entrada");
-      return;
+      localStorage.setItem("zx_estado","dentro");
+      localStorage.setItem("zx_pausa","no");
+      localStorage.setItem("zx_comida","no");
     }
 
     if(tipo==="salida"){
+      if(estado==="fuera"){
+        alert("No puedes hacer salida sin entrada.");
+        return;
+      }
+
+      if(pausa==="si"){
+        alert("Primero debes finalizar la pausa.");
+        return;
+      }
+
+      if(comida==="si"){
+        alert("Primero debes finalizar la comida.");
+        return;
+      }
 
       const tieneVehiculo=confirm("¿Tienes vehículo asignado?");
 
       if(tieneVehiculo){
+        const km=prompt("Introduce los kilómetros actuales del vehículo:");
 
-        const km=prompt("Introduce kilómetros actuales");
+        if(km===null || String(km).trim()===""){
+          alert("Debes introducir los kilómetros para poder salir.");
+          return;
+        }
 
-        if(!km) return;
+        const kmNumero=Number(String(km).replace(",","."));
 
-        localStorage.setItem("zx_km",km);
+        if(Number.isNaN(kmNumero) || kmNumero<0){
+          alert("Kilómetros no válidos.");
+          return;
+        }
+
+        km_salida=kmNumero;
       }
+
+      localStorage.setItem("zx_estado","fuera");
+      localStorage.setItem("zx_pausa","no");
+      localStorage.setItem("zx_comida","no");
     }
 
-    const datos={
-      tipo:tipo,
-      fecha:new Date().toISOString()
-    };
+    if(tipo==="inicio_pausa"){
+      if(estado==="fuera"){
+        alert("No puedes iniciar pausa sin entrada.");
+        return;
+      }
+
+      if(pausa==="si"){
+        alert("Ya estás en pausa.");
+        return;
+      }
+
+      if(comida==="si"){
+        alert("No puedes iniciar pausa durante la comida.");
+        return;
+      }
+
+      localStorage.setItem("zx_pausa","si");
+    }
+
+    if(tipo==="fin_pausa"){
+      if(estado==="fuera"){
+        alert("No puedes finalizar pausa sin entrada.");
+        return;
+      }
+
+      if(pausa==="no"){
+        alert("No hay pausa iniciada.");
+        return;
+      }
+
+      localStorage.setItem("zx_pausa","no");
+    }
+
+    if(tipo==="inicio_comida"){
+      if(estado==="fuera"){
+        alert("No puedes iniciar comida sin entrada.");
+        return;
+      }
+
+      if(comida==="si"){
+        alert("Ya estás en comida.");
+        return;
+      }
+
+      if(pausa==="si"){
+        alert("No puedes iniciar comida durante una pausa.");
+        return;
+      }
+
+      localStorage.setItem("zx_comida","si");
+    }
+
+    if(tipo==="fin_comida"){
+      if(estado==="fuera"){
+        alert("No puedes finalizar comida sin entrada.");
+        return;
+      }
+
+      if(comida==="no"){
+        alert("No hay comida iniciada.");
+        return;
+      }
+
+      localStorage.setItem("zx_comida","no");
+    }
 
     const res=await window.sb
       .from("fichajes")
-      .insert([datos]);
+      .insert([{
+        empresa_id:"demo",
+        usuario:usuarioActual(),
+        tipo:tipo,
+        fecha:new Date().toISOString(),
+        estado_jornada:localStorage.getItem("zx_estado") || "fuera",
+        km_salida:km_salida,
+        observaciones:observaciones
+      }]);
 
     if(res.error){
       throw res.error;
     }
 
-    if(tipo==="entrada"){
-      localStorage.setItem("zx_estado","dentro");
-    }
-
-    if(tipo==="salida"){
-      localStorage.setItem("zx_estado","fuera");
-    }
-
     ZX_fichaje();
 
   }catch(e){
-
     alert("Error guardando fichaje: "+e.message);
   }
 }
 
 async function cargarHistorial(){
-
   try{
-
     const res=await window.sb
       .from("fichajes")
       .select("*")
       .order("fecha",{ascending:false})
-      .limit(10);
+      .limit(20);
 
     if(res.error){
       throw res.error;
@@ -386,153 +484,89 @@ async function cargarHistorial(){
     const datos=res.data || [];
 
     if(datos.length===0){
-      return `<div class="zx_text">Sin fichajes</div>`;
+      return `<div class="zx_text">Sin fichajes.</div>`;
     }
 
-    return datos.map(i=>`
+    return datos.map(i=>{
+      const f=new Date(i.fecha);
 
-      <div class="zx_hist_item">
-
-        <div class="zx_hist_tipo">
-          ${i.tipo}
+      return `
+        <div class="zx_hist_item">
+          <div class="zx_hist_tipo">${i.tipo || "-"}</div>
+          <div class="zx_hist_fecha">${f.toLocaleDateString("es-ES")} — ${f.toLocaleTimeString("es-ES")}</div>
+          ${i.km_salida ? `<div class="zx_hist_fecha">Km salida: ${i.km_salida}</div>` : ""}
         </div>
-
-        <div class="zx_hist_fecha">
-          ${new Date(i.fecha).toLocaleString("es-ES")}
-        </div>
-
-      </div>
-
-    `).join("");
+      `;
+    }).join("");
 
   }catch(e){
-
-    return `
-      <div class="zx_text">
-        Error cargando historial.
-      </div>
-    `;
+    return `<div class="zx_text">Error cargando historial.</div>`;
   }
 }
 
 async function ZX_fichaje(){
-
-  const estado=localStorage.getItem("zx_estado") || "fuera";
-
   const historial=await cargarHistorial();
 
   document.getElementById("app").innerHTML=`
-
     <div class="zx_card">
-
       <h2>Fichaje</h2>
 
       <div class="zx_text" style="margin-bottom:18px;">
-        Usuario: <b>admin</b>
+        Usuario: <b>${usuarioActual()}</b>
       </div>
 
-      <div class="zx_estado ${estado==="dentro" ? "zx_dentro" : "zx_fuera"}">
-        ${estado==="dentro" ? "Dentro" : "Fuera"}
-      </div>
+      ${estadoVisual()}
 
-      <button
-        class="zx_btn zx_verde"
-        onclick="guardarFichaje('entrada')"
-      >
-        Entrada
-      </button>
+      <button class="zx_btn zx_verde" onclick="guardarFichaje('entrada')">Entrada</button>
+      <button class="zx_btn zx_rojo" onclick="guardarFichaje('salida')">Salida</button>
 
-      <button
-        class="zx_btn zx_rojo"
-        onclick="guardarFichaje('salida')"
-      >
-        Salida
-      </button>
+      <button class="zx_btn zx_naranja" onclick="guardarFichaje('inicio_pausa')">Inicio pausa</button>
+      <button class="zx_btn zx_gris" onclick="guardarFichaje('fin_pausa')">Fin pausa</button>
 
-      <button
-        class="zx_btn zx_naranja"
-        onclick="guardarFichaje('inicio pausa')"
-      >
-        Inicio pausa
-      </button>
-
-      <button
-        class="zx_btn zx_naranja"
-        onclick="guardarFichaje('inicio comida')"
-      >
-        Inicio comida
-      </button>
-
+      <button class="zx_btn zx_naranja" onclick="guardarFichaje('inicio_comida')">Inicio comida</button>
+      <button class="zx_btn zx_gris" onclick="guardarFichaje('fin_comida')">Fin comida</button>
     </div>
 
     <div class="zx_card">
-
       <h2>Historial</h2>
-
       ${historial}
-
     </div>
-
   `;
 }
 
 function ZX_usuarios(){
-
   document.getElementById("app").innerHTML=`
-
     <div class="zx_card">
       <h2>Usuarios</h2>
-
-      <div class="zx_text">
-        Módulo usuarios pendiente.
-      </div>
+      <div class="zx_text">Módulo usuarios pendiente.</div>
     </div>
-
   `;
 }
 
 function ZX_vehiculos(){
-
   document.getElementById("app").innerHTML=`
-
     <div class="zx_card">
       <h2>Vehículos</h2>
-
-      <div class="zx_text">
-        Módulo vehículos pendiente.
-      </div>
+      <div class="zx_text">Módulo vehículos pendiente.</div>
     </div>
-
   `;
 }
 
 function ZX_incidencias(){
-
   document.getElementById("app").innerHTML=`
-
     <div class="zx_card">
       <h2>Incidencias</h2>
-
-      <div class="zx_text">
-        Módulo incidencias pendiente.
-      </div>
+      <div class="zx_text">Módulo incidencias pendiente.</div>
     </div>
-
   `;
 }
 
 function ZX_informes(){
-
   document.getElementById("app").innerHTML=`
-
     <div class="zx_card">
       <h2>Informes</h2>
-
-      <div class="zx_text">
-        Módulo informes pendiente.
-      </div>
+      <div class="zx_text">Módulo informes pendiente.</div>
     </div>
-
   `;
 }
 
