@@ -1,16 +1,97 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Zentryx</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>Zentryx PRO</title>
 
-  <meta http-equiv="refresh" content="0; url=app.html">
-  <script>
-    window.location.replace("app.html");
-  </script>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#071330">
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;
+  min-height:100%;
+  background:#071330;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  color:white;
+}
+
+body{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+
+.zx_box{
+  width:100%;
+  max-width:420px;
+  text-align:center;
+}
+
+.zx_logo{
+  width:82px;
+  height:82px;
+  border-radius:24px;
+  background:linear-gradient(135deg,#2563eb,#10b981);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:0 auto 22px;
+  font-size:44px;
+  font-weight:900;
+}
+
+h1{
+  font-size:34px;
+  font-weight:900;
+  margin-bottom:10px;
+}
+
+p{
+  color:#cbd5e1;
+  font-size:17px;
+  line-height:1.5;
+}
+
+.zx_loader{
+  width:46px;
+  height:46px;
+  border-radius:50%;
+  border:5px solid rgba(255,255,255,.22);
+  border-top-color:white;
+  margin:28px auto 0;
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+  to{transform:rotate(360deg)}
+}
+</style>
 </head>
+
 <body>
-  <p>Abriendo Zentryx...</p>
+
+<div class="zx_box">
+  <div class="zx_logo">Z</div>
+  <h1>Zentryx PRO</h1>
+  <p>Abriendo aplicación...</p>
+  <div class="zx_loader"></div>
+</div>
+
+<script>
+const ZX_VERSION="2646";
+
+function abrirApp(){
+  const destino="app.html?v="+ZX_VERSION;
+  window.location.replace(destino);
+}
+
+setTimeout(abrirApp,300);
+</script>
+
 </body>
 </html>
