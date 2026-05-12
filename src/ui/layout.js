@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - UI LAYOUT
-// V2649
+// V2650
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="2649";
+const ZX_VERSION="2650";
 
 window.ZENTRYX=window.ZENTRYX || {};
 window.ZENTRYX.version=ZX_VERSION;
@@ -43,7 +43,10 @@ function estilos(){
   css.id="zx_layout_styles";
 
   css.innerHTML=`
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    *{
+      box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
+    }
 
     html,body{
       margin:0;
@@ -54,19 +57,14 @@ function estilos(){
       overflow-x:hidden;
     }
 
-    body{padding-bottom:30px}
-
-    #app{
-      width:100%;
-      max-width:1180px;
-      margin:0 auto;
-      padding:16px;
+    body{
+      padding-bottom:calc(env(safe-area-inset-bottom) + 24px);
     }
 
     #zx_topbar{
       background:#071330;
       color:white;
-      padding:18px 14px 14px;
+      padding:calc(env(safe-area-inset-top) + 14px) 14px 14px;
       border-bottom:1px solid rgba(255,255,255,.08);
     }
 
@@ -94,9 +92,9 @@ function estilos(){
       display:flex;
       align-items:center;
       justify-content:center;
+      color:white;
       font-size:30px;
       font-weight:900;
-      color:white;
       flex:none;
     }
 
@@ -104,13 +102,15 @@ function estilos(){
       margin:0;
       font-size:22px;
       font-weight:900;
+      line-height:1.1;
       white-space:nowrap;
     }
 
     #zx_brand p{
-      margin:4px 0 0;
+      margin:5px 0 0;
       color:#cbd5e1;
       font-size:14px;
+      line-height:1.2;
       white-space:nowrap;
     }
 
@@ -122,6 +122,7 @@ function estilos(){
       padding:13px 18px;
       font-size:16px;
       font-weight:900;
+      flex:none;
     }
 
     #zx_nav{
@@ -139,7 +140,9 @@ function estilos(){
       scrollbar-width:none;
     }
 
-    #zx_nav_inner::-webkit-scrollbar{display:none}
+    #zx_nav_inner::-webkit-scrollbar{
+      display:none;
+    }
 
     .zx_nav_btn{
       flex:0 0 auto;
@@ -154,7 +157,19 @@ function estilos(){
       white-space:nowrap;
     }
 
-    .zx_nav_btn.zx_activo{background:#2563eb}
+    .zx_nav_btn.zx_activo{
+      background:#2563eb;
+    }
+
+    #app{
+      width:100%;
+      max-width:1180px;
+      margin:0 auto;
+      padding:16px;
+      padding-bottom:120px;
+      position:relative;
+      z-index:1;
+    }
 
     .zx_card{
       background:white;
@@ -163,6 +178,7 @@ function estilos(){
       margin-bottom:18px;
       border:1px solid #d1d5db;
       box-shadow:0 8px 24px rgba(0,0,0,.05);
+      overflow:hidden;
     }
 
     .zx_card h1,
@@ -190,6 +206,7 @@ function estilos(){
       font-size:20px;
       font-weight:900;
       margin-top:14px;
+      display:block;
     }
 
     .zx_rojo{background:#dc2626}
@@ -243,13 +260,57 @@ function estilos(){
       font-weight:800;
     }
 
+    @media(max-width:420px){
+      #zx_logo{
+        width:48px;
+        height:48px;
+        font-size:26px;
+      }
+
+      #zx_brand h1{
+        font-size:19px;
+      }
+
+      #zx_brand p{
+        font-size:13px;
+      }
+
+      #zx_salir{
+        padding:12px 15px;
+        font-size:15px;
+      }
+
+      .zx_card h1,
+      .zx_card h2{
+        font-size:28px;
+      }
+    }
+
     @media(min-width:768px){
-      #app{padding:24px}
-      .zx_card{padding:28px}
-      .zx_card h1,.zx_card h2{font-size:34px}
+      #app{
+        padding:24px;
+        padding-bottom:80px;
+      }
+
+      .zx_card{
+        padding:28px;
+      }
+
+      .zx_card h1,
+      .zx_card h2{
+        font-size:34px;
+      }
+
+      .zx_nav_btn{
+        min-width:128px;
+      }
     }
 
     @media(min-width:1024px){
+      #zx_nav_inner{
+        justify-content:flex-start;
+      }
+
       .zx_nav_btn{
         min-width:auto;
         padding:12px 22px;
@@ -262,6 +323,7 @@ function estilos(){
 
 function pintarTopbar(){
   let top=$("zx_topbar");
+
   if(!top){
     top=document.createElement("div");
     top.id="zx_topbar";
@@ -291,20 +353,28 @@ function pintarTopbar(){
 
 function pintarNav(){
   let nav=$("zx_nav");
+
   if(!nav){
     nav=document.createElement("nav");
     nav.id="zx_nav";
-    document.body.insertBefore(nav,app());
+
+    const root=app();
+
+    if(root){
+      document.body.insertBefore(nav,root);
+    }else{
+      document.body.appendChild(nav);
+    }
   }
 
   nav.innerHTML=`
     <div id="zx_nav_inner">
-      <button class="zx_nav_btn" data-modulo="inicio" onclick="ZX_inicio()">Inicio</button>
-      <button class="zx_nav_btn" data-modulo="fichaje" onclick="ZX_fichaje()">Fichaje</button>
-      <button class="zx_nav_btn" data-modulo="usuarios" onclick="ZX_usuarios()">Usuarios</button>
-      <button class="zx_nav_btn" data-modulo="vehiculos" onclick="ZX_vehiculos()">Vehículos</button>
-      <button class="zx_nav_btn" data-modulo="incidencias" onclick="ZX_incidencias()">Incidencias</button>
-      <button class="zx_nav_btn" data-modulo="informes" onclick="ZX_informes()">Informes</button>
+      <button class="zx_nav_btn" data-modulo="inicio" type="button" onclick="ZX_inicio()">Inicio</button>
+      <button class="zx_nav_btn" data-modulo="fichaje" type="button" onclick="ZX_fichaje()">Fichaje</button>
+      <button class="zx_nav_btn" data-modulo="usuarios" type="button" onclick="ZX_usuarios()">Usuarios</button>
+      <button class="zx_nav_btn" data-modulo="vehiculos" type="button" onclick="ZX_vehiculos()">Vehículos</button>
+      <button class="zx_nav_btn" data-modulo="incidencias" type="button" onclick="ZX_incidencias()">Incidencias</button>
+      <button class="zx_nav_btn" data-modulo="informes" type="button" onclick="ZX_informes()">Informes</button>
     </div>
   `;
 }
@@ -312,6 +382,7 @@ function pintarNav(){
 function setActivo(nombre){
   document.querySelectorAll(".zx_nav_btn").forEach(function(btn){
     btn.classList.remove("zx_activo");
+
     if(btn.dataset.modulo===nombre){
       btn.classList.add("zx_activo");
     }
@@ -320,6 +391,7 @@ function setActivo(nombre){
 
 function vistaPendiente(titulo,texto){
   if(!app()) return;
+
   app().innerHTML=`
     <div class="zx_card">
       <h1>${limpiarTexto(titulo)}</h1>
@@ -337,30 +409,51 @@ window.logout=function(){
   localStorage.removeItem("zx_vehiculo_activo");
   localStorage.removeItem("zx_vehiculo_matricula");
   localStorage.removeItem("zx_vehiculo_km");
+
   window.location.replace("./index.html?v="+ZX_VERSION);
 };
 
 window.ZX_inicio=function(){
   setActivo("inicio");
-  if(window.ZENTRYX_UI_inicio){window.ZENTRYX_UI_inicio();return}
+
+  if(window.ZENTRYX_UI_inicio){
+    window.ZENTRYX_UI_inicio();
+    return;
+  }
+
   vistaPendiente("Inicio","Sistema principal Zentryx PRO modular activo.");
 };
 
 window.ZX_fichaje=function(){
   setActivo("fichaje");
-  if(window.ZENTRYX_UI_fichaje){window.ZENTRYX_UI_fichaje();return}
+
+  if(window.ZENTRYX_UI_fichaje){
+    window.ZENTRYX_UI_fichaje();
+    return;
+  }
+
   vistaPendiente("Fichaje","Módulo fichaje no cargado.");
 };
 
 window.ZX_usuarios=function(){
   setActivo("usuarios");
-  if(window.ZENTRYX_UI_usuarios){window.ZENTRYX_UI_usuarios();return}
+
+  if(window.ZENTRYX_UI_usuarios){
+    window.ZENTRYX_UI_usuarios();
+    return;
+  }
+
   vistaPendiente("Usuarios","Módulo usuarios pendiente.");
 };
 
 window.ZX_vehiculos=function(){
   setActivo("vehiculos");
-  if(window.ZENTRYX_UI_abrirVehiculos){window.ZENTRYX_UI_abrirVehiculos();return}
+
+  if(window.ZENTRYX_UI_abrirVehiculos){
+    window.ZENTRYX_UI_abrirVehiculos();
+    return;
+  }
+
   vistaPendiente("Vehículos","Módulo vehículos no cargado.");
 };
 
@@ -387,7 +480,9 @@ function iniciar(){
   pintarNav();
 
   setTimeout(function(){
-    if(window.ZX_inicio) window.ZX_inicio();
+    if(window.ZX_inicio){
+      window.ZX_inicio();
+    }
   },100);
 }
 
