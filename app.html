@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2645</title>
+<title>Zentryx PRO V2646</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -87,6 +87,8 @@ body{padding-bottom:170px}
   font-weight:900;
   margin-top:14px;
 }
+
+.zx_btn:active{transform:scale(.99)}
 
 .zx_rojo{background:#dc2626}
 .zx_verde{background:#16a34a}
@@ -189,6 +191,17 @@ body{padding-bottom:170px}
 .zx_hist_fecha{
   font-size:16px;
   color:#6b7280;
+  line-height:1.5;
+}
+
+.zx_error{
+  color:#991b1b;
+  background:#fee2e2;
+  border:1px solid #fecaca;
+  padding:14px;
+  border-radius:16px;
+  font-size:16px;
+  font-weight:800;
 }
 </style>
 </head>
@@ -196,7 +209,7 @@ body{padding-bottom:170px}
 <body>
 
 <div id="zx_top">
-  <h1>Zentryx V2645</h1>
+  <h1>Zentryx V2646</h1>
   <div id="zx_fecha"></div>
   <div id="zx_hora"></div>
   <button id="zx_logout" onclick="logout()">Salir</button>
@@ -209,7 +222,7 @@ body{padding-bottom:170px}
     <div id="zx_footer_logo">Z</div>
     <div id="zx_footer_info">
       <h3>Zentryx PRO</h3>
-      <p>admin · admin</p>
+      <p id="zx_footer_usuario">Cargando usuario...</p>
     </div>
   </div>
 
@@ -224,12 +237,43 @@ body{padding-bottom:170px}
 </div>
 
 <script>
+const ZX_VERSION="2646";
+
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+
 window.sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
+function $(id){
+  return document.getElementById(id);
+}
+
+function limpiarTexto(valor){
+  return String(valor ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
 function usuarioActual(){
-  return "admin";
+  const guardado=localStorage.getItem("usuario");
+
+  if(!guardado){
+    return "admin";
+  }
+
+  try{
+    const datos=JSON.parse(guardado);
+    return datos.usuario || datos.nombre || datos.email || "admin";
+  }catch(e){
+    return guardado || "admin";
+  }
+}
+
+function pintarUsuarioFooter(){
+  $("zx_footer_usuario").textContent=usuarioActual();
 }
 
 function estadoActual(){
@@ -247,20 +291,18 @@ function comidaActual(){
 function actualizarReloj(){
   const ahora=new Date();
 
-  document.getElementById("zx_fecha").textContent=
-    ahora.toLocaleDateString("es-ES",{
-      weekday:"long",
-      year:"numeric",
-      month:"long",
-      day:"numeric"
-    });
+  $("zx_fecha").textContent=ahora.toLocaleDateString("es-ES",{
+    weekday:"long",
+    year:"numeric",
+    month:"long",
+    day:"numeric"
+  });
 
-  document.getElementById("zx_hora").textContent=
-    ahora.toLocaleTimeString("es-ES",{
-      hour:"2-digit",
-      minute:"2-digit",
-      second:"2-digit"
-    });
+  $("zx_hora").textContent=ahora.toLocaleTimeString("es-ES",{
+    hour:"2-digit",
+    minute:"2-digit",
+    second:"2-digit"
+  });
 }
 
 setInterval(actualizarReloj,1000);
@@ -268,7 +310,11 @@ actualizarReloj();
 
 function logout(){
   localStorage.removeItem("usuario");
-  location.href="index.html?v=2645";
+  localStorage.removeItem("zx_estado");
+  localStorage.removeItem("zx_pausa");
+  localStorage.removeItem("zx_comida");
+  localStorage.removeItem("zx_vehiculo_activo");
+  location.href="index.html?v="+ZX_VERSION;
 }
 
 function estadoVisual(){
@@ -317,6 +363,21 @@ function pedirGPS(){
   });
 }
 
+function leerVehiculoActivo(){
+  const valor=localStorage.getItem("zx_vehiculo_activo");
+
+  if(!valor){
+    return null;
+  }
+
+  try{
+    return JSON.parse(valor);
+  }catch(e){
+    localStorage.removeItem("zx_vehiculo_activo");
+    return null;
+  }
+}
+
 async function obtenerVehiculoUsuario(){
   const usuario=usuarioActual();
 
@@ -344,7 +405,7 @@ async function obtenerVehiculoUsuario(){
 }
 
 function ZX_inicio(){
-  document.getElementById("app").innerHTML=`
+  $("app").innerHTML=`
     <div class="zx_card">
       <h2>Inicio</h2>
       <div class="zx_text">Sistema principal Zentryx PRO modular activo.</div>
@@ -362,8 +423,11 @@ function ZX_inicio(){
     <div class="zx_card">
       <h2>Estado sistema</h2>
       <div class="zx_text">
-        <b>Versión:</b> V2645<br><br>
-        Fichaje con vehículo automático<br><br>
+        <b>Versión:</b> V${ZX_VERSION}<br><br>
+        Fichaje operativo<br><br>
+        Selector de vehículo en entrada<br><br>
+        Control de km en salida<br><br>
+        Historial activo<br><br>
         GPS preparado
       </div>
     </div>
@@ -371,9 +435,7 @@ function ZX_inicio(){
 }
 
 async function guardarFichaje(tipo){
-
   try{
-
     const estado=estadoActual();
     const pausa=pausaActual();
     const comida=comidaActual();
@@ -383,11 +445,7 @@ async function guardarFichaje(tipo){
 
     const gps=await pedirGPS();
 
-    // =========================
-    // ENTRADA
-    // =========================
     if(tipo==="entrada"){
-
       if(estado==="dentro"){
         alert("Ya estás dentro.");
         return;
@@ -409,8 +467,8 @@ async function guardarFichaje(tipo){
       let mensaje="Selecciona vehículo:\n\n";
       mensaje+="0 - Sin vehículo\n\n";
 
-      vehiculos.forEach((v,index)=>{
-        mensaje+=`${index+1} - ${v.matricula || "-"}\n`;
+      vehiculos.forEach(function(v,index){
+        mensaje+=(index+1)+" - "+(v.matricula || "-")+"\n";
       });
 
       const seleccion=prompt(mensaje,"0");
@@ -421,13 +479,12 @@ async function guardarFichaje(tipo){
 
       const numero=Number(seleccion);
 
-      if(Number.isNaN(numero)){
+      if(!Number.isInteger(numero) || numero<0){
         alert("Selección inválida.");
         return;
       }
 
       if(numero>0){
-
         const elegido=vehiculos[numero-1];
 
         if(!elegido){
@@ -437,7 +494,7 @@ async function guardarFichaje(tipo){
 
         vehiculo=elegido;
 
-        await window.sb
+        const updVehiculo=await window.sb
           .from("vehiculos")
           .update({
             en_uso:true,
@@ -445,16 +502,16 @@ async function guardarFichaje(tipo){
           })
           .eq("id",vehiculo.id);
 
-        localStorage.setItem(
-          "zx_vehiculo_activo",
-          JSON.stringify({
-            id:vehiculo.id,
-            matricula:vehiculo.matricula
-          })
-        );
+        if(updVehiculo.error){
+          alert("No se pudo asignar el vehículo.");
+          return;
+        }
 
+        localStorage.setItem("zx_vehiculo_activo",JSON.stringify({
+          id:vehiculo.id,
+          matricula:vehiculo.matricula
+        }));
       }else{
-
         localStorage.removeItem("zx_vehiculo_activo");
       }
 
@@ -463,11 +520,7 @@ async function guardarFichaje(tipo){
       localStorage.setItem("zx_comida","no");
     }
 
-    // =========================
-    // SALIDA
-    // =========================
     if(tipo==="salida"){
-
       if(estado==="fuera"){
         alert("No puedes hacer salida sin entrada.");
         return;
@@ -483,11 +536,10 @@ async function guardarFichaje(tipo){
         return;
       }
 
-      const vehiculoActivo=localStorage.getItem("zx_vehiculo_activo");
+      const vehiculoActivo=leerVehiculoActivo();
 
       if(vehiculoActivo){
-
-        vehiculo=JSON.parse(vehiculoActivo);
+        vehiculo=vehiculoActivo;
 
         const resVehiculo=await window.sb
           .from("vehiculos")
@@ -495,13 +547,17 @@ async function guardarFichaje(tipo){
           .eq("id",vehiculo.id)
           .maybeSingle();
 
-        if(resVehiculo.data){
+        if(resVehiculo.error){
+          alert("Error cargando el vehículo activo.");
+          return;
+        }
 
+        if(resVehiculo.data){
           vehiculo=resVehiculo.data;
 
           const km=prompt(
-            "Introduce kilómetros actuales del vehículo " + vehiculo.matricula,
-            vehiculo.km_actual || 0
+            "Introduce kilómetros actuales del vehículo "+(vehiculo.matricula || ""),
+            vehiculo.km_actual ?? 0
           );
 
           if(km===null || String(km).trim()===""){
@@ -509,18 +565,21 @@ async function guardarFichaje(tipo){
             return;
           }
 
-          const kmNumero=Number(
-            String(km).replace(",",".")
-          );
+          const kmNumero=Number(String(km).replace(",","."));
 
-          if(Number.isNaN(kmNumero)){
+          if(Number.isNaN(kmNumero) || kmNumero<0){
             alert("Kilómetros inválidos.");
+            return;
+          }
+
+          if(vehiculo.km_actual!==null && vehiculo.km_actual!==undefined && kmNumero<Number(vehiculo.km_actual)){
+            alert("Los kilómetros no pueden ser menores que los actuales.");
             return;
           }
 
           km_salida=kmNumero;
 
-          await window.sb
+          const updVehiculo=await window.sb
             .from("vehiculos")
             .update({
               km_actual:kmNumero,
@@ -528,6 +587,11 @@ async function guardarFichaje(tipo){
               usuario_asignado:null
             })
             .eq("id",vehiculo.id);
+
+          if(updVehiculo.error){
+            alert("No se pudo actualizar el vehículo.");
+            return;
+          }
         }
 
         localStorage.removeItem("zx_vehiculo_activo");
@@ -538,11 +602,7 @@ async function guardarFichaje(tipo){
       localStorage.setItem("zx_comida","no");
     }
 
-    // =========================
-    // PAUSA
-    // =========================
     if(tipo==="inicio_pausa"){
-
       if(estado==="fuera"){
         alert("No puedes iniciar pausa sin entrada.");
         return;
@@ -553,10 +613,19 @@ async function guardarFichaje(tipo){
         return;
       }
 
+      if(comida==="si"){
+        alert("No puedes iniciar pausa estando en comida.");
+        return;
+      }
+
       localStorage.setItem("zx_pausa","si");
     }
 
     if(tipo==="fin_pausa"){
+      if(estado==="fuera"){
+        alert("No puedes finalizar pausa sin entrada.");
+        return;
+      }
 
       if(pausa==="no"){
         alert("No hay pausa iniciada.");
@@ -566,13 +635,19 @@ async function guardarFichaje(tipo){
       localStorage.setItem("zx_pausa","no");
     }
 
-    // =========================
-    // COMIDA
-    // =========================
     if(tipo==="inicio_comida"){
-
       if(estado==="fuera"){
-        alert("No puedes iniciar comida.");
+        alert("No puedes iniciar comida sin entrada.");
+        return;
+      }
+
+      if(comida==="si"){
+        alert("Ya estás en comida.");
+        return;
+      }
+
+      if(pausa==="si"){
+        alert("No puedes iniciar comida estando en pausa.");
         return;
       }
 
@@ -580,6 +655,10 @@ async function guardarFichaje(tipo){
     }
 
     if(tipo==="fin_comida"){
+      if(estado==="fuera"){
+        alert("No puedes finalizar comida sin entrada.");
+        return;
+      }
 
       if(comida==="no"){
         alert("No hay comida iniciada.");
@@ -590,24 +669,15 @@ async function guardarFichaje(tipo){
     }
 
     const registro={
-
       empresa_id:"demo",
       usuario:usuarioActual(),
       tipo:tipo,
       fecha:new Date().toISOString(),
-
-      estado_jornada:
-        localStorage.getItem("zx_estado") || "fuera",
-
+      estado_jornada:localStorage.getItem("zx_estado") || "fuera",
       latitud:gps.latitud,
       longitud:gps.longitud,
-
-      vehiculo_id:
-        vehiculo ? vehiculo.id : null,
-
-      vehiculo_matricula:
-        vehiculo ? vehiculo.matricula : null,
-
+      vehiculo_id:vehiculo ? vehiculo.id : null,
+      vehiculo_matricula:vehiculo ? vehiculo.matricula : null,
       km_salida:km_salida
     };
 
@@ -622,12 +692,8 @@ async function guardarFichaje(tipo){
     ZX_fichaje();
 
   }catch(e){
-
     console.error(e);
-
-    alert(
-      "Error guardando fichaje: " + e.message
-    );
+    alert("Error guardando fichaje: "+(e.message || "error desconocido"));
   }
 }
 
@@ -649,6 +715,7 @@ async function cargarHistorial(){
     const res=await window.sb
       .from("fichajes")
       .select("*")
+      .eq("usuario",usuarioActual())
       .order("fecha",{ascending:false})
       .limit(20);
 
@@ -662,35 +729,37 @@ async function cargarHistorial(){
       return `<div class="zx_text">Sin fichajes.</div>`;
     }
 
-    return datos.map(i=>{
+    return datos.map(function(i){
       const f=new Date(i.fecha);
+      const tieneGPS=i.latitud!==null && i.latitud!==undefined && i.longitud!==null && i.longitud!==undefined;
+      const tieneKm=i.km_salida!==null && i.km_salida!==undefined;
 
       return `
         <div class="zx_hist_item">
-          <div class="zx_hist_tipo">${nombreTipo(i.tipo)}</div>
+          <div class="zx_hist_tipo">${limpiarTexto(nombreTipo(i.tipo))}</div>
           <div class="zx_hist_fecha">${f.toLocaleDateString("es-ES")} — ${f.toLocaleTimeString("es-ES")}</div>
-          ${i.vehiculo_matricula ? `<div class="zx_hist_fecha">Vehículo: ${i.vehiculo_matricula}</div>` : ""}
-          ${i.km_salida ? `<div class="zx_hist_fecha">Km salida: ${i.km_salida}</div>` : ""}
-          ${(i.latitud && i.longitud) ? `<div class="zx_hist_fecha">GPS: ${i.latitud}, ${i.longitud}</div>` : ""}
+          ${i.vehiculo_matricula ? `<div class="zx_hist_fecha">Vehículo: ${limpiarTexto(i.vehiculo_matricula)}</div>` : ""}
+          ${tieneKm ? `<div class="zx_hist_fecha">Km salida: ${limpiarTexto(i.km_salida)}</div>` : ""}
+          ${tieneGPS ? `<div class="zx_hist_fecha">GPS: ${limpiarTexto(i.latitud)}, ${limpiarTexto(i.longitud)}</div>` : ""}
         </div>
       `;
     }).join("");
 
   }catch(e){
     console.error(e);
-    return `<div class="zx_text">Error cargando historial.</div>`;
+    return `<div class="zx_error">Error cargando historial.</div>`;
   }
 }
 
 async function ZX_fichaje(){
   const historial=await cargarHistorial();
 
-  document.getElementById("app").innerHTML=`
+  $("app").innerHTML=`
     <div class="zx_card">
       <h2>Fichaje</h2>
 
       <div class="zx_text" style="margin-bottom:18px;">
-        Usuario: <b>${usuarioActual()}</b>
+        Usuario: <b>${limpiarTexto(usuarioActual())}</b>
       </div>
 
       ${estadoVisual()}
@@ -713,7 +782,7 @@ async function ZX_fichaje(){
 }
 
 function ZX_usuarios(){
-  document.getElementById("app").innerHTML=`
+  $("app").innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
       <div class="zx_text">Módulo usuarios pendiente.</div>
@@ -722,29 +791,40 @@ function ZX_usuarios(){
 }
 
 async function ZX_vehiculos(){
-  const res=await window.sb
-    .from("vehiculos")
-    .select("*")
-    .order("created_at",{ascending:false});
-
   let html="";
 
-  if(res.error){
-    html=`<div class="zx_text">Error cargando vehículos.</div>`;
-  }else if(!res.data || res.data.length===0){
-    html=`<div class="zx_text">No hay vehículos.</div>`;
-  }else{
-    html=res.data.map(v=>`
-      <div class="zx_hist_item">
-        <div class="zx_hist_tipo">${v.matricula || "-"}</div>
-        <div class="zx_hist_fecha">${v.marca || ""} ${v.modelo || ""}</div>
-        <div class="zx_hist_fecha">Km: ${v.km_actual || 0}</div>
-        <div class="zx_hist_fecha">Estado: ${v.en_uso ? "En uso" : "Libre"}</div>
-      </div>
-    `).join("");
+  try{
+    const res=await window.sb
+      .from("vehiculos")
+      .select("*")
+      .order("matricula",{ascending:true});
+
+    if(res.error){
+      throw res.error;
+    }
+
+    if(!res.data || res.data.length===0){
+      html=`<div class="zx_text">No hay vehículos.</div>`;
+    }else{
+      html=res.data.map(function(v){
+        return `
+          <div class="zx_hist_item">
+            <div class="zx_hist_tipo">${limpiarTexto(v.matricula || "-")}</div>
+            <div class="zx_hist_fecha">${limpiarTexto(v.marca || "")} ${limpiarTexto(v.modelo || "")}</div>
+            <div class="zx_hist_fecha">Km: ${limpiarTexto(v.km_actual ?? 0)}</div>
+            <div class="zx_hist_fecha">Estado: ${v.en_uso ? "En uso" : "Libre"}</div>
+            ${v.usuario_asignado ? `<div class="zx_hist_fecha">Usuario: ${limpiarTexto(v.usuario_asignado)}</div>` : ""}
+          </div>
+        `;
+      }).join("");
+    }
+
+  }catch(e){
+    console.error(e);
+    html=`<div class="zx_error">Error cargando vehículos.</div>`;
   }
 
-  document.getElementById("app").innerHTML=`
+  $("app").innerHTML=`
     <div class="zx_card">
       <h2>Vehículos</h2>
       ${html}
@@ -753,7 +833,7 @@ async function ZX_vehiculos(){
 }
 
 function ZX_incidencias(){
-  document.getElementById("app").innerHTML=`
+  $("app").innerHTML=`
     <div class="zx_card">
       <h2>Incidencias</h2>
       <div class="zx_text">Módulo incidencias pendiente.</div>
@@ -762,7 +842,7 @@ function ZX_incidencias(){
 }
 
 function ZX_informes(){
-  document.getElementById("app").innerHTML=`
+  $("app").innerHTML=`
     <div class="zx_card">
       <h2>Informes</h2>
       <div class="zx_text">Módulo informes pendiente.</div>
@@ -770,6 +850,7 @@ function ZX_informes(){
   `;
 }
 
+pintarUsuarioFooter();
 ZX_inicio();
 </script>
 
