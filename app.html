@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2646</title>
+<title>Zentryx PRO V2647</title>
 
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#071330">
 
 <script>
-const ZX_VERSION="2646";
+const ZX_VERSION="2647";
 
 function checkLogin(){
   const session=localStorage.getItem("zentryx_session");
@@ -45,10 +45,8 @@ html,body{
   overflow-x:hidden;
 }
 
-body{padding-bottom:170px}
-
 #app{
-  padding:16px;
+  width:100%;
 }
 </style>
 </head>
@@ -57,53 +55,36 @@ body{padding-bottom:170px}
 
 <div id="app"></div>
 
-<script src="src/app.js?v=2646"></script>
-<script src="src/ui/layout.js?v=2646"></script>
-<script src="src/modules/inicio.js?v=2646"></script>
-<script src="src/modules/fichajes.js?v=2646"></script>
-<script src="src/modules/vehiculos.js?v=2646"></script>
-<script src="src/modules/usuarios.js?v=2646"></script>
-<script src="src/modules/configuracion.js?v=2646"></script>
+<script src="src/app.js?v=2647"></script>
+<script src="src/ui/layout.js?v=2647"></script>
+
+<script src="src/modules/inicio.js?v=2647"></script>
+<script src="src/modules/fichajes.js?v=2647"></script>
+<script src="src/modules/vehiculos.js?v=2647"></script>
+<script src="src/modules/usuarios.js?v=2647"></script>
+<script src="src/modules/configuracion.js?v=2647"></script>
 
 <script>
 (function(){
 
   function iniciar(){
-
     if(!checkLogin()){
       return;
     }
 
-    if(!window.ZENTRYX){
-      document.getElementById("app").innerHTML=`
-        <div style="background:white;border-radius:20px;padding:20px;margin:20px;border:1px solid #ddd;">
-          <h2>Error</h2>
-          <p>No se ha cargado Zentryx.</p>
-        </div>
-      `;
-      return;
+    if(window.ZENTRYX && window.ZENTRYX.estadoSistema){
+      console.log("Zentryx PRO iniciado",window.ZENTRYX.estadoSistema());
     }
 
-    if(window.ZENTRYX.estadoSistema){
-      console.log("Arranque Zentryx PRO",window.ZENTRYX.estadoSistema());
+    if(window.ZENTRYX_UI_LAYOUT && window.ZENTRYX_UI_LAYOUT.iniciar){
+      window.ZENTRYX_UI_LAYOUT.iniciar();
+      return;
     }
 
     if(window.ZX_inicio){
       window.ZX_inicio();
     }
   }
-
-  window.logout=function(){
-    localStorage.removeItem("zentryx_session");
-    localStorage.removeItem("usuario");
-    localStorage.removeItem("zx_estado");
-    localStorage.removeItem("zx_pausa");
-    localStorage.removeItem("zx_comida");
-    localStorage.removeItem("zx_vehiculo_activo");
-    localStorage.removeItem("zx_vehiculo_matricula");
-    localStorage.removeItem("zx_vehiculo_km");
-    window.location.replace("index.html?v="+ZX_VERSION);
-  };
 
   if(document.readyState==="loading"){
     document.addEventListener("DOMContentLoaded",iniciar);
