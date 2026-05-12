@@ -5,6 +5,34 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>Zentryx PRO V2646</title>
 
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#071330">
+
+<script>
+const ZX_VERSION="2646";
+
+function checkLogin(){
+  const session=localStorage.getItem("zentryx_session");
+
+  if(!session){
+    window.location.replace("index.html?v="+ZX_VERSION);
+    return false;
+  }
+
+  try{
+    JSON.parse(session);
+    return true;
+  }catch(e){
+    localStorage.removeItem("zentryx_session");
+    localStorage.removeItem("usuario");
+    window.location.replace("index.html?v="+ZX_VERSION);
+    return false;
+  }
+}
+
+checkLogin();
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -29,53 +57,53 @@ body{padding-bottom:170px}
 
 <div id="app"></div>
 
-<!-- ===============================
-     CORE
-================================ -->
-<script src="src/app.js"></script>
-<script src="src/core/session.js"></script>
-<script src="src/core/store.js"></script>
-
-<!-- ===============================
-     UI
-================================ -->
-<script src="src/ui/layout.js"></script>
-
-<!-- ===============================
-     MÓDULOS
-================================ -->
-<script src="src/modules/inicio.js"></script>
-<script src="src/modules/fichajes.js"></script>
-<script src="src/modules/vehiculos.js"></script>
-<script src="src/modules/usuarios.js"></script>
-
-<!-- (preparados para futuro) -->
-<script src="src/modules/configuracion.js"></script>
+<script src="src/app.js?v=2646"></script>
+<script src="src/ui/layout.js?v=2646"></script>
+<script src="src/modules/inicio.js?v=2646"></script>
+<script src="src/modules/fichajes.js?v=2646"></script>
+<script src="src/modules/vehiculos.js?v=2646"></script>
+<script src="src/modules/usuarios.js?v=2646"></script>
+<script src="src/modules/configuracion.js?v=2646"></script>
 
 <script>
-/*
-===============================
-ARRANQUE CONTROLADO
-===============================
-*/
-
 (function(){
 
   function iniciar(){
 
-    if(!window.ZENTRYX){
-      console.error("ZENTRYX no cargado");
+    if(!checkLogin()){
       return;
     }
 
-    console.log("Arranque Zentryx PRO", window.ZENTRYX.estadoSistema());
+    if(!window.ZENTRYX){
+      document.getElementById("app").innerHTML=`
+        <div style="background:white;border-radius:20px;padding:20px;margin:20px;border:1px solid #ddd;">
+          <h2>Error</h2>
+          <p>No se ha cargado Zentryx.</p>
+        </div>
+      `;
+      return;
+    }
 
-    // Cargar inicio automáticamente
+    if(window.ZENTRYX.estadoSistema){
+      console.log("Arranque Zentryx PRO",window.ZENTRYX.estadoSistema());
+    }
+
     if(window.ZX_inicio){
       window.ZX_inicio();
     }
-
   }
+
+  window.logout=function(){
+    localStorage.removeItem("zentryx_session");
+    localStorage.removeItem("usuario");
+    localStorage.removeItem("zx_estado");
+    localStorage.removeItem("zx_pausa");
+    localStorage.removeItem("zx_comida");
+    localStorage.removeItem("zx_vehiculo_activo");
+    localStorage.removeItem("zx_vehiculo_matricula");
+    localStorage.removeItem("zx_vehiculo_km");
+    window.location.replace("index.html?v="+ZX_VERSION);
+  };
 
   if(document.readyState==="loading"){
     document.addEventListener("DOMContentLoaded",iniciar);
