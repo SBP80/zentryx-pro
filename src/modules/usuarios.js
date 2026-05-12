@@ -1,45 +1,174 @@
-import { layout, bindLayoutEvents } from "../ui/layout.js";
-import { saveState } from "../core/store.js";
+// ===============================
+// ZENTRYX PRO - MÓDULO USUARIOS
+// V2646
+// ===============================
+(function(){
+"use strict";
 
-export function renderUsuarios(app, state, handlers) {
-  const list = state.users.map(u => `
-    <div style="border:1px solid #ddd;padding:10px;margin-bottom:8px;border-radius:10px;">
-      <b>${u.nombre}</b><br>
-      ${u.usuario} - ${u.rol}
+const ZX_VERSION="2646";
+
+// ===============================
+// HELPERS
+// ===============================
+
+function $(id){
+  return document.getElementById(id);
+}
+
+function app(){
+  return $("app");
+}
+
+function limpiarTexto(valor){
+  return String(valor ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+// ===============================
+// STORE
+// ===============================
+
+function loadState(){
+  try{
+    return JSON.parse(localStorage.getItem("zentryx_state")) || {usuarios:[]};
+  }catch{
+    return {usuarios:[]};
+  }
+}
+
+function saveState(state){
+  localStorage.setItem("zentryx_state",JSON.stringify(state));
+}
+
+// ===============================
+// UI
+// ===============================
+
+function tarjetaUsuario(u){
+
+  return `
+    <div class="zx_hist_item">
+      <div class="zx_hist_tipo">${limpiarTexto(u.nombre)}</div>
+      <div class="zx_hist_fecha">${limpiarTexto(u.usuario)} · ${limpiarTexto(u.rol)}</div>
+
+      <button class="zx_btn zx_gris" onclick="ZX_eliminarUsuario('${u.usuario}')">
+        Eliminar
+      </button>
     </div>
-  `).join("");
+  `;
+}
 
-  const content = `
-    <h3>Usuarios</h3>
+function pintar(){
 
-    <input id="u_nombre" placeholder="Nombre" style="width:100%;height:40px;margin-bottom:8px;padding:0 10px;box-sizing:border-box;">
-    <input id="u_usuario" placeholder="Usuario" style="width:100%;height:40px;margin-bottom:8px;padding:0 10px;box-sizing:border-box;">
-    <input id="u_pass" placeholder="Contraseña" style="width:100%;height:40px;margin-bottom:8px;padding:0 10px;box-sizing:border-box;">
+  const root=app();
+  if(!root) return;
 
-    <button id="add_user" style="width:100%;height:42px;">Crear usuario</button>
+  const state=loadState();
+  const lista=state.usuarios || [];
 
-    <div style="margin-top:12px;">${list}</div>
+  root.innerHTML=`
+    <div class="zx_card">
+      <h2>Usuarios</h2>
+
+      <input id="u_nombre" placeholder="Nombre" style="width:100%;height:44px;margin-bottom:10px;padding:0 12px;">
+      <input id="u_usuario" placeholder="Usuario" style="width:100%;height:44px;margin-bottom:10px;padding:0 12px;">
+      <input id="u_pass" placeholder="Contraseña" type="password" style="width:100%;height:44px;margin-bottom:10px;padding:0 12px;">
+
+      <button id="crear_usuario" class="zx_btn zx_verde">
+        Crear usuario
+      </button>
+    </div>
+
+    <div class="zx_card">
+      <h2>Listado</h2>
+      ${
+        lista.length
+        ? lista.map(tarjetaUsuario).join("")
+        : `<div class="zx_text">No hay usuarios.</div>`
+      }
+    </div>
   `;
 
-  app.innerHTML = layout("Usuarios", content, state);
-  bindLayoutEvents(app, state, handlers);
+  eventos();
+}
 
-  document.getElementById("add_user").onclick = () => {
-    const nombre = document.getElementById("u_nombre").value.trim();
-    const usuario = document.getElementById("u_usuario").value.trim();
-    const password = document.getElementById("u_pass").value.trim();
+// ===============================
+// EVENTOS
+// ===============================
 
-    if (!nombre || !usuario || !password) return;
+function eventos(){
 
-    state.users.push({
-      id: Date.now(),
-      nombre,
-      usuario,
-      password,
-      rol: "Usuario"
+  $("crear_usuario").onclick=function(){
+
+    const nombre=$("u_nombre").value.trim();
+    const usuario=$("u_usuario").value.trim();
+    const password=$("u_pass").value.trim();
+
+    if(!nombre || !usuario || !password){
+      alert("Completa todos los campos.");
+      return;
+    }
+
+    const state=loadState();
+
+    const existe=state.usuarios.some(u=>u.usuario===usuario);
+
+    if(existe){
+      alert("Usuario ya existe.");
+      return;
+    }
+
+    state.usuarios.push({
+      id:Date.now(),
+      nombre:nombre,
+      usuario:usuario,
+      password:password,
+      rol:"Usuario",
+      activo:true
     });
 
     saveState(state);
-    renderUsuarios(app, state, handlers);
+
+    pintar();
   };
 }
+
+// ===============================
+// ELIMINAR
+// ===============================
+
+window.ZX_eliminarUsuario=function(usuario){
+
+  if(!confirm("Eliminar usuario?")) return;
+
+  const state=loadState();
+
+  state.usuarios=state.usuarios.filter(u=>u.usuario!==usuario);
+
+  saveState(state);
+
+  pintar();
+};
+
+// ===============================
+// EXPORT
+// ===============================
+
+window.ZX_usuarios=pintar;
+window.ZENTRYX_UI_usuarios=pintar;
+
+if(window.ZENTRYX && window.ZENTRYX.registrarModulo){
+  window.ZENTRYX.registrarModulo("usuarios",{
+    nombre:"Usuarios",
+    activo:true,
+    version:ZX_VERSION
+  });
+}
+
+console.log("Usuarios cargado V"+ZX_VERSION);
+
+})();
