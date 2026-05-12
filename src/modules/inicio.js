@@ -1,92 +1,100 @@
+// ===============================
+// ZENTRYX PRO - MÓDULO INICIO
+// V2646
+// ===============================
 (function(){
-"use strict";
+  "use strict";
 
-function app(){
-  return document.getElementById("app");
-}
+  const ZX_VERSION="2646";
 
-function card(titulo,contenido){
-  return `
-    <div class="zx_card">
-      <h1>${titulo}</h1>
-      ${contenido}
-    </div>
-  `;
-}
+  function app(){
+    return document.getElementById("app");
+  }
 
-function boton(texto,color,accion){
-  return `
-    <button
-      onclick="${accion}"
-      style="
-        width:100%;
-        border:0;
-        border-radius:18px;
-        padding:16px;
-        margin-bottom:12px;
-        background:${color};
-        color:white;
-        font-size:22px;
-        font-weight:900;
-        line-height:1.1;
-      "
-    >
-      ${texto}
-    </button>
-  `;
-}
+  function limpiarTexto(valor){
+    return String(valor ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
 
-window.ZX_inicio=function(){
-  const root=app();
-  if(!root) return;
+  function card(titulo,contenido){
+    return `
+      <div class="zx_card">
+        <h1>${limpiarTexto(titulo)}</h1>
+        ${contenido}
+      </div>
+    `;
+  }
 
-  root.innerHTML=`
+  function boton(texto,clase,accion){
+    return `
+      <button class="zx_btn ${clase}" type="button" onclick="${accion}">
+        ${limpiarTexto(texto)}
+      </button>
+    `;
+  }
 
-    ${card(
-      "Inicio",
-      `
-        <div style="
-          font-size:18px;
-          color:#6b7280;
-          line-height:1.45;
-        ">
-          Sistema principal Zentryx PRO modular activo.
-        </div>
-      `
-    )}
+  window.ZENTRYX_UI_inicio=function(){
+    const root=app();
 
-    ${card(
-      "Módulos rápidos",
-      `
-        ${boton("Fichaje","#dc2626","ZX_fichaje()")}
-        ${boton("Usuarios","#2563eb","ZX_usuarios()")}
-        ${boton("Vehículos","#16a34a","ZX_vehiculos()")}
-        ${boton("Incidencias","#ea580c","ZX_incidencias()")}
-        ${boton("Informes","#7c3aed","ZX_informes()")}
-      `
-    )}
+    if(!root){
+      return;
+    }
 
-    ${card(
-      "Estado sistema",
-      `
-        <div style="
-          display:flex;
-          flex-direction:column;
-          gap:10px;
-          font-size:16px;
-          color:#374151;
-          line-height:1.4;
-        ">
-          <div><b>Versión:</b> V2638</div>
-          <div>Layout modular activo</div>
-          <div>Supabase conectado</div>
-        </div>
-      `
-    )}
+    const modulos=window.ZENTRYX && window.ZENTRYX.listarModulos
+      ? window.ZENTRYX.listarModulos()
+      : [];
 
-  `;
-};
+    root.innerHTML=`
+      ${card(
+        "Inicio",
+        `
+          <div class="zx_text">
+            Sistema principal Zentryx PRO modular activo.
+          </div>
+        `
+      )}
 
-console.log("Inicio V2638");
+      ${card(
+        "Módulos rápidos",
+        `
+          ${boton("Fichaje","zx_rojo","ZX_fichaje()")}
+          ${boton("Usuarios","zx_azul","ZX_usuarios()")}
+          ${boton("Vehículos","zx_verde","ZX_vehiculos()")}
+          ${boton("Incidencias","zx_naranja","ZX_incidencias()")}
+          ${boton("Informes","zx_morado","ZX_informes()")}
+        `
+      )}
 
+      ${card(
+        "Estado sistema",
+        `
+          <div class="zx_text">
+            <b>Versión:</b> V${ZX_VERSION}<br><br>
+            Layout modular activo<br><br>
+            Supabase preparado<br><br>
+            Arquitectura comercial por módulos<br><br>
+            Módulos registrados: ${limpiarTexto(modulos.length ? modulos.join(", ") : "core")}
+          </div>
+        `
+      )}
+    `;
+  };
+
+  window.ZX_inicio=function(){
+    window.ZENTRYX_UI_inicio();
+  };
+
+  if(window.ZENTRYX && window.ZENTRYX.registrarModulo){
+    window.ZENTRYX.registrarModulo("inicio",{
+      nombre:"Inicio",
+      activo:true,
+      version:ZX_VERSION
+    });
+  }
+
+  console.log("Inicio cargado V"+ZX_VERSION);
 })();
