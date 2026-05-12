@@ -2,113 +2,218 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>Zentryx PRO - Login</title>
+
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#071330">
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 
-body{
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial;
+html,body{
+  min-height:100%;
   background:#071330;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
   color:white;
+}
+
+body{
   display:flex;
   align-items:center;
   justify-content:center;
-  min-height:100vh;
+  padding:24px;
 }
 
-.box{
+.zx_login{
   width:100%;
-  max-width:420px;
-  padding:30px;
+  max-width:430px;
 }
 
-.logo{
-  font-size:42px;
+.zx_logo{
+  width:82px;
+  height:82px;
+  border-radius:24px;
+  background:linear-gradient(135deg,#2563eb,#10b981);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:44px;
   font-weight:900;
-  margin-bottom:20px;
+  margin:0 auto 22px;
+}
+
+h1{
+  text-align:center;
+  font-size:34px;
+  font-weight:900;
+  margin-bottom:8px;
+}
+
+.zx_sub{
+  text-align:center;
+  color:#cbd5e1;
+  font-size:16px;
+  margin-bottom:28px;
 }
 
 input{
   width:100%;
-  height:48px;
-  margin-bottom:12px;
-  padding:0 12px;
-  border-radius:10px;
+  height:52px;
   border:0;
-  font-size:16px;
+  border-radius:16px;
+  padding:0 16px;
+  margin-bottom:12px;
+  font-size:17px;
+  background:white;
+  color:#0f172a;
 }
 
 button{
   width:100%;
-  height:48px;
+  height:54px;
   border:0;
-  border-radius:10px;
+  border-radius:16px;
   background:#2563eb;
   color:white;
-  font-size:18px;
+  font-size:19px;
   font-weight:900;
+  margin-top:8px;
 }
 
-.error{
-  margin-top:10px;
-  color:#fca5a5;
+.zx_error{
+  margin-top:14px;
+  color:#fecaca;
+  font-size:15px;
+  font-weight:800;
+  text-align:center;
 }
 </style>
 </head>
 
 <body>
 
-<div class="box">
-  <div class="logo">Zentryx</div>
+<div class="zx_login">
+  <div class="zx_logo">Z</div>
+  <h1>Zentryx PRO</h1>
+  <div class="zx_sub">Acceso empresarial</div>
 
-  <input id="user" placeholder="Usuario">
-  <input id="pass" type="password" placeholder="Contraseña">
+  <input id="zx_user" placeholder="Usuario" autocomplete="username">
+  <input id="zx_pass" type="password" placeholder="Contraseña" autocomplete="current-password">
 
-  <button onclick="login()">Entrar</button>
+  <button id="zx_login_btn" type="button">Entrar</button>
 
-  <div id="error" class="error"></div>
+  <div id="zx_error" class="zx_error"></div>
 </div>
 
 <script>
-function getUsers(){
+const ZX_VERSION="2646";
+
+function estadoBase(){
+  return {
+    empresa:{
+      id:"demo",
+      nombre:"Zentryx"
+    },
+    usuarios:[
+      {
+        id:1,
+        usuario:"admin",
+        password:"1234",
+        nombre:"Administrador",
+        rol:"Administrador",
+        activo:true
+      }
+    ],
+    configuracion:{
+      idioma:"es",
+      moneda:"EUR",
+      modo:"desarrollo"
+    }
+  };
+}
+
+function cargarEstado(){
   try{
-    const state=JSON.parse(localStorage.getItem("zentryx_state"));
-    return state?.usuarios || [];
-  }catch{
-    return [];
+    const raw=localStorage.getItem("zentryx_state");
+
+    if(!raw){
+      const base=estadoBase();
+      localStorage.setItem("zentryx_state",JSON.stringify(base));
+      return base;
+    }
+
+    const state=JSON.parse(raw);
+
+    if(!Array.isArray(state.usuarios)){
+      state.usuarios=estadoBase().usuarios;
+      localStorage.setItem("zentryx_state",JSON.stringify(state));
+    }
+
+    return state;
+
+  }catch(e){
+    const base=estadoBase();
+    localStorage.setItem("zentryx_state",JSON.stringify(base));
+    return base;
   }
 }
 
+function mostrarError(txt){
+  document.getElementById("zx_error").textContent=txt;
+}
+
 function login(){
+  const usuario=document.getElementById("zx_user").value.trim();
+  const password=document.getElementById("zx_pass").value.trim();
 
-  const u=document.getElementById("user").value.trim();
-  const p=document.getElementById("pass").value.trim();
-
-  if(!u || !p){
-    document.getElementById("error").textContent="Completa los campos";
+  if(!usuario || !password){
+    mostrarError("Completa usuario y contraseña.");
     return;
   }
 
-  const users=getUsers();
+  const state=cargarEstado();
+  const usuarios=state.usuarios || [];
 
-  const user=users.find(x=>x.usuario===u && x.password===p);
+  const encontrado=usuarios.find(function(u){
+    return u.usuario===usuario && u.password===password && u.activo!==false;
+  });
 
-  if(!user){
-    document.getElementById("error").textContent="Usuario o contraseña incorrectos";
+  if(!encontrado){
+    mostrarError("Usuario o contraseña incorrectos.");
     return;
   }
 
   localStorage.setItem("zentryx_session",JSON.stringify({
-    usuario:user.usuario,
-    nombre:user.nombre,
-    rol:user.rol,
+    usuario:encontrado.usuario,
+    nombre:encontrado.nombre,
+    rol:encontrado.rol,
+    empresa_id:state.empresa ? state.empresa.id : "demo",
     login_at:new Date().toISOString()
   }));
 
-  window.location.href="app.html";
+  localStorage.setItem("usuario",JSON.stringify({
+    usuario:encontrado.usuario,
+    nombre:encontrado.nombre,
+    rol:encontrado.rol
+  }));
+
+  window.location.replace("app.html?v="+ZX_VERSION);
 }
+
+document.getElementById("zx_login_btn").onclick=login;
+
+document.addEventListener("keydown",function(e){
+  if(e.key==="Enter"){
+    login();
+  }
+});
+
+if(localStorage.getItem("zentryx_session")){
+  window.location.replace("app.html?v="+ZX_VERSION);
+}
+
+cargarEstado();
 </script>
 
 </body>
