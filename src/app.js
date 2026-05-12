@@ -1,61 +1,78 @@
 // ===============================
-// ZENTRYX V2619 - CORE MODULAR
+// ZENTRYX PRO V2646 - CORE MODULAR
 // ===============================
 (function(){
   "use strict";
 
-  const SUPABASE_URL = "https://idtaamivqbiuxtjywuux.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+  const ZX_VERSION="2646";
 
-  const sb = window.supabase.createClient(
+  const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
+  const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+
+  if(!window.supabase){
+    console.error("Supabase no está cargado.");
+    return;
+  }
+
+  const sb=window.sb || window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_KEY
   );
 
-  window.sb = sb;
-  window.supabaseClient = sb;
+  window.sb=sb;
+  window.supabaseClient=sb;
 
-  console.log("SUPABASE GLOBAL OK");
+  window.ZENTRYX=window.ZENTRYX || {};
 
-  const VERSION = "2619";
-
-  window.ZENTRYX = window.ZENTRYX || {
-    version: VERSION,
-    modulos: {},
-    estado: "base modular cargada"
+  window.ZENTRYX.version=ZX_VERSION;
+  window.ZENTRYX.nombre="Zentryx PRO";
+  window.ZENTRYX.estado="core modular cargado";
+  window.ZENTRYX.modulos=window.ZENTRYX.modulos || {};
+  window.ZENTRYX.config=window.ZENTRYX.config || {
+    empresa_id:"demo",
+    modo:"desarrollo",
+    arquitectura:"modular",
+    producto_comercial:true
   };
 
-  window.ZENTRYX.version = VERSION;
-  window.ZENTRYX.modulos = window.ZENTRYX.modulos || {};
-
-  window.ZENTRYX.registrarModulo = function(nombre, modulo){
+  window.ZENTRYX.registrarModulo=function(nombre,modulo){
     if(!nombre){
-      console.warn("Módulo sin nombre ignorado");
-      return;
+      console.warn("Módulo sin nombre ignorado.");
+      return false;
     }
 
-    window.ZENTRYX.modulos[nombre] = modulo || {};
-    console.log("Módulo registrado:", nombre);
+    window.ZENTRYX.modulos[nombre]=modulo || {};
+    return true;
   };
 
-  window.ZENTRYX.obtenerModulo = function(nombre){
+  window.ZENTRYX.obtenerModulo=function(nombre){
     return window.ZENTRYX.modulos[nombre] || null;
   };
 
-  window.ZENTRYX.estadoSistema = function(){
+  window.ZENTRYX.listarModulos=function(){
+    return Object.keys(window.ZENTRYX.modulos);
+  };
+
+  window.ZENTRYX.estadoSistema=function(){
     return {
-      version: window.ZENTRYX.version,
-      modulos: Object.keys(window.ZENTRYX.modulos),
-      fecha: new Date().toISOString()
+      nombre:window.ZENTRYX.nombre,
+      version:window.ZENTRYX.version,
+      estado:window.ZENTRYX.estado,
+      empresa_id:window.ZENTRYX.config.empresa_id,
+      modo:window.ZENTRYX.config.modo,
+      arquitectura:window.ZENTRYX.config.arquitectura,
+      producto_comercial:window.ZENTRYX.config.producto_comercial,
+      modulos:window.ZENTRYX.listarModulos(),
+      fecha:new Date().toISOString()
     };
   };
 
-  window.ZENTRYX.registrarModulo("core", {
-    nombre: "Core",
-    activo: true,
-    descripcion: "Base modular inicial"
+  window.ZENTRYX.registrarModulo("core",{
+    nombre:"Core",
+    activo:true,
+    version:ZX_VERSION,
+    descripcion:"Base principal modular de Zentryx PRO"
   });
 
-  console.log("Zentryx modular cargado V" + VERSION);
-
+  console.log("Zentryx PRO core cargado V"+ZX_VERSION);
 })();
