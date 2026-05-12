@@ -2,95 +2,113 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO</title>
-
-<meta name="robots" content="noindex,nofollow">
-<meta name="theme-color" content="#071330">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Zentryx PRO - Login</title>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 
-html,body{
-  width:100%;
-  min-height:100%;
-  background:#071330;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-  color:white;
-}
-
 body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial;
+  background:#071330;
+  color:white;
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:24px;
+  min-height:100vh;
 }
 
-.zx_box{
+.box{
   width:100%;
   max-width:420px;
-  text-align:center;
+  padding:30px;
 }
 
-.zx_logo{
-  width:82px;
-  height:82px;
-  border-radius:24px;
-  background:linear-gradient(135deg,#2563eb,#10b981);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  margin:0 auto 22px;
-  font-size:44px;
+.logo{
+  font-size:42px;
+  font-weight:900;
+  margin-bottom:20px;
+}
+
+input{
+  width:100%;
+  height:48px;
+  margin-bottom:12px;
+  padding:0 12px;
+  border-radius:10px;
+  border:0;
+  font-size:16px;
+}
+
+button{
+  width:100%;
+  height:48px;
+  border:0;
+  border-radius:10px;
+  background:#2563eb;
+  color:white;
+  font-size:18px;
   font-weight:900;
 }
 
-h1{
-  font-size:34px;
-  font-weight:900;
-  margin-bottom:10px;
-}
-
-p{
-  color:#cbd5e1;
-  font-size:17px;
-  line-height:1.5;
-}
-
-.zx_loader{
-  width:46px;
-  height:46px;
-  border-radius:50%;
-  border:5px solid rgba(255,255,255,.22);
-  border-top-color:white;
-  margin:28px auto 0;
-  animation:spin 1s linear infinite;
-}
-
-@keyframes spin{
-  to{transform:rotate(360deg)}
+.error{
+  margin-top:10px;
+  color:#fca5a5;
 }
 </style>
 </head>
 
 <body>
 
-<div class="zx_box">
-  <div class="zx_logo">Z</div>
-  <h1>Zentryx PRO</h1>
-  <p>Abriendo aplicación...</p>
-  <div class="zx_loader"></div>
+<div class="box">
+  <div class="logo">Zentryx</div>
+
+  <input id="user" placeholder="Usuario">
+  <input id="pass" type="password" placeholder="Contraseña">
+
+  <button onclick="login()">Entrar</button>
+
+  <div id="error" class="error"></div>
 </div>
 
 <script>
-const ZX_VERSION="2646";
-
-function abrirApp(){
-  const destino="app.html?v="+ZX_VERSION;
-  window.location.replace(destino);
+function getUsers(){
+  try{
+    const state=JSON.parse(localStorage.getItem("zentryx_state"));
+    return state?.usuarios || [];
+  }catch{
+    return [];
+  }
 }
 
-setTimeout(abrirApp,300);
+function login(){
+
+  const u=document.getElementById("user").value.trim();
+  const p=document.getElementById("pass").value.trim();
+
+  if(!u || !p){
+    document.getElementById("error").textContent="Completa los campos";
+    return;
+  }
+
+  const users=getUsers();
+
+  const user=users.find(x=>x.usuario===u && x.password===p);
+
+  if(!user){
+    document.getElementById("error").textContent="Usuario o contraseña incorrectos";
+    return;
+  }
+
+  localStorage.setItem("zentryx_session",JSON.stringify({
+    usuario:user.usuario,
+    nombre:user.nombre,
+    rol:user.rol,
+    login_at:new Date().toISOString()
+  }));
+
+  window.location.href="app.html";
+}
 </script>
 
 </body>
