@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - UI LAYOUT
-// V2648
+// V2649
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="2648";
+const ZX_VERSION="2649";
 
 window.ZENTRYX=window.ZENTRYX || {};
 window.ZENTRYX.version=ZX_VERSION;
@@ -54,10 +54,7 @@ function estilos(){
       overflow-x:hidden;
     }
 
-    body{
-      padding-top:170px;
-      padding-bottom:30px;
-    }
+    body{padding-bottom:30px}
 
     #app{
       width:100%;
@@ -67,14 +64,9 @@ function estilos(){
     }
 
     #zx_topbar{
-      position:fixed;
-      top:0;
-      left:0;
-      right:0;
-      z-index:9999;
       background:#071330;
       color:white;
-      padding:14px 14px 10px;
+      padding:18px 14px 14px;
       border-bottom:1px solid rgba(255,255,255,.08);
     }
 
@@ -133,13 +125,8 @@ function estilos(){
     }
 
     #zx_nav{
-      position:fixed;
-      top:89px;
-      left:0;
-      right:0;
-      z-index:9998;
       background:#071330;
-      padding:10px 12px 14px;
+      padding:12px;
       border-bottom:1px solid rgba(255,255,255,.08);
     }
 
@@ -257,21 +244,12 @@ function estilos(){
     }
 
     @media(min-width:768px){
-      body{padding-top:176px}
-
       #app{padding:24px}
-
       .zx_card{padding:28px}
-
-      .zx_card h1,
-      .zx_card h2{font-size:34px}
+      .zx_card h1,.zx_card h2{font-size:34px}
     }
 
     @media(min-width:1024px){
-      body{padding-top:154px}
-
-      #zx_nav{top:82px}
-
       .zx_nav_btn{
         min-width:auto;
         padding:12px 22px;
@@ -316,7 +294,7 @@ function pintarNav(){
   if(!nav){
     nav=document.createElement("nav");
     nav.id="zx_nav";
-    document.body.appendChild(nav);
+    document.body.insertBefore(nav,app());
   }
 
   nav.innerHTML=`
