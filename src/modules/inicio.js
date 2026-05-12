@@ -1,94 +1,90 @@
 // ===============================
-// ZENTRYX PRO - MÓDULO INICIO
-// V2647
+// ZENTRYX PRO - INICIO UI
+// V2649
 // ===============================
 (function(){
-"use strict";
+  "use strict";
 
-const ZX_VERSION="2647";
+  const ZX_VERSION="2649";
 
-function app(){
-  return document.getElementById("app");
-}
+  window.ZENTRYX=window.ZENTRYX || {};
 
-function limpiarTexto(valor){
-  return String(valor ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
+  function app(){
+    return document.getElementById("app");
+  }
 
-function card(titulo,contenido){
-  return `
-    <div class="zx_card">
-      <h1>${limpiarTexto(titulo)}</h1>
-      ${contenido}
-    </div>
-  `;
-}
+  function limpiarTexto(valor){
+    return String(valor ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
 
-function boton(texto,clase,accion){
-  return `
-    <button class="zx_btn ${clase}" type="button" onclick="${accion}">
-      ${limpiarTexto(texto)}
-    </button>
-  `;
-}
+  function usuario(){
+    try{
+      const raw=localStorage.getItem("usuario") || localStorage.getItem("zentryx_session") || "{}";
+      const data=JSON.parse(raw);
 
-window.ZENTRYX_UI_inicio=function(){
-  const root=app();
-  if(!root) return;
+      return {
+        usuario:data.usuario || data.nombre || "admin",
+        rol:data.rol || "Administrador"
+      };
+    }catch(e){
+      return {
+        usuario:"admin",
+        rol:"Administrador"
+      };
+    }
+  }
 
-  const modulos=window.ZENTRYX && window.ZENTRYX.listarModulos
-    ? window.ZENTRYX.listarModulos()
-    : [];
+  function render(){
 
-  root.innerHTML=`
-    ${card(
-      "Inicio",
-      `<div class="zx_text">Sistema principal Zentryx PRO modular activo.</div>`
-    )}
+    if(!app()){
+      return;
+    }
 
-    ${card(
-      "Módulos rápidos",
-      `
-        ${boton("Fichaje","zx_rojo","ZX_fichaje()")}
-        ${boton("Usuarios","zx_azul","ZX_usuarios()")}
-        ${boton("Vehículos","zx_verde","ZX_vehiculos()")}
-        ${boton("Incidencias","zx_naranja","ZX_incidencias()")}
-        ${boton("Informes","zx_morado","ZX_informes()")}
-      `
-    )}
+    const u=usuario();
 
-    ${card(
-      "Estado sistema",
-      `
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Inicio</h2>
+        <div class="zx_text">
+          Sistema principal Zentryx PRO modular activo.
+        </div>
+      </div>
+
+      <div class="zx_card">
+        <h2>Módulos rápidos</h2>
+
+        <button class="zx_btn zx_rojo" onclick="ZX_fichaje()">Fichaje</button>
+        <button class="zx_btn zx_azul" onclick="ZX_usuarios()">Usuarios</button>
+        <button class="zx_btn zx_verde" onclick="ZX_vehiculos()">Vehículos</button>
+        <button class="zx_btn zx_naranja" onclick="ZX_incidencias()">Incidencias</button>
+        <button class="zx_btn zx_morado" onclick="ZX_informes()">Informes</button>
+      </div>
+
+      <div class="zx_card">
+        <h2>Estado sistema</h2>
+
         <div class="zx_text">
           <b>Versión:</b> V${ZX_VERSION}<br><br>
+
           Diseño responsive móvil / tablet / PC<br><br>
+
           Base preparada para servidor local o servidor externo<br><br>
+
           Supabase preparado<br><br>
+
           Arquitectura comercial por módulos<br><br>
-          Módulos registrados: ${limpiarTexto(modulos.length ? modulos.join(", ") : "core")}
+
+          Módulos registrados: core, inicio, fichajes, vehículos, usuarios
         </div>
-      `
-    )}
-  `;
-};
+      </div>
+    `;
+  }
 
-window.ZX_inicio=function(){
-  window.ZENTRYX_UI_inicio();
-};
+  window.ZENTRYX_UI_inicio=render;
 
-if(window.ZENTRYX && window.ZENTRYX.registrarModulo){
-  window.ZENTRYX.registrarModulo("inicio",{
-    nombre:"Inicio",
-    activo:true,
-    version:ZX_VERSION
-  });
-}
-
-console.log("Inicio cargado V"+ZX_VERSION);
 })();
