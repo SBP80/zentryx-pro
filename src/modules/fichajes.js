@@ -1,50 +1,89 @@
 // ===============================
-// ZENTRYX V2646 - FICHAJES CON VEHÍCULO EN ENTRADA
+// ZENTRYX PRO - MÓDULO FICHAJES
+// V2646
 // ===============================
 (function(){
 "use strict";
 
+const ZX_VERSION="2646";
+
+// ===============================
+// HELPERS
+// ===============================
+
+function $(id){
+  return document.getElementById(id);
+}
+
 function app(){
-  return document.getElementById("app");
+  return $("app");
 }
 
 function sb(){
   return window.sb || window.supabaseClient || null;
 }
 
+function limpiarTexto(valor){
+  return String(valor ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
 function usuarioActual(){
   try{
-    const u = JSON.parse(localStorage.getItem("usuario") || "{}");
+    const raw=localStorage.getItem("zentryx_session") || localStorage.getItem("usuario") || "{}";
+    const u=JSON.parse(raw);
     return u.usuario || u.nombre || "admin";
   }catch(e){
     return "admin";
   }
 }
 
+// ===============================
+// ESTADO JORNADA
+// ===============================
+
 function estadoActual(){
-  return localStorage.getItem("zx_estado_jornada") || "fuera";
+  return localStorage.getItem("zx_estado") || "fuera";
 }
 
 function guardarEstado(valor){
-  localStorage.setItem("zx_estado_jornada",valor);
+  localStorage.setItem("zx_estado",valor);
 }
+
+// ===============================
+// VEHÍCULO
+// ===============================
 
 function vehiculoJornada(){
   return {
-    id: localStorage.getItem("zx_vehiculo_jornada_id"),
-    matricula: localStorage.getItem("zx_vehiculo_jornada_matricula"),
-    km: Number(localStorage.getItem("zx_vehiculo_jornada_km") || 0)
+    id:localStorage.getItem("zx_vehiculo_activo"),
+    matricula:localStorage.getItem("zx_vehiculo_matricula"),
+    km:Number(localStorage.getItem("zx_vehiculo_km") || 0)
   };
 }
 
-function limpiarVehiculoJornada(){
-  localStorage.removeItem("zx_vehiculo_jornada_id");
-  localStorage.removeItem("zx_vehiculo_jornada_matricula");
-  localStorage.removeItem("zx_vehiculo_jornada_km");
+function guardarVehiculo(v){
+  localStorage.setItem("zx_vehiculo_activo",v.id);
+  localStorage.setItem("zx_vehiculo_matricula",v.matricula || "");
+  localStorage.setItem("zx_vehiculo_km",String(v.km_actual || 0));
 }
 
+function limpiarVehiculo(){
+  localStorage.removeItem("zx_vehiculo_activo");
+  localStorage.removeItem("zx_vehiculo_matricula");
+  localStorage.removeItem("zx_vehiculo_km");
+}
+
+// ===============================
+// UI
+// ===============================
+
 function badgeEstado(){
-  const dentro = estadoActual() === "dentro";
+  const dentro=estadoActual()==="dentro";
 
   return `
     <span class="zx_estado ${dentro ? "zx_dentro" : "zx_fuera"}">
@@ -52,6 +91,10 @@ function badgeEstado(){
     </span>
   `;
 }
+
+// ===============================
+// GPS
+// ===============================
 
 function obtenerUbicacion(){
   return new Promise(function(resolve){
@@ -79,14 +122,20 @@ function obtenerUbicacion(){
   });
 }
 
+// ===============================
+// VEHÍCULOS
+// ===============================
+
 async function obtenerVehiculosLibres(){
-  const cliente = sb();
+
+  const cliente=sb();
 
   if(!cliente){
+    alert("Supabase no conectado.");
     return [];
   }
 
-  const res = await cliente
+  const res=await cliente
     .from("vehiculos")
     .select("*")
     .eq("activo",true)
@@ -94,254 +143,177 @@ async function obtenerVehiculosLibres(){
     .order("matricula",{ascending:true});
 
   if(res.error){
-    alert("Error cargando vehículos: " + res.error.message);
+    alert("Error cargando vehículos: "+res.error.message);
     return [];
   }
 
   return res.data || [];
 }
 
+// ===============================
+// MODAL VEHÍCULO
+// ===============================
+
 async function seleccionarVehiculoEntrada(){
 
-  const vehiculos = await obtenerVehiculosLibres();
+  const vehiculos=await obtenerVehiculosLibres();
 
   return new Promise(function(resolve){
 
-    const viejo = document.getElementById("zx_modal_vehiculo");
+    const viejo=$("zx_modal_vehiculo");
     if(viejo) viejo.remove();
 
-    const fondo = document.createElement("div");
-    fondo.id = "zx_modal_vehiculo";
+    const fondo=document.createElement("div");
+    fondo.id="zx_modal_vehiculo";
 
-    fondo.style.position = "fixed";
-    fondo.style.inset = "0";
-    fondo.style.zIndex = "999999";
-    fondo.style.background = "rgba(15,23,42,.65)";
-    fondo.style.display = "flex";
-    fondo.style.alignItems = "center";
-    fondo.style.justifyContent = "center";
-    fondo.style.padding = "18px";
+    fondo.style.cssText=`
+      position:fixed;
+      inset:0;
+      z-index:999999;
+      background:rgba(15,23,42,.65);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+    `;
 
-    const listaVehiculos = vehiculos.map(function(v){
+    const lista=vehiculos.map(function(v){
       return `
-        <button
-          class="zx_opcion_vehiculo"
-          data-id="${v.id}"
-          style="
-            width:100%;
-            border:1px solid #d1d5db;
-            border-radius:16px;
-            background:white;
-            color:#111827;
-            padding:16px;
-            margin-bottom:10px;
-            text-align:left;
-            font-size:18px;
-            font-weight:900;
-          "
-        >
-          ${v.matricula || "Sin matrícula"}
-          <div style="
-            font-size:14px;
-            color:#6b7280;
-            margin-top:4px;
-            font-weight:700;
-          ">
-            ${v.km_actual || 0} km
-          </div>
+        <button class="zx_opcion_vehiculo" data-id="${v.id}">
+          ${limpiarTexto(v.matricula || "Sin matrícula")}
+          <div>${limpiarTexto(v.km_actual || 0)} km</div>
         </button>
       `;
     }).join("");
 
-    fondo.innerHTML = `
-      <div style="
-        width:100%;
-        max-width:440px;
-        background:white;
-        border-radius:24px;
-        padding:22px;
-        box-shadow:0 20px 60px rgba(0,0,0,.35);
-      ">
+    fondo.innerHTML=`
+      <div class="zx_card" style="max-width:440px;width:100%;">
+        <h2>Vehículo</h2>
 
-        <h2 style="
-          margin:0 0 14px;
-          font-size:28px;
-          font-weight:900;
-          color:#111827;
-        ">
-          Vehículo
-        </h2>
-
-        <div style="
-          color:#6b7280;
-          font-size:16px;
-          margin-bottom:18px;
-          line-height:1.4;
-        ">
-          Elige vehículo para esta jornada.
-        </div>
-
-        <button
-          id="zx_sin_vehiculo"
-          style="
-            width:100%;
-            border:0;
-            border-radius:16px;
-            background:#64748b;
-            color:white;
-            padding:16px;
-            margin-bottom:14px;
-            font-size:18px;
-            font-weight:900;
-          "
-        >
+        <button id="zx_sin_vehiculo" class="zx_btn zx_gris">
           Sin vehículo
         </button>
 
-        ${listaVehiculos || `
-          <div style="
-            color:#6b7280;
-            font-size:16px;
-            margin-bottom:14px;
-          ">
-            No hay vehículos libres.
-          </div>
-        `}
+        ${lista || `<div class="zx_text">No hay vehículos libres.</div>`}
 
-        <button
-          id="zx_cancelar_vehiculo"
-          style="
-            width:100%;
-            border:0;
-            border-radius:16px;
-            background:#e5e7eb;
-            color:#111827;
-            padding:16px;
-            margin-top:6px;
-            font-size:18px;
-            font-weight:900;
-          "
-        >
+        <button id="zx_cancelar" class="zx_btn zx_gris">
           Cancelar
         </button>
-
       </div>
     `;
 
     document.body.appendChild(fondo);
 
-    document.getElementById("zx_sin_vehiculo").onclick = function(){
-      limpiarVehiculoJornada();
+    $("zx_sin_vehiculo").onclick=function(){
+      limpiarVehiculo();
       fondo.remove();
       resolve(true);
     };
 
-    document.getElementById("zx_cancelar_vehiculo").onclick = function(){
+    $("zx_cancelar").onclick=function(){
       fondo.remove();
       resolve(false);
     };
 
     document.querySelectorAll(".zx_opcion_vehiculo").forEach(function(btn){
 
-      btn.onclick = async function(){
+      btn.onclick=async function(){
 
-        const id = btn.getAttribute("data-id");
+        const id=btn.getAttribute("data-id");
 
-        const vehiculo = vehiculos.find(function(v){
-          return String(v.id) === String(id);
-        });
+        const v=vehiculos.find(x=>String(x.id)===String(id));
 
-        if(!vehiculo){
-          alert("Vehículo no válido.");
+        if(!v){
+          alert("Vehículo inválido.");
           return;
         }
 
-        const cliente = sb();
+        const cliente=sb();
 
-        const ocupar = await cliente
+        const upd=await cliente
           .from("vehiculos")
           .update({
             en_uso:true,
             usuario_asignado:usuarioActual()
           })
-          .eq("id",vehiculo.id);
+          .eq("id",v.id);
 
-        if(ocupar.error){
-          alert("No se pudo ocupar el vehículo: " + ocupar.error.message);
+        if(upd.error){
+          alert("Error asignando vehículo.");
           return;
         }
 
-        localStorage.setItem("zx_vehiculo_jornada_id",vehiculo.id);
-        localStorage.setItem("zx_vehiculo_jornada_matricula",vehiculo.matricula || "");
-        localStorage.setItem("zx_vehiculo_jornada_km",String(vehiculo.km_actual || 0));
+        guardarVehiculo(v);
 
         fondo.remove();
         resolve(true);
       };
     });
+
   });
 }
 
-async function guardarFichaje(tipo,extra){
-  const cliente = sb();
+// ===============================
+// GUARDAR
+// ===============================
+
+async function guardarFichaje(tipo,extra={}){
+
+  const cliente=sb();
 
   if(!cliente){
     alert("Supabase no conectado.");
     return false;
   }
 
-  const ubicacion = await obtenerUbicacion();
+  const gps=await obtenerUbicacion();
 
-  const registro = {
+  const registro={
     empresa_id:"demo",
     usuario:usuarioActual(),
     tipo:tipo,
     fecha:new Date().toISOString(),
     estado_jornada:estadoActual(),
-    latitud:ubicacion.latitud,
-    longitud:ubicacion.longitud,
-    direccion:null,
-    vehiculo_id:extra && extra.vehiculo_id ? extra.vehiculo_id : null,
-    vehiculo_matricula:extra && extra.vehiculo_matricula ? extra.vehiculo_matricula : null,
-    km_salida:extra && extra.km_salida ? extra.km_salida : null,
-    observaciones:extra && extra.observaciones ? extra.observaciones : null
+    latitud:gps.latitud,
+    longitud:gps.longitud,
+    vehiculo_id:extra.vehiculo_id || null,
+    vehiculo_matricula:extra.vehiculo_matricula || null,
+    km_salida:extra.km_salida || null
   };
 
-  const res = await cliente
-    .from("fichajes")
-    .insert([registro]);
+  const res=await cliente.from("fichajes").insert([registro]);
 
   if(res.error){
-    alert("Error guardando fichaje: " + res.error.message);
+    alert("Error guardando fichaje: "+res.error.message);
     return false;
   }
-
-  localStorage.setItem(
-    "zx_ultimo_fichaje",
-    JSON.stringify({
-      tipo:tipo,
-      usuario:usuarioActual(),
-      fecha:new Date().toISOString()
-    })
-  );
 
   return true;
 }
 
+// ===============================
+// HISTORIAL
+// ===============================
+
+function nombreTipo(tipo){
+  const mapa={
+    entrada:"Entrada",
+    salida:"Salida",
+    inicio_pausa:"Inicio pausa",
+    inicio_comida:"Inicio comida"
+  };
+
+  return mapa[tipo] || tipo;
+}
+
 async function cargarHistorico(){
-  const cont = document.getElementById("zx_historial_fichajes");
+
+  const cont=$("zx_historial_fichajes");
   if(!cont) return;
 
-  const cliente = sb();
+  const cliente=sb();
 
-  if(!cliente){
-    cont.innerHTML = "Supabase no conectado.";
-    return;
-  }
-
-  cont.innerHTML = "Cargando historial...";
-
-  const res = await cliente
+  const res=await cliente
     .from("fichajes")
     .select("*")
     .eq("usuario",usuarioActual())
@@ -349,69 +321,53 @@ async function cargarHistorico(){
     .limit(20);
 
   if(res.error){
-    cont.innerHTML = "Error cargando historial.";
+    cont.innerHTML="Error cargando historial.";
     return;
   }
 
-  const datos = res.data || [];
+  const datos=res.data || [];
 
-  if(datos.length === 0){
-    cont.innerHTML = `<div class="zx_text">Sin fichajes registrados.</div>`;
-    return;
-  }
-
-  cont.innerHTML = datos.map(function(f){
-    const fecha = f.fecha ? new Date(f.fecha).toLocaleString("es-ES") : "-";
+  cont.innerHTML=datos.map(function(f){
 
     return `
       <div class="zx_hist_item">
-        <div class="zx_hist_tipo">${nombreTipo(f.tipo)}</div>
-        <div class="zx_hist_fecha">${fecha}</div>
-        ${f.vehiculo_matricula ? `<div class="zx_hist_fecha">Vehículo: ${f.vehiculo_matricula}</div>` : ""}
-        ${f.km_salida ? `<div class="zx_hist_fecha">Km salida: ${f.km_salida}</div>` : ""}
-        ${(f.latitud && f.longitud) ? `<div class="zx_hist_fecha">GPS: ${f.latitud}, ${f.longitud}</div>` : ""}
+        <div class="zx_hist_tipo">${limpiarTexto(nombreTipo(f.tipo))}</div>
+        <div class="zx_hist_fecha">${new Date(f.fecha).toLocaleString("es-ES")}</div>
+        ${f.vehiculo_matricula ? `<div class="zx_hist_fecha">Vehículo: ${limpiarTexto(f.vehiculo_matricula)}</div>` : ""}
+        ${f.km_salida ? `<div class="zx_hist_fecha">Km: ${limpiarTexto(f.km_salida)}</div>` : ""}
       </div>
     `;
+
   }).join("");
 }
 
-function nombreTipo(tipo){
-  const mapa = {
-    entrada:"Entrada",
-    salida:"Salida",
-    inicio_pausa:"Inicio pausa",
-    inicio_comida:"Inicio comida"
-  };
+// ===============================
+// UI PRINCIPAL
+// ===============================
 
-  return mapa[tipo] || tipo || "-";
-}
+function pintar(){
 
-function pintarPantalla(){
-  const root = app();
+  const root=app();
   if(!root) return;
 
-  const v = vehiculoJornada();
+  const v=vehiculoJornada();
 
-  root.innerHTML = `
+  root.innerHTML=`
     <div class="zx_card">
       <h2>Fichaje</h2>
 
-      <div class="zx_text" style="margin-bottom:12px;">
-        Usuario: <b>${usuarioActual()}</b>
-      </div>
+      <div class="zx_text">Usuario: <b>${limpiarTexto(usuarioActual())}</b></div>
 
       ${badgeEstado()}
 
-      ${
-        v.id
-        ? `<div class="zx_text" style="margin-bottom:12px;">Vehículo jornada: <b>${v.matricula}</b></div>`
-        : `<div class="zx_text" style="margin-bottom:12px;">Vehículo jornada: <b>Sin vehículo</b></div>`
-      }
+      <div class="zx_text">
+        Vehículo: <b>${limpiarTexto(v.matricula || "Sin vehículo")}</b>
+      </div>
 
-      <button id="zx_fichar_entrada" class="zx_btn zx_verde">Entrada</button>
-      <button id="zx_fichar_salida" class="zx_btn zx_rojo">Salida</button>
-      <button id="zx_fichar_pausa" class="zx_btn zx_naranja">Inicio pausa</button>
-      <button id="zx_fichar_comida" class="zx_btn zx_naranja">Inicio comida</button>
+      <button id="entrada" class="zx_btn zx_verde">Entrada</button>
+      <button id="salida" class="zx_btn zx_rojo">Salida</button>
+      <button id="pausa" class="zx_btn zx_naranja">Inicio pausa</button>
+      <button id="comida" class="zx_btn zx_naranja">Inicio comida</button>
     </div>
 
     <div class="zx_card">
@@ -420,97 +376,83 @@ function pintarPantalla(){
     </div>
   `;
 
-  activarBotones();
+  eventos();
   cargarHistorico();
 }
 
-function activarBotones(){
+// ===============================
+// EVENTOS
+// ===============================
 
-  document.getElementById("zx_fichar_entrada").onclick = async function(){
+function eventos(){
 
-    if(estadoActual() === "dentro"){
+  $("entrada").onclick=async function(){
+
+    if(estadoActual()==="dentro"){
       alert("Ya estás dentro.");
       return;
     }
 
-    const seleccionado = await seleccionarVehiculoEntrada();
+    const okVehiculo=await seleccionarVehiculoEntrada();
 
-    if(seleccionado === false){
-      return;
-    }
+    if(!okVehiculo) return;
 
     guardarEstado("dentro");
 
-    const v = vehiculoJornada();
+    const v=vehiculoJornada();
 
-    const ok = await guardarFichaje("entrada",{
-      vehiculo_id:v.id || null,
-      vehiculo_matricula:v.matricula || null
+    const ok=await guardarFichaje("entrada",{
+      vehiculo_id:v.id,
+      vehiculo_matricula:v.matricula
     });
 
     if(!ok){
       guardarEstado("fuera");
-      limpiarVehiculoJornada();
+      limpiarVehiculo();
       return;
     }
 
-    pintarPantalla();
+    pintar();
   };
 
-  document.getElementById("zx_fichar_salida").onclick = async function(){
+  $("salida").onclick=async function(){
 
-    if(estadoActual() === "fuera"){
-      alert("No puedes fichar salida sin entrada.");
+    if(estadoActual()==="fuera"){
+      alert("No puedes salir sin entrar.");
       return;
     }
 
-    const v = vehiculoJornada();
-    let kmSalida = null;
+    const v=vehiculoJornada();
+    let kmSalida=null;
 
     if(v.id){
-      const km = prompt(
-        "Introduce km actuales de " + (v.matricula || "vehículo") + ":\n\nKm guardados: " + v.km,
-        v.km ? String(v.km) : ""
-      );
 
-      if(km === null || String(km).trim() === ""){
-        alert("Debes introducir km para cerrar salida.");
+      const km=prompt("Km actuales:",String(v.km || ""));
+
+      if(!km){
+        alert("Introduce km.");
         return;
       }
 
-      kmSalida = Number(String(km).replace(",","."));
+      kmSalida=Number(km.replace(",","."));
 
-      if(Number.isNaN(kmSalida) || kmSalida <= 0){
-        alert("Km no válido.");
+      if(Number.isNaN(kmSalida) || kmSalida < v.km){
+        alert("Km inválidos.");
         return;
       }
 
-      if(kmSalida < v.km){
-        alert("Los km no pueden ser menores que los actuales.");
-        return;
-      }
+      const cliente=sb();
 
-      const cliente = sb();
-
-      const act = await cliente
-        .from("vehiculos")
-        .update({
-          km_actual:kmSalida,
-          en_uso:false
-        })
+      await cliente.from("vehiculos")
+        .update({km_actual:kmSalida,en_uso:false})
         .eq("id",v.id);
-
-      if(act.error){
-        alert("Error actualizando vehículo: " + act.error.message);
-        return;
-      }
     }
 
     guardarEstado("fuera");
 
-    const ok = await guardarFichaje("salida",{
-      vehiculo_id:v.id || null,
-      vehiculo_matricula:v.matricula || null,
+    const ok=await guardarFichaje("salida",{
+      vehiculo_id:v.id,
+      vehiculo_matricula:v.matricula,
       km_salida:kmSalida
     });
 
@@ -519,22 +461,22 @@ function activarBotones(){
       return;
     }
 
-    limpiarVehiculoJornada();
-    pintarPantalla();
+    limpiarVehiculo();
+    pintar();
   };
 
-  document.getElementById("zx_fichar_pausa").onclick = async function(){
+  $("pausa").onclick=async function(){
 
-    if(estadoActual() === "fuera"){
-      alert("No puedes iniciar pausa sin entrada.");
+    if(estadoActual()==="fuera"){
+      alert("Sin entrada.");
       return;
     }
 
-    const v = vehiculoJornada();
+    const v=vehiculoJornada();
 
-    const ok = await guardarFichaje("inicio_pausa",{
-      vehiculo_id:v.id || null,
-      vehiculo_matricula:v.matricula || null
+    const ok=await guardarFichaje("inicio_pausa",{
+      vehiculo_id:v.id,
+      vehiculo_matricula:v.matricula
     });
 
     if(ok){
@@ -543,18 +485,18 @@ function activarBotones(){
     }
   };
 
-  document.getElementById("zx_fichar_comida").onclick = async function(){
+  $("comida").onclick=async function(){
 
-    if(estadoActual() === "fuera"){
-      alert("No puedes iniciar comida sin entrada.");
+    if(estadoActual()==="fuera"){
+      alert("Sin entrada.");
       return;
     }
 
-    const v = vehiculoJornada();
+    const v=vehiculoJornada();
 
-    const ok = await guardarFichaje("inicio_comida",{
-      vehiculo_id:v.id || null,
-      vehiculo_matricula:v.matricula || null
+    const ok=await guardarFichaje("inicio_comida",{
+      vehiculo_id:v.id,
+      vehiculo_matricula:v.matricula
     });
 
     if(ok){
@@ -564,9 +506,21 @@ function activarBotones(){
   };
 }
 
-window.ZX_fichaje = pintarPantalla;
-window.ZENTRYX_UI_fichaje = pintarPantalla;
+// ===============================
+// EXPORT
+// ===============================
 
-console.log("Fichajes Supabase V2646 cargado");
+window.ZX_fichaje=pintar;
+window.ZENTRYX_UI_fichaje=pintar;
+
+if(window.ZENTRYX && window.ZENTRYX.registrarModulo){
+  window.ZENTRYX.registrarModulo("fichajes",{
+    nombre:"Fichajes",
+    activo:true,
+    version:ZX_VERSION
+  });
+}
+
+console.log("Fichajes cargado V"+ZX_VERSION);
 
 })();
