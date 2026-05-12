@@ -3,10 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO - Login</title>
-
-<meta name="robots" content="noindex,nofollow">
-<meta name="theme-color" content="#071330">
+<title>Zentryx PRO Login</title>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -31,21 +28,21 @@ body{
 }
 
 .zx_logo{
-  width:82px;
-  height:82px;
-  border-radius:24px;
+  width:88px;
+  height:88px;
+  border-radius:26px;
   background:linear-gradient(135deg,#2563eb,#10b981);
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:44px;
+  font-size:48px;
   font-weight:900;
-  margin:0 auto 22px;
+  margin:0 auto 24px;
 }
 
 h1{
   text-align:center;
-  font-size:34px;
+  font-size:36px;
   font-weight:900;
   margin-bottom:8px;
 }
@@ -53,38 +50,38 @@ h1{
 .zx_sub{
   text-align:center;
   color:#cbd5e1;
-  font-size:16px;
-  margin-bottom:28px;
+  font-size:17px;
+  margin-bottom:30px;
 }
 
 input{
   width:100%;
-  height:52px;
+  height:56px;
   border:0;
-  border-radius:16px;
+  border-radius:18px;
   padding:0 16px;
-  margin-bottom:12px;
-  font-size:17px;
+  margin-bottom:14px;
+  font-size:18px;
   background:white;
   color:#0f172a;
 }
 
 button{
   width:100%;
-  height:54px;
+  height:58px;
   border:0;
-  border-radius:16px;
+  border-radius:18px;
   background:#2563eb;
   color:white;
-  font-size:19px;
+  font-size:21px;
   font-weight:900;
   margin-top:8px;
 }
 
 .zx_error{
-  margin-top:14px;
+  margin-top:16px;
   color:#fecaca;
-  font-size:15px;
+  font-size:16px;
   font-weight:800;
   text-align:center;
 }
@@ -107,7 +104,7 @@ button{
 </div>
 
 <script>
-const ZX_VERSION="2646";
+const ZX_VERSION="2647";
 
 function estadoBase(){
   return {
@@ -145,10 +142,19 @@ function cargarEstado(){
 
     const state=JSON.parse(raw);
 
+    if(!state.empresa){
+      state.empresa=estadoBase().empresa;
+    }
+
     if(!Array.isArray(state.usuarios)){
       state.usuarios=estadoBase().usuarios;
-      localStorage.setItem("zentryx_state",JSON.stringify(state));
     }
+
+    if(!state.configuracion){
+      state.configuracion=estadoBase().configuracion;
+    }
+
+    localStorage.setItem("zentryx_state",JSON.stringify(state));
 
     return state;
 
@@ -173,9 +179,8 @@ function login(){
   }
 
   const state=cargarEstado();
-  const usuarios=state.usuarios || [];
 
-  const encontrado=usuarios.find(function(u){
+  const encontrado=(state.usuarios || []).find(function(u){
     return u.usuario===usuario && u.password===password && u.activo!==false;
   });
 
@@ -209,11 +214,11 @@ document.addEventListener("keydown",function(e){
   }
 });
 
+cargarEstado();
+
 if(localStorage.getItem("zentryx_session")){
   window.location.replace("app.html?v="+ZX_VERSION);
 }
-
-cargarEstado();
 </script>
 
 </body>
