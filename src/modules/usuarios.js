@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V2662
+// V2663
 // ===============================
 (function(){
 "use strict";
@@ -68,6 +68,7 @@ window.ZENTRYX_UI_usuarios=function(){
         lista.map(u=>`
           <div class="zx_item">
             <div class="zx_item_titulo">${limpiar(u.nombre)}</div>
+
             <div class="zx_item_texto">
               <b>Usuario:</b> ${limpiar(u.usuario)}<br>
               <b>Teléfono:</b> ${u.telefono ? `<a href="tel:${limpiar(u.telefono)}">${limpiar(u.telefono)}</a>` : "-"}<br>
@@ -134,8 +135,8 @@ window.ZX_USER_GUARDAR=function(){
 
   lista.push({
     id:Date.now(),
-    nombre,
-    usuario,
+    nombre:nombre,
+    usuario:usuario,
     telefono:document.getElementById("u_telefono").value.trim(),
     email:document.getElementById("u_email").value.trim(),
     rol:document.getElementById("u_rol").value,
@@ -148,7 +149,7 @@ window.ZX_USER_GUARDAR=function(){
 
 window.ZX_USER_EDITAR=function(id){
   const lista=getUsuarios();
-  const u=lista.find(x=>x.id===id);
+  const u=lista.find(x=>Number(x.id)===Number(id));
 
   if(!u){
     alert("Usuario no encontrado.");
@@ -186,7 +187,7 @@ window.ZX_USER_ACTUALIZAR=function(id){
   const lista=getUsuarios();
 
   const nuevo=lista.map(u=>{
-    if(u.id===id){
+    if(Number(u.id)===Number(id)){
       return {
         ...u,
         nombre:document.getElementById("u_nombre").value.trim(),
@@ -197,6 +198,7 @@ window.ZX_USER_ACTUALIZAR=function(id){
         estado:document.getElementById("u_estado").value
       };
     }
+
     return u;
   });
 
