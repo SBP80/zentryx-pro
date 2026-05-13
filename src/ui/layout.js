@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - LAYOUT LIMPIO
-// V2655
+// ZENTRYX PRO - LAYOUT
+// V2663
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="2655";
+const ZX_VERSION="2663";
 
 function $(id){
   return document.getElementById(id);
@@ -75,7 +75,7 @@ function estilos(){
 
     body{
       min-height:100vh;
-      padding-bottom:40px;
+      padding-bottom:calc(env(safe-area-inset-bottom) + 40px);
     }
 
     #zx_topbar{
@@ -208,7 +208,8 @@ function estilos(){
       font-weight:650;
     }
 
-    .zx_btn_big{
+    .zx_btn_big,
+    .zx_btn{
       width:100%;
       border:0;
       border-radius:20px;
@@ -218,6 +219,7 @@ function estilos(){
       font-weight:900;
       color:white;
       display:block;
+      text-align:center;
     }
 
     .zx_rojo{background:#dc2626}
@@ -236,16 +238,16 @@ function estilos(){
     }
 
     .zx_item_titulo{
-      font-size:20px;
+      font-size:24px;
       font-weight:900;
-      margin-bottom:8px;
+      margin-bottom:10px;
       color:#0f172a;
     }
 
     .zx_item_texto{
       color:#6b7280;
-      font-size:16px;
-      line-height:1.5;
+      font-size:17px;
+      line-height:1.55;
       font-weight:650;
     }
 
@@ -258,6 +260,37 @@ function estilos(){
       font-size:17px;
       background:white;
       color:#0f172a;
+    }
+
+    @media(max-width:430px){
+      #zx_logo{
+        width:48px;
+        height:48px;
+        font-size:27px;
+      }
+
+      #zx_brand h1{
+        font-size:21px;
+      }
+
+      #zx_brand p{
+        font-size:13px;
+      }
+
+      #zx_salir{
+        padding:12px 15px;
+        font-size:15px;
+      }
+
+      .zx_nav_btn{
+        min-width:104px;
+        padding:14px 15px;
+        font-size:16px;
+      }
+
+      .zx_card h2{
+        font-size:30px;
+      }
     }
 
     @media(min-width:768px){
