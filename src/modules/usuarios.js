@@ -1,67 +1,68 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V2665
+// CRUD completo + guardado local
 // ===============================
 (function(){
 "use strict";
+
+const STORAGE_KEY="zentryx_usuarios";
 
 function app(){
   return document.getElementById("app");
 }
 
-function limpiar(v){
-  return String(v ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-const KEY="zentryx_usuarios";
-
-function base(){
-  return [
-    {
-      id:1,
-      nombre:"Administrador",
-      usuario:"admin",
-      telefono:"",
-      email:"",
-      rol:"Administrador",
-      estado:"Activo"
-    }
-  ];
-}
-
-function get(){
+// ===============================
+// DATOS
+// ===============================
+function getUsuarios(){
   try{
-    const d=JSON.parse(localStorage.getItem(KEY));
-    if(Array.isArray(d) && d.length) return d;
-  }catch{}
-
-  const b=base();
-  localStorage.setItem(KEY,JSON.stringify(b));
-  return b;
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  }catch{
+    return [];
+  }
 }
 
-function set(d){
-  localStorage.setItem(KEY,JSON.stringify(d));
+function saveUsuarios(lista){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(lista));
+}
+
+// Crear admin si no existe
+function initData(){
+  let usuarios=getUsuarios();
+
+  if(usuarios.length===0){
+    usuarios=[
+      {
+        id:Date.now(),
+        nombre:"Administrador",
+        usuario:"admin",
+        telefono:"",
+        email:"",
+        rol:"Administrador",
+        estado:"Activo"
+      }
+    ];
+    saveUsuarios(usuarios);
+  }
 }
 
 // ===============================
-// UI PRINCIPAL
+// RENDER PRINCIPAL
 // ===============================
-window.ZENTRYX_UI_usuarios=function(){
+function render(){
 
-  const lista=get();
+  initData();
+
+  const usuarios=getUsuarios();
 
   app().innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
-      <div class="zx_text">Gestión completa de usuarios.</div>
+      <div class="zx_text">
+        Gestión completa de usuarios.
+      </div>
 
-      <button class="zx_btn_big zx_verde" onclick="ZX_USER_CREAR()">
+      <button class="zx_btn zx_verde" onclick="ZX_crearUsuario()">
         Crear usuario
       </button>
     </div>
@@ -69,175 +70,173 @@ window.ZENTRYX_UI_usuarios=function(){
     <div class="zx_card">
       <h2>Listado</h2>
 
-      ${lista.map(u=>`
-        <div class="zx_item">
+      ${usuarios.map(u=>`
+        <div class="zx_card" style="border:1px solid #e5e7eb">
 
-          <div class="zx_item_titulo">
-            ${limpiar(u.nombre)}
+          <h3 style="margin-bottom:10px;font-size:22px">${u.nombre}</h3>
+
+          <div class="zx_text">
+            <b>Usuario:</b> ${u.usuario}<br>
+            <b>Teléfono:</b> ${u.telefono || "-"}<br>
+            <b>Email:</b> ${u.email || "-"}<br>
+            <b>Rol:</b> ${u.rol}<br>
+            <b>Estado:</b> ${u.estado}
           </div>
 
-          <div class="zx_item_texto">
-            <b>Usuario:</b> ${limpiar(u.usuario)}<br>
-
-            <b>Teléfono:</b> ${
-              u.telefono
-              ? `<a href="tel:${limpiar(u.telefono)}">${limpiar(u.telefono)}</a>`
-              : "-"
-            }<br>
-
-            <b>Email:</b> ${
-              u.email
-              ? `<a href="mailto:${limpiar(u.email)}">${limpiar(u.email)}</a>`
-              : "-"
-            }<br>
-
-            <b>Rol:</b> ${limpiar(u.rol)}<br>
-            <b>Estado:</b> ${limpiar(u.estado)}
-          </div>
-
-          <button class="zx_btn_big zx_azul" onclick="ZX_USER_EDITAR(${u.id})">
+          <button class="zx_btn zx_azul" onclick="ZX_editarUsuario(${u.id})">
             Editar
           </button>
 
         </div>
       `).join("")}
+
     </div>
   `;
-};
-
-window.ZX_usuarios=function(){
-  window.ZENTRYX_UI_usuarios();
-};
+}
 
 // ===============================
 // CREAR
 // ===============================
-window.ZX_USER_CREAR=function(){
+window.ZX_crearUsuario=function(){
 
   app().innerHTML=`
     <div class="zx_card">
       <h2>Crear usuario</h2>
 
-      <input id="u_nombre" placeholder="Nombre completo">
-      <input id="u_usuario" placeholder="Usuario">
-      <input id="u_telefono" placeholder="Teléfono">
-      <input id="u_email" placeholder="Email">
+      <input id="nombre" placeholder="Nombre" class="zx_input">
+      <input id="usuario" placeholder="Usuario" class="zx_input">
+      <input id="telefono" placeholder="Teléfono" class="zx_input">
+      <input id="email" placeholder="Email" class="zx_input">
 
-      <select id="u_rol">
+      <select id="rol" class="zx_input">
         <option>Administrador</option>
         <option>Encargado</option>
         <option>Operario</option>
-        <option>Oficina</option>
+        <option>Administrativo</option>
       </select>
 
-      <select id="u_estado">
+      <select id="estado" class="zx_input">
         <option>Activo</option>
         <option>Inactivo</option>
       </select>
 
-      <button class="zx_btn_big zx_verde" onclick="ZX_USER_GUARDAR()">
+      <button class="zx_btn zx_verde" onclick="guardarNuevo()">
         Guardar
       </button>
 
-      <button class="zx_btn_big zx_gris" onclick="ZX_usuarios()">
-        Cancelar
-      </button>
-    </div>
-  `;
-};
-
-window.ZX_USER_GUARDAR=function(){
-
-  const nombre=document.getElementById("u_nombre").value.trim();
-  const usuario=document.getElementById("u_usuario").value.trim();
-
-  if(!nombre || !usuario){
-    alert("Nombre y usuario obligatorios");
-    return;
-  }
-
-  const lista=get();
-
-  if(lista.some(u=>u.usuario===usuario)){
-    alert("Usuario ya existe");
-    return;
-  }
-
-  lista.push({
-    id:Date.now(),
-    nombre,
-    usuario,
-    telefono:document.getElementById("u_telefono").value.trim(),
-    email:document.getElementById("u_email").value.trim(),
-    rol:document.getElementById("u_rol").value,
-    estado:document.getElementById("u_estado").value
-  });
-
-  set(lista);
-  ZX_usuarios();
-};
-
-// ===============================
-// EDITAR
-// ===============================
-window.ZX_USER_EDITAR=function(id){
-
-  const lista=get();
-  const u=lista.find(x=>x.id==id);
-
-  app().innerHTML=`
-    <div class="zx_card">
-      <h2>Editar usuario</h2>
-
-      <input id="u_nombre" value="${limpiar(u.nombre)}">
-      <input id="u_usuario" value="${limpiar(u.usuario)}">
-      <input id="u_telefono" value="${limpiar(u.telefono)}">
-      <input id="u_email" value="${limpiar(u.email)}">
-
-      <select id="u_rol">
-        <option ${u.rol==="Administrador"?"selected":""}>Administrador</option>
-        <option ${u.rol==="Encargado"?"selected":""}>Encargado</option>
-        <option ${u.rol==="Operario"?"selected":""}>Operario</option>
-        <option ${u.rol==="Oficina"?"selected":""}>Oficina</option>
-      </select>
-
-      <select id="u_estado">
-        <option ${u.estado==="Activo"?"selected":""}>Activo</option>
-        <option ${u.estado==="Inactivo"?"selected":""}>Inactivo</option>
-      </select>
-
-      <button class="zx_btn_big zx_azul" onclick="ZX_USER_ACTUALIZAR(${id})">
-        Guardar cambios
-      </button>
-
-      <button class="zx_btn_big zx_gris" onclick="ZX_usuarios()">
+      <button class="zx_btn" onclick="ZX_usuarios()">
         Volver
       </button>
     </div>
   `;
 };
 
-window.ZX_USER_ACTUALIZAR=function(id){
+window.guardarNuevo=function(){
 
-  let lista=get();
+  const nombre=document.getElementById("nombre").value.trim();
+  const usuario=document.getElementById("usuario").value.trim();
 
-  lista=lista.map(u=>{
-    if(u.id==id){
-      return {
-        ...u,
-        nombre:document.getElementById("u_nombre").value.trim(),
-        usuario:document.getElementById("u_usuario").value.trim(),
-        telefono:document.getElementById("u_telefono").value.trim(),
-        email:document.getElementById("u_email").value.trim(),
-        rol:document.getElementById("u_rol").value,
-        estado:document.getElementById("u_estado").value
-      };
-    }
-    return u;
+  if(!nombre || !usuario){
+    alert("Nombre y usuario obligatorios");
+    return;
+  }
+
+  const lista=getUsuarios();
+
+  lista.push({
+    id:Date.now(),
+    nombre,
+    usuario,
+    telefono:document.getElementById("telefono").value,
+    email:document.getElementById("email").value,
+    rol:document.getElementById("rol").value,
+    estado:document.getElementById("estado").value
   });
 
-  set(lista);
+  saveUsuarios(lista);
   ZX_usuarios();
 };
+
+// ===============================
+// EDITAR
+// ===============================
+window.ZX_editarUsuario=function(id){
+
+  const lista=getUsuarios();
+  const u=lista.find(x=>x.id===id);
+
+  if(!u) return;
+
+  app().innerHTML=`
+    <div class="zx_card">
+      <h2>Editar usuario</h2>
+
+      <input id="nombre" value="${u.nombre}" class="zx_input">
+      <input id="usuario" value="${u.usuario}" class="zx_input">
+      <input id="telefono" value="${u.telefono}" class="zx_input">
+      <input id="email" value="${u.email}" class="zx_input">
+
+      <select id="rol" class="zx_input">
+        <option ${u.rol==="Administrador"?"selected":""}>Administrador</option>
+        <option ${u.rol==="Encargado"?"selected":""}>Encargado</option>
+        <option ${u.rol==="Operario"?"selected":""}>Operario</option>
+        <option ${u.rol==="Administrativo"?"selected":""}>Administrativo</option>
+      </select>
+
+      <select id="estado" class="zx_input">
+        <option ${u.estado==="Activo"?"selected":""}>Activo</option>
+        <option ${u.estado==="Inactivo"?"selected":""}>Inactivo</option>
+      </select>
+
+      <button class="zx_btn zx_azul" onclick="guardarEdit(${id})">
+        Guardar cambios
+      </button>
+
+      <button class="zx_btn" onclick="ZX_usuarios()">
+        Volver
+      </button>
+    </div>
+  `;
+};
+
+window.guardarEdit=function(id){
+
+  const lista=getUsuarios();
+  const i=lista.findIndex(x=>x.id===id);
+
+  if(i===-1) return;
+
+  lista[i]={
+    ...lista[i],
+    nombre:document.getElementById("nombre").value,
+    usuario:document.getElementById("usuario").value,
+    telefono:document.getElementById("telefono").value,
+    email:document.getElementById("email").value,
+    rol:document.getElementById("rol").value,
+    estado:document.getElementById("estado").value
+  };
+
+  saveUsuarios(lista);
+  ZX_usuarios();
+};
+
+// ===============================
+// ESTILOS INPUT (importante)
+// ===============================
+const style=document.createElement("style");
+style.innerHTML=`
+.zx_input{
+  width:100%;
+  padding:14px;
+  margin-top:10px;
+  border-radius:14px;
+  border:1px solid #d1d5db;
+  font-size:16px;
+}
+`;
+document.head.appendChild(style);
+
+// ===============================
+window.ZENTRYX_UI_usuarios=render;
 
 })();
