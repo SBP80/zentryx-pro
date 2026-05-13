@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - INICIO
-// V2663
+// V2665
 // ===============================
 (function(){
 "use strict";
@@ -35,16 +35,17 @@ window.ZENTRYX_UI_inicio=function(){
       <h2>Estado sistema</h2>
 
       <div class="zx_text">
-        <b>Versión:</b> V2663<br><br>
-
+        <b>Versión:</b> V2665<br><br>
         Diseño limpio para móvil, tablet y PC.<br><br>
-
         Preparado para servidor local o externo.<br><br>
-
-        Módulos activos: Inicio y Usuarios.
+        Usuarios conectado a Supabase.
       </div>
     </div>
   `;
+};
+
+window.ZX_inicio=function(){
+  window.ZENTRYX_UI_inicio();
 };
 
 })();
