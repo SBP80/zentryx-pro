@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V2654
+// V2655
 // ===============================
 (function(){
 "use strict";
@@ -40,6 +40,7 @@ function estadoBase(){
 function cargarEstado(){
   try{
     const raw=localStorage.getItem("zentryx_state");
+
     if(!raw){
       const base=estadoBase();
       localStorage.setItem("zentryx_state",JSON.stringify(base));
@@ -53,7 +54,8 @@ function cargarEstado(){
     }
 
     return state;
-  }catch{
+
+  }catch(e){
     const base=estadoBase();
     localStorage.setItem("zentryx_state",JSON.stringify(base));
     return base;
@@ -64,59 +66,50 @@ function guardarEstado(state){
   localStorage.setItem("zentryx_state",JSON.stringify(state));
 }
 
-function usuarioActual(){
+function sesion(){
   try{
-    const s=JSON.parse(localStorage.getItem("zentryx_session")||"{}");
-    return s.usuario || "admin";
-  }catch{
-    return "admin";
+    return JSON.parse(localStorage.getItem("zentryx_session") || "{}");
+  }catch(e){
+    return {};
   }
 }
 
 function esAdmin(){
-  try{
-    const s=JSON.parse(localStorage.getItem("zentryx_session")||"{}");
-    return s.rol==="Administrador";
-  }catch{
-    return false;
-  }
+  return sesion().rol==="Administrador";
 }
 
-function tarjeta(u){
+function tarjetaUsuario(u){
   return `
-    <div class="zx_card">
-      <h2>${limpiar(u.nombre || "-")}</h2>
+    <div class="zx_item">
+      <div class="zx_item_titulo">${limpiar(u.nombre || "-")}</div>
 
-      <div class="zx_text">
+      <div class="zx_item_texto">
         <b>Usuario:</b> ${limpiar(u.usuario)}<br>
-        <b>Rol:</b> ${limpiar(u.rol)}<br>
+        <b>Rol:</b> ${limpiar(u.rol || "Usuario")}<br>
         <b>Estado:</b> ${u.activo===false ? "Inactivo" : "Activo"}<br>
         ${u.telefono ? `<b>Teléfono:</b> <a href="tel:${limpiar(u.telefono)}">${limpiar(u.telefono)}</a><br>` : ""}
         ${u.email ? `<b>Email:</b> <a href="mailto:${limpiar(u.email)}">${limpiar(u.email)}</a><br>` : ""}
         ${u.direccion ? `<b>Dirección:</b> ${limpiar(u.direccion)}<br>` : ""}
       </div>
 
-      <button class="zx_btn_big azul" onclick="ZX_editarUsuario('${u.id}')">
-        Editar
-      </button>
+      <button class="zx_btn_big zx_azul" type="button" onclick="ZX_editarUsuario('${limpiar(u.id)}')">Editar</button>
 
       ${
-        u.usuario!=="admin"
-        ? `<button class="zx_btn_big rojo" onclick="ZX_eliminarUsuario('${u.id}')">Eliminar</button>`
+        u.usuario!=="admin" && esAdmin()
+        ? `<button class="zx_btn_big zx_rojo" type="button" onclick="ZX_eliminarUsuario('${limpiar(u.id)}')">Eliminar</button>`
         : ""
       }
     </div>
   `;
 }
 
-window.ZX_usuarios=function(){
-  const root=app();
+window.ZENTRYX_UI_usuarios=function(){
+  if(!app()) return;
+
   const state=cargarEstado();
   const usuarios=state.usuarios || [];
 
-  if(!root) return;
-
-  root.innerHTML=`
+  app().innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
       <div class="zx_text">
@@ -125,13 +118,20 @@ window.ZX_usuarios=function(){
 
       ${
         esAdmin()
-        ? `<button class="zx_btn_big verde" onclick="ZX_nuevoUsuario()">Crear usuario</button>`
-        : `<div class="zx_text">Solo el administrador puede crear usuarios.</div>`
+        ? `<button class="zx_btn_big zx_verde" type="button" onclick="ZX_nuevoUsuario()">Crear usuario</button>`
+        : `<div class="zx_text" style="margin-top:14px;">Solo administrador puede crear usuarios.</div>`
       }
     </div>
 
-    ${usuarios.map(tarjeta).join("")}
+    <div class="zx_card">
+      <h2>Listado</h2>
+      ${usuarios.length ? usuarios.map(tarjetaUsuario).join("") : `<div class="zx_text">No hay usuarios.</div>`}
+    </div>
   `;
+};
+
+window.ZX_usuarios=function(){
+  window.ZENTRYX_UI_usuarios();
 };
 
 window.ZX_nuevoUsuario=function(){
@@ -174,7 +174,7 @@ window.ZX_nuevoUsuario=function(){
   });
 
   guardarEstado(state);
-  ZX_usuarios();
+  window.ZENTRYX_UI_usuarios();
 };
 
 window.ZX_editarUsuario=function(id){
@@ -186,9 +186,7 @@ window.ZX_editarUsuario=function(id){
     return;
   }
 
-  const soyYo=u.usuario===usuarioActual();
-
-  if(!esAdmin() && !soyYo){
+  if(!esAdmin() && sesion().usuario!==u.usuario){
     alert("Sin permiso.");
     return;
   }
@@ -200,12 +198,11 @@ window.ZX_editarUsuario=function(id){
 
   if(esAdmin()){
     u.rol=prompt("Rol:",u.rol || "Usuario") || u.rol;
-    const activo=confirm("¿Usuario activo?");
-    u.activo=activo;
+    u.activo=confirm("¿Usuario activo?");
   }
 
   guardarEstado(state);
-  ZX_usuarios();
+  window.ZENTRYX_UI_usuarios();
 };
 
 window.ZX_eliminarUsuario=function(id){
@@ -226,7 +223,7 @@ window.ZX_eliminarUsuario=function(id){
 
   state.usuarios=state.usuarios.filter(x=>String(x.id)!==String(id));
   guardarEstado(state);
-  ZX_usuarios();
+  window.ZENTRYX_UI_usuarios();
 };
 
 })();
