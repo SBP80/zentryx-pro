@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2664</title>
+<title>Zentryx PRO V2665</title>
 
 <script>
-const ZX_VERSION="2664";
+const ZX_VERSION="2665";
 
 function checkLogin(){
   const s=localStorage.getItem("zentryx_session");
@@ -31,16 +31,23 @@ checkLogin();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
+const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+
+window.sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+window.supabaseClient=window.sb;
+</script>
 </head>
 
 <body>
 
 <div id="app"></div>
 
-<script src="src/app.js?v=2664"></script>
-<script src="src/ui/layout.js?v=2664"></script>
-<script src="src/modules/inicio.js?v=2664"></script>
-<script src="src/modules/usuarios.js?v=2664"></script>
+<script src="src/ui/layout.js?v=2665"></script>
+<script src="src/modules/inicio.js?v=2665"></script>
+<script src="src/modules/usuarios.js?v=2665"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded",function(){
