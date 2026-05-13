@@ -3,19 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2652</title>
+<title>Zentryx PRO V2654</title>
 
 <script>
-const ZX_VERSION="2652";
+const ZX_VERSION="2654";
 
 function checkLogin(){
   const session=localStorage.getItem("zentryx_session");
-
   if(!session){
     location.replace("index.html?v="+ZX_VERSION);
     return false;
   }
-
   try{
     JSON.parse(session);
     return true;
@@ -30,29 +28,18 @@ checkLogin();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-
-html,body{
-  background:#eef2f7;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-}
-
-#app{width:100%}
-</style>
 </head>
 
 <body>
 
 <div id="app"></div>
 
-<script src="src/ui/layout.js?v=2652"></script>
-<script src="src/modules/inicio.js?v=2652"></script>
+<script src="src/ui/layout.js?v=2654"></script>
+<script src="src/modules/inicio.js?v=2654"></script>
+<script src="src/modules/usuarios.js?v=2654"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded",function(){
-
   if(!checkLogin()) return;
 
   if(window.ZENTRYX_UI_LAYOUT){
@@ -62,7 +49,6 @@ document.addEventListener("DOMContentLoaded",function(){
   if(window.ZX_inicio){
     window.ZX_inicio();
   }
-
 });
 </script>
 
