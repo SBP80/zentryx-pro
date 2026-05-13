@@ -1,20 +1,17 @@
 // ===============================
 // ZENTRYX PRO - UI LAYOUT
-// V2650
+// V2651 (estable profesional)
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="2650";
-
-window.ZENTRYX=window.ZENTRYX || {};
-window.ZENTRYX.version=ZX_VERSION;
+const ZX_VERSION="2651";
 
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
 
-function limpiarTexto(valor){
-  return String(valor ?? "")
+function limpiarTexto(v){
+  return String(v ?? "")
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
     .replaceAll(">","&gt;")
@@ -24,14 +21,13 @@ function limpiarTexto(valor){
 
 function usuario(){
   try{
-    const raw=localStorage.getItem("zentryx_session") || "{}";
-    const u=JSON.parse(raw);
+    const u=JSON.parse(localStorage.getItem("zentryx_session")||"{}");
     return {
       usuario:u.usuario || "admin",
-      rol:u.rol || "admin"
+      rol:u.rol || "Administrador"
     };
   }catch{
-    return {usuario:"admin",rol:"admin"};
+    return {usuario:"admin",rol:"Administrador"};
   }
 }
 
@@ -43,296 +39,172 @@ function estilos(){
   css.id="zx_layout_styles";
 
   css.innerHTML=`
-    *{
-      box-sizing:border-box;
-      -webkit-tap-highlight-color:transparent;
-    }
 
-    html,body{
-      margin:0;
-      padding:0;
-      background:#eef2f7;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-      color:#0f172a;
-      overflow-x:hidden;
-    }
+  *{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+  }
 
-    body{
-      padding-bottom:calc(env(safe-area-inset-bottom) + 24px);
-    }
+  html,body{
+    margin:0;
+    padding:0;
+    background:#eef2f7;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+    overflow-x:hidden;
+  }
 
-    #zx_topbar{
-      background:#071330;
-      color:white;
-      padding:calc(env(safe-area-inset-top) + 14px) 14px 14px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-    }
+  body{
+    padding-bottom:40px;
+  }
 
-    #zx_topbar_inner{
-      max-width:1180px;
-      margin:0 auto;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-    }
+  /* HEADER */
+  #zx_topbar{
+    background:#071330;
+    color:white;
+    padding:calc(env(safe-area-inset-top) + 12px) 14px 14px;
+  }
 
-    #zx_brand{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      min-width:0;
-    }
+  #zx_topbar_inner{
+    max-width:1200px;
+    margin:0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
 
-    #zx_logo{
-      width:54px;
-      height:54px;
-      border-radius:16px;
-      background:linear-gradient(135deg,#2563eb,#10b981);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      color:white;
-      font-size:30px;
-      font-weight:900;
-      flex:none;
-    }
+  #zx_brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
 
-    #zx_brand h1{
-      margin:0;
-      font-size:22px;
-      font-weight:900;
-      line-height:1.1;
-      white-space:nowrap;
-    }
+  #zx_logo{
+    width:48px;
+    height:48px;
+    border-radius:14px;
+    background:linear-gradient(135deg,#2563eb,#10b981);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:white;
+    font-size:26px;
+    font-weight:900;
+  }
 
-    #zx_brand p{
-      margin:5px 0 0;
-      color:#cbd5e1;
-      font-size:14px;
-      line-height:1.2;
-      white-space:nowrap;
-    }
+  #zx_brand h1{
+    margin:0;
+    font-size:20px;
+    font-weight:900;
+  }
 
-    #zx_salir{
-      border:0;
-      border-radius:16px;
-      background:#dc2626;
-      color:white;
-      padding:13px 18px;
-      font-size:16px;
-      font-weight:900;
-      flex:none;
-    }
+  #zx_brand p{
+    margin:2px 0 0;
+    font-size:13px;
+    color:#cbd5e1;
+  }
 
-    #zx_nav{
-      background:#071330;
-      padding:12px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-    }
+  #zx_salir{
+    border:0;
+    border-radius:14px;
+    background:#dc2626;
+    color:white;
+    padding:12px 16px;
+    font-weight:900;
+  }
 
-    #zx_nav_inner{
-      max-width:1180px;
-      margin:0 auto;
-      display:flex;
-      gap:8px;
-      overflow-x:auto;
-      scrollbar-width:none;
-    }
+  /* NAV */
+  #zx_nav{
+    background:#071330;
+    padding:10px;
+  }
 
-    #zx_nav_inner::-webkit-scrollbar{
-      display:none;
-    }
+  #zx_nav_inner{
+    max-width:1200px;
+    margin:0 auto;
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+  }
 
-    .zx_nav_btn{
-      flex:0 0 auto;
-      border:0;
-      border-radius:15px;
-      background:#334155;
-      color:white;
-      min-width:112px;
-      padding:13px 14px;
-      font-size:15px;
-      font-weight:900;
-      white-space:nowrap;
-    }
+  .zx_nav_btn{
+    border:0;
+    border-radius:14px;
+    background:#334155;
+    color:white;
+    padding:12px 14px;
+    font-weight:800;
+    min-width:100px;
+  }
 
-    .zx_nav_btn.zx_activo{
-      background:#2563eb;
-    }
+  .zx_activo{
+    background:#2563eb;
+  }
 
-    #app{
-      width:100%;
-      max-width:1180px;
-      margin:0 auto;
-      padding:16px;
-      padding-bottom:120px;
-      position:relative;
-      z-index:1;
-    }
+  /* APP */
+  #app{
+    max-width:1200px;
+    margin:0 auto;
+    padding:16px;
+  }
 
-    .zx_card{
-      background:white;
-      border-radius:24px;
-      padding:22px;
-      margin-bottom:18px;
-      border:1px solid #d1d5db;
-      box-shadow:0 8px 24px rgba(0,0,0,.05);
-      overflow:hidden;
-    }
+  .zx_card{
+    background:white;
+    border-radius:22px;
+    padding:22px;
+    margin-bottom:18px;
+    border:1px solid #d1d5db;
+  }
 
-    .zx_card h1,
-    .zx_card h2{
-      margin:0 0 18px;
-      font-size:30px;
-      line-height:1.08;
-      font-weight:900;
-      color:#0f172a;
-    }
+  .zx_card h2{
+    margin:0 0 14px;
+    font-size:28px;
+    font-weight:900;
+  }
 
-    .zx_text,
-    .zx_card p{
-      color:#6b7280;
-      font-size:17px;
-      line-height:1.5;
-    }
+  .zx_text{
+    color:#6b7280;
+    font-size:16px;
+    line-height:1.5;
+  }
 
-    .zx_btn{
-      width:100%;
-      border:0;
-      border-radius:18px;
-      color:white;
-      padding:18px;
-      font-size:20px;
-      font-weight:900;
-      margin-top:14px;
-      display:block;
-    }
+  .zx_btn{
+    width:100%;
+    border:0;
+    border-radius:18px;
+    padding:18px;
+    margin-top:12px;
+    font-size:18px;
+    font-weight:900;
+    color:white;
+  }
 
-    .zx_rojo{background:#dc2626}
-    .zx_verde{background:#16a34a}
-    .zx_azul{background:#2563eb}
-    .zx_naranja{background:#ea580c}
-    .zx_morado{background:#7c3aed}
-    .zx_gris{background:#64748b}
+  .zx_rojo{background:#dc2626}
+  .zx_azul{background:#2563eb}
+  .zx_verde{background:#16a34a}
+  .zx_naranja{background:#ea580c}
+  .zx_morado{background:#7c3aed}
 
-    .zx_estado{
-      display:inline-block;
-      padding:10px 16px;
-      border-radius:999px;
-      font-size:18px;
-      font-weight:900;
-      margin:0 0 12px;
-    }
+  @media(min-width:768px){
+    #app{padding:24px}
+    .zx_card h2{font-size:32px}
+  }
 
-    .zx_dentro{background:#dcfce7;color:#166534}
-    .zx_fuera{background:#fee2e2;color:#991b1b}
-    .zx_pausa{background:#ffedd5;color:#9a3412}
-    .zx_comida{background:#fef3c7;color:#92400e}
-
-    .zx_hist_item{
-      border:1px solid #d1d5db;
-      border-radius:18px;
-      padding:16px;
-      margin-top:14px;
-      background:white;
-    }
-
-    .zx_hist_tipo{
-      font-size:18px;
-      font-weight:900;
-      margin-bottom:6px;
-    }
-
-    .zx_hist_fecha{
-      font-size:16px;
-      color:#6b7280;
-      line-height:1.5;
-    }
-
-    .zx_error{
-      color:#991b1b;
-      background:#fee2e2;
-      border:1px solid #fecaca;
-      padding:14px;
-      border-radius:16px;
-      font-size:16px;
-      font-weight:800;
-    }
-
-    @media(max-width:420px){
-      #zx_logo{
-        width:48px;
-        height:48px;
-        font-size:26px;
-      }
-
-      #zx_brand h1{
-        font-size:19px;
-      }
-
-      #zx_brand p{
-        font-size:13px;
-      }
-
-      #zx_salir{
-        padding:12px 15px;
-        font-size:15px;
-      }
-
-      .zx_card h1,
-      .zx_card h2{
-        font-size:28px;
-      }
-    }
-
-    @media(min-width:768px){
-      #app{
-        padding:24px;
-        padding-bottom:80px;
-      }
-
-      .zx_card{
-        padding:28px;
-      }
-
-      .zx_card h1,
-      .zx_card h2{
-        font-size:34px;
-      }
-
-      .zx_nav_btn{
-        min-width:128px;
-      }
-    }
-
-    @media(min-width:1024px){
-      #zx_nav_inner{
-        justify-content:flex-start;
-      }
-
-      .zx_nav_btn{
-        min-width:auto;
-        padding:12px 22px;
-      }
-    }
   `;
 
   document.head.appendChild(css);
 }
 
-function pintarTopbar(){
-  let top=$("zx_topbar");
-
-  if(!top){
-    top=document.createElement("div");
-    top.id="zx_topbar";
-    document.body.prepend(top);
+function topbar(){
+  let t=$("zx_topbar");
+  if(!t){
+    t=document.createElement("div");
+    t.id="zx_topbar";
+    document.body.prepend(t);
   }
 
   const u=usuario();
 
-  top.innerHTML=`
+  t.innerHTML=`
     <div id="zx_topbar_inner">
       <div id="zx_brand">
         <div id="zx_logo">Z</div>
@@ -341,160 +213,88 @@ function pintarTopbar(){
           <p>${limpiarTexto(u.usuario)} · ${limpiarTexto(u.rol)}</p>
         </div>
       </div>
-
-      <button id="zx_salir" type="button">Salir</button>
+      <button id="zx_salir">Salir</button>
     </div>
   `;
 
-  $("zx_salir").onclick=function(){
-    logout();
-  };
+  $("zx_salir").onclick=logout;
 }
 
-function pintarNav(){
-  let nav=$("zx_nav");
-
-  if(!nav){
-    nav=document.createElement("nav");
-    nav.id="zx_nav";
-
-    const root=app();
-
-    if(root){
-      document.body.insertBefore(nav,root);
-    }else{
-      document.body.appendChild(nav);
-    }
+function nav(){
+  let n=$("zx_nav");
+  if(!n){
+    n=document.createElement("div");
+    n.id="zx_nav";
+    document.body.insertBefore(n,app());
   }
 
-  nav.innerHTML=`
+  n.innerHTML=`
     <div id="zx_nav_inner">
-      <button class="zx_nav_btn" data-modulo="inicio" type="button" onclick="ZX_inicio()">Inicio</button>
-      <button class="zx_nav_btn" data-modulo="fichaje" type="button" onclick="ZX_fichaje()">Fichaje</button>
-      <button class="zx_nav_btn" data-modulo="usuarios" type="button" onclick="ZX_usuarios()">Usuarios</button>
-      <button class="zx_nav_btn" data-modulo="vehiculos" type="button" onclick="ZX_vehiculos()">Vehículos</button>
-      <button class="zx_nav_btn" data-modulo="incidencias" type="button" onclick="ZX_incidencias()">Incidencias</button>
-      <button class="zx_nav_btn" data-modulo="informes" type="button" onclick="ZX_informes()">Informes</button>
-    </div>
-  `;
-}
-
-function setActivo(nombre){
-  document.querySelectorAll(".zx_nav_btn").forEach(function(btn){
-    btn.classList.remove("zx_activo");
-
-    if(btn.dataset.modulo===nombre){
-      btn.classList.add("zx_activo");
-    }
-  });
-}
-
-function vistaPendiente(titulo,texto){
-  if(!app()) return;
-
-  app().innerHTML=`
-    <div class="zx_card">
-      <h1>${limpiarTexto(titulo)}</h1>
-      <p>${limpiarTexto(texto)}</p>
+      <button class="zx_nav_btn" onclick="ZX_inicio()">Inicio</button>
+      <button class="zx_nav_btn" onclick="ZX_fichaje()">Fichaje</button>
+      <button class="zx_nav_btn" onclick="ZX_usuarios()">Usuarios</button>
+      <button class="zx_nav_btn" onclick="ZX_vehiculos()">Vehículos</button>
+      <button class="zx_nav_btn" onclick="ZX_incidencias()">Incidencias</button>
+      <button class="zx_nav_btn" onclick="ZX_informes()">Informes</button>
     </div>
   `;
 }
 
 window.logout=function(){
-  localStorage.removeItem("usuario");
-  localStorage.removeItem("zentryx_session");
-  localStorage.removeItem("zx_estado");
-  localStorage.removeItem("zx_pausa");
-  localStorage.removeItem("zx_comida");
-  localStorage.removeItem("zx_vehiculo_activo");
-  localStorage.removeItem("zx_vehiculo_matricula");
-  localStorage.removeItem("zx_vehiculo_km");
-
-  window.location.replace("./index.html?v="+ZX_VERSION);
+  localStorage.clear();
+  location.href="index.html?v="+ZX_VERSION;
 };
 
 window.ZX_inicio=function(){
-  setActivo("inicio");
-
   if(window.ZENTRYX_UI_inicio){
     window.ZENTRYX_UI_inicio();
-    return;
   }
-
-  vistaPendiente("Inicio","Sistema principal Zentryx PRO modular activo.");
 };
 
 window.ZX_fichaje=function(){
-  setActivo("fichaje");
-
   if(window.ZENTRYX_UI_fichaje){
     window.ZENTRYX_UI_fichaje();
-    return;
   }
-
-  vistaPendiente("Fichaje","Módulo fichaje no cargado.");
 };
 
 window.ZX_usuarios=function(){
-  setActivo("usuarios");
-
   if(window.ZENTRYX_UI_usuarios){
     window.ZENTRYX_UI_usuarios();
-    return;
+  }else{
+    app().innerHTML=`<div class="zx_card"><h2>Usuarios</h2><div class="zx_text">Pendiente</div></div>`;
   }
-
-  vistaPendiente("Usuarios","Módulo usuarios pendiente.");
 };
 
 window.ZX_vehiculos=function(){
-  setActivo("vehiculos");
-
   if(window.ZENTRYX_UI_abrirVehiculos){
     window.ZENTRYX_UI_abrirVehiculos();
-    return;
   }
-
-  vistaPendiente("Vehículos","Módulo vehículos no cargado.");
 };
 
 window.ZX_incidencias=function(){
-  setActivo("incidencias");
-  vistaPendiente("Incidencias","Módulo incidencias pendiente.");
+  app().innerHTML=`<div class="zx_card"><h2>Incidencias</h2></div>`;
 };
 
 window.ZX_informes=function(){
-  setActivo("informes");
-  vistaPendiente("Informes","Módulo informes pendiente.");
+  app().innerHTML=`<div class="zx_card"><h2>Informes</h2></div>`;
 };
 
 function iniciar(){
   estilos();
+  topbar();
+  nav();
 
-  const headerViejo=$("zx_header");
-  const footerViejo=$("zx_footer");
-
-  if(headerViejo) headerViejo.remove();
-  if(footerViejo) footerViejo.remove();
-
-  pintarTopbar();
-  pintarNav();
-
-  setTimeout(function(){
-    if(window.ZX_inicio){
-      window.ZX_inicio();
-    }
-  },100);
+  setTimeout(()=>{
+    ZX_inicio();
+  },50);
 }
 
 window.ZENTRYX_UI_LAYOUT={
-  iniciar:iniciar,
-  version:ZX_VERSION
+  iniciar
 };
 
-if(document.readyState==="loading"){
-  document.addEventListener("DOMContentLoaded",iniciar);
-}else{
-  iniciar();
-}
+document.readyState==="loading"
+  ? document.addEventListener("DOMContentLoaded",iniciar)
+  : iniciar();
 
 })();
