@@ -3,22 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2654</title>
+<title>Zentryx PRO V2655</title>
 
 <script>
-const ZX_VERSION="2654";
+const ZX_VERSION="2655";
 
 function checkLogin(){
-  const session=localStorage.getItem("zentryx_session");
-  if(!session){
+  const s=localStorage.getItem("zentryx_session");
+  if(!s){
     location.replace("index.html?v="+ZX_VERSION);
     return false;
   }
   try{
-    JSON.parse(session);
+    JSON.parse(s);
     return true;
-  }catch{
+  }catch(e){
     localStorage.removeItem("zentryx_session");
+    localStorage.removeItem("usuario");
     location.replace("index.html?v="+ZX_VERSION);
     return false;
   }
@@ -26,17 +27,15 @@ function checkLogin(){
 
 checkLogin();
 </script>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
 
 <div id="app"></div>
 
-<script src="src/ui/layout.js?v=2654"></script>
-<script src="src/modules/inicio.js?v=2654"></script>
-<script src="src/modules/usuarios.js?v=2654"></script>
+<script src="src/ui/layout.js?v=2655"></script>
+<script src="src/modules/inicio.js?v=2655"></script>
+<script src="src/modules/usuarios.js?v=2655"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded",function(){
