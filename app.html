@@ -3,17 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2655</title>
+<title>Zentryx PRO V2660</title>
 
 <script>
-const ZX_VERSION="2655";
+const ZX_VERSION="2660";
 
 function checkLogin(){
   const s=localStorage.getItem("zentryx_session");
+
   if(!s){
     location.replace("index.html?v="+ZX_VERSION);
     return false;
   }
+
   try{
     JSON.parse(s);
     return true;
@@ -33,9 +35,9 @@ checkLogin();
 
 <div id="app"></div>
 
-<script src="src/ui/layout.js?v=2655"></script>
-<script src="src/modules/inicio.js?v=2655"></script>
-<script src="src/modules/usuarios.js?v=2655"></script>
+<script src="src/ui/layout.js?v=2660"></script>
+<script src="src/modules/inicio.js?v=2660"></script>
+<script src="src/modules/usuarios.js?v=2660"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded",function(){
