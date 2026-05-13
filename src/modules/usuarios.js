@@ -1,59 +1,36 @@
 // ===============================
-// ZENTRYX PRO - USUARIOS PRO
-// CRUD completo + guardado local
+// ZENTRYX PRO - USUARIOS (SUPABASE)
 // ===============================
 (function(){
 "use strict";
-
-const STORAGE_KEY="zentryx_usuarios";
 
 function app(){
   return document.getElementById("app");
 }
 
 // ===============================
-// DATOS
+// GET USUARIOS
 // ===============================
-function getUsuarios(){
-  try{
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  }catch{
+async function getUsuarios(){
+  const { data, error } = await supabase
+    .from("usuarios")
+    .select("*")
+    .order("id",{ascending:true});
+
+  if(error){
+    console.error(error);
     return [];
   }
-}
 
-function saveUsuarios(lista){
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(lista));
-}
-
-// Crear admin si no existe
-function initData(){
-  let usuarios=getUsuarios();
-
-  if(usuarios.length===0){
-    usuarios=[
-      {
-        id:Date.now(),
-        nombre:"Administrador",
-        usuario:"admin",
-        telefono:"",
-        email:"",
-        rol:"Administrador",
-        estado:"Activo"
-      }
-    ];
-    saveUsuarios(usuarios);
-  }
+  return data;
 }
 
 // ===============================
-// RENDER PRINCIPAL
+// RENDER
 // ===============================
-function render(){
+async function render(){
 
-  initData();
-
-  const usuarios=getUsuarios();
+  const usuarios = await getUsuarios();
 
   app().innerHTML=`
     <div class="zx_card">
@@ -73,7 +50,7 @@ function render(){
       ${usuarios.map(u=>`
         <div class="zx_card" style="border:1px solid #e5e7eb">
 
-          <h3 style="margin-bottom:10px;font-size:22px">${u.nombre}</h3>
+          <h3 style="margin-bottom:10px">${u.nombre}</h3>
 
           <div class="zx_text">
             <b>Usuario:</b> ${u.usuario}<br>
@@ -131,7 +108,7 @@ window.ZX_crearUsuario=function(){
   `;
 };
 
-window.guardarNuevo=function(){
+window.guardarNuevo=async function(){
 
   const nombre=document.getElementById("nombre").value.trim();
   const usuario=document.getElementById("usuario").value.trim();
@@ -141,31 +118,38 @@ window.guardarNuevo=function(){
     return;
   }
 
-  const lista=getUsuarios();
+  const { error } = await supabase
+    .from("usuarios")
+    .insert([{
+      nombre,
+      usuario,
+      telefono:document.getElementById("telefono").value,
+      email:document.getElementById("email").value,
+      rol:document.getElementById("rol").value,
+      estado:document.getElementById("estado").value
+    }]);
 
-  lista.push({
-    id:Date.now(),
-    nombre,
-    usuario,
-    telefono:document.getElementById("telefono").value,
-    email:document.getElementById("email").value,
-    rol:document.getElementById("rol").value,
-    estado:document.getElementById("estado").value
-  });
+  if(error){
+    alert("Error al guardar");
+    console.error(error);
+    return;
+  }
 
-  saveUsuarios(lista);
   ZX_usuarios();
 };
 
 // ===============================
 // EDITAR
 // ===============================
-window.ZX_editarUsuario=function(id){
+window.ZX_editarUsuario=async function(id){
 
-  const lista=getUsuarios();
-  const u=lista.find(x=>x.id===id);
+  const { data } = await supabase
+    .from("usuarios")
+    .select("*")
+    .eq("id",id)
+    .single();
 
-  if(!u) return;
+  const u=data;
 
   app().innerHTML=`
     <div class="zx_card">
@@ -199,42 +183,28 @@ window.ZX_editarUsuario=function(id){
   `;
 };
 
-window.guardarEdit=function(id){
+window.guardarEdit=async function(id){
 
-  const lista=getUsuarios();
-  const i=lista.findIndex(x=>x.id===id);
+  const { error } = await supabase
+    .from("usuarios")
+    .update({
+      nombre:document.getElementById("nombre").value,
+      usuario:document.getElementById("usuario").value,
+      telefono:document.getElementById("telefono").value,
+      email:document.getElementById("email").value,
+      rol:document.getElementById("rol").value,
+      estado:document.getElementById("estado").value
+    })
+    .eq("id",id);
 
-  if(i===-1) return;
+  if(error){
+    alert("Error al actualizar");
+    console.error(error);
+    return;
+  }
 
-  lista[i]={
-    ...lista[i],
-    nombre:document.getElementById("nombre").value,
-    usuario:document.getElementById("usuario").value,
-    telefono:document.getElementById("telefono").value,
-    email:document.getElementById("email").value,
-    rol:document.getElementById("rol").value,
-    estado:document.getElementById("estado").value
-  };
-
-  saveUsuarios(lista);
   ZX_usuarios();
 };
-
-// ===============================
-// ESTILOS INPUT (importante)
-// ===============================
-const style=document.createElement("style");
-style.innerHTML=`
-.zx_input{
-  width:100%;
-  padding:14px;
-  margin-top:10px;
-  border-radius:14px;
-  border:1px solid #d1d5db;
-  font-size:16px;
-}
-`;
-document.head.appendChild(style);
 
 // ===============================
 window.ZENTRYX_UI_usuarios=render;
