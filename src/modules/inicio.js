@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - INICIO
-// V2655
+// V2661
 // ===============================
 (function(){
 "use strict";
@@ -33,7 +33,7 @@ window.ZENTRYX_UI_inicio=function(){
     <div class="zx_card">
       <h2>Estado sistema</h2>
       <div class="zx_text">
-        <b>Versión:</b> V2655<br><br>
+        <b>Versión:</b> V2661<br><br>
         Diseño limpio para móvil, tablet y PC.<br><br>
         Preparado para servidor local de empresa o servidor externo.<br><br>
         Módulos activos: Inicio y Usuarios.
