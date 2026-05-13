@@ -3,29 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2650</title>
-
-<meta name="robots" content="noindex,nofollow">
-<meta name="theme-color" content="#071330">
+<title>Zentryx PRO V2652</title>
 
 <script>
-const ZX_VERSION="2650";
+const ZX_VERSION="2652";
 
 function checkLogin(){
   const session=localStorage.getItem("zentryx_session");
 
   if(!session){
-    window.location.replace("index.html?v="+ZX_VERSION);
+    location.replace("index.html?v="+ZX_VERSION);
     return false;
   }
 
   try{
     JSON.parse(session);
     return true;
-  }catch(e){
+  }catch{
     localStorage.removeItem("zentryx_session");
-    localStorage.removeItem("usuario");
-    window.location.replace("index.html?v="+ZX_VERSION);
+    location.replace("index.html?v="+ZX_VERSION);
     return false;
   }
 }
@@ -41,8 +37,6 @@ checkLogin();
 html,body{
   background:#eef2f7;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-  color:#0f172a;
-  overflow-x:hidden;
 }
 
 #app{width:100%}
@@ -53,36 +47,23 @@ html,body{
 
 <div id="app"></div>
 
-<script src="src/app.js?v=2650"></script>
-<script src="src/ui/layout.js?v=2650"></script>
-
-<script src="src/modules/inicio.js?v=2650"></script>
-<script src="src/modules/fichajes.js?v=2650"></script>
-<script src="src/modules/vehiculos.js?v=2650"></script>
-<script src="src/modules/usuarios.js?v=2650"></script>
-<script src="src/modules/configuracion.js?v=2650"></script>
+<script src="src/ui/layout.js?v=2652"></script>
+<script src="src/modules/inicio.js?v=2652"></script>
 
 <script>
-(function(){
-  function iniciar(){
-    if(!checkLogin()) return;
+document.addEventListener("DOMContentLoaded",function(){
 
-    if(window.ZENTRYX_UI_LAYOUT && window.ZENTRYX_UI_LAYOUT.iniciar){
-      window.ZENTRYX_UI_LAYOUT.iniciar();
-      return;
-    }
+  if(!checkLogin()) return;
 
-    if(window.ZX_inicio){
-      window.ZX_inicio();
-    }
+  if(window.ZENTRYX_UI_LAYOUT){
+    window.ZENTRYX_UI_LAYOUT.iniciar();
   }
 
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",iniciar);
-  }else{
-    iniciar();
+  if(window.ZX_inicio){
+    window.ZX_inicio();
   }
-})();
+
+});
 </script>
 
 </body>
