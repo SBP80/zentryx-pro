@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS SUPABASE
-// V2665
+// V2666
 // ===============================
 (function(){
 "use strict";
@@ -9,7 +9,7 @@ function app(){
   return document.getElementById("app");
 }
 
-function cliente(){
+function sb(){
   return window.sb || window.supabaseClient || null;
 }
 
@@ -22,32 +22,31 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
-function errorPantalla(txt){
-  if(!app()) return;
-
+function error(txt){
   app().innerHTML=`
     <div class="zx_card">
-      <h2>Error usuarios</h2>
+      <h2>Error</h2>
       <div class="zx_text">${limpiar(txt)}</div>
+      <button class="zx_btn_big zx_gris" onclick="ZX_usuarios()">Volver</button>
     </div>
   `;
 }
 
 async function cargarUsuarios(){
-  const sb=cliente();
+  const cliente=sb();
 
-  if(!sb){
-    errorPantalla("Supabase no está conectado.");
+  if(!cliente){
+    error("Supabase no conectado.");
     return [];
   }
 
-  const res=await sb
+  const res=await cliente
     .from("usuarios")
-    .select("*")
+    .select("id,nombre,usuario,telefono,email,rol,estado")
     .order("id",{ascending:true});
 
   if(res.error){
-    errorPantalla(res.error.message);
+    error(res.error.message);
     return [];
   }
 
@@ -55,27 +54,17 @@ async function cargarUsuarios(){
 }
 
 window.ZENTRYX_UI_usuarios=async function(){
-  if(!app()) return;
-
-  app().innerHTML=`
-    <div class="zx_card">
-      <h2>Usuarios</h2>
-      <div class="zx_text">Cargando usuarios...</div>
-    </div>
-  `;
-
   const usuarios=await cargarUsuarios();
 
   app().innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
       <div class="zx_text">Gestión completa de usuarios.</div>
-      <button class="zx_btn_big zx_verde" type="button" onclick="ZX_USER_CREAR()">Crear usuario</button>
+      <button class="zx_btn_big zx_verde" onclick="ZX_USER_CREAR()">Crear usuario</button>
     </div>
 
     <div class="zx_card">
       <h2>Listado</h2>
-
       ${
         usuarios.length
         ? usuarios.map(u=>`
@@ -83,6 +72,7 @@ window.ZENTRYX_UI_usuarios=async function(){
             <div class="zx_item_titulo">${limpiar(u.nombre || "-")}</div>
 
             <div class="zx_item_texto">
+              <b>ID:</b> ${limpiar(u.id)}<br>
               <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
               <b>Teléfono:</b> ${u.telefono ? `<a href="tel:${limpiar(u.telefono)}">${limpiar(u.telefono)}</a>` : "-"}<br>
               <b>Email:</b> ${u.email ? `<a href="mailto:${limpiar(u.email)}">${limpiar(u.email)}</a>` : "-"}<br>
@@ -90,10 +80,10 @@ window.ZENTRYX_UI_usuarios=async function(){
               <b>Estado:</b> ${limpiar(u.estado || "-")}
             </div>
 
-            <button class="zx_btn_big zx_azul" type="button" onclick="ZX_USER_EDITAR(${u.id})">Editar</button>
+            <button class="zx_btn_big zx_azul" onclick="ZX_USER_EDITAR(${u.id})">Editar</button>
           </div>
         `).join("")
-        : `<div class="zx_text">No hay usuarios en Supabase.</div>`
+        : `<div class="zx_text">No hay usuarios.</div>`
       }
     </div>
   `;
@@ -125,14 +115,14 @@ window.ZX_USER_CREAR=function(){
         <option>Inactivo</option>
       </select>
 
-      <button class="zx_btn_big zx_verde" type="button" onclick="ZX_USER_GUARDAR()">Guardar</button>
-      <button class="zx_btn_big zx_gris" type="button" onclick="ZX_usuarios()">Cancelar</button>
+      <button class="zx_btn_big zx_verde" onclick="ZX_USER_GUARDAR()">Guardar</button>
+      <button class="zx_btn_big zx_gris" onclick="ZX_usuarios()">Cancelar</button>
     </div>
   `;
 };
 
 window.ZX_USER_GUARDAR=async function(){
-  const sb=cliente();
+  const cliente=sb();
 
   const nombre=document.getElementById("u_nombre").value.trim();
   const usuario=document.getElementById("u_usuario").value.trim();
@@ -142,11 +132,11 @@ window.ZX_USER_GUARDAR=async function(){
     return;
   }
 
-  const res=await sb
+  const res=await cliente
     .from("usuarios")
     .insert([{
-      nombre:nombre,
-      usuario:usuario,
+      nombre,
+      usuario,
       telefono:document.getElementById("u_telefono").value.trim(),
       email:document.getElementById("u_email").value.trim(),
       rol:document.getElementById("u_rol").value,
@@ -162,16 +152,21 @@ window.ZX_USER_GUARDAR=async function(){
 };
 
 window.ZX_USER_EDITAR=async function(id){
-  const sb=cliente();
+  const cliente=sb();
 
-  const res=await sb
+  const res=await cliente
     .from("usuarios")
-    .select("*")
+    .select("id,nombre,usuario,telefono,email,rol,estado")
     .eq("id",id)
     .maybeSingle();
 
-  if(res.error || !res.data){
-    errorPantalla(res.error ? res.error.message : "Usuario no encontrado.");
+  if(res.error){
+    error("Error cargando usuario: "+res.error.message);
+    return;
+  }
+
+  if(!res.data){
+    error("Usuario no encontrado.");
     return;
   }
 
@@ -181,10 +176,10 @@ window.ZX_USER_EDITAR=async function(id){
     <div class="zx_card">
       <h2>Editar usuario</h2>
 
-      <input id="u_nombre" value="${limpiar(u.nombre)}">
-      <input id="u_usuario" value="${limpiar(u.usuario)}">
-      <input id="u_telefono" value="${limpiar(u.telefono)}">
-      <input id="u_email" value="${limpiar(u.email)}">
+      <input id="u_nombre" value="${limpiar(u.nombre)}" placeholder="Nombre completo">
+      <input id="u_usuario" value="${limpiar(u.usuario)}" placeholder="Usuario">
+      <input id="u_telefono" value="${limpiar(u.telefono)}" placeholder="Teléfono">
+      <input id="u_email" value="${limpiar(u.email)}" placeholder="Email">
 
       <select id="u_rol">
         <option ${u.rol==="Administrador" ? "selected" : ""}>Administrador</option>
@@ -198,20 +193,28 @@ window.ZX_USER_EDITAR=async function(id){
         <option ${u.estado==="Inactivo" ? "selected" : ""}>Inactivo</option>
       </select>
 
-      <button class="zx_btn_big zx_azul" type="button" onclick="ZX_USER_ACTUALIZAR(${id})">Guardar cambios</button>
-      <button class="zx_btn_big zx_gris" type="button" onclick="ZX_usuarios()">Volver</button>
+      <button class="zx_btn_big zx_azul" onclick="ZX_USER_ACTUALIZAR(${u.id})">Guardar cambios</button>
+      <button class="zx_btn_big zx_gris" onclick="ZX_usuarios()">Volver</button>
     </div>
   `;
 };
 
 window.ZX_USER_ACTUALIZAR=async function(id){
-  const sb=cliente();
+  const cliente=sb();
 
-  const res=await sb
+  const nombre=document.getElementById("u_nombre").value.trim();
+  const usuario=document.getElementById("u_usuario").value.trim();
+
+  if(!nombre || !usuario){
+    alert("Nombre y usuario son obligatorios.");
+    return;
+  }
+
+  const res=await cliente
     .from("usuarios")
     .update({
-      nombre:document.getElementById("u_nombre").value.trim(),
-      usuario:document.getElementById("u_usuario").value.trim(),
+      nombre,
+      usuario,
       telefono:document.getElementById("u_telefono").value.trim(),
       email:document.getElementById("u_email").value.trim(),
       rol:document.getElementById("u_rol").value,
