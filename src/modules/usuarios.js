@@ -1,17 +1,12 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS SUPABASE
-// V2667
+// V2668
 // ===============================
 (function(){
 "use strict";
 
-function app(){
-  return document.getElementById("app");
-}
-
-function sb(){
-  return window.sb || window.supabaseClient || null;
-}
+function app(){return document.getElementById("app")}
+function sb(){return window.sb || window.supabaseClient || null}
 
 function limpiar(v){
   return String(v ?? "")
@@ -30,15 +25,11 @@ function pintarError(txt){
       <button id="btn_volver_error" class="zx_btn_big zx_gris">Volver</button>
     </div>
   `;
-
-  document.getElementById("btn_volver_error").onclick=function(){
-    ZX_usuarios();
-  };
+  document.getElementById("btn_volver_error").onclick=()=>ZX_usuarios();
 }
 
 async function cargarUsuarios(){
   const cliente=sb();
-
   if(!cliente){
     pintarError("Supabase no conectado.");
     return [];
@@ -84,7 +75,6 @@ window.ZENTRYX_UI_usuarios=async function(){
         ? usuarios.map(u=>`
           <div class="zx_item">
             <div class="zx_item_titulo">${limpiar(u.nombre || "-")}</div>
-
             <div class="zx_item_texto">
               <b>ID:</b> ${limpiar(u.id)}<br>
               <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
@@ -94,9 +84,8 @@ window.ZENTRYX_UI_usuarios=async function(){
               <b>Estado:</b> ${limpiar(u.estado || "-")}
             </div>
 
-            <button class="zx_btn_big zx_azul btn_editar_usuario" data-id="${limpiar(u.id)}">
-              Editar
-            </button>
+            <button class="zx_btn_big zx_azul btn_editar_usuario" data-id="${limpiar(u.id)}">Editar</button>
+            <button class="zx_btn_big zx_rojo btn_eliminar_usuario" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Eliminar</button>
           </div>
         `).join("")
         : `<div class="zx_text">No hay usuarios.</div>`
@@ -104,15 +93,17 @@ window.ZENTRYX_UI_usuarios=async function(){
     </div>
   `;
 
-  document.getElementById("btn_crear_usuario").onclick=function(){
-    ZX_USER_CREAR();
-  };
+  document.getElementById("btn_crear_usuario").onclick=()=>ZX_USER_CREAR();
 
-  document.querySelectorAll(".btn_editar_usuario").forEach(function(btn){
-    btn.onclick=function(){
-      const id=btn.getAttribute("data-id");
-      ZX_USER_EDITAR(id);
-    };
+  document.querySelectorAll(".btn_editar_usuario").forEach(btn=>{
+    btn.onclick=()=>ZX_USER_EDITAR(btn.getAttribute("data-id"));
+  });
+
+  document.querySelectorAll(".btn_eliminar_usuario").forEach(btn=>{
+    btn.onclick=()=>ZX_USER_ELIMINAR(
+      btn.getAttribute("data-id"),
+      btn.getAttribute("data-nombre")
+    );
   });
 };
 
@@ -147,13 +138,8 @@ window.ZX_USER_CREAR=function(){
     </div>
   `;
 
-  document.getElementById("btn_guardar_usuario").onclick=function(){
-    ZX_USER_GUARDAR();
-  };
-
-  document.getElementById("btn_cancelar_usuario").onclick=function(){
-    ZX_usuarios();
-  };
+  document.getElementById("btn_guardar_usuario").onclick=()=>ZX_USER_GUARDAR();
+  document.getElementById("btn_cancelar_usuario").onclick=()=>ZX_usuarios();
 };
 
 window.ZX_USER_GUARDAR=async function(){
@@ -167,11 +153,22 @@ window.ZX_USER_GUARDAR=async function(){
     return;
   }
 
+  const {data:existente}=await cliente
+    .from("usuarios")
+    .select("id")
+    .eq("usuario",usuario)
+    .maybeSingle();
+
+  if(existente){
+    alert("Ese usuario ya existe.");
+    return;
+  }
+
   const {error}=await cliente
     .from("usuarios")
     .insert([{
-      nombre:nombre,
-      usuario:usuario,
+      nombre,
+      usuario,
       telefono:document.getElementById("u_telefono").value.trim(),
       email:document.getElementById("u_email").value.trim(),
       rol:document.getElementById("u_rol").value,
@@ -233,13 +230,8 @@ window.ZX_USER_EDITAR=async function(id){
     </div>
   `;
 
-  document.getElementById("btn_actualizar_usuario").onclick=function(){
-    ZX_USER_ACTUALIZAR(id);
-  };
-
-  document.getElementById("btn_volver_usuario").onclick=function(){
-    ZX_usuarios();
-  };
+  document.getElementById("btn_actualizar_usuario").onclick=()=>ZX_USER_ACTUALIZAR(id);
+  document.getElementById("btn_volver_usuario").onclick=()=>ZX_usuarios();
 };
 
 window.ZX_USER_ACTUALIZAR=async function(id){
@@ -253,11 +245,23 @@ window.ZX_USER_ACTUALIZAR=async function(id){
     return;
   }
 
+  const {data:duplicado}=await cliente
+    .from("usuarios")
+    .select("id")
+    .eq("usuario",usuario)
+    .neq("id",id)
+    .maybeSingle();
+
+  if(duplicado){
+    alert("Ese usuario ya existe.");
+    return;
+  }
+
   const {error}=await cliente
     .from("usuarios")
     .update({
-      nombre:nombre,
-      usuario:usuario,
+      nombre,
+      usuario,
       telefono:document.getElementById("u_telefono").value.trim(),
       email:document.getElementById("u_email").value.trim(),
       rol:document.getElementById("u_rol").value,
@@ -267,6 +271,26 @@ window.ZX_USER_ACTUALIZAR=async function(id){
 
   if(error){
     alert("Error al actualizar: "+error.message);
+    return;
+  }
+
+  ZX_usuarios();
+};
+
+window.ZX_USER_ELIMINAR=async function(id,nombre){
+  const confirmar=confirm("¿Eliminar usuario: "+nombre+"?\n\nEsta acción no se puede deshacer.");
+
+  if(!confirmar) return;
+
+  const cliente=sb();
+
+  const {error}=await cliente
+    .from("usuarios")
+    .delete()
+    .eq("id",id);
+
+  if(error){
+    alert("Error al eliminar: "+error.message);
     return;
   }
 
