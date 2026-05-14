@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS SUPABASE
-// V2666
+// V2667
 // ===============================
 (function(){
 "use strict";
@@ -22,45 +22,59 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
-function error(txt){
+function pintarError(txt){
   app().innerHTML=`
     <div class="zx_card">
       <h2>Error</h2>
       <div class="zx_text">${limpiar(txt)}</div>
-      <button class="zx_btn_big zx_gris" onclick="ZX_usuarios()">Volver</button>
+      <button id="btn_volver_error" class="zx_btn_big zx_gris">Volver</button>
     </div>
   `;
+
+  document.getElementById("btn_volver_error").onclick=function(){
+    ZX_usuarios();
+  };
 }
 
 async function cargarUsuarios(){
   const cliente=sb();
 
   if(!cliente){
-    error("Supabase no conectado.");
+    pintarError("Supabase no conectado.");
     return [];
   }
 
-  const res=await cliente
+  const {data,error}=await cliente
     .from("usuarios")
     .select("id,nombre,usuario,telefono,email,rol,estado")
     .order("id",{ascending:true});
 
-  if(res.error){
-    error(res.error.message);
+  if(error){
+    pintarError(error.message);
     return [];
   }
 
-  return res.data || [];
+  return data || [];
 }
 
 window.ZENTRYX_UI_usuarios=async function(){
+  const root=app();
+  if(!root) return;
+
+  root.innerHTML=`
+    <div class="zx_card">
+      <h2>Usuarios</h2>
+      <div class="zx_text">Cargando usuarios...</div>
+    </div>
+  `;
+
   const usuarios=await cargarUsuarios();
 
-  app().innerHTML=`
+  root.innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
       <div class="zx_text">Gestión completa de usuarios.</div>
-      <button class="zx_btn_big zx_verde" onclick="ZX_USER_CREAR()">Crear usuario</button>
+      <button id="btn_crear_usuario" class="zx_btn_big zx_verde">Crear usuario</button>
     </div>
 
     <div class="zx_card">
@@ -80,13 +94,26 @@ window.ZENTRYX_UI_usuarios=async function(){
               <b>Estado:</b> ${limpiar(u.estado || "-")}
             </div>
 
-            <button class="zx_btn_big zx_azul" onclick="ZX_USER_EDITAR(${u.id})">Editar</button>
+            <button class="zx_btn_big zx_azul btn_editar_usuario" data-id="${limpiar(u.id)}">
+              Editar
+            </button>
           </div>
         `).join("")
         : `<div class="zx_text">No hay usuarios.</div>`
       }
     </div>
   `;
+
+  document.getElementById("btn_crear_usuario").onclick=function(){
+    ZX_USER_CREAR();
+  };
+
+  document.querySelectorAll(".btn_editar_usuario").forEach(function(btn){
+    btn.onclick=function(){
+      const id=btn.getAttribute("data-id");
+      ZX_USER_EDITAR(id);
+    };
+  });
 };
 
 window.ZX_usuarios=function(){
@@ -115,10 +142,18 @@ window.ZX_USER_CREAR=function(){
         <option>Inactivo</option>
       </select>
 
-      <button class="zx_btn_big zx_verde" onclick="ZX_USER_GUARDAR()">Guardar</button>
-      <button class="zx_btn_big zx_gris" onclick="ZX_usuarios()">Cancelar</button>
+      <button id="btn_guardar_usuario" class="zx_btn_big zx_verde">Guardar</button>
+      <button id="btn_cancelar_usuario" class="zx_btn_big zx_gris">Cancelar</button>
     </div>
   `;
+
+  document.getElementById("btn_guardar_usuario").onclick=function(){
+    ZX_USER_GUARDAR();
+  };
+
+  document.getElementById("btn_cancelar_usuario").onclick=function(){
+    ZX_usuarios();
+  };
 };
 
 window.ZX_USER_GUARDAR=async function(){
@@ -132,19 +167,19 @@ window.ZX_USER_GUARDAR=async function(){
     return;
   }
 
-  const res=await cliente
+  const {error}=await cliente
     .from("usuarios")
     .insert([{
-      nombre,
-      usuario,
+      nombre:nombre,
+      usuario:usuario,
       telefono:document.getElementById("u_telefono").value.trim(),
       email:document.getElementById("u_email").value.trim(),
       rol:document.getElementById("u_rol").value,
       estado:document.getElementById("u_estado").value
     }]);
 
-  if(res.error){
-    alert("Error al guardar: "+res.error.message);
+  if(error){
+    alert("Error al guardar: "+error.message);
     return;
   }
 
@@ -154,23 +189,23 @@ window.ZX_USER_GUARDAR=async function(){
 window.ZX_USER_EDITAR=async function(id){
   const cliente=sb();
 
-  const res=await cliente
+  const {data,error}=await cliente
     .from("usuarios")
     .select("id,nombre,usuario,telefono,email,rol,estado")
     .eq("id",id)
     .maybeSingle();
 
-  if(res.error){
-    error("Error cargando usuario: "+res.error.message);
+  if(error){
+    pintarError("Error cargando usuario: "+error.message);
     return;
   }
 
-  if(!res.data){
-    error("Usuario no encontrado.");
+  if(!data){
+    pintarError("Usuario no encontrado.");
     return;
   }
 
-  const u=res.data;
+  const u=data;
 
   app().innerHTML=`
     <div class="zx_card">
@@ -193,10 +228,18 @@ window.ZX_USER_EDITAR=async function(id){
         <option ${u.estado==="Inactivo" ? "selected" : ""}>Inactivo</option>
       </select>
 
-      <button class="zx_btn_big zx_azul" onclick="ZX_USER_ACTUALIZAR(${u.id})">Guardar cambios</button>
-      <button class="zx_btn_big zx_gris" onclick="ZX_usuarios()">Volver</button>
+      <button id="btn_actualizar_usuario" class="zx_btn_big zx_azul">Guardar cambios</button>
+      <button id="btn_volver_usuario" class="zx_btn_big zx_gris">Volver</button>
     </div>
   `;
+
+  document.getElementById("btn_actualizar_usuario").onclick=function(){
+    ZX_USER_ACTUALIZAR(id);
+  };
+
+  document.getElementById("btn_volver_usuario").onclick=function(){
+    ZX_usuarios();
+  };
 };
 
 window.ZX_USER_ACTUALIZAR=async function(id){
@@ -210,11 +253,11 @@ window.ZX_USER_ACTUALIZAR=async function(id){
     return;
   }
 
-  const res=await cliente
+  const {error}=await cliente
     .from("usuarios")
     .update({
-      nombre,
-      usuario,
+      nombre:nombre,
+      usuario:usuario,
       telefono:document.getElementById("u_telefono").value.trim(),
       email:document.getElementById("u_email").value.trim(),
       rol:document.getElementById("u_rol").value,
@@ -222,8 +265,8 @@ window.ZX_USER_ACTUALIZAR=async function(id){
     })
     .eq("id",id);
 
-  if(res.error){
-    alert("Error al actualizar: "+res.error.message);
+  if(error){
+    alert("Error al actualizar: "+error.message);
     return;
   }
 
