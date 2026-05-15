@@ -1,615 +1,199 @@
 // ===============================
-// ZENTRYX PRO - USUARIOS PRO
-// V2675
+// ZENTRYX PRO - USUARIOS COMPLETO
 // ===============================
 (function(){
 "use strict";
 
-function app(){return document.getElementById("app")}
-function sb(){return window.sb || window.supabaseClient}
-
-function limpiar(v){
-  return String(v ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+function app(){
+  return document.getElementById("app");
 }
 
-function sesionActual(){
-  try{
-    return JSON.parse(localStorage.getItem("zentryx_session") || "{}");
-  }catch(e){
-    return {};
-  }
+function sb(){
+  return window.sb || window.supabaseClient || null;
 }
 
-function esAdmin(){
-  const s=sesionActual();
-  return String(s.rol || "").toLowerCase()==="administrador";
-}
-
-function direccionCompleta(u){
-  return [
-    u.via_tipo,
-    u.calle,
-    u.numero ? "Nº "+u.numero : "",
-    u.portal ? "Portal "+u.portal : "",
-    u.escalera ? "Esc. "+u.escalera : "",
-    u.piso ? "Piso "+u.piso : "",
-    u.puerta ? "Puerta "+u.puerta : "",
-    u.poblacion,
-    u.provincia,
-    u.codigo_postal,
-    u.pais
-  ].filter(Boolean).join(", ");
-}
-
-function avatar(u){
-  if(u.foto_url){
-    return `<img src="${limpiar(u.foto_url)}" class="zx_user_avatar">`;
-  }
-
-  return `
-    <div class="zx_user_avatar zx_user_avatar_empty">
-      ${limpiar((u.nombre || "?").charAt(0))}
-    </div>
-  `;
-}
-
-function pintarError(txt){
-  app().innerHTML=`
-    <div class="zx_card">
-      <h2>Error</h2>
-      <div class="zx_text">${limpiar(txt)}</div>
-      <button class="zx_btn_big zx_gris" id="btn_error_volver">Volver</button>
-    </div>
-  `;
-
-  document.getElementById("btn_error_volver").onclick=function(){
-    ZX_usuarios();
-  };
-}
-
-function cerrarModal(){
-  const m=document.getElementById("zx_modal");
-  if(m) m.remove();
-}
-
-function modal(titulo,botones){
-  cerrarModal();
-
-  document.body.insertAdjacentHTML("beforeend",`
-    <div id="zx_modal" class="zx_modal_fondo">
-      <div class="zx_modal_caja">
-        <h2>${limpiar(titulo)}</h2>
-        ${botones}
-        <button class="zx_btn_big zx_gris" id="zx_modal_cancelar">Cancelar</button>
-      </div>
-    </div>
-  `);
-
-  document.getElementById("zx_modal_cancelar").onclick=cerrarModal;
-}
-
-window.ZX_MENU_TELEFONO=function(tel){
-  const numero=String(tel || "").replace(/\s+/g,"");
-
-  modal("Teléfono",`
-    <button class="zx_btn_big zx_azul" id="zx_tel_llamar">Llamar</button>
-    <button class="zx_btn_big zx_verde" id="zx_tel_sms">SMS</button>
-    <button class="zx_btn_big zx_verde" id="zx_tel_whatsapp">WhatsApp</button>
-  `);
-
-  document.getElementById("zx_tel_llamar").onclick=function(){
-    location.href="tel:"+numero;
-  };
-
-  document.getElementById("zx_tel_sms").onclick=function(){
-    location.href="sms:"+numero;
-  };
-
-  document.getElementById("zx_tel_whatsapp").onclick=function(){
-    window.open("https://wa.me/"+numero,"_blank");
-  };
-};
-
-window.ZX_MENU_MAPA=function(dir){
-  const q=encodeURIComponent(dir);
-
-  modal("Abrir mapa",`
-    <button class="zx_btn_big zx_azul" id="zx_map_apple">Apple Maps</button>
-    <button class="zx_btn_big zx_verde" id="zx_map_google">Google Maps</button>
-    <button class="zx_btn_big zx_naranja" id="zx_map_waze">Waze</button>
-  `);
-
-  document.getElementById("zx_map_apple").onclick=function(){
-    window.open("https://maps.apple.com/?q="+q,"_blank");
-  };
-
-  document.getElementById("zx_map_google").onclick=function(){
-    window.open("https://www.google.com/maps/search/?api=1&query="+q,"_blank");
-  };
-
-  document.getElementById("zx_map_waze").onclick=function(){
-    window.open("https://waze.com/ul?q="+q,"_blank");
-  };
-};
-
-async function cargarUsuarios(){
-  const cliente=sb();
-
-  if(!cliente){
-    pintarError("Supabase no conectado.");
-    return [];
-  }
-
-  const res=await cliente
-    .from("usuarios")
-    .select(`
-      id,nombre,usuario,telefono,email,rol,estado,foto_url,dni,
-      via_tipo,calle,numero,portal,escalera,piso,puerta,
-      poblacion,provincia,codigo_postal,pais,
-      acceso_estado,debe_crear_password,password_restaurada_at,updated_at
-    `)
-    .order("id",{ascending:true});
-
-  if(res.error){
-    pintarError(res.error.message);
-    return [];
-  }
-
-  return res.data || [];
-}
-
-window.ZENTRYX_UI_usuarios=async function(){
-  const usuarios=await cargarUsuarios();
+// ===============================
+// UI PRINCIPAL
+// ===============================
+window.ZENTRYX_UI_usuarios=function(){
 
   app().innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
-      <div class="zx_text">Gestión de usuarios, datos, contacto, dirección y acceso.</div>
-      <button class="zx_btn_big zx_verde" id="btn_crear_usuario">Crear usuario</button>
+      <button class="zx_btn_big zx_verde" onclick="crearUsuario()">Crear usuario</button>
     </div>
 
     <div class="zx_card">
       <h2>Listado</h2>
-
-      ${
-        usuarios.length
-        ? usuarios.map(function(u){
-          const dir=direccionCompleta(u);
-          const estadoAcceso=u.acceso_estado || (u.debe_crear_password ? "pendiente" : "activo");
-
-          return `
-            <div class="zx_item">
-              ${avatar(u)}
-
-              <div class="zx_item_titulo">${limpiar(u.nombre || "-")}</div>
-
-              <div class="zx_item_texto">
-                <b>ID:</b> ${limpiar(u.id)}<br>
-                <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
-                <b>DNI:</b> ${limpiar(u.dni || "-")}<br>
-                <b>Teléfono:</b> ${limpiar(u.telefono || "-")}<br>
-                <b>Email:</b> ${u.email ? `<a href="mailto:${limpiar(u.email)}">${limpiar(u.email)}</a>` : "-"}<br>
-                <b>Dirección:</b> ${limpiar(dir || "-")}<br>
-                <b>Rol:</b> ${limpiar(u.rol || "-")}<br>
-                <b>Estado:</b> ${limpiar(u.estado || "-")}<br>
-                <b>Acceso:</b> ${limpiar(estadoAcceso)}
-              </div>
-
-              ${u.telefono ? `<button class="zx_btn_big zx_gris btn_tel" data-tel="${limpiar(u.telefono)}">Teléfono</button>` : ""}
-              ${dir ? `<button class="zx_btn_big zx_gris btn_mapa" data-dir="${limpiar(dir)}">Mapa</button>` : ""}
-
-              <button class="zx_btn_big zx_azul btn_editar" data-id="${limpiar(u.id)}">Editar</button>
-
-              ${
-                esAdmin()
-                ? `<button class="zx_btn_big zx_naranja btn_reset_password" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Restaurar contraseña</button>`
-                : ""
-              }
-
-              <button class="zx_btn_big zx_rojo btn_eliminar" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}" data-usuario="${limpiar(u.usuario || "")}">Eliminar</button>
-            </div>
-          `;
-        }).join("")
-        : `<div class="zx_text">No hay usuarios.</div>`
-      }
+      <div id="listaUsuarios"></div>
     </div>
   `;
 
-  document.getElementById("btn_crear_usuario").onclick=function(){
-    ZX_USER_CREAR();
-  };
-
-  document.querySelectorAll(".btn_editar").forEach(function(btn){
-    btn.onclick=function(){
-      ZX_USER_EDITAR(btn.dataset.id);
-    };
-  });
-
-  document.querySelectorAll(".btn_eliminar").forEach(function(btn){
-    btn.onclick=function(){
-      ZX_USER_ELIMINAR(btn.dataset.id,btn.dataset.nombre,btn.dataset.usuario);
-    };
-  });
-
-  document.querySelectorAll(".btn_tel").forEach(function(btn){
-    btn.onclick=function(){
-      ZX_MENU_TELEFONO(btn.dataset.tel);
-    };
-  });
-
-  document.querySelectorAll(".btn_mapa").forEach(function(btn){
-    btn.onclick=function(){
-      ZX_MENU_MAPA(btn.dataset.dir);
-    };
-  });
-
-  document.querySelectorAll(".btn_reset_password").forEach(function(btn){
-    btn.onclick=function(){
-      ZX_USER_RESTAURAR_PASSWORD(btn.dataset.id,btn.dataset.nombre);
-    };
-  });
+  cargarUsuarios();
 };
 
-window.ZX_usuarios=function(){
-  window.ZENTRYX_UI_usuarios();
-};
+// ===============================
+// CARGAR
+// ===============================
+async function cargarUsuarios(){
 
-function input(id,label,value,type){
-  return `
-    <label class="zx_label" for="${id}">${label}</label>
-    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${label}">
-  `;
+  const {data}=await sb().from("usuarios").select("*").order("id",{ascending:false});
+
+  const cont=document.getElementById("listaUsuarios");
+  cont.innerHTML="";
+
+  data.forEach(u=>{
+    cont.innerHTML+=`
+      <div class="zx_card">
+        <b>${u.nombre || "-"}</b><br>
+        Usuario: ${u.usuario}<br>
+        Teléfono: <span onclick="accionTelefono('${u.telefono||""}')">${u.telefono||"-"}</span><br>
+        Email: ${u.email||"-"}<br>
+        Dirección: <span onclick="accionMapa('${u.direccion||""}')">${u.direccion||"-"}</span><br>
+        Rol: ${u.rol||"-"}<br><br>
+
+        <button onclick="editarUsuario(${u.id})">Editar</button>
+        <button onclick="eliminarUsuario(${u.id})">Eliminar</button>
+        <button onclick="resetPIN(${u.id})">Reset PIN</button>
+      </div>
+    `;
+  });
 }
 
-function selectVia(valor){
-  const opciones=["","Calle","Avenida","Plaza","Camino","Carretera","Paseo","Ronda","Travesía","Urbanización","Polígono"];
-
-  return `
-    <label class="zx_label" for="u_via_tipo">Tipo de vía</label>
-    <select id="u_via_tipo">
-      ${opciones.map(function(o){
-        return `<option value="${limpiar(o)}" ${valor===o ? "selected" : ""}>${o || "Seleccionar"}</option>`;
-      }).join("")}
-    </select>
-  `;
-}
-
-function formulario(u){
-  const esEditar=!!u.id;
+// ===============================
+// CREAR
+// ===============================
+window.crearUsuario=function(){
 
   app().innerHTML=`
     <div class="zx_card">
-      <h2>${esEditar ? "Editar usuario" : "Crear usuario"}</h2>
+      <h2>Crear usuario</h2>
 
-      ${esEditar ? avatar(u) : ""}
+      <input id="nombre" placeholder="Nombre">
+      <input id="usuario" placeholder="Usuario">
+      <input id="telefono" placeholder="Teléfono">
+      <input id="email" placeholder="Email">
+      <input id="direccion" placeholder="Dirección">
 
-      <label class="zx_label" for="u_foto">Foto</label>
-      <input id="u_foto" type="file" accept="image/*">
-
-      ${input("u_nombre","Nombre completo",u.nombre)}
-      ${input("u_usuario","Usuario",u.usuario)}
-      ${input("u_dni","DNI / NIE",u.dni)}
-      ${input("u_telefono","Teléfono",u.telefono,"tel")}
-      ${input("u_email","Email",u.email,"email")}
-
-      <h3 class="zx_form_subtitle">Dirección</h3>
-
-      ${selectVia(u.via_tipo || "")}
-      ${input("u_calle","Calle / nombre de vía",u.calle)}
-      ${input("u_numero","Número",u.numero)}
-      ${input("u_portal","Portal",u.portal)}
-      ${input("u_escalera","Escalera",u.escalera)}
-      ${input("u_piso","Piso",u.piso)}
-      ${input("u_puerta","Puerta",u.puerta)}
-      ${input("u_poblacion","Población",u.poblacion)}
-      ${input("u_provincia","Provincia",u.provincia)}
-      ${input("u_codigo_postal","Código postal",u.codigo_postal)}
-      ${input("u_pais","País",u.pais || "España")}
-
-      <label class="zx_label" for="u_rol">Rol</label>
-      <select id="u_rol">
-        <option ${u.rol==="Administrador" ? "selected" : ""}>Administrador</option>
-        <option ${u.rol==="Encargado" ? "selected" : ""}>Encargado</option>
-        <option ${u.rol==="Operario" ? "selected" : ""}>Operario</option>
-        <option ${u.rol==="Oficina" ? "selected" : ""}>Oficina</option>
+      <select id="rol">
+        <option>Administrador</option>
+        <option>Encargado</option>
+        <option>Operario</option>
       </select>
 
-      <label class="zx_label" for="u_estado">Estado</label>
-      <select id="u_estado">
-        <option ${u.estado==="Activo" ? "selected" : ""}>Activo</option>
-        <option ${u.estado==="Inactivo" ? "selected" : ""}>Inactivo</option>
-      </select>
-
-      <label class="zx_label" for="u_acceso_estado">Estado de acceso</label>
-      <select id="u_acceso_estado">
-        <option value="pendiente" ${u.acceso_estado==="pendiente" ? "selected" : ""}>Pendiente</option>
-        <option value="activo" ${u.acceso_estado==="activo" ? "selected" : ""}>Activo</option>
-        <option value="bloqueado" ${u.acceso_estado==="bloqueado" ? "selected" : ""}>Bloqueado</option>
-      </select>
-
-      <button class="zx_btn_big ${esEditar ? "zx_azul" : "zx_verde"}" id="btn_guardar_usuario">
-        ${esEditar ? "Guardar cambios" : "Guardar"}
-      </button>
-
-      <button class="zx_btn_big zx_gris" id="btn_cancelar_usuario">Cancelar</button>
+      <button onclick="guardarUsuario()">Guardar</button>
+      <button onclick="ZENTRYX_UI_usuarios()">Cancelar</button>
     </div>
   `;
+};
 
-  document.getElementById("btn_guardar_usuario").onclick=function(){
-    ZX_USER_GUARDAR(u.id || null,u.foto_url || null);
-  };
+async function guardarUsuario(){
 
-  document.getElementById("btn_cancelar_usuario").onclick=function(){
-    ZX_usuarios();
-  };
+  await sb().from("usuarios").insert([{
+    nombre:val("nombre"),
+    usuario:val("usuario"),
+    telefono:val("telefono"),
+    email:val("email"),
+    direccion:val("direccion"),
+    rol:val("rol"),
+    debe_crear_pin:true
+  }]);
+
+  ZENTRYX_UI_usuarios();
 }
 
-window.ZX_USER_CREAR=function(){
-  formulario({
-    estado:"Activo",
-    acceso_estado:"pendiente",
-    debe_crear_password:true,
-    pais:"España"
-  });
-};
+// ===============================
+// EDITAR
+// ===============================
+window.editarUsuario=async function(id){
 
-window.ZX_USER_EDITAR=async function(id){
-  const res=await sb()
-    .from("usuarios")
-    .select(`
-      id,nombre,usuario,telefono,email,rol,estado,foto_url,dni,
-      via_tipo,calle,numero,portal,escalera,piso,puerta,
-      poblacion,provincia,codigo_postal,pais,
-      acceso_estado,debe_crear_password,password_restaurada_at,updated_at
-    `)
-    .eq("id",id)
-    .maybeSingle();
+  const {data}=await sb().from("usuarios").select("*").eq("id",id).single();
 
-  if(res.error || !res.data){
-    pintarError(res.error ? res.error.message : "Usuario no encontrado.");
-    return;
-  }
+  app().innerHTML=`
+    <div class="zx_card">
+      <h2>Editar</h2>
 
-  formulario(res.data);
-};
+      <input id="nombre" value="${data.nombre||""}">
+      <input id="usuario" value="${data.usuario||""}">
+      <input id="telefono" value="${data.telefono||""}">
+      <input id="email" value="${data.email||""}">
+      <input id="direccion" value="${data.direccion||""}">
 
-async function subirFoto(file,usuario){
-  if(!file) return null;
-
-  const ext=(file.name.split(".").pop() || "jpg").toLowerCase();
-  const path="usuarios/"+usuario+"_"+Date.now()+"."+ext;
-
-  const res=await sb().storage
-    .from("zentryx-usuarios")
-    .upload(path,file,{upsert:true});
-
-  if(res.error){
-    alert("Error subiendo foto: "+res.error.message);
-    return null;
-  }
-
-  return sb().storage
-    .from("zentryx-usuarios")
-    .getPublicUrl(path).data.publicUrl;
-}
-
-function datosFormulario(foto_url,id){
-  const acceso=document.getElementById("u_acceso_estado").value;
-
-  const datos={
-    nombre:document.getElementById("u_nombre").value.trim(),
-    usuario:document.getElementById("u_usuario").value.trim(),
-    dni:document.getElementById("u_dni").value.trim(),
-    telefono:document.getElementById("u_telefono").value.trim(),
-    email:document.getElementById("u_email").value.trim(),
-
-    via_tipo:document.getElementById("u_via_tipo").value,
-    calle:document.getElementById("u_calle").value.trim(),
-    numero:document.getElementById("u_numero").value.trim(),
-    portal:document.getElementById("u_portal").value.trim(),
-    escalera:document.getElementById("u_escalera").value.trim(),
-    piso:document.getElementById("u_piso").value.trim(),
-    puerta:document.getElementById("u_puerta").value.trim(),
-    poblacion:document.getElementById("u_poblacion").value.trim(),
-    provincia:document.getElementById("u_provincia").value.trim(),
-    codigo_postal:document.getElementById("u_codigo_postal").value.trim(),
-    pais:document.getElementById("u_pais").value.trim(),
-
-    rol:document.getElementById("u_rol").value,
-    estado:document.getElementById("u_estado").value,
-    acceso_estado:acceso,
-    foto_url:foto_url,
-    updated_at:new Date().toISOString()
-  };
-
-  if(!id){
-    datos.password_hash=null;
-    datos.debe_crear_password=true;
-    datos.acceso_estado="pendiente";
-  }
-
-  if(acceso==="pendiente"){
-    datos.debe_crear_password=true;
-  }
-
-  if(acceso==="activo" && id){
-    datos.debe_crear_password=false;
-  }
-
-  return datos;
-}
-
-window.ZX_USER_GUARDAR=async function(id,fotoActual){
-  const usuario=document.getElementById("u_usuario").value.trim();
-  const nombre=document.getElementById("u_nombre").value.trim();
-
-  if(!nombre || !usuario){
-    alert("Nombre y usuario son obligatorios.");
-    return;
-  }
-
-  const dup=await sb()
-    .from("usuarios")
-    .select("id")
-    .eq("usuario",usuario)
-    .maybeSingle();
-
-  if(dup.data && String(dup.data.id)!==String(id || "")){
-    alert("Ese usuario ya existe.");
-    return;
-  }
-
-  const file=document.getElementById("u_foto").files[0] || null;
-  const nuevaFoto=await subirFoto(file,usuario);
-  const datos=datosFormulario(nuevaFoto || fotoActual || null,id);
-
-  let res;
-
-  if(id){
-    res=await sb().from("usuarios").update(datos).eq("id",id);
-  }else{
-    res=await sb().from("usuarios").insert([datos]);
-  }
-
-  if(res.error){
-    alert("Error guardando: "+res.error.message);
-    return;
-  }
-
-  ZX_usuarios();
-};
-
-window.ZX_USER_RESTAURAR_PASSWORD=async function(id,nombre){
-  if(!esAdmin()){
-    alert("Solo el administrador puede restaurar contraseñas.");
-    return;
-  }
-
-  if(!confirm("¿Restaurar contraseña de "+nombre+"?\n\nEl usuario tendrá que crear una nueva al entrar.")){
-    return;
-  }
-
-  const res=await sb()
-    .from("usuarios")
-    .update({
-      password_hash:null,
-      debe_crear_password:true,
-      acceso_estado:"pendiente",
-      password_restaurada_at:new Date().toISOString(),
-      updated_at:new Date().toISOString()
-    })
-    .eq("id",id);
-
-  if(res.error){
-    alert("Error restaurando contraseña: "+res.error.message);
-    return;
-  }
-
-  alert("Contraseña restaurada.");
-  ZX_usuarios();
-};
-
-window.ZX_USER_ELIMINAR=async function(id,nombre,usuario){
-  const s=sesionActual();
-
-  if(String(usuario || "").toLowerCase()==="admin"){
-    alert("No se puede eliminar el administrador principal.");
-    return;
-  }
-
-  if(String(s.id || "")===String(id)){
-    alert("No puedes eliminar tu propio usuario.");
-    return;
-  }
-
-  if(!confirm("¿Eliminar usuario: "+nombre+"?\n\nEsta acción no se puede deshacer.")){
-    return;
-  }
-
-  const res=await sb()
-    .from("usuarios")
-    .delete()
-    .eq("id",id);
-
-  if(res.error){
-    alert("Error eliminando: "+res.error.message);
-    return;
-  }
-
-  ZX_usuarios();
-};
-
-(function estilosUsuarios(){
-  if(document.getElementById("zx_usuarios_styles")) return;
-
-  const s=document.createElement("style");
-  s.id="zx_usuarios_styles";
-  s.innerHTML=`
-    .zx_user_avatar{
-      width:84px;
-      height:84px;
-      border-radius:22px;
-      object-fit:cover;
-      margin-bottom:12px;
-    }
-
-    .zx_user_avatar_empty{
-      background:#e5e7eb;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:34px;
-      font-weight:900;
-      color:#64748b;
-    }
-
-    .zx_label{
-      display:block;
-      margin:18px 0 6px;
-      font-size:15px;
-      font-weight:900;
-      color:#334155;
-    }
-
-    .zx_form_subtitle{
-      margin:26px 0 4px;
-      font-size:24px;
-      font-weight:900;
-      color:#0f172a;
-    }
-
-    .zx_modal_fondo{
-      position:fixed;
-      inset:0;
-      z-index:999999;
-      background:rgba(15,23,42,.65);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:20px;
-    }
-
-    .zx_modal_caja{
-      width:100%;
-      max-width:430px;
-      background:white;
-      border-radius:28px;
-      padding:24px;
-      box-shadow:0 20px 60px rgba(0,0,0,.35);
-    }
-
-    .zx_modal_caja h2{
-      margin:0 0 18px;
-      font-size:32px;
-      font-weight:900;
-    }
+      <button onclick="updateUsuario(${id})">Guardar</button>
+      <button onclick="ZENTRYX_UI_usuarios()">Cancelar</button>
+    </div>
   `;
-  document.head.appendChild(s);
-})();
+};
+
+async function updateUsuario(id){
+
+  await sb().from("usuarios").update({
+    nombre:val("nombre"),
+    usuario:val("usuario"),
+    telefono:val("telefono"),
+    email:val("email"),
+    direccion:val("direccion")
+  }).eq("id",id);
+
+  ZENTRYX_UI_usuarios();
+}
+
+// ===============================
+// ELIMINAR
+// ===============================
+window.eliminarUsuario=async function(id){
+
+  if(!confirm("Eliminar usuario?")) return;
+
+  await sb().from("usuarios").delete().eq("id",id);
+
+  ZENTRYX_UI_usuarios();
+};
+
+// ===============================
+// RESET PIN 🔥
+// ===============================
+window.resetPIN=async function(id){
+
+  if(!confirm("Restablecer PIN del usuario?")) return;
+
+  await sb().from("usuarios").update({
+    pin_hash:null,
+    debe_crear_pin:true
+  }).eq("id",id);
+
+  alert("PIN reseteado");
+
+  ZENTRYX_UI_usuarios();
+};
+
+// ===============================
+// TELÉFONO
+// ===============================
+window.accionTelefono=function(tel){
+
+  const op=prompt("1 Llamar\n2 SMS\n3 WhatsApp");
+
+  if(op=="1") location.href="tel:"+tel;
+  if(op=="2") location.href="sms:"+tel;
+  if(op=="3") location.href="https://wa.me/34"+tel;
+};
+
+// ===============================
+// MAPA
+// ===============================
+window.accionMapa=function(dir){
+
+  const op=prompt("1 Apple Maps\n2 Google Maps\n3 Waze");
+
+  if(op=="1") location.href="http://maps.apple.com/?q="+encodeURIComponent(dir);
+  if(op=="2") location.href="https://www.google.com/maps/search/"+encodeURIComponent(dir);
+  if(op=="3") location.href="https://waze.com/ul?q="+encodeURIComponent(dir);
+};
+
+// ===============================
+function val(id){
+  return document.getElementById(id).value;
+}
 
 })();
