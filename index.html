@@ -2,253 +2,170 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V2675</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zentryx PRO Login</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{box-sizing:border-box}
 body{
   margin:0;
-  min-height:100vh;
-  background:#071330;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  font-family:system-ui;
+  background:#0f172a;
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:24px;
-}
-.card{
-  width:100%;
-  max-width:430px;
-  background:white;
-  border-radius:28px;
-  padding:28px;
-}
-.logo{
-  width:86px;
-  height:86px;
-  border-radius:24px;
-  background:linear-gradient(135deg,#2563eb,#10b981);
+  height:100vh;
   color:white;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:46px;
-  font-weight:900;
-  margin:0 auto 18px;
 }
-h1{
-  text-align:center;
-  font-size:38px;
-  margin:0 0 8px;
+
+.box{
+  width:90%;
+  max-width:400px;
+  background:#1e293b;
+  padding:25px;
+  border-radius:16px;
 }
-p{
-  text-align:center;
-  color:#64748b;
-  font-size:18px;
-  font-weight:800;
-}
+
+h2{margin-bottom:20px}
+
 input{
   width:100%;
-  border:1px solid #d1d5db;
-  border-radius:18px;
-  padding:18px;
-  font-size:20px;
-  margin-top:14px;
+  padding:14px;
+  margin-bottom:15px;
+  border-radius:10px;
+  border:none;
+  font-size:18px;
 }
+
 button{
   width:100%;
-  border:0;
-  border-radius:18px;
-  padding:18px;
-  font-size:22px;
-  font-weight:900;
-  margin-top:18px;
+  padding:15px;
+  border:none;
+  border-radius:12px;
+  font-size:18px;
+  background:#3b82f6;
   color:white;
-  background:#2563eb;
+  font-weight:bold;
 }
-.msg{
-  margin-top:18px;
-  color:#991b1b;
-  font-size:16px;
-  font-weight:800;
+
+.pin{
   text-align:center;
+  font-size:30px;
+  letter-spacing:10px;
 }
 </style>
 </head>
 
 <body>
 
-<div class="card">
-  <div class="logo">Z</div>
-  <h1>Zentryx PRO</h1>
-  <p id="subtitulo">Acceso empresarial</p>
-
-  <input id="usuario" placeholder="Usuario" autocomplete="username">
-  <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
-
-  <input id="password2" type="password" placeholder="Repetir contraseña" style="display:none">
-
-  <button id="btn">Entrar</button>
-
-  <div id="msg" class="msg"></div>
-</div>
+<div class="box" id="app"></div>
 
 <script>
-const ZX_VERSION="2675";
+const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
+const SUPABASE_KEY="TU_KEY_AQUI";
 
-const sb=supabase.createClient(
-  "https://idtaamivqbiuxtjywuux.supabase.co",
-  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let usuarioActual=null;
-let modoCrearPassword=false;
 
-function $(id){return document.getElementById(id)}
-
-async function hashPassword(texto){
-  const data=new TextEncoder().encode(texto);
-  const hash=await crypto.subtle.digest("SHA-256",data);
-  return Array.from(new Uint8Array(hash))
-    .map(b=>b.toString(16).padStart(2,"0"))
-    .join("");
+// ==========================
+// LOGIN USUARIO
+// ==========================
+function pantallaLogin(){
+  app.innerHTML=`
+    <h2>Acceso</h2>
+    <input id="usuario" placeholder="Usuario">
+    <button onclick="login()">Entrar</button>
+  `;
 }
 
-function mensaje(t){
-  $("msg").textContent=t;
-}
+async function login(){
+  const user=document.getElementById("usuario").value;
 
-async function buscarUsuario(usuario){
   const {data,error}=await sb
     .from("usuarios")
     .select("*")
-    .eq("usuario",usuario)
-    .maybeSingle();
+    .eq("usuario",user)
+    .single();
 
-  if(error) throw error;
-  return data;
-}
-
-async function entrar(){
-  mensaje("");
-
-  const usuario=$("usuario").value.trim();
-  const password=$("password").value.trim();
-
-  if(!usuario || !password){
-    mensaje("Introduce usuario y contraseña.");
+  if(error || !data){
+    alert("Usuario no encontrado");
     return;
   }
 
-  const u=await buscarUsuario(usuario);
+  usuarioActual=data;
 
-  if(!u){
-    mensaje("Usuario no encontrado.");
-    return;
-  }
-
-  if(u.estado==="Inactivo" || u.acceso_estado==="bloqueado"){
-    mensaje("Usuario bloqueado o inactivo.");
-    return;
-  }
-
-  if(u.debe_crear_password || !u.password_hash || u.acceso_estado==="pendiente"){
-    usuarioActual=u;
-    modoCrearPassword=true;
-
-    $("subtitulo").textContent="Crear contraseña";
-    $("password").value="";
-    $("password").placeholder="Nueva contraseña";
-    $("password2").style.display="block";
-    $("btn").textContent="Crear contraseña";
-    mensaje("Crea tu contraseña para activar el acceso.");
-    return;
-  }
-
-  const hash=await hashPassword(password);
-
-  if(hash!==u.password_hash){
-    mensaje("Contraseña incorrecta.");
-    return;
-  }
-
-  localStorage.setItem("zentryx_session",JSON.stringify({
-    id:u.id,
-    usuario:u.usuario,
-    nombre:u.nombre,
-    rol:u.rol
-  }));
-
-  localStorage.setItem("usuario",JSON.stringify({
-    id:u.id,
-    usuario:u.usuario,
-    nombre:u.nombre,
-    rol:u.rol
-  }));
-
-  location.href="app.html?v="+ZX_VERSION;
-}
-
-async function crearPassword(){
-  mensaje("");
-
-  const pass1=$("password").value.trim();
-  const pass2=$("password2").value.trim();
-
-  if(pass1.length<4){
-    mensaje("La contraseña debe tener mínimo 4 caracteres.");
-    return;
-  }
-
-  if(pass1!==pass2){
-    mensaje("Las contraseñas no coinciden.");
-    return;
-  }
-
-  const hash=await hashPassword(pass1);
-
-  const {error}=await sb
-    .from("usuarios")
-    .update({
-      password_hash:hash,
-      debe_crear_password:false,
-      acceso_estado:"activo",
-      updated_at:new Date().toISOString()
-    })
-    .eq("id",usuarioActual.id);
-
-  if(error){
-    mensaje("Error guardando contraseña.");
-    return;
-  }
-
-  localStorage.setItem("zentryx_session",JSON.stringify({
-    id:usuarioActual.id,
-    usuario:usuarioActual.usuario,
-    nombre:usuarioActual.nombre,
-    rol:usuarioActual.rol
-  }));
-
-  localStorage.setItem("usuario",JSON.stringify({
-    id:usuarioActual.id,
-    usuario:usuarioActual.usuario,
-    nombre:usuarioActual.nombre,
-    rol:usuarioActual.rol
-  }));
-
-  location.href="app.html?v="+ZX_VERSION;
-}
-
-$("btn").onclick=function(){
-  if(modoCrearPassword){
-    crearPassword();
+  if(data.debe_crear_pin || !data.pin_hash){
+    pantallaCrearPIN();
   }else{
-    entrar();
+    pantallaPIN();
   }
-};
+}
+
+// ==========================
+// CREAR PIN
+// ==========================
+function pantallaCrearPIN(){
+  app.innerHTML=`
+    <h2>Crear PIN</h2>
+    <input id="pin1" class="pin" maxlength="4" placeholder="----">
+    <input id="pin2" class="pin" maxlength="4" placeholder="Repetir PIN">
+    <button onclick="guardarPIN()">Guardar PIN</button>
+  `;
+}
+
+async function guardarPIN(){
+  const p1=document.getElementById("pin1").value;
+  const p2=document.getElementById("pin2").value;
+
+  if(p1.length!==4 || p2.length!==4){
+    alert("PIN debe tener 4 dígitos");
+    return;
+  }
+
+  if(p1!==p2){
+    alert("No coinciden");
+    return;
+  }
+
+  const hash=btoa(p1); // simple (luego se puede mejorar)
+
+  await sb.from("usuarios").update({
+    pin_hash:hash,
+    debe_crear_pin:false
+  }).eq("id",usuarioActual.id);
+
+  pantallaPIN();
+}
+
+// ==========================
+// LOGIN CON PIN
+// ==========================
+function pantallaPIN(){
+  app.innerHTML=`
+    <h2>Introduce PIN</h2>
+    <input id="pin" class="pin" maxlength="4" placeholder="----">
+    <button onclick="entrar()">Entrar</button>
+  `;
+}
+
+function entrar(){
+  const pin=document.getElementById("pin").value;
+  const hash=btoa(pin);
+
+  if(hash!==usuarioActual.pin_hash){
+    alert("PIN incorrecto");
+    return;
+  }
+
+  localStorage.setItem("zentryx_user",JSON.stringify(usuarioActual));
+  location.href="app.html?v=2675";
+}
+
+// ==========================
+const app=document.getElementById("app");
+pantallaLogin();
 </script>
 
 </body>
