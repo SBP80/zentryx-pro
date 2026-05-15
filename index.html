@@ -59,7 +59,10 @@ button{
 
 <div class="box" id="app"></div>
 
-<!-- AQUÍ usamos tu conexión existente -->
+<!-- 1. Cargar Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- 2. Tu core (aquí está la conexión) -->
 <script src="src/app.js?v=2676"></script>
 
 <script>
@@ -82,8 +85,9 @@ function pantallaLogin(){
 
 async function login(){
   const sb=getClient();
+
   if(!sb){
-    alert("Error conexión");
+    alert("Error conexión Supabase");
     return;
   }
 
