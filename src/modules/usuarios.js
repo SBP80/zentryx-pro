@@ -505,4 +505,26 @@ window.ZX_USER_ELIMINAR=async function(id,nombre){
   document.head.appendChild(s);
 })();
 
+window.ZX_USER_RESTAURAR_PASSWORD=async function(id,nombre){
+  if(!confirm("¿Restaurar contraseña de "+nombre+"?\n\nEl usuario tendrá que crear una nueva al entrar.")) return;
+
+  const res=await sb()
+    .from("usuarios")
+    .update({
+      password_hash:null,
+      debe_crear_password:true,
+      acceso_estado:"pendiente",
+      password_restaurada_at:new Date().toISOString(),
+      updated_at:new Date().toISOString()
+    })
+    .eq("id",id);
+
+  if(res.error){
+    alert("Error restaurando contraseña: "+res.error.message);
+    return;
+  }
+
+  alert("Contraseña restaurada.");
+  ZX_usuarios();
+};
 })();
