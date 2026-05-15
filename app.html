@@ -3,43 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V2673</title>
-
-<script>
-const ZX_VERSION="2673";
-function checkLogin(){
-  const s=localStorage.getItem("zentryx_session");
-  if(!s){location.replace("index.html?v="+ZX_VERSION);return false}
-  try{JSON.parse(s);return true}catch(e){
-    localStorage.removeItem("zentryx_session");
-    localStorage.removeItem("usuario");
-    location.replace("index.html?v="+ZX_VERSION);
-    return false;
-  }
-}
-checkLogin();
-</script>
+<title>Zentryx PRO V3014</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
+const ZX_VERSION="3014";
+
 window.sb=supabase.createClient(
   "https://idtaamivqbiuxtjywuux.supabase.co",
   "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
 );
+
 window.supabaseClient=window.sb;
 </script>
+
+<script src="src/core/session.js?v=3014"></script>
 </head>
 
 <body>
 <div id="app"></div>
 
-<script src="src/ui/layout.js?v=2673"></script>
-<script src="src/modules/inicio.js?v=2673"></script>
-<script src="src/modules/usuarios.js?v=2673"></script>
+<script src="src/ui/layout.js?v=3014"></script>
+<script src="src/modules/inicio.js?v=3014"></script>
+<script src="src/modules/usuarios.js?v=3014"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded",function(){
-  if(!checkLogin()) return;
+  if(!window.ZENTRYX_sessionValid || !window.ZENTRYX_sessionValid()){
+    if(window.ZENTRYX_clearSession) window.ZENTRYX_clearSession();
+    location.replace("index.html?v="+ZX_VERSION);
+    return;
+  }
+
   if(window.ZENTRYX_UI_LAYOUT) window.ZENTRYX_UI_LAYOUT.iniciar();
   if(window.ZX_inicio) window.ZX_inicio();
 });
