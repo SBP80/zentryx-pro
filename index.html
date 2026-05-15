@@ -3,15 +3,51 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx PRO Login V3002</title>
+<title>Zentryx PRO Login</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body{margin:0;font-family:system-ui;background:#0f172a;display:flex;align-items:center;justify-content:center;height:100vh;color:white}
-.box{width:90%;max-width:400px;background:#1e293b;padding:25px;border-radius:16px}
-h2{margin-bottom:20px}
-input{width:100%;padding:14px;margin-bottom:15px;border-radius:10px;border:none;font-size:18px}
-button{width:100%;padding:15px;border:none;border-radius:12px;font-size:18px;background:#3b82f6;color:white;font-weight:bold}
-.pin{text-align:center;font-size:30px;letter-spacing:10px}
+body{
+  margin:0;
+  font-family:system-ui;
+  background:#0f172a;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:100vh;
+  color:white;
+}
+.box{
+  width:90%;
+  max-width:400px;
+  background:#1e293b;
+  padding:25px;
+  border-radius:16px;
+}
+input{
+  width:100%;
+  padding:14px;
+  margin-bottom:15px;
+  border-radius:10px;
+  border:none;
+  font-size:18px;
+}
+button{
+  width:100%;
+  padding:15px;
+  border:none;
+  border-radius:12px;
+  font-size:18px;
+  background:#3b82f6;
+  color:white;
+  font-weight:bold;
+}
+.pin{
+  text-align:center;
+  font-size:30px;
+  letter-spacing:10px;
+}
 </style>
 </head>
 
@@ -19,30 +55,18 @@ button{width:100%;padding:15px;border:none;border-radius:12px;font-size:18px;bac
 
 <div class="box" id="app"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="src/app.js?v=3002"></script>
+<script src="src/app.js?v=3010"></script>
 
 <script>
 let usuarioActual=null;
-const app=document.getElementById("app");
 
-function getClient(){
-  return window.sb || window.supabaseClient || null;
+function sb(){
+  return window.sb || window.supabaseClient;
 }
 
-// ==========================
-// AUTO LOGIN
-// ==========================
-(function(){
-  const ses=localStorage.getItem("zentryx_session");
-  if(ses){
-    location.href="app.html?v=3002";
-  }
-})();
-
-// ==========================
+// =====================
 // LOGIN USUARIO
-// ==========================
+// =====================
 function pantallaLogin(){
   app.innerHTML=`
     <h2>Acceso</h2>
@@ -52,36 +76,29 @@ function pantallaLogin(){
 }
 
 async function login(){
+  const user=document.getElementById("usuario").value;
 
-  const cliente=getClient();
-
-  if(!cliente){
-    alert("Error conexión");
-    return;
-  }
-
-  const user=document.getElementById("usuario").value.trim();
-
-  const {data}=await cliente
+  const {data,error}=await sb()
     .from("usuarios")
     .select("*")
     .eq("usuario",user)
-    .maybeSingle();
+    .single();
 
-  if(!data){
+  if(error || !data){
     alert("Usuario no encontrado");
     return;
   }
 
   usuarioActual=data;
 
-  // 🔒 comprobar bloqueo
+  // comprobar bloqueo
   if(data.pin_bloqueado_hasta){
     const ahora=new Date();
     const bloqueo=new Date(data.pin_bloqueado_hasta);
 
     if(bloqueo>ahora){
-      alert("Usuario bloqueado. Intenta más tarde.");
+      const minutos=Math.ceil((bloqueo-ahora)/60000);
+      alert("Bloqueado " + minutos + " min");
       return;
     }
   }
@@ -93,121 +110,93 @@ async function login(){
   }
 }
 
-// ==========================
+// =====================
 // CREAR PIN
-// ==========================
+// =====================
 function pantallaCrearPIN(){
   app.innerHTML=`
     <h2>Crear PIN</h2>
-    <input id="pin1" class="pin" maxlength="4" placeholder="----">
-    <input id="pin2" class="pin" maxlength="4" placeholder="----">
-    <button onclick="guardarPIN()">Guardar PIN</button>
+    <input id="pin1" class="pin" maxlength="4">
+    <input id="pin2" class="pin" maxlength="4">
+    <button onclick="guardarPIN()">Guardar</button>
   `;
 }
 
 async function guardarPIN(){
-
-  const cliente=getClient();
-
   const p1=document.getElementById("pin1").value;
   const p2=document.getElementById("pin2").value;
 
-  if(p1.length!==4 || p2.length!==4){
-    alert("PIN inválido");
-    return;
-  }
-
   if(p1!==p2){
-    alert("No coinciden");
+    alert("No coincide");
     return;
   }
 
   const hash=btoa(p1);
 
-  await cliente.from("usuarios").update({
+  await sb().from("usuarios").update({
     pin_hash:hash,
     debe_crear_pin:false,
-    pin_intentos:0
+    pin_intentos:0,
+    pin_bloqueado_hasta:null
   }).eq("id",usuarioActual.id);
 
-  usuarioActual.pin_hash=hash;
-
-  guardarSesion();
-
-  location.href="app.html?v=3002";
+  pantallaPIN();
 }
 
-// ==========================
+// =====================
 // LOGIN PIN
-// ==========================
+// =====================
 function pantallaPIN(){
   app.innerHTML=`
     <h2>PIN</h2>
-    <input id="pin" class="pin" maxlength="4" placeholder="----">
+    <input id="pin" class="pin" maxlength="4">
     <button onclick="entrar()">Entrar</button>
   `;
 }
 
 async function entrar(){
-
-  const cliente=getClient();
-
   const pin=document.getElementById("pin").value;
   const hash=btoa(pin);
 
-  // ❌ PIN incorrecto
-  if(hash!==usuarioActual.pin_hash){
+  // correcto
+  if(hash===usuarioActual.pin_hash){
 
-    let intentos=(usuarioActual.pin_intentos || 0)+1;
-
-    // 🔒 BLOQUEO A 5 INTENTOS
-    if(intentos>=5){
-
-      const bloqueo=new Date();
-      bloqueo.setMinutes(bloqueo.getMinutes()+5);
-
-      await cliente.from("usuarios").update({
-        pin_intentos:intentos,
-        pin_bloqueado_hasta:bloqueo.toISOString()
-      }).eq("id",usuarioActual.id);
-
-      alert("Bloqueado 5 minutos");
-      return;
-    }
-
-    await cliente.from("usuarios").update({
-      pin_intentos:intentos
+    await sb().from("usuarios").update({
+      pin_intentos:0,
+      pin_bloqueado_hasta:null,
+      ultimo_login:new Date().toISOString()
     }).eq("id",usuarioActual.id);
 
-    alert("PIN incorrecto");
+    localStorage.setItem("zentryx_session",JSON.stringify(usuarioActual));
+    location.href="app.html?v=3010";
     return;
   }
 
-  // ✅ CORRECTO
-  await cliente.from("usuarios").update({
-    pin_intentos:0,
-    pin_bloqueado_hasta:null,
-    ultimo_login:new Date().toISOString()
+  // incorrecto
+  let intentos=(usuarioActual.pin_intentos || 0) + 1;
+
+  let bloqueo=null;
+
+  if(intentos>=3){
+    const fecha=new Date();
+    fecha.setMinutes(fecha.getMinutes()+5);
+    bloqueo=fecha.toISOString();
+    alert("Bloqueado 5 min");
+  }else{
+    alert("PIN incorrecto ("+intentos+"/3)");
+  }
+
+  await sb().from("usuarios").update({
+    pin_intentos:intentos,
+    pin_bloqueado_hasta:bloqueo,
+    ultimo_pin_error:new Date().toISOString()
   }).eq("id",usuarioActual.id);
 
-  guardarSesion();
-
-  location.href="app.html?v=3002";
+  usuarioActual.pin_intentos=intentos;
+  usuarioActual.pin_bloqueado_hasta=bloqueo;
 }
 
-// ==========================
-// SESIÓN
-// ==========================
-function guardarSesion(){
-  localStorage.setItem("zentryx_session",JSON.stringify({
-    id:usuarioActual.id,
-    usuario:usuarioActual.usuario,
-    nombre:usuarioActual.nombre,
-    rol:usuarioActual.rol
-  }));
-}
-
-// ==========================
+const app=document.getElementById("app");
 pantallaLogin();
 </script>
 
