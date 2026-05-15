@@ -1,33 +1,70 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V2663
+// V3015 - PERMISOS POR MÓDULO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="2663";
+const ZX_VERSION="3015";
 
-function $(id){
-  return document.getElementById(id);
-}
+function $(id){return document.getElementById(id)}
+function app(){return $("app")}
 
-function app(){
-  return $("app");
+function sesion(){
+  try{return JSON.parse(localStorage.getItem("zentryx_session") || "{}")}
+  catch(e){return {}}
 }
 
 function usuarioActual(){
-  try{
-    const s=JSON.parse(localStorage.getItem("zentryx_session") || "{}");
-    return {
-      usuario:s.usuario || "admin",
-      rol:s.rol || "Administrador"
-    };
-  }catch(e){
-    return {
-      usuario:"admin",
-      rol:"Administrador"
-    };
+  const s=sesion();
+  return {
+    usuario:s.usuario || "admin",
+    rol:s.rol || "Administrador"
+  };
+}
+
+function rolActual(){
+  return String(usuarioActual().rol || "").toLowerCase();
+}
+
+function usuarioNombre(){
+  return String(usuarioActual().usuario || "").toLowerCase();
+}
+
+function esAdmin(){
+  return rolActual()==="administrador" || usuarioNombre()==="admin";
+}
+
+function esEncargado(){
+  return rolActual()==="encargado";
+}
+
+function esOperario(){
+  return rolActual()==="operario";
+}
+
+function puedeVerModulo(modulo){
+  if(esAdmin()) return true;
+
+  if(esEncargado()){
+    return [
+      "inicio",
+      "fichaje",
+      "usuarios",
+      "vehiculos",
+      "incidencias",
+      "informes"
+    ].includes(modulo);
   }
+
+  if(esOperario()){
+    return [
+      "inicio",
+      "fichaje"
+    ].includes(modulo);
+  }
+
+  return modulo==="inicio";
 }
 
 function limpiarTexto(v){
@@ -59,10 +96,7 @@ function estilos(){
   css.id="zx_layout_styles";
 
   css.innerHTML=`
-    *{
-      box-sizing:border-box;
-      -webkit-tap-highlight-color:transparent;
-    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 
     html,body{
       margin:0;
@@ -156,9 +190,7 @@ function estilos(){
       scrollbar-width:none;
     }
 
-    #zx_nav_inner::-webkit-scrollbar{
-      display:none;
-    }
+    #zx_nav_inner::-webkit-scrollbar{display:none}
 
     .zx_nav_btn{
       flex:0 0 auto;
@@ -173,9 +205,7 @@ function estilos(){
       white-space:nowrap;
     }
 
-    .zx_nav_btn.zx_activo{
-      background:#2563eb;
-    }
+    .zx_nav_btn.zx_activo{background:#2563eb}
 
     #app{
       width:100%;
@@ -263,67 +293,25 @@ function estilos(){
     }
 
     @media(max-width:430px){
-      #zx_logo{
-        width:48px;
-        height:48px;
-        font-size:27px;
-      }
-
-      #zx_brand h1{
-        font-size:21px;
-      }
-
-      #zx_brand p{
-        font-size:13px;
-      }
-
-      #zx_salir{
-        padding:12px 15px;
-        font-size:15px;
-      }
-
-      .zx_nav_btn{
-        min-width:104px;
-        padding:14px 15px;
-        font-size:16px;
-      }
-
-      .zx_card h2{
-        font-size:30px;
-      }
+      #zx_logo{width:48px;height:48px;font-size:27px}
+      #zx_brand h1{font-size:21px}
+      #zx_brand p{font-size:13px}
+      #zx_salir{padding:12px 15px;font-size:15px}
+      .zx_nav_btn{min-width:104px;padding:14px 15px;font-size:16px}
+      .zx_card h2{font-size:30px}
     }
 
     @media(min-width:768px){
-      #zx_topbar{
-        padding:22px 24px;
-      }
-
-      #zx_nav{
-        padding:0 24px 18px;
-      }
-
-      #app{
-        padding:24px;
-      }
-
-      .zx_card{
-        padding:30px;
-      }
-
-      .zx_card h2{
-        font-size:36px;
-      }
+      #zx_topbar{padding:22px 24px}
+      #zx_nav{padding:0 24px 18px}
+      #app{padding:24px}
+      .zx_card{padding:30px}
+      .zx_card h2{font-size:36px}
     }
 
     @media(min-width:1024px){
-      #zx_nav_inner{
-        flex-wrap:wrap;
-      }
-
-      .zx_nav_btn{
-        min-width:auto;
-        padding:15px 24px;
-      }
+      #zx_nav_inner{flex-wrap:wrap}
+      .zx_nav_btn{min-width:auto;padding:15px 24px}
     }
   `;
 
@@ -353,8 +341,24 @@ function topbar(){
   document.body.insertBefore(t,app());
 
   $("zx_salir").onclick=function(){
-    logout();
+    if(window.ZENTRYX_logout){
+      window.ZENTRYX_logout();
+      return;
+    }
+
+    localStorage.removeItem("zentryx_session");
+    location.href="index.html?v="+ZX_VERSION;
   };
+}
+
+function botonNav(modulo,texto,accion){
+  if(!puedeVerModulo(modulo)) return "";
+
+  return `
+    <button class="zx_nav_btn" data-modulo="${modulo}" type="button" onclick="${accion}">
+      ${texto}
+    </button>
+  `;
 }
 
 function nav(){
@@ -363,12 +367,13 @@ function nav(){
 
   n.innerHTML=`
     <div id="zx_nav_inner">
-      <button class="zx_nav_btn" data-modulo="inicio" type="button" onclick="ZX_inicio()">Inicio</button>
-      <button class="zx_nav_btn" data-modulo="fichaje" type="button" onclick="ZX_fichaje()">Fichaje</button>
-      <button class="zx_nav_btn" data-modulo="usuarios" type="button" onclick="ZX_usuarios()">Usuarios</button>
-      <button class="zx_nav_btn" data-modulo="vehiculos" type="button" onclick="ZX_vehiculos()">Vehículos</button>
-      <button class="zx_nav_btn" data-modulo="incidencias" type="button" onclick="ZX_incidencias()">Incidencias</button>
-      <button class="zx_nav_btn" data-modulo="informes" type="button" onclick="ZX_informes()">Informes</button>
+      ${botonNav("inicio","Inicio","ZX_inicio()")}
+      ${botonNav("fichaje","Fichaje","ZX_fichaje()")}
+      ${botonNav("usuarios","Usuarios","ZX_usuarios()")}
+      ${botonNav("vehiculos","Vehículos","ZX_vehiculos()")}
+      ${botonNav("incidencias","Incidencias","ZX_incidencias()")}
+      ${botonNav("informes","Informes","ZX_informes()")}
+      ${botonNav("configuracion","Configuración","ZX_configuracion()")}
     </div>
   `;
 
@@ -384,7 +389,37 @@ function activo(nombre){
   });
 }
 
+function sinPermiso(){
+  if(app()){
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Sin permiso</h2>
+        <div class="zx_text">Tu usuario no tiene acceso a este módulo.</div>
+      </div>
+    `;
+  }
+}
+
+function abrirModulo(nombre,callback){
+  if(!puedeVerModulo(nombre)){
+    activo("");
+    sinPermiso();
+    return;
+  }
+
+  activo(nombre);
+
+  if(callback){
+    callback();
+  }
+}
+
 window.logout=function(){
+  if(window.ZENTRYX_logout){
+    window.ZENTRYX_logout();
+    return;
+  }
+
   localStorage.removeItem("zentryx_session");
   localStorage.removeItem("usuario");
   localStorage.removeItem("zx_estado");
@@ -397,65 +432,84 @@ window.logout=function(){
 };
 
 window.ZX_inicio=function(){
-  activo("inicio");
-  if(window.ZENTRYX_UI_inicio){
-    window.ZENTRYX_UI_inicio();
-  }
+  abrirModulo("inicio",function(){
+    if(window.ZENTRYX_UI_inicio){
+      window.ZENTRYX_UI_inicio();
+    }
+  });
 };
 
 window.ZX_usuarios=function(){
-  activo("usuarios");
-  if(window.ZENTRYX_UI_usuarios){
-    window.ZENTRYX_UI_usuarios();
-  }
+  abrirModulo("usuarios",function(){
+    if(window.ZENTRYX_UI_usuarios){
+      window.ZENTRYX_UI_usuarios();
+    }
+  });
 };
 
 window.ZX_fichaje=function(){
-  activo("fichaje");
-  if(app()){
-    app().innerHTML=`
-      <div class="zx_card">
-        <h2>Fichaje</h2>
-        <div class="zx_text">Módulo fichaje pendiente de reconectar.</div>
-      </div>
-    `;
-  }
+  abrirModulo("fichaje",function(){
+    if(app()){
+      app().innerHTML=`
+        <div class="zx_card">
+          <h2>Fichaje</h2>
+          <div class="zx_text">Módulo fichaje pendiente de reconectar.</div>
+        </div>
+      `;
+    }
+  });
 };
 
 window.ZX_vehiculos=function(){
-  activo("vehiculos");
-  if(app()){
-    app().innerHTML=`
-      <div class="zx_card">
-        <h2>Vehículos</h2>
-        <div class="zx_text">Módulo vehículos pendiente de reconectar.</div>
-      </div>
-    `;
-  }
+  abrirModulo("vehiculos",function(){
+    if(app()){
+      app().innerHTML=`
+        <div class="zx_card">
+          <h2>Vehículos</h2>
+          <div class="zx_text">Módulo vehículos pendiente de reconectar.</div>
+        </div>
+      `;
+    }
+  });
 };
 
 window.ZX_incidencias=function(){
-  activo("incidencias");
-  if(app()){
-    app().innerHTML=`
-      <div class="zx_card">
-        <h2>Incidencias</h2>
-        <div class="zx_text">Módulo incidencias pendiente.</div>
-      </div>
-    `;
-  }
+  abrirModulo("incidencias",function(){
+    if(app()){
+      app().innerHTML=`
+        <div class="zx_card">
+          <h2>Incidencias</h2>
+          <div class="zx_text">Módulo incidencias pendiente.</div>
+        </div>
+      `;
+    }
+  });
 };
 
 window.ZX_informes=function(){
-  activo("informes");
-  if(app()){
-    app().innerHTML=`
-      <div class="zx_card">
-        <h2>Informes</h2>
-        <div class="zx_text">Módulo informes pendiente.</div>
-      </div>
-    `;
-  }
+  abrirModulo("informes",function(){
+    if(app()){
+      app().innerHTML=`
+        <div class="zx_card">
+          <h2>Informes</h2>
+          <div class="zx_text">Módulo informes pendiente.</div>
+        </div>
+      `;
+    }
+  });
+};
+
+window.ZX_configuracion=function(){
+  abrirModulo("configuracion",function(){
+    if(app()){
+      app().innerHTML=`
+        <div class="zx_card">
+          <h2>Configuración</h2>
+          <div class="zx_text">Módulo configuración pendiente.</div>
+        </div>
+      `;
+    }
+  });
 };
 
 window.ZENTRYX_UI_LAYOUT={
