@@ -3,75 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx PRO Login</title>
-
+<title>Zentryx PRO Login V3001</title>
 <style>
-body{
-  margin:0;
-  font-family:system-ui;
-  background:#0f172a;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  height:100vh;
-  color:white;
-}
-
-.box{
-  width:90%;
-  max-width:400px;
-  background:#1e293b;
-  padding:25px;
-  border-radius:16px;
-}
-
+body{margin:0;font-family:system-ui;background:#0f172a;display:flex;align-items:center;justify-content:center;height:100vh;color:white}
+.box{width:90%;max-width:400px;background:#1e293b;padding:25px;border-radius:16px}
 h2{margin-bottom:20px}
-
-input{
-  width:100%;
-  padding:14px;
-  margin-bottom:15px;
-  border-radius:10px;
-  border:none;
-  font-size:18px;
-}
-
-button{
-  width:100%;
-  padding:15px;
-  border:none;
-  border-radius:12px;
-  font-size:18px;
-  background:#3b82f6;
-  color:white;
-  font-weight:bold;
-}
-
-.pin{
-  text-align:center;
-  font-size:30px;
-  letter-spacing:10px;
-}
+input{width:100%;padding:14px;margin-bottom:15px;border-radius:10px;border:none;font-size:18px}
+button{width:100%;padding:15px;border:none;border-radius:12px;font-size:18px;background:#3b82f6;color:white;font-weight:bold}
+.pin{text-align:center;font-size:30px;letter-spacing:10px}
 </style>
 </head>
-
 <body>
 
 <div class="box" id="app"></div>
 
-<!-- CORE -->
-<script src="src/app.js?v=3000"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="src/app.js?v=3001"></script>
 
 <script>
 let usuarioActual=null;
+const app=document.getElementById("app");
 
 function getClient(){
   return window.sb || window.supabaseClient || null;
 }
 
-// ==========================
-// LOGIN USUARIO
-// ==========================
 function pantallaLogin(){
   app.innerHTML=`
     <h2>Acceso</h2>
@@ -81,9 +37,10 @@ function pantallaLogin(){
 }
 
 async function login(){
-  const sb=getClient();
-  if(!sb){
-    alert("Error conexión");
+  const cliente=getClient();
+
+  if(!cliente){
+    alert("Error conexión Supabase");
     return;
   }
 
@@ -94,11 +51,11 @@ async function login(){
     return;
   }
 
-  const {data,error}=await sb
+  const {data,error}=await cliente
     .from("usuarios")
     .select("*")
     .eq("usuario",user)
-    .single();
+    .maybeSingle();
 
   if(error || !data){
     alert("Usuario no encontrado");
@@ -114,70 +71,65 @@ async function login(){
   }
 }
 
-// ==========================
-// CREAR PIN
-// ==========================
 function pantallaCrearPIN(){
   app.innerHTML=`
     <h2>Crear PIN</h2>
-    <input id="pin1" class="pin" maxlength="4" placeholder="----">
-    <input id="pin2" class="pin" maxlength="4" placeholder="Repetir PIN">
+    <input id="pin1" class="pin" maxlength="4" inputmode="numeric" placeholder="----">
+    <input id="pin2" class="pin" maxlength="4" inputmode="numeric" placeholder="----">
     <button onclick="guardarPIN()">Guardar PIN</button>
   `;
 }
 
 async function guardarPIN(){
-  const sb=getClient();
+  const cliente=getClient();
 
-  const p1=document.getElementById("pin1").value;
-  const p2=document.getElementById("pin2").value;
+  const p1=document.getElementById("pin1").value.trim();
+  const p2=document.getElementById("pin2").value.trim();
 
-  if(p1.length!==4 || p2.length!==4){
-    alert("PIN debe tener 4 dígitos");
+  if(!/^[0-9]{4}$/.test(p1) || !/^[0-9]{4}$/.test(p2)){
+    alert("El PIN debe tener 4 números");
     return;
   }
 
   if(p1!==p2){
-    alert("No coinciden");
+    alert("Los PIN no coinciden");
     return;
   }
 
   const hash=btoa(p1);
 
-  const {error}=await sb.from("usuarios").update({
-    pin_hash:hash,
-    debe_crear_pin:false
-  }).eq("id",usuarioActual.id);
+  const {error}=await cliente
+    .from("usuarios")
+    .update({
+      pin_hash:hash,
+      debe_crear_pin:false
+    })
+    .eq("id",usuarioActual.id);
 
   if(error){
     alert("Error guardando PIN");
     return;
   }
 
-  // 🔥 CLAVE: actualizar memoria
   usuarioActual.pin_hash=hash;
   usuarioActual.debe_crear_pin=false;
 
   guardarSesion();
-
-  location.href="app.html?v=3000";
+  location.href="app.html?v=3001";
 }
 
-// ==========================
-// LOGIN CON PIN
-// ==========================
 function pantallaPIN(){
   app.innerHTML=`
     <h2>Introduce PIN</h2>
-    <input id="pin" class="pin" maxlength="4" placeholder="----">
+    <input id="pin" class="pin" maxlength="4" inputmode="numeric" placeholder="----">
     <button onclick="entrar()">Entrar</button>
   `;
 }
 
 function entrar(){
-  const pin=document.getElementById("pin").value;
+  const pin=document.getElementById("pin").value.trim();
 
-  if(pin.length!==4){
+  if(!/^[0-9]{4}$/.test(pin)){
     alert("PIN inválido");
     return;
   }
@@ -190,13 +142,9 @@ function entrar(){
   }
 
   guardarSesion();
-
-  location.href="app.html?v=3000";
+  location.href="app.html?v=3001";
 }
 
-// ==========================
-// SESIÓN
-// ==========================
 function guardarSesion(){
   localStorage.setItem("zentryx_session",JSON.stringify({
     id:usuarioActual.id,
@@ -206,8 +154,6 @@ function guardarSesion(){
   }));
 }
 
-// ==========================
-const app=document.getElementById("app");
 pantallaLogin();
 </script>
 
