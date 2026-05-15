@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Zentryx PRO Login</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <style>
 body{
   margin:0;
@@ -61,13 +59,15 @@ button{
 
 <div class="box" id="app"></div>
 
+<!-- AQUÍ usamos tu conexión existente -->
+<script src="src/app.js?v=2676"></script>
+
 <script>
-const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
-const SUPABASE_KEY="TU_KEY_AQUI";
-
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
 let usuarioActual=null;
+
+function getClient(){
+  return window.sb || window.supabaseClient || null;
+}
 
 // ==========================
 // LOGIN USUARIO
@@ -81,6 +81,12 @@ function pantallaLogin(){
 }
 
 async function login(){
+  const sb=getClient();
+  if(!sb){
+    alert("Error conexión");
+    return;
+  }
+
   const user=document.getElementById("usuario").value;
 
   const {data,error}=await sb
@@ -116,6 +122,8 @@ function pantallaCrearPIN(){
 }
 
 async function guardarPIN(){
+  const sb=getClient();
+
   const p1=document.getElementById("pin1").value;
   const p2=document.getElementById("pin2").value;
 
@@ -129,7 +137,7 @@ async function guardarPIN(){
     return;
   }
 
-  const hash=btoa(p1); // simple (luego se puede mejorar)
+  const hash=btoa(p1);
 
   await sb.from("usuarios").update({
     pin_hash:hash,
@@ -160,7 +168,7 @@ function entrar(){
   }
 
   localStorage.setItem("zentryx_user",JSON.stringify(usuarioActual));
-  location.href="app.html?v=2675";
+  location.href="app.html?v=2676";
 }
 
 // ==========================
