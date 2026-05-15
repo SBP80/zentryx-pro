@@ -3,13 +3,48 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V3016</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<title>Zentryx PRO V3001</title>
 
 <script>
-const ZX_VERSION="3016";
+const ZX_VERSION="3001";
 
+// ===============================
+// CONTROL SESIÓN PRO
+// ===============================
+function checkLogin(){
+  const s=localStorage.getItem("zentryx_session");
+
+  if(!s){
+    location.replace("index.html?v="+ZX_VERSION);
+    return false;
+  }
+
+  try{
+    const ses=JSON.parse(s);
+
+    if(!ses.id || !ses.usuario){
+      throw "sesión inválida";
+    }
+
+    return true;
+
+  }catch(e){
+    localStorage.removeItem("zentryx_session");
+    localStorage.removeItem("usuario");
+
+    location.replace("index.html?v="+ZX_VERSION);
+    return false;
+  }
+}
+
+checkLogin();
+</script>
+
+<!-- ===============================
+SUPABASE
+=============================== -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
 window.sb=supabase.createClient(
   "https://idtaamivqbiuxtjywuux.supabase.co",
   "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
@@ -18,38 +53,40 @@ window.sb=supabase.createClient(
 window.supabaseClient=window.sb;
 </script>
 
-<script src="src/core/session.js?v=3016"></script>
 </head>
 
 <body>
+
 <div id="app"></div>
 
-<script src="src/ui/layout.js?v=3016"></script>
-<script src="src/modules/inicio.js?v=3016"></script>
-<script src="src/modules/usuarios.js?v=3016"></script>
-<script src="src/modules/fichaje.js?v=3016"></script>
+<!-- ===============================
+MODULOS
+=============================== -->
+<script src="src/ui/layout.js?v=3001"></script>
+<script src="src/modules/inicio.js?v=3001"></script>
+<script src="src/modules/usuarios.js?v=3001"></script>
+<script src="src/modules/fichaje.js?v=3001"></script>
 
+<!-- ===============================
+INICIO APP
+=============================== -->
 <script>
 document.addEventListener("DOMContentLoaded",function(){
 
-  if(!window.ZENTRYX_sessionValid || !window.ZENTRYX_sessionValid()){
-    if(window.ZENTRYX_clearSession){
-      window.ZENTRYX_clearSession();
-    }
+  if(!checkLogin()) return;
 
-    location.replace("index.html?v="+ZX_VERSION);
-    return;
-  }
-
+  // Layout
   if(window.ZENTRYX_UI_LAYOUT){
     window.ZENTRYX_UI_LAYOUT.iniciar();
   }
 
+  // Pantalla inicial
   if(window.ZX_inicio){
     window.ZX_inicio();
   }
 
 });
 </script>
+
 </body>
 </html>
