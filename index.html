@@ -3,84 +3,75 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login</title>
+<title>Zentryx PRO Login V2675</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-
-html,body{
-  min-height:100%;
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
   background:#071330;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-  color:white;
-}
-
-body{
   display:flex;
   align-items:center;
   justify-content:center;
   padding:24px;
 }
-
-.zx_login{
+.card{
   width:100%;
   max-width:430px;
+  background:white;
+  border-radius:28px;
+  padding:28px;
 }
-
-.zx_logo{
-  width:88px;
-  height:88px;
-  border-radius:26px;
+.logo{
+  width:86px;
+  height:86px;
+  border-radius:24px;
   background:linear-gradient(135deg,#2563eb,#10b981);
+  color:white;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:48px;
+  font-size:46px;
   font-weight:900;
-  margin:0 auto 24px;
+  margin:0 auto 18px;
 }
-
 h1{
   text-align:center;
-  font-size:36px;
-  font-weight:900;
-  margin-bottom:8px;
+  font-size:38px;
+  margin:0 0 8px;
 }
-
-.zx_sub{
+p{
   text-align:center;
-  color:#cbd5e1;
-  font-size:17px;
-  margin-bottom:30px;
+  color:#64748b;
+  font-size:18px;
+  font-weight:800;
 }
-
 input{
   width:100%;
-  height:56px;
-  border:0;
+  border:1px solid #d1d5db;
   border-radius:18px;
-  padding:0 16px;
-  margin-bottom:14px;
-  font-size:18px;
-  background:white;
-  color:#0f172a;
+  padding:18px;
+  font-size:20px;
+  margin-top:14px;
 }
-
 button{
   width:100%;
-  height:58px;
   border:0;
   border-radius:18px;
-  background:#2563eb;
-  color:white;
-  font-size:21px;
+  padding:18px;
+  font-size:22px;
   font-weight:900;
-  margin-top:8px;
+  margin-top:18px;
+  color:white;
+  background:#2563eb;
 }
-
-.zx_error{
-  margin-top:16px;
-  color:#fecaca;
+.msg{
+  margin-top:18px;
+  color:#991b1b;
   font-size:16px;
   font-weight:800;
   text-align:center;
@@ -90,135 +81,174 @@ button{
 
 <body>
 
-<div class="zx_login">
-  <div class="zx_logo">Z</div>
+<div class="card">
+  <div class="logo">Z</div>
   <h1>Zentryx PRO</h1>
-  <div class="zx_sub">Acceso empresarial</div>
+  <p id="subtitulo">Acceso empresarial</p>
 
-  <input id="zx_user" placeholder="Usuario" autocomplete="username">
-  <input id="zx_pass" type="password" placeholder="Contraseña" autocomplete="current-password">
+  <input id="usuario" placeholder="Usuario" autocomplete="username">
+  <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
 
-  <button id="zx_login_btn" type="button">Entrar</button>
+  <input id="password2" type="password" placeholder="Repetir contraseña" style="display:none">
 
-  <div id="zx_error" class="zx_error"></div>
+  <button id="btn">Entrar</button>
+
+  <div id="msg" class="msg"></div>
 </div>
 
 <script>
-const ZX_VERSION="2647";
+const ZX_VERSION="2675";
 
-function estadoBase(){
-  return {
-    empresa:{
-      id:"demo",
-      nombre:"Zentryx"
-    },
-    usuarios:[
-      {
-        id:1,
-        usuario:"admin",
-        password:"1234",
-        nombre:"Administrador",
-        rol:"Administrador",
-        activo:true
-      }
-    ],
-    configuracion:{
-      idioma:"es",
-      moneda:"EUR",
-      modo:"desarrollo"
-    }
-  };
+const sb=supabase.createClient(
+  "https://idtaamivqbiuxtjywuux.supabase.co",
+  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
+);
+
+let usuarioActual=null;
+let modoCrearPassword=false;
+
+function $(id){return document.getElementById(id)}
+
+async function hashPassword(texto){
+  const data=new TextEncoder().encode(texto);
+  const hash=await crypto.subtle.digest("SHA-256",data);
+  return Array.from(new Uint8Array(hash))
+    .map(b=>b.toString(16).padStart(2,"0"))
+    .join("");
 }
 
-function cargarEstado(){
-  try{
-    const raw=localStorage.getItem("zentryx_state");
-
-    if(!raw){
-      const base=estadoBase();
-      localStorage.setItem("zentryx_state",JSON.stringify(base));
-      return base;
-    }
-
-    const state=JSON.parse(raw);
-
-    if(!state.empresa){
-      state.empresa=estadoBase().empresa;
-    }
-
-    if(!Array.isArray(state.usuarios)){
-      state.usuarios=estadoBase().usuarios;
-    }
-
-    if(!state.configuracion){
-      state.configuracion=estadoBase().configuracion;
-    }
-
-    localStorage.setItem("zentryx_state",JSON.stringify(state));
-
-    return state;
-
-  }catch(e){
-    const base=estadoBase();
-    localStorage.setItem("zentryx_state",JSON.stringify(base));
-    return base;
-  }
+function mensaje(t){
+  $("msg").textContent=t;
 }
 
-function mostrarError(txt){
-  document.getElementById("zx_error").textContent=txt;
+async function buscarUsuario(usuario){
+  const {data,error}=await sb
+    .from("usuarios")
+    .select("*")
+    .eq("usuario",usuario)
+    .maybeSingle();
+
+  if(error) throw error;
+  return data;
 }
 
-function login(){
-  const usuario=document.getElementById("zx_user").value.trim();
-  const password=document.getElementById("zx_pass").value.trim();
+async function entrar(){
+  mensaje("");
+
+  const usuario=$("usuario").value.trim();
+  const password=$("password").value.trim();
 
   if(!usuario || !password){
-    mostrarError("Completa usuario y contraseña.");
+    mensaje("Introduce usuario y contraseña.");
     return;
   }
 
-  const state=cargarEstado();
+  const u=await buscarUsuario(usuario);
 
-  const encontrado=(state.usuarios || []).find(function(u){
-    return u.usuario===usuario && u.password===password && u.activo!==false;
-  });
+  if(!u){
+    mensaje("Usuario no encontrado.");
+    return;
+  }
 
-  if(!encontrado){
-    mostrarError("Usuario o contraseña incorrectos.");
+  if(u.estado==="Inactivo" || u.acceso_estado==="bloqueado"){
+    mensaje("Usuario bloqueado o inactivo.");
+    return;
+  }
+
+  if(u.debe_crear_password || !u.password_hash || u.acceso_estado==="pendiente"){
+    usuarioActual=u;
+    modoCrearPassword=true;
+
+    $("subtitulo").textContent="Crear contraseña";
+    $("password").value="";
+    $("password").placeholder="Nueva contraseña";
+    $("password2").style.display="block";
+    $("btn").textContent="Crear contraseña";
+    mensaje("Crea tu contraseña para activar el acceso.");
+    return;
+  }
+
+  const hash=await hashPassword(password);
+
+  if(hash!==u.password_hash){
+    mensaje("Contraseña incorrecta.");
     return;
   }
 
   localStorage.setItem("zentryx_session",JSON.stringify({
-    usuario:encontrado.usuario,
-    nombre:encontrado.nombre,
-    rol:encontrado.rol,
-    empresa_id:state.empresa ? state.empresa.id : "demo",
-    login_at:new Date().toISOString()
+    id:u.id,
+    usuario:u.usuario,
+    nombre:u.nombre,
+    rol:u.rol
   }));
 
   localStorage.setItem("usuario",JSON.stringify({
-    usuario:encontrado.usuario,
-    nombre:encontrado.nombre,
-    rol:encontrado.rol
+    id:u.id,
+    usuario:u.usuario,
+    nombre:u.nombre,
+    rol:u.rol
   }));
 
-  window.location.replace("app.html?v="+ZX_VERSION);
+  location.href="app.html?v="+ZX_VERSION;
 }
 
-document.getElementById("zx_login_btn").onclick=login;
+async function crearPassword(){
+  mensaje("");
 
-document.addEventListener("keydown",function(e){
-  if(e.key==="Enter"){
-    login();
+  const pass1=$("password").value.trim();
+  const pass2=$("password2").value.trim();
+
+  if(pass1.length<4){
+    mensaje("La contraseña debe tener mínimo 4 caracteres.");
+    return;
   }
-});
 
-cargarEstado();
+  if(pass1!==pass2){
+    mensaje("Las contraseñas no coinciden.");
+    return;
+  }
 
-if(localStorage.getItem("zentryx_session")){
-  window.location.replace("app.html?v="+ZX_VERSION);
+  const hash=await hashPassword(pass1);
+
+  const {error}=await sb
+    .from("usuarios")
+    .update({
+      password_hash:hash,
+      debe_crear_password:false,
+      acceso_estado:"activo",
+      updated_at:new Date().toISOString()
+    })
+    .eq("id",usuarioActual.id);
+
+  if(error){
+    mensaje("Error guardando contraseña.");
+    return;
+  }
+
+  localStorage.setItem("zentryx_session",JSON.stringify({
+    id:usuarioActual.id,
+    usuario:usuarioActual.usuario,
+    nombre:usuarioActual.nombre,
+    rol:usuarioActual.rol
+  }));
+
+  localStorage.setItem("usuario",JSON.stringify({
+    id:usuarioActual.id,
+    usuario:usuarioActual.usuario,
+    nombre:usuarioActual.nombre,
+    rol:usuarioActual.rol
+  }));
+
+  location.href="app.html?v="+ZX_VERSION;
 }
+
+$("btn").onclick=function(){
+  if(modoCrearPassword){
+    crearPassword();
+  }else{
+    entrar();
+  }
+};
 </script>
 
 </body>
