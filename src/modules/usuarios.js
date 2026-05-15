@@ -355,6 +355,13 @@ window.ZENTRYX_UI_usuarios=async function(){
 };
 
 window.ZX_usuarios=function(){
+  document.querySelectorAll(".zx_nav_btn").forEach(function(b){
+    b.classList.remove("zx_activo");
+    if(b.dataset.modulo==="usuarios"){
+      b.classList.add("zx_activo");
+    }
+  });
+
   window.ZENTRYX_UI_usuarios();
 };
 
