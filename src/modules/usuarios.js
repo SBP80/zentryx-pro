@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V2674
+// V2675
 // ===============================
 (function(){
 "use strict";
@@ -15,6 +15,19 @@ function limpiar(v){
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
+}
+
+function sesionActual(){
+  try{
+    return JSON.parse(localStorage.getItem("zentryx_session") || "{}");
+  }catch(e){
+    return {};
+  }
+}
+
+function esAdmin(){
+  const s=sesionActual();
+  return String(s.rol || "").toLowerCase()==="administrador";
 }
 
 function direccionCompleta(u){
@@ -137,7 +150,8 @@ async function cargarUsuarios(){
     .select(`
       id,nombre,usuario,telefono,email,rol,estado,foto_url,dni,
       via_tipo,calle,numero,portal,escalera,piso,puerta,
-      poblacion,provincia,codigo_postal,pais
+      poblacion,provincia,codigo_postal,pais,
+      acceso_estado,debe_crear_password,password_restaurada_at,updated_at
     `)
     .order("id",{ascending:true});
 
@@ -155,7 +169,7 @@ window.ZENTRYX_UI_usuarios=async function(){
   app().innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
-      <div class="zx_text">Gestión de usuarios, datos, contacto y dirección.</div>
+      <div class="zx_text">Gestión de usuarios, datos, contacto, dirección y acceso.</div>
       <button class="zx_btn_big zx_verde" id="btn_crear_usuario">Crear usuario</button>
     </div>
 
@@ -166,6 +180,7 @@ window.ZENTRYX_UI_usuarios=async function(){
         usuarios.length
         ? usuarios.map(function(u){
           const dir=direccionCompleta(u);
+          const estadoAcceso=u.acceso_estado || (u.debe_crear_password ? "pendiente" : "activo");
 
           return `
             <div class="zx_item">
@@ -181,14 +196,22 @@ window.ZENTRYX_UI_usuarios=async function(){
                 <b>Email:</b> ${u.email ? `<a href="mailto:${limpiar(u.email)}">${limpiar(u.email)}</a>` : "-"}<br>
                 <b>Dirección:</b> ${limpiar(dir || "-")}<br>
                 <b>Rol:</b> ${limpiar(u.rol || "-")}<br>
-                <b>Estado:</b> ${limpiar(u.estado || "-")}
+                <b>Estado:</b> ${limpiar(u.estado || "-")}<br>
+                <b>Acceso:</b> ${limpiar(estadoAcceso)}
               </div>
 
               ${u.telefono ? `<button class="zx_btn_big zx_gris btn_tel" data-tel="${limpiar(u.telefono)}">Teléfono</button>` : ""}
               ${dir ? `<button class="zx_btn_big zx_gris btn_mapa" data-dir="${limpiar(dir)}">Mapa</button>` : ""}
 
               <button class="zx_btn_big zx_azul btn_editar" data-id="${limpiar(u.id)}">Editar</button>
-              <button class="zx_btn_big zx_rojo btn_eliminar" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Eliminar</button>
+
+              ${
+                esAdmin()
+                ? `<button class="zx_btn_big zx_naranja btn_reset_password" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Restaurar contraseña</button>`
+                : ""
+              }
+
+              <button class="zx_btn_big zx_rojo btn_eliminar" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}" data-usuario="${limpiar(u.usuario || "")}">Eliminar</button>
             </div>
           `;
         }).join("")
@@ -209,7 +232,7 @@ window.ZENTRYX_UI_usuarios=async function(){
 
   document.querySelectorAll(".btn_eliminar").forEach(function(btn){
     btn.onclick=function(){
-      ZX_USER_ELIMINAR(btn.dataset.id,btn.dataset.nombre);
+      ZX_USER_ELIMINAR(btn.dataset.id,btn.dataset.nombre,btn.dataset.usuario);
     };
   });
 
@@ -222,6 +245,12 @@ window.ZENTRYX_UI_usuarios=async function(){
   document.querySelectorAll(".btn_mapa").forEach(function(btn){
     btn.onclick=function(){
       ZX_MENU_MAPA(btn.dataset.dir);
+    };
+  });
+
+  document.querySelectorAll(".btn_reset_password").forEach(function(btn){
+    btn.onclick=function(){
+      ZX_USER_RESTAURAR_PASSWORD(btn.dataset.id,btn.dataset.nombre);
     };
   });
 };
@@ -239,6 +268,7 @@ function input(id,label,value,type){
 
 function selectVia(valor){
   const opciones=["","Calle","Avenida","Plaza","Camino","Carretera","Paseo","Ronda","Travesía","Urbanización","Polígono"];
+
   return `
     <label class="zx_label" for="u_via_tipo">Tipo de vía</label>
     <select id="u_via_tipo">
@@ -295,6 +325,13 @@ function formulario(u){
         <option ${u.estado==="Inactivo" ? "selected" : ""}>Inactivo</option>
       </select>
 
+      <label class="zx_label" for="u_acceso_estado">Estado de acceso</label>
+      <select id="u_acceso_estado">
+        <option value="pendiente" ${u.acceso_estado==="pendiente" ? "selected" : ""}>Pendiente</option>
+        <option value="activo" ${u.acceso_estado==="activo" ? "selected" : ""}>Activo</option>
+        <option value="bloqueado" ${u.acceso_estado==="bloqueado" ? "selected" : ""}>Bloqueado</option>
+      </select>
+
       <button class="zx_btn_big ${esEditar ? "zx_azul" : "zx_verde"}" id="btn_guardar_usuario">
         ${esEditar ? "Guardar cambios" : "Guardar"}
       </button>
@@ -313,7 +350,12 @@ function formulario(u){
 }
 
 window.ZX_USER_CREAR=function(){
-  formulario({});
+  formulario({
+    estado:"Activo",
+    acceso_estado:"pendiente",
+    debe_crear_password:true,
+    pais:"España"
+  });
 };
 
 window.ZX_USER_EDITAR=async function(id){
@@ -322,7 +364,8 @@ window.ZX_USER_EDITAR=async function(id){
     .select(`
       id,nombre,usuario,telefono,email,rol,estado,foto_url,dni,
       via_tipo,calle,numero,portal,escalera,piso,puerta,
-      poblacion,provincia,codigo_postal,pais
+      poblacion,provincia,codigo_postal,pais,
+      acceso_estado,debe_crear_password,password_restaurada_at,updated_at
     `)
     .eq("id",id)
     .maybeSingle();
@@ -355,8 +398,10 @@ async function subirFoto(file,usuario){
     .getPublicUrl(path).data.publicUrl;
 }
 
-function datosFormulario(foto_url){
-  return {
+function datosFormulario(foto_url,id){
+  const acceso=document.getElementById("u_acceso_estado").value;
+
+  const datos={
     nombre:document.getElementById("u_nombre").value.trim(),
     usuario:document.getElementById("u_usuario").value.trim(),
     dni:document.getElementById("u_dni").value.trim(),
@@ -377,8 +422,26 @@ function datosFormulario(foto_url){
 
     rol:document.getElementById("u_rol").value,
     estado:document.getElementById("u_estado").value,
-    foto_url:foto_url
+    acceso_estado:acceso,
+    foto_url:foto_url,
+    updated_at:new Date().toISOString()
   };
+
+  if(!id){
+    datos.password_hash=null;
+    datos.debe_crear_password=true;
+    datos.acceso_estado="pendiente";
+  }
+
+  if(acceso==="pendiente"){
+    datos.debe_crear_password=true;
+  }
+
+  if(acceso==="activo" && id){
+    datos.debe_crear_password=false;
+  }
+
+  return datos;
 }
 
 window.ZX_USER_GUARDAR=async function(id,fotoActual){
@@ -403,7 +466,7 @@ window.ZX_USER_GUARDAR=async function(id,fotoActual){
 
   const file=document.getElementById("u_foto").files[0] || null;
   const nuevaFoto=await subirFoto(file,usuario);
-  const datos=datosFormulario(nuevaFoto || fotoActual || null);
+  const datos=datosFormulario(nuevaFoto || fotoActual || null,id);
 
   let res;
 
@@ -421,8 +484,52 @@ window.ZX_USER_GUARDAR=async function(id,fotoActual){
   ZX_usuarios();
 };
 
-window.ZX_USER_ELIMINAR=async function(id,nombre){
-  if(!confirm("¿Eliminar usuario: "+nombre+"?\n\nEsta acción no se puede deshacer.")) return;
+window.ZX_USER_RESTAURAR_PASSWORD=async function(id,nombre){
+  if(!esAdmin()){
+    alert("Solo el administrador puede restaurar contraseñas.");
+    return;
+  }
+
+  if(!confirm("¿Restaurar contraseña de "+nombre+"?\n\nEl usuario tendrá que crear una nueva al entrar.")){
+    return;
+  }
+
+  const res=await sb()
+    .from("usuarios")
+    .update({
+      password_hash:null,
+      debe_crear_password:true,
+      acceso_estado:"pendiente",
+      password_restaurada_at:new Date().toISOString(),
+      updated_at:new Date().toISOString()
+    })
+    .eq("id",id);
+
+  if(res.error){
+    alert("Error restaurando contraseña: "+res.error.message);
+    return;
+  }
+
+  alert("Contraseña restaurada.");
+  ZX_usuarios();
+};
+
+window.ZX_USER_ELIMINAR=async function(id,nombre,usuario){
+  const s=sesionActual();
+
+  if(String(usuario || "").toLowerCase()==="admin"){
+    alert("No se puede eliminar el administrador principal.");
+    return;
+  }
+
+  if(String(s.id || "")===String(id)){
+    alert("No puedes eliminar tu propio usuario.");
+    return;
+  }
+
+  if(!confirm("¿Eliminar usuario: "+nombre+"?\n\nEsta acción no se puede deshacer.")){
+    return;
+  }
 
   const res=await sb()
     .from("usuarios")
@@ -505,26 +612,4 @@ window.ZX_USER_ELIMINAR=async function(id,nombre){
   document.head.appendChild(s);
 })();
 
-window.ZX_USER_RESTAURAR_PASSWORD=async function(id,nombre){
-  if(!confirm("¿Restaurar contraseña de "+nombre+"?\n\nEl usuario tendrá que crear una nueva al entrar.")) return;
-
-  const res=await sb()
-    .from("usuarios")
-    .update({
-      password_hash:null,
-      debe_crear_password:true,
-      acceso_estado:"pendiente",
-      password_restaurada_at:new Date().toISOString(),
-      updated_at:new Date().toISOString()
-    })
-    .eq("id",id);
-
-  if(res.error){
-    alert("Error restaurando contraseña: "+res.error.message);
-    return;
-  }
-
-  alert("Contraseña restaurada.");
-  ZX_usuarios();
-};
 })();
