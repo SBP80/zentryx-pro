@@ -2,51 +2,71 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zentryx PRO Login</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>Zentryx PRO Login V3011</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
+*{box-sizing:border-box}
+
 body{
   margin:0;
-  font-family:system-ui;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
   background:#0f172a;
+  min-height:100vh;
   display:flex;
   align-items:center;
   justify-content:center;
-  height:100vh;
   color:white;
+  padding:20px;
 }
+
 .box{
-  width:90%;
-  max-width:400px;
+  width:100%;
+  max-width:430px;
   background:#1e293b;
-  padding:25px;
-  border-radius:16px;
+  padding:28px;
+  border-radius:22px;
 }
+
+h2{
+  margin:0 0 22px;
+  font-size:34px;
+  font-weight:900;
+}
+
 input{
   width:100%;
-  padding:14px;
-  margin-bottom:15px;
-  border-radius:10px;
-  border:none;
-  font-size:18px;
+  padding:18px;
+  margin-bottom:16px;
+  border-radius:16px;
+  border:0;
+  font-size:22px;
 }
+
 button{
   width:100%;
-  padding:15px;
-  border:none;
-  border-radius:12px;
-  font-size:18px;
+  padding:18px;
+  border:0;
+  border-radius:18px;
+  font-size:22px;
   background:#3b82f6;
   color:white;
-  font-weight:bold;
+  font-weight:900;
 }
+
 .pin{
   text-align:center;
-  font-size:30px;
-  letter-spacing:10px;
+  font-size:34px;
+  letter-spacing:12px;
+}
+
+.msg{
+  margin-top:16px;
+  color:#fecaca;
+  font-size:17px;
+  font-weight:800;
 }
 </style>
 </head>
@@ -55,148 +75,224 @@ button{
 
 <div class="box" id="app"></div>
 
-<script src="src/app.js?v=3010"></script>
+<script src="src/app.js?v=3011"></script>
 
 <script>
 let usuarioActual=null;
+const app=document.getElementById("app");
 
-function sb(){
-  return window.sb || window.supabaseClient;
+function cliente(){
+  return window.sb || window.supabaseClient || null;
 }
 
-// =====================
-// LOGIN USUARIO
-// =====================
+function error(txt){
+  const e=document.getElementById("msg");
+  if(e) e.textContent=txt;
+  else alert(txt);
+}
+
 function pantallaLogin(){
   app.innerHTML=`
     <h2>Acceso</h2>
-    <input id="usuario" placeholder="Usuario">
-    <button onclick="login()">Entrar</button>
+    <input id="usuario" placeholder="Usuario" autocomplete="username">
+    <button id="btn_login">Entrar</button>
+    <div id="msg" class="msg"></div>
   `;
+
+  document.getElementById("btn_login").onclick=login;
 }
 
 async function login(){
-  const user=document.getElementById("usuario").value;
+  const sb=cliente();
 
-  const {data,error}=await sb()
-    .from("usuarios")
-    .select("*")
-    .eq("usuario",user)
-    .single();
-
-  if(error || !data){
-    alert("Usuario no encontrado");
+  if(!sb){
+    error("Supabase no está conectado.");
     return;
   }
 
-  usuarioActual=data;
+  const user=document.getElementById("usuario").value.trim();
 
-  // comprobar bloqueo
-  if(data.pin_bloqueado_hasta){
+  if(!user){
+    error("Introduce usuario.");
+    return;
+  }
+
+  const res=await sb
+    .from("usuarios")
+    .select("*")
+    .eq("usuario",user)
+    .maybeSingle();
+
+  if(res.error){
+    error("Error Supabase: " + res.error.message);
+    return;
+  }
+
+  if(!res.data){
+    error("Usuario no encontrado.");
+    return;
+  }
+
+  usuarioActual=res.data;
+
+  if(usuarioActual.pin_bloqueado_hasta){
     const ahora=new Date();
-    const bloqueo=new Date(data.pin_bloqueado_hasta);
+    const bloqueo=new Date(usuarioActual.pin_bloqueado_hasta);
 
     if(bloqueo>ahora){
-      const minutos=Math.ceil((bloqueo-ahora)/60000);
-      alert("Bloqueado " + minutos + " min");
+      const min=Math.ceil((bloqueo-ahora)/60000);
+      error("PIN bloqueado. Espera " + min + " min.");
       return;
     }
   }
 
-  if(data.debe_crear_pin || !data.pin_hash){
+  if(usuarioActual.debe_crear_pin || !usuarioActual.pin_hash){
     pantallaCrearPIN();
   }else{
     pantallaPIN();
   }
 }
 
-// =====================
-// CREAR PIN
-// =====================
 function pantallaCrearPIN(){
   app.innerHTML=`
     <h2>Crear PIN</h2>
-    <input id="pin1" class="pin" maxlength="4">
-    <input id="pin2" class="pin" maxlength="4">
-    <button onclick="guardarPIN()">Guardar</button>
+    <input id="pin1" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
+    <input id="pin2" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
+    <button id="btn_guardar_pin">Guardar PIN</button>
+    <div id="msg" class="msg"></div>
   `;
+
+  document.getElementById("btn_guardar_pin").onclick=guardarPIN;
 }
 
 async function guardarPIN(){
-  const p1=document.getElementById("pin1").value;
-  const p2=document.getElementById("pin2").value;
+  const sb=cliente();
+
+  const p1=document.getElementById("pin1").value.trim();
+  const p2=document.getElementById("pin2").value.trim();
+
+  if(!/^[0-9]{4}$/.test(p1) || !/^[0-9]{4}$/.test(p2)){
+    error("El PIN debe tener 4 números.");
+    return;
+  }
 
   if(p1!==p2){
-    alert("No coincide");
+    error("Los PIN no coinciden.");
     return;
   }
 
   const hash=btoa(p1);
 
-  await sb().from("usuarios").update({
-    pin_hash:hash,
-    debe_crear_pin:false,
-    pin_intentos:0,
-    pin_bloqueado_hasta:null
-  }).eq("id",usuarioActual.id);
-
-  pantallaPIN();
-}
-
-// =====================
-// LOGIN PIN
-// =====================
-function pantallaPIN(){
-  app.innerHTML=`
-    <h2>PIN</h2>
-    <input id="pin" class="pin" maxlength="4">
-    <button onclick="entrar()">Entrar</button>
-  `;
-}
-
-async function entrar(){
-  const pin=document.getElementById("pin").value;
-  const hash=btoa(pin);
-
-  // correcto
-  if(hash===usuarioActual.pin_hash){
-
-    await sb().from("usuarios").update({
+  const res=await sb
+    .from("usuarios")
+    .update({
+      pin_hash:hash,
+      debe_crear_pin:false,
       pin_intentos:0,
       pin_bloqueado_hasta:null,
       ultimo_login:new Date().toISOString()
-    }).eq("id",usuarioActual.id);
+    })
+    .eq("id",usuarioActual.id);
 
-    localStorage.setItem("zentryx_session",JSON.stringify(usuarioActual));
-    location.href="app.html?v=3010";
+  if(res.error){
+    error("Error guardando PIN: " + res.error.message);
     return;
   }
 
-  // incorrecto
-  let intentos=(usuarioActual.pin_intentos || 0) + 1;
+  usuarioActual.pin_hash=hash;
+  usuarioActual.debe_crear_pin=false;
+  usuarioActual.pin_intentos=0;
+  usuarioActual.pin_bloqueado_hasta=null;
 
+  guardarSesion();
+  location.href="app.html?v=3011";
+}
+
+function pantallaPIN(){
+  app.innerHTML=`
+    <h2>PIN</h2>
+    <input id="pin" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
+    <button id="btn_pin">Entrar</button>
+    <div id="msg" class="msg"></div>
+  `;
+
+  document.getElementById("btn_pin").onclick=entrar;
+}
+
+async function entrar(){
+  const sb=cliente();
+
+  const pin=document.getElementById("pin").value.trim();
+
+  if(!/^[0-9]{4}$/.test(pin)){
+    error("PIN inválido.");
+    return;
+  }
+
+  const hash=btoa(pin);
+
+  if(hash===usuarioActual.pin_hash){
+    const res=await sb
+      .from("usuarios")
+      .update({
+        pin_intentos:0,
+        pin_bloqueado_hasta:null,
+        ultimo_login:new Date().toISOString()
+      })
+      .eq("id",usuarioActual.id);
+
+    if(res.error){
+      error("Error actualizando login: " + res.error.message);
+      return;
+    }
+
+    guardarSesion();
+    location.href="app.html?v=3011";
+    return;
+  }
+
+  const intentos=(usuarioActual.pin_intentos || 0)+1;
   let bloqueo=null;
 
   if(intentos>=3){
     const fecha=new Date();
     fecha.setMinutes(fecha.getMinutes()+5);
     bloqueo=fecha.toISOString();
-    alert("Bloqueado 5 min");
-  }else{
-    alert("PIN incorrecto ("+intentos+"/3)");
   }
 
-  await sb().from("usuarios").update({
-    pin_intentos:intentos,
-    pin_bloqueado_hasta:bloqueo,
-    ultimo_pin_error:new Date().toISOString()
-  }).eq("id",usuarioActual.id);
+  const res=await sb
+    .from("usuarios")
+    .update({
+      pin_intentos:intentos,
+      pin_bloqueado_hasta:bloqueo,
+      ultimo_pin_error:new Date().toISOString()
+    })
+    .eq("id",usuarioActual.id);
+
+  if(res.error){
+    error("Error registrando intento.");
+    return;
+  }
 
   usuarioActual.pin_intentos=intentos;
   usuarioActual.pin_bloqueado_hasta=bloqueo;
+
+  if(bloqueo){
+    error("PIN bloqueado 5 min.");
+  }else{
+    error("PIN incorrecto ("+intentos+"/3).");
+  }
 }
 
-const app=document.getElementById("app");
+function guardarSesion(){
+  localStorage.setItem("zentryx_session",JSON.stringify({
+    id:usuarioActual.id,
+    usuario:usuarioActual.usuario,
+    nombre:usuarioActual.nombre,
+    rol:usuarioActual.rol
+  }));
+}
+
 pantallaLogin();
 </script>
 
