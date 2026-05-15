@@ -1,5 +1,5 @@
 // ===============================
-// ZENTRYX PRO V2646 - CORE MODULAR
+// ZENTRYX PRO V2676 - CORE MODULAR
 // ===============================
 (function(){
   "use strict";
