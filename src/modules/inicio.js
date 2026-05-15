@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - INICIO
-// V2666
+// V2675
 // ===============================
 (function(){
 "use strict";
@@ -35,9 +35,9 @@ window.ZENTRYX_UI_inicio=function(){
       <h2>Estado sistema</h2>
 
       <div class="zx_text">
-        <b>Versión:</b> V2666<br><br>
-        Diseño limpio para móvil, tablet y PC.<br><br>
-        Preparado para servidor local o externo.<br><br>
+        <b>Versión:</b> V2675<br><br>
+        Login con creación inicial de contraseña.<br><br>
+        Restauración de contraseña por administrador.<br><br>
         Usuarios conectado a Supabase.
       </div>
     </div>
