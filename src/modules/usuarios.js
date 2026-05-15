@@ -1,6 +1,6 @@
 // ===============================
-// ZENTRYX PRO - USUARIOS SUPABASE
-// V2668
+// ZENTRYX PRO - USUARIOS SUPABASE + FOTO
+// V2670
 // ===============================
 (function(){
 "use strict";
@@ -17,6 +17,12 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
+function foto(u){
+  return u.foto_url
+    ? `<img src="${limpiar(u.foto_url)}" style="width:82px;height:82px;border-radius:22px;object-fit:cover;margin-bottom:12px;">`
+    : `<div style="width:82px;height:82px;border-radius:22px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:900;color:#64748b;margin-bottom:12px;">${limpiar((u.nombre || "?").charAt(0))}</div>`;
+}
+
 function pintarError(txt){
   app().innerHTML=`
     <div class="zx_card">
@@ -30,14 +36,10 @@ function pintarError(txt){
 
 async function cargarUsuarios(){
   const cliente=sb();
-  if(!cliente){
-    pintarError("Supabase no conectado.");
-    return [];
-  }
 
   const {data,error}=await cliente
     .from("usuarios")
-    .select("id,nombre,usuario,telefono,email,rol,estado")
+    .select("id,nombre,usuario,telefono,email,rol,estado,foto_url")
     .order("id",{ascending:true});
 
   if(error){
@@ -49,19 +51,9 @@ async function cargarUsuarios(){
 }
 
 window.ZENTRYX_UI_usuarios=async function(){
-  const root=app();
-  if(!root) return;
-
-  root.innerHTML=`
-    <div class="zx_card">
-      <h2>Usuarios</h2>
-      <div class="zx_text">Cargando usuarios...</div>
-    </div>
-  `;
-
   const usuarios=await cargarUsuarios();
 
-  root.innerHTML=`
+  app().innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
       <div class="zx_text">Gestión completa de usuarios.</div>
@@ -74,7 +66,9 @@ window.ZENTRYX_UI_usuarios=async function(){
         usuarios.length
         ? usuarios.map(u=>`
           <div class="zx_item">
+            ${foto(u)}
             <div class="zx_item_titulo">${limpiar(u.nombre || "-")}</div>
+
             <div class="zx_item_texto">
               <b>ID:</b> ${limpiar(u.id)}<br>
               <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
@@ -116,6 +110,7 @@ window.ZX_USER_CREAR=function(){
     <div class="zx_card">
       <h2>Crear usuario</h2>
 
+      <input id="u_foto" type="file" accept="image/*">
       <input id="u_nombre" placeholder="Nombre completo">
       <input id="u_usuario" placeholder="Usuario">
       <input id="u_telefono" placeholder="Teléfono">
@@ -142,6 +137,29 @@ window.ZX_USER_CREAR=function(){
   document.getElementById("btn_cancelar_usuario").onclick=()=>ZX_usuarios();
 };
 
+async function subirFoto(file,usuario){
+  if(!file) return null;
+
+  const cliente=sb();
+  const ext=(file.name.split(".").pop() || "jpg").toLowerCase();
+  const nombreArchivo=`usuarios/${usuario}_${Date.now()}.${ext}`;
+
+  const {error}=await cliente.storage
+    .from("zentryx-usuarios")
+    .upload(nombreArchivo,file,{upsert:true});
+
+  if(error){
+    alert("Error subiendo foto: "+error.message);
+    return null;
+  }
+
+  const {data}=cliente.storage
+    .from("zentryx-usuarios")
+    .getPublicUrl(nombreArchivo);
+
+  return data.publicUrl;
+}
+
 window.ZX_USER_GUARDAR=async function(){
   const cliente=sb();
 
@@ -164,6 +182,9 @@ window.ZX_USER_GUARDAR=async function(){
     return;
   }
 
+  const file=document.getElementById("u_foto").files[0] || null;
+  const foto_url=await subirFoto(file,usuario);
+
   const {error}=await cliente
     .from("usuarios")
     .insert([{
@@ -172,7 +193,8 @@ window.ZX_USER_GUARDAR=async function(){
       telefono:document.getElementById("u_telefono").value.trim(),
       email:document.getElementById("u_email").value.trim(),
       rol:document.getElementById("u_rol").value,
-      estado:document.getElementById("u_estado").value
+      estado:document.getElementById("u_estado").value,
+      foto_url
     }]);
 
   if(error){
@@ -188,17 +210,12 @@ window.ZX_USER_EDITAR=async function(id){
 
   const {data,error}=await cliente
     .from("usuarios")
-    .select("id,nombre,usuario,telefono,email,rol,estado")
+    .select("id,nombre,usuario,telefono,email,rol,estado,foto_url")
     .eq("id",id)
     .maybeSingle();
 
-  if(error){
-    pintarError("Error cargando usuario: "+error.message);
-    return;
-  }
-
-  if(!data){
-    pintarError("Usuario no encontrado.");
+  if(error || !data){
+    pintarError(error ? error.message : "Usuario no encontrado.");
     return;
   }
 
@@ -207,6 +224,9 @@ window.ZX_USER_EDITAR=async function(id){
   app().innerHTML=`
     <div class="zx_card">
       <h2>Editar usuario</h2>
+
+      ${foto(u)}
+      <input id="u_foto" type="file" accept="image/*">
 
       <input id="u_nombre" value="${limpiar(u.nombre)}" placeholder="Nombre completo">
       <input id="u_usuario" value="${limpiar(u.usuario)}" placeholder="Usuario">
@@ -230,11 +250,11 @@ window.ZX_USER_EDITAR=async function(id){
     </div>
   `;
 
-  document.getElementById("btn_actualizar_usuario").onclick=()=>ZX_USER_ACTUALIZAR(id);
+  document.getElementById("btn_actualizar_usuario").onclick=()=>ZX_USER_ACTUALIZAR(id,u.foto_url);
   document.getElementById("btn_volver_usuario").onclick=()=>ZX_usuarios();
 };
 
-window.ZX_USER_ACTUALIZAR=async function(id){
+window.ZX_USER_ACTUALIZAR=async function(id,fotoActual){
   const cliente=sb();
 
   const nombre=document.getElementById("u_nombre").value.trim();
@@ -245,17 +265,9 @@ window.ZX_USER_ACTUALIZAR=async function(id){
     return;
   }
 
-  const {data:duplicado}=await cliente
-    .from("usuarios")
-    .select("id")
-    .eq("usuario",usuario)
-    .neq("id",id)
-    .maybeSingle();
-
-  if(duplicado){
-    alert("Ese usuario ya existe.");
-    return;
-  }
+  const file=document.getElementById("u_foto").files[0] || null;
+  const nuevaFoto=await subirFoto(file,usuario);
+  const foto_url=nuevaFoto || fotoActual || null;
 
   const {error}=await cliente
     .from("usuarios")
@@ -265,7 +277,8 @@ window.ZX_USER_ACTUALIZAR=async function(id){
       telefono:document.getElementById("u_telefono").value.trim(),
       email:document.getElementById("u_email").value.trim(),
       rol:document.getElementById("u_rol").value,
-      estado:document.getElementById("u_estado").value
+      estado:document.getElementById("u_estado").value,
+      foto_url
     })
     .eq("id",id);
 
@@ -278,13 +291,9 @@ window.ZX_USER_ACTUALIZAR=async function(id){
 };
 
 window.ZX_USER_ELIMINAR=async function(id,nombre){
-  const confirmar=confirm("¿Eliminar usuario: "+nombre+"?\n\nEsta acción no se puede deshacer.");
+  if(!confirm("¿Eliminar usuario: "+nombre+"?\n\nEsta acción no se puede deshacer.")) return;
 
-  if(!confirmar) return;
-
-  const cliente=sb();
-
-  const {error}=await cliente
+  const {error}=await sb()
     .from("usuarios")
     .delete()
     .eq("id",id);
