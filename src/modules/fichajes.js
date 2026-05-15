@@ -26,17 +26,17 @@ function guardarEstado(e){
 }
 
 function textoEstado(e){
-  if(e==="dentro") return "Dentro"
-  if(e==="descanso") return "Descanso"
-  if(e==="comida") return "Comida"
-  return "Fuera"
+  if(e==="dentro") return "Dentro";
+  if(e==="descanso") return "Descanso";
+  if(e==="comida") return "Comida";
+  return "Fuera";
 }
 
 function colorEstado(e){
-  if(e==="dentro") return "#16a34a"
-  if(e==="descanso") return "#f59e0b"
-  if(e==="comida") return "#ea580c"
-  return "#64748b"
+  if(e==="dentro") return "#16a34a";
+  if(e==="descanso") return "#f59e0b";
+  if(e==="comida") return "#ea580c";
+  return "#64748b";
 }
 
 async function fichar(tipo){
@@ -49,7 +49,6 @@ async function fichar(tipo){
 
   let estado=estadoActual();
 
-  // lógica
   if(tipo==="entrada" && estado!=="fuera"){
     alert("Ya estás dentro");
     return;
@@ -98,7 +97,7 @@ async function fichar(tipo){
   }]);
 
   if(res.error){
-    alert("Error fichaje: "+res.error.message);
+    alert("Error fichaje: " + res.error.message);
     return;
   }
 
