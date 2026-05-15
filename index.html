@@ -59,11 +59,8 @@ button{
 
 <div class="box" id="app"></div>
 
-<!-- 1. Cargar Supabase -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<!-- 2. Tu core (aquí está la conexión) -->
-<script src="src/app.js?v=2676"></script>
+<!-- CORE -->
+<script src="src/app.js?v=3000"></script>
 
 <script>
 let usuarioActual=null;
@@ -85,13 +82,17 @@ function pantallaLogin(){
 
 async function login(){
   const sb=getClient();
-
   if(!sb){
-    alert("Error conexión Supabase");
+    alert("Error conexión");
     return;
   }
 
-  const user=document.getElementById("usuario").value;
+  const user=document.getElementById("usuario").value.trim();
+
+  if(!user){
+    alert("Introduce usuario");
+    return;
+  }
 
   const {data,error}=await sb
     .from("usuarios")
@@ -143,12 +144,23 @@ async function guardarPIN(){
 
   const hash=btoa(p1);
 
-  await sb.from("usuarios").update({
+  const {error}=await sb.from("usuarios").update({
     pin_hash:hash,
     debe_crear_pin:false
   }).eq("id",usuarioActual.id);
 
-  pantallaPIN();
+  if(error){
+    alert("Error guardando PIN");
+    return;
+  }
+
+  // 🔥 CLAVE: actualizar memoria
+  usuarioActual.pin_hash=hash;
+  usuarioActual.debe_crear_pin=false;
+
+  guardarSesion();
+
+  location.href="app.html?v=3000";
 }
 
 // ==========================
@@ -164,6 +176,12 @@ function pantallaPIN(){
 
 function entrar(){
   const pin=document.getElementById("pin").value;
+
+  if(pin.length!==4){
+    alert("PIN inválido");
+    return;
+  }
+
   const hash=btoa(pin);
 
   if(hash!==usuarioActual.pin_hash){
@@ -171,8 +189,21 @@ function entrar(){
     return;
   }
 
-  localStorage.setItem("zentryx_user",JSON.stringify(usuarioActual));
-  location.href="app.html?v=2676";
+  guardarSesion();
+
+  location.href="app.html?v=3000";
+}
+
+// ==========================
+// SESIÓN
+// ==========================
+function guardarSesion(){
+  localStorage.setItem("zentryx_session",JSON.stringify({
+    id:usuarioActual.id,
+    usuario:usuarioActual.usuario,
+    nombre:usuarioActual.nombre,
+    rol:usuarioActual.rol
+  }));
 }
 
 // ==========================
