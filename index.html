@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V3011</title>
+<title>Zentryx PRO Login V3014</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -75,7 +75,8 @@ button{
 
 <div class="box" id="app"></div>
 
-<script src="src/app.js?v=3011"></script>
+<script src="src/app.js?v=3014"></script>
+<script src="src/core/session.js?v=3014"></script>
 
 <script>
 let usuarioActual=null;
@@ -205,7 +206,7 @@ async function guardarPIN(){
   usuarioActual.pin_bloqueado_hasta=null;
 
   guardarSesion();
-  location.href="app.html?v=3011";
+  location.href="app.html?v=3014";
 }
 
 function pantallaPIN(){
@@ -247,7 +248,7 @@ async function entrar(){
     }
 
     guardarSesion();
-    location.href="app.html?v=3011";
+    location.href="app.html?v=3014";
     return;
   }
 
@@ -285,12 +286,7 @@ async function entrar(){
 }
 
 function guardarSesion(){
-  localStorage.setItem("zentryx_session",JSON.stringify({
-    id:usuarioActual.id,
-    usuario:usuarioActual.usuario,
-    nombre:usuarioActual.nombre,
-    rol:usuarioActual.rol
-  }));
+  ZENTRYX_createSession(usuarioActual);
 }
 
 pantallaLogin();
