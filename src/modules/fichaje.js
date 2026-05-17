@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3033 - CONTADORES EN VIVO BIEN
+// V3034 - ADMIN PRO COMPACTO
 // ===============================
 (function(){
 "use strict";
@@ -31,6 +31,10 @@ function formatoSeg(seg){
   const m=Math.floor((seg%3600)/60);
   const s=seg%60;
   return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+}
+
+function formatoMin(min){
+  return formatoSeg((min||0)*60);
 }
 
 function fechaCorta(f){
@@ -218,13 +222,7 @@ function calcularEnVivo(eventos,estado){
   const brutoSeg=entrada ? segundosEntre(entrada,fin) : 0;
   const trabajadoSeg=Math.max(0,brutoSeg-descansoSeg-comidaSeg);
 
-  return {
-    entrada,
-    salida,
-    trabajadoSeg,
-    descansoSeg,
-    comidaSeg
-  };
+  return {entrada,salida,trabajadoSeg,descansoSeg,comidaSeg};
 }
 
 function opcionesPermitidas(estado){
@@ -461,15 +459,70 @@ async function jornadasUsuario(){
   return r.data || [];
 }
 
-async function jornadasAdmin(){
+async function jornadasAdminHoy(){
+  const hoy=new Date().toISOString().slice(0,10);
+
   const r=await sb()
     .from("jornadas")
     .select("*")
+    .eq("fecha",hoy)
     .order("created_at",{ascending:false})
-    .limit(8);
+    .limit(80);
 
   if(r.error) return [];
   return r.data || [];
+}
+
+async function jornadasAdminPendientes(){
+  const r=await sb()
+    .from("jornadas")
+    .select("*")
+    .in("estado",["cerrada","validada"])
+    .order("created_at",{ascending:false})
+    .limit(30);
+
+  if(r.error) return [];
+  return r.data || [];
+}
+
+async function validarJornada(id){
+  const s=sesion();
+
+  const r=await sb()
+    .from("jornadas")
+    .update({
+      estado:"validada",
+      validada_at:new Date().toISOString(),
+      validada_por:s.usuario || ""
+    })
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error validando: "+r.error.message);
+    return;
+  }
+
+  ZX_fichaje();
+}
+
+async function pagarJornada(id){
+  const s=sesion();
+
+  const r=await sb()
+    .from("jornadas")
+    .update({
+      estado:"pagada",
+      pagada_at:new Date().toISOString(),
+      pagada_por:s.usuario || ""
+    })
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error marcando pagada: "+r.error.message);
+    return;
+  }
+
+  ZX_fichaje();
 }
 
 function resumenHTML(resumen,objetivoSeg){
@@ -484,6 +537,63 @@ function resumenHTML(resumen,objetivoSeg){
       Objetivo: <b>${formatoSeg(objetivoSeg)}</b><br>
       Extra: <b>${formatoSeg(extraSeg)}</b><br>
       Falta: <b>${formatoSeg(faltaSeg)}</b>
+    </div>
+  `;
+}
+
+function renderJornadaMini(j,admin){
+  return `
+    <div class="zx_item">
+      <div class="zx_item_titulo">${j.nombre || j.usuario || "-"} · ${j.fecha || "-"}</div>
+      <div class="zx_item_texto">
+        ${j.estado || "-"}<br>
+        Trab: ${formatoMin(j.minutos_trabajados || 0)} · Obj: ${formatoMin(j.minutos_objetivo || 0)}<br>
+        Desc: ${formatoMin(j.minutos_descanso || 0)} · Comida: ${formatoMin(j.minutos_comida || 0)}<br>
+        Extra: ${formatoMin(j.minutos_extra || j.horas_extra || 0)} · Falta: ${formatoMin(j.minutos_faltantes || 0)}
+      </div>
+
+      ${
+        admin && j.estado==="cerrada"
+        ? `<button class="zx_btn_big zx_verde" data-validar="${j.id}">Validar</button>`
+        : ""
+      }
+
+      ${
+        admin && j.estado==="validada"
+        ? `<button class="zx_btn_big zx_naranja" data-pagar="${j.id}">Marcar pagada</button>`
+        : ""
+      }
+    </div>
+  `;
+}
+
+function renderAdminResumen(jornadasHoy,pendientes){
+  let totalTrab=0;
+  let totalExtra=0;
+  let totalFalta=0;
+  let abiertas=0;
+  let cerradas=0;
+
+  jornadasHoy.forEach(j=>{
+    totalTrab += j.minutos_trabajados || 0;
+    totalExtra += j.minutos_extra || j.horas_extra || 0;
+    totalFalta += j.minutos_faltantes || 0;
+    if(j.estado==="abierta") abiertas++;
+    if(j.estado==="cerrada") cerradas++;
+  });
+
+  return `
+    <div class="zx_item">
+      <div class="zx_item_titulo">Resumen hoy</div>
+      <div class="zx_item_texto">
+        Trabajadores con jornada: <b>${jornadasHoy.length}</b><br>
+        Jornadas abiertas: <b>${abiertas}</b><br>
+        Jornadas cerradas: <b>${cerradas}</b><br>
+        Pendientes: <b>${pendientes.length}</b><br>
+        Total trabajado: <b>${formatoMin(totalTrab)}</b><br>
+        Total extra: <b>${formatoMin(totalExtra)}</b><br>
+        Total faltante: <b>${formatoMin(totalFalta)}</b>
+      </div>
     </div>
   `;
 }
@@ -519,8 +629,10 @@ window.ZX_fichaje=async function(){
   const est=await estadoActual();
   const hist=await ultimosFichajes();
   const jornadas=await jornadasUsuario();
-  const adminJornadas=esAdmin() ? await jornadasAdmin() : [];
   const hoy=jornadas[0] || null;
+
+  const adminHoy=esAdmin() ? await jornadasAdminHoy() : [];
+  const adminPend=esAdmin() ? await jornadasAdminPendientes() : [];
 
   let resumen={trabajadoSeg:0,descansoSeg:0,comidaSeg:0};
   let objetivoSeg=480*60;
@@ -558,6 +670,16 @@ window.ZX_fichaje=async function(){
       <button class="zx_btn_big zx_gris" onclick="ZX_toggleMisJornadas()">
         ${ZX_VER_MIS_JORNADAS ? "Ocultar mis jornadas" : "Ver mis jornadas"}
       </button>
+
+      ${
+        ZX_VER_MIS_JORNADAS
+        ? (
+            jornadas.length
+            ? jornadas.map(j=>renderJornadaMini(j,false)).join("")
+            : `<div class="zx_text">Sin jornadas.</div>`
+          )
+        : ""
+      }
     </div>
 
     ${
@@ -567,6 +689,32 @@ window.ZX_fichaje=async function(){
           <button class="zx_btn_big zx_gris" onclick="ZX_toggleAdmin()">
             ${ZX_VER_ADMIN ? "Ocultar panel admin" : "Ver panel admin"}
           </button>
+
+          ${
+            ZX_VER_ADMIN
+            ? `
+              ${renderAdminResumen(adminHoy,adminPend)}
+
+              <div class="zx_item">
+                <div class="zx_item_titulo">Pendientes</div>
+                ${
+                  adminPend.length
+                  ? adminPend.map(j=>renderJornadaMini(j,true)).join("")
+                  : `<div class="zx_text">No hay jornadas pendientes.</div>`
+                }
+              </div>
+
+              <div class="zx_item">
+                <div class="zx_item_titulo">Hoy</div>
+                ${
+                  adminHoy.length
+                  ? adminHoy.slice(0,10).map(j=>renderJornadaMini(j,false)).join("")
+                  : `<div class="zx_text">Sin jornadas hoy.</div>`
+                }
+              </div>
+            `
+            : ""
+          }
         </div>
       `
       : ""
@@ -600,6 +748,18 @@ window.ZX_fichaje=async function(){
   document.getElementById("zx_btn_fichar").onclick=function(){
     abrirMenu(est.estado);
   };
+
+  document.querySelectorAll("[data-validar]").forEach(btn=>{
+    btn.onclick=function(){
+      validarJornada(btn.dataset.validar);
+    };
+  });
+
+  document.querySelectorAll("[data-pagar]").forEach(btn=>{
+    btn.onclick=function(){
+      pagarJornada(btn.dataset.pagar);
+    };
+  });
 
   if(est.jornada){
     ZX_TIMER=setInterval(function(){
