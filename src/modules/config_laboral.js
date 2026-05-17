@@ -1,6 +1,6 @@
 // ===============================
-// ZENTRYX PRO - CONFIG LABORAL
-// V3042 - AUTO BOTÓN + CONFIG COMPLETA
+// ZENTRYX PRO - CONFIG LABORAL PRO
+// V3043 - HORAS + CONVENIO + CALENDARIO
 // ===============================
 (function(){
 "use strict";
@@ -22,95 +22,70 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
-function insertarBotonConfigLaboral(){
-  if(document.getElementById("zx_btn_config_laboral_auto")) return;
+// ===============================
+// SELECTORES HORAS
+// ===============================
+function selectHoras(id, valorMin){
+  const h=Math.floor((valorMin||0)/60);
+  const m=(valorMin||0)%60;
 
-  const botones=[...document.querySelectorAll("button")];
-  const panel=botones.find(b=>b.textContent.trim().toLowerCase().includes("panel admin"));
+  return `
+    <div class="zx_hm_row">
+      <select id="${id}_h">
+        ${[...Array(13).keys()].map(i=>`
+          <option value="${i}" ${i===h?"selected":""}>${i} h</option>
+        `).join("")}
+      </select>
 
-  const btn=document.createElement("button");
-  btn.id="zx_btn_config_laboral_auto";
-  btn.className="zx_btn_big zx_gris";
-  btn.type="button";
-  btn.textContent="Config. laboral";
-  btn.onclick=function(){
-    ZX_config_laboral();
-  };
-
-  if(panel && panel.parentElement){
-    panel.parentElement.appendChild(btn);
-  }
+      <select id="${id}_m">
+        ${[0,15,30,45].map(i=>`
+          <option value="${i}" ${i===m?"selected":""}>${i} min</option>
+        `).join("")}
+      </select>
+    </div>
+  `;
 }
 
-async function cargarConfig(){
-  const s=sesion();
-
-  const r=await sb()
-    .from("config_laboral_usuario")
-    .select("*")
-    .eq("usuario_id",String(s.id))
-    .limit(1);
-
-  if(r.error) return null;
-
-  if(!r.data || !r.data.length){
-    return {
-      lunes_min:480,
-      martes_min:480,
-      miercoles_min:480,
-      jueves_min:480,
-      viernes_min:480,
-      sabado_min:0,
-      domingo_min:0,
-      vacaciones_dias:30,
-      asuntos_propios_dias:6,
-      localidad:"",
-      provincia:""
-    };
-  }
-
-  return r.data[0];
+function getMin(id){
+  const h=parseInt(document.getElementById(id+"_h").value||0);
+  const m=parseInt(document.getElementById(id+"_m").value||0);
+  return h*60+m;
 }
 
-async function guardarConfig(){
+// ===============================
+// GUARDAR CONFIG
+// ===============================
+async function guardar(){
   const s=sesion();
 
-  const datos={
+  const data={
     usuario_id:String(s.id),
-    usuario:s.usuario || "",
-    nombre:s.nombre || "",
-    lunes_min:Number(document.getElementById("zx_lunes").value || 0),
-    martes_min:Number(document.getElementById("zx_martes").value || 0),
-    miercoles_min:Number(document.getElementById("zx_miercoles").value || 0),
-    jueves_min:Number(document.getElementById("zx_jueves").value || 0),
-    viernes_min:Number(document.getElementById("zx_viernes").value || 0),
-    sabado_min:Number(document.getElementById("zx_sabado").value || 0),
-    domingo_min:Number(document.getElementById("zx_domingo").value || 0),
-    vacaciones_dias:Number(document.getElementById("zx_vacaciones").value || 0),
-    asuntos_propios_dias:Number(document.getElementById("zx_asuntos").value || 0),
-    localidad:document.getElementById("zx_localidad").value.trim(),
-    provincia:document.getElementById("zx_provincia").value.trim(),
+    lunes:getMin("lun"),
+    martes:getMin("mar"),
+    miercoles:getMin("mie"),
+    jueves:getMin("jue"),
+    viernes:getMin("vie"),
+    sabado:getMin("sab"),
+    domingo:getMin("dom"),
+
+    vacaciones:parseInt(document.getElementById("vac").value||0),
+    asuntos:parseInt(document.getElementById("asu").value||0),
+
+    convenio:document.getElementById("convenio").value,
+    precio_hora:parseFloat(document.getElementById("precio_hora").value||0),
+    precio_extra:parseFloat(document.getElementById("precio_extra").value||0),
+
+    pais:document.getElementById("pais").value,
+    provincia:document.getElementById("provincia").value,
+    localidad:document.getElementById("localidad").value,
+    anio:document.getElementById("anio").value,
+
     activo:true
   };
 
-  const existente=await sb()
-    .from("config_laboral_usuario")
-    .select("id")
-    .eq("usuario_id",datos.usuario_id)
-    .limit(1);
-
-  let r;
-
-  if(existente.data && existente.data.length){
-    r=await sb()
-      .from("config_laboral_usuario")
-      .update(datos)
-      .eq("usuario_id",datos.usuario_id);
-  }else{
-    r=await sb()
-      .from("config_laboral_usuario")
-      .insert([datos]);
-  }
+  const r=await sb()
+    .from("horarios_usuario")
+    .upsert([data],{onConflict:"usuario_id"});
 
   if(r.error){
     alert("Error guardando: "+r.error.message);
@@ -120,70 +95,123 @@ async function guardarConfig(){
   alert("Configuración guardada");
 }
 
-function inputDia(id,label,value){
-  return `
-    <div class="zx_admin_row">
-      <div class="zx_admin_row_top">
-        <b>${label}</b>
-        <span>min/día</span>
-      </div>
-      <input id="${id}" type="number" value="${limpiar(value)}">
-    </div>
-  `;
+// ===============================
+// CARGAR FESTIVOS (simulado)
+// ===============================
+function cargarFestivos(){
+  alert("Siguiente paso: conectar API real de festivos");
 }
 
-window.ZX_config_laboral=async function(){
-  const c=await cargarConfig();
-
-  if(!c){
-    alert("No se pudo cargar configuración laboral.");
-    return;
-  }
+// ===============================
+// RENDER
+// ===============================
+window.ZX_configLaboral=async function(){
 
   app().innerHTML=`
     <div class="zx_card">
       <h2>Config. laboral</h2>
-      <div class="zx_text">Jornada por trabajador</div>
 
-      ${inputDia("zx_lunes","Lunes",c.lunes_min)}
-      ${inputDia("zx_martes","Martes",c.martes_min)}
-      ${inputDia("zx_miercoles","Miércoles",c.miercoles_min)}
-      ${inputDia("zx_jueves","Jueves",c.jueves_min)}
-      ${inputDia("zx_viernes","Viernes",c.viernes_min)}
-      ${inputDia("zx_sabado","Sábado",c.sabado_min)}
-      ${inputDia("zx_domingo","Domingo",c.domingo_min)}
+      <h3>Jornada semanal</h3>
+
+      ${["lun","mar","mie","jue","vie","sab","dom"].map(d=>`
+        <div class="zx_label">${d.toUpperCase()}</div>
+        ${selectHoras(d,480)}
+      `).join("")}
     </div>
 
     <div class="zx_card">
-      <h2>Vacaciones y permisos</h2>
+      <h3>Convenio</h3>
 
-      <div class="zx_label">Días de vacaciones</div>
-      <input id="zx_vacaciones" type="number" value="${limpiar(c.vacaciones_dias)}">
+      <select id="convenio" class="zx_input">
+        <option>Metal</option>
+        <option>Construcción</option>
+        <option>Oficinas</option>
+        <option>Personalizado</option>
+      </select>
 
-      <div class="zx_label">Días de asuntos propios</div>
-      <input id="zx_asuntos" type="number" value="${limpiar(c.asuntos_propios_dias)}">
+      <div class="zx_label">Precio hora</div>
+      <input id="precio_hora" type="number" class="zx_input" value="12">
+
+      <div class="zx_label">Precio hora extra</div>
+      <input id="precio_extra" type="number" class="zx_input" value="18">
     </div>
 
     <div class="zx_card">
-      <h2>Calendario laboral</h2>
+      <h3>Vacaciones y permisos</h3>
 
-      <div class="zx_label">Localidad</div>
-      <input id="zx_localidad" value="${limpiar(c.localidad)}">
+      <div class="zx_label">Vacaciones</div>
+      <input id="vac" type="number" class="zx_input" value="30">
+
+      <div class="zx_label">Asuntos propios</div>
+      <input id="asu" type="number" class="zx_input" value="6">
+    </div>
+
+    <div class="zx_card">
+      <h3>Calendario laboral</h3>
+
+      <div class="zx_label">País</div>
+      <input id="pais" class="zx_input" value="España">
 
       <div class="zx_label">Provincia</div>
-      <input id="zx_provincia" value="${limpiar(c.provincia)}">
+      <input id="provincia" class="zx_input">
+
+      <div class="zx_label">Localidad</div>
+      <input id="localidad" class="zx_input">
+
+      <div class="zx_label">Año</div>
+      <input id="anio" class="zx_input" value="${new Date().getFullYear()}">
+
+      <button class="zx_btn_big zx_azul" id="btn_festivos">
+        Cargar festivos
+      </button>
     </div>
 
     <div class="zx_card">
-      <button class="zx_btn_big zx_azul" id="zx_guardar_config_laboral">
+      <button class="zx_btn_big zx_verde" id="guardar">
         Guardar configuración
       </button>
     </div>
   `;
 
-  document.getElementById("zx_guardar_config_laboral").onclick=guardarConfig;
+  document.getElementById("guardar").onclick=guardar;
+  document.getElementById("btn_festivos").onclick=cargarFestivos;
 };
 
-setInterval(insertarBotonConfigLaboral,1000);
+// ===============================
+// ESTILOS
+// ===============================
+(function(){
+  if(document.getElementById("zx_config_css")) return;
+
+  const s=document.createElement("style");
+  s.id="zx_config_css";
+  s.innerHTML=`
+    .zx_input{
+      width:100%;
+      padding:12px;
+      border-radius:12px;
+      border:1px solid #ccc;
+      margin-bottom:10px;
+    }
+
+    .zx_label{
+      font-weight:800;
+      margin:10px 0 4px;
+    }
+
+    .zx_hm_row{
+      display:flex;
+      gap:10px;
+      margin-bottom:10px;
+    }
+
+    .zx_hm_row select{
+      flex:1;
+      padding:10px;
+      border-radius:10px;
+    }
+  `;
+  document.head.appendChild(s);
+})();
 
 })();
