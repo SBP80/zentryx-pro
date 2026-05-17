@@ -1,9 +1,13 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3029 - COMPACTO REAL
+// V3031 - COMPLETO + VISTA COMPACTA
 // ===============================
 (function(){
 "use strict";
+
+let ZX_VER_ULTIMOS=false;
+let ZX_VER_ADMIN=false;
+let ZX_VER_MIS_JORNADAS=false;
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
@@ -497,7 +501,10 @@ function renderJornadaCompacta(j,admin){
     <div class="zx_item">
       <div class="zx_item_titulo">${j.nombre || j.usuario || "-"} · ${j.fecha || "-"}</div>
       <div class="zx_item_texto">
-        ${j.estado || "-"} · Trab: ${formatoMin(j.minutos_trabajados || 0)} · Extra: ${formatoMin(j.minutos_extra || j.horas_extra || 0)} · Falta: ${formatoMin(j.minutos_faltantes || 0)}
+        ${j.estado || "-"}<br>
+        Trab: ${formatoMin(j.minutos_trabajados || 0)} · Obj: ${formatoMin(j.minutos_objetivo || 0)}<br>
+        Desc: ${formatoMin(j.minutos_descanso || 0)} · Comida: ${formatoMin(j.minutos_comida || 0)}<br>
+        Extra: ${formatoMin(j.minutos_extra || j.horas_extra || 0)} · Falta: ${formatoMin(j.minutos_faltantes || 0)}
       </div>
 
       ${
@@ -515,6 +522,21 @@ function renderJornadaCompacta(j,admin){
   `;
 }
 
+window.ZX_toggleUltimos=function(){
+  ZX_VER_ULTIMOS=!ZX_VER_ULTIMOS;
+  ZX_fichaje();
+};
+
+window.ZX_toggleAdmin=function(){
+  ZX_VER_ADMIN=!ZX_VER_ADMIN;
+  ZX_fichaje();
+};
+
+window.ZX_toggleMisJornadas=function(){
+  ZX_VER_MIS_JORNADAS=!ZX_VER_MIS_JORNADAS;
+  ZX_fichaje();
+};
+
 window.ZX_fichaje=async function(){
   document.querySelectorAll(".zx_nav_btn").forEach(function(b){
     b.classList.remove("zx_activo");
@@ -527,6 +549,7 @@ window.ZX_fichaje=async function(){
   const hist=await ultimosFichajes();
   const jornadas=await jornadasUsuario();
   const adminJornadas=esAdmin() ? await jornadasAdmin() : [];
+  const hoy=jornadas[0] || null;
 
   app().innerHTML=`
     <div class="zx_card">
@@ -540,26 +563,50 @@ window.ZX_fichaje=async function(){
       <button class="zx_btn_big zx_azul" id="zx_btn_fichar">FICHAR</button>
     </div>
 
-    ${
-      jornadas.length
-      ? `
-        <div class="zx_card">
-          <h2>Hoy / últimas jornadas</h2>
-          ${jornadas.map(j=>renderJornadaCompacta(j,false)).join("")}
-        </div>
-      `
-      : ""
-    }
+    <div class="zx_card">
+      <h2>Resumen</h2>
+      ${
+        hoy
+        ? `
+          <div class="zx_text">
+            Estado: <b>${hoy.estado || "-"}</b><br>
+            Trabajado: ${formatoMin(hoy.minutos_trabajados || 0)}<br>
+            Descanso: ${formatoMin(hoy.minutos_descanso || 0)} · Comida: ${formatoMin(hoy.minutos_comida || 0)}<br>
+            Extra: ${formatoMin(hoy.minutos_extra || hoy.horas_extra || 0)} · Falta: ${formatoMin(hoy.minutos_faltantes || 0)}
+          </div>
+        `
+        : `<div class="zx_text">Sin jornada hoy.</div>`
+      }
+    </div>
+
+    <div class="zx_card">
+      <button class="zx_btn_big zx_gris" onclick="ZX_toggleMisJornadas()">
+        ${ZX_VER_MIS_JORNADAS ? "Ocultar mis jornadas" : "Ver mis jornadas"}
+      </button>
+
+      ${
+        ZX_VER_MIS_JORNADAS
+        ? jornadas.map(j=>renderJornadaCompacta(j,false)).join("")
+        : ""
+      }
+    </div>
 
     ${
       esAdmin()
       ? `
         <div class="zx_card">
-          <h2>Admin</h2>
+          <button class="zx_btn_big zx_gris" onclick="ZX_toggleAdmin()">
+            ${ZX_VER_ADMIN ? "Ocultar panel admin" : "Ver panel admin"}
+          </button>
+
           ${
-            adminJornadas.length
-            ? adminJornadas.map(j=>renderJornadaCompacta(j,true)).join("")
-            : `<div class="zx_text">Sin jornadas.</div>`
+            ZX_VER_ADMIN
+            ? (
+                adminJornadas.length
+                ? adminJornadas.map(j=>renderJornadaCompacta(j,true)).join("")
+                : `<div class="zx_text">Sin jornadas.</div>`
+              )
+            : ""
           }
         </div>
       `
@@ -567,19 +614,26 @@ window.ZX_fichaje=async function(){
     }
 
     <div class="zx_card">
-      <h2>Últimos 5</h2>
+      <button class="zx_btn_big zx_gris" onclick="ZX_toggleUltimos()">
+        ${ZX_VER_ULTIMOS ? "Ocultar últimos fichajes" : "Ver últimos fichajes"}
+      </button>
+
       ${
-        hist.length
-        ? hist.map(h=>`
-          <div class="zx_item">
-            <div class="zx_item_titulo">${textoTipo(h.tipo)}</div>
-            <div class="zx_item_texto">
-              ${fechaCorta(h.created_at)}<br>
-              ${direccionCorta(h.direccion)}
-            </div>
-          </div>
-        `).join("")
-        : `<div class="zx_text">Sin registros.</div>`
+        ZX_VER_ULTIMOS
+        ? (
+            hist.length
+            ? hist.map(h=>`
+              <div class="zx_item">
+                <div class="zx_item_titulo">${textoTipo(h.tipo)}</div>
+                <div class="zx_item_texto">
+                  ${fechaCorta(h.created_at)}<br>
+                  ${direccionCorta(h.direccion)}
+                </div>
+              </div>
+            `).join("")
+            : `<div class="zx_text">Sin registros.</div>`
+          )
+        : ""
       }
     </div>
   `;
