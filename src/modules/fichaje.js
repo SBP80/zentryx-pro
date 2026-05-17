@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3031 - COMPLETO + VISTA COMPACTA
+// V3032 - RESUMEN EN TIEMPO REAL
 // ===============================
 (function(){
 "use strict";
@@ -8,6 +8,7 @@
 let ZX_VER_ULTIMOS=false;
 let ZX_VER_ADMIN=false;
 let ZX_VER_MIS_JORNADAS=false;
+let ZX_TIMER=null;
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
@@ -38,6 +39,10 @@ function fechaCorta(f){
 function direccionCorta(d){
   if(!d) return "";
   return String(d).split(",").slice(0,3).join(",");
+}
+
+function minutosEntre(a,b){
+  return Math.max(0,Math.floor((new Date(b)-new Date(a))/60000));
 }
 
 function diaSemana(fechaISO){
@@ -158,7 +163,7 @@ async function estadoActual(){
   const j=await jornadaAbierta();
 
   if(!j){
-    return {estado:"fuera",jornada:null};
+    return {estado:"fuera",jornada:null,eventos:[]};
   }
 
   const f=await fichajesDeJornada(j.id);
@@ -166,7 +171,58 @@ async function estadoActual(){
 
   return {
     estado:estadoDesdeTipo(ultimo ? ultimo.tipo : "entrada"),
-    jornada:j
+    jornada:j,
+    eventos:f
+  };
+}
+
+function calcularJornadaEnVivo(eventos,estado){
+  let entrada=null;
+  let salida=null;
+  let inicioDescanso=null;
+  let inicioComida=null;
+  let minutosDescanso=0;
+  let minutosComida=0;
+
+  const now=new Date().toISOString();
+
+  eventos.forEach(e=>{
+    if(e.tipo==="entrada") entrada=e.created_at;
+    if(e.tipo==="salida") salida=e.created_at;
+
+    if(e.tipo==="inicio_descanso") inicioDescanso=e.created_at;
+
+    if(e.tipo==="fin_descanso" && inicioDescanso){
+      minutosDescanso+=minutosEntre(inicioDescanso,e.created_at);
+      inicioDescanso=null;
+    }
+
+    if(e.tipo==="inicio_comida") inicioComida=e.created_at;
+
+    if(e.tipo==="fin_comida" && inicioComida){
+      minutosComida+=minutosEntre(inicioComida,e.created_at);
+      inicioComida=null;
+    }
+  });
+
+  if(estado==="descanso" && inicioDescanso){
+    minutosDescanso+=minutosEntre(inicioDescanso,now);
+  }
+
+  if(estado==="comida" && inicioComida){
+    minutosComida+=minutosEntre(inicioComida,now);
+  }
+
+  const fin=salida || now;
+  const bruto=entrada ? minutosEntre(entrada,fin) : 0;
+  const trabajados=Math.max(0,bruto-minutosDescanso-minutosComida);
+
+  return {
+    entrada,
+    salida,
+    minutos_trabajados:trabajados,
+    minutos_descanso:minutosDescanso,
+    minutos_comida:minutosComida
   };
 }
 
@@ -282,50 +338,9 @@ async function insertarFichaje(tipo,jornadaId,geo){
   return true;
 }
 
-function minutosEntre(a,b){
-  return Math.max(0,Math.round((new Date(b)-new Date(a))/60000));
-}
-
-function calcularJornada(eventos){
-  let entrada=null;
-  let salida=null;
-  let inicioDescanso=null;
-  let inicioComida=null;
-  let minutosDescanso=0;
-  let minutosComida=0;
-
-  eventos.forEach(e=>{
-    if(e.tipo==="entrada") entrada=e.created_at;
-    if(e.tipo==="salida") salida=e.created_at;
-
-    if(e.tipo==="inicio_descanso") inicioDescanso=e.created_at;
-    if(e.tipo==="fin_descanso" && inicioDescanso){
-      minutosDescanso+=minutosEntre(inicioDescanso,e.created_at);
-      inicioDescanso=null;
-    }
-
-    if(e.tipo==="inicio_comida") inicioComida=e.created_at;
-    if(e.tipo==="fin_comida" && inicioComida){
-      minutosComida+=minutosEntre(inicioComida,e.created_at);
-      inicioComida=null;
-    }
-  });
-
-  const bruto=entrada && salida ? minutosEntre(entrada,salida) : 0;
-  const trabajados=Math.max(0,bruto-minutosDescanso-minutosComida);
-
-  return {
-    entrada,
-    salida,
-    minutos_trabajados:trabajados,
-    minutos_descanso:minutosDescanso,
-    minutos_comida:minutosComida
-  };
-}
-
 async function cerrarJornada(jornadaId){
   const eventos=await fichajesDeJornada(jornadaId);
-  const c=calcularJornada(eventos);
+  const c=calcularJornadaEnVivo(eventos,"fuera");
 
   const objetivo=await objetivoDia(c.entrada || new Date().toISOString());
   const extra=Math.max(0,c.minutos_trabajados-objetivo);
@@ -522,6 +537,20 @@ function renderJornadaCompacta(j,admin){
   `;
 }
 
+function resumenHTML(resumen,objetivo){
+  const extra=Math.max(0,resumen.minutos_trabajados-objetivo);
+  const falta=Math.max(0,objetivo-resumen.minutos_trabajados);
+
+  return `
+    <div class="zx_text">
+      Trabajado: <b>${formatoMin(resumen.minutos_trabajados)}</b><br>
+      Descanso: <b>${formatoMin(resumen.minutos_descanso)}</b> · Comida: <b>${formatoMin(resumen.minutos_comida)}</b><br>
+      Objetivo: <b>${formatoMin(objetivo)}</b><br>
+      Extra: <b>${formatoMin(extra)}</b> · Falta: <b>${formatoMin(falta)}</b>
+    </div>
+  `;
+}
+
 window.ZX_toggleUltimos=function(){
   ZX_VER_ULTIMOS=!ZX_VER_ULTIMOS;
   ZX_fichaje();
@@ -538,6 +567,11 @@ window.ZX_toggleMisJornadas=function(){
 };
 
 window.ZX_fichaje=async function(){
+  if(ZX_TIMER){
+    clearInterval(ZX_TIMER);
+    ZX_TIMER=null;
+  }
+
   document.querySelectorAll(".zx_nav_btn").forEach(function(b){
     b.classList.remove("zx_activo");
     if(b.dataset.modulo==="fichaje"){
@@ -550,6 +584,21 @@ window.ZX_fichaje=async function(){
   const jornadas=await jornadasUsuario();
   const adminJornadas=esAdmin() ? await jornadasAdmin() : [];
   const hoy=jornadas[0] || null;
+
+  let resumen={minutos_trabajados:0,minutos_descanso:0,minutos_comida:0};
+  let objetivo=480;
+
+  if(est.jornada){
+    resumen=calcularJornadaEnVivo(est.eventos,est.estado);
+    objetivo=await objetivoDia(resumen.entrada || new Date().toISOString());
+  }else if(hoy){
+    resumen={
+      minutos_trabajados:hoy.minutos_trabajados || 0,
+      minutos_descanso:hoy.minutos_descanso || 0,
+      minutos_comida:hoy.minutos_comida || 0
+    };
+    objetivo=hoy.minutos_objetivo || 480;
+  }
 
   app().innerHTML=`
     <div class="zx_card">
@@ -564,19 +613,10 @@ window.ZX_fichaje=async function(){
     </div>
 
     <div class="zx_card">
-      <h2>Resumen</h2>
-      ${
-        hoy
-        ? `
-          <div class="zx_text">
-            Estado: <b>${hoy.estado || "-"}</b><br>
-            Trabajado: ${formatoMin(hoy.minutos_trabajados || 0)}<br>
-            Descanso: ${formatoMin(hoy.minutos_descanso || 0)} · Comida: ${formatoMin(hoy.minutos_comida || 0)}<br>
-            Extra: ${formatoMin(hoy.minutos_extra || hoy.horas_extra || 0)} · Falta: ${formatoMin(hoy.minutos_faltantes || 0)}
-          </div>
-        `
-        : `<div class="zx_text">Sin jornada hoy.</div>`
-      }
+      <h2>Resumen en tiempo real</h2>
+      <div id="zx_resumen_tiempo">
+        ${resumenHTML(resumen,objetivo)}
+      </div>
     </div>
 
     <div class="zx_card">
@@ -653,6 +693,14 @@ window.ZX_fichaje=async function(){
       pagarJornada(btn.dataset.pagar);
     };
   });
+
+  if(est.jornada){
+    ZX_TIMER=setInterval(function(){
+      const r=calcularJornadaEnVivo(est.eventos,est.estado);
+      const cont=document.getElementById("zx_resumen_tiempo");
+      if(cont) cont.innerHTML=resumenHTML(r,objetivo);
+    },1000);
+  }
 };
 
 })();
