@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - CONFIG LABORAL PRO
-// V3043 - HORAS + CONVENIO + CALENDARIO
+// V3044 - COMPLETO + BOTÓN AUTOMÁTICO
 // ===============================
 (function(){
 "use strict";
@@ -60,6 +60,7 @@ async function guardar(){
 
   const data={
     usuario_id:String(s.id),
+
     lunes:getMin("lun"),
     martes:getMin("mar"),
     miercoles:getMin("mie"),
@@ -96,10 +97,10 @@ async function guardar(){
 }
 
 // ===============================
-// CARGAR FESTIVOS (simulado)
+// FESTIVOS (FASE SIGUIENTE)
 // ===============================
 function cargarFestivos(){
-  alert("Siguiente paso: conectar API real de festivos");
+  alert("Aquí conectaremos festivos reales");
 }
 
 // ===============================
@@ -113,10 +114,26 @@ window.ZX_configLaboral=async function(){
 
       <h3>Jornada semanal</h3>
 
-      ${["lun","mar","mie","jue","vie","sab","dom"].map(d=>`
-        <div class="zx_label">${d.toUpperCase()}</div>
-        ${selectHoras(d,480)}
-      `).join("")}
+      <div class="zx_label">Lunes</div>
+      ${selectHoras("lun",480)}
+
+      <div class="zx_label">Martes</div>
+      ${selectHoras("mar",480)}
+
+      <div class="zx_label">Miércoles</div>
+      ${selectHoras("mie",480)}
+
+      <div class="zx_label">Jueves</div>
+      ${selectHoras("jue",480)}
+
+      <div class="zx_label">Viernes</div>
+      ${selectHoras("vie",480)}
+
+      <div class="zx_label">Sábado</div>
+      ${selectHoras("sab",0)}
+
+      <div class="zx_label">Domingo</div>
+      ${selectHoras("dom",0)}
     </div>
 
     <div class="zx_card">
@@ -176,6 +193,35 @@ window.ZX_configLaboral=async function(){
   document.getElementById("guardar").onclick=guardar;
   document.getElementById("btn_festivos").onclick=cargarFestivos;
 };
+
+// ===============================
+// BOTÓN AUTOMÁTICO EN INICIO
+// ===============================
+function insertarBoton(){
+
+  if(document.getElementById("zx_btn_config_laboral")) return;
+
+  const botones=[...document.querySelectorAll("button")];
+
+  const panel=botones.find(b=>
+    b.textContent.toLowerCase().includes("panel admin")
+  );
+
+  if(!panel) return;
+
+  const btn=document.createElement("button");
+  btn.id="zx_btn_config_laboral";
+  btn.className="zx_btn_big zx_gris";
+  btn.textContent="Config. laboral";
+
+  btn.onclick=function(){
+    window.ZX_configLaboral();
+  };
+
+  panel.parentElement.appendChild(btn);
+}
+
+setInterval(insertarBoton,1000);
 
 // ===============================
 // ESTILOS
