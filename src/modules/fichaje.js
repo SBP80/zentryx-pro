@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3034 - ADMIN PRO COMPACTO
+// V3035 - ADMIN PRO COMPACTO
 // ===============================
 (function(){
 "use strict";
@@ -543,10 +543,17 @@ function resumenHTML(resumen,objetivoSeg){
 
 function renderJornadaMini(j,admin){
   return `
-    <div class="zx_item">
-      <div class="zx_item_titulo">${j.nombre || j.usuario || "-"} · ${j.fecha || "-"}</div>
-      <div class="zx_item_texto">
-        ${j.estado || "-"}<br>
+    <div class="zx_admin_row">
+      <div class="zx_admin_row_top">
+        <b>${j.nombre || j.usuario || "-"}</b>
+        <span>${j.fecha || "-"}</span>
+      </div>
+
+      <div class="zx_admin_estado ${j.estado || ""}">
+        ${j.estado || "-"}
+      </div>
+
+      <div class="zx_admin_data">
         Trab: ${formatoMin(j.minutos_trabajados || 0)} · Obj: ${formatoMin(j.minutos_objetivo || 0)}<br>
         Desc: ${formatoMin(j.minutos_descanso || 0)} · Comida: ${formatoMin(j.minutos_comida || 0)}<br>
         Extra: ${formatoMin(j.minutos_extra || j.horas_extra || 0)} · Falta: ${formatoMin(j.minutos_faltantes || 0)}
@@ -554,13 +561,13 @@ function renderJornadaMini(j,admin){
 
       ${
         admin && j.estado==="cerrada"
-        ? `<button class="zx_btn_big zx_verde" data-validar="${j.id}">Validar</button>`
+        ? `<button class="zx_admin_btn zx_admin_validar" data-validar="${j.id}">Validar</button>`
         : ""
       }
 
       ${
         admin && j.estado==="validada"
-        ? `<button class="zx_btn_big zx_naranja" data-pagar="${j.id}">Marcar pagada</button>`
+        ? `<button class="zx_admin_btn zx_admin_pagar" data-pagar="${j.id}">Marcar pagada</button>`
         : ""
       }
     </div>
@@ -583,19 +590,124 @@ function renderAdminResumen(jornadasHoy,pendientes){
   });
 
   return `
-    <div class="zx_item">
-      <div class="zx_item_titulo">Resumen hoy</div>
-      <div class="zx_item_texto">
-        Trabajadores con jornada: <b>${jornadasHoy.length}</b><br>
-        Jornadas abiertas: <b>${abiertas}</b><br>
-        Jornadas cerradas: <b>${cerradas}</b><br>
-        Pendientes: <b>${pendientes.length}</b><br>
-        Total trabajado: <b>${formatoMin(totalTrab)}</b><br>
-        Total extra: <b>${formatoMin(totalExtra)}</b><br>
-        Total faltante: <b>${formatoMin(totalFalta)}</b>
-      </div>
+    <div class="zx_admin_summary">
+      <div><b>${jornadasHoy.length}</b><span>Jornadas</span></div>
+      <div><b>${abiertas}</b><span>Abiertas</span></div>
+      <div><b>${cerradas}</b><span>Cerradas</span></div>
+      <div><b>${pendientes.length}</b><span>Pendientes</span></div>
+    </div>
+
+    <div class="zx_admin_totals">
+      Trabajado: <b>${formatoMin(totalTrab)}</b><br>
+      Extra: <b>${formatoMin(totalExtra)}</b> · Falta: <b>${formatoMin(totalFalta)}</b>
     </div>
   `;
+}
+
+function estilosAdminCompacto(){
+  if(document.getElementById("zx_admin_compacto_css")) return;
+
+  const s=document.createElement("style");
+  s.id="zx_admin_compacto_css";
+  s.innerHTML=`
+    .zx_admin_summary{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:10px;
+      margin:12px 0;
+    }
+
+    .zx_admin_summary div{
+      background:#f1f5f9;
+      border-radius:16px;
+      padding:14px;
+      text-align:center;
+    }
+
+    .zx_admin_summary b{
+      display:block;
+      font-size:26px;
+      color:#0f172a;
+    }
+
+    .zx_admin_summary span{
+      font-size:14px;
+      color:#64748b;
+      font-weight:800;
+    }
+
+    .zx_admin_totals{
+      background:#eef2ff;
+      border-radius:16px;
+      padding:14px;
+      margin-bottom:14px;
+      color:#334155;
+      font-size:17px;
+      line-height:1.5;
+      font-weight:800;
+    }
+
+    .zx_admin_row{
+      background:#f8fafc;
+      border:1px solid #d1d5db;
+      border-radius:18px;
+      padding:14px;
+      margin-top:10px;
+    }
+
+    .zx_admin_row_top{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      font-size:16px;
+      color:#0f172a;
+      font-weight:900;
+    }
+
+    .zx_admin_row_top span{
+      color:#64748b;
+      font-size:14px;
+      white-space:nowrap;
+    }
+
+    .zx_admin_estado{
+      display:inline-block;
+      margin:8px 0;
+      padding:5px 10px;
+      border-radius:999px;
+      background:#64748b;
+      color:white;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .zx_admin_estado.abierta{background:#f59e0b}
+    .zx_admin_estado.cerrada{background:#2563eb}
+    .zx_admin_estado.validada{background:#7c3aed}
+    .zx_admin_estado.pagada{background:#16a34a}
+
+    .zx_admin_data{
+      color:#64748b;
+      font-size:15px;
+      line-height:1.45;
+      font-weight:800;
+    }
+
+    .zx_admin_btn{
+      width:100%;
+      border:0;
+      border-radius:14px;
+      margin-top:10px;
+      padding:12px;
+      color:white;
+      font-size:16px;
+      font-weight:900;
+    }
+
+    .zx_admin_validar{background:#16a34a}
+    .zx_admin_pagar{background:#ea580c}
+  `;
+  document.head.appendChild(s);
 }
 
 window.ZX_toggleUltimos=function(){
@@ -614,6 +726,8 @@ window.ZX_toggleMisJornadas=function(){
 };
 
 window.ZX_fichaje=async function(){
+  estilosAdminCompacto();
+
   if(ZX_TIMER){
     clearInterval(ZX_TIMER);
     ZX_TIMER=null;
@@ -695,23 +809,19 @@ window.ZX_fichaje=async function(){
             ? `
               ${renderAdminResumen(adminHoy,adminPend)}
 
-              <div class="zx_item">
-                <div class="zx_item_titulo">Pendientes</div>
-                ${
-                  adminPend.length
-                  ? adminPend.map(j=>renderJornadaMini(j,true)).join("")
-                  : `<div class="zx_text">No hay jornadas pendientes.</div>`
-                }
-              </div>
+              <h3 style="font-size:24px;margin:18px 0 8px;">Pendientes</h3>
+              ${
+                adminPend.length
+                ? adminPend.map(j=>renderJornadaMini(j,true)).join("")
+                : `<div class="zx_text">No hay jornadas pendientes.</div>`
+              }
 
-              <div class="zx_item">
-                <div class="zx_item_titulo">Hoy</div>
-                ${
-                  adminHoy.length
-                  ? adminHoy.slice(0,10).map(j=>renderJornadaMini(j,false)).join("")
-                  : `<div class="zx_text">Sin jornadas hoy.</div>`
-                }
-              </div>
+              <h3 style="font-size:24px;margin:18px 0 8px;">Hoy</h3>
+              ${
+                adminHoy.length
+                ? adminHoy.slice(0,10).map(j=>renderJornadaMini(j,false)).join("")
+                : `<div class="zx_text">Sin jornadas hoy.</div>`
+              }
             `
             : ""
           }
@@ -730,12 +840,12 @@ window.ZX_fichaje=async function(){
         ? (
             hist.length
             ? hist.map(h=>`
-              <div class="zx_item">
-                <div class="zx_item_titulo">${textoTipo(h.tipo)}</div>
-                <div class="zx_item_texto">
-                  ${fechaCorta(h.created_at)}<br>
-                  ${direccionCorta(h.direccion)}
+              <div class="zx_admin_row">
+                <div class="zx_admin_row_top">
+                  <b>${textoTipo(h.tipo)}</b>
+                  <span>${fechaCorta(h.created_at)}</span>
                 </div>
+                <div class="zx_admin_data">${direccionCorta(h.direccion)}</div>
               </div>
             `).join("")
             : `<div class="zx_text">Sin registros.</div>`
