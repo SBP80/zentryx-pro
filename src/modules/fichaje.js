@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3023 - JORNADAS + DESCANSOS + COMIDA
+// V3024 - PANEL ADMIN JORNADAS
 // ===============================
 (function(){
 "use strict";
@@ -13,8 +13,15 @@ function sesion(){
   catch(e){return {}}
 }
 
-function ahoraISO(){
-  return new Date().toISOString();
+function esAdmin(){
+  const s=sesion();
+  return String(s.rol||"").toLowerCase()==="administrador" || String(s.usuario||"").toLowerCase()==="admin";
+}
+
+function formatoMinutos(min){
+  const h=Math.floor((min||0)/60);
+  const m=(min||0)%60;
+  return h+"h "+String(m).padStart(2,"0")+"m";
 }
 
 function textoTipo(t){
@@ -27,6 +34,17 @@ function textoTipo(t){
     fin_comida:"Fin comida"
   };
   return m[t] || t;
+}
+
+function estadoDesdeTipo(tipo){
+  if(!tipo) return "fuera";
+  if(tipo==="entrada") return "dentro";
+  if(tipo==="salida") return "fuera";
+  if(tipo==="inicio_descanso") return "descanso";
+  if(tipo==="fin_descanso") return "dentro";
+  if(tipo==="inicio_comida") return "comida";
+  if(tipo==="fin_comida") return "dentro";
+  return "fuera";
 }
 
 function textoEstado(e){
@@ -43,27 +61,6 @@ function colorEstado(e){
   return "#64748b";
 }
 
-function estadoDesdeTipo(tipo){
-  if(!tipo) return "fuera";
-  if(tipo==="entrada") return "dentro";
-  if(tipo==="salida") return "fuera";
-  if(tipo==="inicio_descanso") return "descanso";
-  if(tipo==="fin_descanso") return "dentro";
-  if(tipo==="inicio_comida") return "comida";
-  if(tipo==="fin_comida") return "dentro";
-  return "fuera";
-}
-
-function minutosEntre(a,b){
-  return Math.max(0,Math.round((new Date(b)-new Date(a))/60000));
-}
-
-function formatoMinutos(min){
-  const h=Math.floor((min || 0)/60);
-  const m=(min || 0)%60;
-  return h+"h "+String(m).padStart(2,"0")+"m";
-}
-
 async function obtenerUbicacion(){
   return new Promise(resolve=>{
     if(!navigator.geolocation){
@@ -76,21 +73,13 @@ async function obtenerUbicacion(){
       const lng=pos.coords.longitude;
 
       try{
-        const r=await fetch(
-          "https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng
-        );
+        const r=await fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng);
         const data=await r.json();
-
-        resolve({
-          lat:lat,
-          lng:lng,
-          direccion:data.display_name || null
-        });
+        resolve({lat,lng,direccion:data.display_name || null});
       }catch(e){
-        resolve({lat:lat,lng:lng,direccion:null});
+        resolve({lat,lng,direccion:null});
       }
-
-    },function(){
+    },()=>{
       resolve({lat:null,lng:null,direccion:null});
     },{
       enableHighAccuracy:true,
@@ -126,44 +115,25 @@ async function fichajesDeJornada(jornadaId){
   return r.data || [];
 }
 
-async function ultimoFichaje(){
-  const s=sesion();
-
-  const r=await sb()
-    .from("fichajes")
-    .select("*")
-    .eq("usuario_id",String(s.id))
-    .order("created_at",{ascending:false})
-    .limit(1);
-
-  if(r.error || !r.data || !r.data.length) return null;
-  return r.data[0];
-}
-
 async function estadoActual(){
   const j=await jornadaAbierta();
 
-  if(!j) return {
-    estado:"fuera",
-    jornada:null,
-    ultimo:null
-  };
+  if(!j){
+    return {estado:"fuera",jornada:null};
+  }
 
   const f=await fichajesDeJornada(j.id);
   const ultimo=f.length ? f[f.length-1] : null;
 
   return {
     estado:estadoDesdeTipo(ultimo ? ultimo.tipo : "entrada"),
-    jornada:j,
-    ultimo:ultimo
+    jornada:j
   };
 }
 
 function opcionesPermitidas(estado){
   if(estado==="fuera"){
-    return [
-      {tipo:"entrada",texto:"Entrada",clase:"zx_verde"}
-    ];
+    return [{tipo:"entrada",texto:"Entrada",clase:"zx_verde"}];
   }
 
   if(estado==="dentro"){
@@ -175,15 +145,11 @@ function opcionesPermitidas(estado){
   }
 
   if(estado==="descanso"){
-    return [
-      {tipo:"fin_descanso",texto:"Fin descanso",clase:"zx_azul"}
-    ];
+    return [{tipo:"fin_descanso",texto:"Fin descanso",clase:"zx_azul"}];
   }
 
   if(estado==="comida"){
-    return [
-      {tipo:"fin_comida",texto:"Fin comida",clase:"zx_azul"}
-    ];
+    return [{tipo:"fin_comida",texto:"Fin comida",clase:"zx_azul"}];
   }
 
   return [];
@@ -229,7 +195,7 @@ function abrirMenu(estado){
 
 async function crearJornada(){
   const s=sesion();
-  const ahora=ahoraISO();
+  const ahora=new Date().toISOString();
 
   const r=await sb()
     .from("jornadas")
@@ -262,12 +228,12 @@ async function insertarFichaje(tipo,jornadaId,geo){
       usuario:s.usuario || "",
       nombre:s.nombre || "",
       jornada_id:jornadaId,
-      tipo:tipo,
+      tipo,
       lat:geo.lat,
       lng:geo.lng,
       direccion:geo.direccion,
       dispositivo:navigator.userAgent,
-      created_at:ahoraISO()
+      created_at:new Date().toISOString()
     }]);
 
   if(r.error){
@@ -278,13 +244,15 @@ async function insertarFichaje(tipo,jornadaId,geo){
   return true;
 }
 
+function minutosEntre(a,b){
+  return Math.max(0,Math.round((new Date(b)-new Date(a))/60000));
+}
+
 function calcularJornada(eventos){
   let entrada=null;
   let salida=null;
-
   let inicioDescanso=null;
   let inicioComida=null;
-
   let minutosDescanso=0;
   let minutosComida=0;
 
@@ -310,8 +278,7 @@ function calcularJornada(eventos){
   const extra=Math.max(0,trabajados-480);
 
   return {
-    entrada:entrada,
-    salida:salida,
+    salida,
     minutos_trabajados:trabajados,
     minutos_descanso:minutosDescanso,
     minutos_comida:minutosComida,
@@ -364,31 +331,6 @@ async function registrar(tipo){
     return;
   }
 
-  if(tipo==="salida" && est.estado==="fuera"){
-    alert("No puedes salir sin entrada.");
-    return;
-  }
-
-  if(tipo==="inicio_descanso" && est.estado!=="dentro"){
-    alert("Solo puedes iniciar descanso trabajando.");
-    return;
-  }
-
-  if(tipo==="fin_descanso" && est.estado!=="descanso"){
-    alert("No estás en descanso.");
-    return;
-  }
-
-  if(tipo==="inicio_comida" && est.estado!=="dentro"){
-    alert("Solo puedes iniciar comida trabajando.");
-    return;
-  }
-
-  if(tipo==="fin_comida" && est.estado!=="comida"){
-    alert("No estás en comida.");
-    return;
-  }
-
   if(tipo==="salida" && (est.estado==="descanso" || est.estado==="comida")){
     alert("Primero termina descanso o comida.");
     return;
@@ -400,8 +342,8 @@ async function registrar(tipo){
   }
 
   const geo=await obtenerUbicacion();
-
   const ok=await insertarFichaje(tipo,jornada.id,geo);
+
   if(!ok) return;
 
   if(tipo==="salida"){
@@ -425,7 +367,7 @@ async function ultimosFichajes(){
   return r.data || [];
 }
 
-async function ultimasJornadas(){
+async function jornadasUsuario(){
   const s=sesion();
 
   const r=await sb()
@@ -439,41 +381,118 @@ async function ultimasJornadas(){
   return r.data || [];
 }
 
+async function jornadasAdmin(){
+  const r=await sb()
+    .from("jornadas")
+    .select("*")
+    .order("created_at",{ascending:false})
+    .limit(50);
+
+  if(r.error) return [];
+  return r.data || [];
+}
+
+async function validarJornada(id){
+  const s=sesion();
+
+  const r=await sb()
+    .from("jornadas")
+    .update({
+      estado:"validada",
+      validada_at:new Date().toISOString(),
+      validada_por:s.usuario || ""
+    })
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error validando: "+r.error.message);
+    return;
+  }
+
+  ZX_fichaje();
+}
+
+async function pagarJornada(id){
+  const s=sesion();
+
+  const r=await sb()
+    .from("jornadas")
+    .update({
+      estado:"pagada",
+      pagada_at:new Date().toISOString(),
+      pagada_por:s.usuario || ""
+    })
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error marcando pagada: "+r.error.message);
+    return;
+  }
+
+  ZX_fichaje();
+}
+
+function renderJornada(j,admin){
+  return `
+    <div class="zx_item">
+      <div class="zx_item_titulo">${j.nombre || j.usuario || "-"} · ${j.fecha || "-"}</div>
+      <div class="zx_item_texto">
+        Estado: <b>${j.estado || "-"}</b><br>
+        Trabajado: ${formatoMinutos(j.minutos_trabajados || 0)}<br>
+        Descanso: ${formatoMinutos(j.minutos_descanso || 0)}<br>
+        Comida: ${formatoMinutos(j.minutos_comida || 0)}<br>
+        Extra: ${formatoMinutos(j.horas_extra || 0)}
+      </div>
+
+      ${
+        admin
+        ? `
+          ${j.estado==="cerrada" ? `<button class="zx_btn_big zx_verde" data-validar="${j.id}">Validar</button>` : ""}
+          ${j.estado==="validada" ? `<button class="zx_btn_big zx_naranja" data-pagar="${j.id}">Marcar pagada</button>` : ""}
+        `
+        : ""
+      }
+    </div>
+  `;
+}
+
 window.ZX_fichaje=async function(){
   const est=await estadoActual();
   const hist=await ultimosFichajes();
-  const jornadas=await ultimasJornadas();
+  const jornadas=await jornadasUsuario();
+  const adminJornadas=esAdmin() ? await jornadasAdmin() : [];
 
   app().innerHTML=`
     <div class="zx_card">
       <h2>Fichaje</h2>
-
       <div class="zx_text">Estado actual:</div>
       <div style="font-size:34px;font-weight:900;color:${colorEstado(est.estado)};margin-top:8px">
         ${textoEstado(est.estado)}
       </div>
 
-      <button class="zx_btn_big zx_azul" id="zx_btn_fichar">
-        FICHAR
-      </button>
+      <button class="zx_btn_big zx_azul" id="zx_btn_fichar">FICHAR</button>
     </div>
 
+    ${
+      esAdmin()
+      ? `
+        <div class="zx_card">
+          <h2>Panel admin jornadas</h2>
+          ${
+            adminJornadas.length
+            ? adminJornadas.map(j=>renderJornada(j,true)).join("")
+            : `<div class="zx_text">Sin jornadas.</div>`
+          }
+        </div>
+      `
+      : ""
+    }
+
     <div class="zx_card">
-      <h2>Jornadas</h2>
+      <h2>Mis jornadas</h2>
       ${
         jornadas.length
-        ? jornadas.map(j=>`
-          <div class="zx_item">
-            <div class="zx_item_titulo">${j.fecha || "-"}</div>
-            <div class="zx_item_texto">
-              Estado: ${j.estado || "-"}<br>
-              Trabajado: ${formatoMinutos(j.minutos_trabajados || 0)}<br>
-              Descanso: ${formatoMinutos(j.minutos_descanso || 0)}<br>
-              Comida: ${formatoMinutos(j.minutos_comida || 0)}<br>
-              Extra: ${formatoMinutos(j.horas_extra || 0)}
-            </div>
-          </div>
-        `).join("")
+        ? jornadas.map(j=>renderJornada(j,false)).join("")
         : `<div class="zx_text">Sin jornadas.</div>`
       }
     </div>
@@ -499,6 +518,18 @@ window.ZX_fichaje=async function(){
   document.getElementById("zx_btn_fichar").onclick=function(){
     abrirMenu(est.estado);
   };
+
+  document.querySelectorAll("[data-validar]").forEach(btn=>{
+    btn.onclick=function(){
+      validarJornada(btn.dataset.validar);
+    };
+  });
+
+  document.querySelectorAll("[data-pagar]").forEach(btn=>{
+    btn.onclick=function(){
+      pagarJornada(btn.dataset.pagar);
+    };
+  });
 };
 
 })();
