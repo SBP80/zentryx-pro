@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - CONFIG LABORAL
-// V3041 COMPLETO
+// V3042 - AUTO BOTÓN + CONFIG COMPLETA
 // ===============================
 (function(){
 "use strict";
@@ -17,12 +17,31 @@ function limpiar(v){
   return String(v ?? "")
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;");
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
 
-// ===============================
-// CARGAR CONFIG
-// ===============================
+function insertarBotonConfigLaboral(){
+  if(document.getElementById("zx_btn_config_laboral_auto")) return;
+
+  const botones=[...document.querySelectorAll("button")];
+  const panel=botones.find(b=>b.textContent.trim().toLowerCase().includes("panel admin"));
+
+  const btn=document.createElement("button");
+  btn.id="zx_btn_config_laboral_auto";
+  btn.className="zx_btn_big zx_gris";
+  btn.type="button";
+  btn.textContent="Config. laboral";
+  btn.onclick=function(){
+    ZX_config_laboral();
+  };
+
+  if(panel && panel.parentElement){
+    panel.parentElement.appendChild(btn);
+  }
+}
+
 async function cargarConfig(){
   const s=sesion();
 
@@ -34,7 +53,7 @@ async function cargarConfig(){
 
   if(r.error) return null;
 
-  if(!r.data.length){
+  if(!r.data || !r.data.length){
     return {
       lunes_min:480,
       martes_min:480,
@@ -53,9 +72,6 @@ async function cargarConfig(){
   return r.data[0];
 }
 
-// ===============================
-// GUARDAR CONFIG
-// ===============================
 async function guardarConfig(){
   const s=sesion();
 
@@ -63,7 +79,6 @@ async function guardarConfig(){
     usuario_id:String(s.id),
     usuario:s.usuario || "",
     nombre:s.nombre || "",
-
     lunes_min:Number(document.getElementById("zx_lunes").value || 0),
     martes_min:Number(document.getElementById("zx_martes").value || 0),
     miercoles_min:Number(document.getElementById("zx_miercoles").value || 0),
@@ -71,13 +86,10 @@ async function guardarConfig(){
     viernes_min:Number(document.getElementById("zx_viernes").value || 0),
     sabado_min:Number(document.getElementById("zx_sabado").value || 0),
     domingo_min:Number(document.getElementById("zx_domingo").value || 0),
-
     vacaciones_dias:Number(document.getElementById("zx_vacaciones").value || 0),
     asuntos_propios_dias:Number(document.getElementById("zx_asuntos").value || 0),
-
-    localidad:document.getElementById("zx_localidad").value,
-    provincia:document.getElementById("zx_provincia").value,
-
+    localidad:document.getElementById("zx_localidad").value.trim(),
+    provincia:document.getElementById("zx_provincia").value.trim(),
     activo:true
   };
 
@@ -105,50 +117,55 @@ async function guardarConfig(){
     return;
   }
 
-  alert("Guardado correctamente");
+  alert("Configuración guardada");
 }
 
-// ===============================
-// UI
-// ===============================
-window.ZENTRYX_UI_config_laboral=async function(){
+function inputDia(id,label,value){
+  return `
+    <div class="zx_admin_row">
+      <div class="zx_admin_row_top">
+        <b>${label}</b>
+        <span>min/día</span>
+      </div>
+      <input id="${id}" type="number" value="${limpiar(value)}">
+    </div>
+  `;
+}
 
-  document.querySelectorAll(".zx_nav_btn").forEach(b=>{
-    b.classList.remove("zx_activo");
-    if(b.dataset.modulo==="config_laboral"){
-      b.classList.add("zx_activo");
-    }
-  });
-
+window.ZX_config_laboral=async function(){
   const c=await cargarConfig();
+
+  if(!c){
+    alert("No se pudo cargar configuración laboral.");
+    return;
+  }
 
   app().innerHTML=`
     <div class="zx_card">
-      <h2>Configuración laboral</h2>
+      <h2>Config. laboral</h2>
+      <div class="zx_text">Jornada por trabajador</div>
 
-      <div class="zx_label">Horas por día (minutos)</div>
-
-      <input id="zx_lunes" value="${c.lunes_min}">
-      <input id="zx_martes" value="${c.martes_min}">
-      <input id="zx_miercoles" value="${c.miercoles_min}">
-      <input id="zx_jueves" value="${c.jueves_min}">
-      <input id="zx_viernes" value="${c.viernes_min}">
-      <input id="zx_sabado" value="${c.sabado_min}">
-      <input id="zx_domingo" value="${c.domingo_min}">
+      ${inputDia("zx_lunes","Lunes",c.lunes_min)}
+      ${inputDia("zx_martes","Martes",c.martes_min)}
+      ${inputDia("zx_miercoles","Miércoles",c.miercoles_min)}
+      ${inputDia("zx_jueves","Jueves",c.jueves_min)}
+      ${inputDia("zx_viernes","Viernes",c.viernes_min)}
+      ${inputDia("zx_sabado","Sábado",c.sabado_min)}
+      ${inputDia("zx_domingo","Domingo",c.domingo_min)}
     </div>
 
     <div class="zx_card">
-      <h2>Vacaciones</h2>
+      <h2>Vacaciones y permisos</h2>
 
-      <div class="zx_label">Días vacaciones</div>
-      <input id="zx_vacaciones" value="${c.vacaciones_dias}">
+      <div class="zx_label">Días de vacaciones</div>
+      <input id="zx_vacaciones" type="number" value="${limpiar(c.vacaciones_dias)}">
 
-      <div class="zx_label">Asuntos propios</div>
-      <input id="zx_asuntos" value="${c.asuntos_propios_dias}">
+      <div class="zx_label">Días de asuntos propios</div>
+      <input id="zx_asuntos" type="number" value="${limpiar(c.asuntos_propios_dias)}">
     </div>
 
     <div class="zx_card">
-      <h2>Ubicación laboral</h2>
+      <h2>Calendario laboral</h2>
 
       <div class="zx_label">Localidad</div>
       <input id="zx_localidad" value="${limpiar(c.localidad)}">
@@ -158,13 +175,15 @@ window.ZENTRYX_UI_config_laboral=async function(){
     </div>
 
     <div class="zx_card">
-      <button class="zx_btn_big zx_azul" id="zx_guardar_config">
-        GUARDAR CONFIGURACIÓN
+      <button class="zx_btn_big zx_azul" id="zx_guardar_config_laboral">
+        Guardar configuración
       </button>
     </div>
   `;
 
-  document.getElementById("zx_guardar_config").onclick=guardarConfig;
+  document.getElementById("zx_guardar_config_laboral").onclick=guardarConfig;
 };
+
+setInterval(insertarBotonConfigLaboral,1000);
 
 })();
