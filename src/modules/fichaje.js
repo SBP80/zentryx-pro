@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3035 - ADMIN PRO COMPACTO
+// V3036 - CONTADOR TRABAJO CORREGIDO
 // ===============================
 (function(){
 "use strict";
@@ -218,9 +218,39 @@ function calcularEnVivo(eventos,estado){
     comidaSeg+=segundosEntre(inicioComida,now);
   }
 
-  const fin=salida || now;
-  const brutoSeg=entrada ? segundosEntre(entrada,fin) : 0;
-  const trabajadoSeg=Math.max(0,brutoSeg-descansoSeg-comidaSeg);
+  let trabajadoSeg=0;
+
+  if(entrada){
+    let inicioTrabajo=entrada;
+
+    eventos.forEach(e=>{
+      if(e.tipo==="entrada"){
+        inicioTrabajo=e.created_at;
+      }
+
+      if(e.tipo==="inicio_descanso" || e.tipo==="inicio_comida"){
+        if(inicioTrabajo){
+          trabajadoSeg+=segundosEntre(inicioTrabajo,e.created_at);
+          inicioTrabajo=null;
+        }
+      }
+
+      if(e.tipo==="fin_descanso" || e.tipo==="fin_comida"){
+        inicioTrabajo=e.created_at;
+      }
+
+      if(e.tipo==="salida"){
+        if(inicioTrabajo){
+          trabajadoSeg+=segundosEntre(inicioTrabajo,e.created_at);
+          inicioTrabajo=null;
+        }
+      }
+    });
+
+    if(inicioTrabajo && estado==="dentro"){
+      trabajadoSeg+=segundosEntre(inicioTrabajo,now);
+    }
+  }
 
   return {entrada,salida,trabajadoSeg,descansoSeg,comidaSeg};
 }
@@ -743,7 +773,6 @@ window.ZX_fichaje=async function(){
   const est=await estadoActual();
   const hist=await ultimosFichajes();
   const jornadas=await jornadasUsuario();
-  const hoy=jornadas[0] || null;
 
   const adminHoy=esAdmin() ? await jornadasAdminHoy() : [];
   const adminPend=esAdmin() ? await jornadasAdminPendientes() : [];
@@ -754,13 +783,13 @@ window.ZX_fichaje=async function(){
   if(est.jornada){
     resumen=calcularEnVivo(est.eventos,est.estado);
     objetivoSeg=await objetivoDia(resumen.entrada || new Date().toISOString());
-  }else if(hoy){
+  }else if(jornadas[0]){
     resumen={
-      trabajadoSeg:(hoy.minutos_trabajados || 0)*60,
-      descansoSeg:(hoy.minutos_descanso || 0)*60,
-      comidaSeg:(hoy.minutos_comida || 0)*60
+      trabajadoSeg:(jornadas[0].minutos_trabajados || 0)*60,
+      descansoSeg:(jornadas[0].minutos_descanso || 0)*60,
+      comidaSeg:(jornadas[0].minutos_comida || 0)*60
     };
-    objetivoSeg=(hoy.minutos_objetivo || 480)*60;
+    objetivoSeg=(jornadas[0].minutos_objetivo || 480)*60;
   }
 
   app().innerHTML=`
