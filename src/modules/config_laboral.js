@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - CONFIG LABORAL PRO
-// V3048 - COMPLETO + USER_ID + BOTÓN AUTOMÁTICO
+// V3050 - HORARIOS + CONVENIO + FESTIVOS
 // ===============================
 (function(){
 "use strict";
@@ -22,9 +22,6 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
-// ===============================
-// SELECTOR HORAS + MINUTOS
-// ===============================
 function selectorTiempo(id, valorMin=480){
   const h=Math.floor((valorMin||0)/60);
   const m=(valorMin||0)%60;
@@ -52,9 +49,6 @@ function leerTiempo(id){
   return h*60+m;
 }
 
-// ===============================
-// CARGAR
-// ===============================
 async function cargar(){
   const s=sesion();
 
@@ -78,6 +72,8 @@ async function cargar(){
       convenio:"Personalizado",
       precio_hora:0,
       precio_extra:0,
+      precio_extra_nocturna:0,
+      precio_extra_festiva:0,
       pais:"España",
       provincia:"",
       localidad:"",
@@ -88,9 +84,6 @@ async function cargar(){
   return r.data[0];
 }
 
-// ===============================
-// GUARDAR
-// ===============================
 async function guardar(){
   const s=sesion();
 
@@ -119,6 +112,8 @@ async function guardar(){
     convenio:document.getElementById("convenio").value,
     precio_hora:Number(document.getElementById("precio_hora").value||0),
     precio_extra:Number(document.getElementById("precio_extra").value||0),
+    precio_extra_nocturna:Number(document.getElementById("precio_extra_nocturna").value||0),
+    precio_extra_festiva:Number(document.getElementById("precio_extra_festiva").value||0),
 
     pais:document.getElementById("pais").value.trim(),
     provincia:document.getElementById("provincia").value.trim(),
@@ -140,16 +135,63 @@ async function guardar(){
   alert("Configuración guardada correctamente");
 }
 
-// ===============================
-// FESTIVOS
-// ===============================
-function cargarFestivos(){
-  alert("Siguiente paso: conectar festivos reales por provincia/localidad.");
+async function cargarFestivos(){
+  const pais=document.getElementById("pais").value.trim() || "España";
+  const provincia=document.getElementById("provincia").value.trim();
+  const localidad=document.getElementById("localidad").value.trim();
+  const anio=Number(document.getElementById("anio").value||new Date().getFullYear());
+
+  if(pais.toLowerCase()!=="españa" && pais.toLowerCase()!=="espana"){
+    alert("Por ahora solo está preparado para España.");
+    return;
+  }
+
+  if(!anio){
+    alert("Año obligatorio.");
+    return;
+  }
+
+  try{
+    const res=await fetch("https://date.nager.at/api/v3/PublicHolidays/"+anio+"/ES");
+    const data=await res.json();
+
+    if(!Array.isArray(data)){
+      alert("No se pudieron cargar festivos.");
+      return;
+    }
+
+    await sb()
+      .from("festivos")
+      .delete()
+      .eq("anio",anio)
+      .eq("provincia",provincia)
+      .eq("localidad",localidad);
+
+    const festivos=data.map(f=>({
+      fecha:f.date,
+      nombre:f.localName || f.name || "Festivo",
+      pais:"España",
+      provincia,
+      localidad,
+      anio
+    }));
+
+    const r=await sb()
+      .from("festivos")
+      .insert(festivos);
+
+    if(r.error){
+      alert("Error guardando festivos: "+r.error.message);
+      return;
+    }
+
+    alert("Festivos cargados: "+festivos.length);
+
+  }catch(e){
+    alert("Error conectando con festivos.");
+  }
 }
 
-// ===============================
-// UI
-// ===============================
 window.ZX_configLaboral=async function(){
   const d=await cargar();
 
@@ -195,8 +237,14 @@ window.ZX_configLaboral=async function(){
       <div class="zx_label">Precio hora normal</div>
       <input id="precio_hora" type="number" step="0.01" class="zx_input" value="${limpiar(d.precio_hora || 0)}">
 
-      <div class="zx_label">Precio hora extra</div>
+      <div class="zx_label">Precio hora extra normal</div>
       <input id="precio_extra" type="number" step="0.01" class="zx_input" value="${limpiar(d.precio_extra || 0)}">
+
+      <div class="zx_label">Precio hora extra nocturna</div>
+      <input id="precio_extra_nocturna" type="number" step="0.01" class="zx_input" value="${limpiar(d.precio_extra_nocturna || 0)}">
+
+      <div class="zx_label">Precio hora extra festiva</div>
+      <input id="precio_extra_festiva" type="number" step="0.01" class="zx_input" value="${limpiar(d.precio_extra_festiva || 0)}">
     </div>
 
     <div class="zx_card">
@@ -242,38 +290,6 @@ window.ZX_configLaboral=async function(){
 
 window.ZX_config_laboral=window.ZX_configLaboral;
 
-// ===============================
-// BOTÓN AUTOMÁTICO EN INICIO
-// ===============================
-function insertarBotonConfigLaboral(){
-  if(document.getElementById("zx_btn_config_laboral_auto")) return;
-
-  const botones=[...document.querySelectorAll("button")];
-
-  const panel=botones.find(b =>
-    b.textContent.trim().toLowerCase().includes("panel admin")
-  );
-
-  if(!panel || !panel.parentElement) return;
-
-  const btn=document.createElement("button");
-  btn.id="zx_btn_config_laboral_auto";
-  btn.className="zx_btn_big zx_gris";
-  btn.type="button";
-  btn.textContent="Config. laboral";
-
-  btn.onclick=function(){
-    window.ZX_configLaboral();
-  };
-
-  panel.parentElement.appendChild(btn);
-}
-
-setInterval(insertarBotonConfigLaboral,1000);
-
-// ===============================
-// ESTILOS
-// ===============================
 (function(){
   if(document.getElementById("zx_config_laboral_css")) return;
 
