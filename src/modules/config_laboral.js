@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - CONFIG LABORAL PRO
-// V3052 - FESTIVOS COMPLETOS CRUD
+// V3053 - FIX CONFIG LABORAL + FESTIVOS CRUD
 // ===============================
 (function(){
 "use strict";
@@ -22,192 +22,395 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
-// ===============================
-// SELECTOR TIEMPO
-// ===============================
 function selectorTiempo(id,val=480){
-  const h=Math.floor(val/60);
-  const m=val%60;
+  const h=Math.floor((val||0)/60);
+  const m=(val||0)%60;
 
   return `
-  <div class="zx_hm_row">
-    <select id="${id}_h">
-      ${[...Array(13).keys()].map(i=>`<option ${i===h?"selected":""}>${i}</option>`).join("")}
-    </select>
-    <select id="${id}_m">
-      ${[0,15,30,45].map(i=>`<option ${i===m?"selected":""}>${i}</option>`).join("")}
-    </select>
-  </div>`;
+    <div class="zx_hm_row">
+      <select id="${id}_h">
+        ${[...Array(13).keys()].map(i=>`
+          <option value="${i}" ${i===h?"selected":""}>${i} h</option>
+        `).join("")}
+      </select>
+      <select id="${id}_m">
+        ${[0,15,30,45].map(i=>`
+          <option value="${i}" ${i===m?"selected":""}>${i} min</option>
+        `).join("")}
+      </select>
+    </div>
+  `;
 }
 
 function leerTiempo(id){
-  return Number(document.getElementById(id+"_h").value)*60 +
-         Number(document.getElementById(id+"_m").value);
+  return Number(document.getElementById(id+"_h").value||0)*60 +
+         Number(document.getElementById(id+"_m").value||0);
 }
 
-// ===============================
-// FESTIVOS
-// ===============================
-async function cargarFestivosLista(){
+async function cargarConfig(){
+  const s=sesion();
 
-  const anio=document.getElementById("anio").value;
+  const r=await sb()
+    .from("horarios_usuario")
+    .select("*")
+    .eq("usuario_id",String(s.id))
+    .limit(1);
 
+  if(r.error || !r.data || !r.data.length){
+    return {
+      lunes:480, martes:480, miercoles:480, jueves:480, viernes:480, sabado:0, domingo:0,
+      vacaciones:30, asuntos:6,
+      convenio:"Personalizado",
+      precio_hora:0, precio_extra:0, precio_extra_nocturna:0, precio_extra_festiva:0,
+      pais:"España", provincia:"", localidad:"", anio:new Date().getFullYear()
+    };
+  }
+
+  return r.data[0];
+}
+
+async function guardarConfig(){
+  const s=sesion();
+
+  const data={
+    usuario_id:String(s.id),
+    user_id:String(s.id),
+    usuario:s.usuario||"",
+    nombre:s.nombre||"",
+
+    lunes:leerTiempo("lunes"),
+    martes:leerTiempo("martes"),
+    miercoles:leerTiempo("miercoles"),
+    jueves:leerTiempo("jueves"),
+    viernes:leerTiempo("viernes"),
+    sabado:leerTiempo("sabado"),
+    domingo:leerTiempo("domingo"),
+
+    vacaciones:Number(document.getElementById("vacaciones").value||0),
+    asuntos:Number(document.getElementById("asuntos").value||0),
+
+    convenio:document.getElementById("convenio").value,
+    precio_hora:Number(document.getElementById("precio_hora").value||0),
+    precio_extra:Number(document.getElementById("precio_extra").value||0),
+    precio_extra_nocturna:Number(document.getElementById("precio_extra_nocturna").value||0),
+    precio_extra_festiva:Number(document.getElementById("precio_extra_festiva").value||0),
+
+    pais:document.getElementById("pais").value.trim(),
+    provincia:document.getElementById("provincia").value.trim(),
+    localidad:document.getElementById("localidad").value.trim(),
+    anio:Number(document.getElementById("anio").value||new Date().getFullYear()),
+    activo:true
+  };
+
+  const r=await sb()
+    .from("horarios_usuario")
+    .upsert([data],{onConflict:"usuario_id"});
+
+  if(r.error){
+    alert("Error guardando: "+r.error.message);
+    return;
+  }
+
+  alert("Configuración guardada correctamente");
+}
+
+async function cargarFestivosLista(anio){
   const r=await sb()
     .from("festivos")
     .select("*")
-    .eq("anio",anio)
+    .eq("anio",Number(anio))
     .order("fecha",{ascending:true});
 
   if(r.error) return [];
-
-  return r.data || [];
+  return r.data||[];
 }
 
 function renderFestivo(f){
   return `
-  <div class="zx_admin_row">
-    <div class="zx_admin_row_top">
-      <b>${limpiar(f.nombre)}</b>
-      <span>${limpiar(f.fecha)}</span>
-    </div>
+    <div class="zx_admin_row">
+      <div class="zx_admin_row_top">
+        <b>${limpiar(f.nombre||"Festivo")}</b>
+        <span>${limpiar(f.fecha||"")}</span>
+      </div>
 
-    <div class="zx_edit_grid">
-      <button class="zx_admin_btn zx_admin_editar" data-edit="${f.id}">
-        Editar
-      </button>
-
-      <button class="zx_admin_btn zx_admin_borrar" data-del="${f.id}">
-        Borrar
-      </button>
+      <div class="zx_edit_grid">
+        <button class="zx_admin_btn zx_admin_editar" data-edit-festivo="${f.id}">Editar</button>
+        <button class="zx_admin_btn zx_admin_borrar" data-del-festivo="${f.id}">Borrar</button>
+      </div>
     </div>
-  </div>`;
+  `;
 }
 
 async function borrarFestivo(id){
   if(!confirm("¿Eliminar festivo?")) return;
 
-  await sb().from("festivos").delete().eq("id",id);
+  const r=await sb()
+    .from("festivos")
+    .delete()
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error borrando festivo: "+r.error.message);
+    return;
+  }
 
   ZX_configLaboral();
 }
 
-function modalFestivo(f=null){
+function cerrarModalFestivo(){
+  const m=document.getElementById("zx_modal_festivo");
+  if(m) m.remove();
+}
+
+function abrirModalFestivo(f=null){
+  cerrarModalFestivo();
 
   document.body.insertAdjacentHTML("beforeend",`
-    <div class="zx_modal_fondo">
+    <div id="zx_modal_festivo" class="zx_modal_fondo">
       <div class="zx_modal_caja">
+        <h2>${f?"Editar festivo":"Añadir festivo"}</h2>
 
-        <h2>${f?"Editar":"Nuevo"} festivo</h2>
+        <label class="zx_label">Fecha</label>
+        <input id="fx_fecha" type="date" value="${limpiar(f?f.fecha:"")}">
 
-        <input id="fx_fecha" type="date" value="${f?f.fecha:""}">
-        <input id="fx_nombre" placeholder="Nombre" value="${f?limpiar(f.nombre):""}">
+        <label class="zx_label">Nombre</label>
+        <input id="fx_nombre" value="${limpiar(f?f.nombre:"")}">
 
-        <button id="fx_save" class="zx_btn_big zx_verde">
-          Guardar
-        </button>
-
-        <button onclick="this.closest('.zx_modal_fondo').remove()" class="zx_btn_big zx_gris">
-          Cancelar
-        </button>
-
+        <button class="zx_btn_big zx_verde" id="fx_guardar">Guardar</button>
+        <button class="zx_btn_big zx_gris" id="fx_cancelar">Cancelar</button>
       </div>
     </div>
   `);
 
-  document.getElementById("fx_save").onclick=async ()=>{
+  document.getElementById("fx_cancelar").onclick=cerrarModalFestivo;
+
+  document.getElementById("fx_guardar").onclick=async function(){
     const fecha=document.getElementById("fx_fecha").value;
-    const nombre=document.getElementById("fx_nombre").value;
+    const nombre=document.getElementById("fx_nombre").value.trim();
 
-    const anio=new Date(fecha).getFullYear();
-
-    const data={fecha,nombre,anio};
-
-    if(f){
-      await sb().from("festivos").update(data).eq("id",f.id);
-    }else{
-      await sb().from("festivos").insert(data);
+    if(!fecha || !nombre){
+      alert("Fecha y nombre obligatorios.");
+      return;
     }
 
-    document.querySelector(".zx_modal_fondo").remove();
+    const anio=new Date(fecha).getFullYear();
+    const provincia=document.getElementById("provincia")?.value || "";
+    const localidad=document.getElementById("localidad")?.value || "";
+    const pais=document.getElementById("pais")?.value || "España";
+
+    const data={fecha,nombre,anio,pais,provincia,localidad};
+
+    let r;
+
+    if(f){
+      r=await sb().from("festivos").update(data).eq("id",f.id);
+    }else{
+      r=await sb().from("festivos").insert([data]);
+    }
+
+    if(r.error){
+      alert("Error guardando festivo: "+r.error.message);
+      return;
+    }
+
+    cerrarModalFestivo();
     ZX_configLaboral();
   };
 }
 
-// ===============================
-// UI
-// ===============================
-window.ZX_configLaboral=async function(){
+async function descargarFestivos(){
+  const anio=Number(document.getElementById("anio").value||new Date().getFullYear());
+  const provincia=document.getElementById("provincia").value.trim();
+  const localidad=document.getElementById("localidad").value.trim();
 
-  const festivos=await cargarFestivosLista();
+  try{
+    const res=await fetch("https://date.nager.at/api/v3/PublicHolidays/"+anio+"/ES");
+    const data=await res.json();
+
+    if(!Array.isArray(data)){
+      alert("No se pudieron descargar festivos.");
+      return;
+    }
+
+    await sb()
+      .from("festivos")
+      .delete()
+      .eq("anio",anio)
+      .eq("provincia",provincia)
+      .eq("localidad",localidad);
+
+    const insert=data.map(f=>({
+      fecha:f.date,
+      nombre:f.localName||f.name||"Festivo",
+      pais:"España",
+      provincia,
+      localidad,
+      anio
+    }));
+
+    const r=await sb().from("festivos").insert(insert);
+
+    if(r.error){
+      alert("Error guardando festivos: "+r.error.message);
+      return;
+    }
+
+    alert("Festivos cargados: "+insert.length);
+    ZX_configLaboral();
+
+  }catch(e){
+    alert("Error conectando con festivos.");
+  }
+}
+
+window.ZX_configLaboral=async function(){
+  const c=await cargarConfig();
+  const anioActual=c.anio || new Date().getFullYear();
+  const festivos=await cargarFestivosLista(anioActual);
 
   app().innerHTML=`
-
     <div class="zx_card">
       <h2>Config. laboral</h2>
 
-      <h3>Jornada</h3>
+      <h3>Jornada semanal</h3>
 
-      Lunes ${selectorTiempo("lunes")}
-      Martes ${selectorTiempo("martes")}
-      Miércoles ${selectorTiempo("miercoles")}
-      Jueves ${selectorTiempo("jueves")}
-      Viernes ${selectorTiempo("viernes")}
+      <div class="zx_label">Lunes</div>${selectorTiempo("lunes",c.lunes)}
+      <div class="zx_label">Martes</div>${selectorTiempo("martes",c.martes)}
+      <div class="zx_label">Miércoles</div>${selectorTiempo("miercoles",c.miercoles)}
+      <div class="zx_label">Jueves</div>${selectorTiempo("jueves",c.jueves)}
+      <div class="zx_label">Viernes</div>${selectorTiempo("viernes",c.viernes)}
+      <div class="zx_label">Sábado</div>${selectorTiempo("sabado",c.sabado)}
+      <div class="zx_label">Domingo</div>${selectorTiempo("domingo",c.domingo)}
     </div>
 
     <div class="zx_card">
-      <h3>Calendario</h3>
+      <h3>Convenio</h3>
 
-      <input id="anio" value="${new Date().getFullYear()}">
+      <div class="zx_label">Convenio</div>
+      <select id="convenio" class="zx_input">
+        <option value="Metal" ${c.convenio==="Metal"?"selected":""}>Metal</option>
+        <option value="Construcción" ${c.convenio==="Construcción"?"selected":""}>Construcción</option>
+        <option value="Oficinas" ${c.convenio==="Oficinas"?"selected":""}>Oficinas</option>
+        <option value="Personalizado" ${c.convenio==="Personalizado"?"selected":""}>Personalizado</option>
+      </select>
 
-      <button id="btn_cargar" class="zx_btn_big zx_azul">
-        Descargar festivos
-      </button>
+      <div class="zx_label">Precio hora normal</div>
+      <input id="precio_hora" type="number" step="0.01" class="zx_input" value="${limpiar(c.precio_hora||0)}">
 
-      <button id="btn_nuevo" class="zx_btn_big zx_verde">
-        Añadir festivo
-      </button>
+      <div class="zx_label">Precio hora extra normal</div>
+      <input id="precio_extra" type="number" step="0.01" class="zx_input" value="${limpiar(c.precio_extra||0)}">
+
+      <div class="zx_label">Precio hora extra nocturna</div>
+      <input id="precio_extra_nocturna" type="number" step="0.01" class="zx_input" value="${limpiar(c.precio_extra_nocturna||0)}">
+
+      <div class="zx_label">Precio hora extra festiva</div>
+      <input id="precio_extra_festiva" type="number" step="0.01" class="zx_input" value="${limpiar(c.precio_extra_festiva||0)}">
     </div>
 
     <div class="zx_card">
-      <h3>Festivos</h3>
+      <h3>Vacaciones y permisos</h3>
+
+      <div class="zx_label">Días vacaciones</div>
+      <input id="vacaciones" type="number" class="zx_input" value="${limpiar(c.vacaciones||30)}">
+
+      <div class="zx_label">Días asuntos propios</div>
+      <input id="asuntos" type="number" class="zx_input" value="${limpiar(c.asuntos||6)}">
+    </div>
+
+    <div class="zx_card">
+      <h3>Calendario laboral</h3>
+
+      <div class="zx_label">País</div>
+      <input id="pais" class="zx_input" value="${limpiar(c.pais||"España")}">
+
+      <div class="zx_label">Provincia</div>
+      <input id="provincia" class="zx_input" value="${limpiar(c.provincia||"")}">
+
+      <div class="zx_label">Localidad</div>
+      <input id="localidad" class="zx_input" value="${limpiar(c.localidad||"")}">
+
+      <div class="zx_label">Año</div>
+      <input id="anio" type="number" class="zx_input" value="${limpiar(anioActual)}">
+
+      <button class="zx_btn_big zx_azul" id="zx_descargar_festivos">Descargar festivos</button>
+      <button class="zx_btn_big zx_verde" id="zx_nuevo_festivo">Añadir festivo</button>
+    </div>
+
+    <div class="zx_card">
+      <h3>Festivos ${limpiar(anioActual)}</h3>
 
       ${
         festivos.length
         ? festivos.map(renderFestivo).join("")
-        : `<div class="zx_text">Sin festivos</div>`
+        : `<div class="zx_text">Sin festivos guardados.</div>`
       }
+    </div>
+
+    <div class="zx_card">
+      <button class="zx_btn_big zx_verde" id="zx_guardar_config">Guardar configuración</button>
     </div>
   `;
 
-  document.getElementById("btn_nuevo").onclick=()=>modalFestivo();
+  document.getElementById("zx_guardar_config").onclick=guardarConfig;
+  document.getElementById("zx_descargar_festivos").onclick=descargarFestivos;
+  document.getElementById("zx_nuevo_festivo").onclick=function(){abrirModalFestivo(null)};
 
-  document.querySelectorAll("[data-del]").forEach(b=>{
-    b.onclick=()=>borrarFestivo(b.dataset.del);
+  document.querySelectorAll("[data-del-festivo]").forEach(b=>{
+    b.onclick=function(){borrarFestivo(b.dataset.delFestivo)};
   });
 
-  document.querySelectorAll("[data-edit]").forEach(b=>{
-    const f=festivos.find(x=>x.id==b.dataset.edit);
-    b.onclick=()=>modalFestivo(f);
+  document.querySelectorAll("[data-edit-festivo]").forEach(b=>{
+    const f=festivos.find(x=>String(x.id)===String(b.dataset.editFestivo));
+    b.onclick=function(){abrirModalFestivo(f)};
   });
-
-  document.getElementById("btn_cargar").onclick=async ()=>{
-    const anio=document.getElementById("anio").value;
-
-    const res=await fetch("https://date.nager.at/api/v3/PublicHolidays/"+anio+"/ES");
-    const data=await res.json();
-
-    await sb().from("festivos").delete().eq("anio",anio);
-
-    const insert=data.map(f=>({
-      fecha:f.date,
-      nombre:f.localName,
-      anio
-    }));
-
-    await sb().from("festivos").insert(insert);
-
-    ZX_configLaboral();
-  };
 };
+
+window.ZX_config_laboral=window.ZX_configLaboral;
+
+(function(){
+  if(document.getElementById("zx_config_laboral_css")) return;
+
+  const s=document.createElement("style");
+  s.id="zx_config_laboral_css";
+  s.innerHTML=`
+    .zx_input{
+      width:100%;
+      padding:16px;
+      border-radius:16px;
+      border:1px solid #cbd5e1;
+      margin-bottom:14px;
+      font-size:18px;
+      font-weight:800;
+      color:#0f172a;
+      background:white;
+    }
+
+    .zx_label{
+      font-weight:900;
+      margin:14px 0 6px;
+      color:#334155;
+      font-size:18px;
+    }
+
+    .zx_hm_row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-bottom:14px;
+    }
+
+    .zx_hm_row select{
+      width:100%;
+      padding:16px;
+      border-radius:16px;
+      border:1px solid #cbd5e1;
+      background:white;
+      font-size:18px;
+      font-weight:900;
+      color:#0f172a;
+    }
+  `;
+  document.head.appendChild(s);
+})();
 
 })();
