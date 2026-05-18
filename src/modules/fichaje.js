@@ -1,12 +1,12 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3040 - BASE COMPLETA (1/3)
+// V3051 - FESTIVOS + TIEMPO EN VIVO
 // ===============================
 (function(){
 "use strict";
 
 // ===============================
-// VARIABLES GLOBALES
+// VARIABLES
 // ===============================
 let ZX_VER_ULTIMOS=false;
 let ZX_VER_ADMIN=false;
@@ -14,7 +14,7 @@ let ZX_VER_MIS_JORNADAS=false;
 let ZX_TIMER=null;
 
 // ===============================
-// HELPERS BASE
+// BASE
 // ===============================
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
@@ -41,7 +41,7 @@ function limpiar(v){
 function ahora(){return new Date().toISOString()}
 
 // ===============================
-// FORMATEOS
+// FORMATO
 // ===============================
 function formatoSeg(seg){
   seg=Math.max(0,Math.floor(seg||0));
@@ -60,14 +60,16 @@ function fechaCorta(f){
   return new Date(f).toLocaleString();
 }
 
+function fechaISO(f){
+  if(!f) return new Date().toISOString().slice(0,10);
+  return new Date(f).toISOString().slice(0,10);
+}
+
 function direccionCorta(d){
   if(!d) return "";
   return String(d).split(",").slice(0,3).join(",");
 }
 
-// ===============================
-// FECHAS
-// ===============================
 function segundosEntre(a,b){
   return Math.max(0,Math.floor((new Date(b)-new Date(a))/1000));
 }
@@ -84,16 +86,37 @@ function fromInputFecha(v){
   return new Date(v).toISOString();
 }
 
-function diaSemana(fechaISO){
-  const d=new Date(fechaISO);
+function diaSemana(fechaISOtxt){
+  const d=new Date(fechaISOtxt);
   return ["domingo","lunes","martes","miercoles","jueves","viernes","sabado"][d.getDay()];
+}
+
+// ===============================
+// FESTIVO
+// ===============================
+async function esFestivo(fechaTxt){
+  const fecha=fechaISO(fechaTxt);
+
+  const r=await sb()
+    .from("festivos")
+    .select("id")
+    .eq("fecha",fecha)
+    .limit(1);
+
+  if(r.error) return false;
+  return !!(r.data && r.data.length);
 }
 
 // ===============================
 // OBJETIVO DIARIO
 // ===============================
-async function objetivoDia(fechaISO){
+async function objetivoDia(fechaISOtxt){
   const s=sesion();
+
+  const festivo=await esFestivo(fechaISOtxt);
+  if(festivo){
+    return 0;
+  }
 
   const r=await sb()
     .from("horarios_usuario")
@@ -102,15 +125,19 @@ async function objetivoDia(fechaISO){
     .eq("activo",true)
     .limit(1);
 
-  if(r.error || !r.data || !r.data.length) return 480*60;
+  if(r.error || !r.data || !r.data.length){
+    return 480*60;
+  }
 
   const h=r.data[0];
-  const dia=diaSemana(fechaISO);
-  return (h[dia] || 0) * 60;
+  const dia=diaSemana(fechaISOtxt);
+
+  const minutos=Number(h[dia] || 0);
+  return minutos*60;
 }
 
 // ===============================
-// TIPOS Y ESTADOS
+// TIPOS / ESTADOS
 // ===============================
 function textoTipo(t){
   const m={
@@ -148,7 +175,6 @@ function colorEstado(e){
   if(e==="comida") return "#ea580c";
   return "#64748b";
 }
-
 // ===============================
 // GEOLOCALIZACIÓN
 // ===============================
@@ -164,9 +190,17 @@ async function obtenerUbicacion(){
       const lng=pos.coords.longitude;
 
       try{
-        const r=await fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng);
+        const r=await fetch(
+          "https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng
+        );
         const data=await r.json();
-        resolve({lat,lng,direccion:data.display_name || null});
+
+        resolve({
+          lat,
+          lng,
+          direccion:data.display_name || null
+        });
+
       }catch(e){
         resolve({lat,lng,direccion:null});
       }
@@ -180,8 +214,9 @@ async function obtenerUbicacion(){
     });
   });
 }
+
 // ===============================
-// JORNADAS Y FICHAJES
+// JORNADAS / FICHAJES
 // ===============================
 async function jornadaAbierta(){
   const s=sesion();
@@ -213,7 +248,11 @@ async function estadoActual(){
   const j=await jornadaAbierta();
 
   if(!j){
-    return {estado:"fuera",jornada:null,eventos:[]};
+    return {
+      estado:"fuera",
+      jornada:null,
+      eventos:[]
+    };
   }
 
   const f=await fichajesDeJornada(j.id);
@@ -244,13 +283,19 @@ function calcularEnVivo(eventos,estado){
     if(e.tipo==="entrada") entrada=e.created_at;
     if(e.tipo==="salida") salida=e.created_at;
 
-    if(e.tipo==="inicio_descanso") inicioDescanso=e.created_at;
+    if(e.tipo==="inicio_descanso"){
+      inicioDescanso=e.created_at;
+    }
+
     if(e.tipo==="fin_descanso" && inicioDescanso){
       descansoSeg+=segundosEntre(inicioDescanso,e.created_at);
       inicioDescanso=null;
     }
 
-    if(e.tipo==="inicio_comida") inicioComida=e.created_at;
+    if(e.tipo==="inicio_comida"){
+      inicioComida=e.created_at;
+    }
+
     if(e.tipo==="fin_comida" && inicioComida){
       comidaSeg+=segundosEntre(inicioComida,e.created_at);
       inicioComida=null;
@@ -299,41 +344,119 @@ function calcularEnVivo(eventos,estado){
     }
   }
 
-  return {entrada,salida,trabajadoSeg,descansoSeg,comidaSeg};
+  return {
+    entrada,
+    salida,
+    trabajadoSeg,
+    descansoSeg,
+    comidaSeg
+  };
 }
 
 // ===============================
-// ACCIONES PERMITIDAS
+// OPCIONES DE FICHAJE
 // ===============================
 function opcionesPermitidas(estado){
   if(estado==="fuera"){
-    return [{tipo:"entrada",texto:"Entrada",clase:"zx_verde"}];
+    return [
+      {
+        tipo:"entrada",
+        texto:"Entrada",
+        clase:"zx_verde"
+      }
+    ];
   }
 
   if(estado==="dentro"){
     return [
-      {tipo:"salida",texto:"Salida",clase:"zx_rojo"},
-      {tipo:"inicio_descanso",texto:"Inicio descanso",clase:"zx_naranja"},
-      {tipo:"inicio_comida",texto:"Inicio comida",clase:"zx_morado"}
+      {
+        tipo:"salida",
+        texto:"Salida",
+        clase:"zx_rojo"
+      },
+      {
+        tipo:"inicio_descanso",
+        texto:"Inicio descanso",
+        clase:"zx_naranja"
+      },
+      {
+        tipo:"inicio_comida",
+        texto:"Inicio comida",
+        clase:"zx_morado"
+      }
     ];
   }
 
   if(estado==="descanso"){
-    return [{tipo:"fin_descanso",texto:"Fin descanso",clase:"zx_azul"}];
+    return [
+      {
+        tipo:"fin_descanso",
+        texto:"Fin descanso",
+        clase:"zx_azul"
+      }
+    ];
   }
 
   if(estado==="comida"){
-    return [{tipo:"fin_comida",texto:"Fin comida",clase:"zx_azul"}];
+    return [
+      {
+        tipo:"fin_comida",
+        texto:"Fin comida",
+        clase:"zx_azul"
+      }
+    ];
   }
 
   return [];
 }
 
 // ===============================
-// CREAR / INSERTAR
+// MODAL FICHAJE
+// ===============================
+function cerrarModal(){
+  const m=document.getElementById("zx_modal_fichaje");
+  if(m) m.remove();
+}
+
+function abrirMenu(estado){
+  cerrarModal();
+
+  const ops=opcionesPermitidas(estado);
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_fichaje" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Fichar</h2>
+
+        ${ops.map(o=>`
+          <button class="zx_btn_big ${o.clase}" data-fichaje="${o.tipo}">
+            ${o.texto}
+          </button>
+        `).join("")}
+
+        <button class="zx_btn_big zx_gris" id="zx_cancelar_fichaje">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  `);
+
+  document.querySelectorAll("[data-fichaje]").forEach(btn=>{
+    btn.onclick=function(){
+      const tipo=this.dataset.fichaje;
+      cerrarModal();
+      registrar(tipo);
+    };
+  });
+
+  document.getElementById("zx_cancelar_fichaje").onclick=cerrarModal;
+}
+// ===============================
+// CREAR JORNADA
 // ===============================
 async function crearJornada(){
   const s=sesion();
+  const entrada=ahora();
 
   const r=await sb()
     .from("jornadas")
@@ -342,7 +465,7 @@ async function crearJornada(){
       usuario:s.usuario || "",
       nombre:s.nombre || "",
       fecha:new Date().toISOString().slice(0,10),
-      entrada:ahora(),
+      entrada,
       estado:"abierta"
     }])
     .select()
@@ -356,6 +479,9 @@ async function crearJornada(){
   return r.data;
 }
 
+// ===============================
+// INSERTAR FICHAJE
+// ===============================
 async function insertarFichaje(tipo,jornadaId,geo){
   const s=sesion();
 
@@ -375,7 +501,7 @@ async function insertarFichaje(tipo,jornadaId,geo){
     }]);
 
   if(r.error){
-    alert("Error fichaje: "+r.error.message);
+    alert("Error al guardar fichaje: "+r.error.message);
     return false;
   }
 
@@ -383,13 +509,22 @@ async function insertarFichaje(tipo,jornadaId,geo){
 }
 
 // ===============================
-// RECÁLCULO JORNADA
+// RECALCULAR JORNADA
 // ===============================
 async function recalcularJornada(jornadaId){
   if(!jornadaId) return;
 
   const eventos=await fichajesDeJornada(jornadaId);
-  const ultimo=eventos.length ? eventos[eventos.length-1] : null;
+
+  if(!eventos.length){
+    await sb()
+      .from("jornadas")
+      .delete()
+      .eq("id",jornadaId);
+    return;
+  }
+
+  const ultimo=eventos[eventos.length-1];
   const estado=estadoDesdeTipo(ultimo ? ultimo.tipo : null);
 
   const c=calcularEnVivo(eventos,estado);
@@ -400,7 +535,7 @@ async function recalcularJornada(jornadaId){
 
   const nuevoEstado=ultimo && ultimo.tipo==="salida" ? "cerrada" : "abierta";
 
-  await sb()
+  const r=await sb()
     .from("jornadas")
     .update({
       salida:c.salida,
@@ -410,9 +545,14 @@ async function recalcularJornada(jornadaId){
       minutos_objetivo:Math.floor(objetivoSeg/60),
       minutos_extra:Math.floor(extraSeg/60),
       minutos_faltantes:Math.floor(faltanteSeg/60),
+      horas_extra:Math.floor(extraSeg/60),
       estado:nuevoEstado
     })
     .eq("id",jornadaId);
+
+  if(r.error){
+    alert("Error recalculando jornada: "+r.error.message);
+  }
 }
 
 // ===============================
@@ -420,22 +560,53 @@ async function recalcularJornada(jornadaId){
 // ===============================
 async function registrar(tipo){
   const s=sesion();
+
   if(!s.id){
-    alert("Sin sesión");
+    alert("Sesión no válida.");
     return;
   }
 
   const est=await estadoActual();
   let jornada=est.jornada;
 
+  if(tipo==="entrada" && est.estado!=="fuera"){
+    alert("Ya tienes una jornada abierta.");
+    return;
+  }
+
+  if(tipo!=="entrada" && !jornada){
+    alert("No hay jornada abierta.");
+    return;
+  }
+
+  if(tipo==="inicio_descanso" && est.estado!=="dentro"){
+    alert("Solo puedes iniciar descanso trabajando.");
+    return;
+  }
+
+  if(tipo==="fin_descanso" && est.estado!=="descanso"){
+    alert("No estás en descanso.");
+    return;
+  }
+
+  if(tipo==="inicio_comida" && est.estado!=="dentro"){
+    alert("Solo puedes iniciar comida trabajando.");
+    return;
+  }
+
+  if(tipo==="fin_comida" && est.estado!=="comida"){
+    alert("No estás en comida.");
+    return;
+  }
+
+  if(tipo==="salida" && (est.estado==="descanso" || est.estado==="comida")){
+    alert("Primero termina descanso o comida.");
+    return;
+  }
+
   if(tipo==="entrada"){
     jornada=await crearJornada();
     if(!jornada) return;
-  }
-
-  if(!jornada){
-    alert("No hay jornada");
-    return;
   }
 
   const geo=await obtenerUbicacion();
@@ -447,8 +618,9 @@ async function registrar(tipo){
 
   ZX_fichaje();
 }
+
 // ===============================
-// LISTADOS
+// CONSULTAS LISTADOS
 // ===============================
 async function ultimosFichajes(){
   const s=sesion();
@@ -491,48 +663,8 @@ async function jornadasAdminHoy(){
   if(r.error) return [];
   return r.data || [];
 }
-
 // ===============================
-// MODAL FICHAJE
-// ===============================
-function cerrarModal(){
-  const m=document.getElementById("zx_modal_fichaje");
-  if(m) m.remove();
-}
-
-function abrirMenu(estado){
-  cerrarModal();
-
-  const ops=opcionesPermitidas(estado);
-
-  document.body.insertAdjacentHTML("beforeend",`
-    <div id="zx_modal_fichaje" class="zx_modal_fondo">
-      <div class="zx_modal_caja">
-        <h2>Fichar</h2>
-
-        ${ops.map(o=>`
-          <button class="zx_btn_big ${o.clase}" data-fichaje="${o.tipo}">
-            ${o.texto}
-          </button>
-        `).join("")}
-
-        <button class="zx_btn_big zx_gris" id="zx_cancelar_fichaje">Cancelar</button>
-      </div>
-    </div>
-  `);
-
-  document.querySelectorAll("[data-fichaje]").forEach(btn=>{
-    btn.onclick=function(){
-      cerrarModal();
-      registrar(this.dataset.fichaje);
-    };
-  });
-
-  document.getElementById("zx_cancelar_fichaje").onclick=cerrarModal;
-}
-
-// ===============================
-// BORRAR JORNADA / FICHAJE
+// BORRAR JORNADA
 // ===============================
 async function borrarJornada(id){
   if(!esAdmin()){
@@ -567,6 +699,9 @@ async function borrarJornada(id){
   ZX_fichaje();
 }
 
+// ===============================
+// BORRAR FICHAJE
+// ===============================
 async function borrarFichaje(id){
   if(!esAdmin()){
     alert("Solo administrador.");
@@ -663,8 +798,13 @@ async function editarFichaje(id){
         <label class="zx_label">Longitud</label>
         <input id="zx_edit_lng" type="number" step="any" value="${limpiar(f.lng || "")}">
 
-        <button class="zx_btn_big zx_azul" id="zx_guardar_edit_fichaje">Guardar cambios</button>
-        <button class="zx_btn_big zx_gris" id="zx_cancelar_edit_fichaje">Cancelar</button>
+        <button class="zx_btn_big zx_azul" id="zx_guardar_edit_fichaje">
+          Guardar cambios
+        </button>
+
+        <button class="zx_btn_big zx_gris" id="zx_cancelar_edit_fichaje">
+          Cancelar
+        </button>
       </div>
     </div>
   `);
@@ -699,14 +839,14 @@ async function editarFichaje(id){
       return;
     }
 
-    await recalcularJornada(f.jornada_id);
     cerrarModal();
+    await recalcularJornada(f.jornada_id);
     ZX_fichaje();
   };
 }
 
 // ===============================
-// VER FICHAJES DE UNA JORNADA
+// VER FICHAJES DE JORNADA
 // ===============================
 async function verFichajesJornada(jornadaId){
   const eventos=await fichajesDeJornada(jornadaId);
@@ -724,7 +864,9 @@ async function verFichajesJornada(jornadaId){
           : `<div class="zx_text">Sin fichajes.</div>`
         }
 
-        <button class="zx_btn_big zx_gris" id="zx_cerrar_fichajes_jornada">Cerrar</button>
+        <button class="zx_btn_big zx_gris" id="zx_cerrar_fichajes_jornada">
+          Cerrar
+        </button>
       </div>
     </div>
   `);
@@ -745,14 +887,15 @@ async function verFichajesJornada(jornadaId){
 }
 
 // ===============================
-// RENDER
+// RESUMEN HTML
 // ===============================
-function resumenHTML(resumen,objetivoSeg){
+function resumenHTML(resumen,objetivoSeg,festivo){
   const extraSeg=Math.max(0,resumen.trabajadoSeg-objetivoSeg);
   const faltaSeg=Math.max(0,objetivoSeg-resumen.trabajadoSeg);
 
   return `
     <div class="zx_text">
+      ${festivo ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">Día festivo</div>` : ""}
       Trabajado: <b>${formatoSeg(resumen.trabajadoSeg)}</b><br>
       Descanso: <b>${formatoSeg(resumen.descansoSeg)}</b><br>
       Comida: <b>${formatoSeg(resumen.comidaSeg)}</b><br>
@@ -762,7 +905,9 @@ function resumenHTML(resumen,objetivoSeg){
     </div>
   `;
 }
-
+// ===============================
+// RENDER FICHAJE MINI
+// ===============================
 function renderFichajeMini(f){
   return `
     <div class="zx_admin_row">
@@ -771,14 +916,21 @@ function renderFichajeMini(f){
         <span>${limpiar(fechaCorta(f.created_at))}</span>
       </div>
 
-      <div class="zx_admin_data">${limpiar(direccionCorta(f.direccion))}</div>
+      <div class="zx_admin_data">
+        ${limpiar(direccionCorta(f.direccion))}
+      </div>
 
       ${
         esAdmin()
         ? `
           <div class="zx_edit_grid">
-            <button class="zx_admin_btn zx_admin_editar" data-editar-fichaje="${f.id}">Modificar</button>
-            <button class="zx_admin_btn zx_admin_borrar" data-borrar-fichaje="${f.id}">Borrar</button>
+            <button class="zx_admin_btn zx_admin_editar" data-editar-fichaje="${f.id}">
+              Modificar
+            </button>
+
+            <button class="zx_admin_btn zx_admin_borrar" data-borrar-fichaje="${f.id}">
+              Borrar
+            </button>
           </div>
         `
         : ""
@@ -787,6 +939,9 @@ function renderFichajeMini(f){
   `;
 }
 
+// ===============================
+// RENDER JORNADA MINI
+// ===============================
 function renderJornadaMini(j,admin){
   return `
     <div class="zx_admin_row">
@@ -802,15 +957,20 @@ function renderJornadaMini(j,admin){
       <div class="zx_admin_data">
         Trab: ${formatoMin(j.minutos_trabajados || 0)} · Obj: ${formatoMin(j.minutos_objetivo || 0)}<br>
         Desc: ${formatoMin(j.minutos_descanso || 0)} · Comida: ${formatoMin(j.minutos_comida || 0)}<br>
-        Extra: ${formatoMin(j.minutos_extra || 0)} · Falta: ${formatoMin(j.minutos_faltantes || 0)}
+        Extra: ${formatoMin(j.minutos_extra || j.horas_extra || 0)} · Falta: ${formatoMin(j.minutos_faltantes || 0)}
       </div>
 
       ${
         admin
         ? `
           <div class="zx_edit_grid">
-            <button class="zx_admin_btn zx_admin_editar" data-ver-fichajes-jornada="${j.id}">Fichajes</button>
-            <button class="zx_admin_btn zx_admin_borrar" data-borrar-jornada="${j.id}">Borrar jornada</button>
+            <button class="zx_admin_btn zx_admin_editar" data-ver-fichajes-jornada="${j.id}">
+              Fichajes
+            </button>
+
+            <button class="zx_admin_btn zx_admin_borrar" data-borrar-jornada="${j.id}">
+              Borrar jornada
+            </button>
           </div>
         `
         : ""
@@ -819,6 +979,9 @@ function renderJornadaMini(j,admin){
   `;
 }
 
+// ===============================
+// RENDER ADMIN RESUMEN
+// ===============================
 function renderAdminResumen(jornadasHoy){
   let totalTrab=0;
   let totalExtra=0;
@@ -828,18 +991,34 @@ function renderAdminResumen(jornadasHoy){
 
   jornadasHoy.forEach(j=>{
     totalTrab += j.minutos_trabajados || 0;
-    totalExtra += j.minutos_extra || 0;
+    totalExtra += j.minutos_extra || j.horas_extra || 0;
     totalFalta += j.minutos_faltantes || 0;
+
     if(j.estado==="abierta") abiertas++;
     if(j.estado==="cerrada") cerradas++;
   });
 
   return `
     <div class="zx_admin_summary">
-      <div><b>${jornadasHoy.length}</b><span>Jornadas</span></div>
-      <div><b>${abiertas}</b><span>Abiertas</span></div>
-      <div><b>${cerradas}</b><span>Cerradas</span></div>
-      <div><b>${formatoMin(totalTrab)}</b><span>Trabajado</span></div>
+      <div>
+        <b>${jornadasHoy.length}</b>
+        <span>Jornadas</span>
+      </div>
+
+      <div>
+        <b>${abiertas}</b>
+        <span>Abiertas</span>
+      </div>
+
+      <div>
+        <b>${cerradas}</b>
+        <span>Cerradas</span>
+      </div>
+
+      <div>
+        <b>${formatoMin(totalTrab)}</b>
+        <span>Trabajado</span>
+      </div>
     </div>
 
     <div class="zx_admin_totals">
@@ -847,6 +1026,7 @@ function renderAdminResumen(jornadasHoy){
     </div>
   `;
 }
+
 // ===============================
 // ESTILOS EXTRA
 // ===============================
@@ -952,8 +1132,13 @@ function estilosAdminCompacto(){
       font-weight:900;
     }
 
-    .zx_admin_editar{background:#2563eb}
-    .zx_admin_borrar{background:#dc2626}
+    .zx_admin_editar{
+      background:#2563eb;
+    }
+
+    .zx_admin_borrar{
+      background:#dc2626;
+    }
 
     .zx_edit_grid{
       display:grid;
@@ -1004,7 +1189,6 @@ window.ZX_toggleMisJornadas=function(){
   ZX_VER_MIS_JORNADAS=!ZX_VER_MIS_JORNADAS;
   ZX_fichaje();
 };
-
 // ===============================
 // PANTALLA PRINCIPAL
 // ===============================
@@ -1030,9 +1214,11 @@ window.ZX_fichaje=async function(){
 
   let resumen={trabajadoSeg:0,descansoSeg:0,comidaSeg:0};
   let objetivoSeg=480*60;
+  let festivo=false;
 
   if(est.jornada){
     resumen=calcularEnVivo(est.eventos,est.estado);
+    festivo=await esFestivo(resumen.entrada || new Date().toISOString());
     objetivoSeg=await objetivoDia(resumen.entrada || new Date().toISOString());
   }else if(jornadas[0]){
     resumen={
@@ -1040,7 +1226,8 @@ window.ZX_fichaje=async function(){
       descansoSeg:(jornadas[0].minutos_descanso || 0)*60,
       comidaSeg:(jornadas[0].minutos_comida || 0)*60
     };
-    objetivoSeg=(jornadas[0].minutos_objetivo || 480)*60;
+    festivo=await esFestivo(jornadas[0].fecha || new Date().toISOString());
+    objetivoSeg=(jornadas[0].minutos_objetivo || 0)*60;
   }
 
   app().innerHTML=`
@@ -1053,12 +1240,17 @@ window.ZX_fichaje=async function(){
         ${textoEstado(est.estado)}
       </div>
 
-      <button class="zx_btn_big zx_azul" id="zx_btn_fichar">FICHAR</button>
+      <button class="zx_btn_big zx_azul" id="zx_btn_fichar">
+        FICHAR
+      </button>
     </div>
 
     <div class="zx_card">
       <h2>Resumen en vivo</h2>
-      <div id="zx_resumen_tiempo">${resumenHTML(resumen,objetivoSeg)}</div>
+
+      <div id="zx_resumen_tiempo">
+        ${resumenHTML(resumen,objetivoSeg,festivo)}
+      </div>
     </div>
 
     <div class="zx_card">
@@ -1090,7 +1282,9 @@ window.ZX_fichaje=async function(){
             ? `
               ${renderAdminResumen(adminHoy)}
 
-              <h3 style="font-size:24px;margin:18px 0 8px;">Hoy</h3>
+              <h3 style="font-size:24px;margin:18px 0 8px;">
+                Hoy
+              </h3>
 
               ${
                 adminHoy.length
@@ -1151,10 +1345,15 @@ window.ZX_fichaje=async function(){
   });
 
   if(est.jornada){
-    ZX_TIMER=setInterval(function(){
+    ZX_TIMER=setInterval(async function(){
       const r=calcularEnVivo(est.eventos,est.estado);
+      const f=await esFestivo(r.entrada || new Date().toISOString());
+      const obj=await objetivoDia(r.entrada || new Date().toISOString());
+
       const cont=document.getElementById("zx_resumen_tiempo");
-      if(cont) cont.innerHTML=resumenHTML(r,objetivoSeg);
+      if(cont){
+        cont.innerHTML=resumenHTML(r,obj,f);
+      }
     },1000);
   }
 };
