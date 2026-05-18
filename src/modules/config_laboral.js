@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - CONFIG LABORAL PRO
-// V3057 - COMPLETO + ASUNTOS POR HORAS + FESTIVOS CRUD + COMUNIDAD
+// V3059 - BASE COMPLETA (NO REDUCIDA)
 // ===============================
 (function(){
 "use strict";
@@ -31,10 +31,7 @@ function limpiar(v){
 function formatoFechaES(f){
   if(!f) return "";
   const p=String(f).slice(0,10).split("-");
-  if(p.length===3){
-    return p[2]+"/"+p[1]+"/"+p[0];
-  }
-  return limpiar(f);
+  return p[2]+"/"+p[1]+"/"+p[0];
 }
 
 function anioActual(){
@@ -42,8 +39,7 @@ function anioActual(){
 }
 
 // ===============================
-// CONVENIOS BASE
-// Los valores son editables después por admin.
+// CONVENIOS (BASE EDITABLE)
 // ===============================
 const CONVENIOS={
   "Metal":{
@@ -84,29 +80,14 @@ const CONVENIOS={
 // COMUNIDADES AUTÓNOMAS
 // ===============================
 const COMUNIDADES=[
-  "Andalucía",
-  "Aragón",
-  "Asturias",
-  "Baleares",
-  "Canarias",
-  "Cantabria",
-  "Castilla-La Mancha",
-  "Castilla y León",
-  "Cataluña",
-  "Comunidad Valenciana",
-  "Extremadura",
-  "Galicia",
-  "La Rioja",
-  "Madrid",
-  "Murcia",
-  "Navarra",
-  "País Vasco",
-  "Ceuta",
-  "Melilla"
+  "Andalucía","Aragón","Asturias","Baleares","Canarias","Cantabria",
+  "Castilla-La Mancha","Castilla y León","Cataluña","Comunidad Valenciana",
+  "Extremadura","Galicia","La Rioja","Madrid","Murcia",
+  "Navarra","País Vasco","Ceuta","Melilla"
 ];
 
 // ===============================
-// SELECTORES DE TIEMPO
+// SELECTOR HORAS/MINUTOS
 // ===============================
 function selectorTiempo(id,val=480){
   const h=Math.floor((Number(val)||0)/60);
@@ -116,13 +97,13 @@ function selectorTiempo(id,val=480){
     <div class="zx_hm_row">
       <select id="${id}_h">
         ${[...Array(13).keys()].map(i=>`
-          <option value="${i}" ${i===h?"selected":""}>${i} h</option>
+          <option value="${i}" ${i===h?"selected":""}>${i}h</option>
         `).join("")}
       </select>
 
       <select id="${id}_m">
         ${[0,15,30,45].map(i=>`
-          <option value="${i}" ${i===m?"selected":""}>${i} min</option>
+          <option value="${i}" ${i===m?"selected":""}>${i}m</option>
         `).join("")}
       </select>
     </div>
@@ -134,14 +115,30 @@ function leerTiempo(id){
          Number(document.getElementById(id+"_m").value||0);
 }
 
+// ===============================
+// SELECTOR COMUNIDAD
+// ===============================
 function selectorComunidad(valor){
   return `
     <select id="comunidad" class="zx_input">
       ${COMUNIDADES.map(c=>`
-        <option value="${limpiar(c)}" ${valor===c?"selected":""}>${limpiar(c)}</option>
+        <option value="${limpiar(c)}" ${valor===c?"selected":""}>
+          ${limpiar(c)}
+        </option>
       `).join("")}
     </select>
   `;
+}
+
+// ===============================
+// UTILIDADES FESTIVOS
+// ===============================
+function tipoFestivoTexto(t){
+  if(t==="nacional") return "Nacional";
+  if(t==="autonomico") return "Autonómico";
+  if(t==="provincial") return "Provincial";
+  if(t==="local") return "Local";
+  return t;
 }
 // ===============================
 // CARGAR CONFIG
@@ -279,7 +276,7 @@ async function guardarConfig(){
 }
 
 // ===============================
-// CARGAR FESTIVOS
+// CARGAR FESTIVOS APLICABLES
 // ===============================
 async function cargarFestivosLista(anio,comunidad,provincia,localidad){
   const r=await sb()
@@ -297,9 +294,7 @@ async function cargarFestivosLista(anio,comunidad,provincia,localidad){
   return lista.filter(f=>{
     const tipo=String(f.tipo||"nacional").toLowerCase();
 
-    if(tipo==="nacional"){
-      return true;
-    }
+    if(tipo==="nacional") return true;
 
     if(tipo==="autonomico"){
       return String(f.comunidad||"")===String(comunidad||"");
@@ -317,6 +312,9 @@ async function cargarFestivosLista(anio,comunidad,provincia,localidad){
   });
 }
 
+// ===============================
+// RENDER FESTIVO
+// ===============================
 function renderFestivo(f){
   const tipo=String(f.tipo||"nacional");
 
@@ -328,7 +326,7 @@ function renderFestivo(f){
       </div>
 
       <div class="zx_admin_data">
-        Tipo: <b>${limpiar(tipo)}</b><br>
+        Tipo: <b>${limpiar(tipoFestivoTexto(tipo))}</b><br>
         ${f.comunidad ? "Comunidad: "+limpiar(f.comunidad)+"<br>" : ""}
         ${f.provincia ? "Provincia: "+limpiar(f.provincia)+"<br>" : ""}
         ${f.localidad ? "Localidad: "+limpiar(f.localidad) : ""}
@@ -360,9 +358,18 @@ function abrirModalFestivo(f=null){
   const fecha=f ? String(f.fecha||"").slice(0,10) : "";
   const nombre=f ? f.nombre||"" : "";
   const tipo=f ? f.tipo||"local" : "local";
-  const comunidad=f ? f.comunidad||document.getElementById("comunidad")?.value||"Madrid" : document.getElementById("comunidad")?.value||"Madrid";
-  const provincia=f ? f.provincia||document.getElementById("provincia")?.value||"" : document.getElementById("provincia")?.value||"";
-  const localidad=f ? f.localidad||document.getElementById("localidad")?.value||"" : document.getElementById("localidad")?.value||"";
+
+  const comunidad=f
+    ? f.comunidad||document.getElementById("comunidad")?.value||"Madrid"
+    : document.getElementById("comunidad")?.value||"Madrid";
+
+  const provincia=f
+    ? f.provincia||document.getElementById("provincia")?.value||""
+    : document.getElementById("provincia")?.value||"";
+
+  const localidad=f
+    ? f.localidad||document.getElementById("localidad")?.value||""
+    : document.getElementById("localidad")?.value||"";
 
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_festivo" class="zx_modal_fondo">
@@ -392,13 +399,15 @@ function abrirModalFestivo(f=null){
         <label class="zx_label">Localidad</label>
         <input id="fx_localidad" value="${limpiar(localidad)}">
 
-        <button class="zx_btn_big zx_verde" id="fx_guardar">
-          Guardar
-        </button>
+        <div class="zx_modal_botones">
+          <button class="zx_btn_big zx_verde" id="fx_guardar">
+            Guardar
+          </button>
 
-        <button class="zx_btn_big zx_gris" id="fx_cancelar">
-          Cancelar
-        </button>
+          <button class="zx_btn_big zx_gris" id="fx_cancelar">
+            Cancelar
+          </button>
+        </div>
       </div>
     </div>
   `);
@@ -472,7 +481,7 @@ async function borrarFestivo(id){
 }
 
 // ===============================
-// DESCARGAR FESTIVOS OFICIALES
+// MAPEO NAGER → COMUNIDAD
 // ===============================
 function mapearComunidadNager(counties){
   if(!Array.isArray(counties) || !counties.length){
@@ -504,11 +513,11 @@ function mapearComunidadNager(counties){
   return "";
 }
 
+// ===============================
+// DESCARGAR FESTIVOS OFICIALES
+// ===============================
 async function descargarFestivos(){
   const anio=Number(document.getElementById("anio").value||anioActual());
-  const comunidadSeleccionada=document.getElementById("comunidad").value;
-  const provincia=document.getElementById("provincia").value.trim();
-  const localidad=document.getElementById("localidad").value.trim();
 
   try{
     const res=await fetch("https://date.nager.at/api/v3/PublicHolidays/"+anio+"/ES");
@@ -519,8 +528,6 @@ async function descargarFestivos(){
       return;
     }
 
-    // Limpia solo nacionales y autonómicos descargados de ese año.
-    // No borra festivos locales/provinciales añadidos a mano.
     await sb()
       .from("festivos")
       .delete()
@@ -553,12 +560,6 @@ async function descargarFestivos(){
     }
 
     alert("Festivos oficiales cargados: "+insert.length);
-
-    // Si no hay festivos locales todavía, propone añadir los locales luego.
-    if(localidad || provincia || comunidadSeleccionada){
-      // No hacemos nada más aquí: los locales se añaden manualmente.
-    }
-
     ZX_configLaboral();
 
   }catch(e){
@@ -585,9 +586,10 @@ function aplicarConvenio(nombre){
 window.ZX_configLaboral=async function(){
   const c=await cargarConfig();
 
-  const anioActualCfg=Number(c.anio||anioActual());
+  const anioCfg=Number(c.anio||anioActual());
+
   const festivos=await cargarFestivosLista(
-    anioActualCfg,
+    anioCfg,
     c.comunidad,
     c.provincia,
     c.localidad
@@ -634,7 +636,7 @@ window.ZX_configLaboral=async function(){
       </select>
 
       <div class="zx_text">
-        Los valores del convenio se aplican como base. El administrador puede ajustar una excepción para este trabajador.
+        Los valores del convenio se aplican como base. El administrador puede ajustar excepciones por trabajador.
       </div>
 
       <div class="zx_label">Vacaciones según convenio / ajuste trabajador (días)</div>
@@ -667,7 +669,7 @@ window.ZX_configLaboral=async function(){
       <input id="pais" class="zx_input" value="${limpiar(c.pais||"España")}">
 
       <div class="zx_label">Año vigente</div>
-      <input id="anio" type="number" class="zx_input" value="${limpiar(anioActualCfg)}">
+      <input id="anio" type="number" class="zx_input" value="${limpiar(anioCfg)}">
 
       <div class="zx_label">Comunidad autónoma</div>
       ${selectorComunidad(c.comunidad)}
@@ -688,10 +690,10 @@ window.ZX_configLaboral=async function(){
     </div>
 
     <div class="zx_card">
-      <h3>Festivos aplicables ${limpiar(anioActualCfg)}</h3>
+      <h3>Festivos aplicables ${limpiar(anioCfg)}</h3>
 
       <div class="zx_text">
-        Se muestran los festivos nacionales, los autonómicos de la comunidad seleccionada y los provinciales/locales añadidos manualmente.
+        Se muestran festivos nacionales, autonómicos de la comunidad seleccionada y los provinciales/locales añadidos manualmente.
       </div>
 
       ${
@@ -839,6 +841,28 @@ window.ZX_config_laboral=window.ZX_configLaboral;
       margin-top:10px;
     }
 
+    .zx_modal_fondo{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.55);
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      padding:14px;
+      z-index:9999;
+    }
+
+    .zx_modal_caja{
+      width:100%;
+      max-width:520px;
+      max-height:90vh;
+      overflow-y:auto;
+      background:white;
+      border-radius:22px;
+      padding:20px;
+      box-shadow:0 20px 60px rgba(0,0,0,.35);
+    }
+
     .zx_modal_caja select,
     .zx_modal_caja input,
     .zx_modal_caja textarea{
@@ -850,6 +874,15 @@ window.ZX_config_laboral=window.ZX_configLaboral;
       font-weight:800;
       color:#0f172a;
       background:#f8fafc;
+    }
+
+    .zx_modal_botones{
+      position:sticky;
+      bottom:-20px;
+      background:white;
+      padding-top:12px;
+      padding-bottom:2px;
+      margin-top:14px;
     }
   `;
   document.head.appendChild(s);
