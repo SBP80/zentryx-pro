@@ -95,7 +95,7 @@ window.ZX_inicio=async function(){
       </button>
 
       <button class="zx_btn_big ${pendientes>0 ? "zx_naranja" : "zx_gris"}" onclick="ZX_solicitudes()">
-        Solicitudes${pendientes>0 ? " ("+pendientes+")" : ""}
+         Solicitudes${pendientes>0 ? " ("+pendientes+")" : ""}
       </button>
 
       <button class="zx_btn_big zx_gris" onclick="ZX_irAdmin()">
