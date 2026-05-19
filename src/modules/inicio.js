@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - INICIO
-// V3066 - AVISOS SOLICITUDES EN INICIO
+// V3067 LIMPIO (SIN DUPLICADOS)
 // ===============================
 (function(){
 "use strict";
@@ -19,6 +19,9 @@ function esAdmin(){
          String(s.usuario||"").toLowerCase()==="admin";
 }
 
+// ===============================
+// CONTADOR SOLICITUDES
+// ===============================
 async function contarSolicitudesPendientes(){
   if(!esAdmin()) return 0;
 
@@ -31,6 +34,9 @@ async function contarSolicitudesPendientes(){
   return r.count || 0;
 }
 
+// ===============================
+// INICIO
+// ===============================
 window.ZX_inicio=async function(){
 
   document.querySelectorAll(".zx_nav_btn").forEach(function(b){
@@ -43,6 +49,7 @@ window.ZX_inicio=async function(){
   const pendientes=await contarSolicitudesPendientes();
 
   app().innerHTML=`
+
     <div class="zx_card">
       <h2>Inicio</h2>
       <div class="zx_text">
@@ -55,12 +62,13 @@ window.ZX_inicio=async function(){
       ? `
         <div class="zx_card" style="border:2px solid #f59e0b;background:#fff7ed;">
           <h2 style="color:#9a3412;">Avisos</h2>
+
           <div class="zx_text" style="font-weight:900;color:#9a3412;">
-            Hay ${pendientes} solicitud${pendientes===1 ? "" : "es"} pendiente${pendientes===1 ? "" : "s"} de revisar.
+            Hay ${pendientes} solicitud${pendientes===1?"":"es"} pendiente${pendientes===1?"":"s"}.
           </div>
 
           <button class="zx_btn_big zx_naranja" onclick="ZX_solicitudes()">
-            Ver solicitudes pendientes
+            Ver solicitudes
           </button>
         </div>
       `
@@ -94,28 +102,33 @@ window.ZX_inicio=async function(){
         Config. laboral
       </button>
 
+      <!-- ✅ SOLO UN BOTÓN SOLICITUDES -->
       <button class="zx_btn_big ${pendientes>0 ? "zx_naranja" : "zx_gris"}" onclick="ZX_solicitudes()">
-         Solicitudes${pendientes>0 ? " ("+pendientes+")" : ""}
+        Solicitudes${pendientes>0 ? " ("+pendientes+")" : ""}
       </button>
 
       <button class="zx_btn_big zx_gris" onclick="ZX_irAdmin()">
         Panel admin
       </button>
+
     </div>
 
     <div class="zx_card">
       <h2>Estado sistema</h2>
 
       <div class="zx_text">
-        Versión: V3066<br><br>
-        Fichaje PRO activo.<br>
-        Configuración laboral activa.<br>
-        Solicitudes laborales activas.
+        Versión: V3067<br><br>
+        ✔ Fichaje PRO activo<br>
+        ✔ Configuración laboral activa<br>
+        ✔ Solicitudes integradas
       </div>
     </div>
   `;
 };
 
+// ===============================
+// ADMIN
+// ===============================
 window.ZX_irAdmin=function(){
   if(window.ZX_fichaje){
     ZX_fichaje();
@@ -128,8 +141,9 @@ window.ZX_irAdmin=function(){
   }
 };
 
+// ===============================
 window.ZX_moduloPendiente=function(nombre){
-  alert(nombre+" pendiente de desarrollar.");
+  alert(nombre+" pendiente.");
 };
 
 })();
