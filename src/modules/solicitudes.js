@@ -1,10 +1,13 @@
 // ===============================
 // ZENTRYX PRO - SOLICITUDES LABORALES
-// V3061 - HORAS REALES + VALIDACIONES + ENVÍO ÚNICO
+// V3062 - COMPLETO + CONTADOR PENDIENTES + VALIDACIONES
 // ===============================
 (function(){
 "use strict";
 
+// ===============================
+// BASE
+// ===============================
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
 
@@ -31,6 +34,9 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
+// ===============================
+// FECHAS / HORAS
+// ===============================
 function formatoFechaES(f){
   if(!f) return "";
   const p=String(f).slice(0,10).split("-");
@@ -50,11 +56,38 @@ function formatoHorasDecimal(horas){
   const totalMin=Math.round(Number(horas||0)*60);
   const h=Math.floor(totalMin/60);
   const m=totalMin%60;
+
   if(h>0 && m>0) return h+" h "+m+" min";
   if(h>0) return h+" h";
   return m+" min";
 }
 
+function calcularHoras(horaInicio,horaFin){
+  if(!horaInicio || !horaFin) return 0;
+
+  const a=horaInicio.split(":");
+  const b=horaFin.split(":");
+
+  const minA=Number(a[0]||0)*60+Number(a[1]||0);
+  const minB=Number(b[0]||0)*60+Number(b[1]||0);
+
+  const diff=Math.max(0,minB-minA);
+  return Math.round((diff/60)*100)/100;
+}
+
+function calcularDias(fechaInicio,fechaFin){
+  if(!fechaInicio) return 0;
+
+  const ini=new Date(fechaInicio+"T00:00:00");
+  const fin=new Date((fechaFin||fechaInicio)+"T00:00:00");
+
+  const diff=Math.floor((fin-ini)/(1000*60*60*24))+1;
+  return Math.max(1,diff);
+}
+
+// ===============================
+// TIPOS SOLICITUD
+// ===============================
 const TIPOS_SOLICITUD=[
   {id:"asuntos_propios",texto:"Asuntos propios"},
   {id:"vacaciones",texto:"Vacaciones"},
@@ -82,29 +115,21 @@ function claseEstadoSolicitud(estado){
   return "zx_estado_pend";
 }
 
-function calcularHoras(horaInicio,horaFin){
-  if(!horaInicio || !horaFin) return 0;
+// ===============================
+// CONTADOR PENDIENTES ADMIN
+// ===============================
+async function contarSolicitudesPendientes(){
+  const r=await sb()
+    .from("solicitudes_laborales")
+    .select("id",{count:"exact",head:true})
+    .eq("estado","pendiente");
 
-  const a=horaInicio.split(":");
-  const b=horaFin.split(":");
-
-  const minA=Number(a[0]||0)*60+Number(a[1]||0);
-  const minB=Number(b[0]||0)*60+Number(b[1]||0);
-
-  const diff=Math.max(0,minB-minA);
-  return Math.round((diff/60)*100)/100;
+  if(r.error) return 0;
+  return r.count || 0;
 }
-
-function calcularDias(fechaInicio,fechaFin){
-  if(!fechaInicio) return 0;
-
-  const ini=new Date(fechaInicio+"T00:00:00");
-  const fin=new Date((fechaFin||fechaInicio)+"T00:00:00");
-
-  const diff=Math.floor((fin-ini)/(1000*60*60*24))+1;
-  return Math.max(1,diff);
-}
-
+// ===============================
+// CONFIG LABORAL / DERECHOS
+// ===============================
 async function cargarConfigUsuario(){
   const s=sesion();
 
@@ -115,7 +140,10 @@ async function cargarConfigUsuario(){
     .limit(1);
 
   if(r.error || !r.data || !r.data.length){
-    return {asuntos_horas:0,vacaciones:0};
+    return {
+      asuntos_horas:0,
+      vacaciones:0
+    };
   }
 
   return r.data[0];
@@ -133,27 +161,35 @@ async function horasAsuntosUsadas(){
 
   if(r.error || !r.data) return 0;
 
-  return r.data.reduce((acc,x)=>acc+Number(x.total_horas||0),0);
+  return r.data.reduce((acc,x)=>{
+    return acc + Number(x.total_horas || 0);
+  },0);
 }
 
 async function resumenLaboralUsuario(){
   const cfg=await cargarConfigUsuario();
   const usadas=await horasAsuntosUsadas();
-  const total=Number(cfg.asuntos_horas||0);
+  const total=Number(cfg.asuntos_horas || 0);
 
   return {
     asuntos_horas:total,
     asuntos_usadas:usadas,
     asuntos_restantes:Math.max(0,total-usadas),
-    vacaciones:Number(cfg.vacaciones||0)
+    vacaciones:Number(cfg.vacaciones || 0)
   };
 }
 
+// ===============================
+// SUBIR JUSTIFICANTE
+// ===============================
 async function subirJustificante(file){
   const s=sesion();
 
   if(!file){
-    return {url:null,nombre:null};
+    return {
+      url:null,
+      nombre:null
+    };
   }
 
   const safeName=file.name
@@ -162,7 +198,7 @@ async function subirJustificante(file){
 
   const path=
     "justificantes/"+
-    String(s.id||"sin_usuario")+"/"+
+    String(s.id || "sin_usuario")+"/"+
     Date.now()+"_"+safeName;
 
   const r=await sb()
@@ -176,7 +212,10 @@ async function subirJustificante(file){
 
   if(r.error){
     alert("Error subiendo justificante: "+r.error.message);
-    return {url:null,nombre:null};
+    return {
+      url:null,
+      nombre:null
+    };
   }
 
   const pub=sb()
@@ -190,6 +229,9 @@ async function subirJustificante(file){
   };
 }
 
+// ===============================
+// CONSULTAS SOLICITUDES
+// ===============================
 async function misSolicitudes(){
   const s=sesion();
 
@@ -222,7 +264,9 @@ async function solicitudesAdmin(){
 
   return r.data || [];
 }
-
+// ===============================
+// CREAR SOLICITUD
+// ===============================
 async function crearSolicitud(){
   if(ZX_ENVIANDO_SOLICITUD) return;
 
@@ -344,6 +388,9 @@ async function crearSolicitud(){
   }
 }
 
+// ===============================
+// CAMBIAR ESTADO ADMIN
+// ===============================
 async function cambiarEstadoSolicitud(id,estado){
   if(!esAdmin()){
     alert("Solo administrador.");
@@ -379,6 +426,9 @@ async function cambiarEstadoSolicitud(id,estado){
   ZX_solicitudes();
 }
 
+// ===============================
+// BORRAR SOLICITUD
+// ===============================
 async function borrarSolicitud(id){
   const ok=confirm("¿Eliminar esta solicitud?");
   if(!ok) return;
@@ -395,7 +445,9 @@ async function borrarSolicitud(id){
 
   ZX_solicitudes();
 }
-
+// ===============================
+// RENDER SOLICITUD
+// ===============================
 function renderSolicitud(solicitud,admin=false){
   const estado=String(solicitud.estado||"pendiente");
 
@@ -483,6 +535,9 @@ function renderSolicitud(solicitud,admin=false){
   `;
 }
 
+// ===============================
+// FORMULARIO NUEVA SOLICITUD
+// ===============================
 function renderFormularioSolicitud(resumen){
   return `
     <div class="zx_card">
@@ -514,10 +569,10 @@ function renderFormularioSolicitud(resumen){
       <input id="sol_hora_fin" class="zx_input" type="time">
 
       <div class="zx_label">Motivo</div>
-      <textarea id="sol_motivo" class="zx_input" rows="4" placeholder="Explica el motivo"></textarea>
+      <textarea id="sol_motivo" class="zx_input" rows="4"></textarea>
 
       <div class="zx_label">Justificante</div>
-      <input id="sol_justificante" class="zx_input" type="file" accept="image/*,.pdf,.doc,.docx">
+      <input id="sol_justificante" class="zx_input" type="file">
 
       <button class="zx_btn_big zx_verde" id="sol_crear">
         Enviar solicitud
@@ -526,6 +581,9 @@ function renderFormularioSolicitud(resumen){
   `;
 }
 
+// ===============================
+// RESUMEN LABORAL
+// ===============================
 function renderResumenLaboral(resumen){
   return `
     <div class="zx_card">
@@ -555,7 +613,9 @@ function renderResumenLaboral(resumen){
     </div>
   `;
 }
-
+// ===============================
+// PANTALLA PRINCIPAL
+// ===============================
 window.ZX_solicitudes=async function(){
   document.querySelectorAll(".zx_nav_btn").forEach(function(b){
     b.classList.remove("zx_activo");
@@ -567,6 +627,7 @@ window.ZX_solicitudes=async function(){
   const resumen=await resumenLaboralUsuario();
   const mias=await misSolicitudes();
   const adminList=esAdmin() ? await solicitudesAdmin() : [];
+  const pendientes=esAdmin() ? await contarSolicitudesPendientes() : 0;
 
   app().innerHTML=`
     ${renderResumenLaboral(resumen)}
@@ -588,6 +649,10 @@ window.ZX_solicitudes=async function(){
       ? `
         <div class="zx_card">
           <h2>Panel admin solicitudes</h2>
+
+          <div class="zx_admin_alerta">
+            Solicitudes pendientes: <b>${pendientes}</b>
+          </div>
 
           ${
             adminList.length
@@ -621,6 +686,9 @@ window.ZX_solicitudes=async function(){
   });
 };
 
+// ===============================
+// ESTILOS
+// ===============================
 (function(){
   if(document.getElementById("zx_solicitudes_css")) return;
 
@@ -643,6 +711,17 @@ window.ZX_solicitudes=async function(){
 
     .zx_admin_aprobar{background:#16a34a;}
     .zx_admin_rechazar{background:#dc2626;}
+
+    .zx_admin_alerta{
+      background:#fff7ed;
+      border:1px solid #fed7aa;
+      color:#9a3412;
+      padding:14px;
+      border-radius:16px;
+      font-size:18px;
+      font-weight:900;
+      margin:12px 0;
+    }
 
     .zx_admin_summary{
       display:grid;
@@ -682,4 +761,7 @@ window.ZX_solicitudes=async function(){
   document.head.appendChild(s);
 })();
 
+// ===============================
+// FIN MÓDULO
+// ===============================
 })();
