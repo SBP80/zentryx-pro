@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3062 - LIMPIO + FESTIVOS + SOLICITUDES
+// V3063 - LIMPIO + FESTIVOS + SOLICITUDES + BLOQUEO HORARIO
 // ===============================
 (function(){
 "use strict";
@@ -65,7 +65,9 @@ function fechaISO(f){
 
 function fechaCorta(f){
   if(!f) return "-";
+
   const d=new Date(f);
+
   const fecha=String(d.getDate()).padStart(2,"0")+"/"+
               String(d.getMonth()+1).padStart(2,"0")+"/"+
               d.getFullYear();
@@ -81,6 +83,7 @@ function formatoSeg(seg){
   const h=Math.floor(seg/3600);
   const m=Math.floor((seg%3600)/60);
   const s=seg%60;
+
   return String(h).padStart(2,"0")+":"+
          String(m).padStart(2,"0")+":"+
          String(s).padStart(2,"0");
@@ -128,6 +131,7 @@ function textoTipo(t){
     inicio_comida:"Inicio comida",
     fin_comida:"Fin comida"
   };
+
   return m[t] || t;
 }
 
@@ -221,11 +225,7 @@ async function esFestivo(fechaTxt){
     .limit(1);
 
   if(r.error || !r.data || !r.data.length){
-    return {
-      es:false,
-      tipo:null,
-      nombre:null
-    };
+    return {es:false,tipo:null,nombre:null};
   }
 
   const f=r.data[0];
@@ -327,6 +327,39 @@ async function contextoLaboralDia(fechaISOtxt){
 }
 
 // ===============================
+// BLOQUEO POR HORARIO DE SOLICITUD
+// ===============================
+function dentroDeHorarioSolicitud(contexto){
+  if(!contexto || !contexto.solicitudes || !contexto.solicitudes.length){
+    return {bloqueado:false};
+  }
+
+  const now=new Date();
+  const horaActual=now.getHours()*60 + now.getMinutes();
+
+  for(const s of contexto.solicitudes){
+    if(!s.hora_inicio || !s.hora_fin) continue;
+
+    const h1=String(s.hora_inicio).split(":");
+    const h2=String(s.hora_fin).split(":");
+
+    const min1=Number(h1[0]||0)*60 + Number(h1[1]||0);
+    const min2=Number(h2[0]||0)*60 + Number(h2[1]||0);
+
+    if(horaActual>=min1 && horaActual<=min2){
+      return {
+        bloqueado:true,
+        inicio:s.hora_inicio,
+        fin:s.hora_fin,
+        tipo:s.tipo,
+        texto: textoTipoSolicitudFichaje(s.tipo)
+      };
+    }
+  }
+
+  return {bloqueado:false};
+}
+// ===============================
 // OBJETIVO DIARIO PRO
 // ===============================
 async function objetivoDiaPRO(fechaISOtxt){
@@ -355,6 +388,7 @@ async function objetivoDiaPRO(fechaISOtxt){
   }
 
   const contexto=await contextoLaboralDia(fecha);
+  const bloqueoHorario=dentroDeHorarioSolicitud(contexto);
 
   let objetivoFinalSeg=objetivoBaseSeg;
   let minutosJustificados=0;
@@ -392,6 +426,7 @@ async function objetivoDiaPRO(fechaISOtxt){
     observacion,
     solicitudId,
     bloquearFichaje,
+    bloqueoHorario,
     festivo:festivo.es,
     tipoFestivo:festivo.tipo,
     nombreFestivo:festivo.nombre
@@ -402,6 +437,7 @@ async function objetivoDia(fechaISOtxt){
   const r=await objetivoDiaPRO(fechaISOtxt);
   return r.objetivoSeg;
 }
+
 // ===============================
 // JORNADAS Y FICHAJES
 // ===============================
@@ -447,7 +483,6 @@ async function estadoActual(){
     eventos
   };
 }
-
 // ===============================
 // CÁLCULO EN VIVO
 // ===============================
@@ -737,6 +772,16 @@ async function registrar(tipo){
     return;
   }
 
+  if(laboral.bloqueoHorario && laboral.bloqueoHorario.bloqueado && tipo==="entrada"){
+    alert(
+      "No puedes fichar.\n" +
+      "Permiso activo: " +
+      laboral.bloqueoHorario.inicio + " - " +
+      laboral.bloqueoHorario.fin
+    );
+    return;
+  }
+
   const est=await estadoActual();
   let jornada=est.jornada;
 
@@ -1016,6 +1061,187 @@ async function editarFichaje(id){
   };
 }
 // ===============================
+// BORRAR JORNADA
+// ===============================
+async function borrarJornada(id){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const ok=confirm("¿Eliminar jornada completa y todos sus fichajes?");
+  if(!ok) return;
+
+  const f=await sb()
+    .from("fichajes")
+    .delete()
+    .eq("jornada_id",id);
+
+  if(f.error){
+    alert("Error eliminando fichajes: "+f.error.message);
+    return;
+  }
+
+  const j=await sb()
+    .from("jornadas")
+    .delete()
+    .eq("id",id);
+
+  if(j.error){
+    alert("Error eliminando jornada: "+j.error.message);
+    return;
+  }
+
+  cerrarModal();
+  ZX_fichaje();
+}
+
+// ===============================
+// BORRAR FICHAJE
+// ===============================
+async function borrarFichaje(id){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const r0=await sb()
+    .from("fichajes")
+    .select("*")
+    .eq("id",id)
+    .single();
+
+  if(r0.error || !r0.data){
+    alert("No se pudo cargar el fichaje.");
+    return;
+  }
+
+  const ok=confirm("¿Eliminar este fichaje?");
+  if(!ok) return;
+
+  const r=await sb()
+    .from("fichajes")
+    .delete()
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error eliminando fichaje: "+r.error.message);
+    return;
+  }
+
+  const restantes=await fichajesDeJornada(r0.data.jornada_id);
+
+  if(!restantes.length){
+    await sb()
+      .from("jornadas")
+      .delete()
+      .eq("id",r0.data.jornada_id);
+  }else{
+    await recalcularJornada(r0.data.jornada_id);
+  }
+
+  cerrarModal();
+  ZX_fichaje();
+}
+
+// ===============================
+// EDITAR FICHAJE
+// ===============================
+async function editarFichaje(id){
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return;
+  }
+
+  const r=await sb()
+    .from("fichajes")
+    .select("*")
+    .eq("id",id)
+    .single();
+
+  if(r.error || !r.data){
+    alert("No se pudo cargar el fichaje.");
+    return;
+  }
+
+  const f=r.data;
+
+  cerrarModal();
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_fichaje" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Modificar fichaje</h2>
+
+        <label class="zx_label">Tipo</label>
+        <select id="zx_edit_tipo">
+          <option value="entrada" ${f.tipo==="entrada"?"selected":""}>Entrada</option>
+          <option value="salida" ${f.tipo==="salida"?"selected":""}>Salida</option>
+          <option value="inicio_descanso" ${f.tipo==="inicio_descanso"?"selected":""}>Inicio descanso</option>
+          <option value="fin_descanso" ${f.tipo==="fin_descanso"?"selected":""}>Fin descanso</option>
+          <option value="inicio_comida" ${f.tipo==="inicio_comida"?"selected":""}>Inicio comida</option>
+          <option value="fin_comida" ${f.tipo==="fin_comida"?"selected":""}>Fin comida</option>
+        </select>
+
+        <label class="zx_label">Fecha y hora</label>
+        <input id="zx_edit_fecha" type="datetime-local" value="${limpiar(toInputFecha(f.created_at))}">
+
+        <label class="zx_label">Dirección</label>
+        <textarea id="zx_edit_direccion" rows="3">${limpiar(f.direccion || "")}</textarea>
+
+        <label class="zx_label">Latitud</label>
+        <input id="zx_edit_lat" type="number" step="any" value="${limpiar(f.lat || "")}">
+
+        <label class="zx_label">Longitud</label>
+        <input id="zx_edit_lng" type="number" step="any" value="${limpiar(f.lng || "")}">
+
+        <button class="zx_btn_big zx_azul" id="zx_guardar_edit_fichaje">
+          Guardar cambios
+        </button>
+
+        <button class="zx_btn_big zx_gris" id="zx_cancelar_edit_fichaje">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  `);
+
+  document.getElementById("zx_cancelar_edit_fichaje").onclick=cerrarModal;
+
+  document.getElementById("zx_guardar_edit_fichaje").onclick=async function(){
+    const tipo=document.getElementById("zx_edit_tipo").value;
+    const fecha=fromInputFecha(document.getElementById("zx_edit_fecha").value);
+    const direccion=document.getElementById("zx_edit_direccion").value.trim();
+    const lat=document.getElementById("zx_edit_lat").value;
+    const lng=document.getElementById("zx_edit_lng").value;
+
+    if(!fecha){
+      alert("Fecha inválida.");
+      return;
+    }
+
+    const rr=await sb()
+      .from("fichajes")
+      .update({
+        tipo,
+        created_at:fecha,
+        direccion,
+        lat:lat==="" ? null : Number(lat),
+        lng:lng==="" ? null : Number(lng)
+      })
+      .eq("id",id);
+
+    if(rr.error){
+      alert("Error guardando: "+rr.error.message);
+      return;
+    }
+
+    cerrarModal();
+    await recalcularJornada(f.jornada_id);
+    ZX_fichaje();
+  };
+}
+// ===============================
 // VER FICHAJES DE JORNADA
 // ===============================
 async function verFichajesJornada(jornadaId){
@@ -1059,29 +1285,35 @@ async function verFichajesJornada(jornadaId){
 // ===============================
 // RESUMEN HTML
 // ===============================
-function resumenHTML(resumen,objetivoSeg,festivo=false,laboral=null){
+function resumenHTML(resumen,objetivoSeg,laboral=null){
   const extraSeg=Math.max(0,resumen.trabajadoSeg-objetivoSeg);
   const faltaSeg=Math.max(0,objetivoSeg-resumen.trabajadoSeg);
 
   const minutosJustificados=laboral ? Number(laboral.minutosJustificados||0) : 0;
-  const tipoAusencia=laboral ? laboral.tipoAusencia : null;
-  const observacion=laboral ? laboral.observacion : "";
 
   return `
     <div class="zx_text">
 
       ${
-        festivo
+        laboral && laboral.festivo
         ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">
-            Día festivo${laboral && laboral.nombreFestivo ? ": "+limpiar(laboral.nombreFestivo) : ""}
+            Día festivo${laboral.nombreFestivo ? ": "+limpiar(laboral.nombreFestivo) : ""}
           </div>`
         : ""
       }
 
       ${
-        tipoAusencia
+        laboral && laboral.tipoAusencia
         ? `<div style="color:#2563eb;font-weight:900;margin-bottom:8px;">
-            ${limpiar(observacion)}
+            ${limpiar(laboral.observacion)}
+          </div>`
+        : ""
+      }
+
+      ${
+        laboral && laboral.bloqueoHorario && laboral.bloqueoHorario.bloqueado
+        ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">
+            Permiso activo: ${limpiar(laboral.bloqueoHorario.inicio)} - ${limpiar(laboral.bloqueoHorario.fin)}
           </div>`
         : ""
       }
@@ -1151,11 +1383,13 @@ function renderJornadaMini(j,admin){
         Desc: ${formatoMin(j.minutos_descanso || 0)} · Comida: ${formatoMin(j.minutos_comida || 0)}<br>
         Just: ${formatoMin(j.minutos_justificados || 0)} · Extra: ${formatoMin(j.minutos_extra || j.horas_extra || 0)}<br>
         Falta: ${formatoMin(j.minutos_faltantes || 0)}
+
         ${
           j.es_festivo
           ? `<br><b style="color:#dc2626;">Festivo</b>`
           : ""
         }
+
         ${
           j.observacion_laboral
           ? `<br><b style="color:#2563eb;">${limpiar(j.observacion_laboral)}</b>`
@@ -1206,45 +1440,14 @@ function renderAdminResumen(jornadasHoy){
 
   return `
     <div class="zx_admin_summary">
-      <div>
-        <b>${jornadasHoy.length}</b>
-        <span>Jornadas</span>
-      </div>
-
-      <div>
-        <b>${abiertas}</b>
-        <span>Abiertas</span>
-      </div>
-
-      <div>
-        <b>${cerradas}</b>
-        <span>Cerradas</span>
-      </div>
-
-      <div>
-        <b>${formatoMin(totalTrab)}</b>
-        <span>Trabajado</span>
-      </div>
-
-      <div>
-        <b>${formatoMin(totalExtra)}</b>
-        <span>Extra</span>
-      </div>
-
-      <div>
-        <b>${formatoMin(totalFalta)}</b>
-        <span>Falta</span>
-      </div>
-
-      <div>
-        <b>${festivas}</b>
-        <span>Festivas</span>
-      </div>
-
-      <div>
-        <b>${justificadas}</b>
-        <span>Justificadas</span>
-      </div>
+      <div><b>${jornadasHoy.length}</b><span>Jornadas</span></div>
+      <div><b>${abiertas}</b><span>Abiertas</span></div>
+      <div><b>${cerradas}</b><span>Cerradas</span></div>
+      <div><b>${formatoMin(totalTrab)}</b><span>Trabajado</span></div>
+      <div><b>${formatoMin(totalExtra)}</b><span>Extra</span></div>
+      <div><b>${formatoMin(totalFalta)}</b><span>Falta</span></div>
+      <div><b>${festivas}</b><span>Festivas</span></div>
+      <div><b>${justificadas}</b><span>Justificadas</span></div>
     </div>
   `;
 }
@@ -1480,6 +1683,14 @@ window.ZX_fichaje=async function(){
         : ""
       }
 
+      ${
+        laboral && laboral.bloqueoHorario && laboral.bloqueoHorario.bloqueado
+        ? `<div class="zx_text" style="color:#dc2626;font-weight:900;margin-top:10px;">
+            Permiso activo: ${limpiar(laboral.bloqueoHorario.inicio)} - ${limpiar(laboral.bloqueoHorario.fin)}
+          </div>`
+        : ""
+      }
+
       <button class="zx_btn_big zx_azul" id="zx_btn_fichar">
         FICHAR
       </button>
@@ -1489,7 +1700,7 @@ window.ZX_fichaje=async function(){
       <h2>Resumen en vivo</h2>
 
       <div id="zx_resumen_tiempo">
-        ${resumenHTML(resumen,objetivoSeg,laboral ? laboral.festivo : false,laboral)}
+        ${resumenHTML(resumen,objetivoSeg,laboral)}
       </div>
     </div>
 
@@ -1591,7 +1802,7 @@ window.ZX_fichaje=async function(){
       const cont=document.getElementById("zx_resumen_tiempo");
 
       if(cont){
-        cont.innerHTML=resumenHTML(r,lab.objetivoSeg,lab.festivo,lab);
+        cont.innerHTML=resumenHTML(r,lab.objetivoSeg,lab);
       }
     },1000);
   }
