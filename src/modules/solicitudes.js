@@ -1,17 +1,15 @@
 // ===============================
 // ZENTRYX PRO - SOLICITUDES LABORALES
-// V3060 - BASE + CREAR SOLICITUD + JUSTIFICANTE
+// V3061 - HORAS REALES + VALIDACIONES + ENVÍO ÚNICO
 // ===============================
 (function(){
 "use strict";
 
-// ===============================
-// BASE
-// ===============================
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
 
 const BUCKET_JUSTIFICANTES="zentryx-usuarios";
+let ZX_ENVIANDO_SOLICITUD=false;
 
 function sesion(){
   try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}
@@ -36,9 +34,7 @@ function limpiar(v){
 function formatoFechaES(f){
   if(!f) return "";
   const p=String(f).slice(0,10).split("-");
-  if(p.length===3){
-    return p[2]+"/"+p[1]+"/"+p[0];
-  }
+  if(p.length===3) return p[2]+"/"+p[1]+"/"+p[0];
   return limpiar(f);
 }
 
@@ -50,40 +46,22 @@ function ahoraISO(){
   return new Date().toISOString();
 }
 
-// ===============================
-// TIPOS DE SOLICITUD
-// ===============================
+function formatoHorasDecimal(horas){
+  const totalMin=Math.round(Number(horas||0)*60);
+  const h=Math.floor(totalMin/60);
+  const m=totalMin%60;
+  if(h>0 && m>0) return h+" h "+m+" min";
+  if(h>0) return h+" h";
+  return m+" min";
+}
+
 const TIPOS_SOLICITUD=[
-  {
-    id:"asuntos_propios",
-    texto:"Asuntos propios",
-    modo:"horas"
-  },
-  {
-    id:"vacaciones",
-    texto:"Vacaciones",
-    modo:"dias"
-  },
-  {
-    id:"permiso_retribuido",
-    texto:"Permiso retribuido",
-    modo:"dias_horas"
-  },
-  {
-    id:"permiso_sin_sueldo",
-    texto:"Permiso sin sueldo",
-    modo:"dias_horas"
-  },
-  {
-    id:"baja_medica",
-    texto:"Baja médica",
-    modo:"dias"
-  },
-  {
-    id:"otros",
-    texto:"Otro permiso",
-    modo:"dias_horas"
-  }
+  {id:"asuntos_propios",texto:"Asuntos propios"},
+  {id:"vacaciones",texto:"Vacaciones"},
+  {id:"permiso_retribuido",texto:"Permiso retribuido"},
+  {id:"permiso_sin_sueldo",texto:"Permiso sin sueldo"},
+  {id:"baja_medica",texto:"Baja médica"},
+  {id:"otros",texto:"Otro permiso"}
 ];
 
 function textoTipoSolicitud(tipo){
@@ -104,9 +82,6 @@ function claseEstadoSolicitud(estado){
   return "zx_estado_pend";
 }
 
-// ===============================
-// CÁLCULOS DE TIEMPO
-// ===============================
 function calcularHoras(horaInicio,horaFin){
   if(!horaInicio || !horaFin) return 0;
 
@@ -130,9 +105,6 @@ function calcularDias(fechaInicio,fechaFin){
   return Math.max(1,diff);
 }
 
-// ===============================
-// CONFIG LABORAL PARA ASUNTOS
-// ===============================
 async function cargarConfigUsuario(){
   const s=sesion();
 
@@ -143,10 +115,7 @@ async function cargarConfigUsuario(){
     .limit(1);
 
   if(r.error || !r.data || !r.data.length){
-    return {
-      asuntos_horas:0,
-      vacaciones:0
-    };
+    return {asuntos_horas:0,vacaciones:0};
   }
 
   return r.data[0];
@@ -167,32 +136,26 @@ async function horasAsuntosUsadas(){
   return r.data.reduce((acc,x)=>acc+Number(x.total_horas||0),0);
 }
 
-async function resumenDerechosUsuario(){
+async function resumenLaboralUsuario(){
   const cfg=await cargarConfigUsuario();
   const usadas=await horasAsuntosUsadas();
+  const total=Number(cfg.asuntos_horas||0);
 
   return {
-    asuntos_horas:Number(cfg.asuntos_horas||0),
+    asuntos_horas:total,
     asuntos_usadas:usadas,
-    asuntos_restantes:Math.max(0,Number(cfg.asuntos_horas||0)-usadas),
+    asuntos_restantes:Math.max(0,total-usadas),
     vacaciones:Number(cfg.vacaciones||0)
   };
 }
 
-// ===============================
-// SUBIR JUSTIFICANTE
-// ===============================
 async function subirJustificante(file){
   const s=sesion();
 
   if(!file){
-    return {
-      url:null,
-      nombre:null
-    };
+    return {url:null,nombre:null};
   }
 
-  const ext=(file.name.split(".").pop()||"bin").toLowerCase();
   const safeName=file.name
     .replaceAll(" ","_")
     .replace(/[^a-zA-Z0-9._-]/g,"");
@@ -213,10 +176,7 @@ async function subirJustificante(file){
 
   if(r.error){
     alert("Error subiendo justificante: "+r.error.message);
-    return {
-      url:null,
-      nombre:null
-    };
+    return {url:null,nombre:null};
   }
 
   const pub=sb()
@@ -229,9 +189,7 @@ async function subirJustificante(file){
     nombre:file.name
   };
 }
-// ===============================
-// CONSULTAS
-// ===============================
+
 async function misSolicitudes(){
   const s=sesion();
 
@@ -265,109 +223,134 @@ async function solicitudesAdmin(){
   return r.data || [];
 }
 
-// ===============================
-// CREAR SOLICITUD
-// ===============================
 async function crearSolicitud(){
-  const s=sesion();
+  if(ZX_ENVIANDO_SOLICITUD) return;
 
-  if(!s.id){
-    alert("Sesión no válida.");
-    return;
+  const btn=document.getElementById("sol_crear");
+  ZX_ENVIANDO_SOLICITUD=true;
+
+  if(btn){
+    btn.disabled=true;
+    btn.textContent="Enviando...";
   }
 
-  const tipo=document.getElementById("sol_tipo").value;
-  const fechaInicio=document.getElementById("sol_fecha_inicio").value;
-  const fechaFin=document.getElementById("sol_fecha_fin").value || fechaInicio;
-  const horaInicio=document.getElementById("sol_hora_inicio").value;
-  const horaFin=document.getElementById("sol_hora_fin").value;
-  const motivo=document.getElementById("sol_motivo").value.trim();
-  const file=document.getElementById("sol_justificante").files[0];
+  try{
+    const s=sesion();
 
-  if(!tipo || !fechaInicio){
-    alert("Tipo y fecha de inicio son obligatorios.");
-    return;
-  }
-
-  let totalHoras=0;
-  let totalDias=0;
-
-  if(tipo==="asuntos_propios"){
-    if(!horaInicio || !horaFin){
-      alert("Para asuntos propios debes indicar hora inicio y hora fin.");
+    if(!s.id){
+      alert("Sesión no válida.");
       return;
     }
 
-    totalHoras=calcularHoras(horaInicio,horaFin);
+    const tipo=document.getElementById("sol_tipo").value;
+    const fechaInicio=document.getElementById("sol_fecha_inicio").value;
+    const fechaFin=document.getElementById("sol_fecha_fin").value || fechaInicio;
+    const horaInicio=document.getElementById("sol_hora_inicio").value;
+    const horaFin=document.getElementById("sol_hora_fin").value;
+    const motivo=document.getElementById("sol_motivo").value.trim();
+    const file=document.getElementById("sol_justificante").files[0];
 
-    if(totalHoras<=0){
-      alert("Las horas no son válidas.");
+    if(!tipo || !fechaInicio){
+      alert("Tipo y fecha inicio son obligatorios.");
       return;
     }
 
-    const derechos=await resumenDerechosUsuario();
-
-    if(totalHoras>derechos.asuntos_restantes){
-      alert("No tienes suficientes horas de asuntos propios disponibles.");
+    if(fechaFin < fechaInicio){
+      alert("La fecha fin no puede ser anterior a la fecha inicio.");
       return;
     }
 
-    totalDias=0;
-  }else{
-    totalDias=calcularDias(fechaInicio,fechaFin);
+    if(horaInicio && horaFin && fechaInicio===fechaFin && horaFin<=horaInicio){
+      alert("La hora fin debe ser superior a la hora inicio.");
+      return;
+    }
 
-    if(horaInicio && horaFin){
+    let totalHoras=0;
+    let totalDias=0;
+
+    if(tipo==="asuntos_propios"){
+      if(!horaInicio || !horaFin){
+        alert("Para asuntos propios debes indicar hora inicio y hora fin.");
+        return;
+      }
+
       totalHoras=calcularHoras(horaInicio,horaFin);
+
+      if(totalHoras<=0){
+        alert("Las horas no son válidas.");
+        return;
+      }
+
+      const resumen=await resumenLaboralUsuario();
+
+      if(totalHoras>resumen.asuntos_restantes){
+        alert("No tienes suficientes horas de asuntos propios disponibles.");
+        return;
+      }
+
+      totalDias=0;
+
+    }else{
+      totalDias=calcularDias(fechaInicio,fechaFin);
+
+      if(horaInicio && horaFin){
+        totalHoras=calcularHoras(horaInicio,horaFin);
+      }
+    }
+
+    const just=await subirJustificante(file);
+
+    const data={
+      usuario_id:String(s.id),
+      usuario:s.usuario || "",
+      nombre:s.nombre || "",
+
+      tipo,
+      estado:"pendiente",
+
+      fecha_inicio:fechaInicio,
+      fecha_fin:fechaFin,
+      hora_inicio:horaInicio || null,
+      hora_fin:horaFin || null,
+      total_horas:totalHoras,
+      total_dias:totalDias,
+
+      motivo,
+      justificante_url:just.url,
+      justificante_nombre:just.nombre,
+
+      created_at:ahoraISO()
+    };
+
+    const r=await sb()
+      .from("solicitudes_laborales")
+      .insert([data]);
+
+    if(r.error){
+      alert("Error creando solicitud: "+r.error.message);
+      return;
+    }
+
+    alert("Solicitud enviada correctamente");
+    ZX_solicitudes();
+
+  }finally{
+    ZX_ENVIANDO_SOLICITUD=false;
+
+    if(btn){
+      btn.disabled=false;
+      btn.textContent="Enviar solicitud";
     }
   }
-
-  const just=await subirJustificante(file);
-
-  const data={
-    usuario_id:String(s.id),
-    usuario:s.usuario || "",
-    nombre:s.nombre || "",
-
-    tipo,
-    estado:"pendiente",
-
-    fecha_inicio:fechaInicio,
-    fecha_fin:fechaFin,
-    hora_inicio:horaInicio || null,
-    hora_fin:horaFin || null,
-    total_horas:totalHoras,
-    total_dias:totalDias,
-
-    motivo,
-    justificante_url:just.url,
-    justificante_nombre:just.nombre,
-
-    created_at:ahoraISO()
-  };
-
-  const r=await sb()
-    .from("solicitudes_laborales")
-    .insert([data]);
-
-  if(r.error){
-    alert("Error creando solicitud: "+r.error.message);
-    return;
-  }
-
-  alert("Solicitud enviada correctamente");
-  ZX_solicitudes();
 }
 
-// ===============================
-// CAMBIAR ESTADO ADMIN
-// ===============================
 async function cambiarEstadoSolicitud(id,estado){
   if(!esAdmin()){
     alert("Solo administrador.");
     return;
   }
 
-  let respuesta=prompt(
+  const respuesta=prompt(
     estado==="aprobada"
       ? "Comentario de aprobación:"
       : "Motivo de rechazo:"
@@ -377,16 +360,14 @@ async function cambiarEstadoSolicitud(id,estado){
 
   const s=sesion();
 
-  const data={
-    estado,
-    respuesta_admin:respuesta,
-    aprobado_por:s.usuario || "",
-    aprobado_at:new Date().toISOString()
-  };
-
   const r=await sb()
     .from("solicitudes_laborales")
-    .update(data)
+    .update({
+      estado,
+      respuesta_admin:respuesta,
+      aprobado_por:s.usuario || "",
+      aprobado_at:new Date().toISOString()
+    })
     .eq("id",id);
 
   if(r.error){
@@ -398,9 +379,6 @@ async function cambiarEstadoSolicitud(id,estado){
   ZX_solicitudes();
 }
 
-// ===============================
-// BORRAR SOLICITUD
-// ===============================
 async function borrarSolicitud(id){
   const ok=confirm("¿Eliminar esta solicitud?");
   if(!ok) return;
@@ -417,9 +395,7 @@ async function borrarSolicitud(id){
 
   ZX_solicitudes();
 }
-// ===============================
-// RENDER SOLICITUD
-// ===============================
+
 function renderSolicitud(solicitud,admin=false){
   const estado=String(solicitud.estado||"pendiente");
 
@@ -449,7 +425,7 @@ function renderSolicitud(solicitud,admin=false){
 
         ${
           Number(solicitud.total_horas||0)>0
-          ? `Horas: <b>${limpiar(solicitud.total_horas)}</b><br>`
+          ? `Horas: <b>${limpiar(formatoHorasDecimal(solicitud.total_horas))}</b><br>`
           : ""
         }
 
@@ -507,18 +483,15 @@ function renderSolicitud(solicitud,admin=false){
   `;
 }
 
-// ===============================
-// FORMULARIO NUEVA SOLICITUD
-// ===============================
-function renderFormularioSolicitud(derechos){
+function renderFormularioSolicitud(resumen){
   return `
     <div class="zx_card">
       <h2>Nueva solicitud</h2>
 
       <div class="zx_text">
         Asuntos propios disponibles:
-        <b>${limpiar(derechos.asuntos_restantes)}</b> h
-        de <b>${limpiar(derechos.asuntos_horas)}</b> h
+        <b>${limpiar(formatoHorasDecimal(resumen.asuntos_restantes))}</b>
+        de <b>${limpiar(formatoHorasDecimal(resumen.asuntos_horas))}</b>
       </div>
 
       <div class="zx_label">Tipo</div>
@@ -541,7 +514,7 @@ function renderFormularioSolicitud(derechos){
       <input id="sol_hora_fin" class="zx_input" type="time">
 
       <div class="zx_label">Motivo</div>
-      <textarea id="sol_motivo" class="zx_input" rows="4" placeholder="Explica el motivo de la solicitud"></textarea>
+      <textarea id="sol_motivo" class="zx_input" rows="4" placeholder="Explica el motivo"></textarea>
 
       <div class="zx_label">Justificante</div>
       <input id="sol_justificante" class="zx_input" type="file" accept="image/*,.pdf,.doc,.docx">
@@ -553,32 +526,29 @@ function renderFormularioSolicitud(derechos){
   `;
 }
 
-// ===============================
-// RENDER RESUMEN DERECHOS
-// ===============================
-function renderResumenDerechos(derechos){
+function renderResumenLaboral(resumen){
   return `
     <div class="zx_card">
-      <h2>Mis derechos laborales</h2>
+      <h2>Resumen laboral</h2>
 
       <div class="zx_admin_summary">
         <div>
-          <b>${limpiar(derechos.vacaciones)}</b>
+          <b>${limpiar(resumen.vacaciones)}</b>
           <span>Días vacaciones</span>
         </div>
 
         <div>
-          <b>${limpiar(derechos.asuntos_horas)}</b>
-          <span>Horas asuntos</span>
+          <b>${limpiar(formatoHorasDecimal(resumen.asuntos_horas))}</b>
+          <span>Asuntos propios</span>
         </div>
 
         <div>
-          <b>${limpiar(derechos.asuntos_usadas)}</b>
+          <b>${limpiar(formatoHorasDecimal(resumen.asuntos_usadas))}</b>
           <span>Horas usadas</span>
         </div>
 
         <div>
-          <b>${limpiar(derechos.asuntos_restantes)}</b>
+          <b>${limpiar(formatoHorasDecimal(resumen.asuntos_restantes))}</b>
           <span>Horas restantes</span>
         </div>
       </div>
@@ -586,9 +556,6 @@ function renderResumenDerechos(derechos){
   `;
 }
 
-// ===============================
-// PANTALLA PRINCIPAL
-// ===============================
 window.ZX_solicitudes=async function(){
   document.querySelectorAll(".zx_nav_btn").forEach(function(b){
     b.classList.remove("zx_activo");
@@ -597,14 +564,14 @@ window.ZX_solicitudes=async function(){
     }
   });
 
-  const derechos=await resumenDerechosUsuario();
+  const resumen=await resumenLaboralUsuario();
   const mias=await misSolicitudes();
   const adminList=esAdmin() ? await solicitudesAdmin() : [];
 
   app().innerHTML=`
-    ${renderResumenDerechos(derechos)}
+    ${renderResumenLaboral(resumen)}
 
-    ${renderFormularioSolicitud(derechos)}
+    ${renderFormularioSolicitud(resumen)}
 
     <div class="zx_card">
       <h2>Mis solicitudes</h2>
@@ -653,16 +620,13 @@ window.ZX_solicitudes=async function(){
     };
   });
 };
-// ===============================
-// ESTILOS
-// ===============================
+
 (function(){
   if(document.getElementById("zx_solicitudes_css")) return;
 
   const s=document.createElement("style");
   s.id="zx_solicitudes_css";
   s.innerHTML=`
-
     .zx_estado_solicitud{
       display:inline-block;
       margin:8px 0;
@@ -696,7 +660,7 @@ window.ZX_solicitudes=async function(){
 
     .zx_admin_summary b{
       display:block;
-      font-size:24px;
+      font-size:22px;
       color:#0f172a;
     }
 
@@ -710,11 +674,12 @@ window.ZX_solicitudes=async function(){
       resize:none;
     }
 
+    button:disabled{
+      opacity:.55;
+      pointer-events:none;
+    }
   `;
   document.head.appendChild(s);
 })();
 
-// ===============================
-// FIN MÓDULO
-// ===============================
 })();
