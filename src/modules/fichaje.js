@@ -177,6 +177,47 @@ function bloqueoHorarioActual(solicitudes){
   const actual=now.getHours()*60 + now.getMinutes();
 
   for(const s of solicitudes){
+
+    if(!s.hora_inicio || !s.hora_fin) continue;
+
+    const min1=minutosDesdeHora(String(s.hora_inicio));
+    const min2=minutosDesdeHora(String(s.hora_fin));
+
+    if(min1===null || min2===null) continue;
+
+    let dentro=false;
+
+    // CASO NORMAL
+    if(min1 <= min2){
+      if(actual >= min1 && actual <= min2){
+        dentro=true;
+      }
+    }
+    // CASO CRUCE DE DÍA (ej: 22:00 → 02:00)
+    else{
+      if(actual >= min1 || actual <= min2){
+        dentro=true;
+      }
+    }
+
+    if(dentro){
+      return {
+        bloqueado:true,
+        inicio:s.hora_inicio,
+        fin:s.hora_fin,
+        tipo:s.tipo,
+        solicitud:s
+      };
+    }
+  }
+
+  return {bloqueado:false};
+}
+
+  const now=new Date();
+  const actual=now.getHours()*60 + now.getMinutes();
+
+  for(const s of solicitudes){
     if(!s.hora_inicio || !s.hora_fin) continue;
 
     const min1=minutosDesdeHora(s.hora_inicio);
