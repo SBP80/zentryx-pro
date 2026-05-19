@@ -1,24 +1,46 @@
 // ===============================
 // ZENTRYX PRO - INICIO
-// V3049 - ACCESO RÁPIDO ESTABLE
+// V3066 - AVISOS SOLICITUDES EN INICIO
 // ===============================
 (function(){
 "use strict";
 
 function app(){return document.getElementById("app")}
+function sb(){return window.sb || window.supabaseClient}
 
-// ===============================
-// INICIO PRINCIPAL
-// ===============================
-window.ZX_inicio=function(){
+function sesion(){
+  try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}
+  catch(e){return {}}
+}
 
-  // activar botón navegación
+function esAdmin(){
+  const s=sesion();
+  return String(s.rol||"").toLowerCase()==="administrador" ||
+         String(s.usuario||"").toLowerCase()==="admin";
+}
+
+async function contarSolicitudesPendientes(){
+  if(!esAdmin()) return 0;
+
+  const r=await sb()
+    .from("solicitudes_laborales")
+    .select("id",{count:"exact",head:true})
+    .eq("estado","pendiente");
+
+  if(r.error) return 0;
+  return r.count || 0;
+}
+
+window.ZX_inicio=async function(){
+
   document.querySelectorAll(".zx_nav_btn").forEach(function(b){
     b.classList.remove("zx_activo");
     if(b.dataset.modulo==="inicio"){
       b.classList.add("zx_activo");
     }
   });
+
+  const pendientes=await contarSolicitudesPendientes();
 
   app().innerHTML=`
     <div class="zx_card">
@@ -27,6 +49,23 @@ window.ZX_inicio=function(){
         Sistema Zentryx PRO activo
       </div>
     </div>
+
+    ${
+      esAdmin() && pendientes>0
+      ? `
+        <div class="zx_card" style="border:2px solid #f59e0b;background:#fff7ed;">
+          <h2 style="color:#9a3412;">Avisos</h2>
+          <div class="zx_text" style="font-weight:900;color:#9a3412;">
+            Hay ${pendientes} solicitud${pendientes===1 ? "" : "es"} pendiente${pendientes===1 ? "" : "s"} de revisar.
+          </div>
+
+          <button class="zx_btn_big zx_naranja" onclick="ZX_solicitudes()">
+            Ver solicitudes pendientes
+          </button>
+        </div>
+      `
+      : ""
+    }
 
     <div class="zx_card">
       <h2>Acceso rápido</h2>
@@ -55,6 +94,10 @@ window.ZX_inicio=function(){
         Config. laboral
       </button>
 
+      <button class="zx_btn_big ${pendientes>0 ? "zx_naranja" : "zx_gris"}" onclick="ZX_solicitudes()">
+        Solicitudes${pendientes>0 ? " ("+pendientes+")" : ""}
+      </button>
+
       <button class="zx_btn_big zx_gris" onclick="ZX_irAdmin()">
         Panel admin
       </button>
@@ -64,19 +107,15 @@ window.ZX_inicio=function(){
       <h2>Estado sistema</h2>
 
       <div class="zx_text">
-        Versión: V3049<br><br>
-        ✔ Fichaje PRO activo<br>
-        ✔ Usuarios conectado<br>
-        ✔ Configuración laboral operativa<br><br>
-        Próximo: festivos + horas extra automáticas
+        Versión: V3066<br><br>
+        Fichaje PRO activo.<br>
+        Configuración laboral activa.<br>
+        Solicitudes laborales activas.
       </div>
     </div>
   `;
 };
 
-// ===============================
-// IR A PANEL ADMIN
-// ===============================
 window.ZX_irAdmin=function(){
   if(window.ZX_fichaje){
     ZX_fichaje();
@@ -89,9 +128,6 @@ window.ZX_irAdmin=function(){
   }
 };
 
-// ===============================
-// MÓDULOS PENDIENTES
-// ===============================
 window.ZX_moduloPendiente=function(nombre){
   alert(nombre+" pendiente de desarrollar.");
 };
