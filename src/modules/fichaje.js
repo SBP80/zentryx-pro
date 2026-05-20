@@ -1,101 +1,34 @@
 // ===============================
-// ZENTRYX PRO - FICHAJE PRO
-// V3064 - BLOQUE 1 BASE
-// ===============================
-(function(){
-"use strict";
-
-// ===============================
-// VARIABLES
-// ===============================
-let ZX_VER_ULTIMOS=false;
-let ZX_VER_ADMIN=false;
-let ZX_VER_MIS_JORNADAS=false;
-let ZX_TIMER=null;
-
-// ===============================
-// BASE
-// ===============================
-function app(){return document.getElementById("app")}
-function sb(){return window.sb || window.supabaseClient}
-
-function sesion(){
-  try{
-    return JSON.parse(localStorage.getItem("zentryx_session") || "{}");
-  }catch(e){
-    return {};
-  }
-}
-
-function esAdmin(){
-  const s=sesion();
-  return String(s.rol||"").toLowerCase()==="administrador" ||
-         String(s.usuario||"").toLowerCase()==="admin";
-}
-
-function limpiar(v){
-  return String(v ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-function ahora(){
-  return new Date().toISOString();
-}
-
-// ===============================
-// FORMATO FECHAS
-// ===============================
-function formatoFechaES(f){
-  if(!f) return "";
-  const p=String(f).slice(0,10).split("-");
-  if(p.length===3){
-    return p[2]+"/"+p[1]+"/"+p[0];
-  }
-  return limpiar(f);
-}
-
-function fechaCorta(f){
-  if(!f) return "-";
-
-  const d=new Date(f);
-
-  const fecha=String(d.getDate()).padStart(2,"0")+"/"+
-              String(d.getMonth()+1).padStart(2,"0")+"/"+
-              d.getFullYear();
-
-  const hora=String(d.getHours()).padStart(2,"0")+":"+
-             String(d.getMinutes()).padStart(2,"0");
-
-  return fecha+" "+hora;
-}
-
-function formatoSeg(seg){
-  seg=Math.max(0,Math.floor(seg||0));
-  const h=Math.floor(seg/3600);
-  const m=Math.floor((seg%3600)/60);
-  const s=seg%60;
-
-  return String(h).padStart(2,"0")+":"+
-         String(m).padStart(2,"0")+":"+
-         String(s).padStart(2,"0");
-}
-
-function formatoMin(min){
-  return formatoSeg((min||0)*60);
-}
-
-function segundosEntre(a,b){
-  return Math.max(0,Math.floor((new Date(b)-new Date(a))/1000));
-}
-
-// ===============================
 // TIPOS Y ESTADOS
 // ===============================
-function textoTipo(t){
+function textoEstado(estado){
+  if(estado==="dentro") return "Trabajando";
+  if(estado==="descanso") return "Descanso";
+  if(estado==="comida") return "Comida";
+  return "Fuera";
+}
+
+function colorEstado(estado){
+  if(estado==="dentro") return "#16a34a";
+  if(estado==="descanso") return "#f59e0b";
+  if(estado==="comida") return "#ea580c";
+  return "#64748b";
+}
+
+function estadoDesdeTipo(tipo){
+  if(!tipo) return "fuera";
+
+  if(tipo==="entrada") return "dentro";
+  if(tipo==="salida") return "fuera";
+  if(tipo==="inicio_descanso") return "descanso";
+  if(tipo==="fin_descanso") return "dentro";
+  if(tipo==="inicio_comida") return "comida";
+  if(tipo==="fin_comida") return "dentro";
+
+  return "fuera";
+}
+
+function textoTipo(tipo){
   const m={
     entrada:"Entrada",
     salida:"Salida",
@@ -105,143 +38,13 @@ function textoTipo(t){
     fin_comida:"Fin comida"
   };
 
-  return m[t] || t;
-}
-
-function estadoDesdeTipo(tipo){
-  if(!tipo) return "fuera";
-  if(tipo==="entrada") return "dentro";
-  if(tipo==="salida") return "fuera";
-  if(tipo==="inicio_descanso") return "descanso";
-  if(tipo==="fin_descanso") return "dentro";
-  if(tipo==="inicio_comida") return "comida";
-  if(tipo==="fin_comida") return "dentro";
-  return "fuera";
-}
-
-function textoEstado(e){
-  if(e==="dentro") return "Trabajando";
-  if(e==="descanso") return "Descanso";
-  if(e==="comida") return "Comida";
-  return "Fuera";
-}
-
-function colorEstado(e){
-  if(e==="dentro") return "#16a34a";
-  if(e==="descanso") return "#f59e0b";
-  if(e==="comida") return "#ea580c";
-  return "#64748b";
+  return m[tipo] || tipo;
 }
 
 // ===============================
-// SOLICITUDES (BASE)
+// RESUMEN SOLICITUDES
 // ===============================
-async function solicitudesDelDia(fechaISOtxt){
-  const s=sesion();
-  const fecha=String(fechaISOtxt || new Date().toISOString()).slice(0,10);
-
-  const r=await sb()
-    .from("solicitudes_laborales")
-    .select("*")
-    .eq("usuario_id",String(s.id))
-    .eq("estado","aprobada")
-    .lte("fecha_inicio",fecha)
-    .gte("fecha_fin",fecha);
-
-  if(r.error || !r.data){
-    return [];
-  }
-
-  return r.data || [];
-}
-
-// ===============================
-// BLOQUEO HORARIO (CLAVE)
-// ===============================
-function minutosDesdeHora(hora){
-  if(!hora) return null;
-
-  const p=String(hora).split(":");
-  const h=Number(p[0]||0);
-  const m=Number(p[1]||0);
-
-  return h*60+m;
-}
-
-function bloqueoHorarioActual(solicitudes){
-  if(!solicitudes || !solicitudes.length){
-    return {bloqueado:false};
-  }
-
-  const now=new Date();
-  const actual=now.getHours()*60 + now.getMinutes();
-
-  for(const s of solicitudes){
-
-    if(!s.hora_inicio || !s.hora_fin) continue;
-
-    const min1=minutosDesdeHora(String(s.hora_inicio));
-    const min2=minutosDesdeHora(String(s.hora_fin));
-
-    if(min1===null || min2===null) continue;
-
-    let dentro=false;
-
-    // CASO NORMAL
-    if(min1 <= min2){
-      if(actual >= min1 && actual <= min2){
-        dentro=true;
-      }
-    }
-    // CASO CRUCE DE DÍA (ej: 22:00 → 02:00)
-    else{
-      if(actual >= min1 || actual <= min2){
-        dentro=true;
-      }
-    }
-
-    if(dentro){
-      return {
-        bloqueado:true,
-        inicio:s.hora_inicio,
-        fin:s.hora_fin,
-        tipo:s.tipo,
-        solicitud:s
-      };
-    }
-  }
-
-  return {bloqueado:false};
-}
-
-  const now=new Date();
-  const actual=now.getHours()*60 + now.getMinutes();
-
-  for(const s of solicitudes){
-    if(!s.hora_inicio || !s.hora_fin) continue;
-
-    const min1=minutosDesdeHora(s.hora_inicio);
-    const min2=minutosDesdeHora(s.hora_fin);
-
-    if(min1===null || min2===null) continue;
-
-    if(actual>=min1 && actual<=min2){
-      return {
-        bloqueado:true,
-        inicio:s.hora_inicio,
-        fin:s.hora_fin,
-        tipo:s.tipo,
-        solicitud:s
-      };
-    }
-  }
-
-  return {bloqueado:false};
-}
-// ===============================
-// TEXTO SOLICITUD
-// ===============================
-function textoTipoSolicitudFichaje(tipo){
+function textoTipoSolicitud(tipo){
   const m={
     asuntos_propios:"Asuntos propios",
     vacaciones:"Vacaciones",
@@ -254,20 +57,17 @@ function textoTipoSolicitudFichaje(tipo){
   return m[tipo] || tipo || "";
 }
 
-// ===============================
-// ANALIZAR SOLICITUDES DEL DÍA
-// ===============================
-function analizarSolicitudesDia(lista){
-  const resultado={
-    tipo:null,
-    solicitudId:null,
+function analizarSolicitudes(solicitudes){
+  const res={
+    texto:"",
     minutosJustificados:0,
-    bloquearFichaje:false,
-    observacion:""
+    bloqueaTodo:false,
+    tipo:null,
+    solicitudId:null
   };
 
-  if(!lista || !lista.length){
-    return resultado;
+  if(!solicitudes || !solicitudes.length){
+    return res;
   }
 
   const prioridad=[
@@ -279,162 +79,198 @@ function analizarSolicitudesDia(lista){
     "asuntos_propios"
   ];
 
-  lista.sort((a,b)=>{
+  solicitudes.sort((a,b)=>{
     return prioridad.indexOf(a.tipo)-prioridad.indexOf(b.tipo);
   });
 
-  const sol=lista[0];
+  const s=solicitudes[0];
 
-  resultado.tipo=sol.tipo;
-  resultado.solicitudId=sol.id;
-  resultado.observacion=textoTipoSolicitudFichaje(sol.tipo);
+  res.tipo=s.tipo;
+  res.solicitudId=s.id;
+  res.texto=textoTipoSolicitud(s.tipo);
 
-  if(sol.tipo==="baja_medica"){
-    resultado.bloquearFichaje=true;
-    resultado.minutosJustificados=24*60;
-    return resultado;
+  if(s.tipo==="baja_medica"){
+    res.bloqueaTodo=true;
+    res.minutosJustificados=24*60;
+    return res;
   }
 
-  if(sol.tipo==="vacaciones"){
-    resultado.minutosJustificados=24*60;
-    return resultado;
+  if(s.tipo==="vacaciones"){
+    res.minutosJustificados=24*60;
+    return res;
   }
 
-  if(sol.tipo==="asuntos_propios"){
-    resultado.minutosJustificados=Math.round(Number(sol.total_horas||0)*60);
-    return resultado;
+  if(Number(s.total_horas||0)>0){
+    res.minutosJustificados=Math.round(Number(s.total_horas||0)*60);
+    return res;
   }
 
-  if(Number(sol.total_horas||0)>0){
-    resultado.minutosJustificados=Math.round(Number(sol.total_horas||0)*60);
-  }else if(Number(sol.total_dias||0)>0){
-    resultado.minutosJustificados=24*60;
+  if(Number(s.total_dias||0)>0){
+    res.minutosJustificados=24*60;
+    return res;
   }
 
-  return resultado;
+  return res;
 }
 
-async function contextoLaboralDia(fechaISOtxt){
-  const solicitudes=await solicitudesDelDia(fechaISOtxt);
-  const analisis=analizarSolicitudesDia(solicitudes);
+// ===============================
+// OBJETIVO DEL DÍA
+// ===============================
+async function objetivoDia(){
+  const solicitudes=await solicitudesHoy();
+  const analisis=analizarSolicitudes(solicitudes);
+
+  let objetivoSeg=480*60;
+
+  if(analisis.tipo==="vacaciones" || analisis.tipo==="baja_medica"){
+    objetivoSeg=0;
+  }else if(analisis.minutosJustificados>0){
+    objetivoSeg=Math.max(0,objetivoSeg-(analisis.minutosJustificados*60));
+  }
 
   return {
+    objetivoSeg,
     solicitudes,
-    ...analisis
+    analisis,
+    bloqueo:bloqueoHorarioActual(solicitudes)
   };
+}
+// ===============================
+// TIPOS Y ESTADOS
+// ===============================
+function textoEstado(estado){
+  if(estado==="dentro") return "Trabajando";
+  if(estado==="descanso") return "Descanso";
+  if(estado==="comida") return "Comida";
+  return "Fuera";
+}
+
+function colorEstado(estado){
+  if(estado==="dentro") return "#16a34a";
+  if(estado==="descanso") return "#f59e0b";
+  if(estado==="comida") return "#ea580c";
+  return "#64748b";
+}
+
+function estadoDesdeTipo(tipo){
+  if(!tipo) return "fuera";
+
+  if(tipo==="entrada") return "dentro";
+  if(tipo==="salida") return "fuera";
+  if(tipo==="inicio_descanso") return "descanso";
+  if(tipo==="fin_descanso") return "dentro";
+  if(tipo==="inicio_comida") return "comida";
+  if(tipo==="fin_comida") return "dentro";
+
+  return "fuera";
+}
+
+function textoTipo(tipo){
+  const m={
+    entrada:"Entrada",
+    salida:"Salida",
+    inicio_descanso:"Inicio descanso",
+    fin_descanso:"Fin descanso",
+    inicio_comida:"Inicio comida",
+    fin_comida:"Fin comida"
+  };
+
+  return m[tipo] || tipo;
 }
 
 // ===============================
-// FESTIVOS
+// RESUMEN SOLICITUDES
 // ===============================
-async function esFestivo(fechaTxt){
-  const fecha=String(fechaTxt||new Date().toISOString()).slice(0,10);
+function textoTipoSolicitud(tipo){
+  const m={
+    asuntos_propios:"Asuntos propios",
+    vacaciones:"Vacaciones",
+    permiso_retribuido:"Permiso retribuido",
+    permiso_sin_sueldo:"Permiso sin sueldo",
+    baja_medica:"Baja médica",
+    otros:"Otro permiso"
+  };
 
-  const r=await sb()
-    .from("festivos")
-    .select("*")
-    .eq("fecha",fecha)
-    .limit(1);
+  return m[tipo] || tipo || "";
+}
 
-  if(r.error || !r.data || !r.data.length){
-    return {es:false,tipo:null,nombre:null};
+function analizarSolicitudes(solicitudes){
+  const res={
+    texto:"",
+    minutosJustificados:0,
+    bloqueaTodo:false,
+    tipo:null,
+    solicitudId:null
+  };
+
+  if(!solicitudes || !solicitudes.length){
+    return res;
   }
 
-  const f=r.data[0];
+  const prioridad=[
+    "baja_medica",
+    "vacaciones",
+    "permiso_retribuido",
+    "permiso_sin_sueldo",
+    "otros",
+    "asuntos_propios"
+  ];
+
+  solicitudes.sort((a,b)=>{
+    return prioridad.indexOf(a.tipo)-prioridad.indexOf(b.tipo);
+  });
+
+  const s=solicitudes[0];
+
+  res.tipo=s.tipo;
+  res.solicitudId=s.id;
+  res.texto=textoTipoSolicitud(s.tipo);
+
+  if(s.tipo==="baja_medica"){
+    res.bloqueaTodo=true;
+    res.minutosJustificados=24*60;
+    return res;
+  }
+
+  if(s.tipo==="vacaciones"){
+    res.minutosJustificados=24*60;
+    return res;
+  }
+
+  if(Number(s.total_horas||0)>0){
+    res.minutosJustificados=Math.round(Number(s.total_horas||0)*60);
+    return res;
+  }
+
+  if(Number(s.total_dias||0)>0){
+    res.minutosJustificados=24*60;
+    return res;
+  }
+
+  return res;
+}
+
+// ===============================
+// OBJETIVO DEL DÍA
+// ===============================
+async function objetivoDia(){
+  const solicitudes=await solicitudesHoy();
+  const analisis=analizarSolicitudes(solicitudes);
+
+  let objetivoSeg=480*60;
+
+  if(analisis.tipo==="vacaciones" || analisis.tipo==="baja_medica"){
+    objetivoSeg=0;
+  }else if(analisis.minutosJustificados>0){
+    objetivoSeg=Math.max(0,objetivoSeg-(analisis.minutosJustificados*60));
+  }
 
   return {
-    es:true,
-    tipo:f.tipo || "festivo",
-    nombre:f.nombre || "Festivo"
+    objetivoSeg,
+    solicitudes,
+    analisis,
+    bloqueo:bloqueoHorarioActual(solicitudes)
   };
-}
-
-// ===============================
-// DÍA SEMANA
-// ===============================
-function diaSemana(fechaISOtxt){
-  const d=new Date(fechaISOtxt);
-  return ["domingo","lunes","martes","miercoles","jueves","viernes","sabado"][d.getDay()];
-}
-
-// ===============================
-// OBJETIVO DIARIO PRO
-// ===============================
-async function objetivoDiaPRO(fechaISOtxt){
-  const s=sesion();
-  const fecha=String(fechaISOtxt||new Date().toISOString()).slice(0,10);
-
-  let objetivoBaseSeg=480*60;
-
-  const festivo=await esFestivo(fecha);
-
-  if(festivo.es){
-    objetivoBaseSeg=0;
-  }else{
-    const r=await sb()
-      .from("horarios_usuario")
-      .select("*")
-      .eq("usuario_id",String(s.id))
-      .eq("activo",true)
-      .limit(1);
-
-    if(!r.error && r.data && r.data.length){
-      const h=r.data[0];
-      const dia=diaSemana(fecha);
-      objetivoBaseSeg=Number(h[dia]||0)*60;
-    }
-  }
-
-  const contexto=await contextoLaboralDia(fecha);
-  const bloqueoHorario=bloqueoHorarioActual(contexto.solicitudes);
-
-  let objetivoFinalSeg=objetivoBaseSeg;
-  let minutosJustificados=0;
-  let tipoAusencia=null;
-  let observacion="";
-  let solicitudId=null;
-  let bloquearFichaje=false;
-
-  if(contexto && contexto.tipo){
-    tipoAusencia=contexto.tipo;
-    minutosJustificados=Number(contexto.minutosJustificados||0);
-    observacion=textoTipoSolicitudFichaje(contexto.tipo);
-    solicitudId=contexto.solicitudId || null;
-    bloquearFichaje=!!contexto.bloquearFichaje;
-
-    if(
-      contexto.tipo==="vacaciones" ||
-      contexto.tipo==="baja_medica" ||
-      (
-        minutosJustificados>=24*60 &&
-        contexto.tipo!=="asuntos_propios"
-      )
-    ){
-      objetivoFinalSeg=0;
-    }else if(minutosJustificados>0){
-      objetivoFinalSeg=Math.max(0,objetivoBaseSeg-(minutosJustificados*60));
-    }
-  }
-
-  return {
-    objetivoSeg:objetivoFinalSeg,
-    objetivoBaseSeg,
-    minutosJustificados,
-    tipoAusencia,
-    observacion,
-    solicitudId,
-    bloquearFichaje,
-    bloqueoHorario,
-    solicitudes:contexto.solicitudes || [],
-    festivo:festivo.es,
-    tipoFestivo:festivo.tipo,
-    nombreFestivo:festivo.nombre
-  };
-}
-
-async function objetivoDia(fechaISOtxt){
-  const r=await objetivoDiaPRO(fechaISOtxt);
-  return r.objetivoSeg;
 }
 // ===============================
 // GEOLOCALIZACIÓN
@@ -450,21 +286,11 @@ async function obtenerUbicacion(){
       const lat=pos.coords.latitude;
       const lng=pos.coords.longitude;
 
-      try{
-        const r=await fetch(
-          "https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng
-        );
-        const data=await r.json();
-
-        resolve({
-          lat,
-          lng,
-          direccion:data.display_name || null
-        });
-
-      }catch(e){
-        resolve({lat,lng,direccion:null});
-      }
+      resolve({
+        lat,
+        lng,
+        direccion:null
+      });
 
     },()=>{
       resolve({lat:null,lng:null,direccion:null});
@@ -537,10 +363,13 @@ async function estadoActual(){
     eventos
   };
 }
-
 // ===============================
 // CÁLCULO EN VIVO
 // ===============================
+function segundosEntre(a,b){
+  return Math.max(0,Math.floor((new Date(b)-new Date(a))/1000));
+}
+
 function calcularEnVivo(eventos,estado){
   let entrada=null;
   let salida=null;
@@ -618,114 +447,13 @@ function calcularEnVivo(eventos,estado){
     comidaSeg
   };
 }
-// ===============================
-// OPCIONES DE FICHAJE
-// ===============================
-function opcionesPermitidas(estado){
-  if(estado==="fuera"){
-    return [
-      {
-        tipo:"entrada",
-        texto:"Entrada",
-        clase:"zx_verde"
-      }
-    ];
-  }
-
-  if(estado==="dentro"){
-    return [
-      {
-        tipo:"salida",
-        texto:"Salida",
-        clase:"zx_rojo"
-      },
-      {
-        tipo:"inicio_descanso",
-        texto:"Inicio descanso",
-        clase:"zx_naranja"
-      },
-      {
-        tipo:"inicio_comida",
-        texto:"Inicio comida",
-        clase:"zx_morado"
-      }
-    ];
-  }
-
-  if(estado==="descanso"){
-    return [
-      {
-        tipo:"fin_descanso",
-        texto:"Fin descanso",
-        clase:"zx_azul"
-      }
-    ];
-  }
-
-  if(estado==="comida"){
-    return [
-      {
-        tipo:"fin_comida",
-        texto:"Fin comida",
-        clase:"zx_azul"
-      }
-    ];
-  }
-
-  return [];
-}
-
-// ===============================
-// MODAL FICHAR
-// ===============================
-function cerrarModal(){
-  const m=document.getElementById("zx_modal_fichaje");
-  if(m){
-    m.remove();
-  }
-}
-
-function abrirMenu(estado){
-  cerrarModal();
-
-  const ops=opcionesPermitidas(estado);
-
-  document.body.insertAdjacentHTML("beforeend",`
-    <div id="zx_modal_fichaje" class="zx_modal_fondo">
-      <div class="zx_modal_caja">
-        <h2>Fichar</h2>
-
-        ${ops.map(o=>`
-          <button class="zx_btn_big ${o.clase}" data-fichaje="${o.tipo}">
-            ${o.texto}
-          </button>
-        `).join("")}
-
-        <button class="zx_btn_big zx_gris" id="zx_cancelar_fichaje">
-          Cancelar
-        </button>
-      </div>
-    </div>
-  `);
-
-  document.querySelectorAll("[data-fichaje]").forEach(btn=>{
-    btn.onclick=function(){
-      const tipo=this.dataset.fichaje;
-      cerrarModal();
-      registrar(tipo);
-    };
-  });
-
-  document.getElementById("zx_cancelar_fichaje").onclick=cerrarModal;
-}
 
 // ===============================
 // CREAR JORNADA
 // ===============================
 async function crearJornada(){
   const s=sesion();
-  const entrada=ahora();
-  const laboral=await objetivoDiaPRO(entrada);
+  const obj=await objetivoDia();
 
   const r=await sb()
     .from("jornadas")
@@ -734,15 +462,12 @@ async function crearJornada(){
       usuario:s.usuario || "",
       nombre:s.nombre || "",
       fecha:new Date().toISOString().slice(0,10),
-      entrada,
+      entrada:ahora(),
       estado:"abierta",
-
-      es_festivo:laboral.festivo,
-      tipo_festivo:laboral.tipoFestivo,
-      solicitud_id:laboral.solicitudId,
-      tipo_ausencia:laboral.tipoAusencia,
-      minutos_justificados:laboral.minutosJustificados,
-      observacion_laboral:laboral.observacion
+      solicitud_id:obj.analisis.solicitudId,
+      tipo_ausencia:obj.analisis.tipo,
+      minutos_justificados:obj.analisis.minutosJustificados,
+      observacion_laboral:obj.analisis.texto
     }])
     .select()
     .single();
@@ -803,11 +528,10 @@ async function recalcularJornada(jornadaId){
   const estado=estadoDesdeTipo(ultimo ? ultimo.tipo : null);
 
   const c=calcularEnVivo(eventos,estado);
-  const laboral=await objetivoDiaPRO(c.entrada || new Date().toISOString());
+  const obj=await objetivoDia();
 
-  const objetivoSeg=laboral.objetivoSeg;
-  const extraSeg=Math.max(0,c.trabajadoSeg-objetivoSeg);
-  const faltanteSeg=Math.max(0,objetivoSeg-c.trabajadoSeg);
+  const extraSeg=Math.max(0,c.trabajadoSeg-obj.objetivoSeg);
+  const faltaSeg=Math.max(0,obj.objetivoSeg-c.trabajadoSeg);
 
   const nuevoEstado=ultimo && ultimo.tipo==="salida" ? "cerrada" : "abierta";
 
@@ -818,18 +542,14 @@ async function recalcularJornada(jornadaId){
       minutos_trabajados:Math.floor(c.trabajadoSeg/60),
       minutos_descanso:Math.floor(c.descansoSeg/60),
       minutos_comida:Math.floor(c.comidaSeg/60),
-      minutos_objetivo:Math.floor(objetivoSeg/60),
+      minutos_objetivo:Math.floor(obj.objetivoSeg/60),
       minutos_extra:Math.floor(extraSeg/60),
-      minutos_faltantes:Math.floor(faltanteSeg/60),
+      minutos_faltantes:Math.floor(faltaSeg/60),
       horas_extra:Math.floor(extraSeg/60),
-
-      es_festivo:laboral.festivo,
-      tipo_festivo:laboral.tipoFestivo,
-      solicitud_id:laboral.solicitudId,
-      tipo_ausencia:laboral.tipoAusencia,
-      minutos_justificados:laboral.minutosJustificados,
-      observacion_laboral:laboral.observacion,
-
+      solicitud_id:obj.analisis.solicitudId,
+      tipo_ausencia:obj.analisis.tipo,
+      minutos_justificados:obj.analisis.minutosJustificados,
+      observacion_laboral:obj.analisis.texto,
       estado:nuevoEstado
     })
     .eq("id",jornadaId);
@@ -850,22 +570,19 @@ async function registrar(tipo){
     return;
   }
 
-  const fechaHoy=new Date().toISOString().slice(0,10);
-  const laboral=await objetivoDiaPRO(fechaHoy);
+  const obj=await objetivoDia();
 
-  if(laboral.bloquearFichaje && tipo==="entrada"){
-    alert("No se puede fichar: existe una baja médica aprobada para hoy.");
+  if(obj.analisis.bloqueaTodo && tipo==="entrada"){
+    alert("No se puede fichar: existe una ausencia aprobada para hoy.");
     return;
   }
 
-  const bloqueo=bloqueoHorarioActual(laboral.solicitudes);
-
-  if(bloqueo.bloqueado && tipo==="entrada"){
+  if(obj.bloqueo.bloqueado && tipo==="entrada"){
     alert(
       "No puedes fichar.\n" +
       "Permiso activo: " +
-      bloqueo.inicio + " - " +
-      bloqueo.fin
+      obj.bloqueo.inicio + " - " +
+      obj.bloqueo.fin
     );
     return;
   }
@@ -919,9 +636,77 @@ async function registrar(tipo){
   if(!ok) return;
 
   await recalcularJornada(jornada.id);
-
   ZX_fichaje();
 }
+// ===============================
+// OPCIONES DE FICHAJE
+// ===============================
+function opcionesPermitidas(estado){
+  if(estado==="fuera"){
+    return [{tipo:"entrada",texto:"Entrada",clase:"zx_verde"}];
+  }
+
+  if(estado==="dentro"){
+    return [
+      {tipo:"salida",texto:"Salida",clase:"zx_rojo"},
+      {tipo:"inicio_descanso",texto:"Inicio descanso",clase:"zx_naranja"},
+      {tipo:"inicio_comida",texto:"Inicio comida",clase:"zx_morado"}
+    ];
+  }
+
+  if(estado==="descanso"){
+    return [{tipo:"fin_descanso",texto:"Fin descanso",clase:"zx_azul"}];
+  }
+
+  if(estado==="comida"){
+    return [{tipo:"fin_comida",texto:"Fin comida",clase:"zx_azul"}];
+  }
+
+  return [];
+}
+
+// ===============================
+// MODAL FICHAR
+// ===============================
+function cerrarModal(){
+  const m=document.getElementById("zx_modal_fichaje");
+  if(m) m.remove();
+}
+
+function abrirMenu(estado){
+  cerrarModal();
+
+  const ops=opcionesPermitidas(estado);
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_fichaje" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Fichar</h2>
+
+        ${ops.map(o=>`
+          <button class="zx_btn_big ${o.clase}" data-fichaje="${o.tipo}">
+            ${o.texto}
+          </button>
+        `).join("")}
+
+        <button class="zx_btn_big zx_gris" id="zx_cancelar_fichaje">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  `);
+
+  document.querySelectorAll("[data-fichaje]").forEach(btn=>{
+    btn.onclick=function(){
+      const tipo=this.dataset.fichaje;
+      cerrarModal();
+      registrar(tipo);
+    };
+  });
+
+  document.getElementById("zx_cancelar_fichaje").onclick=cerrarModal;
+}
+
 // ===============================
 // CONSULTAS LISTADOS
 // ===============================
@@ -966,7 +751,6 @@ async function jornadasAdminHoy(){
   if(r.error) return [];
   return r.data || [];
 }
-
 // ===============================
 // BORRAR JORNADA
 // ===============================
@@ -1159,7 +943,6 @@ async function editarFichaje(id){
     ZX_fichaje();
   };
 }
-
 // ===============================
 // VER FICHAJES DE JORNADA
 // ===============================
@@ -1199,53 +982,6 @@ async function verFichajesJornada(jornadaId){
       borrarFichaje(btn.dataset.borrarFichaje);
     };
   });
-}
-// ===============================
-// RESUMEN HTML
-// ===============================
-function resumenHTML(resumen,objetivoSeg,laboral=null){
-  const extraSeg=Math.max(0,resumen.trabajadoSeg-objetivoSeg);
-  const faltaSeg=Math.max(0,objetivoSeg-resumen.trabajadoSeg);
-
-  const minutosJustificados=laboral ? Number(laboral.minutosJustificados||0) : 0;
-  const bloqueo=laboral ? bloqueoHorarioActual(laboral.solicitudes) : {bloqueado:false};
-
-  return `
-    <div class="zx_text">
-
-      ${
-        laboral && laboral.festivo
-        ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">
-            Día festivo${laboral.nombreFestivo ? ": "+limpiar(laboral.nombreFestivo) : ""}
-          </div>`
-        : ""
-      }
-
-      ${
-        laboral && laboral.tipoAusencia
-        ? `<div style="color:#2563eb;font-weight:900;margin-bottom:8px;">
-            ${limpiar(laboral.observacion)}
-          </div>`
-        : ""
-      }
-
-      ${
-        bloqueo.bloqueado
-        ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">
-            Permiso activo: ${limpiar(bloqueo.inicio)} - ${limpiar(bloqueo.fin)}
-          </div>`
-        : ""
-      }
-
-      Trabajado: <b>${formatoSeg(resumen.trabajadoSeg)}</b><br>
-      Descanso: <b>${formatoSeg(resumen.descansoSeg)}</b><br>
-      Comida: <b>${formatoSeg(resumen.comidaSeg)}</b><br>
-      Justificado: <b>${formatoMin(minutosJustificados)}</b><br>
-      Objetivo: <b>${formatoSeg(objetivoSeg)}</b><br>
-      Extra: <b>${formatoSeg(extraSeg)}</b><br>
-      Falta: <b>${formatoSeg(faltaSeg)}</b>
-    </div>
-  `;
 }
 
 // ===============================
@@ -1290,7 +1026,7 @@ function renderJornadaMini(j,admin){
     <div class="zx_admin_row">
       <div class="zx_admin_row_top">
         <b>${limpiar(j.nombre || j.usuario || "-")}</b>
-        <span>${limpiar(formatoFechaES(j.fecha || ""))}</span>
+        <span>${limpiar(j.fecha || "")}</span>
       </div>
 
       <div class="zx_admin_estado ${limpiar(j.estado || "")}">
@@ -1302,12 +1038,6 @@ function renderJornadaMini(j,admin){
         Desc: ${formatoMin(j.minutos_descanso || 0)} · Comida: ${formatoMin(j.minutos_comida || 0)}<br>
         Just: ${formatoMin(j.minutos_justificados || 0)} · Extra: ${formatoMin(j.minutos_extra || j.horas_extra || 0)}<br>
         Falta: ${formatoMin(j.minutos_faltantes || 0)}
-
-        ${
-          j.es_festivo
-          ? `<br><b style="color:#dc2626;">Festivo</b>`
-          : ""
-        }
 
         ${
           j.observacion_laboral
@@ -1335,7 +1065,44 @@ function renderJornadaMini(j,admin){
   `;
 }
 // ===============================
-// RENDER ADMIN RESUMEN
+// RESUMEN HTML
+// ===============================
+function resumenHTML(resumen,obj){
+  const extraSeg=Math.max(0,resumen.trabajadoSeg-obj.objetivoSeg);
+  const faltaSeg=Math.max(0,obj.objetivoSeg-resumen.trabajadoSeg);
+
+  return `
+    <div class="zx_text">
+
+      ${
+        obj.analisis && obj.analisis.texto
+        ? `<div style="color:#2563eb;font-weight:900;margin-bottom:8px;">
+            ${limpiar(obj.analisis.texto)}
+          </div>`
+        : ""
+      }
+
+      ${
+        obj.bloqueo && obj.bloqueo.bloqueado
+        ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">
+            Permiso activo: ${limpiar(obj.bloqueo.inicio)} - ${limpiar(obj.bloqueo.fin)}
+          </div>`
+        : ""
+      }
+
+      Trabajado: <b>${formatoSeg(resumen.trabajadoSeg)}</b><br>
+      Descanso: <b>${formatoSeg(resumen.descansoSeg)}</b><br>
+      Comida: <b>${formatoSeg(resumen.comidaSeg)}</b><br>
+      Justificado: <b>${formatoMin(obj.analisis.minutosJustificados || 0)}</b><br>
+      Objetivo: <b>${formatoSeg(obj.objetivoSeg)}</b><br>
+      Extra: <b>${formatoSeg(extraSeg)}</b><br>
+      Falta: <b>${formatoSeg(faltaSeg)}</b>
+    </div>
+  `;
+}
+
+// ===============================
+// RESUMEN ADMIN
 // ===============================
 function renderAdminResumen(jornadasHoy){
   let totalTrab=0;
@@ -1343,17 +1110,15 @@ function renderAdminResumen(jornadasHoy){
   let totalFalta=0;
   let abiertas=0;
   let cerradas=0;
-  let festivas=0;
   let justificadas=0;
 
   jornadasHoy.forEach(j=>{
-    totalTrab += Number(j.minutos_trabajados || 0);
-    totalExtra += Number(j.minutos_extra || j.horas_extra || 0);
-    totalFalta += Number(j.minutos_faltantes || 0);
+    totalTrab+=Number(j.minutos_trabajados||0);
+    totalExtra+=Number(j.minutos_extra||j.horas_extra||0);
+    totalFalta+=Number(j.minutos_faltantes||0);
 
     if(j.estado==="abierta") abiertas++;
     if(j.estado==="cerrada") cerradas++;
-    if(j.es_festivo) festivas++;
     if(Number(j.minutos_justificados||0)>0) justificadas++;
   });
 
@@ -1365,20 +1130,18 @@ function renderAdminResumen(jornadasHoy){
       <div><b>${formatoMin(totalTrab)}</b><span>Trabajado</span></div>
       <div><b>${formatoMin(totalExtra)}</b><span>Extra</span></div>
       <div><b>${formatoMin(totalFalta)}</b><span>Falta</span></div>
-      <div><b>${festivas}</b><span>Festivas</span></div>
       <div><b>${justificadas}</b><span>Justificadas</span></div>
     </div>
   `;
 }
-
 // ===============================
-// ESTILOS EXTRA
+// ESTILOS
 // ===============================
-function estilosAdminCompacto(){
-  if(document.getElementById("zx_admin_compacto_css")) return;
+function estilosFichaje(){
+  if(document.getElementById("zx_fichaje_css")) return;
 
   const s=document.createElement("style");
-  s.id="zx_admin_compacto_css";
+  s.id="zx_fichaje_css";
   s.innerHTML=`
     .zx_admin_summary{
       display:grid;
@@ -1543,24 +1306,13 @@ window.ZX_toggleMisJornadas=function(){
 // PANTALLA PRINCIPAL
 // ===============================
 window.ZX_fichaje=async function(){
-  estilosAdminCompacto();
-
-  if(ZX_TIMER){
-    clearInterval(ZX_TIMER);
-    ZX_TIMER=null;
-  }
-
-  document.querySelectorAll(".zx_nav_btn").forEach(function(b){
-    b.classList.remove("zx_activo");
-    if(b.dataset.modulo==="fichaje"){
-      b.classList.add("zx_activo");
-    }
-  });
+  estilosFichaje();
 
   const est=await estadoActual();
   const hist=await ultimosFichajes();
   const jornadas=await jornadasUsuario();
   const adminHoy=esAdmin() ? await jornadasAdminHoy() : [];
+  const obj=await objetivoDia();
 
   let resumen={
     trabajadoSeg:0,
@@ -1568,19 +1320,9 @@ window.ZX_fichaje=async function(){
     comidaSeg:0
   };
 
-  let objetivoSeg=480*60;
-  let laboral=null;
-
   if(est.jornada){
     resumen=calcularEnVivo(est.eventos,est.estado);
-    laboral=await objetivoDiaPRO(resumen.entrada || new Date().toISOString());
-    objetivoSeg=laboral.objetivoSeg;
-  }else{
-    laboral=await objetivoDiaPRO(new Date().toISOString());
-    objetivoSeg=laboral.objetivoSeg;
   }
-
-  const bloqueoActual=bloqueoHorarioActual(laboral ? laboral.solicitudes : []);
 
   app().innerHTML=`
     <div class="zx_card">
@@ -1593,17 +1335,17 @@ window.ZX_fichaje=async function(){
       </div>
 
       ${
-        laboral && laboral.bloquearFichaje
+        obj.analisis.bloqueaTodo
         ? `<div class="zx_text" style="color:#dc2626;font-weight:900;margin-top:10px;">
-            Fichaje bloqueado por baja médica aprobada.
+            Fichaje bloqueado por ausencia aprobada.
           </div>`
         : ""
       }
 
       ${
-        bloqueoActual.bloqueado
+        obj.bloqueo.bloqueado
         ? `<div class="zx_text" style="color:#dc2626;font-weight:900;margin-top:10px;">
-            Permiso activo: ${limpiar(bloqueoActual.inicio)} - ${limpiar(bloqueoActual.fin)}
+            Permiso activo: ${limpiar(obj.bloqueo.inicio)} - ${limpiar(obj.bloqueo.fin)}
           </div>`
         : ""
       }
@@ -1617,7 +1359,7 @@ window.ZX_fichaje=async function(){
       <h2>Resumen en vivo</h2>
 
       <div id="zx_resumen_tiempo">
-        ${resumenHTML(resumen,objetivoSeg,laboral)}
+        ${resumenHTML(resumen,obj)}
       </div>
     </div>
 
@@ -1711,18 +1453,6 @@ window.ZX_fichaje=async function(){
       verFichajesJornada(btn.dataset.verFichajesJornada);
     };
   });
-
-  if(est.jornada){
-    ZX_TIMER=setInterval(async function(){
-      const r=calcularEnVivo(est.eventos,est.estado);
-      const lab=await objetivoDiaPRO(r.entrada || new Date().toISOString());
-      const cont=document.getElementById("zx_resumen_tiempo");
-
-      if(cont){
-        cont.innerHTML=resumenHTML(r,lab.objetivoSeg,lab);
-      }
-    },1000);
-  }
 };
 
 // ===============================
