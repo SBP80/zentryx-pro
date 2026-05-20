@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3015 - PERMISOS POR MÓDULO
+// V3068 - LAYOUT LIMPIO + FICHAJE SIN MACHACAR MÓDULO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3015";
+const ZX_VERSION="3068";
 
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
@@ -47,21 +47,11 @@ function puedeVerModulo(modulo){
   if(esAdmin()) return true;
 
   if(esEncargado()){
-    return [
-      "inicio",
-      "fichaje",
-      "usuarios",
-      "vehiculos",
-      "incidencias",
-      "informes"
-    ].includes(modulo);
+    return ["inicio","fichaje","usuarios","vehiculos","incidencias","informes"].includes(modulo);
   }
 
   if(esOperario()){
-    return [
-      "inicio",
-      "fichaje"
-    ].includes(modulo);
+    return ["inicio","fichaje"].includes(modulo);
   }
 
   return modulo==="inicio";
@@ -77,15 +67,7 @@ function limpiarTexto(v){
 }
 
 function limpiarLayoutAnterior(){
-  [
-    "zx_header",
-    "zx_footer",
-    "zx_top",
-    "zx_nav",
-    "zx_topbar",
-    "zx_layout_styles",
-    "zx_css"
-  ].forEach(function(id){
+  ["zx_header","zx_footer","zx_top","zx_nav","zx_topbar","zx_layout_styles","zx_css"].forEach(function(id){
     const el=$(id);
     if(el) el.remove();
   });
@@ -259,28 +241,6 @@ function estilos(){
     .zx_morado{background:#7c3aed}
     .zx_gris{background:#64748b}
 
-    .zx_item{
-      border:1px solid #d1d5db;
-      border-radius:20px;
-      padding:18px;
-      margin-top:14px;
-      background:#fff;
-    }
-
-    .zx_item_titulo{
-      font-size:24px;
-      font-weight:900;
-      margin-bottom:10px;
-      color:#0f172a;
-    }
-
-    .zx_item_texto{
-      color:#6b7280;
-      font-size:17px;
-      line-height:1.55;
-      font-weight:650;
-    }
-
     input,select,textarea{
       width:100%;
       border:1px solid #d1d5db;
@@ -290,28 +250,6 @@ function estilos(){
       font-size:17px;
       background:white;
       color:#0f172a;
-    }
-
-    @media(max-width:430px){
-      #zx_logo{width:48px;height:48px;font-size:27px}
-      #zx_brand h1{font-size:21px}
-      #zx_brand p{font-size:13px}
-      #zx_salir{padding:12px 15px;font-size:15px}
-      .zx_nav_btn{min-width:104px;padding:14px 15px;font-size:16px}
-      .zx_card h2{font-size:30px}
-    }
-
-    @media(min-width:768px){
-      #zx_topbar{padding:22px 24px}
-      #zx_nav{padding:0 24px 18px}
-      #app{padding:24px}
-      .zx_card{padding:30px}
-      .zx_card h2{font-size:36px}
-    }
-
-    @media(min-width:1024px){
-      #zx_nav_inner{flex-wrap:wrap}
-      .zx_nav_btn{min-width:auto;padding:15px 24px}
     }
   `;
 
@@ -341,12 +279,8 @@ function topbar(){
   document.body.insertBefore(t,app());
 
   $("zx_salir").onclick=function(){
-    if(window.ZENTRYX_logout){
-      window.ZENTRYX_logout();
-      return;
-    }
-
     localStorage.removeItem("zentryx_session");
+    localStorage.removeItem("usuario");
     location.href="index.html?v="+ZX_VERSION;
   };
 }
@@ -368,7 +302,7 @@ function nav(){
   n.innerHTML=`
     <div id="zx_nav_inner">
       ${botonNav("inicio","Inicio","ZX_inicio()")}
-      ${botonNav("fichaje","Fichaje","ZX_fichaje()")}
+      ${botonNav("fichaje","Fichaje","ZX_abrirFichaje()")}
       ${botonNav("usuarios","Usuarios","ZX_usuarios()")}
       ${botonNav("vehiculos","Vehículos","ZX_vehiculos()")}
       ${botonNav("incidencias","Incidencias","ZX_incidencias()")}
@@ -414,21 +348,27 @@ function abrirModulo(nombre,callback){
   }
 }
 
-window.logout=function(){
-  if(window.ZENTRYX_logout){
-    window.ZENTRYX_logout();
-    return;
-  }
+window.ZX_abrirFichaje=function(){
+  abrirModulo("fichaje",function(){
+    if(window.ZX_fichaje_real){
+      window.ZX_fichaje_real();
+      return;
+    }
 
-  localStorage.removeItem("zentryx_session");
-  localStorage.removeItem("usuario");
-  localStorage.removeItem("zx_estado");
-  localStorage.removeItem("zx_pausa");
-  localStorage.removeItem("zx_comida");
-  localStorage.removeItem("zx_vehiculo_activo");
-  localStorage.removeItem("zx_vehiculo_matricula");
-  localStorage.removeItem("zx_vehiculo_km");
-  location.href="index.html?v="+ZX_VERSION;
+    if(window.ZX_fichaje){
+      window.ZX_fichaje();
+      return;
+    }
+
+    if(app()){
+      app().innerHTML=`
+        <div class="zx_card">
+          <h2>Fichaje</h2>
+          <div class="zx_text">Error cargando módulo fichaje.</div>
+        </div>
+      `;
+    }
+  });
 };
 
 window.ZX_inicio=function(){
@@ -447,26 +387,13 @@ window.ZX_usuarios=function(){
   });
 };
 
-window.ZX_fichaje=function(){
-  abrirModulo("fichaje",function(){
-    if(app()){
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Fichaje</h2>
-          <div class="zx_text">Módulo fichaje pendiente de reconectar.</div>
-        </div>
-      `;
-    }
-  });
-};
-
 window.ZX_vehiculos=function(){
   abrirModulo("vehiculos",function(){
     if(app()){
       app().innerHTML=`
         <div class="zx_card">
           <h2>Vehículos</h2>
-          <div class="zx_text">Módulo vehículos pendiente de reconectar.</div>
+          <div class="zx_text">Módulo vehículos pendiente.</div>
         </div>
       `;
     }
