@@ -1505,7 +1505,7 @@ window.ZX_toggleMisJornadas=function(){
 // ===============================
 // PANTALLA PRINCIPAL
 // ===============================
-window.ZX_fichaje=async function(){
+window.ZX_fichaje_real=async function(){
   estilosAdminCompacto();
 
   if(ZX_TIMER){
