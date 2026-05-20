@@ -587,13 +587,18 @@ function calcularEnVivo(eventos,estado){
     }
   }
 
-  return {
+    return {
     entrada,
     salida,
     trabajadoSeg,
     descansoSeg,
     comidaSeg
   };
+}
+
+// ===============================
+// OPCIONES DE FICHAJE
+// ===============================
 // ===============================
 // OPCIONES DE FICHAJE
 // ===============================
@@ -1682,7 +1687,7 @@ window.ZX_fichaje_real=async function(){
     },1000);
   }
 };
-
+window.ZX_fichaje=window.ZX_fichaje_real;
 // ===============================
 // FIN MÓDULO
 // ===============================
