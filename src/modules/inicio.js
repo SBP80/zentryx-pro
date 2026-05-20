@@ -1,98 +1,73 @@
 // ===============================
 // ZENTRYX PRO - INICIO
-// V3068
+// V3070
 // ===============================
 (function(){
 "use strict";
 
-function app(){return document.getElementById("app")}
-function sb(){return window.sb || window.supabaseClient}
-
-function sesion(){
-  try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}
-  catch(e){return {}}
+function app(){
+  return document.getElementById("app");
 }
 
-function esAdmin(){
-  const s=sesion();
-  return String(s.rol||"").toLowerCase()==="administrador" ||
-         String(s.usuario||"").toLowerCase()==="admin";
-}
+function activarBotonInicio(){
 
-async function contarSolicitudesPendientes(){
-  if(!esAdmin()) return 0;
+  document.querySelectorAll(".zx_nav_btn").forEach(function(b){
 
-  const r=await sb()
-    .from("solicitudes_laborales")
-    .select("id",{count:"exact",head:true})
-    .eq("estado","pendiente");
+    b.classList.remove("zx_activo");
 
-  if(r.error) return 0;
-  return r.count || 0;
+    if(b.dataset.modulo==="inicio"){
+      b.classList.add("zx_activo");
+    }
+
+  });
+
 }
 
 window.ZENTRYX_UI_inicio=async function(){
 
-  const pendientes=await contarSolicitudesPendientes();
+  activarBotonInicio();
 
   app().innerHTML=`
     <div class="zx_card">
       <h2>Inicio</h2>
+
       <div class="zx_text">
         Sistema Zentryx PRO activo
       </div>
     </div>
 
-    ${
-      esAdmin() && pendientes>0
-      ? `
-        <div class="zx_card" style="border:2px solid #f59e0b;background:#fff7ed;">
-          <h2 style="color:#9a3412;">Avisos</h2>
-
-          <div class="zx_text" style="font-weight:900;color:#9a3412;">
-            Hay ${pendientes} solicitud${pendientes===1?"":"es"} pendiente${pendientes===1?"":"s"}.
-          </div>
-
-          <button class="zx_btn_big zx_naranja" onclick="ZX_solicitudes()">
-            Ver solicitudes
-          </button>
-        </div>
-      `
-      : ""
-    }
-
     <div class="zx_card">
       <h2>Acceso rápido</h2>
 
-      <button class="zx_btn_big zx_rojo" onclick="ZX_abrirFichaje()">
+      <button class="zx_btn_big zx_rojo" id="zx_inicio_fichaje">
         Fichaje
       </button>
 
-      <button class="zx_btn_big zx_azul" onclick="ZX_usuarios()">
+      <button class="zx_btn_big zx_azul" id="zx_inicio_usuarios">
         Usuarios
       </button>
 
-      <button class="zx_btn_big zx_verde" onclick="ZX_vehiculos()">
+      <button class="zx_btn_big zx_verde">
         Vehículos
       </button>
 
-      <button class="zx_btn_big zx_naranja" onclick="ZX_incidencias()">
+      <button class="zx_btn_big zx_naranja">
         Incidencias
       </button>
 
-      <button class="zx_btn_big zx_morado" onclick="ZX_informes()">
+      <button class="zx_btn_big zx_morado">
         Informes
       </button>
 
-      <button class="zx_btn_big zx_gris" onclick="ZX_configLaboral()">
+      <button class="zx_btn_big zx_gris">
         Config. laboral
       </button>
 
-      <button class="zx_btn_big ${pendientes>0 ? "zx_naranja" : "zx_gris"}" onclick="ZX_solicitudes()">
-        Solicitudes${pendientes>0 ? " ("+pendientes+")" : ""}
+      <button class="zx_btn_big zx_gris">
+        Solicitudes
       </button>
 
-      <button class="zx_btn_big zx_gris" onclick="ZX_abrirFichaje();setTimeout(()=>{if(window.ZX_toggleAdmin)ZX_toggleAdmin()},300)">
+      <button class="zx_btn_big zx_gris">
         Panel admin
       </button>
     </div>
@@ -101,19 +76,53 @@ window.ZENTRYX_UI_inicio=async function(){
       <h2>Estado sistema</h2>
 
       <div class="zx_text">
-        Versión: V3068<br><br>
-        ✔ Fichaje PRO activo<br>
-        ✔ Configuración laboral activa<br>
-        ✔ Solicitudes activas
+        Versión: V3070
+        <br><br>
+
+        ✔ Fichaje PRO activo
+        <br>
+
+        ✔ Configuración laboral activa
+        <br>
+
+        ✔ Solicitudes integradas
       </div>
     </div>
   `;
-};
 
-window.ZX_inicio=function(){
-  if(window.ZENTRYX_UI_inicio){
-    window.ZENTRYX_UI_inicio();
+  const btnFichaje=document.getElementById("zx_inicio_fichaje");
+
+  if(btnFichaje){
+
+    btnFichaje.onclick=function(){
+
+      if(window.ZX_fichaje_real){
+        window.ZX_fichaje_real();
+        return;
+      }
+
+      if(window.ZX_fichaje){
+        window.ZX_fichaje();
+      }
+
+    };
+
   }
+
+  const btnUsuarios=document.getElementById("zx_inicio_usuarios");
+
+  if(btnUsuarios){
+
+    btnUsuarios.onclick=function(){
+
+      if(window.ZX_usuarios){
+        window.ZX_usuarios();
+      }
+
+    };
+
+  }
+
 };
 
 })();
