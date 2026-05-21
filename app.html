@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V3067</title>
+<title>Zentryx PRO V3072</title>
 
 <script>
-const ZX_VERSION="3067";
+const ZX_VERSION="3072";
 
 function checkLogin(){
   const s=localStorage.getItem("zentryx_session");
@@ -32,6 +32,7 @@ checkLogin();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
 window.sb=supabase.createClient(
   "https://idtaamivqbiuxtjywuux.supabase.co",
@@ -47,14 +48,17 @@ window.supabaseClient=window.sb;
 <div id="app"></div>
 
 <script src="src/ui/layout.js?v=3069"></script>
+
 <script src="src/modules/inicio.js?v=3070"></script>
 <script src="src/modules/usuarios.js?v=3001"></script>
 <script src="src/modules/config_laboral.js?v=3059"></script>
 <script src="src/modules/solicitudes.js?v=3062"></script>
 <script src="src/modules/fichaje.js?v=3071"></script>
+<script src="src/modules/horas_extra.js?v=3072"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded",function(){
+
   if(!checkLogin()) return;
 
   if(window.ZENTRYX_UI_LAYOUT){
@@ -64,6 +68,7 @@ document.addEventListener("DOMContentLoaded",function(){
   if(window.ZX_inicio){
     window.ZX_inicio();
   }
+
 });
 </script>
 
