@@ -400,10 +400,16 @@ window.ZX_informes=function(){
 
 window.ZX_configuracion=function(){
   abrirModulo("configuracion",function(){
+
+    if(window.ZX_configLaboral){
+      window.ZX_configLaboral();
+      return;
+    }
+
     app().innerHTML=`
       <div class="zx_card">
         <h2>Configuración</h2>
-        <div class="zx_text">Módulo configuración pendiente.</div>
+        <div class="zx_text">Error cargando módulo configuración.</div>
       </div>
     `;
   });
