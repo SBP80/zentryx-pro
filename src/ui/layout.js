@@ -401,15 +401,20 @@ window.ZX_informes=function(){
 window.ZX_configuracion=function(){
   abrirModulo("configuracion",function(){
 
-    if(window.ZX_configLaboral){
+    if(typeof window.ZX_configLaboral==="function"){
       window.ZX_configLaboral();
+      return;
+    }
+
+    if(typeof window.ZX_config_laboral==="function"){
+      window.ZX_config_laboral();
       return;
     }
 
     app().innerHTML=`
       <div class="zx_card">
         <h2>Configuración</h2>
-        <div class="zx_text">Error cargando módulo configuración.</div>
+        <div class="zx_text">No se ha cargado config_laboral.js.</div>
       </div>
     `;
   });
