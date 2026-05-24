@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
-// V3074 FIX TOTAL
+// V3075 (AUTO-SYNC DESDE JORNADAS)
 // ===============================
 (function(){
 "use strict";
@@ -38,82 +38,9 @@ function formatoMin(min){
 }
 
 // ===============================
-// 🔴 SINCRONIZAR DESDE JORNADAS
+// 1. CARGAR DESDE HORAS_EXTRA_PRO
 // ===============================
-async function sincronizarDesdeJornadas(){
-
-  const s=sesion();
-
-  let q=sb()
-    .from("jornadas")
-    .select("*")
-    .gt("minutos_extra",0);
-
-  if(!esAdmin()){
-    q=q.eq("usuario_id",String(s.id));
-  }
-
-  const r=await q;
-
-  if(r.error || !r.data) return;
-
-  for(const j of r.data){
-
-    const existente=await sb()
-      .from("horas_extra_pro")
-      .select("*")
-      .eq("jornada_id",j.id)
-      .limit(1);
-
-    const reg=existente.data && existente.data.length
-      ? existente.data[0]
-      : null;
-
-    const minutos=Number(j.minutos_extra||0);
-
-    const horasDecimal=Number((minutos/60).toFixed(2));
-    const precioHora=10;
-    const importe=Number((horasDecimal*precioHora).toFixed(2));
-
-    if(reg){
-
-      if(["pagada","cobrada"].includes(reg.estado)) continue;
-
-      await sb()
-        .from("horas_extra_pro")
-        .update({
-          minutos,
-          horas_decimal:horasDecimal,
-          importe
-        })
-        .eq("id",reg.id);
-
-    }else{
-
-      await sb()
-        .from("horas_extra_pro")
-        .insert([{
-          usuario_id:j.usuario_id,
-          usuario:j.usuario,
-          nombre:j.nombre,
-          jornada_id:j.id,
-          fecha:j.fecha,
-          minutos,
-          horas_decimal:horasDecimal,
-          precio_hora:precioHora,
-          importe,
-          estado:"pendiente"
-        }]);
-    }
-  }
-}
-
-// ===============================
-// CARGAR
-// ===============================
-async function cargarHoras(){
-
-  await sincronizarDesdeJornadas();
+async function cargarHorasDB(){
 
   const s=sesion();
 
@@ -129,7 +56,7 @@ async function cargarHoras(){
   const r=await query;
 
   if(r.error){
-    alert("Error cargando horas extra");
+    console.error("Error horas_extra_pro:",r.error);
     return [];
   }
 
@@ -137,9 +64,76 @@ async function cargarHoras(){
 }
 
 // ===============================
-// ESTADOS
+// 2. GENERAR DESDE JORNADAS
+// ===============================
+async function generarDesdeJornadas(){
+
+  const s=sesion();
+
+  let query=sb()
+    .from("jornadas")
+    .select("*")
+    .gt("minutos_extra",0)
+    .order("created_at",{ascending:false});
+
+  if(!esAdmin()){
+    query=query.eq("usuario_id",String(s.id));
+  }
+
+  const r=await query;
+
+  if(r.error){
+    console.error("Error jornadas:",r.error);
+    return [];
+  }
+
+  return (r.data||[]).map(j=>{
+
+    const minutos=j.minutos_extra || j.horas_extra || 0;
+    const horasDecimal=Number((minutos/60).toFixed(2));
+    const precioHora=10;
+    const importe=Number((horasDecimal*precioHora).toFixed(2));
+
+    return {
+      id:"JORNADA_"+j.id,
+      nombre:j.nombre || j.usuario,
+      usuario:j.usuario,
+      fecha:j.fecha,
+      minutos,
+      horas_decimal:horasDecimal,
+      precio_hora:precioHora,
+      importe,
+      estado:"pendiente",
+      origen:"jornada",
+      jornada_id:j.id
+    };
+
+  });
+}
+
+// ===============================
+// 3. UNIFICAR DATOS
+// ===============================
+async function cargarHoras(){
+
+  const db=await cargarHorasDB();
+
+  if(db.length){
+    return db;
+  }
+
+  return await generarDesdeJornadas();
+}
+
+// ===============================
+// CAMBIOS DE ESTADO
 // ===============================
 async function actualizarEstado(id,estado){
+
+  if(String(id).startsWith("JORNADA_")){
+    alert("Este registro aún no está sincronizado en base de datos.");
+    return;
+  }
 
   const s=sesion();
 
@@ -149,18 +143,22 @@ async function actualizarEstado(id,estado){
   };
 
   if(estado==="validada_usuario"){
+    update.validada_usuario_at=new Date().toISOString();
     update.validada_usuario_por=s.usuario;
   }
 
   if(estado==="validada_admin"){
+    update.validada_admin_at=new Date().toISOString();
     update.validada_admin_por=s.usuario;
   }
 
   if(estado==="pagada"){
+    update.pagada_at=new Date().toISOString();
     update.pagada_por=s.usuario;
   }
 
   if(estado==="cobrada"){
+    update.cobrada_at=new Date().toISOString();
     update.cobrada_por=s.usuario;
   }
 
@@ -170,7 +168,7 @@ async function actualizarEstado(id,estado){
     .eq("id",id);
 
   if(r.error){
-    alert("Error actualizando estado");
+    alert("Error actualizando estado: "+r.error.message);
     return;
   }
 
@@ -183,39 +181,18 @@ async function actualizarEstado(id,estado){
 function renderFila(h){
 
   return `
-    <div class="zx_card">
-      <h2>${limpiar(h.nombre || h.usuario || "")}</h2>
+    <div class="zx_item">
+      <div class="zx_item_titulo">
+        ${limpiar(h.nombre || h.usuario || "")}
+      </div>
 
-      <div class="zx_text">
+      <div class="zx_item_texto">
         Fecha: ${limpiar(h.fecha)}<br>
         Horas: ${formatoMin(h.minutos)}<br>
         Importe: ${Number(h.importe||0).toFixed(2)} €<br>
         Estado: <b>${limpiar(h.estado)}</b>
+        ${h.origen==="jornada" ? "<br><i>(generado automático)</i>" : ""}
       </div>
-
-      ${
-        !esAdmin() && h.estado==="pendiente"
-        ? `<button class="zx_btn_big zx_azul" onclick="ZX_validarUsuario('${h.id}')">Validar</button>`
-        : ""
-      }
-
-      ${
-        esAdmin() && h.estado==="pendiente"
-        ? `<button class="zx_btn_big zx_azul" onclick="ZX_validarAdmin('${h.id}')">Validar</button>`
-        : ""
-      }
-
-      ${
-        esAdmin() && h.estado==="validada_admin"
-        ? `<button class="zx_btn_big zx_naranja" onclick="ZX_pagar('${h.id}')">Pagar</button>`
-        : ""
-      }
-
-      ${
-        !esAdmin() && h.estado==="validada_admin"
-        ? `<button class="zx_btn_big zx_verde" onclick="ZX_cobrar('${h.id}')">Cobrar</button>`
-        : ""
-      }
     </div>
   `;
 }
@@ -247,9 +224,20 @@ window.ZX_horas_extra=async function(){
 // ===============================
 // ACCIONES
 // ===============================
-window.ZX_validarUsuario=id=>actualizarEstado(id,"validada_usuario");
-window.ZX_validarAdmin=id=>actualizarEstado(id,"validada_admin");
-window.ZX_pagar=id=>actualizarEstado(id,"pagada");
-window.ZX_cobrar=id=>actualizarEstado(id,"cobrada");
+window.ZX_validarUsuario=function(id){
+  actualizarEstado(id,"validada_usuario");
+};
+
+window.ZX_validarAdmin=function(id){
+  actualizarEstado(id,"validada_admin");
+};
+
+window.ZX_pagar=function(id){
+  actualizarEstado(id,"pagada");
+};
+
+window.ZX_cobrar=function(id){
+  actualizarEstado(id,"cobrada");
+};
 
 })();
