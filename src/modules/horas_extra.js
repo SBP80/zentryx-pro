@@ -1,22 +1,34 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
-// V3078 - JORNADA_ID TEXT + VALIDACIÓN + PAGO + COBRO + IMPRESIÓN
+// V3079 - BLOQUE 1/3
 // ===============================
 (function(){
 "use strict";
 
-function app(){return document.getElementById("app")}
-function sb(){return window.sb || window.supabaseClient}
+// ===============================
+// BASE
+// ===============================
+function app(){
+  return document.getElementById("app");
+}
+
+function sb(){
+  return window.sb || window.supabaseClient;
+}
 
 function sesion(){
-  try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}
-  catch(e){return {}}
+  try{
+    return JSON.parse(localStorage.getItem("zentryx_session") || "{}");
+  }catch(e){
+    return {};
+  }
 }
 
 function esAdmin(){
   const s=sesion();
-  return String(s.rol||"").toLowerCase()==="administrador" ||
-         String(s.usuario||"").toLowerCase()==="admin";
+
+  return String(s.rol || "").toLowerCase()==="administrador" ||
+         String(s.usuario || "").toLowerCase()==="admin";
 }
 
 function limpiar(v){
@@ -29,37 +41,117 @@ function limpiar(v){
 }
 
 function formatoMin(min){
-  min=Number(min||0);
+  min=Number(min || 0);
+
   const h=Math.floor(min/60);
   const m=min%60;
-  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+
+  return String(h).padStart(2,"0")+":"+
+         String(m).padStart(2,"0");
 }
 
 function fechaHora(){
   return new Date().toLocaleString("es-ES");
 }
 
+// ===============================
+// PRECIO HORA EXTRA
+// ===============================
 async function precioHoraExtra(usuarioId,tipo){
+
   const r=await sb()
     .from("horarios_usuario")
-    .select("precio_extra,precio_extra_festiva")
+    .select(`
+      precio_extra,
+      precio_extra_festiva,
+      precio_extra_nocturna
+    `)
     .eq("usuario_id",String(usuarioId))
     .limit(1);
 
   if(r.error || !r.data || !r.data.length){
-    return 10;
+    return 15;
   }
 
   const c=r.data[0];
 
   if(tipo==="festivo"){
-    return Number(c.precio_extra_festiva || c.precio_extra || 10);
+    return Number(
+      c.precio_extra_festiva ||
+      c.precio_extra ||
+      15
+    );
   }
 
-  return Number(c.precio_extra || 10);
+  if(tipo==="nocturna"){
+    return Number(
+      c.precio_extra_nocturna ||
+      c.precio_extra ||
+      15
+    );
+  }
+
+  return Number(c.precio_extra || 15);
 }
 
+// ===============================
+// TIPO HORAS EXTRA
+// ===============================
+function detectarTipoHoraExtra(j){
+
+  if(j.es_festivo){
+    return "festivo";
+  }
+
+  try{
+
+    const fecha=new Date(j.fecha+"T12:00:00");
+
+    const dia=fecha.getDay();
+
+    if(dia===0 || dia===6){
+      return "festivo";
+    }
+
+  }catch(e){}
+
+  return "normal";
+}
+
+// ===============================
+// TEXTO ESTADO
+// ===============================
+function textoEstado(e){
+
+  const estados={
+
+    pendiente:
+      "Pendiente usuario",
+
+    validada_usuario:
+      "Validada trabajador",
+
+    validada_admin:
+      "Validada administrador",
+
+    pagada:
+      "Pagada administrador",
+
+    cobrada:
+      "Cobrada trabajador",
+
+    rechazada:
+      "Rechazada"
+  };
+
+  return estados[e] || e || "-";
+}
+
+// ===============================
+// SINCRONIZAR DESDE JORNADAS
+// ===============================
 async function sincronizarDesdeJornadas(){
+
   const s=sesion();
 
   let q=sb()
@@ -75,7 +167,10 @@ async function sincronizarDesdeJornadas(){
   const r=await q;
 
   if(r.error){
-    alert("Error leyendo jornadas: "+r.error.message);
+    alert(
+      "Error leyendo jornadas: "+
+      r.error.message
+    );
     return;
   }
 
@@ -83,11 +178,21 @@ async function sincronizarDesdeJornadas(){
 
   for(const j of jornadas){
 
-    const minutos=Number(j.minutos_extra || j.horas_extra || 0);
-    if(minutos<=0) continue;
+    const minutos=Number(
+      j.minutos_extra ||
+      j.horas_extra ||
+      0
+    );
+
+    if(minutos<=0){
+      continue;
+    }
 
     const jornadaId=String(j.id);
 
+    // ===============================
+    // COMPROBAR SI YA EXISTE
+    // ===============================
     const existe=await sb()
       .from("horas_extra_pro")
       .select("*")
@@ -95,16 +200,38 @@ async function sincronizarDesdeJornadas(){
       .limit(1);
 
     if(existe.error){
-      alert("Error comprobando horas extra: "+existe.error.message);
+
+      alert(
+        "Error comprobando horas extra: "+
+        existe.error.message
+      );
+
       continue;
     }
 
-    const tipo=j.es_festivo ? "festivo" : "normal";
-    const precio=await precioHoraExtra(j.usuario_id,tipo);
-    const horasDecimal=Number((minutos/60).toFixed(2));
-    const importe=Number((horasDecimal*precio).toFixed(2));
-    const reg=existe.data && existe.data.length ? existe.data[0] : null;
+    const tipo=detectarTipoHoraExtra(j);
 
+    const precio=await precioHoraExtra(
+      j.usuario_id,
+      tipo
+    );
+
+    const horasDecimal=Number(
+      (minutos/60).toFixed(2)
+    );
+
+    const importe=Number(
+      (horasDecimal*precio).toFixed(2)
+    );
+
+    const reg=
+      existe.data &&
+      existe.data.length
+      ? existe.data[0]
+      : null;
+          // ===============================
+    // SI EXISTE → ACTUALIZAR
+    // ===============================
     if(reg){
 
       if(["pagada","cobrada"].includes(reg.estado)){
@@ -114,52 +241,77 @@ async function sincronizarDesdeJornadas(){
       const upd=await sb()
         .from("horas_extra_pro")
         .update({
+
           usuario_id:String(j.usuario_id || ""),
           usuario:j.usuario || "",
           nombre:j.nombre || "",
+
           jornada_id:jornadaId,
           fecha:j.fecha,
+
           tipo,
           minutos,
           horas_decimal:horasDecimal,
           precio_hora:precio,
           importe,
+
           observacion:j.observacion_laboral || "",
+
           updated_at:new Date().toISOString()
+
         })
         .eq("id",reg.id);
 
       if(upd.error){
-        alert("Error actualizando horas extra: "+upd.error.message);
+        alert(
+          "Error actualizando horas extra: "+
+          upd.error.message
+        );
       }
 
       continue;
     }
 
+    // ===============================
+    // SI NO EXISTE → CREAR
+    // ===============================
     const ins=await sb()
       .from("horas_extra_pro")
       .insert([{
+
         usuario_id:String(j.usuario_id || ""),
         usuario:j.usuario || "",
         nombre:j.nombre || "",
+
         jornada_id:jornadaId,
         fecha:j.fecha,
+
         tipo,
         minutos,
         horas_decimal:horasDecimal,
+
         precio_hora:precio,
         importe,
+
         estado:"pendiente",
         observacion:j.observacion_laboral || ""
+
       }]);
 
     if(ins.error){
-      alert("Error insertando horas extra: "+ins.error.message);
+      alert(
+        "Error insertando horas extra: "+
+        ins.error.message
+      );
     }
   }
 }
 
+// ===============================
+// CARGAR HORAS EXTRA
+// ===============================
 async function cargarHoras(){
+
   await sincronizarDesdeJornadas();
 
   const s=sesion();
@@ -177,14 +329,21 @@ async function cargarHoras(){
   const r=await q;
 
   if(r.error){
-    alert("Error cargando horas extra: "+r.error.message);
+    alert(
+      "Error cargando horas extra: "+
+      r.error.message
+    );
     return [];
   }
 
   return r.data || [];
 }
 
+// ===============================
+// ACTUALIZAR ESTADO
+// ===============================
 async function actualizarEstado(id,estado){
+
   const s=sesion();
 
   const data={
@@ -218,13 +377,19 @@ async function actualizarEstado(id,estado){
     .eq("id",id);
 
   if(r.error){
-    alert("Error actualizando horas extra: "+r.error.message);
+    alert(
+      "Error actualizando horas extra: "+
+      r.error.message
+    );
     return;
   }
 
   ZX_horas_extra();
 }
 
+// ===============================
+// ACCIONES
+// ===============================
 window.ZX_validarUsuario=function(id){
   actualizarEstado(id,"validada_usuario");
 };
@@ -240,7 +405,9 @@ window.ZX_pagar=function(id){
 window.ZX_cobrar=function(id){
   actualizarEstado(id,"cobrada");
 };
-
+// ===============================
+// TEXTO ESTADO
+// ===============================
 function textoEstado(e){
   const m={
     pendiente:"Pendiente usuario",
@@ -250,16 +417,20 @@ function textoEstado(e){
     cobrada:"Cobrada por usuario",
     rechazada:"Rechazada"
   };
-
   return m[e] || e || "-";
 }
 
+// ===============================
+// BOTONES SEGÚN ESTADO
+// ===============================
 function renderBotones(h){
+
   let html="";
 
   if(!esAdmin() && h.estado==="pendiente"){
     html+=`
-      <button class="zx_btn_big zx_azul" onclick="ZX_validarUsuario('${h.id}')">
+      <button class="zx_btn_big zx_azul"
+        onclick="ZX_validarUsuario('${h.id}')">
         Validar horas
       </button>
     `;
@@ -267,7 +438,8 @@ function renderBotones(h){
 
   if(esAdmin() && (h.estado==="pendiente" || h.estado==="validada_usuario")){
     html+=`
-      <button class="zx_btn_big zx_azul" onclick="ZX_validarAdmin('${h.id}')">
+      <button class="zx_btn_big zx_azul"
+        onclick="ZX_validarAdmin('${h.id}')">
         Validar admin
       </button>
     `;
@@ -275,7 +447,8 @@ function renderBotones(h){
 
   if(esAdmin() && h.estado==="validada_admin"){
     html+=`
-      <button class="zx_btn_big zx_naranja" onclick="ZX_pagar('${h.id}')">
+      <button class="zx_btn_big zx_naranja"
+        onclick="ZX_pagar('${h.id}')">
         Marcar pagadas
       </button>
     `;
@@ -283,7 +456,8 @@ function renderBotones(h){
 
   if(!esAdmin() && h.estado==="pagada"){
     html+=`
-      <button class="zx_btn_big zx_verde" onclick="ZX_cobrar('${h.id}')">
+      <button class="zx_btn_big zx_verde"
+        onclick="ZX_cobrar('${h.id}')">
         Marcar cobradas
       </button>
     `;
@@ -292,9 +466,13 @@ function renderBotones(h){
   return html;
 }
 
+// ===============================
+// FILA
+// ===============================
 function renderFila(h){
   return `
     <div class="zx_item zx_hx_item">
+
       <div class="zx_item_titulo">
         ${limpiar(h.nombre || h.usuario || "Usuario")}
       </div>
@@ -310,11 +488,16 @@ function renderFila(h){
       </div>
 
       ${renderBotones(h)}
+
     </div>
   `;
 }
 
+// ===============================
+// RESUMEN
+// ===============================
 function resumen(datos){
+
   let min=0;
   let imp=0;
 
@@ -325,21 +508,34 @@ function resumen(datos){
 
   return `
     <div class="zx_card">
+
       <h2>Resumen</h2>
+
       <div class="zx_text">
         Registros: <b>${datos.length}</b><br>
         Total horas: <b>${formatoMin(min)}</b><br>
         Total importe: <b>${imp.toFixed(2)} €</b>
       </div>
 
-      <button class="zx_btn_big zx_gris" onclick="ZX_imprimirHorasExtra()">
+      <button class="zx_btn_big zx_gris"
+        onclick="ZX_imprimirHorasExtra()">
         Imprimir horas extra
       </button>
+
+      <button class="zx_btn_big zx_azul"
+        onclick="ZX_enviarHorasExtra()">
+        Enviar
+      </button>
+
     </div>
   `;
 }
 
+// ===============================
+// IMPRIMIR
+// ===============================
 window.ZX_imprimirHorasExtra=async function(){
+
   const datos=await cargarHoras();
 
   let totalMin=0;
@@ -365,106 +561,66 @@ window.ZX_imprimirHorasExtra=async function(){
   const w=window.open("","","width=900,height=1200");
 
   w.document.write(`
-    <!DOCTYPE html>
-    <html lang="es">
+    <html>
     <head>
-      <meta charset="UTF-8">
       <title>Horas extra</title>
-      <style>
-        body{
-          font-family:Arial,sans-serif;
-          color:#111827;
-          padding:30px;
-        }
-
-        h1{
-          font-size:28px;
-          margin-bottom:4px;
-        }
-
-        .sub{
-          color:#6b7280;
-          margin-bottom:24px;
-        }
-
-        table{
-          width:100%;
-          border-collapse:collapse;
-          margin-top:20px;
-        }
-
-        th,td{
-          border:1px solid #d1d5db;
-          padding:8px;
-          font-size:13px;
-          text-align:left;
-        }
-
-        th{
-          background:#f3f4f6;
-        }
-
-        .totales{
-          margin-top:20px;
-          font-size:16px;
-          font-weight:bold;
-        }
-
-        .firmas{
-          display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:40px;
-          margin-top:60px;
-        }
-
-        .firma{
-          border-top:1px solid #111827;
-          padding-top:8px;
-          text-align:center;
-          font-size:14px;
-        }
-      </style>
     </head>
     <body>
-      <h1>Documento de horas extra</h1>
-      <div class="sub">Generado: ${fechaHora()}</div>
+      <h2>Horas extra</h2>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Trabajador</th>
-            <th>Tipo</th>
-            <th>Horas</th>
-            <th>Precio</th>
-            <th>Importe</th>
-            <th>Estado</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filas}
-        </tbody>
+      <table border="1" style="width:100%;border-collapse:collapse">
+        <tr>
+          <th>Fecha</th>
+          <th>Trabajador</th>
+          <th>Tipo</th>
+          <th>Horas</th>
+          <th>Precio</th>
+          <th>Importe</th>
+          <th>Estado</th>
+        </tr>
+        ${filas}
       </table>
 
-      <div class="totales">
-        Total horas: ${formatoMin(totalMin)}<br>
-        Total importe: ${totalImporte.toFixed(2)} €
-      </div>
+      <br>
+      Total horas: ${formatoMin(totalMin)}<br>
+      Total importe: ${totalImporte.toFixed(2)} €
 
-      <div class="firmas">
-        <div class="firma">Firma trabajador</div>
-        <div class="firma">Firma administrador</div>
-      </div>
     </body>
     </html>
   `);
 
   w.document.close();
-  w.focus();
   w.print();
 };
 
+// ===============================
+// ENVIAR (WHATSAPP)
+// ===============================
+window.ZX_enviarHorasExtra=async function(){
+
+  const datos=await cargarHoras();
+
+  let txt="HORAS EXTRA\n\n";
+
+  datos.forEach(h=>{
+    txt+=
+      h.fecha+" - "+
+      (h.nombre||h.usuario)+" - "+
+      formatoMin(h.minutos)+" - "+
+      h.importe+"€\n";
+  });
+
+  window.open(
+    "https://wa.me/?text="+encodeURIComponent(txt),
+    "_blank"
+  );
+};
+
+// ===============================
+// PANTALLA
+// ===============================
 window.ZX_horas_extra=async function(){
+
   document.querySelectorAll(".zx_nav_btn").forEach(b=>{
     b.classList.remove("zx_activo");
   });
@@ -484,9 +640,9 @@ window.ZX_horas_extra=async function(){
     ${
       datos.length
       ? datos.map(renderFila).join("")
-      : `<div class="zx_card"><div class="zx_text">Sin registros</div></div>`
+      : `<div class="zx_card">
+          <div class="zx_text">Sin registros</div>
+         </div>`
     }
   `;
 };
-
-})();
