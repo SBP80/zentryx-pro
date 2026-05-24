@@ -1,13 +1,10 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
-// V3077 - SINCRONIZA DESDE JORNADAS + VALIDACIÓN + PAGO + COBRO + IMPRESIÓN
+// V3078 - JORNADA_ID TEXT + VALIDACIÓN + PAGO + COBRO + IMPRESIÓN
 // ===============================
 (function(){
 "use strict";
 
-// ===============================
-// BASE
-// ===============================
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
 
@@ -42,9 +39,6 @@ function fechaHora(){
   return new Date().toLocaleString("es-ES");
 }
 
-// ===============================
-// CONFIG PRECIO
-// ===============================
 async function precioHoraExtra(usuarioId,tipo){
   const r=await sb()
     .from("horarios_usuario")
@@ -65,9 +59,6 @@ async function precioHoraExtra(usuarioId,tipo){
   return Number(c.precio_extra || 10);
 }
 
-// ===============================
-// SINCRONIZAR DESDE JORNADAS
-// ===============================
 async function sincronizarDesdeJornadas(){
   const s=sesion();
 
@@ -91,13 +82,16 @@ async function sincronizarDesdeJornadas(){
   const jornadas=r.data || [];
 
   for(const j of jornadas){
+
     const minutos=Number(j.minutos_extra || j.horas_extra || 0);
     if(minutos<=0) continue;
+
+    const jornadaId=String(j.id);
 
     const existe=await sb()
       .from("horas_extra_pro")
       .select("*")
-      .eq("jornada_id",j.id)
+      .eq("jornada_id",jornadaId)
       .limit(1);
 
     if(existe.error){
@@ -112,6 +106,7 @@ async function sincronizarDesdeJornadas(){
     const reg=existe.data && existe.data.length ? existe.data[0] : null;
 
     if(reg){
+
       if(["pagada","cobrada"].includes(reg.estado)){
         continue;
       }
@@ -122,6 +117,7 @@ async function sincronizarDesdeJornadas(){
           usuario_id:String(j.usuario_id || ""),
           usuario:j.usuario || "",
           nombre:j.nombre || "",
+          jornada_id:jornadaId,
           fecha:j.fecha,
           tipo,
           minutos,
@@ -146,7 +142,7 @@ async function sincronizarDesdeJornadas(){
         usuario_id:String(j.usuario_id || ""),
         usuario:j.usuario || "",
         nombre:j.nombre || "",
-        jornada_id:j.id,
+        jornada_id:jornadaId,
         fecha:j.fecha,
         tipo,
         minutos,
@@ -163,9 +159,6 @@ async function sincronizarDesdeJornadas(){
   }
 }
 
-// ===============================
-// CARGAR HORAS EXTRA
-// ===============================
 async function cargarHoras(){
   await sincronizarDesdeJornadas();
 
@@ -191,9 +184,6 @@ async function cargarHoras(){
   return r.data || [];
 }
 
-// ===============================
-// CAMBIAR ESTADO
-// ===============================
 async function actualizarEstado(id,estado){
   const s=sesion();
 
@@ -235,9 +225,6 @@ async function actualizarEstado(id,estado){
   ZX_horas_extra();
 }
 
-// ===============================
-// ACCIONES
-// ===============================
 window.ZX_validarUsuario=function(id){
   actualizarEstado(id,"validada_usuario");
 };
@@ -254,9 +241,6 @@ window.ZX_cobrar=function(id){
   actualizarEstado(id,"cobrada");
 };
 
-// ===============================
-// TEXTO ESTADO
-// ===============================
 function textoEstado(e){
   const m={
     pendiente:"Pendiente usuario",
@@ -270,9 +254,6 @@ function textoEstado(e){
   return m[e] || e || "-";
 }
 
-// ===============================
-// BOTONES
-// ===============================
 function renderBotones(h){
   let html="";
 
@@ -284,15 +265,7 @@ function renderBotones(h){
     `;
   }
 
-  if(esAdmin() && h.estado==="pendiente"){
-    html+=`
-      <button class="zx_btn_big zx_azul" onclick="ZX_validarAdmin('${h.id}')">
-        Validar admin
-      </button>
-    `;
-  }
-
-  if(esAdmin() && h.estado==="validada_usuario"){
+  if(esAdmin() && (h.estado==="pendiente" || h.estado==="validada_usuario")){
     html+=`
       <button class="zx_btn_big zx_azul" onclick="ZX_validarAdmin('${h.id}')">
         Validar admin
@@ -319,9 +292,6 @@ function renderBotones(h){
   return html;
 }
 
-// ===============================
-// RENDER FILA
-// ===============================
 function renderFila(h){
   return `
     <div class="zx_item zx_hx_item">
@@ -344,9 +314,6 @@ function renderFila(h){
   `;
 }
 
-// ===============================
-// RESUMEN
-// ===============================
 function resumen(datos){
   let min=0;
   let imp=0;
@@ -372,9 +339,6 @@ function resumen(datos){
   `;
 }
 
-// ===============================
-// IMPRIMIR
-// ===============================
 window.ZX_imprimirHorasExtra=async function(){
   const datos=await cargarHoras();
 
@@ -500,9 +464,6 @@ window.ZX_imprimirHorasExtra=async function(){
   w.print();
 };
 
-// ===============================
-// PANTALLA
-// ===============================
 window.ZX_horas_extra=async function(){
   document.querySelectorAll(".zx_nav_btn").forEach(b=>{
     b.classList.remove("zx_activo");
