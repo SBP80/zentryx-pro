@@ -1,14 +1,15 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3083
+// V3084 - FIX AGENDA + RELOJ + POST-IT
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3083";
+const ZX_VERSION="3084";
 
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
+function sb(){return window.sb || window.supabaseClient}
 
 function sesion(){
   try{return JSON.parse(localStorage.getItem("zentryx_session") || "{}")}
@@ -46,13 +47,7 @@ function limpiar(v){
 }
 
 function limpiarLayoutAnterior(){
-  [
-    "zx_topbar",
-    "zx_nav",
-    "zx_reloj_global",
-    "zx_btn_postit_global",
-    "zx_layout_styles"
-  ].forEach(id=>{
+  ["zx_topbar","zx_nav","zx_reloj_global","zx_btn_postit_global","zx_layout_styles"].forEach(id=>{
     const el=$(id);
     if(el) el.remove();
   });
@@ -430,13 +425,19 @@ async function actualizarMiniAgenda(){
       .order("hora_inicio",{ascending:true})
       .limit(1);
 
-    if(r.error || !r.data || !r.data.length){
+    if(r.error){
+      el.textContent="Agenda sin cargar";
+      return;
+    }
+
+    if(!r.data || !r.data.length){
       el.textContent="Sin citas hoy";
       return;
     }
 
     const e=r.data[0];
     el.textContent=(e.hora_inicio ? String(e.hora_inicio).slice(0,5)+" · " : "")+(e.titulo || "Evento");
+
   }catch(e){
     el.textContent="Agenda sin cargar";
   }
