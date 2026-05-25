@@ -36,6 +36,14 @@ function esAdmin(){
   return String(u.rol).toLowerCase()==="administrador" ||
          String(u.usuario).toLowerCase()==="admin";
 }
+function limpiar(v){
+  return String(v ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 
 // ===============================
 // LIMPIAR LAYOUT
@@ -742,7 +750,7 @@ function nav(){
       ${botonNav("vehiculos","Vehículos","ZX_vehiculos()")}
       ${botonNav("incidencias","Incidencias","ZX_incidencias()")}
       ${botonNav("informes","Informes","ZX_informes()")}
-      ${botonNav("configuracion","Config.")} 
+      ${botonNav("configuracion","Config.","ZX_configuracion()")}
     </div>
   `;
 
