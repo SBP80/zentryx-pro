@@ -420,10 +420,11 @@ async function actualizarMiniAgenda(){
     const r=await sb()
       .from("agenda_eventos")
       .select("*")
-      .eq("fecha_inicio",hoy)
+      .lte("fecha_inicio",hoy)
+      .gte("fecha_fin",hoy)
       .neq("estado","completado")
       .order("hora_inicio",{ascending:true})
-      .limit(1);
+      .limit(3);
 
     if(r.error){
       el.textContent="Agenda sin cargar";
@@ -435,8 +436,11 @@ async function actualizarMiniAgenda(){
       return;
     }
 
-    const e=r.data[0];
-    el.textContent=(e.hora_inicio ? String(e.hora_inicio).slice(0,5)+" · " : "")+(e.titulo || "Evento");
+    el.textContent=r.data.map(e=>{
+      const hora=e.hora_inicio ? String(e.hora_inicio).slice(0,5)+" · " : "";
+      const icono=e.tipo==="recordatorio" ? "📝 " : "";
+      return icono+hora+(e.titulo || "Evento");
+    }).join(" | ");
 
   }catch(e){
     el.textContent="Agenda sin cargar";
