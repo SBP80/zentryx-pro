@@ -1,299 +1,186 @@
 // ===============================
-// ZENTRYX PRO - INICIO
-// V3072
+// ZENTRYX PRO - INICIO PRO
+// V3089 - LIMPIO + AGENDA + ACCIÓN
 // ===============================
 (function(){
 "use strict";
 
-function app(){
-  return document.getElementById("app");
-}
-
-function sb(){
-  return window.sb || window.supabaseClient;
-}
+function app(){return document.getElementById("app")}
+function sb(){return window.sb || window.supabaseClient}
 
 function sesion(){
-  try{
-    return JSON.parse(localStorage.getItem("zentryx_session") || "{}");
-  }catch(e){
-    return {};
-  }
+  try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}
+  catch(e){return {}}
 }
 
 function esAdmin(){
   const s=sesion();
-  return String(s.rol || "").toLowerCase()==="administrador" ||
-         String(s.usuario || "").toLowerCase()==="admin";
+  return String(s.rol||"").toLowerCase()==="administrador" ||
+         String(s.usuario||"").toLowerCase()==="admin";
 }
 
-function activarBotonInicio(){
-  document.querySelectorAll(".zx_nav_btn").forEach(function(b){
-    b.classList.remove("zx_activo");
-
-    if(b.dataset.modulo==="inicio"){
-      b.classList.add("zx_activo");
-    }
-  });
-}
-
-async function contarSolicitudesPendientes(){
-  if(!esAdmin()) return 0;
+// ===============================
+// CARGAR AGENDA HOY
+// ===============================
+async function cargarHoy(){
+  const hoy=new Date().toISOString().slice(0,10);
 
   const r=await sb()
-    .from("solicitudes_laborales")
-    .select("id",{count:"exact",head:true})
-    .eq("estado","pendiente");
+    .from("agenda_eventos")
+    .select("*")
+    .eq("fecha_inicio",hoy)
+    .neq("estado","completado")
+    .order("hora_inicio",{ascending:true})
+    .limit(5);
 
-  if(r.error) return 0;
-  return r.count || 0;
+  if(r.error) return [];
+
+  return r.data || [];
 }
 
-async function contarHorasExtraPendientes(){
-  const s=sesion();
+// ===============================
+// RENDER AGENDA
+// ===============================
+function renderAgenda(lista){
 
-  let q=sb()
-    .from("horas_extra_pro")
-    .select("id",{count:"exact",head:true});
+  if(!lista.length){
+    return `
+      <div class="zx_card">
+        <h3>Agenda hoy</h3>
+        <div class="zx_text">Sin tareas para hoy</div>
 
-  if(esAdmin()){
-    q=q.in("estado",["pendiente","validada_usuario","validada_admin"]);
-  }else{
-    q=q
-      .eq("usuario_id",String(s.id))
-      .in("estado",["pendiente","validada_admin","pagada"]);
+        <button class="zx_btn_big zx_morado" onclick="ZX_abrirAgenda()">
+          Abrir agenda
+        </button>
+      </div>
+    `;
   }
 
-  const r=await q;
+  return `
+    <div class="zx_card">
+      <h3>Agenda hoy</h3>
 
-  if(r.error) return 0;
-  return r.count || 0;
+      ${lista.map(e=>`
+        <div style="
+          padding:12px;
+          border-bottom:1px solid #e5e7eb;
+        ">
+          <div style="font-weight:900;">
+            ${e.hora_inicio ? e.hora_inicio.slice(0,5)+" · " : ""}
+            ${e.titulo || "Evento"}
+          </div>
+
+          ${
+            e.descripcion
+            ? `<div style="color:#64748b;font-size:14px;margin-top:4px;">
+                ${e.descripcion}
+               </div>`
+            : ""
+          }
+        </div>
+      `).join("")}
+
+      <button class="zx_btn_big zx_morado" onclick="ZX_abrirAgenda()">
+        Ver agenda completa
+      </button>
+    </div>
+  `;
 }
 
-function abrirFichaje(){
-  if(window.ZX_abrirFichaje){
-    window.ZX_abrirFichaje();
-    return;
-  }
+// ===============================
+// ACCIONES RÁPIDAS
+// ===============================
+function acciones(){
 
-  if(window.ZX_fichaje_real){
-    window.ZX_fichaje_real();
-    return;
-  }
+  return `
+    <div class="zx_card">
+      <h3>Acciones</h3>
 
-  if(window.ZX_fichaje){
-    window.ZX_fichaje();
-  }
+      <button class="zx_btn_big zx_rojo" onclick="ZX_abrirFichaje()">
+        Fichar
+      </button>
+
+      ${
+        esAdmin()
+        ? `
+          <button class="zx_btn_big zx_azul" onclick="ZX_usuarios()">
+            Usuarios
+          </button>
+
+          <button class="zx_btn_big zx_morado" onclick="ZX_abrirAgenda()">
+            Agenda
+          </button>
+        `
+        : `
+          <button class="zx_btn_big zx_morado" onclick="ZX_abrirAgenda()">
+            Mi agenda
+          </button>
+        `
+      }
+    </div>
+  `;
 }
 
-function abrirModulo(nombre,fn){
-  if(typeof fn==="function"){
-    fn();
-    return;
+// ===============================
+// RESUMEN SIMPLE
+// ===============================
+async function resumen(){
+
+  const hoy=new Date().toISOString().slice(0,10);
+
+  const r=await sb()
+    .from("jornadas")
+    .select("minutos_trabajados,minutos_extra")
+    .eq("fecha",hoy);
+
+  if(r.error) return "";
+
+  let trab=0;
+  let extra=0;
+
+  (r.data||[]).forEach(j=>{
+    trab+=Number(j.minutos_trabajados||0);
+    extra+=Number(j.minutos_extra||0);
+  });
+
+  function fmt(m){
+    const h=Math.floor(m/60);
+    const mm=m%60;
+    return String(h).padStart(2,"0")+":"+String(mm).padStart(2,"0");
   }
 
-  alert(nombre+" pendiente.");
+  return `
+    <div class="zx_card">
+      <h3>Hoy</h3>
+
+      <div class="zx_text">
+        Trabajado: <b>${fmt(trab)}</b><br>
+        Horas extra: <b>${fmt(extra)}</b>
+      </div>
+    </div>
+  `;
 }
 
+// ===============================
+// MAIN
+// ===============================
 window.ZENTRYX_UI_inicio=async function(){
 
-  activarBotonInicio();
-
-  const pendientesSolicitudes=await contarSolicitudesPendientes();
-  const pendientesHorasExtra=await contarHorasExtraPendientes();
+  const agenda=await cargarHoy();
+  const res=await resumen();
 
   app().innerHTML=`
     <div class="zx_card">
       <h2>Inicio</h2>
-
-      <div class="zx_text">
-        Sistema Zentryx PRO activo
-      </div>
+      <div class="zx_text">Todo listo para trabajar</div>
     </div>
 
-    ${
-      esAdmin() && pendientesSolicitudes>0
-      ? `
-        <div class="zx_card" style="border:2px solid #f59e0b;background:#fff7ed;">
-          <h2 style="color:#9a3412;">Avisos</h2>
+    ${renderAgenda(agenda)}
 
-          <div class="zx_text" style="font-weight:900;color:#9a3412;">
-            Hay ${pendientesSolicitudes} solicitud${pendientesSolicitudes===1 ? "" : "es"} pendiente${pendientesSolicitudes===1 ? "" : "s"}.
-          </div>
+    ${acciones()}
 
-          <button class="zx_btn_big zx_naranja" id="zx_inicio_ver_solicitudes">
-            Ver solicitudes
-          </button>
-        </div>
-      `
-      : ""
-    }
-
-    ${
-      pendientesHorasExtra>0
-      ? `
-        <div class="zx_card" style="border:2px solid #7c3aed;background:#f5f3ff;">
-          <h2 style="color:#5b21b6;">Horas extra</h2>
-
-          <div class="zx_text" style="font-weight:900;color:#5b21b6;">
-            Hay ${pendientesHorasExtra} registro${pendientesHorasExtra===1 ? "" : "s"} de horas extra pendiente${pendientesHorasExtra===1 ? "" : "s"}.
-          </div>
-
-          <button class="zx_btn_big zx_morado" id="zx_inicio_ver_horas_extra">
-            Ver horas extra
-          </button>
-        </div>
-      `
-      : ""
-    }
-
-    <div class="zx_card">
-      <h2>Acceso rápido</h2>
-
-      <button class="zx_btn_big zx_rojo" id="zx_inicio_fichaje">
-        Fichaje
-      </button>
-
-      <button class="zx_btn_big zx_azul" id="zx_inicio_usuarios">
-        Usuarios
-      </button>
-
-      <button class="zx_btn_big zx_verde" id="zx_inicio_vehiculos">
-        Vehículos
-      </button>
-
-      <button class="zx_btn_big zx_naranja" id="zx_inicio_incidencias">
-        Incidencias
-      </button>
-
-      <button class="zx_btn_big zx_morado" id="zx_inicio_informes">
-        Informes
-      </button>
-
-      <button class="zx_btn_big zx_gris" id="zx_inicio_config_laboral">
-        Config. laboral
-      </button>
-
-      <button class="zx_btn_big ${pendientesSolicitudes>0 ? "zx_naranja" : "zx_gris"}" id="zx_inicio_solicitudes">
-        Solicitudes${pendientesSolicitudes>0 ? " ("+pendientesSolicitudes+")" : ""}
-      </button>
-
-      <button class="zx_btn_big ${pendientesHorasExtra>0 ? "zx_morado" : "zx_gris"}" id="zx_inicio_horas_extra">
-        Horas extra${pendientesHorasExtra>0 ? " ("+pendientesHorasExtra+")" : ""}
-      </button>
-
-      <button class="zx_btn_big zx_gris" id="zx_inicio_panel_admin">
-        Panel admin
-      </button>
-    </div>
-
-    <div class="zx_card">
-      <h2>Estado sistema</h2>
-
-      <div class="zx_text">
-        Versión: V3072
-        <br><br>
-
-        ✔ Fichaje PRO activo
-        <br>
-
-        ✔ Configuración laboral activa
-        <br>
-
-        ✔ Solicitudes integradas
-        <br>
-
-        ✔ Horas extra activo
-      </div>
-    </div>
+    ${res}
   `;
-
-  const btnFichaje=document.getElementById("zx_inicio_fichaje");
-  if(btnFichaje){
-    btnFichaje.onclick=abrirFichaje;
-  }
-
-  const btnUsuarios=document.getElementById("zx_inicio_usuarios");
-  if(btnUsuarios){
-    btnUsuarios.onclick=function(){
-      abrirModulo("Usuarios",window.ZX_usuarios);
-    };
-  }
-
-  const btnVehiculos=document.getElementById("zx_inicio_vehiculos");
-  if(btnVehiculos){
-    btnVehiculos.onclick=function(){
-      abrirModulo("Vehículos",window.ZX_vehiculos);
-    };
-  }
-
-  const btnIncidencias=document.getElementById("zx_inicio_incidencias");
-  if(btnIncidencias){
-    btnIncidencias.onclick=function(){
-      abrirModulo("Incidencias",window.ZX_incidencias);
-    };
-  }
-
-  const btnInformes=document.getElementById("zx_inicio_informes");
-  if(btnInformes){
-    btnInformes.onclick=function(){
-      abrirModulo("Informes",window.ZX_informes);
-    };
-  }
-
-  const btnConfig=document.getElementById("zx_inicio_config_laboral");
-  if(btnConfig){
-    btnConfig.onclick=function(){
-      abrirModulo("Config. laboral",window.ZX_configLaboral);
-    };
-  }
-
-  const btnSolicitudes=document.getElementById("zx_inicio_solicitudes");
-  if(btnSolicitudes){
-    btnSolicitudes.onclick=function(){
-      abrirModulo("Solicitudes",window.ZX_solicitudes);
-    };
-  }
-
-  const btnAvisoSolicitudes=document.getElementById("zx_inicio_ver_solicitudes");
-  if(btnAvisoSolicitudes){
-    btnAvisoSolicitudes.onclick=function(){
-      abrirModulo("Solicitudes",window.ZX_solicitudes);
-    };
-  }
-
-  const btnHorasExtra=document.getElementById("zx_inicio_horas_extra");
-  if(btnHorasExtra){
-    btnHorasExtra.onclick=function(){
-      abrirModulo("Horas extra",window.ZX_horas_extra);
-    };
-  }
-
-  const btnAvisoHorasExtra=document.getElementById("zx_inicio_ver_horas_extra");
-  if(btnAvisoHorasExtra){
-    btnAvisoHorasExtra.onclick=function(){
-      abrirModulo("Horas extra",window.ZX_horas_extra);
-    };
-  }
-
-  const btnPanel=document.getElementById("zx_inicio_panel_admin");
-  if(btnPanel){
-    btnPanel.onclick=function(){
-      abrirFichaje();
-
-      setTimeout(function(){
-        if(window.ZX_toggleAdmin){
-          window.ZX_toggleAdmin();
-        }
-      },300);
-    };
-  }
-};
-
-window.ZX_inicio=function(){
-  if(window.ZENTRYX_UI_inicio){
-    window.ZENTRYX_UI_inicio();
-  }
 };
 
 })();
