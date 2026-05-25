@@ -3,77 +3,235 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V3014</title>
+<title>Zentryx PRO Login V3091</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{box-sizing:border-box}
+*{
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+  margin:0;
+  padding:0;
+  min-height:100%;
+  background:#071330;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  color:white;
+}
 
 body{
-  margin:0;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-  background:#0f172a;
   min-height:100vh;
   display:flex;
   align-items:center;
   justify-content:center;
-  color:white;
-  padding:20px;
+  padding:22px;
+  overflow-x:hidden;
+}
+
+.login_wrap{
+  width:100%;
+  max-width:480px;
+}
+
+.brand{
+  text-align:center;
+  margin-bottom:26px;
+}
+
+.logo{
+  width:96px;
+  height:96px;
+  border-radius:28px;
+  margin:0 auto 18px;
+  background:linear-gradient(135deg,#2563eb,#10b981);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:56px;
+  font-weight:900;
+  box-shadow:0 18px 45px rgba(0,0,0,.35);
+}
+
+.brand h1{
+  margin:0;
+  font-size:38px;
+  font-weight:900;
+  letter-spacing:-1px;
+}
+
+.brand p{
+  margin:8px 0 0;
+  color:#cbd5e1;
+  font-size:16px;
+  font-weight:800;
 }
 
 .box{
   width:100%;
-  max-width:430px;
-  background:#1e293b;
-  padding:28px;
-  border-radius:22px;
+  background:white;
+  color:#0f172a;
+  border-radius:30px;
+  padding:26px;
+  box-shadow:0 22px 70px rgba(0,0,0,.38);
 }
 
-h2{
-  margin:0 0 22px;
-  font-size:34px;
+.box h2{
+  margin:0 0 10px;
+  font-size:32px;
+  font-weight:900;
+}
+
+.sub{
+  color:#64748b;
+  font-size:16px;
+  font-weight:750;
+  line-height:1.4;
+  margin-bottom:18px;
+}
+
+label{
+  display:block;
+  margin:16px 0 7px;
+  color:#334155;
+  font-size:15px;
   font-weight:900;
 }
 
 input{
   width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:18px;
   padding:18px;
-  margin-bottom:16px;
-  border-radius:16px;
-  border:0;
-  font-size:22px;
+  font-size:20px;
+  font-weight:800;
+  color:#0f172a;
+  background:#f8fafc;
+  outline:none;
 }
 
-button{
-  width:100%;
-  padding:18px;
-  border:0;
-  border-radius:18px;
-  font-size:22px;
-  background:#3b82f6;
-  color:white;
-  font-weight:900;
+input:focus{
+  border-color:#2563eb;
+  box-shadow:0 0 0 4px rgba(37,99,235,.15);
+  background:white;
 }
 
 .pin{
   text-align:center;
   font-size:34px;
   letter-spacing:12px;
+  padding-left:28px;
+}
+
+.btn{
+  width:100%;
+  border:0;
+  border-radius:20px;
+  padding:18px;
+  margin-top:18px;
+  font-size:21px;
+  font-weight:900;
+  color:white;
+  background:#2563eb;
+}
+
+.btn:active{
+  transform:scale(.99);
+}
+
+.btn_sec{
+  background:#64748b;
 }
 
 .msg{
+  display:none;
   margin-top:16px;
-  color:#fecaca;
-  font-size:17px;
+  padding:14px;
+  border-radius:16px;
+  background:#fee2e2;
+  color:#991b1b;
+  font-size:16px;
+  font-weight:900;
+  line-height:1.35;
+}
+
+.msg.ok{
+  background:#dcfce7;
+  color:#166534;
+}
+
+.footer{
+  text-align:center;
+  margin-top:18px;
+  color:#94a3b8;
+  font-size:13px;
   font-weight:800;
+}
+
+.row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+@media(max-width:430px){
+  body{
+    padding:18px;
+    align-items:flex-start;
+    padding-top:48px;
+  }
+
+  .logo{
+    width:82px;
+    height:82px;
+    font-size:48px;
+    border-radius:24px;
+  }
+
+  .brand h1{
+    font-size:34px;
+  }
+
+  .box{
+    padding:22px;
+    border-radius:26px;
+  }
+
+  .box h2{
+    font-size:30px;
+  }
 }
 </style>
 </head>
 
 <body>
 
-<div class="box" id="app"></div>
+<div class="login_wrap">
+  <div class="brand">
+    <div class="logo">Z</div>
+    <h1>Zentryx PRO</h1>
+    <p>Acceso seguro de empresa</p>
+  </div>
+
+  <div class="box" id="app"></div>
+
+  <div class="footer">
+    Zentryx PRO · V3091
+  </div>
+</div>
+
+<script>
+const ZX_VERSION="3091";
+
+window.sb=supabase.createClient(
+  "https://idtaamivqbiuxtjywuux.supabase.co",
+  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
+);
+
+window.supabaseClient=window.sb;
+</script>
 
 <script src="src/app.js?v=3014"></script>
 <script src="src/core/session.js?v=3014"></script>
@@ -86,35 +244,97 @@ function cliente(){
   return window.sb || window.supabaseClient || null;
 }
 
-function error(txt){
+function mostrarMsg(txt,tipo){
   const e=document.getElementById("msg");
-  if(e) e.textContent=txt;
-  else alert(txt);
+  if(!e){
+    alert(txt);
+    return;
+  }
+
+  e.textContent=txt;
+  e.style.display="block";
+
+  if(tipo==="ok"){
+    e.classList.add("ok");
+  }else{
+    e.classList.remove("ok");
+  }
+}
+
+function limpiarMsg(){
+  const e=document.getElementById("msg");
+  if(e){
+    e.textContent="";
+    e.style.display="none";
+    e.classList.remove("ok");
+  }
+}
+
+function irApp(){
+  location.href="app.html?v="+ZX_VERSION;
+}
+
+function guardarSesion(){
+  if(typeof ZENTRYX_createSession==="function"){
+    ZENTRYX_createSession(usuarioActual);
+    return;
+  }
+
+  localStorage.setItem("zentryx_session",JSON.stringify({
+    id:usuarioActual.id,
+    usuario:usuarioActual.usuario,
+    nombre:usuarioActual.nombre || usuarioActual.usuario,
+    rol:usuarioActual.rol || "Usuario"
+  }));
+
+  localStorage.setItem("usuario",JSON.stringify(usuarioActual));
 }
 
 function pantallaLogin(){
+  usuarioActual=null;
+
   app.innerHTML=`
-    <h2>Acceso</h2>
-    <input id="usuario" placeholder="Usuario" autocomplete="username">
-    <button id="btn_login">Entrar</button>
+    <h2>Entrar</h2>
+    <div class="sub">
+      Introduce tu usuario para continuar.
+    </div>
+
+    <label>Usuario</label>
+    <input id="usuario" placeholder="Usuario" autocomplete="username" autocapitalize="none">
+
+    <button class="btn" id="btn_login">
+      Continuar
+    </button>
+
     <div id="msg" class="msg"></div>
   `;
 
   document.getElementById("btn_login").onclick=login;
+
+  document.getElementById("usuario").addEventListener("keydown",function(e){
+    if(e.key==="Enter") login();
+  });
+
+  setTimeout(function(){
+    const input=document.getElementById("usuario");
+    if(input) input.focus();
+  },250);
 }
 
 async function login(){
+  limpiarMsg();
+
   const sb=cliente();
 
   if(!sb){
-    error("Supabase no está conectado.");
+    mostrarMsg("Supabase no está conectado.");
     return;
   }
 
   const user=document.getElementById("usuario").value.trim();
 
   if(!user){
-    error("Introduce usuario.");
+    mostrarMsg("Introduce usuario.");
     return;
   }
 
@@ -125,16 +345,21 @@ async function login(){
     .maybeSingle();
 
   if(res.error){
-    error("Error Supabase: " + res.error.message);
+    mostrarMsg("Error Supabase: "+res.error.message);
     return;
   }
 
   if(!res.data){
-    error("Usuario no encontrado.");
+    mostrarMsg("Usuario no encontrado.");
     return;
   }
 
   usuarioActual=res.data;
+
+  if(usuarioActual.activo===false){
+    mostrarMsg("Usuario desactivado.");
+    return;
+  }
 
   if(usuarioActual.pin_bloqueado_hasta){
     const ahora=new Date();
@@ -142,7 +367,7 @@ async function login(){
 
     if(bloqueo>ahora){
       const min=Math.ceil((bloqueo-ahora)/60000);
-      error("PIN bloqueado. Espera " + min + " min.");
+      mostrarMsg("PIN bloqueado. Espera "+min+" min.");
       return;
     }
   }
@@ -157,28 +382,61 @@ async function login(){
 function pantallaCrearPIN(){
   app.innerHTML=`
     <h2>Crear PIN</h2>
+    <div class="sub">
+      Crea un PIN de 4 números para entrar más rápido.
+    </div>
+
+    <label>PIN</label>
     <input id="pin1" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
+
+    <label>Repetir PIN</label>
     <input id="pin2" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
-    <button id="btn_guardar_pin">Guardar PIN</button>
+
+    <button class="btn" id="btn_guardar_pin">
+      Guardar PIN
+    </button>
+
+    <button class="btn btn_sec" id="btn_volver">
+      Cambiar usuario
+    </button>
+
     <div id="msg" class="msg"></div>
   `;
 
   document.getElementById("btn_guardar_pin").onclick=guardarPIN;
+  document.getElementById("btn_volver").onclick=pantallaLogin;
+
+  document.getElementById("pin1").addEventListener("input",function(){
+    this.value=this.value.replace(/\D/g,"").slice(0,4);
+    if(this.value.length===4){
+      document.getElementById("pin2").focus();
+    }
+  });
+
+  document.getElementById("pin2").addEventListener("input",function(){
+    this.value=this.value.replace(/\D/g,"").slice(0,4);
+  });
+
+  document.getElementById("pin2").addEventListener("keydown",function(e){
+    if(e.key==="Enter") guardarPIN();
+  });
 }
 
 async function guardarPIN(){
+  limpiarMsg();
+
   const sb=cliente();
 
   const p1=document.getElementById("pin1").value.trim();
   const p2=document.getElementById("pin2").value.trim();
 
   if(!/^[0-9]{4}$/.test(p1) || !/^[0-9]{4}$/.test(p2)){
-    error("El PIN debe tener 4 números.");
+    mostrarMsg("El PIN debe tener 4 números.");
     return;
   }
 
   if(p1!==p2){
-    error("Los PIN no coinciden.");
+    mostrarMsg("Los PIN no coinciden.");
     return;
   }
 
@@ -196,7 +454,7 @@ async function guardarPIN(){
     .eq("id",usuarioActual.id);
 
   if(res.error){
-    error("Error guardando PIN: " + res.error.message);
+    mostrarMsg("Error guardando PIN: "+res.error.message);
     return;
   }
 
@@ -206,27 +464,61 @@ async function guardarPIN(){
   usuarioActual.pin_bloqueado_hasta=null;
 
   guardarSesion();
-  location.href="app.html?v=3014";
+  mostrarMsg("PIN creado correctamente.","ok");
+
+  setTimeout(irApp,500);
 }
 
 function pantallaPIN(){
   app.innerHTML=`
     <h2>PIN</h2>
+    <div class="sub">
+      Usuario: <b>${usuarioActual.usuario || ""}</b>
+    </div>
+
+    <label>Introduce PIN</label>
     <input id="pin" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
-    <button id="btn_pin">Entrar</button>
+
+    <button class="btn" id="btn_pin">
+      Entrar
+    </button>
+
+    <button class="btn btn_sec" id="btn_volver">
+      Cambiar usuario
+    </button>
+
     <div id="msg" class="msg"></div>
   `;
 
   document.getElementById("btn_pin").onclick=entrar;
+  document.getElementById("btn_volver").onclick=pantallaLogin;
+
+  document.getElementById("pin").addEventListener("input",function(){
+    this.value=this.value.replace(/\D/g,"").slice(0,4);
+    if(this.value.length===4){
+      entrar();
+    }
+  });
+
+  document.getElementById("pin").addEventListener("keydown",function(e){
+    if(e.key==="Enter") entrar();
+  });
+
+  setTimeout(function(){
+    const pin=document.getElementById("pin");
+    if(pin) pin.focus();
+  },250);
 }
 
 async function entrar(){
+  limpiarMsg();
+
   const sb=cliente();
 
   const pin=document.getElementById("pin").value.trim();
 
   if(!/^[0-9]{4}$/.test(pin)){
-    error("PIN inválido.");
+    mostrarMsg("PIN inválido.");
     return;
   }
 
@@ -243,12 +535,14 @@ async function entrar(){
       .eq("id",usuarioActual.id);
 
     if(res.error){
-      error("Error actualizando login: " + res.error.message);
+      mostrarMsg("Error actualizando login: "+res.error.message);
       return;
     }
 
     guardarSesion();
-    location.href="app.html?v=3014";
+    mostrarMsg("Acceso correcto.","ok");
+
+    setTimeout(irApp,350);
     return;
   }
 
@@ -271,7 +565,7 @@ async function entrar(){
     .eq("id",usuarioActual.id);
 
   if(res.error){
-    error("Error registrando intento.");
+    mostrarMsg("Error registrando intento.");
     return;
   }
 
@@ -279,17 +573,33 @@ async function entrar(){
   usuarioActual.pin_bloqueado_hasta=bloqueo;
 
   if(bloqueo){
-    error("PIN bloqueado 5 min.");
+    mostrarMsg("PIN bloqueado 5 min.");
   }else{
-    error("PIN incorrecto ("+intentos+"/3).");
+    mostrarMsg("PIN incorrecto ("+intentos+"/3).");
+  }
+
+  const p=document.getElementById("pin");
+  if(p){
+    p.value="";
+    p.focus();
   }
 }
 
-function guardarSesion(){
-  ZENTRYX_createSession(usuarioActual);
-}
+(function iniciar(){
+  const s=localStorage.getItem("zentryx_session");
 
-pantallaLogin();
+  if(s){
+    try{
+      const ses=JSON.parse(s);
+      if(ses && ses.id && ses.usuario){
+        location.href="app.html?v="+ZX_VERSION;
+        return;
+      }
+    }catch(e){}
+  }
+
+  pantallaLogin();
+})();
 </script>
 
 </body>
