@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA PRO
-// V3085
+// V3086 - CLICK EN DÍA ABRE DÍA
 // ===============================
 (function(){
 "use strict";
@@ -34,10 +34,7 @@ function limpiar(v){
 
 function isoFecha(d){
   const x=new Date(d);
-  const y=x.getFullYear();
-  const m=String(x.getMonth()+1).padStart(2,"0");
-  const day=String(x.getDate()).padStart(2,"0");
-  return y+"-"+m+"-"+day;
+  return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");
 }
 
 function hoy(){
@@ -119,9 +116,6 @@ function filtrarEventos(lista){
   return lista.filter(e=>String(e.tipo||"")===ZX_AGENDA_FILTRO);
 }
 
-// ===============================
-// SINCRONIZAR SOLICITUDES APROBADAS
-// ===============================
 async function sincronizarSolicitudes(){
   try{
     const r=await sb()
@@ -170,29 +164,23 @@ async function sincronizarSolicitudes(){
   }catch(e){}
 }
 
-// ===============================
-// CARGAR EVENTOS
-// ===============================
 async function cargarEventos(){
   await sincronizarSolicitudes();
 
   const inicio=isoFecha(primerDiaMes(ZX_AGENDA_FECHA));
   const fin=isoFecha(ultimoDiaMes(ZX_AGENDA_FECHA));
-
   const desde=sumarDias(inicio,-10);
   const hasta=sumarDias(fin,20);
 
   const s=sesion();
 
-  let q=sb()
+  const r=await sb()
     .from("agenda_eventos")
     .select("*")
     .lte("fecha_inicio",hasta)
     .gte("fecha_fin",desde)
     .order("fecha_inicio",{ascending:true})
     .order("hora_inicio",{ascending:true});
-
-  const r=await q;
 
   if(r.error){
     alert("Error cargando agenda: "+r.error.message);
@@ -212,9 +200,11 @@ async function cargarEventos(){
   return datos;
 }
 
-// ===============================
-// GUARDAR EVENTO
-// ===============================
+function cerrarModalAgenda(){
+  const m=document.getElementById("zx_modal_agenda");
+  if(m) m.remove();
+}
+
 async function guardarEvento(id=null){
   const s=sesion();
 
@@ -263,14 +253,6 @@ async function guardarEvento(id=null){
   ZX_agenda();
 }
 
-function cerrarModalAgenda(){
-  const m=document.getElementById("zx_modal_agenda");
-  if(m) m.remove();
-}
-
-// ===============================
-// MODAL EVENTO
-// ===============================
 function abrirModalEvento(e=null,fecha=null){
   cerrarModalAgenda();
 
@@ -339,13 +321,8 @@ function abrirModalEvento(e=null,fecha=null){
           <option value="usuario" ${e?.visible_para==="usuario"?"selected":""}>Usuario</option>
         </select>
 
-        <button class="zx_btn_big zx_verde" id="ag_guardar">
-          Guardar
-        </button>
-
-        <button class="zx_btn_big zx_gris" id="ag_cancelar">
-          Cancelar
-        </button>
+        <button class="zx_btn_big zx_verde" id="ag_guardar">Guardar</button>
+        <button class="zx_btn_big zx_gris" id="ag_cancelar">Cancelar</button>
       </div>
     </div>
   `);
@@ -356,9 +333,6 @@ function abrirModalEvento(e=null,fecha=null){
   };
 }
 
-// ===============================
-// ACCIONES
-// ===============================
 async function cambiarEstado(id,estado){
   const r=await sb()
     .from("agenda_eventos")
@@ -391,6 +365,34 @@ async function borrarEvento(id){
 
 window.ZX_ag_nuevo=function(fecha){
   abrirModalEvento(null,fecha || hoy());
+};
+
+window.ZX_ag_verDia=function(fecha){
+  const eventos=filtrarEventos(eventosDia(fecha));
+
+  cerrarModalAgenda();
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_agenda" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>${formatoFecha(fecha)}</h2>
+
+        ${
+          eventos.length
+          ? eventos.map(e=>renderEvento(e)).join("")
+          : `<div class="zx_text">Sin eventos este día.</div>`
+        }
+
+        <button class="zx_btn_big zx_verde" onclick="ZX_ag_nuevo('${fecha}')">
+          Añadir evento este día
+        </button>
+
+        <button class="zx_btn_big zx_gris" onclick="document.getElementById('zx_modal_agenda').remove()">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  `);
 };
 
 window.ZX_ag_editar=function(id){
@@ -430,10 +432,7 @@ window.ZX_ag_filtro=function(tipo){
   ZX_agenda();
 };
 
-// ===============================
-// RENDER EVENTO
-// ===============================
-function renderEvento(e,compacto=false){
+function renderEvento(e){
   return `
     <div class="zx_ag_evento ${colorTipo(e.tipo)}">
       <div class="zx_ag_evento_top">
@@ -446,32 +445,22 @@ function renderEvento(e,compacto=false){
         ${e.usuario ? "<br>Operario: "+limpiar(e.usuario) : ""}
         ${e.cliente ? "<br>Cliente: "+limpiar(e.cliente) : ""}
         ${e.vehiculo ? "<br>Vehículo: "+limpiar(e.vehiculo) : ""}
-        ${!compacto && e.descripcion ? "<br>"+limpiar(e.descripcion) : ""}
+        ${e.descripcion ? "<br>"+limpiar(e.descripcion) : ""}
       </div>
 
-      ${
-        compacto
-        ? ""
-        : `
-          <div class="zx_ag_actions">
-            <button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Editar</button>
-            <button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button>
-            <button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button>
-            <button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Borrar</button>
-          </div>
-        `
-      }
+      <div class="zx_ag_actions">
+        <button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Editar</button>
+        <button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button>
+        <button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button>
+        <button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Borrar</button>
+      </div>
     </div>
   `;
 }
 
-// ===============================
-// CALENDARIO MES
-// ===============================
 function renderCalendario(){
   const inicio=primerDiaMes(ZX_AGENDA_FECHA);
   const fin=ultimoDiaMes(ZX_AGENDA_FECHA);
-
   const primer=(inicio.getDay()+6)%7;
   const diasMes=fin.getDate();
 
@@ -503,7 +492,7 @@ function renderCalendario(){
     const claseHoy=fecha===hoy() ? "zx_ag_today" : "";
 
     html+=`
-      <div class="zx_ag_day ${claseHoy}" onclick="ZX_ag_nuevo('${fecha}')">
+      <div class="zx_ag_day ${claseHoy}" onclick="ZX_ag_verDia('${fecha}')">
         <div class="zx_ag_day_num">${d}</div>
         ${
           evs.slice(0,3).map(e=>`
@@ -525,9 +514,6 @@ function renderCalendario(){
   return html;
 }
 
-// ===============================
-// LISTAS
-// ===============================
 function renderListas(){
   const hoyF=hoy();
   const manana=sumarDias(hoyF,1);
@@ -589,9 +575,6 @@ function renderFiltros(){
   `;
 }
 
-// ===============================
-// PANTALLA
-// ===============================
 window.ZX_agenda=async function(){
   document.querySelectorAll(".zx_nav_btn").forEach(b=>{
     b.classList.remove("zx_activo");
@@ -607,9 +590,6 @@ window.ZX_agenda=async function(){
   `;
 };
 
-// ===============================
-// ESTILOS
-// ===============================
 (function(){
   if(document.getElementById("zx_agenda_css")) return;
 
@@ -617,158 +597,29 @@ window.ZX_agenda=async function(){
   s.id="zx_agenda_css";
 
   s.innerHTML=`
-    .zx_ag_head{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:10px;
-    }
-
-    .zx_ag_head button{
-      border:0;
-      border-radius:16px;
-      background:#2563eb;
-      color:white;
-      font-size:30px;
-      font-weight:900;
-      width:58px;
-      height:58px;
-    }
-
-    .zx_ag_hoy_btn{
-      width:auto!important;
-      height:auto!important;
-      padding:8px 16px!important;
-      font-size:15px!important;
-      background:#64748b!important;
-    }
-
-    .zx_ag_weekdays,
-    .zx_ag_calendar{
-      display:grid;
-      grid-template-columns:repeat(7,1fr);
-      gap:6px;
-      margin-top:12px;
-    }
-
-    .zx_ag_weekdays div{
-      text-align:center;
-      color:#64748b;
-      font-weight:900;
-      font-size:13px;
-    }
-
-    .zx_ag_day{
-      min-height:92px;
-      background:#f8fafc;
-      border:1px solid #d1d5db;
-      border-radius:14px;
-      padding:7px;
-      overflow:hidden;
-    }
-
-    .zx_ag_empty{
-      background:transparent;
-      border:0;
-    }
-
-    .zx_ag_today{
-      border:3px solid #2563eb;
-      background:#eff6ff;
-    }
-
-    .zx_ag_day_num{
-      font-size:15px;
-      font-weight:900;
-      margin-bottom:5px;
-      color:#0f172a;
-    }
-
-    .zx_ag_dot{
-      color:white;
-      border-radius:8px;
-      padding:3px 5px;
-      font-size:11px;
-      font-weight:900;
-      margin-top:3px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .zx_ag_more{
-      font-size:11px;
-      font-weight:900;
-      color:#64748b;
-      margin-top:3px;
-    }
-
-    .zx_ag_filters{
-      display:flex;
-      gap:8px;
-      overflow-x:auto;
-      margin-top:16px;
-      padding-bottom:4px;
-    }
-
-    .zx_ag_filters button{
-      border:0;
-      border-radius:999px;
-      padding:10px 14px;
-      background:#e2e8f0;
-      color:#0f172a;
-      font-weight:900;
-      white-space:nowrap;
-    }
-
-    .zx_ag_filters button.activo{
-      background:#2563eb;
-      color:white;
-    }
-
-    .zx_ag_evento{
-      border-radius:18px;
-      padding:14px;
-      margin-top:12px;
-      color:white;
-    }
-
-    .zx_ag_evento_top{
-      display:flex;
-      justify-content:space-between;
-      gap:8px;
-      font-size:18px;
-      font-weight:900;
-    }
-
-    .zx_ag_evento_txt{
-      margin-top:8px;
-      line-height:1.4;
-      font-size:15px;
-      font-weight:750;
-    }
-
-    .zx_ag_actions{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:8px;
-      margin-top:12px;
-    }
-
-    .zx_ag_btn{
-      border:0;
-      border-radius:14px;
-      padding:11px;
-      color:white;
-      font-size:15px;
-      font-weight:900;
-    }
-
+    .zx_ag_head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .zx_ag_head button{border:0;border-radius:16px;background:#2563eb;color:white;font-size:30px;font-weight:900;width:58px;height:58px}
+    .zx_ag_hoy_btn{width:auto!important;height:auto!important;padding:8px 16px!important;font-size:15px!important;background:#64748b!important}
+    .zx_ag_weekdays,.zx_ag_calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
+    .zx_ag_weekdays div{text-align:center;color:#64748b;font-weight:900;font-size:13px}
+    .zx_ag_day{min-height:92px;background:#f8fafc;border:1px solid #d1d5db;border-radius:14px;padding:7px;overflow:hidden}
+    .zx_ag_empty{background:transparent;border:0}
+    .zx_ag_today{border:3px solid #2563eb;background:#eff6ff}
+    .zx_ag_day_num{font-size:15px;font-weight:900;margin-bottom:5px;color:#0f172a}
+    .zx_ag_dot{color:white;border-radius:8px;padding:3px 5px;font-size:11px;font-weight:900;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .zx_ag_more{font-size:11px;font-weight:900;color:#64748b;margin-top:3px}
+    .zx_ag_filters{display:flex;gap:8px;overflow-x:auto;margin-top:16px;padding-bottom:4px}
+    .zx_ag_filters button{border:0;border-radius:999px;padding:10px 14px;background:#e2e8f0;color:#0f172a;font-weight:900;white-space:nowrap}
+    .zx_ag_filters button.activo{background:#2563eb;color:white}
+    .zx_ag_evento{border-radius:18px;padding:14px;margin-top:12px;color:white}
+    .zx_ag_evento_top{display:flex;justify-content:space-between;gap:8px;font-size:18px;font-weight:900}
+    .zx_ag_evento_txt{margin-top:8px;line-height:1.4;font-size:15px;font-weight:750}
+    .zx_ag_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+    .zx_ag_btn{border:0;border-radius:14px;padding:11px;color:white;font-size:15px;font-weight:900}
     .zx_ag_btn_blue{background:#2563eb}
     .zx_ag_btn_green{background:#16a34a}
     .zx_ag_btn_orange{background:#ea580c}
     .zx_ag_btn_red{background:#dc2626}
-
     .zx_ag_tipo_trabajo{background:#2563eb}
     .zx_ag_tipo_cita{background:#7c3aed}
     .zx_ag_tipo_vacaciones{background:#16a34a}
@@ -777,36 +628,12 @@ window.ZX_agenda=async function(){
     .zx_ag_tipo_recordatorio{background:#64748b}
     .zx_ag_tipo_revision{background:#0f766e}
     .zx_ag_tipo_default{background:#334155}
-
-    .zx_ag_label{
-      display:block;
-      margin-top:14px;
-      margin-bottom:6px;
-      font-size:15px;
-      font-weight:900;
-      color:#475569;
-    }
-
-    .zx_ag_grid2{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-    }
-
+    .zx_ag_label{display:block;margin-top:14px;margin-bottom:6px;font-size:15px;font-weight:900;color:#475569}
+    .zx_ag_grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media(max-width:430px){
-      .zx_ag_day{
-        min-height:78px;
-        padding:5px;
-      }
-
-      .zx_ag_dot{
-        font-size:9px;
-        padding:2px 4px;
-      }
-
-      .zx_ag_day_num{
-        font-size:13px;
-      }
+      .zx_ag_day{min-height:78px;padding:5px}
+      .zx_ag_dot{font-size:9px;padding:2px 4px}
+      .zx_ag_day_num{font-size:13px}
     }
   `;
 
