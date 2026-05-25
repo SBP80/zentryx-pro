@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3084 - FIX AGENDA + RELOJ + POST-IT
+// V3087 - RELOJ + AGENDA PULSABLE + POST-IT
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3084";
+const ZX_VERSION="3087";
 
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
@@ -47,7 +47,15 @@ function limpiar(v){
 }
 
 function limpiarLayoutAnterior(){
-  ["zx_topbar","zx_nav","zx_reloj_global","zx_btn_postit_global","zx_layout_styles"].forEach(id=>{
+  [
+    "zx_topbar",
+    "zx_nav",
+    "zx_reloj_global",
+    "zx_btn_postit_global",
+    "zx_modal_agenda_hoy",
+    "zx_modal_notas",
+    "zx_layout_styles"
+  ].forEach(id=>{
     const el=$(id);
     if(el) el.remove();
   });
@@ -176,7 +184,11 @@ function estilos(){
       overflow:hidden;
       text-overflow:ellipsis;
       white-space:nowrap;
-      max-width:180px;
+      max-width:210px;
+      cursor:pointer;
+      padding:8px 10px;
+      border-radius:14px;
+      background:rgba(250,204,21,.08);
     }
 
     #zx_nav{
@@ -312,7 +324,15 @@ function estilos(){
       box-shadow:0 24px 70px rgba(0,0,0,.38);
     }
 
-    .zx_nota_item{
+    .zx_modal_caja h2{
+      margin:0 0 14px;
+      font-size:30px;
+      font-weight:900;
+      color:#0f172a;
+    }
+
+    .zx_nota_item,
+    .zx_agenda_hoy_item{
       border:1px solid #d1d5db;
       border-radius:18px;
       padding:14px;
@@ -320,19 +340,42 @@ function estilos(){
       background:#f8fafc;
     }
 
-    .zx_nota_texto{
+    .zx_nota_texto,
+    .zx_agenda_hoy_titulo{
       font-size:17px;
-      font-weight:800;
+      font-weight:900;
       color:#0f172a;
       line-height:1.45;
       white-space:pre-wrap;
     }
 
-    .zx_nota_fecha{
+    .zx_nota_fecha,
+    .zx_agenda_hoy_meta{
       margin-top:8px;
       color:#64748b;
       font-size:14px;
       font-weight:800;
+      line-height:1.4;
+    }
+
+    .zx_agenda_hoy_desc{
+      margin-top:8px;
+      color:#475569;
+      font-size:15px;
+      font-weight:700;
+      line-height:1.4;
+      white-space:pre-wrap;
+    }
+
+    @media(max-width:430px){
+      #zx_reloj_inner{
+        gap:8px;
+      }
+
+      #zx_reloj_agenda{
+        max-width:220px;
+        font-size:13px;
+      }
     }
   `;
 
@@ -377,7 +420,7 @@ function relojGlobal(){
         <div id="zx_reloj_fecha">--/--/----</div>
         <div id="zx_reloj_hora">--:--</div>
       </div>
-      <div id="zx_reloj_agenda">Agenda cargando...</div>
+      <div id="zx_reloj_agenda" onclick="ZX_abrirAgendaHoy()">Agenda cargando...</div>
     </div>
   `;
 
@@ -410,33 +453,35 @@ function actualizarReloj(){
   if($("zx_reloj_hora")) $("zx_reloj_hora").textContent=hora;
 }
 
+async function eventosHoy(){
+  const hoy=new Date().toISOString().slice(0,10);
+
+  const r=await sb()
+    .from("agenda_eventos")
+    .select("*")
+    .lte("fecha_inicio",hoy)
+    .gte("fecha_fin",hoy)
+    .neq("estado","completado")
+    .order("hora_inicio",{ascending:true})
+    .limit(20);
+
+  if(r.error) return [];
+  return r.data || [];
+}
+
 async function actualizarMiniAgenda(){
   const el=$("zx_reloj_agenda");
   if(!el) return;
 
   try{
-    const hoy=new Date().toISOString().slice(0,10);
+    const datos=await eventosHoy();
 
-    const r=await sb()
-      .from("agenda_eventos")
-      .select("*")
-      .lte("fecha_inicio",hoy)
-      .gte("fecha_fin",hoy)
-      .neq("estado","completado")
-      .order("hora_inicio",{ascending:true})
-      .limit(3);
-
-    if(r.error){
-      el.textContent="Agenda sin cargar";
-      return;
-    }
-
-    if(!r.data || !r.data.length){
+    if(!datos.length){
       el.textContent="Sin citas hoy";
       return;
     }
 
-    el.textContent=r.data.map(e=>{
+    el.textContent=datos.slice(0,3).map(e=>{
       const hora=e.hora_inicio ? String(e.hora_inicio).slice(0,5)+" · " : "";
       const icono=e.tipo==="recordatorio" ? "📝 " : "";
       return icono+hora+(e.titulo || "Evento");
@@ -446,6 +491,95 @@ async function actualizarMiniAgenda(){
     el.textContent="Agenda sin cargar";
   }
 }
+
+function textoTipo(t){
+  const m={
+    recordatorio:"Nota",
+    trabajo:"Trabajo",
+    cita:"Cita",
+    vacaciones:"Vacaciones",
+    permiso:"Permiso",
+    revision:"Revisión",
+    libranza:"Libranza",
+    baja_medica:"Baja médica"
+  };
+  return m[t] || t || "Evento";
+}
+
+function renderAgendaHoyItem(e){
+  const hora=e.hora_inicio ? String(e.hora_inicio).slice(0,5) : "Sin hora";
+  const icono=e.tipo==="recordatorio" ? "📝 " : "";
+
+  return `
+    <div class="zx_agenda_hoy_item">
+      <div class="zx_agenda_hoy_titulo">
+        ${icono}${limpiar(e.titulo || "Evento")}
+      </div>
+
+      <div class="zx_agenda_hoy_meta">
+        ${limpiar(hora)} · ${limpiar(textoTipo(e.tipo))}
+        ${e.usuario ? "<br>Operario: "+limpiar(e.usuario) : ""}
+        ${e.cliente ? "<br>Cliente: "+limpiar(e.cliente) : ""}
+        ${e.vehiculo ? "<br>Vehículo: "+limpiar(e.vehiculo) : ""}
+      </div>
+
+      ${
+        e.descripcion
+        ? `<div class="zx_agenda_hoy_desc">${limpiar(e.descripcion)}</div>`
+        : ""
+      }
+
+      <button class="zx_btn_big zx_azul" onclick="ZX_abrirAgendaDesdePanel()">
+        Abrir Agenda
+      </button>
+    </div>
+  `;
+}
+
+window.ZX_abrirAgendaHoy=async function(){
+  const anterior=$("zx_modal_agenda_hoy");
+  if(anterior) anterior.remove();
+
+  const modal=document.createElement("div");
+  modal.id="zx_modal_agenda_hoy";
+
+  modal.innerHTML=`
+    <div class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Agenda de hoy</h2>
+        <div id="zx_agenda_hoy_lista" class="zx_text">Cargando...</div>
+
+        <button class="zx_btn_big zx_verde" onclick="ZX_abrirAgendaDesdePanel()">
+          Abrir Agenda
+        </button>
+
+        <button class="zx_btn_big zx_gris" onclick="document.getElementById('zx_modal_agenda_hoy').remove()">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const lista=$("zx_agenda_hoy_lista");
+  const datos=await eventosHoy();
+
+  if(lista){
+    lista.innerHTML=datos.length
+      ? datos.map(renderAgendaHoyItem).join("")
+      : `<div class="zx_text">Sin citas ni notas para hoy.</div>`;
+  }
+};
+
+window.ZX_abrirAgendaDesdePanel=function(){
+  const m=$("zx_modal_agenda_hoy");
+  if(m) m.remove();
+
+  if(window.ZX_abrirAgenda){
+    window.ZX_abrirAgenda();
+  }
+};
 
 function botonNav(modulo,texto,accion){
   if(!puedeVerModulo(modulo)) return "";
