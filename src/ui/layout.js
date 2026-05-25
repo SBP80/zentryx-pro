@@ -1,12 +1,15 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3088 - RELOJ CON ICONO AGENDA
+// V3090 - BASE LIMPIA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3088";
+const ZX_VERSION="3090";
 
+// ===============================
+// BASE
+// ===============================
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
 function sb(){return window.sb || window.supabaseClient}
@@ -15,7 +18,7 @@ function sb(){return window.sb || window.supabaseClient}
 // SESIÓN
 // ===============================
 function sesion(){
-  try{return JSON.parse(localStorage.getItem("zentryx_session") || "{}")}
+  try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}
   catch(e){return {}}
 }
 
@@ -23,135 +26,228 @@ function usuarioActual(){
   const s=sesion();
   return {
     id:s.id || "",
-    usuario:s.usuario || "admin",
-    rol:s.rol || "Administrador"
+    usuario:s.usuario || "",
+    rol:s.rol || ""
   };
 }
 
 function esAdmin(){
   const u=usuarioActual();
-  return String(u.rol||"").toLowerCase()==="administrador" ||
-         String(u.usuario||"").toLowerCase()==="admin";
+  return String(u.rol).toLowerCase()==="administrador" ||
+         String(u.usuario).toLowerCase()==="admin";
 }
 
 // ===============================
-// LIMPIEZA
+// LIMPIAR LAYOUT
 // ===============================
-function limpiar(v){
-  return String(v ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
+function limpiarLayout(){
 
-function limpiarLayoutAnterior(){
   [
     "zx_topbar",
     "zx_nav",
-    "zx_reloj_global",
-    "zx_btn_postit_global",
-    "zx_layout_styles"
+    "zx_reloj",
+    "zx_postit",
+    "zx_css"
   ].forEach(id=>{
     const el=$(id);
     if(el) el.remove();
   });
-}
 
+}
 // ===============================
 // ESTILOS
 // ===============================
 function estilos(){
+
   const css=document.createElement("style");
-  css.id="zx_layout_styles";
+  css.id="zx_css";
 
   css.innerHTML=`
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    *{
+      box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
+    }
 
     html,body{
       margin:0;
       padding:0;
+      width:100%;
+      max-width:100%;
+      min-height:100%;
       background:#eef2f7;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
       color:#0f172a;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+      overflow-x:hidden;
+    }
+
+    body{
+      min-height:100vh;
+      padding-bottom:calc(env(safe-area-inset-bottom) + 110px);
+    }
+
+    button,input,select,textarea{
+      font-family:inherit;
+    }
+
+    button{
+      cursor:pointer;
     }
 
     #zx_topbar{
+      width:100%;
       background:#071330;
       color:white;
       padding:16px;
     }
 
     #zx_topbar_inner{
+      width:100%;
+      max-width:1180px;
+      margin:0 auto;
       display:flex;
-      justify-content:space-between;
       align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    #zx_brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:0;
+      flex:1;
     }
 
     #zx_logo{
-      width:48px;
-      height:48px;
-      border-radius:14px;
+      width:54px;
+      height:54px;
+      min-width:54px;
+      border-radius:16px;
       background:linear-gradient(135deg,#2563eb,#10b981);
       display:flex;
       align-items:center;
       justify-content:center;
+      font-size:30px;
       font-weight:900;
-      font-size:26px;
+      color:white;
+    }
+
+    #zx_brand_txt{
+      min-width:0;
+    }
+
+    #zx_brand_txt h1{
+      margin:0;
+      font-size:24px;
+      line-height:1.05;
+      font-weight:900;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    #zx_brand_txt div{
+      margin-top:4px;
+      color:#cbd5e1;
+      font-size:14px;
+      font-weight:800;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
 
     #zx_salir{
-      background:#dc2626;
       border:0;
-      border-radius:14px;
+      border-radius:16px;
+      background:#dc2626;
       color:white;
-      padding:12px 14px;
+      padding:14px 18px;
+      font-size:17px;
       font-weight:900;
+      flex:none;
     }
 
-    #zx_reloj_global{
+    #zx_reloj{
+      width:100%;
       background:#0f172a;
       color:white;
+      border-top:1px solid rgba(255,255,255,.08);
+      border-bottom:1px solid rgba(255,255,255,.08);
       padding:10px 16px;
+    }
+
+    #zx_reloj_inner{
+      width:100%;
+      max-width:1180px;
+      margin:0 auto;
       display:flex;
-      justify-content:space-between;
       align-items:center;
+      justify-content:space-between;
+      gap:12px;
     }
 
-    #zx_reloj_hora{
-      font-size:22px;
-      font-weight:900;
-    }
-
-    #zx_reloj_fecha{
-      font-size:13px;
+    #zx_fecha{
       color:#cbd5e1;
+      font-size:14px;
+      font-weight:900;
+      white-space:nowrap;
     }
 
-    #zx_icono_agenda{
+    #zx_hora{
+      color:white;
+      font-size:28px;
+      font-weight:900;
+      letter-spacing:.5px;
+      white-space:nowrap;
+      line-height:1.05;
+    }
+
+    #zx_agenda_btn{
+      border:0;
+      border-radius:20px;
       background:#facc15;
       color:#422006;
-      padding:10px 14px;
-      border-radius:16px;
+      padding:12px 18px;
+      min-width:92px;
+      font-size:24px;
       font-weight:900;
-      font-size:16px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      box-shadow:0 8px 18px rgba(0,0,0,.18);
+      flex:none;
     }
 
     #zx_nav{
+      width:100%;
       background:#071330;
-      padding:12px;
-      display:flex;
-      gap:10px;
+      padding:12px 12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+
+    #zx_nav_inner{
+      width:100%;
+      max-width:1180px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:8px;
     }
 
     .zx_nav_btn{
+      width:100%;
+      border:0;
+      border-radius:16px;
       background:#334155;
       color:white;
-      border:0;
-      padding:12px 14px;
-      border-radius:14px;
+      padding:14px 8px;
+      font-size:15px;
       font-weight:900;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      text-align:center;
     }
 
     .zx_nav_btn.zx_activo{
@@ -159,13 +255,253 @@ function estilos(){
     }
 
     #app{
+      width:100%;
+      max-width:1180px;
+      margin:0 auto;
+      padding:18px 16px;
+      overflow-x:hidden;
+    }
+
+    .zx_card{
+      width:100%;
+      background:white;
+      border:1px solid #d1d5db;
+      border-radius:24px;
+      padding:22px;
+      margin-bottom:18px;
+      box-shadow:0 8px 22px rgba(15,23,42,.06);
+      overflow:hidden;
+    }
+
+    .zx_card h2{
+      margin:0 0 14px;
+      color:#0f172a;
+      font-size:32px;
+      line-height:1.1;
+      font-weight:900;
+    }
+
+    .zx_card h3{
+      margin:0 0 12px;
+      color:#0f172a;
+      font-size:24px;
+      line-height:1.15;
+      font-weight:900;
+    }
+
+    .zx_text{
+      color:#64748b;
+      font-size:17px;
+      line-height:1.45;
+      font-weight:750;
+    }
+
+    .zx_btn_big,
+    .zx_btn{
+      width:100%;
+      border:0;
+      border-radius:20px;
+      padding:18px;
+      margin-top:12px;
+      font-size:19px;
+      font-weight:900;
+      color:white;
+      text-align:center;
+      display:block;
+    }
+
+    .zx_rojo{background:#dc2626}
+    .zx_azul{background:#2563eb}
+    .zx_verde{background:#16a34a}
+    .zx_naranja{background:#ea580c}
+    .zx_morado{background:#7c3aed}
+    .zx_gris{background:#64748b}
+
+    input,select,textarea{
+      width:100%;
+      border:1px solid #cbd5e1;
+      border-radius:16px;
+      padding:15px;
+      margin-top:10px;
+      font-size:17px;
+      color:#0f172a;
+      background:white;
+    }
+
+    #zx_postit{
+      position:fixed;
+      right:18px;
+      bottom:calc(env(safe-area-inset-bottom) + 24px);
+      width:74px;
+      height:74px;
+      border-radius:50%;
+      border:4px solid white;
+      background:#facc15;
+      color:#422006;
+      font-size:34px;
+      font-weight:900;
+      z-index:9999;
+      box-shadow:0 12px 32px rgba(0,0,0,.35);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .zx_modal_fondo{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.55);
+      display:flex;
+      align-items:center;
+      justify-content:center;
       padding:16px;
+      z-index:99999;
+    }
+
+    .zx_modal_caja{
+      width:100%;
+      max-width:620px;
+      max-height:90vh;
+      overflow-y:auto;
+      background:white;
+      border-radius:28px;
+      padding:22px;
+      box-shadow:0 24px 70px rgba(0,0,0,.38);
+    }
+
+    .zx_modal_caja h2{
+      margin:0 0 14px;
+      color:#0f172a;
+      font-size:30px;
+      font-weight:900;
+    }
+
+    .zx_list_item{
+      background:#f8fafc;
+      border:1px solid #d1d5db;
+      border-radius:18px;
+      padding:14px;
+      margin-top:12px;
+    }
+
+    .zx_list_title{
+      color:#0f172a;
+      font-size:17px;
+      font-weight:900;
+      line-height:1.35;
+      white-space:pre-wrap;
+    }
+
+    .zx_list_meta{
+      margin-top:8px;
+      color:#64748b;
+      font-size:14px;
+      font-weight:800;
+      line-height:1.4;
+    }
+
+    .zx_list_desc{
+      margin-top:8px;
+      color:#475569;
+      font-size:15px;
+      font-weight:750;
+      line-height:1.4;
+      white-space:pre-wrap;
+    }
+
+    @media(max-width:430px){
+      #zx_topbar{
+        padding:14px 14px 12px;
+      }
+
+      #zx_logo{
+        width:50px;
+        height:50px;
+        min-width:50px;
+        font-size:28px;
+      }
+
+      #zx_brand_txt h1{
+        font-size:22px;
+      }
+
+      #zx_brand_txt div{
+        font-size:13px;
+      }
+
+      #zx_salir{
+        padding:12px 15px;
+        font-size:15px;
+      }
+
+      #zx_reloj_inner{
+        gap:10px;
+      }
+
+      #zx_hora{
+        font-size:27px;
+      }
+
+      #zx_fecha{
+        font-size:13px;
+      }
+
+      #zx_agenda_btn{
+        min-width:86px;
+        padding:10px 14px;
+        font-size:23px;
+      }
+
+      #zx_nav_inner{
+        grid-template-columns:repeat(2,1fr);
+      }
+
+      .zx_nav_btn{
+        font-size:15px;
+        padding:13px 8px;
+      }
+
+      #app{
+        padding:16px 12px;
+      }
+
+      .zx_card{
+        padding:20px;
+        border-radius:22px;
+      }
+
+      .zx_card h2{
+        font-size:31px;
+      }
+
+      .zx_card h3{
+        font-size:23px;
+      }
+    }
+
+    @media(min-width:700px){
+      #zx_nav_inner{
+        grid-template-columns:repeat(6,1fr);
+      }
+
+      #app{
+        padding:24px;
+      }
+    }
+
+    @media(min-width:1024px){
+      #zx_nav_inner{
+        grid-template-columns:repeat(8,1fr);
+      }
+
+      .zx_card{
+        padding:28px;
+      }
     }
   `;
 
   document.head.appendChild(css);
 }
-
 // ===============================
 // TOPBAR
 // ===============================
@@ -177,23 +513,24 @@ function topbar(){
 
   t.innerHTML=`
     <div id="zx_topbar_inner">
-      <div style="display:flex;gap:10px;align-items:center">
+      <div id="zx_brand">
         <div id="zx_logo">Z</div>
-        <div>
-          <div style="font-weight:900">Zentryx PRO</div>
-          <div style="font-size:13px;color:#cbd5e1">
-            ${limpiar(u.usuario)} · ${limpiar(u.rol)}
-          </div>
+
+        <div id="zx_brand_txt">
+          <h1>Zentryx PRO</h1>
+          <div>${limpiar(u.usuario || "usuario")} · ${limpiar(u.rol || "Sin rol")}</div>
         </div>
       </div>
-      <button id="zx_salir">Salir</button>
+
+      <button id="zx_salir" type="button">Salir</button>
     </div>
   `;
 
   document.body.insertBefore(t,app());
 
   $("zx_salir").onclick=function(){
-    localStorage.clear();
+    localStorage.removeItem("zentryx_session");
+    localStorage.removeItem("usuario");
     location.href="index.html?v="+ZX_VERSION;
   };
 }
@@ -201,18 +538,20 @@ function topbar(){
 // ===============================
 // RELOJ + ICONO AGENDA
 // ===============================
-function relojGlobal(){
+function reloj(){
   const r=document.createElement("div");
-  r.id="zx_reloj_global";
+  r.id="zx_reloj";
 
   r.innerHTML=`
-    <div>
-      <div id="zx_reloj_fecha"></div>
-      <div id="zx_reloj_hora"></div>
-    </div>
+    <div id="zx_reloj_inner">
+      <div>
+        <div id="zx_fecha">--/--/----</div>
+        <div id="zx_hora">--:--</div>
+      </div>
 
-    <div id="zx_icono_agenda" onclick="ZX_abrirAgendaHoy()">
-      📅
+      <button id="zx_agenda_btn" type="button" onclick="ZX_abrirAgendaHoy()">
+        📅
+      </button>
     </div>
   `;
 
@@ -228,48 +567,23 @@ function relojGlobal(){
 function actualizarReloj(){
   const d=new Date();
 
-  if($("zx_reloj_fecha")){
-    $("zx_reloj_fecha").textContent=d.toLocaleDateString("es-ES",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"});
-  }
+  const fecha=d.toLocaleDateString("es-ES",{
+    weekday:"long",
+    day:"2-digit",
+    month:"2-digit",
+    year:"numeric"
+  });
 
-  if($("zx_reloj_hora")){
-    $("zx_reloj_hora").textContent=d.toLocaleTimeString("es-ES");
-  }
+  const hora=d.toLocaleTimeString("es-ES",{
+    hour:"2-digit",
+    minute:"2-digit",
+    second:"2-digit"
+  });
+
+  if($("zx_fecha")) $("zx_fecha").textContent=fecha;
+  if($("zx_hora")) $("zx_hora").textContent=hora;
 }
 
-// ===============================
-// CONTADOR AGENDA
-// ===============================
-async function actualizarContadorAgenda(){
-  const el=$("zx_icono_agenda");
-  if(!el) return;
-
-  try{
-    const hoy=new Date().toISOString().slice(0,10);
-
-    const r=await sb()
-      .from("agenda_eventos")
-      .select("id")
-      .lte("fecha_inicio",hoy)
-      .gte("fecha_fin",hoy)
-      .neq("estado","completado");
-
-    if(r.error){
-      el.textContent="📅";
-      return;
-    }
-
-    const total=(r.data || []).length;
-
-    el.textContent= total>0 ? "📅 "+total : "📅";
-
-  }catch(e){
-    el.textContent="📅";
-  }
-}
-// ===============================
-// AGENDA HOY
-// ===============================
 async function eventosHoy(){
   const hoy=new Date().toISOString().slice(0,10);
 
@@ -279,16 +593,29 @@ async function eventosHoy(){
     .lte("fecha_inicio",hoy)
     .gte("fecha_fin",hoy)
     .neq("estado","completado")
-    .order("hora_inicio",{ascending:true});
+    .neq("estado","cancelado")
+    .order("hora_inicio",{ascending:true})
+    .limit(30);
 
-  if(r.error){
-    alert("Error cargando agenda: "+r.error.message);
-    return [];
-  }
-
+  if(r.error) return [];
   return r.data || [];
 }
 
+async function actualizarContadorAgenda(){
+  const btn=$("zx_agenda_btn");
+  if(!btn) return;
+
+  try{
+    const datos=await eventosHoy();
+    btn.textContent=datos.length ? "📅 "+datos.length : "📅";
+  }catch(e){
+    btn.textContent="📅";
+  }
+}
+
+// ===============================
+// PANEL AGENDA HOY
+// ===============================
 function textoTipo(t){
   const m={
     recordatorio:"Nota",
@@ -309,18 +636,12 @@ function renderEventoHoy(e){
   const icono=e.tipo==="recordatorio" ? "📝" : "📅";
 
   return `
-    <div style="
-      background:#f8fafc;
-      border:1px solid #d1d5db;
-      border-radius:18px;
-      padding:14px;
-      margin-top:12px;
-    ">
-      <div style="font-size:18px;font-weight:900;color:#0f172a;">
+    <div class="zx_list_item">
+      <div class="zx_list_title">
         ${icono} ${limpiar(e.titulo || "Evento")}
       </div>
 
-      <div style="margin-top:8px;color:#64748b;font-size:15px;font-weight:800;line-height:1.45;">
+      <div class="zx_list_meta">
         ${limpiar(hora)} · ${limpiar(textoTipo(e.tipo))}
         ${e.usuario ? "<br>Operario: "+limpiar(e.usuario) : ""}
         ${e.cliente ? "<br>Cliente: "+limpiar(e.cliente) : ""}
@@ -329,9 +650,7 @@ function renderEventoHoy(e){
 
       ${
         e.descripcion
-        ? `<div style="margin-top:8px;color:#475569;font-size:15px;font-weight:700;line-height:1.45;">
-            ${limpiar(e.descripcion)}
-          </div>`
+        ? `<div class="zx_list_desc">${limpiar(e.descripcion)}</div>`
         : ""
       }
     </div>
@@ -387,11 +706,24 @@ window.ZX_abrirAgendaDesdePanel=function(){
 };
 
 // ===============================
-// MENÚ
+// NAVEGACIÓN
 // ===============================
+function puedeVerModulo(modulo){
+  if(esAdmin()) return true;
+
+  return [
+    "inicio",
+    "fichaje",
+    "agenda",
+    "horas_extra"
+  ].includes(modulo);
+}
+
 function botonNav(modulo,texto,accion){
+  if(!puedeVerModulo(modulo)) return "";
+
   return `
-    <button class="zx_nav_btn" data-modulo="${modulo}" onclick="${accion}">
+    <button class="zx_nav_btn" data-modulo="${modulo}" type="button" onclick="${accion}">
       ${texto}
     </button>
   `;
@@ -402,14 +734,16 @@ function nav(){
   n.id="zx_nav";
 
   n.innerHTML=`
-    ${botonNav("inicio","Inicio","ZX_inicio()")}
-    ${botonNav("fichaje","Fichaje","ZX_abrirFichaje()")}
-    ${botonNav("usuarios","Usuarios","ZX_usuarios()")}
-    ${botonNav("agenda","Agenda","ZX_abrirAgenda()")}
-    ${botonNav("vehiculos","Vehículos","ZX_vehiculos()")}
-    ${botonNav("incidencias","Incidencias","ZX_incidencias()")}
-    ${botonNav("informes","Informes","ZX_informes()")}
-    ${botonNav("configuracion","Configuración","ZX_configuracion()")}
+    <div id="zx_nav_inner">
+      ${botonNav("inicio","Inicio","ZX_inicio()")}
+      ${botonNav("fichaje","Fichaje","ZX_abrirFichaje()")}
+      ${botonNav("usuarios","Usuarios","ZX_usuarios()")}
+      ${botonNav("agenda","Agenda","ZX_abrirAgenda()")}
+      ${botonNav("vehiculos","Vehículos","ZX_vehiculos()")}
+      ${botonNav("incidencias","Incidencias","ZX_incidencias()")}
+      ${botonNav("informes","Informes","ZX_informes()")}
+      ${botonNav("configuracion","Config.")} 
+    </div>
   `;
 
   document.body.insertBefore(n,app());
@@ -425,11 +759,25 @@ function activo(nombre){
 }
 
 function abrirModulo(nombre,callback){
+  if(!puedeVerModulo(nombre)){
+    activo("");
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Sin permiso</h2>
+        <div class="zx_text">Tu usuario no tiene acceso a este módulo.</div>
+      </div>
+    `;
+    return;
+  }
+
   activo(nombre);
-  if(callback) callback();
+
+  if(callback){
+    callback();
+  }
 }
 // ===============================
-// NOTAS RÁPIDAS
+// NOTAS RÁPIDAS / POST-IT
 // ===============================
 async function cargarNotas(){
   const u=usuarioActual();
@@ -448,18 +796,12 @@ async function cargarNotas(){
 
 function renderNota(n){
   return `
-    <div style="
-      background:#f8fafc;
-      border:1px solid #d1d5db;
-      border-radius:18px;
-      padding:14px;
-      margin-top:12px;
-    ">
-      <div style="font-size:17px;font-weight:900;color:#0f172a;white-space:pre-wrap;">
-        ${limpiar(n.descripcion || n.titulo || "")}
+    <div class="zx_list_item">
+      <div class="zx_list_title">
+        📝 ${limpiar(n.descripcion || n.titulo || "")}
       </div>
 
-      <div style="margin-top:8px;color:#64748b;font-size:14px;font-weight:800;">
+      <div class="zx_list_meta">
         ${limpiar(String(n.fecha_inicio || "").slice(0,10))}
         ${n.hora_inicio ? " · "+limpiar(String(n.hora_inicio).slice(0,5)) : ""}
       </div>
@@ -570,10 +912,15 @@ window.ZX_borrarNotaRapida=async function(id){
 
 function botonPostit(){
   const b=document.createElement("button");
-  b.id="zx_btn_postit_global";
+  b.id="zx_postit";
   b.type="button";
   b.textContent="📝";
-  b.onclick=window.ZX_abrirNotasRapidas;
+
+  b.onclick=function(){
+    if(window.ZX_abrirNotasRapidas){
+      window.ZX_abrirNotasRapidas();
+    }
+  };
 
   document.body.appendChild(b);
 }
@@ -593,6 +940,11 @@ window.ZX_abrirFichaje=function(){
   abrirModulo("fichaje",function(){
     if(window.ZX_fichaje_real){
       window.ZX_fichaje_real();
+      return;
+    }
+
+    if(window.ZX_fichaje){
+      window.ZX_fichaje();
       return;
     }
 
@@ -692,14 +1044,14 @@ window.ZX_configuracion=function(){
 };
 
 // ===============================
-// INICIAR LAYOUT
+// INICIO LAYOUT
 // ===============================
 window.ZENTRYX_UI_LAYOUT={
   iniciar:function(){
-    limpiarLayoutAnterior();
+    limpiarLayout();
     estilos();
     topbar();
-    relojGlobal();
+    reloj();
     nav();
     botonPostit();
   }
