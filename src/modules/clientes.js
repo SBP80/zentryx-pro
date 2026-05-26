@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES PRO
-// V3095
+// V3096 - CONTACTO CORREGIDO + DOCUMENTOS
 // ===============================
 (function(){
 "use strict";
@@ -8,9 +8,6 @@
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
 
-// ===============================
-// UTILS
-// ===============================
 function limpiar(v){
   return String(v ?? "")
     .replaceAll("&","&amp;")
@@ -20,63 +17,128 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
-function telefonoLimpio(t){
-  let n=String(t||"").replace(/[^\d+]/g,"");
+function sesion(){
+  try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}
+  catch(e){return {}}
+}
+
+function cerrarModal(){
+  const m=document.getElementById("zx_modal_cliente");
+  if(m) m.remove();
+}
+
+function telefonoLimpio(tel){
+  let n=String(tel||"").replace(/[^\d+]/g,"");
   if(n.startsWith("+")) return n;
   if(n.length===9) return "+34"+n;
   return n;
 }
 
-// ===============================
-// CONTACTO
-// ===============================
-function menuTelefono(tel){
+function direccionCompleta(c){
+  return [
+    c.via_tipo,
+    c.direccion,
+    c.numero ? "Nº "+c.numero : "",
+    c.portal ? "Portal "+c.portal : "",
+    c.escalera ? "Esc. "+c.escalera : "",
+    c.piso ? "Piso "+c.piso : "",
+    c.puerta ? "Puerta "+c.puerta : "",
+    c.poblacion,
+    c.provincia,
+    c.codigo_postal,
+    c.pais
+  ].filter(Boolean).join(", ");
+}
+
+function menuTelefono(tel,mensaje){
   const n=telefonoLimpio(tel);
-  if(!n){alert("Sin teléfono");return;}
+
+  if(!n){
+    alert("Sin teléfono.");
+    return;
+  }
+
+  const msg=encodeURIComponent(mensaje || "");
 
   document.body.insertAdjacentHTML("beforeend",`
-    <div class="zx_modal_fondo">
+    <div id="zx_modal_cliente" class="zx_modal_fondo">
       <div class="zx_modal_caja">
         <h2>Teléfono</h2>
-        <button class="zx_btn_big zx_azul" onclick="location.href='tel:${n}'">Llamar</button>
-        <button class="zx_btn_big zx_verde" onclick="location.href='sms:${n}'">SMS</button>
-        <button class="zx_btn_big zx_verde" onclick="location.href='https://wa.me/${n.replace('+','')}'">WhatsApp</button>
-        <button class="zx_btn_big zx_gris" onclick="this.closest('.zx_modal_fondo').remove()">Cerrar</button>
+
+        <button class="zx_btn_big zx_azul" id="cli_tel_llamar">Llamar</button>
+        <button class="zx_btn_big zx_verde" id="cli_tel_sms">SMS</button>
+        <button class="zx_btn_big zx_verde" id="cli_tel_was">WhatsApp</button>
+        <button class="zx_btn_big zx_gris" id="cli_tel_cerrar">Cerrar</button>
       </div>
     </div>
   `);
+
+  document.getElementById("cli_tel_llamar").onclick=function(){
+    location.href="tel:"+n;
+  };
+
+  document.getElementById("cli_tel_sms").onclick=function(){
+    location.href="sms:"+n+(mensaje ? "&body="+msg : "");
+  };
+
+  document.getElementById("cli_tel_was").onclick=function(){
+    location.href="https://wa.me/"+n.replace("+","")+(mensaje ? "?text="+msg : "");
+  };
+
+  document.getElementById("cli_tel_cerrar").onclick=cerrarModal;
 }
 
 function enviarMail(email){
-  if(!email){alert("Sin email");return;}
+  if(!email){
+    alert("Sin email.");
+    return;
+  }
+
   location.href="mailto:"+email;
 }
 
-function abrirMapa(dir){
-  if(!dir){alert("Sin dirección");return;}
+function menuMapa(dir){
+  if(!dir){
+    alert("Sin dirección.");
+    return;
+  }
+
   const q=encodeURIComponent(dir);
 
   document.body.insertAdjacentHTML("beforeend",`
-    <div class="zx_modal_fondo">
+    <div id="zx_modal_cliente" class="zx_modal_fondo">
       <div class="zx_modal_caja">
         <h2>Mapa</h2>
-        <button class="zx_btn_big zx_azul" onclick="location.href='https://maps.apple.com/?q=${q}'">Apple</button>
-        <button class="zx_btn_big zx_verde" onclick="location.href='https://www.google.com/maps/search/?api=1&query=${q}'">Google</button>
-        <button class="zx_btn_big zx_naranja" onclick="location.href='https://waze.com/ul?q=${q}'">Waze</button>
-        <button class="zx_btn_big zx_gris" onclick="this.closest('.zx_modal_fondo').remove()">Cerrar</button>
+
+        <button class="zx_btn_big zx_azul" id="cli_map_apple">Apple Maps</button>
+        <button class="zx_btn_big zx_verde" id="cli_map_google">Google Maps</button>
+        <button class="zx_btn_big zx_naranja" id="cli_map_waze">Waze</button>
+        <button class="zx_btn_big zx_gris" id="cli_map_cerrar">Cerrar</button>
       </div>
     </div>
   `);
+
+  document.getElementById("cli_map_apple").onclick=function(){
+    location.href="https://maps.apple.com/?q="+q;
+  };
+
+  document.getElementById("cli_map_google").onclick=function(){
+    location.href="https://www.google.com/maps/search/?api=1&query="+q;
+  };
+
+  document.getElementById("cli_map_waze").onclick=function(){
+    location.href="https://waze.com/ul?q="+q;
+  };
+
+  document.getElementById("cli_map_cerrar").onclick=cerrarModal;
 }
 
-// ===============================
-// STORAGE (DOCUMENTOS)
-// ===============================
-async function subirDocumento(file,nombre){
+async function subirArchivo(file,nombre){
   if(!file) return null;
 
-  const ext=file.name.split(".").pop();
-  const path="clientes/"+nombre+"_"+Date.now()+"."+ext;
+  const ext=(file.name.split(".").pop() || "dat").toLowerCase();
+  const limpio=String(nombre || "cliente").replace(/[^a-zA-Z0-9_-]/g,"_");
+  const path="clientes/"+limpio+"_"+Date.now()+"."+ext;
 
   const r=await sb().storage
     .from("zentryx-clientes")
@@ -92,31 +154,264 @@ async function subirDocumento(file,nombre){
     .getPublicUrl(path).data.publicUrl;
 }
 
-// ===============================
-// DATOS
-// ===============================
 async function cargarClientes(){
   const r=await sb()
     .from("clientes")
     .select("*")
-    .order("id",{ascending:false});
+    .order("nombre",{ascending:true});
 
   if(r.error){
-    app().innerHTML=`<div class="zx_card"><h2>Error</h2>${r.error.message}</div>`;
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Error</h2>
+        <div class="zx_text">${limpiar(r.error.message)}</div>
+      </div>
+    `;
     return [];
   }
 
   return r.data || [];
 }
 
-// ===============================
-// UI
-// ===============================
-window.ZX_clientes=async function(){
+function renderCliente(c){
+  const dir=direccionCompleta(c);
 
+  return `
+    <div class="zx_user_card">
+      <div class="zx_user_name">${limpiar(c.nombre || "Cliente")}</div>
+
+      <div class="zx_user_data">
+        <b>Tipo:</b> ${limpiar(c.tipo || "-")}<br>
+        <b>NIF:</b> ${limpiar(c.nif || "-")}<br>
+        <b>Teléfono:</b> ${limpiar(c.telefono || "-")}<br>
+        <b>Email:</b> ${limpiar(c.email || "-")}<br>
+        <b>Contacto:</b> ${limpiar(c.persona_contacto || "-")}<br>
+        <b>Dirección:</b> ${limpiar(dir || "-")}<br>
+        <b>Notas:</b> ${limpiar(c.notas || "-")}
+      </div>
+
+      <div class="zx_user_actions">
+        ${c.telefono ? `<button class="zx_action_btn" data-cli-tel="${limpiar(c.telefono)}" data-cli-msg="${limpiar(c.mensaje_predefinido || "")}">Teléfono</button>` : ""}
+        ${c.email ? `<button class="zx_action_btn" data-cli-mail="${limpiar(c.email)}">Mail</button>` : ""}
+        ${dir ? `<button class="zx_action_btn" data-cli-map="${limpiar(dir)}">Mapa</button>` : ""}
+        ${c.documento_url ? `<button class="zx_action_btn zx_blue" data-cli-doc="${limpiar(c.documento_url)}">Documento</button>` : ""}
+      </div>
+
+      <div class="zx_user_actions">
+        <button class="zx_action_btn zx_blue" data-cli-edit="${limpiar(c.id)}">Editar</button>
+        <button class="zx_action_btn zx_red" data-cli-del="${limpiar(c.id)}">Borrar</button>
+      </div>
+    </div>
+  `;
+}
+
+function input(id,label,value,type){
+  return `
+    <label class="zx_label" for="${id}">${label}</label>
+    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${label}">
+  `;
+}
+
+function selectTipo(valor){
+  const opciones=["particular","empresa","comunidad","administración","otro"];
+
+  return `
+    <label class="zx_label" for="c_tipo">Tipo</label>
+    <select id="c_tipo">
+      ${opciones.map(o=>`
+        <option value="${limpiar(o)}" ${String(valor||"particular")===o ? "selected" : ""}>
+          ${limpiar(o)}
+        </option>
+      `).join("")}
+    </select>
+  `;
+}
+
+function selectVia(valor){
+  const opciones=["","Calle","Avenida","Plaza","Camino","Carretera","Paseo","Ronda","Travesía","Urbanización","Polígono"];
+
+  return `
+    <label class="zx_label" for="c_via_tipo">Tipo de vía</label>
+    <select id="c_via_tipo">
+      ${opciones.map(o=>`
+        <option value="${limpiar(o)}" ${String(valor||"")===o ? "selected" : ""}>
+          ${limpiar(o || "Seleccionar")}
+        </option>
+      `).join("")}
+    </select>
+  `;
+}
+
+function formulario(c={}){
+  cerrarModal();
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_cliente" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>${c.id ? "Editar cliente" : "Nuevo cliente"}</h2>
+
+        ${input("c_nombre","Nombre",c.nombre)}
+        ${selectTipo(c.tipo)}
+        ${input("c_nif","NIF / CIF",c.nif)}
+        ${input("c_persona_contacto","Persona de contacto",c.persona_contacto)}
+        ${input("c_telefono","Teléfono",c.telefono,"tel")}
+        ${input("c_telefono_2","Teléfono 2",c.telefono_2,"tel")}
+        ${input("c_email","Email",c.email,"email")}
+
+        <h3 class="zx_form_subtitle">Dirección</h3>
+
+        ${selectVia(c.via_tipo || "")}
+        ${input("c_direccion","Dirección",c.direccion)}
+        ${input("c_numero","Número",c.numero)}
+        ${input("c_portal","Portal",c.portal)}
+        ${input("c_escalera","Escalera",c.escalera)}
+        ${input("c_piso","Piso",c.piso)}
+        ${input("c_puerta","Puerta",c.puerta)}
+        ${input("c_codigo_postal","Código postal",c.codigo_postal)}
+        ${input("c_poblacion","Población",c.poblacion)}
+        ${input("c_provincia","Provincia",c.provincia)}
+        ${input("c_pais","País",c.pais || "España")}
+
+        <h3 class="zx_form_subtitle">Documentación</h3>
+
+        <label class="zx_label" for="c_documento">Documento</label>
+        <input id="c_documento" type="file" accept="image/*,.pdf,.doc,.docx">
+
+        ${
+          c.documento_url
+          ? `<a class="zx_btn_big zx_azul" href="${limpiar(c.documento_url)}" target="_blank">Ver documento actual</a>`
+          : ""
+        }
+
+        <h3 class="zx_form_subtitle">Notas y mensaje</h3>
+
+        <label class="zx_label" for="c_notas">Notas</label>
+        <textarea id="c_notas" rows="4" placeholder="Notas">${limpiar(c.notas || "")}</textarea>
+
+        <label class="zx_label" for="c_mensaje">Mensaje predefinido WhatsApp/SMS</label>
+        <textarea id="c_mensaje" rows="4" placeholder="Mensaje">${limpiar(c.mensaje_predefinido || "")}</textarea>
+
+        <button class="zx_btn_big zx_verde" id="btn_guardar_cliente">
+          Guardar cliente
+        </button>
+
+        <button class="zx_btn_big zx_gris" id="btn_cancelar_cliente">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  `);
+
+  document.getElementById("btn_cancelar_cliente").onclick=cerrarModal;
+
+  document.getElementById("btn_guardar_cliente").onclick=function(){
+    guardarCliente(c.id || null,c.documento_url || null,c.documento_nombre || null);
+  };
+}
+
+async function guardarCliente(id,documentoActual,nombreDocActual){
+  const s=sesion();
+
+  const nombre=document.getElementById("c_nombre").value.trim();
+
+  if(!nombre){
+    alert("Nombre obligatorio.");
+    return;
+  }
+
+  const file=document.getElementById("c_documento").files[0] || null;
+  const docUrl=await subirArchivo(file,nombre);
+
+  const datos={
+    nombre,
+    tipo:document.getElementById("c_tipo").value,
+    nif:document.getElementById("c_nif").value.trim(),
+    persona_contacto:document.getElementById("c_persona_contacto").value.trim(),
+    telefono:document.getElementById("c_telefono").value.trim(),
+    telefono_2:document.getElementById("c_telefono_2").value.trim(),
+    email:document.getElementById("c_email").value.trim().toLowerCase(),
+
+    via_tipo:document.getElementById("c_via_tipo").value,
+    direccion:document.getElementById("c_direccion").value.trim(),
+    numero:document.getElementById("c_numero").value.trim(),
+    portal:document.getElementById("c_portal").value.trim(),
+    escalera:document.getElementById("c_escalera").value.trim(),
+    piso:document.getElementById("c_piso").value.trim(),
+    puerta:document.getElementById("c_puerta").value.trim(),
+    codigo_postal:document.getElementById("c_codigo_postal").value.trim(),
+    poblacion:document.getElementById("c_poblacion").value.trim(),
+    provincia:document.getElementById("c_provincia").value.trim(),
+    pais:document.getElementById("c_pais").value.trim(),
+
+    notas:document.getElementById("c_notas").value.trim(),
+    mensaje_predefinido:document.getElementById("c_mensaje").value.trim(),
+
+    documento_url:docUrl || documentoActual || null,
+    documento_nombre:file ? file.name : nombreDocActual || null,
+
+    creado_por:s.usuario || "",
+    usuario_id:String(s.id || "")
+  };
+
+  let r;
+
+  if(id){
+    r=await sb()
+      .from("clientes")
+      .update(datos)
+      .eq("id",id);
+  }else{
+    r=await sb()
+      .from("clientes")
+      .insert([datos]);
+  }
+
+  if(r.error){
+    alert("Error guardando cliente: "+r.error.message);
+    return;
+  }
+
+  cerrarModal();
+  ZX_clientes();
+}
+
+async function editarCliente(id){
+  const r=await sb()
+    .from("clientes")
+    .select("*")
+    .eq("id",id)
+    .maybeSingle();
+
+  if(r.error || !r.data){
+    alert("Cliente no encontrado.");
+    return;
+  }
+
+  formulario(r.data);
+}
+
+async function borrarCliente(id){
+  if(!confirm("¿Borrar cliente?")) return;
+
+  const r=await sb()
+    .from("clientes")
+    .delete()
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error borrando cliente: "+r.error.message);
+    return;
+  }
+
+  ZX_clientes();
+}
+
+window.ZX_clientes=async function(){
   document.querySelectorAll(".zx_nav_btn").forEach(b=>{
     b.classList.remove("zx_activo");
-    if(b.dataset.modulo==="clientes") b.classList.add("zx_activo");
+    if(b.dataset.modulo==="clientes"){
+      b.classList.add("zx_activo");
+    }
   });
 
   const datos=await cargarClientes();
@@ -124,118 +419,131 @@ window.ZX_clientes=async function(){
   app().innerHTML=`
     <div class="zx_card">
       <h2>Clientes</h2>
-      <div class="zx_text">Gestión de clientes y direcciones.</div>
-      <button class="zx_btn_big zx_verde" id="nuevo">Nuevo cliente</button>
+      <div class="zx_text">Gestión de clientes, contacto, dirección y documentación.</div>
+
+      <button class="zx_btn_big zx_verde" id="btn_nuevo_cliente">
+        Nuevo cliente
+      </button>
     </div>
 
     <div class="zx_card">
+      <h2>Listado</h2>
       ${
         datos.length
-        ? datos.map(c=>renderCliente(c)).join("")
+        ? datos.map(renderCliente).join("")
         : `<div class="zx_text">No hay clientes.</div>`
       }
     </div>
   `;
 
-  document.getElementById("nuevo").onclick=()=>formulario({});
+  document.getElementById("btn_nuevo_cliente").onclick=function(){
+    formulario({});
+  };
+
+  document.querySelectorAll("[data-cli-tel]").forEach(btn=>{
+    btn.onclick=function(){
+      menuTelefono(btn.dataset.cliTel,btn.dataset.cliMsg);
+    };
+  });
+
+  document.querySelectorAll("[data-cli-mail]").forEach(btn=>{
+    btn.onclick=function(){
+      enviarMail(btn.dataset.cliMail);
+    };
+  });
+
+  document.querySelectorAll("[data-cli-map]").forEach(btn=>{
+    btn.onclick=function(){
+      menuMapa(btn.dataset.cliMap);
+    };
+  });
+
+  document.querySelectorAll("[data-cli-doc]").forEach(btn=>{
+    btn.onclick=function(){
+      window.open(btn.dataset.cliDoc,"_blank");
+    };
+  });
+
+  document.querySelectorAll("[data-cli-edit]").forEach(btn=>{
+    btn.onclick=function(){
+      editarCliente(btn.dataset.cliEdit);
+    };
+  });
+
+  document.querySelectorAll("[data-cli-del]").forEach(btn=>{
+    btn.onclick=function(){
+      borrarCliente(btn.dataset.cliDel);
+    };
+  });
 };
 
-// ===============================
-// RENDER
-// ===============================
-function direccion(c){
-  return [
-    c.calle,
-    c.numero,
-    c.poblacion,
-    c.codigo_postal
-  ].filter(Boolean).join(", ");
-}
+(function estilosClientes(){
+  if(document.getElementById("zx_clientes_v3096")) return;
 
-function renderCliente(c){
-  const dir=direccion(c);
+  const s=document.createElement("style");
+  s.id="zx_clientes_v3096";
 
-  return `
-    <div class="zx_user_card">
-      <div class="zx_user_name">${limpiar(c.nombre||"-")}</div>
-
-      <div class="zx_user_data">
-        Tel: ${limpiar(c.telefono||"-")}<br>
-        Email: ${limpiar(c.email||"-")}<br>
-        Dirección: ${limpiar(dir||"-")}
-      </div>
-
-      <div class="zx_user_actions">
-        ${c.telefono ? `<button onclick="(${menuTelefono})('${c.telefono}')">Tel</button>`:""}
-        ${c.email ? `<button onclick="(${enviarMail})('${c.email}')">Mail</button>`:""}
-        ${dir ? `<button onclick="(${abrirMapa})('${dir}')">Mapa</button>`:""}
-      </div>
-
-      ${
-        c.doc_url
-        ? `<a href="${c.doc_url}" target="_blank" class="zx_btn zx_azul">Ver documento</a>`
-        : ""
-      }
-    </div>
-  `;
-}
-
-// ===============================
-// FORM
-// ===============================
-function formulario(c){
-
-  document.body.insertAdjacentHTML("beforeend",`
-    <div class="zx_modal_fondo">
-      <div class="zx_modal_caja">
-        <h2>Cliente</h2>
-
-        <input id="c_nombre" placeholder="Nombre" value="${limpiar(c.nombre||"")}">
-        <input id="c_telefono" placeholder="Teléfono" value="${limpiar(c.telefono||"")}">
-        <input id="c_email" placeholder="Email" value="${limpiar(c.email||"")}">
-        <input id="c_calle" placeholder="Calle" value="${limpiar(c.calle||"")}">
-        <input id="c_numero" placeholder="Número" value="${limpiar(c.numero||"")}">
-        <input id="c_poblacion" placeholder="Población" value="${limpiar(c.poblacion||"")}">
-        <input id="c_cp" placeholder="CP" value="${limpiar(c.codigo_postal||"")}">
-
-        <label>Documento</label>
-        <input type="file" id="c_doc">
-
-        <button class="zx_btn_big zx_verde" id="guardar">Guardar</button>
-        <button class="zx_btn_big zx_gris" onclick="this.closest('.zx_modal_fondo').remove()">Cerrar</button>
-      </div>
-    </div>
-  `);
-
-  document.getElementById("guardar").onclick=async function(){
-
-    const nombre=document.getElementById("c_nombre").value.trim();
-    if(!nombre){alert("Nombre obligatorio");return;}
-
-    const file=document.getElementById("c_doc").files[0];
-    const url=await subirDocumento(file,nombre);
-
-    const datos={
-      nombre,
-      telefono:document.getElementById("c_telefono").value,
-      email:document.getElementById("c_email").value,
-      calle:document.getElementById("c_calle").value,
-      numero:document.getElementById("c_numero").value,
-      poblacion:document.getElementById("c_poblacion").value,
-      codigo_postal:document.getElementById("c_cp").value,
-      doc_url:url
-    };
-
-    const r=await sb().from("clientes").insert([datos]);
-
-    if(r.error){
-      alert("Error: "+r.error.message);
-      return;
+  s.innerHTML=`
+    .zx_user_card{
+      background:white;
+      border:1px solid #d1d5db;
+      border-radius:24px;
+      padding:22px;
+      margin:18px 0;
+      box-shadow:0 8px 24px rgba(0,0,0,.04);
     }
 
-    document.querySelector(".zx_modal_fondo").remove();
-    ZX_clientes();
-  };
-}
+    .zx_user_name{
+      font-size:30px;
+      font-weight:900;
+      color:#0f172a;
+      margin-bottom:10px;
+    }
+
+    .zx_user_data{
+      color:#334155;
+      font-size:18px;
+      line-height:1.55;
+      font-weight:700;
+    }
+
+    .zx_user_actions{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+      margin-top:14px;
+    }
+
+    .zx_action_btn{
+      border:0;
+      border-radius:16px;
+      background:#e5e7eb;
+      padding:14px;
+      font-size:17px;
+      font-weight:900;
+      color:#111827;
+    }
+
+    .zx_blue{background:#2563eb;color:white}
+    .zx_red{background:#dc2626;color:white}
+
+    .zx_label{
+      display:block;
+      margin:12px 0 6px;
+      color:#334155;
+      font-size:15px;
+      font-weight:900;
+    }
+
+    .zx_form_subtitle{
+      margin:22px 0 8px;
+      color:#0f172a;
+      font-size:24px;
+      font-weight:900;
+    }
+  `;
+
+  document.head.appendChild(s);
+})();
 
 })();
