@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3090 - BASE LIMPIA
+// V3094 - COMPLETO + CLIENTES + TRABAJOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3090";
+const ZX_VERSION="3094";
 
 // ===============================
 // BASE
@@ -36,6 +36,7 @@ function esAdmin(){
   return String(u.rol).toLowerCase()==="administrador" ||
          String(u.usuario).toLowerCase()==="admin";
 }
+
 function limpiar(v){
   return String(v ?? "")
     .replaceAll("&","&amp;")
@@ -49,19 +50,18 @@ function limpiar(v){
 // LIMPIAR LAYOUT
 // ===============================
 function limpiarLayout(){
-
   [
     "zx_topbar",
     "zx_nav",
     "zx_reloj",
     "zx_postit",
     "zx_css"
-  ].forEach(id=>{
+  ].forEach(function(id){
     const el=$(id);
     if(el) el.remove();
   });
-
 }
+
 // ===============================
 // ESTILOS
 // ===============================
@@ -226,8 +226,7 @@ function estilos(){
       box-shadow:0 8px 18px rgba(0,0,0,.18);
       flex:none;
     }
-
-    #zx_nav{
+        #zx_nav{
       width:100%;
       background:#071330;
       padding:12px 12px 14px;
@@ -239,7 +238,7 @@ function estilos(){
       max-width:1180px;
       margin:0 auto;
       display:grid;
-      grid-template-columns:repeat(4,1fr);
+      grid-template-columns:repeat(2,1fr);
       gap:8px;
     }
 
@@ -460,10 +459,6 @@ function estilos(){
         font-size:23px;
       }
 
-      #zx_nav_inner{
-        grid-template-columns:repeat(2,1fr);
-      }
-
       .zx_nav_btn{
         font-size:15px;
         padding:13px 8px;
@@ -489,7 +484,7 @@ function estilos(){
 
     @media(min-width:700px){
       #zx_nav_inner{
-        grid-template-columns:repeat(6,1fr);
+        grid-template-columns:repeat(4,1fr);
       }
 
       #app{
@@ -499,7 +494,7 @@ function estilos(){
 
     @media(min-width:1024px){
       #zx_nav_inner{
-        grid-template-columns:repeat(8,1fr);
+        grid-template-columns:repeat(6,1fr);
       }
 
       .zx_card{
@@ -664,7 +659,6 @@ function renderEventoHoy(e){
     </div>
   `;
 }
-
 window.ZX_abrirAgendaHoy=async function(){
   const anterior=$("zx_modal_agenda_hoy");
   if(anterior) anterior.remove();
@@ -723,6 +717,8 @@ function puedeVerModulo(modulo){
     "inicio",
     "fichaje",
     "agenda",
+    "clientes",
+    "trabajos",
     "horas_extra"
   ].includes(modulo);
 }
@@ -745,11 +741,11 @@ function nav(){
     <div id="zx_nav_inner">
       ${botonNav("inicio","Inicio","ZX_inicio()")}
       ${botonNav("fichaje","Fichaje","ZX_abrirFichaje()")}
-      ${botonNav("usuarios","Usuarios","ZX_usuarios()")}
       ${botonNav("agenda","Agenda","ZX_abrirAgenda()")}
-      ${botonNav("vehiculos","Vehículos","ZX_vehiculos()")}
-      ${botonNav("incidencias","Incidencias","ZX_incidencias()")}
-      ${botonNav("informes","Informes","ZX_informes()")}
+      ${botonNav("clientes","Clientes","ZX_abrirClientes()")}
+      ${botonNav("trabajos","Trabajos","ZX_abrirTrabajos()")}
+      ${botonNav("usuarios","Usuarios","ZX_usuarios()")}
+      ${botonNav("horas_extra","Horas","ZX_horas_extra()")}
       ${botonNav("configuracion","Config.","ZX_configuracion()")}
     </div>
   `;
@@ -784,6 +780,7 @@ function abrirModulo(nombre,callback){
     callback();
   }
 }
+
 // ===============================
 // NOTAS RÁPIDAS / POST-IT
 // ===============================
@@ -976,6 +973,38 @@ window.ZX_abrirAgenda=function(){
       <div class="zx_card">
         <h2>Agenda</h2>
         <div class="zx_text">No se ha cargado agenda.js.</div>
+      </div>
+    `;
+  });
+};
+
+window.ZX_abrirClientes=function(){
+  abrirModulo("clientes",function(){
+    if(window.ZX_clientes){
+      window.ZX_clientes();
+      return;
+    }
+
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Clientes</h2>
+        <div class="zx_text">No se ha cargado clientes.js.</div>
+      </div>
+    `;
+  });
+};
+
+window.ZX_abrirTrabajos=function(){
+  abrirModulo("trabajos",function(){
+    if(window.ZX_trabajos){
+      window.ZX_trabajos();
+      return;
+    }
+
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Trabajos</h2>
+        <div class="zx_text">No se ha cargado trabajos.js.</div>
       </div>
     `;
   });
