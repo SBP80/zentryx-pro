@@ -1,13 +1,10 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3093 COMPLETO
+// V3096 - CLIENTE + DIRECCIÓN DE OBRA + AGENDA
 // ===============================
 (function(){
 "use strict";
 
-// ===============================
-// BASE
-// ===============================
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
 
@@ -29,11 +26,50 @@ function hoy(){
   return new Date().toISOString().slice(0,10);
 }
 
-// ===============================
-// CARGAS
-// ===============================
+function telefonoLimpio(tel){
+  let n=String(tel||"").replace(/[^\d+]/g,"");
+  if(n.startsWith("+")) return n;
+  if(n.length===9) return "+34"+n;
+  return n;
+}
+
+function cerrarModalTrabajo(){
+  const m=document.getElementById("zx_modal_trabajo");
+  if(m) m.remove();
+}
+
+function direccionCliente(c){
+  return [
+    c.via_tipo,
+    c.direccion,
+    c.numero ? "Nº "+c.numero : "",
+    c.portal ? "Portal "+c.portal : "",
+    c.escalera ? "Esc. "+c.escalera : "",
+    c.piso ? "Piso "+c.piso : "",
+    c.puerta ? "Puerta "+c.puerta : "",
+    c.poblacion,
+    c.provincia,
+    c.codigo_postal,
+    c.pais
+  ].filter(Boolean).join(", ");
+}
+
+function direccionTrabajo(t){
+  return [
+    t.direccion_obra || t.direccion,
+    t.poblacion,
+    t.provincia,
+    t.codigo_postal,
+    t.pais
+  ].filter(Boolean).join(", ");
+}
+
 async function cargarClientes(){
-  const r=await sb().from("clientes").select("*").order("nombre",{ascending:true});
+  const r=await sb()
+    .from("clientes")
+    .select("*")
+    .order("nombre",{ascending:true});
+
   if(r.error) return [];
   return r.data || [];
 }
@@ -49,12 +85,10 @@ async function cargarTrabajos(){
     alert("Error cargando trabajos: "+r.error.message);
     return [];
   }
+
   return r.data || [];
 }
 
-// ===============================
-// HELPERS
-// ===============================
 function textoEstado(e){
   if(e==="pendiente") return "Pendiente";
   if(e==="en_curso") return "En curso";
@@ -69,184 +103,405 @@ function claseEstado(e){
   return "zx_gris";
 }
 
-function direccionCompleta(t){
-  return [t.direccion,t.poblacion].filter(Boolean).join(" ");
+function menuTelefono(tel){
+  const n=telefonoLimpio(tel);
+
+  if(!n){
+    alert("Sin teléfono.");
+    return;
+  }
+
+  cerrarModalTrabajo();
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_trabajo" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Teléfono</h2>
+
+        <button class="zx_btn_big zx_azul" id="tr_tel_llamar">Llamar</button>
+        <button class="zx_btn_big zx_verde" id="tr_tel_sms">SMS</button>
+        <button class="zx_btn_big zx_verde" id="tr_tel_was">WhatsApp</button>
+        <button class="zx_btn_big zx_gris" id="tr_tel_cerrar">Cerrar</button>
+      </div>
+    </div>
+  `);
+
+  document.getElementById("tr_tel_llamar").onclick=function(){
+    location.href="tel:"+n;
+  };
+
+  document.getElementById("tr_tel_sms").onclick=function(){
+    location.href="sms:"+n;
+  };
+
+  document.getElementById("tr_tel_was").onclick=function(){
+    location.href="https://wa.me/"+n.replace("+","");
+  };
+
+  document.getElementById("tr_tel_cerrar").onclick=cerrarModalTrabajo;
 }
 
-// ===============================
-// RENDER
-// ===============================
-function renderTrabajo(t){
+function menuMapa(dir){
+  if(!dir){
+    alert("Sin dirección.");
+    return;
+  }
 
-  const dir=direccionCompleta(t);
+  const q=encodeURIComponent(dir);
+
+  cerrarModalTrabajo();
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_trabajo" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Mapa</h2>
+
+        <button class="zx_btn_big zx_azul" id="tr_map_apple">Apple Maps</button>
+        <button class="zx_btn_big zx_verde" id="tr_map_google">Google Maps</button>
+        <button class="zx_btn_big zx_naranja" id="tr_map_waze">Waze</button>
+        <button class="zx_btn_big zx_gris" id="tr_map_cerrar">Cerrar</button>
+      </div>
+    </div>
+  `);
+
+  document.getElementById("tr_map_apple").onclick=function(){
+    location.href="https://maps.apple.com/?q="+q;
+  };
+
+  document.getElementById("tr_map_google").onclick=function(){
+    location.href="https://www.google.com/maps/search/?api=1&query="+q;
+  };
+
+  document.getElementById("tr_map_waze").onclick=function(){
+    location.href="https://waze.com/ul?q="+q;
+  };
+
+  document.getElementById("tr_map_cerrar").onclick=cerrarModalTrabajo;
+}
+
+function renderTrabajo(t){
+  const dir=direccionTrabajo(t);
 
   return `
-    <div class="zx_card">
+    <div class="zx_user_card">
+      <div class="zx_user_name">${limpiar(t.titulo || "Trabajo")}</div>
 
-      <h3>${limpiar(t.titulo || "Trabajo")}</h3>
-
-      <div class="zx_text">
-        Estado: <b>${limpiar(textoEstado(t.estado))}</b><br>
-        Fecha: <b>${limpiar(t.fecha || "-")}</b>
+      <div class="zx_user_data">
+        <b>Estado:</b> ${limpiar(textoEstado(t.estado))}<br>
+        <b>Fecha:</b> ${limpiar(t.fecha || "-")}
         ${t.hora_inicio ? " · "+limpiar(String(t.hora_inicio).slice(0,5)) : ""}<br>
-
-        ${t.cliente ? "Cliente: <b>"+limpiar(t.cliente)+"</b><br>" : ""}
-        ${t.usuario ? "Operario: <b>"+limpiar(t.usuario)+"</b><br>" : ""}
-        ${dir ? "Dirección: "+limpiar(dir)+"<br>" : ""}
-
-        ${t.descripcion ? "<br>"+limpiar(t.descripcion) : ""}
-        ${t.notas ? "<br>Notas: "+limpiar(t.notas) : ""}
+        <b>Cliente:</b> ${limpiar(t.cliente || "-")}<br>
+        <b>Operario:</b> ${limpiar(t.usuario || "-")}<br>
+        <b>Contacto obra:</b> ${limpiar(t.persona_contacto || "-")}<br>
+        <b>Teléfono contacto:</b> ${limpiar(t.telefono_contacto || "-")}<br>
+        <b>Dirección obra:</b> ${limpiar(dir || "-")}<br>
+        <b>Descripción:</b> ${limpiar(t.descripcion || "-")}<br>
+        <b>Notas:</b> ${limpiar(t.notas || "-")}
       </div>
 
-      <button class="zx_btn_big ${claseEstado(t.estado)}"
-        onclick="ZX_cambiarEstadoTrabajo('${t.id}')">
-        Cambiar estado
-      </button>
+      <div class="zx_user_actions">
+        <button class="zx_action_btn ${claseEstado(t.estado)}" data-tr-estado="${limpiar(t.id)}">
+          Cambiar estado
+        </button>
 
-      ${
-        dir
-        ? `<button class="zx_btn_big zx_azul"
-              onclick="ZX_mapaTrabajo('${encodeURIComponent(dir)}')">
-              Abrir mapa
-            </button>`
-        : ""
-      }
-
-      <button class="zx_btn_big zx_naranja"
-        onclick="ZX_editarTrabajo('${t.id}')">
-        Editar
-      </button>
-
-      <button class="zx_btn_big zx_rojo"
-        onclick="ZX_borrarTrabajo('${t.id}')">
-        Borrar
-      </button>
-
+        ${t.telefono_contacto ? `<button class="zx_action_btn zx_blue" data-tr-tel="${limpiar(t.telefono_contacto)}">Teléfono</button>` : ""}
+        ${dir ? `<button class="zx_action_btn zx_blue" data-tr-map="${limpiar(dir)}">Mapa</button>` : ""}
+        <button class="zx_action_btn zx_blue" data-tr-edit="${limpiar(t.id)}">Editar</button>
+        <button class="zx_action_btn zx_red" data-tr-del="${limpiar(t.id)}">Borrar</button>
+      </div>
     </div>
   `;
 }
 
-// ===============================
-// MAPA
-// ===============================
-window.ZX_mapaTrabajo=function(dir){
-  const d=decodeURIComponent(dir);
-  const google=confirm("Aceptar = Google Maps\nCancelar = Apple Maps");
+function input(id,label,value,type){
+  return `
+    <label class="zx_label" for="${id}">${label}</label>
+    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${label}">
+  `;
+}
 
-  if(google){
-    window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(d));
-  }else{
-    window.open("https://maps.apple.com/?q="+encodeURIComponent(d));
-  }
-};
-
-// ===============================
-// FORMULARIO
-// ===============================
-async function formTrabajo(t={}){
+async function formulario(t={}){
   const clientes=await cargarClientes();
 
-  app().innerHTML=`
-    <div class="zx_card">
+  cerrarModalTrabajo();
 
-      <h2>${t.id ? "Editar trabajo" : "Nuevo trabajo"}</h2>
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_trabajo" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>${t.id ? "Editar trabajo" : "Nuevo trabajo"}</h2>
 
-      <input id="tr_titulo" placeholder="Título" value="${limpiar(t.titulo || "")}">
+        ${input("tr_titulo","Título",t.titulo)}
 
-      <select id="tr_cliente">
-        <option value="">Sin cliente</option>
-        ${clientes.map(c=>`
-          <option value="${c.id}" ${String(t.cliente_id)===String(c.id)?"selected":""}>
-            ${limpiar(c.nombre)}
-          </option>
-        `).join("")}
-      </select>
+        <label class="zx_label" for="tr_cliente">Cliente</label>
+        <select id="tr_cliente">
+          <option value="">Sin cliente</option>
+          ${clientes.map(c=>`
+            <option value="${limpiar(c.id)}" ${String(t.cliente_id||"")===String(c.id) ? "selected" : ""}>
+              ${limpiar(c.nombre || "")}
+            </option>
+          `).join("")}
+        </select>
 
-      <input id="tr_fecha" type="date" value="${limpiar(t.fecha || hoy())}">
-      <input id="tr_hora_inicio" type="time" value="${t.hora_inicio ? String(t.hora_inicio).slice(0,5) : ""}">
-      <input id="tr_hora_fin" type="time" value="${t.hora_fin ? String(t.hora_fin).slice(0,5) : ""}">
+        <label class="zx_label" for="tr_fecha">Fecha</label>
+        <input id="tr_fecha" type="date" value="${limpiar(t.fecha || hoy())}">
 
-      <input id="tr_usuario" placeholder="Operario" value="${limpiar(t.usuario || "")}">
-      <input id="tr_direccion" placeholder="Dirección" value="${limpiar(t.direccion || "")}">
-      <input id="tr_poblacion" placeholder="Población" value="${limpiar(t.poblacion || "")}">
+        <div class="zx_tr_grid2">
+          <div>
+            <label class="zx_label" for="tr_hora_inicio">Hora inicio</label>
+            <input id="tr_hora_inicio" type="time" value="${limpiar(t.hora_inicio ? String(t.hora_inicio).slice(0,5) : "")}">
+          </div>
 
-      <textarea id="tr_descripcion" rows="3">${limpiar(t.descripcion || "")}</textarea>
-      <textarea id="tr_notas" rows="3">${limpiar(t.notas || "")}</textarea>
+          <div>
+            <label class="zx_label" for="tr_hora_fin">Hora fin</label>
+            <input id="tr_hora_fin" type="time" value="${limpiar(t.hora_fin ? String(t.hora_fin).slice(0,5) : "")}">
+          </div>
+        </div>
 
-      <button class="zx_btn_big zx_verde" onclick="ZX_guardarTrabajo('${t.id || ""}')">
-        Guardar
-      </button>
+        ${input("tr_usuario","Operario",t.usuario)}
+        ${input("tr_persona_contacto","Persona contacto obra",t.persona_contacto)}
+        ${input("tr_telefono_contacto","Teléfono contacto obra",t.telefono_contacto,"tel")}
 
-      <button class="zx_btn_big zx_gris" onclick="ZX_trabajos()">
-        Volver
-      </button>
+        <h3 class="zx_form_subtitle">Dirección cliente</h3>
+        <textarea id="tr_direccion_cliente" rows="3" readonly>${limpiar(t.direccion_cliente || "")}</textarea>
 
+        <h3 class="zx_form_subtitle">Dirección de obra</h3>
+        <div class="zx_text">Puede ser distinta a la dirección del cliente.</div>
+
+        ${input("tr_direccion_obra","Dirección obra",t.direccion_obra || t.direccion)}
+        ${input("tr_poblacion","Población",t.poblacion)}
+        ${input("tr_provincia","Provincia",t.provincia)}
+        ${input("tr_codigo_postal","Código postal",t.codigo_postal)}
+        ${input("tr_pais","País",t.pais || "España")}
+
+        <button class="zx_btn_big zx_azul" id="tr_copiar_direccion">
+          Usar dirección del cliente como obra
+        </button>
+
+        <label class="zx_label" for="tr_descripcion">Descripción</label>
+        <textarea id="tr_descripcion" rows="4" placeholder="Descripción">${limpiar(t.descripcion || "")}</textarea>
+
+        <label class="zx_label" for="tr_notas">Notas internas</label>
+        <textarea id="tr_notas" rows="4" placeholder="Notas">${limpiar(t.notas || "")}</textarea>
+
+        <button class="zx_btn_big zx_verde" id="tr_guardar">
+          Guardar trabajo
+        </button>
+
+        <button class="zx_btn_big zx_gris" id="tr_cancelar">
+          Cancelar
+        </button>
+      </div>
     </div>
-  `;
+  `);
+
+  const sel=document.getElementById("tr_cliente");
+
+  function cargarDatosCliente(){
+    const c=clientes.find(x=>String(x.id)===String(sel.value));
+
+    if(!c){
+      document.getElementById("tr_direccion_cliente").value="";
+      return;
+    }
+
+    const dirCliente=direccionCliente(c);
+
+    document.getElementById("tr_direccion_cliente").value=dirCliente;
+    document.getElementById("tr_persona_contacto").value=c.persona_contacto || "";
+    document.getElementById("tr_telefono_contacto").value=c.telefono || "";
+
+    if(!document.getElementById("tr_direccion_obra").value){
+      document.getElementById("tr_direccion_obra").value=c.direccion || "";
+      document.getElementById("tr_poblacion").value=c.poblacion || "";
+      document.getElementById("tr_provincia").value=c.provincia || "";
+      document.getElementById("tr_codigo_postal").value=c.codigo_postal || "";
+      document.getElementById("tr_pais").value=c.pais || "España";
+    }
+  }
+
+  sel.onchange=cargarDatosCliente;
+
+  document.getElementById("tr_copiar_direccion").onclick=function(){
+    const c=clientes.find(x=>String(x.id)===String(sel.value));
+
+    if(!c){
+      alert("Selecciona un cliente.");
+      return;
+    }
+
+    document.getElementById("tr_direccion_obra").value=c.direccion || "";
+    document.getElementById("tr_poblacion").value=c.poblacion || "";
+    document.getElementById("tr_provincia").value=c.provincia || "";
+    document.getElementById("tr_codigo_postal").value=c.codigo_postal || "";
+    document.getElementById("tr_pais").value=c.pais || "España";
+  };
+
+  if(t.cliente_id){
+    const c=clientes.find(x=>String(x.id)===String(t.cliente_id));
+    if(c && !t.direccion_cliente){
+      document.getElementById("tr_direccion_cliente").value=direccionCliente(c);
+    }
+  }
+
+  document.getElementById("tr_cancelar").onclick=cerrarModalTrabajo;
+
+  document.getElementById("tr_guardar").onclick=function(){
+    guardarTrabajo(t.id || null,clientes);
+  };
 }
 
-// ===============================
-// CRUD
-// ===============================
-window.ZX_nuevoTrabajo=function(){
-  formTrabajo();
-};
+async function sincronizarAgenda(trabajoId,data){
+  if(!trabajoId) return;
 
-window.ZX_guardarTrabajo=async function(id){
+  const existe=await sb()
+    .from("agenda_eventos")
+    .select("id")
+    .eq("origen","trabajos")
+    .eq("origen_id",String(trabajoId))
+    .limit(1);
 
+  const agendaData={
+    tipo:"trabajo",
+    titulo:"Trabajo - "+data.titulo,
+    descripcion:data.descripcion || "",
+    fecha_inicio:data.fecha,
+    fecha_fin:data.fecha,
+    hora_inicio:data.hora_inicio,
+    hora_fin:data.hora_fin,
+    cliente_id:String(data.cliente_id || ""),
+    cliente:data.cliente || "",
+    usuario:data.usuario || "",
+    estado:data.estado==="terminado" ? "completado" : "activo",
+    prioridad:"normal",
+    visible_para:"todos",
+    origen:"trabajos",
+    origen_id:String(trabajoId),
+    creado_por:data.creado_por || ""
+  };
+
+  if(existe.error) return;
+
+  if(existe.data && existe.data.length){
+    await sb()
+      .from("agenda_eventos")
+      .update(agendaData)
+      .eq("id",existe.data[0].id);
+  }else{
+    await sb()
+      .from("agenda_eventos")
+      .insert([agendaData]);
+  }
+}
+
+async function guardarTrabajo(id,clientes){
   const s=sesion();
+
+  const clienteId=document.getElementById("tr_cliente").value || null;
+  const cliente=clientes.find(x=>String(x.id)===String(clienteId));
 
   const data={
     titulo:document.getElementById("tr_titulo").value.trim(),
-    cliente_id:document.getElementById("tr_cliente").value || null,
+    cliente_id:clienteId,
+    cliente:cliente ? cliente.nombre || "" : "",
+    usuario:document.getElementById("tr_usuario").value.trim(),
+
     fecha:document.getElementById("tr_fecha").value || hoy(),
     hora_inicio:document.getElementById("tr_hora_inicio").value || null,
     hora_fin:document.getElementById("tr_hora_fin").value || null,
-    usuario:document.getElementById("tr_usuario").value.trim(),
-    direccion:document.getElementById("tr_direccion").value.trim(),
+
+    direccion_cliente:document.getElementById("tr_direccion_cliente").value.trim(),
+    direccion_obra:document.getElementById("tr_direccion_obra").value.trim(),
+    direccion:document.getElementById("tr_direccion_obra").value.trim(),
     poblacion:document.getElementById("tr_poblacion").value.trim(),
+    provincia:document.getElementById("tr_provincia").value.trim(),
+    codigo_postal:document.getElementById("tr_codigo_postal").value.trim(),
+    pais:document.getElementById("tr_pais").value.trim(),
+
+    persona_contacto:document.getElementById("tr_persona_contacto").value.trim(),
+    telefono_contacto:document.getElementById("tr_telefono_contacto").value.trim(),
+
     descripcion:document.getElementById("tr_descripcion").value.trim(),
     notas:document.getElementById("tr_notas").value.trim(),
-    creado_por:s.usuario || ""
+
+    creado_por:s.usuario || "",
+    estado:"pendiente"
   };
 
   if(!data.titulo){
-    alert("Introduce título");
+    alert("Introduce título.");
     return;
   }
 
   let r;
 
   if(id){
-    r=await sb().from("trabajos").update(data).eq("id",id);
+    delete data.estado;
+
+    r=await sb()
+      .from("trabajos")
+      .update(data)
+      .eq("id",id)
+      .select()
+      .maybeSingle();
   }else{
-    r=await sb().from("trabajos").insert([data]);
+    r=await sb()
+      .from("trabajos")
+      .insert([data])
+      .select()
+      .maybeSingle();
   }
 
   if(r.error){
-    alert("Error: "+r.error.message);
+    alert("Error guardando trabajo: "+r.error.message);
     return;
   }
 
+  const trabajoId=id || r.data?.id;
+
+  await sincronizarAgenda(trabajoId,{
+    ...data,
+    estado:id ? "pendiente" : data.estado
+  });
+
+  cerrarModalTrabajo();
   ZX_trabajos();
+}
+
+window.ZX_nuevoTrabajo=function(){
+  formulario({});
 };
 
 window.ZX_editarTrabajo=async function(id){
-  const r=await sb().from("trabajos").select("*").eq("id",id).maybeSingle();
+  const r=await sb()
+    .from("trabajos")
+    .select("*")
+    .eq("id",id)
+    .maybeSingle();
+
   if(r.error || !r.data){
-    alert("No encontrado");
+    alert("Trabajo no encontrado.");
     return;
   }
-  formTrabajo(r.data);
+
+  formulario(r.data);
 };
 
 window.ZX_borrarTrabajo=async function(id){
   if(!confirm("¿Borrar trabajo?")) return;
 
-  const r=await sb().from("trabajos").delete().eq("id",id);
+  await sb()
+    .from("agenda_eventos")
+    .delete()
+    .eq("origen","trabajos")
+    .eq("origen_id",String(id));
+
+  const r=await sb()
+    .from("trabajos")
+    .delete()
+    .eq("id",id);
 
   if(r.error){
-    alert("Error borrando");
+    alert("Error borrando trabajo: "+r.error.message);
     return;
   }
 
@@ -254,41 +509,195 @@ window.ZX_borrarTrabajo=async function(id){
 };
 
 window.ZX_cambiarEstadoTrabajo=async function(id){
+  const r0=await sb()
+    .from("trabajos")
+    .select("*")
+    .eq("id",id)
+    .maybeSingle();
 
-  const r=await sb().from("trabajos").select("*").eq("id",id).maybeSingle();
-  if(r.error || !r.data) return;
+  if(r0.error || !r0.data){
+    alert("Trabajo no encontrado.");
+    return;
+  }
+
+  const actual=r0.data.estado || "pendiente";
 
   let nuevo="en_curso";
-  if(r.data.estado==="en_curso") nuevo="terminado";
-  if(r.data.estado==="terminado") nuevo="pendiente";
+  if(actual==="en_curso") nuevo="terminado";
+  if(actual==="terminado") nuevo="pendiente";
 
-  await sb().from("trabajos").update({estado:nuevo}).eq("id",id);
+  const r=await sb()
+    .from("trabajos")
+    .update({estado:nuevo})
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error cambiando estado: "+r.error.message);
+    return;
+  }
+
+  await sb()
+    .from("agenda_eventos")
+    .update({estado:nuevo==="terminado" ? "completado" : "activo"})
+    .eq("origen","trabajos")
+    .eq("origen_id",String(id));
 
   ZX_trabajos();
 };
 
-// ===============================
-// LISTADO
-// ===============================
+function resumen(datos){
+  const pendientes=datos.filter(t=>t.estado==="pendiente").length;
+  const curso=datos.filter(t=>t.estado==="en_curso").length;
+  const terminados=datos.filter(t=>t.estado==="terminado").length;
+
+  return `
+    <div class="zx_card">
+      <h2>Trabajos</h2>
+
+      <div class="zx_text">
+        Pendientes: <b>${pendientes}</b><br>
+        En curso: <b>${curso}</b><br>
+        Terminados: <b>${terminados}</b>
+      </div>
+
+      <button class="zx_btn_big zx_verde" id="btn_nuevo_trabajo">
+        Nuevo trabajo
+      </button>
+    </div>
+  `;
+}
+
 window.ZX_trabajos=async function(){
+  document.querySelectorAll(".zx_nav_btn").forEach(b=>{
+    b.classList.remove("zx_activo");
+    if(b.dataset.modulo==="trabajos"){
+      b.classList.add("zx_activo");
+    }
+  });
 
   const datos=await cargarTrabajos();
 
   app().innerHTML=`
+    ${resumen(datos)}
+
     <div class="zx_card">
-      <h2>Trabajos</h2>
-
-      <button class="zx_btn_big zx_verde" onclick="ZX_nuevoTrabajo()">
-        Nuevo trabajo
-      </button>
+      <h2>Listado</h2>
+      ${
+        datos.length
+        ? datos.map(renderTrabajo).join("")
+        : `<div class="zx_text">Sin trabajos.</div>`
+      }
     </div>
+  `;
 
-    ${
-      datos.length
-      ? datos.map(renderTrabajo).join("")
-      : `<div class="zx_card"><div class="zx_text">Sin trabajos</div></div>`
+  document.getElementById("btn_nuevo_trabajo").onclick=function(){
+    formulario({});
+  };
+
+  document.querySelectorAll("[data-tr-estado]").forEach(btn=>{
+    btn.onclick=function(){
+      ZX_cambiarEstadoTrabajo(btn.dataset.trEstado);
+    };
+  });
+
+  document.querySelectorAll("[data-tr-tel]").forEach(btn=>{
+    btn.onclick=function(){
+      menuTelefono(btn.dataset.trTel);
+    };
+  });
+
+  document.querySelectorAll("[data-tr-map]").forEach(btn=>{
+    btn.onclick=function(){
+      menuMapa(btn.dataset.trMap);
+    };
+  });
+
+  document.querySelectorAll("[data-tr-edit]").forEach(btn=>{
+    btn.onclick=function(){
+      ZX_editarTrabajo(btn.dataset.trEdit);
+    };
+  });
+
+  document.querySelectorAll("[data-tr-del]").forEach(btn=>{
+    btn.onclick=function(){
+      ZX_borrarTrabajo(btn.dataset.trDel);
+    };
+  });
+};
+
+(function estilosTrabajos(){
+  if(document.getElementById("zx_trabajos_v3096")) return;
+
+  const s=document.createElement("style");
+  s.id="zx_trabajos_v3096";
+
+  s.innerHTML=`
+    .zx_tr_grid2{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .zx_user_card{
+      background:white;
+      border:1px solid #d1d5db;
+      border-radius:24px;
+      padding:22px;
+      margin:18px 0;
+      box-shadow:0 8px 24px rgba(0,0,0,.04);
+    }
+
+    .zx_user_name{
+      font-size:30px;
+      font-weight:900;
+      color:#0f172a;
+      margin-bottom:10px;
+    }
+
+    .zx_user_data{
+      color:#334155;
+      font-size:18px;
+      line-height:1.55;
+      font-weight:700;
+    }
+
+    .zx_user_actions{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+      margin-top:14px;
+    }
+
+    .zx_action_btn{
+      border:0;
+      border-radius:16px;
+      background:#e5e7eb;
+      padding:14px;
+      font-size:17px;
+      font-weight:900;
+      color:#111827;
+    }
+
+    .zx_blue{background:#2563eb;color:white}
+    .zx_red{background:#dc2626;color:white}
+
+    .zx_label{
+      display:block;
+      margin:12px 0 6px;
+      color:#334155;
+      font-size:15px;
+      font-weight:900;
+    }
+
+    .zx_form_subtitle{
+      margin:22px 0 8px;
+      color:#0f172a;
+      font-size:24px;
+      font-weight:900;
     }
   `;
-};
+
+  document.head.appendChild(s);
+})();
 
 })();
