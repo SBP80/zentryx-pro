@@ -1,6 +1,6 @@
 // ===============================
-// ZENTRYX PRO - CLIENTES
-// V3092
+// ZENTRYX PRO - CLIENTES PRO
+// V3095
 // ===============================
 (function(){
 "use strict";
@@ -8,14 +8,9 @@
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
 
-function sesion(){
-  try{
-    return JSON.parse(localStorage.getItem("zentryx_session")||"{}");
-  }catch(e){
-    return {};
-  }
-}
-
+// ===============================
+// UTILS
+// ===============================
 function limpiar(v){
   return String(v ?? "")
     .replaceAll("&","&amp;")
@@ -25,22 +20,89 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
-function fechaHoy(){
-  return new Date().toISOString().slice(0,10);
+function telefonoLimpio(t){
+  let n=String(t||"").replace(/[^\d+]/g,"");
+  if(n.startsWith("+")) return n;
+  if(n.length===9) return "+34"+n;
+  return n;
 }
 
 // ===============================
-// CARGAR CLIENTES
+// CONTACTO
+// ===============================
+function menuTelefono(tel){
+  const n=telefonoLimpio(tel);
+  if(!n){alert("Sin teléfono");return;}
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Teléfono</h2>
+        <button class="zx_btn_big zx_azul" onclick="location.href='tel:${n}'">Llamar</button>
+        <button class="zx_btn_big zx_verde" onclick="location.href='sms:${n}'">SMS</button>
+        <button class="zx_btn_big zx_verde" onclick="location.href='https://wa.me/${n.replace('+','')}'">WhatsApp</button>
+        <button class="zx_btn_big zx_gris" onclick="this.closest('.zx_modal_fondo').remove()">Cerrar</button>
+      </div>
+    </div>
+  `);
+}
+
+function enviarMail(email){
+  if(!email){alert("Sin email");return;}
+  location.href="mailto:"+email;
+}
+
+function abrirMapa(dir){
+  if(!dir){alert("Sin dirección");return;}
+  const q=encodeURIComponent(dir);
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Mapa</h2>
+        <button class="zx_btn_big zx_azul" onclick="location.href='https://maps.apple.com/?q=${q}'">Apple</button>
+        <button class="zx_btn_big zx_verde" onclick="location.href='https://www.google.com/maps/search/?api=1&query=${q}'">Google</button>
+        <button class="zx_btn_big zx_naranja" onclick="location.href='https://waze.com/ul?q=${q}'">Waze</button>
+        <button class="zx_btn_big zx_gris" onclick="this.closest('.zx_modal_fondo').remove()">Cerrar</button>
+      </div>
+    </div>
+  `);
+}
+
+// ===============================
+// STORAGE (DOCUMENTOS)
+// ===============================
+async function subirDocumento(file,nombre){
+  if(!file) return null;
+
+  const ext=file.name.split(".").pop();
+  const path="clientes/"+nombre+"_"+Date.now()+"."+ext;
+
+  const r=await sb().storage
+    .from("zentryx-clientes")
+    .upload(path,file,{upsert:true});
+
+  if(r.error){
+    alert("Error subiendo documento: "+r.error.message);
+    return null;
+  }
+
+  return sb().storage
+    .from("zentryx-clientes")
+    .getPublicUrl(path).data.publicUrl;
+}
+
+// ===============================
+// DATOS
 // ===============================
 async function cargarClientes(){
-
   const r=await sb()
     .from("clientes")
     .select("*")
-    .order("nombre",{ascending:true});
+    .order("id",{ascending:false});
 
   if(r.error){
-    alert("Error cargando clientes: "+r.error.message);
+    app().innerHTML=`<div class="zx_card"><h2>Error</h2>${r.error.message}</div>`;
     return [];
   }
 
@@ -48,323 +110,132 @@ async function cargarClientes(){
 }
 
 // ===============================
-// RENDER CLIENTE
-// ===============================
-function renderCliente(c){
-
-  const direccion=[
-    c.direccion,
-    c.numero,
-    c.portal,
-    c.piso,
-    c.puerta,
-    c.codigo_postal,
-    c.poblacion
-  ].filter(Boolean).join(" ");
-
-  return `
-    <div class="zx_card">
-
-      <h3>${limpiar(c.nombre || "Cliente")}</h3>
-
-      <div class="zx_text">
-
-        ${
-          c.telefono
-          ? `📞 ${limpiar(c.telefono)}<br>`
-          : ""
-        }
-
-        ${
-          c.email
-          ? `✉️ ${limpiar(c.email)}<br>`
-          : ""
-        }
-
-        ${
-          direccion
-          ? `📍 ${limpiar(direccion)}<br>`
-          : ""
-        }
-
-        ${
-          c.notas
-          ? `<br>${limpiar(c.notas)}`
-          : ""
-        }
-
-      </div>
-
-      ${
-        c.telefono
-        ? `
-          <button class="zx_btn_big zx_verde"
-            onclick="window.open('tel:${c.telefono}')">
-            Llamar
-          </button>
-
-          <button class="zx_btn_big zx_verde"
-            onclick="window.open('https://wa.me/${String(c.telefono).replace(/\D/g,'')}')">
-            WhatsApp
-          </button>
-        `
-        : ""
-      }
-
-      ${
-        direccion
-        ? `
-          <button class="zx_btn_big zx_azul"
-            onclick="ZX_abrirMapa('${encodeURIComponent(direccion)}')">
-            Abrir mapa
-          </button>
-        `
-        : ""
-      }
-
-      <button class="zx_btn_big zx_naranja"
-        onclick="ZX_editarCliente('${c.id}')">
-        Editar
-      </button>
-
-      <button class="zx_btn_big zx_rojo"
-        onclick="ZX_borrarCliente('${c.id}')">
-        Borrar
-      </button>
-
-    </div>
-  `;
-}
-
-// ===============================
-// MAPA
-// ===============================
-window.ZX_abrirMapa=function(dir){
-
-  const d=decodeURIComponent(dir);
-
-  const menu=confirm(
-    "Aceptar = Google Maps\nCancelar = Apple Maps"
-  );
-
-  if(menu){
-    window.open(
-      "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(d)
-    );
-  }else{
-    window.open(
-      "https://maps.apple.com/?q="+encodeURIComponent(d)
-    );
-  }
-};
-
-// ===============================
-// FORMULARIO
-// ===============================
-function formCliente(c={}){
-
-  return `
-    <div class="zx_card">
-
-      <h2>
-        ${c.id ? "Editar cliente" : "Nuevo cliente"}
-      </h2>
-
-      <input id="zx_cli_nombre"
-        placeholder="Nombre"
-        value="${limpiar(c.nombre || "")}">
-
-      <input id="zx_cli_telefono"
-        placeholder="Teléfono"
-        value="${limpiar(c.telefono || "")}">
-
-      <input id="zx_cli_email"
-        placeholder="Email"
-        value="${limpiar(c.email || "")}">
-
-      <input id="zx_cli_direccion"
-        placeholder="Dirección"
-        value="${limpiar(c.direccion || "")}">
-
-      <input id="zx_cli_numero"
-        placeholder="Número"
-        value="${limpiar(c.numero || "")}">
-
-      <input id="zx_cli_cp"
-        placeholder="Código postal"
-        value="${limpiar(c.codigo_postal || "")}">
-
-      <input id="zx_cli_poblacion"
-        placeholder="Población"
-        value="${limpiar(c.poblacion || "")}">
-
-      <textarea id="zx_cli_notas"
-        rows="4"
-        placeholder="Notas">${limpiar(c.notas || "")}</textarea>
-
-      <button class="zx_btn_big zx_verde"
-        onclick="ZX_guardarCliente('${c.id || ""}')">
-        Guardar cliente
-      </button>
-
-      <button class="zx_btn_big zx_gris"
-        onclick="ZX_clientes()">
-        Volver
-      </button>
-
-    </div>
-  `;
-}
-
-// ===============================
-// NUEVO CLIENTE
-// ===============================
-window.ZX_nuevoCliente=function(){
-
-  app().innerHTML=formCliente();
-};
-
-// ===============================
-// GUARDAR
-// ===============================
-window.ZX_guardarCliente=async function(id){
-
-  const s=sesion();
-
-  const data={
-
-    nombre:document.getElementById("zx_cli_nombre").value.trim(),
-
-    telefono:document.getElementById("zx_cli_telefono").value.trim(),
-
-    email:document.getElementById("zx_cli_email").value.trim(),
-
-    direccion:document.getElementById("zx_cli_direccion").value.trim(),
-
-    numero:document.getElementById("zx_cli_numero").value.trim(),
-
-    codigo_postal:document.getElementById("zx_cli_cp").value.trim(),
-
-    poblacion:document.getElementById("zx_cli_poblacion").value.trim(),
-
-    notas:document.getElementById("zx_cli_notas").value.trim(),
-
-    creado_por:s.usuario || "",
-    usuario_id:String(s.id || "")
-  };
-
-  if(!data.nombre){
-    alert("Introduce nombre.");
-    return;
-  }
-
-  let r;
-
-  if(id){
-
-    r=await sb()
-      .from("clientes")
-      .update(data)
-      .eq("id",id);
-
-  }else{
-
-    r=await sb()
-      .from("clientes")
-      .insert([data]);
-
-  }
-
-  if(r.error){
-    alert("Error guardando cliente: "+r.error.message);
-    return;
-  }
-
-  ZX_clientes();
-};
-
-// ===============================
-// EDITAR
-// ===============================
-window.ZX_editarCliente=async function(id){
-
-  const r=await sb()
-    .from("clientes")
-    .select("*")
-    .eq("id",id)
-    .maybeSingle();
-
-  if(r.error || !r.data){
-    alert("Cliente no encontrado.");
-    return;
-  }
-
-  app().innerHTML=formCliente(r.data);
-};
-
-// ===============================
-// BORRAR
-// ===============================
-window.ZX_borrarCliente=async function(id){
-
-  if(!confirm("¿Borrar cliente?")){
-    return;
-  }
-
-  const r=await sb()
-    .from("clientes")
-    .delete()
-    .eq("id",id);
-
-  if(r.error){
-    alert("Error borrando cliente.");
-    return;
-  }
-
-  ZX_clientes();
-};
-
-// ===============================
-// LISTADO
+// UI
 // ===============================
 window.ZX_clientes=async function(){
 
-  if(window.activo){
-    window.activo("clientes");
-  }
+  document.querySelectorAll(".zx_nav_btn").forEach(b=>{
+    b.classList.remove("zx_activo");
+    if(b.dataset.modulo==="clientes") b.classList.add("zx_activo");
+  });
 
   const datos=await cargarClientes();
 
   app().innerHTML=`
-
     <div class="zx_card">
-
       <h2>Clientes</h2>
-
-      <div class="zx_text">
-        Gestión de clientes y direcciones.
-      </div>
-
-      <button class="zx_btn_big zx_verde"
-        onclick="ZX_nuevoCliente()">
-        Nuevo cliente
-      </button>
-
+      <div class="zx_text">Gestión de clientes y direcciones.</div>
+      <button class="zx_btn_big zx_verde" id="nuevo">Nuevo cliente</button>
     </div>
 
-    ${
-      datos.length
-      ? datos.map(renderCliente).join("")
-      : `
-        <div class="zx_card">
-          <div class="zx_text">
-            No hay clientes.
-          </div>
-        </div>
-      `
+    <div class="zx_card">
+      ${
+        datos.length
+        ? datos.map(c=>renderCliente(c)).join("")
+        : `<div class="zx_text">No hay clientes.</div>`
+      }
+    </div>
+  `;
+
+  document.getElementById("nuevo").onclick=()=>formulario({});
+};
+
+// ===============================
+// RENDER
+// ===============================
+function direccion(c){
+  return [
+    c.calle,
+    c.numero,
+    c.poblacion,
+    c.codigo_postal
+  ].filter(Boolean).join(", ");
+}
+
+function renderCliente(c){
+  const dir=direccion(c);
+
+  return `
+    <div class="zx_user_card">
+      <div class="zx_user_name">${limpiar(c.nombre||"-")}</div>
+
+      <div class="zx_user_data">
+        Tel: ${limpiar(c.telefono||"-")}<br>
+        Email: ${limpiar(c.email||"-")}<br>
+        Dirección: ${limpiar(dir||"-")}
+      </div>
+
+      <div class="zx_user_actions">
+        ${c.telefono ? `<button onclick="(${menuTelefono})('${c.telefono}')">Tel</button>`:""}
+        ${c.email ? `<button onclick="(${enviarMail})('${c.email}')">Mail</button>`:""}
+        ${dir ? `<button onclick="(${abrirMapa})('${dir}')">Mapa</button>`:""}
+      </div>
+
+      ${
+        c.doc_url
+        ? `<a href="${c.doc_url}" target="_blank" class="zx_btn zx_azul">Ver documento</a>`
+        : ""
+      }
+    </div>
+  `;
+}
+
+// ===============================
+// FORM
+// ===============================
+function formulario(c){
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Cliente</h2>
+
+        <input id="c_nombre" placeholder="Nombre" value="${limpiar(c.nombre||"")}">
+        <input id="c_telefono" placeholder="Teléfono" value="${limpiar(c.telefono||"")}">
+        <input id="c_email" placeholder="Email" value="${limpiar(c.email||"")}">
+        <input id="c_calle" placeholder="Calle" value="${limpiar(c.calle||"")}">
+        <input id="c_numero" placeholder="Número" value="${limpiar(c.numero||"")}">
+        <input id="c_poblacion" placeholder="Población" value="${limpiar(c.poblacion||"")}">
+        <input id="c_cp" placeholder="CP" value="${limpiar(c.codigo_postal||"")}">
+
+        <label>Documento</label>
+        <input type="file" id="c_doc">
+
+        <button class="zx_btn_big zx_verde" id="guardar">Guardar</button>
+        <button class="zx_btn_big zx_gris" onclick="this.closest('.zx_modal_fondo').remove()">Cerrar</button>
+      </div>
+    </div>
+  `);
+
+  document.getElementById("guardar").onclick=async function(){
+
+    const nombre=document.getElementById("c_nombre").value.trim();
+    if(!nombre){alert("Nombre obligatorio");return;}
+
+    const file=document.getElementById("c_doc").files[0];
+    const url=await subirDocumento(file,nombre);
+
+    const datos={
+      nombre,
+      telefono:document.getElementById("c_telefono").value,
+      email:document.getElementById("c_email").value,
+      calle:document.getElementById("c_calle").value,
+      numero:document.getElementById("c_numero").value,
+      poblacion:document.getElementById("c_poblacion").value,
+      codigo_postal:document.getElementById("c_cp").value,
+      doc_url:url
+    };
+
+    const r=await sb().from("clientes").insert([datos]);
+
+    if(r.error){
+      alert("Error: "+r.error.message);
+      return;
     }
 
-  `;
-};
+    document.querySelector(".zx_modal_fondo").remove();
+    ZX_clientes();
+  };
+}
 
 })();
