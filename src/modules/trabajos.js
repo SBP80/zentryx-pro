@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3096 - CLIENTE + DIRECCIÓN DE OBRA + AGENDA
+// V3097 - OBRA + VARIOS DÍAS + VARIOS OPERARIOS
 // ===============================
 (function(){
 "use strict";
@@ -26,16 +26,16 @@ function hoy(){
   return new Date().toISOString().slice(0,10);
 }
 
+function cerrarModalTrabajo(){
+  const m=document.getElementById("zx_modal_trabajo");
+  if(m) m.remove();
+}
+
 function telefonoLimpio(tel){
   let n=String(tel||"").replace(/[^\d+]/g,"");
   if(n.startsWith("+")) return n;
   if(n.length===9) return "+34"+n;
   return n;
-}
-
-function cerrarModalTrabajo(){
-  const m=document.getElementById("zx_modal_trabajo");
-  if(m) m.remove();
 }
 
 function direccionCliente(c){
@@ -74,6 +74,16 @@ async function cargarClientes(){
   return r.data || [];
 }
 
+async function cargarUsuarios(){
+  const r=await sb()
+    .from("usuarios")
+    .select("*")
+    .order("nombre",{ascending:true});
+
+  if(r.error) return [];
+  return r.data || [];
+}
+
 async function cargarTrabajos(){
   const r=await sb()
     .from("trabajos")
@@ -86,6 +96,20 @@ async function cargarTrabajos(){
     return [];
   }
 
+  return r.data || [];
+}
+
+async function cargarPlanificacion(trabajoId){
+  if(!trabajoId) return [];
+
+  const r=await sb()
+    .from("trabajos_planificacion")
+    .select("*")
+    .eq("trabajo_id",String(trabajoId))
+    .order("fecha",{ascending:true})
+    .order("hora_inicio",{ascending:true});
+
+  if(r.error) return [];
   return r.data || [];
 }
 
@@ -179,8 +203,37 @@ function menuMapa(dir){
   document.getElementById("tr_map_cerrar").onclick=cerrarModalTrabajo;
 }
 
-function renderTrabajo(t){
+function input(id,label,value,type){
+  return `
+    <label class="zx_label" for="${id}">${label}</label>
+    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${label}">
+  `;
+}
+function renderPlanificacion(lista){
+  if(!lista || !lista.length){
+    return `<div class="zx_text">Sin planificación asignada.</div>`;
+  }
+
+  return lista.map(p=>`
+    <div class="zx_tr_plan_item">
+      <div class="zx_tr_plan_top">
+        <b>${limpiar(p.nombre || p.usuario || "Operario")}</b>
+        <span>${limpiar(p.fecha || "")}</span>
+      </div>
+
+      <div class="zx_tr_plan_txt">
+        ${limpiar(p.hora_inicio ? String(p.hora_inicio).slice(0,5) : "--:--")}
+        -
+        ${limpiar(p.hora_fin ? String(p.hora_fin).slice(0,5) : "--:--")}
+        ${p.notas ? "<br>"+limpiar(p.notas) : ""}
+      </div>
+    </div>
+  `).join("");
+}
+
+async function renderTrabajo(t){
   const dir=direccionTrabajo(t);
+  const plan=await cargarPlanificacion(t.id);
 
   return `
     <div class="zx_user_card">
@@ -188,15 +241,17 @@ function renderTrabajo(t){
 
       <div class="zx_user_data">
         <b>Estado:</b> ${limpiar(textoEstado(t.estado))}<br>
-        <b>Fecha:</b> ${limpiar(t.fecha || "-")}
-        ${t.hora_inicio ? " · "+limpiar(String(t.hora_inicio).slice(0,5)) : ""}<br>
         <b>Cliente:</b> ${limpiar(t.cliente || "-")}<br>
-        <b>Operario:</b> ${limpiar(t.usuario || "-")}<br>
         <b>Contacto obra:</b> ${limpiar(t.persona_contacto || "-")}<br>
         <b>Teléfono contacto:</b> ${limpiar(t.telefono_contacto || "-")}<br>
         <b>Dirección obra:</b> ${limpiar(dir || "-")}<br>
         <b>Descripción:</b> ${limpiar(t.descripcion || "-")}<br>
         <b>Notas:</b> ${limpiar(t.notas || "-")}
+      </div>
+
+      <div class="zx_tr_plan_box">
+        <h3>Planificación</h3>
+        ${renderPlanificacion(plan)}
       </div>
 
       <div class="zx_user_actions">
@@ -213,15 +268,70 @@ function renderTrabajo(t){
   `;
 }
 
-function input(id,label,value,type){
+function filaPlanificacionHTML(i,usuarios,p={}){
   return `
-    <label class="zx_label" for="${id}">${label}</label>
-    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${label}">
+    <div class="zx_tr_plan_form" data-plan-row="${i}">
+      <label class="zx_label">Fecha</label>
+      <input type="date" class="tr_plan_fecha" value="${limpiar(p.fecha || hoy())}">
+
+      <div class="zx_tr_grid2">
+        <div>
+          <label class="zx_label">Hora inicio</label>
+          <input type="time" class="tr_plan_inicio" value="${limpiar(p.hora_inicio ? String(p.hora_inicio).slice(0,5) : "")}">
+        </div>
+
+        <div>
+          <label class="zx_label">Hora fin</label>
+          <input type="time" class="tr_plan_fin" value="${limpiar(p.hora_fin ? String(p.hora_fin).slice(0,5) : "")}">
+        </div>
+      </div>
+
+      <label class="zx_label">Operario</label>
+      <select class="tr_plan_usuario">
+        <option value="">Seleccionar operario</option>
+        ${usuarios.map(u=>`
+          <option value="${limpiar(u.id)}"
+            data-usuario="${limpiar(u.usuario || "")}"
+            data-nombre="${limpiar(u.nombre || u.usuario || "")}"
+            ${String(p.usuario_id||"")===String(u.id) ? "selected" : ""}>
+            ${limpiar(u.nombre || u.usuario || "")}
+          </option>
+        `).join("")}
+      </select>
+
+      <label class="zx_label">Notas planificación</label>
+      <textarea class="tr_plan_notas" rows="2" placeholder="Notas para este día/operario">${limpiar(p.notas || "")}</textarea>
+
+      <button class="zx_btn_big zx_rojo tr_plan_borrar" type="button">
+        Quitar esta línea
+      </button>
+    </div>
   `;
+}
+
+function leerPlanificacionFormulario(){
+  const filas=[...document.querySelectorAll("[data-plan-row]")];
+
+  return filas.map(row=>{
+    const sel=row.querySelector(".tr_plan_usuario");
+    const opt=sel.options[sel.selectedIndex];
+
+    return {
+      fecha:row.querySelector(".tr_plan_fecha").value,
+      hora_inicio:row.querySelector(".tr_plan_inicio").value || null,
+      hora_fin:row.querySelector(".tr_plan_fin").value || null,
+      usuario_id:sel.value || null,
+      usuario:opt ? opt.dataset.usuario || "" : "",
+      nombre:opt ? opt.dataset.nombre || "" : "",
+      notas:row.querySelector(".tr_plan_notas").value.trim()
+    };
+  }).filter(p=>p.fecha && p.usuario_id);
 }
 
 async function formulario(t={}){
   const clientes=await cargarClientes();
+  const usuarios=await cargarUsuarios();
+  const planExistente=await cargarPlanificacion(t.id);
 
   cerrarModalTrabajo();
 
@@ -242,22 +352,6 @@ async function formulario(t={}){
           `).join("")}
         </select>
 
-        <label class="zx_label" for="tr_fecha">Fecha</label>
-        <input id="tr_fecha" type="date" value="${limpiar(t.fecha || hoy())}">
-
-        <div class="zx_tr_grid2">
-          <div>
-            <label class="zx_label" for="tr_hora_inicio">Hora inicio</label>
-            <input id="tr_hora_inicio" type="time" value="${limpiar(t.hora_inicio ? String(t.hora_inicio).slice(0,5) : "")}">
-          </div>
-
-          <div>
-            <label class="zx_label" for="tr_hora_fin">Hora fin</label>
-            <input id="tr_hora_fin" type="time" value="${limpiar(t.hora_fin ? String(t.hora_fin).slice(0,5) : "")}">
-          </div>
-        </div>
-
-        ${input("tr_usuario","Operario",t.usuario)}
         ${input("tr_persona_contacto","Persona contacto obra",t.persona_contacto)}
         ${input("tr_telefono_contacto","Teléfono contacto obra",t.telefono_contacto,"tel")}
 
@@ -273,8 +367,25 @@ async function formulario(t={}){
         ${input("tr_codigo_postal","Código postal",t.codigo_postal)}
         ${input("tr_pais","País",t.pais || "España")}
 
-        <button class="zx_btn_big zx_azul" id="tr_copiar_direccion">
+        <button class="zx_btn_big zx_azul" id="tr_copiar_direccion" type="button">
           Usar dirección del cliente como obra
+        </button>
+
+        <h3 class="zx_form_subtitle">Planificación</h3>
+        <div class="zx_text">
+          Añade tantos días, horarios y operarios como necesites para esta obra.
+        </div>
+
+        <div id="tr_plan_lista">
+          ${
+            planExistente.length
+            ? planExistente.map((p,i)=>filaPlanificacionHTML(i,usuarios,p)).join("")
+            : filaPlanificacionHTML(0,usuarios,{})
+          }
+        </div>
+
+        <button class="zx_btn_big zx_azul" id="tr_add_plan" type="button">
+          Añadir día / operario
         </button>
 
         <label class="zx_label" for="tr_descripcion">Descripción</label>
@@ -343,53 +454,93 @@ async function formulario(t={}){
     }
   }
 
+  document.getElementById("tr_add_plan").onclick=function(){
+    const cont=document.getElementById("tr_plan_lista");
+    const i=document.querySelectorAll("[data-plan-row]").length;
+    cont.insertAdjacentHTML("beforeend",filaPlanificacionHTML(i,usuarios,{}));
+    activarBotonesPlan();
+  };
+
+  function activarBotonesPlan(){
+    document.querySelectorAll(".tr_plan_borrar").forEach(btn=>{
+      btn.onclick=function(){
+        const rows=document.querySelectorAll("[data-plan-row]");
+        if(rows.length<=1){
+          alert("Debe quedar al menos una línea de planificación.");
+          return;
+        }
+        btn.closest("[data-plan-row]").remove();
+      };
+    });
+  }
+
+  activarBotonesPlan();
+
   document.getElementById("tr_cancelar").onclick=cerrarModalTrabajo;
 
   document.getElementById("tr_guardar").onclick=function(){
     guardarTrabajo(t.id || null,clientes);
   };
 }
-
-async function sincronizarAgenda(trabajoId,data){
+async function sincronizarAgenda(trabajoId,data,planificacion){
   if(!trabajoId) return;
 
-  const existe=await sb()
+  await sb()
     .from("agenda_eventos")
-    .select("id")
+    .delete()
     .eq("origen","trabajos")
-    .eq("origen_id",String(trabajoId))
-    .limit(1);
+    .eq("origen_id",String(trabajoId));
 
-  const agendaData={
-    tipo:"trabajo",
-    titulo:"Trabajo - "+data.titulo,
-    descripcion:data.descripcion || "",
-    fecha_inicio:data.fecha,
-    fecha_fin:data.fecha,
-    hora_inicio:data.hora_inicio,
-    hora_fin:data.hora_fin,
-    cliente_id:String(data.cliente_id || ""),
-    cliente:data.cliente || "",
-    usuario:data.usuario || "",
-    estado:data.estado==="terminado" ? "completado" : "activo",
-    prioridad:"normal",
-    visible_para:"todos",
-    origen:"trabajos",
-    origen_id:String(trabajoId),
-    creado_por:data.creado_por || ""
-  };
-
-  if(existe.error) return;
-
-  if(existe.data && existe.data.length){
+  for(const p of planificacion){
     await sb()
       .from("agenda_eventos")
-      .update(agendaData)
-      .eq("id",existe.data[0].id);
-  }else{
-    await sb()
-      .from("agenda_eventos")
-      .insert([agendaData]);
+      .insert([{
+        tipo:"trabajo",
+        titulo:"Trabajo - "+data.titulo,
+        descripcion:data.descripcion || "",
+        fecha_inicio:p.fecha,
+        fecha_fin:p.fecha,
+        hora_inicio:p.hora_inicio,
+        hora_fin:p.hora_fin,
+        cliente_id:String(data.cliente_id || ""),
+        cliente:data.cliente || "",
+        usuario_id:String(p.usuario_id || ""),
+        usuario:p.nombre || p.usuario || "",
+        estado:data.estado==="terminado" ? "completado" : "activo",
+        prioridad:"normal",
+        visible_para:"todos",
+        origen:"trabajos",
+        origen_id:String(trabajoId),
+        creado_por:data.creado_por || ""
+      }]);
+  }
+}
+
+async function guardarPlanificacion(trabajoId,lista){
+  await sb()
+    .from("trabajos_planificacion")
+    .delete()
+    .eq("trabajo_id",String(trabajoId));
+
+  if(!lista.length) return;
+
+  const insert=lista.map(p=>({
+    trabajo_id:String(trabajoId),
+    fecha:p.fecha,
+    hora_inicio:p.hora_inicio,
+    hora_fin:p.hora_fin,
+    usuario_id:String(p.usuario_id || ""),
+    usuario:p.usuario || "",
+    nombre:p.nombre || "",
+    notas:p.notas || ""
+  }));
+
+  const r=await sb()
+    .from("trabajos_planificacion")
+    .insert(insert);
+
+  if(r.error){
+    alert("Error guardando planificación: "+r.error.message);
   }
 }
 
@@ -398,16 +549,24 @@ async function guardarTrabajo(id,clientes){
 
   const clienteId=document.getElementById("tr_cliente").value || null;
   const cliente=clientes.find(x=>String(x.id)===String(clienteId));
+  const planificacion=leerPlanificacionFormulario();
+
+  if(!planificacion.length){
+    alert("Añade al menos un día, horario y operario.");
+    return;
+  }
+
+  const primera=planificacion[0];
 
   const data={
     titulo:document.getElementById("tr_titulo").value.trim(),
     cliente_id:clienteId,
     cliente:cliente ? cliente.nombre || "" : "",
-    usuario:document.getElementById("tr_usuario").value.trim(),
+    usuario:planificacion.map(p=>p.nombre || p.usuario).filter(Boolean).join(", "),
 
-    fecha:document.getElementById("tr_fecha").value || hoy(),
-    hora_inicio:document.getElementById("tr_hora_inicio").value || null,
-    hora_fin:document.getElementById("tr_hora_fin").value || null,
+    fecha:primera.fecha,
+    hora_inicio:primera.hora_inicio,
+    hora_fin:primera.hora_fin,
 
     direccion_cliente:document.getElementById("tr_direccion_cliente").value.trim(),
     direccion_obra:document.getElementById("tr_direccion_obra").value.trim(),
@@ -458,10 +617,11 @@ async function guardarTrabajo(id,clientes){
 
   const trabajoId=id || r.data?.id;
 
+  await guardarPlanificacion(trabajoId,planificacion);
   await sincronizarAgenda(trabajoId,{
     ...data,
     estado:id ? "pendiente" : data.estado
-  });
+  },planificacion);
 
   cerrarModalTrabajo();
   ZX_trabajos();
@@ -494,6 +654,11 @@ window.ZX_borrarTrabajo=async function(id){
     .delete()
     .eq("origen","trabajos")
     .eq("origen_id",String(id));
+
+  await sb()
+    .from("trabajos_planificacion")
+    .delete()
+    .eq("trabajo_id",String(id));
 
   const r=await sb()
     .from("trabajos")
@@ -576,6 +741,11 @@ window.ZX_trabajos=async function(){
   });
 
   const datos=await cargarTrabajos();
+  const tarjetas=[];
+
+  for(const t of datos){
+    tarjetas.push(await renderTrabajo(t));
+  }
 
   app().innerHTML=`
     ${resumen(datos)}
@@ -583,8 +753,8 @@ window.ZX_trabajos=async function(){
     <div class="zx_card">
       <h2>Listado</h2>
       ${
-        datos.length
-        ? datos.map(renderTrabajo).join("")
+        tarjetas.length
+        ? tarjetas.join("")
         : `<div class="zx_text">Sin trabajos.</div>`
       }
     </div>
@@ -626,16 +796,63 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3096")) return;
+  if(document.getElementById("zx_trabajos_v3097")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3096";
+  s.id="zx_trabajos_v3097";
 
   s.innerHTML=`
     .zx_tr_grid2{
       display:grid;
       grid-template-columns:1fr 1fr;
       gap:10px;
+    }
+
+    .zx_tr_plan_form{
+      background:#f8fafc;
+      border:1px solid #d1d5db;
+      border-radius:20px;
+      padding:16px;
+      margin-top:14px;
+    }
+
+    .zx_tr_plan_box{
+      background:#f8fafc;
+      border:1px solid #d1d5db;
+      border-radius:20px;
+      padding:16px;
+      margin-top:16px;
+    }
+
+    .zx_tr_plan_item{
+      background:white;
+      border:1px solid #e5e7eb;
+      border-radius:16px;
+      padding:12px;
+      margin-top:10px;
+    }
+
+    .zx_tr_plan_top{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      font-size:16px;
+      color:#0f172a;
+      font-weight:900;
+    }
+
+    .zx_tr_plan_top span{
+      color:#64748b;
+      font-size:14px;
+      white-space:nowrap;
+    }
+
+    .zx_tr_plan_txt{
+      margin-top:6px;
+      color:#475569;
+      font-size:15px;
+      font-weight:800;
+      line-height:1.4;
     }
 
     .zx_user_card{
@@ -694,6 +911,16 @@ window.ZX_trabajos=async function(){
       color:#0f172a;
       font-size:24px;
       font-weight:900;
+    }
+
+    @media(max-width:430px){
+      .zx_tr_grid2{
+        grid-template-columns:1fr;
+      }
+
+      .zx_user_actions{
+        grid-template-columns:1fr;
+      }
     }
   `;
 
