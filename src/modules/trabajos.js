@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3098 - FICHA OBRA COMPLETA
+// V3099 - PRIORIDAD + UX COMPACTA
 // ===============================
 (function(){
 "use strict";
@@ -114,40 +114,21 @@ async function cargarPlanificacion(trabajoId){
 
 async function cargarArchivos(trabajoId){
   if(!trabajoId) return [];
-
-  const r=await sb()
-    .from("trabajos_archivos")
-    .select("*")
-    .eq("trabajo_id",String(trabajoId))
-    .order("created_at",{ascending:false});
-
+  const r=await sb().from("trabajos_archivos").select("*").eq("trabajo_id",String(trabajoId)).order("created_at",{ascending:false});
   if(r.error) return [];
   return r.data || [];
 }
 
 async function cargarMateriales(trabajoId){
   if(!trabajoId) return [];
-
-  const r=await sb()
-    .from("trabajos_materiales")
-    .select("*")
-    .eq("trabajo_id",String(trabajoId))
-    .order("created_at",{ascending:false});
-
+  const r=await sb().from("trabajos_materiales").select("*").eq("trabajo_id",String(trabajoId)).order("created_at",{ascending:false});
   if(r.error) return [];
   return r.data || [];
 }
 
 async function cargarHistorial(trabajoId){
   if(!trabajoId) return [];
-
-  const r=await sb()
-    .from("trabajos_historial")
-    .select("*")
-    .eq("trabajo_id",String(trabajoId))
-    .order("fecha",{ascending:false})
-    .order("hora_inicio",{ascending:false});
-
+  const r=await sb().from("trabajos_historial").select("*").eq("trabajo_id",String(trabajoId)).order("fecha",{ascending:false}).order("hora_inicio",{ascending:false});
   if(r.error) return [];
   return r.data || [];
 }
@@ -156,16 +137,43 @@ function textoEstado(e){
   if(e==="pendiente") return "Pendiente";
   if(e==="en_curso") return "En curso";
   if(e==="terminado") return "Terminado";
+  if(e==="bloqueado") return "Bloqueado";
   return e || "-";
 }
 
-function claseEstado(e){
-  if(e==="pendiente") return "zx_naranja";
-  if(e==="en_curso") return "zx_azul";
-  if(e==="terminado") return "zx_verde";
-  return "zx_gris";
+function textoPrioridad(p){
+  if(p==="baja") return "Baja";
+  if(p==="media") return "Media";
+  if(p==="alta") return "Alta";
+  if(p==="urgente") return "Urgente";
+  return p || "Media";
 }
 
+function claseEstado(e){
+  if(e==="pendiente") return "zx_estado_pendiente";
+  if(e==="en_curso") return "zx_estado_curso";
+  if(e==="terminado") return "zx_estado_terminado";
+  if(e==="bloqueado") return "zx_estado_bloqueado";
+  return "zx_estado_neutro";
+}
+
+function clasePrioridad(p){
+  if(p==="baja") return "zx_prio_baja";
+  if(p==="media") return "zx_prio_media";
+  if(p==="alta") return "zx_prio_alta";
+  if(p==="urgente") return "zx_prio_urgente";
+  return "zx_prio_media";
+}
+
+function claseTarjeta(t){
+  const p=String(t.prioridad || "media");
+  const e=String(t.estado || "pendiente");
+  if(e==="bloqueado") return "zx_tr_card_bloqueado";
+  if(p==="urgente") return "zx_tr_card_urgente";
+  if(p==="alta") return "zx_tr_card_alta";
+  if(e==="terminado") return "zx_tr_card_terminado";
+  return "";
+}
 function menuTelefono(tel){
   const n=telefonoLimpio(tel);
 
@@ -223,26 +231,28 @@ function menuMapa(dir){
   document.getElementById("tr_map_waze").onclick=function(){location.href="https://waze.com/ul?q="+q};
   document.getElementById("tr_map_cerrar").onclick=cerrarModalTrabajo;
 }
+
 function renderPlanificacion(lista){
   if(!lista || !lista.length){
     return `<div class="zx_text">Sin planificación asignada.</div>`;
   }
 
-  return lista.map(p=>`
-    <div class="zx_tr_plan_item">
-      <div class="zx_tr_plan_top">
-        <b>${limpiar(p.nombre || p.usuario || "Operario")}</b>
-        <span>${limpiar(p.fecha || "")}</span>
-      </div>
-
-      <div class="zx_tr_plan_txt">
-        ${limpiar(p.hora_inicio ? String(p.hora_inicio).slice(0,5) : "--:--")}
-        -
-        ${limpiar(p.hora_fin ? String(p.hora_fin).slice(0,5) : "--:--")}
-        ${p.notas ? "<br>"+limpiar(p.notas) : ""}
-      </div>
+  return `
+    <div class="zx_plan_compact">
+      ${lista.map(p=>`
+        <div class="zx_plan_row">
+          <div class="zx_plan_fecha">${limpiar(p.fecha || "")}</div>
+          <div class="zx_plan_hora">
+            ${limpiar(p.hora_inicio ? String(p.hora_inicio).slice(0,5) : "--:--")}
+            -
+            ${limpiar(p.hora_fin ? String(p.hora_fin).slice(0,5) : "--:--")}
+          </div>
+          <div class="zx_plan_operario">${limpiar(p.nombre || p.usuario || "Operario")}</div>
+          ${p.notas ? `<div class="zx_plan_notas">${limpiar(p.notas)}</div>` : ""}
+        </div>
+      `).join("")}
     </div>
-  `).join("");
+  `;
 }
 
 function renderArchivos(lista){
@@ -302,13 +312,21 @@ async function renderTrabajo(t){
   const archivos=await cargarArchivos(t.id);
   const materiales=await cargarMateriales(t.id);
   const historial=await cargarHistorial(t.id);
+  const prioridad=t.prioridad || "media";
 
   return `
-    <div class="zx_user_card">
-      <div class="zx_user_name">${limpiar(t.titulo || "Trabajo")}</div>
+    <div class="zx_user_card zx_tr_card ${claseTarjeta(t)}">
+      <div class="zx_tr_header">
+        <div>
+          <div class="zx_user_name">${limpiar(t.titulo || "Trabajo")}</div>
+          <div class="zx_tr_badges">
+            <span class="zx_badge ${claseEstado(t.estado)}">${limpiar(textoEstado(t.estado))}</span>
+            <span class="zx_badge ${clasePrioridad(prioridad)}">${limpiar(textoPrioridad(prioridad))}</span>
+          </div>
+        </div>
+      </div>
 
       <div class="zx_user_data">
-        <b>Estado:</b> ${limpiar(textoEstado(t.estado))}<br>
         <b>Cliente:</b> ${limpiar(t.cliente || "-")}<br>
         <b>Contacto obra:</b> ${limpiar(t.persona_contacto || "-")}<br>
         <b>Teléfono contacto:</b> ${limpiar(t.telefono_contacto || "-")}<br>
@@ -362,21 +380,22 @@ async function renderTrabajo(t){
     </div>
   `;
 }
-
 function filaPlanificacionHTML(i,usuarios,p={}){
   return `
-    <div class="zx_tr_plan_form" data-plan-row="${i}">
-      <label class="zx_label">Fecha</label>
-      <input type="date" class="tr_plan_fecha" value="${limpiar(p.fecha || hoy())}">
-
-      <div class="zx_tr_grid2">
+    <div class="zx_tr_plan_form zx_plan_form_compact" data-plan-row="${i}">
+      <div class="zx_plan_form_grid">
         <div>
-          <label class="zx_label">Hora inicio</label>
+          <label class="zx_label">Fecha</label>
+          <input type="date" class="tr_plan_fecha" value="${limpiar(p.fecha || hoy())}">
+        </div>
+
+        <div>
+          <label class="zx_label">Inicio</label>
           <input type="time" class="tr_plan_inicio" value="${limpiar(p.hora_inicio ? String(p.hora_inicio).slice(0,5) : "")}">
         </div>
 
         <div>
-          <label class="zx_label">Hora fin</label>
+          <label class="zx_label">Fin</label>
           <input type="time" class="tr_plan_fin" value="${limpiar(p.hora_fin ? String(p.hora_fin).slice(0,5) : "")}">
         </div>
       </div>
@@ -394,12 +413,20 @@ function filaPlanificacionHTML(i,usuarios,p={}){
         `).join("")}
       </select>
 
-      <label class="zx_label">Notas planificación</label>
-      <textarea class="tr_plan_notas" rows="2" placeholder="Notas para este día/operario">${limpiar(p.notas || "")}</textarea>
+      <details class="zx_plan_details">
+        <summary>Notas de esta línea</summary>
+        <textarea class="tr_plan_notas" rows="2" placeholder="Notas para este día/operario">${limpiar(p.notas || "")}</textarea>
+      </details>
 
-      <button class="zx_btn_big zx_rojo tr_plan_borrar" type="button">
-        Quitar esta línea
-      </button>
+      <div class="zx_plan_buttons">
+        <button class="zx_action_btn zx_blue tr_plan_duplicar" type="button">
+          Duplicar
+        </button>
+
+        <button class="zx_action_btn zx_red tr_plan_borrar" type="button">
+          Quitar
+        </button>
+      </div>
     </div>
   `;
 }
@@ -422,6 +449,7 @@ function leerPlanificacionFormulario(){
     };
   }).filter(p=>p.fecha && p.usuario_id);
 }
+
 async function formulario(t={}){
   const clientes=await cargarClientes();
   const usuarios=await cargarUsuarios();
@@ -435,6 +463,14 @@ async function formulario(t={}){
         <h2>${t.id ? "Editar trabajo" : "Nuevo trabajo"}</h2>
 
         ${input("tr_titulo","Título",t.titulo)}
+
+        <label class="zx_label" for="tr_prioridad">Prioridad</label>
+        <select id="tr_prioridad">
+          <option value="baja" ${t.prioridad==="baja" ? "selected" : ""}>Baja</option>
+          <option value="media" ${!t.prioridad || t.prioridad==="media" ? "selected" : ""}>Media</option>
+          <option value="alta" ${t.prioridad==="alta" ? "selected" : ""}>Alta</option>
+          <option value="urgente" ${t.prioridad==="urgente" ? "selected" : ""}>Urgente</option>
+        </select>
 
         <label class="zx_label" for="tr_cliente">Cliente</label>
         <select id="tr_cliente">
@@ -467,7 +503,7 @@ async function formulario(t={}){
 
         <h3 class="zx_form_subtitle">Planificación</h3>
         <div class="zx_text">
-          Añade tantos días, horarios y operarios como necesites para esta obra.
+          Añade días, horarios y operarios. Usa duplicar para repetir una fecha u horario.
         </div>
 
         <div id="tr_plan_lista">
@@ -501,11 +537,22 @@ async function formulario(t={}){
 
   const sel=document.getElementById("tr_cliente");
 
+  function limpiarCamposCliente(){
+    document.getElementById("tr_direccion_cliente").value="";
+    document.getElementById("tr_persona_contacto").value="";
+    document.getElementById("tr_telefono_contacto").value="";
+    document.getElementById("tr_direccion_obra").value="";
+    document.getElementById("tr_poblacion").value="";
+    document.getElementById("tr_provincia").value="";
+    document.getElementById("tr_codigo_postal").value="";
+    document.getElementById("tr_pais").value="España";
+  }
+
   function cargarDatosCliente(){
     const c=clientes.find(x=>String(x.id)===String(sel.value));
 
     if(!c){
-      document.getElementById("tr_direccion_cliente").value="";
+      limpiarCamposCliente();
       return;
     }
 
@@ -515,13 +562,11 @@ async function formulario(t={}){
     document.getElementById("tr_persona_contacto").value=c.persona_contacto || "";
     document.getElementById("tr_telefono_contacto").value=c.telefono || "";
 
-    if(!document.getElementById("tr_direccion_obra").value){
-      document.getElementById("tr_direccion_obra").value=c.direccion || "";
-      document.getElementById("tr_poblacion").value=c.poblacion || "";
-      document.getElementById("tr_provincia").value=c.provincia || "";
-      document.getElementById("tr_codigo_postal").value=c.codigo_postal || "";
-      document.getElementById("tr_pais").value=c.pais || "España";
-    }
+    document.getElementById("tr_direccion_obra").value=c.direccion || "";
+    document.getElementById("tr_poblacion").value=c.poblacion || "";
+    document.getElementById("tr_provincia").value=c.provincia || "";
+    document.getElementById("tr_codigo_postal").value=c.codigo_postal || "";
+    document.getElementById("tr_pais").value=c.pais || "España";
   }
 
   sel.onchange=cargarDatosCliente;
@@ -563,8 +608,26 @@ async function formulario(t={}){
           alert("Debe quedar al menos una línea de planificación.");
           return;
         }
-
         btn.closest("[data-plan-row]").remove();
+      };
+    });
+
+    document.querySelectorAll(".tr_plan_duplicar").forEach(btn=>{
+      btn.onclick=function(){
+        const row=btn.closest("[data-plan-row]");
+        const cont=document.getElementById("tr_plan_lista");
+        const i=document.querySelectorAll("[data-plan-row]").length;
+
+        const p={
+          fecha:row.querySelector(".tr_plan_fecha").value,
+          hora_inicio:row.querySelector(".tr_plan_inicio").value,
+          hora_fin:row.querySelector(".tr_plan_fin").value,
+          usuario_id:row.querySelector(".tr_plan_usuario").value,
+          notas:row.querySelector(".tr_plan_notas").value
+        };
+
+        cont.insertAdjacentHTML("beforeend",filaPlanificacionHTML(i,usuarios,p));
+        activarBotonesPlan();
       };
     });
   }
@@ -577,7 +640,6 @@ async function formulario(t={}){
     guardarTrabajo(t.id || null,clientes);
   };
 }
-
 async function subirArchivoObra(file,tipo,trabajoId){
   if(!file || !trabajoId) return null;
 
@@ -679,6 +741,7 @@ window.ZX_tr_add_material=async function(trabajoId){
         ${input("tr_mat_nombre","Material","")}
         ${input("tr_mat_cantidad","Cantidad","","number")}
         ${input("tr_mat_unidad","Unidad","ud")}
+
         <label class="zx_label">Notas</label>
         <textarea id="tr_mat_notas" rows="3" placeholder="Notas"></textarea>
 
@@ -722,6 +785,7 @@ window.ZX_tr_add_material=async function(trabajoId){
     ZX_trabajos();
   };
 };
+
 window.ZX_tr_add_historial=async function(trabajoId){
   const usuarios=await cargarUsuarios();
 
@@ -841,7 +905,7 @@ async function sincronizarAgenda(trabajoId,data,planificacion){
         usuario_id:String(p.usuario_id || ""),
         usuario:p.nombre || p.usuario || "",
         estado:data.estado==="terminado" ? "completado" : "activo",
-        prioridad:"normal",
+        prioridad:data.prioridad || "media",
         visible_para:"todos",
         origen:"trabajos",
         origen_id:String(trabajoId),
@@ -894,6 +958,7 @@ async function guardarTrabajo(id,clientes){
 
   const data={
     titulo:document.getElementById("tr_titulo").value.trim(),
+    prioridad:document.getElementById("tr_prioridad").value || "media",
     cliente_id:clienteId,
     cliente:cliente ? cliente.nombre || "" : "",
     usuario:planificacion.map(p=>p.nombre || p.usuario).filter(Boolean).join(", "),
@@ -983,31 +1048,11 @@ window.ZX_editarTrabajo=async function(id){
 window.ZX_borrarTrabajo=async function(id){
   if(!confirm("¿Borrar trabajo?")) return;
 
-  await sb()
-    .from("agenda_eventos")
-    .delete()
-    .eq("origen","trabajos")
-    .eq("origen_id",String(id));
-
-  await sb()
-    .from("trabajos_planificacion")
-    .delete()
-    .eq("trabajo_id",String(id));
-
-  await sb()
-    .from("trabajos_archivos")
-    .delete()
-    .eq("trabajo_id",String(id));
-
-  await sb()
-    .from("trabajos_materiales")
-    .delete()
-    .eq("trabajo_id",String(id));
-
-  await sb()
-    .from("trabajos_historial")
-    .delete()
-    .eq("trabajo_id",String(id));
+  await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
+  await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id));
+  await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id));
+  await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id));
+  await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id));
 
   const r=await sb()
     .from("trabajos")
@@ -1023,11 +1068,7 @@ window.ZX_borrarTrabajo=async function(id){
 };
 
 window.ZX_cambiarEstadoTrabajo=async function(id){
-  const r0=await sb()
-    .from("trabajos")
-    .select("*")
-    .eq("id",id)
-    .maybeSingle();
+  const r0=await sb().from("trabajos").select("*").eq("id",id).maybeSingle();
 
   if(r0.error || !r0.data){
     alert("Trabajo no encontrado.");
@@ -1063,6 +1104,7 @@ function resumen(datos){
   const pendientes=datos.filter(t=>t.estado==="pendiente").length;
   const curso=datos.filter(t=>t.estado==="en_curso").length;
   const terminados=datos.filter(t=>t.estado==="terminado").length;
+  const urgentes=datos.filter(t=>t.prioridad==="urgente").length;
 
   return `
     <div class="zx_card">
@@ -1071,7 +1113,8 @@ function resumen(datos){
       <div class="zx_text">
         Pendientes: <b>${pendientes}</b><br>
         En curso: <b>${curso}</b><br>
-        Terminados: <b>${terminados}</b>
+        Terminados: <b>${terminados}</b><br>
+        Urgentes: <b>${urgentes}</b>
       </div>
 
       <button class="zx_btn_big zx_verde" id="btn_nuevo_trabajo">
@@ -1113,89 +1156,88 @@ window.ZX_trabajos=async function(){
     formulario({});
   };
 
-  document.querySelectorAll("[data-tr-estado]").forEach(btn=>{
-    btn.onclick=function(){
-      ZX_cambiarEstadoTrabajo(btn.dataset.trEstado);
-    };
-  });
-
-  document.querySelectorAll("[data-tr-tel]").forEach(btn=>{
-    btn.onclick=function(){
-      menuTelefono(btn.dataset.trTel);
-    };
-  });
-
-  document.querySelectorAll("[data-tr-map]").forEach(btn=>{
-    btn.onclick=function(){
-      menuMapa(btn.dataset.trMap);
-    };
-  });
-
-  document.querySelectorAll("[data-tr-edit]").forEach(btn=>{
-    btn.onclick=function(){
-      ZX_editarTrabajo(btn.dataset.trEdit);
-    };
-  });
-
-  document.querySelectorAll("[data-tr-del]").forEach(btn=>{
-    btn.onclick=function(){
-      ZX_borrarTrabajo(btn.dataset.trDel);
-    };
-  });
-
-  document.querySelectorAll("[data-tr-open-file]").forEach(btn=>{
-    btn.onclick=function(){
-      if(btn.dataset.trOpenFile){
-        window.open(btn.dataset.trOpenFile,"_blank");
-      }
-    };
-  });
-
-  document.querySelectorAll("[data-tr-add-file]").forEach(btn=>{
-    btn.onclick=function(){
-      ZX_tr_add_file(btn.dataset.trAddFile);
-    };
-  });
-
-  document.querySelectorAll("[data-tr-add-material]").forEach(btn=>{
-    btn.onclick=function(){
-      ZX_tr_add_material(btn.dataset.trAddMaterial);
-    };
-  });
-
-  document.querySelectorAll("[data-tr-add-historial]").forEach(btn=>{
-    btn.onclick=function(){
-      ZX_tr_add_historial(btn.dataset.trAddHistorial);
-    };
-  });
+  document.querySelectorAll("[data-tr-estado]").forEach(btn=>{btn.onclick=function(){ZX_cambiarEstadoTrabajo(btn.dataset.trEstado)}});
+  document.querySelectorAll("[data-tr-tel]").forEach(btn=>{btn.onclick=function(){menuTelefono(btn.dataset.trTel)}});
+  document.querySelectorAll("[data-tr-map]").forEach(btn=>{btn.onclick=function(){menuMapa(btn.dataset.trMap)}});
+  document.querySelectorAll("[data-tr-edit]").forEach(btn=>{btn.onclick=function(){ZX_editarTrabajo(btn.dataset.trEdit)}});
+  document.querySelectorAll("[data-tr-del]").forEach(btn=>{btn.onclick=function(){ZX_borrarTrabajo(btn.dataset.trDel)}});
+  document.querySelectorAll("[data-tr-open-file]").forEach(btn=>{btn.onclick=function(){if(btn.dataset.trOpenFile) window.open(btn.dataset.trOpenFile,"_blank")}});
+  document.querySelectorAll("[data-tr-add-file]").forEach(btn=>{btn.onclick=function(){ZX_tr_add_file(btn.dataset.trAddFile)}});
+  document.querySelectorAll("[data-tr-add-material]").forEach(btn=>{btn.onclick=function(){ZX_tr_add_material(btn.dataset.trAddMaterial)}});
+  document.querySelectorAll("[data-tr-add-historial]").forEach(btn=>{btn.onclick=function(){ZX_tr_add_historial(btn.dataset.trAddHistorial)}});
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3098")) return;
+  if(document.getElementById("zx_trabajos_v3099")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3098";
+  s.id="zx_trabajos_v3099";
 
   s.innerHTML=`
-    .zx_tr_grid2{
+    .zx_tr_grid2,.zx_plan_form_grid{
       display:grid;
       grid-template-columns:1fr 1fr;
       gap:10px;
     }
 
-    .zx_tr_plan_form,
-    .zx_tr_panel{
+    .zx_plan_form_grid{
+      grid-template-columns:1.2fr .9fr .9fr;
+    }
+
+    .zx_tr_plan_form,.zx_tr_panel{
       background:#f8fafc;
       border:1px solid #d1d5db;
       border-radius:20px;
-      padding:16px;
+      padding:14px;
       margin-top:14px;
     }
 
-    .zx_tr_plan_item,
-    .zx_tr_file_item,
-    .zx_tr_mat_item,
-    .zx_tr_hist_item{
+    .zx_plan_details{
+      margin-top:10px;
+    }
+
+    .zx_plan_details summary{
+      font-weight:900;
+      color:#2563eb;
+      cursor:pointer;
+    }
+
+    .zx_plan_buttons{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+
+    .zx_plan_compact{
+      display:grid;
+      gap:8px;
+    }
+
+    .zx_plan_row{
+      display:grid;
+      grid-template-columns:1fr 1fr 1.2fr;
+      gap:8px;
+      align-items:center;
+      background:white;
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      padding:10px;
+      font-weight:850;
+      color:#0f172a;
+    }
+
+    .zx_plan_fecha{color:#334155}
+    .zx_plan_hora{color:#2563eb}
+    .zx_plan_operario{color:#0f172a}
+    .zx_plan_notas{
+      grid-column:1/-1;
+      color:#64748b;
+      font-size:14px;
+      font-weight:750;
+    }
+
+    .zx_tr_file_item,.zx_tr_mat_item,.zx_tr_hist_item{
       background:white;
       border:1px solid #e5e7eb;
       border-radius:16px;
@@ -1210,28 +1252,59 @@ window.ZX_trabajos=async function(){
       align-items:center;
     }
 
-    .zx_tr_plan_top{
+    .zx_tr_card{
+      border-width:3px;
+    }
+
+    .zx_tr_card_urgente{
+      border-color:#dc2626;
+      box-shadow:0 8px 28px rgba(220,38,38,.18);
+    }
+
+    .zx_tr_card_alta{
+      border-color:#ea580c;
+      box-shadow:0 8px 28px rgba(234,88,12,.14);
+    }
+
+    .zx_tr_card_bloqueado{
+      border-color:#991b1b;
+      box-shadow:0 8px 28px rgba(153,27,27,.22);
+    }
+
+    .zx_tr_card_terminado{
+      border-color:#16a34a;
+    }
+
+    .zx_tr_badges{
       display:flex;
-      justify-content:space-between;
+      flex-wrap:wrap;
       gap:8px;
-      font-size:16px;
-      color:#0f172a;
-      font-weight:900;
+      margin:8px 0 12px;
     }
 
-    .zx_tr_plan_top span{
-      color:#64748b;
+    .zx_badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      padding:8px 12px;
+      color:white;
       font-size:14px;
-      white-space:nowrap;
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:.3px;
     }
 
-    .zx_tr_plan_txt{
-      margin-top:6px;
-      color:#475569;
-      font-size:15px;
-      font-weight:800;
-      line-height:1.4;
-    }
+    .zx_estado_pendiente{background:#ea580c!important;color:white!important}
+    .zx_estado_curso{background:#2563eb!important;color:white!important}
+    .zx_estado_terminado{background:#16a34a!important;color:white!important}
+    .zx_estado_bloqueado{background:#991b1b!important;color:white!important}
+    .zx_estado_neutro{background:#64748b!important;color:white!important}
+
+    .zx_prio_baja{background:#64748b}
+    .zx_prio_media{background:#2563eb}
+    .zx_prio_alta{background:#ea580c}
+    .zx_prio_urgente{background:#dc2626}
 
     .zx_user_card{
       background:white;
@@ -1293,8 +1366,10 @@ window.ZX_trabajos=async function(){
 
     @media(max-width:430px){
       .zx_tr_grid2,
+      .zx_plan_form_grid,
       .zx_user_actions,
-      .zx_tr_file_item{
+      .zx_tr_file_item,
+      .zx_plan_row{
         grid-template-columns:1fr;
       }
     }
