@@ -174,6 +174,98 @@ function claseTarjeta(t){
   if(e==="terminado") return "zx_tr_card_terminado";
   return "";
 }
+function hashPin(pin){
+  return btoa(String(pin));
+}
+
+async function registrarAuditoriaTrabajo(trabajo,accion,datosExtra={}){
+  const s=sesion();
+
+  await sb()
+    .from("trabajos_auditoria")
+    .insert([{
+      trabajo_id:String(trabajo?.id || ""),
+      titulo:String(trabajo?.titulo || ""),
+      accion:String(accion || ""),
+      usuario_id:String(s.id || ""),
+      usuario:String(s.usuario || ""),
+      datos:datosExtra
+    }]);
+}
+
+async function pedirPinAdmin(){
+  return new Promise(function(resolve){
+
+    cerrarModalTrabajo();
+
+    document.body.insertAdjacentHTML("beforeend",`
+      <div id="zx_modal_trabajo" class="zx_modal_fondo">
+        <div class="zx_modal_caja">
+          <h2>PIN administrador</h2>
+
+          <div class="zx_text">
+            Introduce el PIN para continuar.
+          </div>
+
+          <input id="tr_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
+
+          <button class="zx_btn_big zx_verde" id="tr_pin_ok">
+            Confirmar
+          </button>
+
+          <button class="zx_btn_big zx_gris" id="tr_pin_cancelar">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    `);
+
+    document.getElementById("tr_pin_cancelar").onclick=function(){
+      cerrarModalTrabajo();
+      resolve(false);
+    };
+
+    document.getElementById("tr_pin_ok").onclick=async function(){
+      const pin=document.getElementById("tr_pin_admin").value.trim();
+
+      if(!/^[0-9]{4}$/.test(pin)){
+        alert("PIN inválido.");
+        return;
+      }
+
+      const s=sesion();
+
+      const r=await sb()
+        .from("usuarios")
+        .select("id,usuario,rol,pin_hash")
+        .eq("id",s.id)
+        .maybeSingle();
+
+      if(r.error || !r.data){
+        alert("No se pudo validar el usuario.");
+        return;
+      }
+
+      const rol=String(r.data.rol || "").toLowerCase();
+      const usuario=String(r.data.usuario || "").toLowerCase();
+
+      const admin=rol==="administrador" || usuario==="admin";
+
+      if(!admin){
+        alert("Solo administrador.");
+        return;
+      }
+
+      if(hashPin(pin)!==r.data.pin_hash){
+        alert("PIN incorrecto.");
+        return;
+      }
+
+      cerrarModalTrabajo();
+      resolve(true);
+    };
+  });
+}
 function menuTelefono(tel){
   const n=telefonoLimpio(tel);
 
