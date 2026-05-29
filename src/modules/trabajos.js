@@ -87,6 +87,7 @@ async function cargarTrabajos(){
   const r=await sb()
     .from("trabajos")
     .select("*")
+    .eq("archivado",false)
     .order("fecha",{ascending:true})
     .order("hora_inicio",{ascending:true});
 
@@ -1138,25 +1139,103 @@ window.ZX_editarTrabajo=async function(id){
 };
 
 window.ZX_borrarTrabajo=async function(id){
-  if(!confirm("¿Borrar trabajo?")) return;
 
-  await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
-  await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id));
-  await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id));
-  await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id));
-  await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id));
-
-  const r=await sb()
+  const r0=await sb()
     .from("trabajos")
-    .delete()
-    .eq("id",id);
+    .select("*")
+    .eq("id",id)
+    .maybeSingle();
 
-  if(r.error){
-    alert("Error borrando trabajo: "+r.error.message);
+  if(r0.error || !r0.data){
+    alert("Trabajo no encontrado.");
     return;
   }
 
-  ZX_trabajos();
+  const trabajo=r0.data;
+
+  cerrarModalTrabajo();
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_trabajo" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Borrar trabajo</h2>
+
+        <div class="zx_text">
+          ${limpiar(trabajo.titulo || "Trabajo")}<br>
+          Cliente: ${limpiar(trabajo.cliente || "-")}
+        </div>
+
+        <button class="zx_btn_big zx_naranja" id="tr_archivar">
+          Archivar trabajo
+        </button>
+
+        <button class="zx_btn_big zx_rojo" id="tr_borrar_def">
+          Borrar definitivamente
+        </button>
+
+        <button class="zx_btn_big zx_gris" id="tr_borrar_cancelar">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  `);
+
+  document.getElementById("tr_borrar_cancelar").onclick=cerrarModalTrabajo;
+
+  document.getElementById("tr_archivar").onclick=async function(){
+    const ok=await pedirPinAdmin();
+    if(!ok) return;
+
+    const r=await sb()
+      .from("trabajos")
+      .update({archivado:true})
+      .eq("id",id);
+
+    if(r.error){
+      alert("Error archivando trabajo: "+r.error.message);
+      return;
+    }
+
+    await registrarAuditoriaTrabajo(trabajo,"ARCHIVAR_TRABAJO",{
+      estado:trabajo.estado || "",
+      prioridad:trabajo.prioridad || ""
+    });
+
+    cerrarModalTrabajo();
+    ZX_trabajos();
+  };
+
+  document.getElementById("tr_borrar_def").onclick=async function(){
+    const ok=await pedirPinAdmin();
+    if(!ok) return;
+
+    if(!confirm("Borrado definitivo. ¿Continuar?")) return;
+
+    await registrarAuditoriaTrabajo(trabajo,"BORRAR_TRABAJO",{
+      estado:trabajo.estado || "",
+      prioridad:trabajo.prioridad || "",
+      cliente:trabajo.cliente || ""
+    });
+
+    await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
+    await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id));
+    await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id));
+    await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id));
+    await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id));
+
+    const r=await sb()
+      .from("trabajos")
+      .delete()
+      .eq("id",id);
+
+    if(r.error){
+      alert("Error borrando trabajo: "+r.error.message);
+      return;
+    }
+
+    cerrarModalTrabajo();
+    ZX_trabajos();
+  };
 };
 
 window.ZX_cambiarEstadoTrabajo=async function(id){
