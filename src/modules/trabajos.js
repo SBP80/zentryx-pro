@@ -1,9 +1,12 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3099 - PRIORIDAD + UX COMPACTA
+// V3101 - ARCHIVADO + FILTROS + BUSCADOR + BORRADO SEGURO
 // ===============================
 (function(){
 "use strict";
+
+let ZX_TR_FILTRO="activos";
+let ZX_TR_BUSQUEDA="";
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
@@ -72,30 +75,94 @@ function input(id,label,value,type){
 }
 
 async function cargarClientes(){
-  const r=await sb().from("clientes").select("*").order("nombre",{ascending:true});
+  const r=await sb()
+    .from("clientes")
+    .select("*")
+    .order("nombre",{ascending:true});
+
   if(r.error) return [];
   return r.data || [];
 }
 
 async function cargarUsuarios(){
-  const r=await sb().from("usuarios").select("*").order("nombre",{ascending:true});
+  const r=await sb()
+    .from("usuarios")
+    .select("*")
+    .order("nombre",{ascending:true});
+
   if(r.error) return [];
   return r.data || [];
 }
 
 async function cargarTrabajos(){
-  const r=await sb()
+  let q=sb()
     .from("trabajos")
-    .select("*")
-    .eq("archivado",false)
-    .order("fecha",{ascending:true})
-    .order("hora_inicio",{ascending:true});
+    .select("*");
+
+  if(ZX_TR_FILTRO==="activos"){
+    q=q.eq("archivado",false);
+  }
+
+  if(ZX_TR_FILTRO==="archivados"){
+    q=q.eq("archivado",true);
+  }
+
+  if(ZX_TR_FILTRO==="pendientes"){
+    q=q.eq("archivado",false).eq("estado","pendiente");
+  }
+
+  if(ZX_TR_FILTRO==="curso"){
+    q=q.eq("archivado",false).eq("estado","en_curso");
+  }
+
+  if(ZX_TR_FILTRO==="terminados"){
+    q=q.eq("archivado",false).eq("estado","terminado");
+  }
+
+  if(ZX_TR_FILTRO==="urgentes"){
+    q=q.eq("archivado",false).eq("prioridad","urgente");
+  }
+
+  q=q.order("fecha",{ascending:true}).order("hora_inicio",{ascending:true});
+
+  const r=await q;
 
   if(r.error){
     alert("Error cargando trabajos: "+r.error.message);
     return [];
   }
 
+  let datos=r.data || [];
+  const b=String(ZX_TR_BUSQUEDA || "").trim().toLowerCase();
+
+  if(b){
+    datos=datos.filter(t=>{
+      return [
+        t.titulo,
+        t.cliente,
+        t.usuario,
+        t.telefono_contacto,
+        t.direccion_obra,
+        t.direccion,
+        t.poblacion,
+        t.provincia,
+        t.codigo_postal,
+        t.pais,
+        t.descripcion,
+        t.notas
+      ].join(" ").toLowerCase().includes(b);
+    });
+  }
+
+  return datos;
+}
+
+async function cargarTodosTrabajos(){
+  const r=await sb()
+    .from("trabajos")
+    .select("*");
+
+  if(r.error) return [];
   return r.data || [];
 }
 
@@ -115,21 +182,40 @@ async function cargarPlanificacion(trabajoId){
 
 async function cargarArchivos(trabajoId){
   if(!trabajoId) return [];
-  const r=await sb().from("trabajos_archivos").select("*").eq("trabajo_id",String(trabajoId)).order("created_at",{ascending:false});
+
+  const r=await sb()
+    .from("trabajos_archivos")
+    .select("*")
+    .eq("trabajo_id",String(trabajoId))
+    .order("created_at",{ascending:false});
+
   if(r.error) return [];
   return r.data || [];
 }
 
 async function cargarMateriales(trabajoId){
   if(!trabajoId) return [];
-  const r=await sb().from("trabajos_materiales").select("*").eq("trabajo_id",String(trabajoId)).order("created_at",{ascending:false});
+
+  const r=await sb()
+    .from("trabajos_materiales")
+    .select("*")
+    .eq("trabajo_id",String(trabajoId))
+    .order("created_at",{ascending:false});
+
   if(r.error) return [];
   return r.data || [];
 }
 
 async function cargarHistorial(trabajoId){
   if(!trabajoId) return [];
-  const r=await sb().from("trabajos_historial").select("*").eq("trabajo_id",String(trabajoId)).order("fecha",{ascending:false}).order("hora_inicio",{ascending:false});
+
+  const r=await sb()
+    .from("trabajos_historial")
+    .select("*")
+    .eq("trabajo_id",String(trabajoId))
+    .order("fecha",{ascending:false})
+    .order("hora_inicio",{ascending:false});
+
   if(r.error) return [];
   return r.data || [];
 }
@@ -169,10 +255,13 @@ function clasePrioridad(p){
 function claseTarjeta(t){
   const p=String(t.prioridad || "media");
   const e=String(t.estado || "pendiente");
+
+  if(t.archivado) return "zx_tr_card_archivado";
   if(e==="bloqueado") return "zx_tr_card_bloqueado";
   if(p==="urgente") return "zx_tr_card_urgente";
   if(p==="alta") return "zx_tr_card_alta";
   if(e==="terminado") return "zx_tr_card_terminado";
+
   return "";
 }
 function hashPin(pin){
@@ -182,16 +271,18 @@ function hashPin(pin){
 async function registrarAuditoriaTrabajo(trabajo,accion,datosExtra={}){
   const s=sesion();
 
-  await sb()
-    .from("trabajos_auditoria")
-    .insert([{
-      trabajo_id:String(trabajo?.id || ""),
-      titulo:String(trabajo?.titulo || ""),
-      accion:String(accion || ""),
-      usuario_id:String(s.id || ""),
-      usuario:String(s.usuario || ""),
-      datos:datosExtra
-    }]);
+  try{
+    await sb()
+      .from("trabajos_auditoria")
+      .insert([{
+        trabajo_id:String(trabajo?.id || ""),
+        titulo:String(trabajo?.titulo || ""),
+        accion:String(accion || ""),
+        usuario_id:String(s.id || ""),
+        usuario:String(s.usuario || ""),
+        datos:datosExtra
+      }]);
+  }catch(e){}
 }
 
 async function pedirPinAdmin(){
@@ -249,7 +340,6 @@ async function pedirPinAdmin(){
 
       const rol=String(r.data.rol || "").toLowerCase();
       const usuario=String(r.data.usuario || "").toLowerCase();
-
       const admin=rol==="administrador" || usuario==="admin";
 
       if(!admin){
@@ -267,6 +357,7 @@ async function pedirPinAdmin(){
     };
   });
 }
+
 function menuTelefono(tel){
   const n=telefonoLimpio(tel);
 
@@ -290,9 +381,18 @@ function menuTelefono(tel){
     </div>
   `);
 
-  document.getElementById("tr_tel_llamar").onclick=function(){location.href="tel:"+n};
-  document.getElementById("tr_tel_sms").onclick=function(){location.href="sms:"+n};
-  document.getElementById("tr_tel_was").onclick=function(){location.href="https://wa.me/"+n.replace("+","")};
+  document.getElementById("tr_tel_llamar").onclick=function(){
+    location.href="tel:"+n;
+  };
+
+  document.getElementById("tr_tel_sms").onclick=function(){
+    location.href="sms:"+n;
+  };
+
+  document.getElementById("tr_tel_was").onclick=function(){
+    location.href="https://wa.me/"+n.replace("+","");
+  };
+
   document.getElementById("tr_tel_cerrar").onclick=cerrarModalTrabajo;
 }
 
@@ -319,9 +419,18 @@ function menuMapa(dir){
     </div>
   `);
 
-  document.getElementById("tr_map_apple").onclick=function(){location.href="https://maps.apple.com/?q="+q};
-  document.getElementById("tr_map_google").onclick=function(){location.href="https://www.google.com/maps/search/?api=1&query="+q};
-  document.getElementById("tr_map_waze").onclick=function(){location.href="https://waze.com/ul?q="+q};
+  document.getElementById("tr_map_apple").onclick=function(){
+    location.href="https://maps.apple.com/?q="+q;
+  };
+
+  document.getElementById("tr_map_google").onclick=function(){
+    location.href="https://www.google.com/maps/search/?api=1&query="+q;
+  };
+
+  document.getElementById("tr_map_waze").onclick=function(){
+    location.href="https://waze.com/ul?q="+q;
+  };
+
   document.getElementById("tr_map_cerrar").onclick=cerrarModalTrabajo;
 }
 
@@ -335,12 +444,15 @@ function renderPlanificacion(lista){
       ${lista.map(p=>`
         <div class="zx_plan_row">
           <div class="zx_plan_fecha">${limpiar(p.fecha || "")}</div>
+
           <div class="zx_plan_hora">
             ${limpiar(p.hora_inicio ? String(p.hora_inicio).slice(0,5) : "--:--")}
             -
             ${limpiar(p.hora_fin ? String(p.hora_fin).slice(0,5) : "--:--")}
           </div>
+
           <div class="zx_plan_operario">${limpiar(p.nombre || p.usuario || "Operario")}</div>
+
           ${p.notas ? `<div class="zx_plan_notas">${limpiar(p.notas)}</div>` : ""}
         </div>
       `).join("")}
@@ -398,7 +510,6 @@ function renderHistorial(lista){
     </div>
   `).join("");
 }
-
 async function renderTrabajo(t){
   const dir=direccionTrabajo(t);
   const plan=await cargarPlanificacion(t.id);
@@ -412,9 +523,11 @@ async function renderTrabajo(t){
       <div class="zx_tr_header">
         <div>
           <div class="zx_user_name">${limpiar(t.titulo || "Trabajo")}</div>
+
           <div class="zx_tr_badges">
             <span class="zx_badge ${claseEstado(t.estado)}">${limpiar(textoEstado(t.estado))}</span>
             <span class="zx_badge ${clasePrioridad(prioridad)}">${limpiar(textoPrioridad(prioridad))}</span>
+            ${t.archivado ? `<span class="zx_badge zx_archivado_badge">Archivado</span>` : ""}
           </div>
         </div>
       </div>
@@ -423,7 +536,12 @@ async function renderTrabajo(t){
         <b>Cliente:</b> ${limpiar(t.cliente || "-")}<br>
         <b>Contacto obra:</b> ${limpiar(t.persona_contacto || "-")}<br>
         <b>Teléfono contacto:</b> ${limpiar(t.telefono_contacto || "-")}<br>
-        <b>Dirección obra:</b> ${limpiar(dir || "-")}<br>
+        <b>Dirección obra:</b>
+        ${
+          dir
+          ? `<button class="zx_link_dir" data-tr-map="${limpiar(dir)}">${limpiar(dir)}</button>`
+          : "-"
+        }<br>
         <b>Descripción:</b> ${limpiar(t.descripcion || "-")}<br>
         <b>Notas:</b> ${limpiar(t.notas || "-")}
       </div>
@@ -473,6 +591,7 @@ async function renderTrabajo(t){
     </div>
   `;
 }
+
 function filaPlanificacionHTML(i,usuarios,p={}){
   return `
     <div class="zx_tr_plan_form zx_plan_form_compact" data-plan-row="${i}">
@@ -649,9 +768,7 @@ async function formulario(t={}){
       return;
     }
 
-    const dirCliente=direccionCliente(c);
-
-    document.getElementById("tr_direccion_cliente").value=dirCliente;
+    document.getElementById("tr_direccion_cliente").value=direccionCliente(c);
     document.getElementById("tr_persona_contacto").value=c.persona_contacto || "";
     document.getElementById("tr_telefono_contacto").value=c.telefono || "";
 
@@ -982,6 +1099,10 @@ async function sincronizarAgenda(trabajoId,data,planificacion){
     .eq("origen","trabajos")
     .eq("origen_id",String(trabajoId));
 
+  if(data.archivado){
+    return;
+  }
+
   for(const p of planificacion){
     await sb()
       .from("agenda_eventos")
@@ -1075,6 +1196,7 @@ async function guardarTrabajo(id,clientes){
     notas:document.getElementById("tr_notas").value.trim(),
 
     creado_por:s.usuario || "",
+    archivado:false,
     estado:"pendiente"
   };
 
@@ -1087,6 +1209,7 @@ async function guardarTrabajo(id,clientes){
 
   if(id){
     delete data.estado;
+    delete data.archivado;
 
     r=await sb()
       .from("trabajos")
@@ -1112,8 +1235,13 @@ async function guardarTrabajo(id,clientes){
   await guardarPlanificacion(trabajoId,planificacion);
   await sincronizarAgenda(trabajoId,{
     ...data,
-    estado:id ? "pendiente" : data.estado
+    estado:id ? (r.data?.estado || "pendiente") : data.estado
   },planificacion);
+
+  await registrarAuditoriaTrabajo(r.data || {id:trabajoId,titulo:data.titulo},id ? "EDITAR_TRABAJO" : "CREAR_TRABAJO",{
+    cliente:data.cliente || "",
+    prioridad:data.prioridad || "media"
+  });
 
   cerrarModalTrabajo();
   ZX_trabajos();
@@ -1139,7 +1267,6 @@ window.ZX_editarTrabajo=async function(id){
 };
 
 window.ZX_borrarTrabajo=async function(id){
-
   const r0=await sb()
     .from("trabajos")
     .select("*")
@@ -1158,16 +1285,18 @@ window.ZX_borrarTrabajo=async function(id){
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_trabajo" class="zx_modal_fondo">
       <div class="zx_modal_caja">
-        <h2>Borrar trabajo</h2>
+        <h2>Gestión de trabajo</h2>
 
         <div class="zx_text">
-          ${limpiar(trabajo.titulo || "Trabajo")}<br>
+          <b>${limpiar(trabajo.titulo || "Trabajo")}</b><br>
           Cliente: ${limpiar(trabajo.cliente || "-")}
         </div>
 
-        <button class="zx_btn_big zx_naranja" id="tr_archivar">
-          Archivar trabajo
-        </button>
+        ${
+          trabajo.archivado
+          ? `<button class="zx_btn_big zx_verde" id="tr_restaurar">Restaurar trabajo</button>`
+          : `<button class="zx_btn_big zx_naranja" id="tr_archivar">Archivar trabajo</button>`
+        }
 
         <button class="zx_btn_big zx_rojo" id="tr_borrar_def">
           Borrar definitivamente
@@ -1182,28 +1311,66 @@ window.ZX_borrarTrabajo=async function(id){
 
   document.getElementById("tr_borrar_cancelar").onclick=cerrarModalTrabajo;
 
-  document.getElementById("tr_archivar").onclick=async function(){
-    const ok=await pedirPinAdmin();
-    if(!ok) return;
+  const archivar=document.getElementById("tr_archivar");
+  if(archivar){
+    archivar.onclick=async function(){
+      const ok=await pedirPinAdmin();
+      if(!ok) return;
 
-    const r=await sb()
-      .from("trabajos")
-      .update({archivado:true})
-      .eq("id",id);
+      const r=await sb()
+        .from("trabajos")
+        .update({archivado:true})
+        .eq("id",id);
 
-    if(r.error){
-      alert("Error archivando trabajo: "+r.error.message);
-      return;
-    }
+      if(r.error){
+        alert("Error archivando trabajo: "+r.error.message);
+        return;
+      }
 
-    await registrarAuditoriaTrabajo(trabajo,"ARCHIVAR_TRABAJO",{
-      estado:trabajo.estado || "",
-      prioridad:trabajo.prioridad || ""
-    });
+      await sb()
+        .from("agenda_eventos")
+        .delete()
+        .eq("origen","trabajos")
+        .eq("origen_id",String(id));
 
-    cerrarModalTrabajo();
-    ZX_trabajos();
-  };
+      await registrarAuditoriaTrabajo(trabajo,"ARCHIVAR_TRABAJO",{
+        estado:trabajo.estado || "",
+        prioridad:trabajo.prioridad || ""
+      });
+
+      cerrarModalTrabajo();
+      ZX_trabajos();
+    };
+  }
+
+  const restaurar=document.getElementById("tr_restaurar");
+  if(restaurar){
+    restaurar.onclick=async function(){
+      const ok=await pedirPinAdmin();
+      if(!ok) return;
+
+      const r=await sb()
+        .from("trabajos")
+        .update({archivado:false})
+        .eq("id",id);
+
+      if(r.error){
+        alert("Error restaurando trabajo: "+r.error.message);
+        return;
+      }
+
+      const plan=await cargarPlanificacion(id);
+      await sincronizarAgenda(id,{...trabajo,archivado:false},plan);
+
+      await registrarAuditoriaTrabajo(trabajo,"RESTAURAR_TRABAJO",{
+        estado:trabajo.estado || "",
+        prioridad:trabajo.prioridad || ""
+      });
+
+      cerrarModalTrabajo();
+      ZX_trabajos();
+    };
+  }
 
   document.getElementById("tr_borrar_def").onclick=async function(){
     const ok=await pedirPinAdmin();
@@ -1239,7 +1406,11 @@ window.ZX_borrarTrabajo=async function(id){
 };
 
 window.ZX_cambiarEstadoTrabajo=async function(id){
-  const r0=await sb().from("trabajos").select("*").eq("id",id).maybeSingle();
+  const r0=await sb()
+    .from("trabajos")
+    .select("*")
+    .eq("id",id)
+    .maybeSingle();
 
   if(r0.error || !r0.data){
     alert("Trabajo no encontrado.");
@@ -1268,24 +1439,49 @@ window.ZX_cambiarEstadoTrabajo=async function(id){
     .eq("origen","trabajos")
     .eq("origen_id",String(id));
 
+  await registrarAuditoriaTrabajo(r0.data,"CAMBIAR_ESTADO",{
+    anterior:actual,
+    nuevo:nuevo
+  });
+
   ZX_trabajos();
 };
 
 function resumen(datos){
-  const pendientes=datos.filter(t=>t.estado==="pendiente").length;
-  const curso=datos.filter(t=>t.estado==="en_curso").length;
-  const terminados=datos.filter(t=>t.estado==="terminado").length;
-  const urgentes=datos.filter(t=>t.prioridad==="urgente").length;
+  const activos=datos.filter(t=>!t.archivado).length;
+  const pendientes=datos.filter(t=>t.estado==="pendiente" && !t.archivado).length;
+  const curso=datos.filter(t=>t.estado==="en_curso" && !t.archivado).length;
+  const terminados=datos.filter(t=>t.estado==="terminado" && !t.archivado).length;
+  const urgentes=datos.filter(t=>t.prioridad==="urgente" && !t.archivado).length;
+  const archivados=datos.filter(t=>t.archivado===true).length;
 
   return `
     <div class="zx_card">
       <h2>Trabajos</h2>
 
       <div class="zx_text">
+        Activos: <b>${activos}</b><br>
         Pendientes: <b>${pendientes}</b><br>
         En curso: <b>${curso}</b><br>
         Terminados: <b>${terminados}</b><br>
-        Urgentes: <b>${urgentes}</b>
+        Urgentes: <b>${urgentes}</b><br>
+        Archivados: <b>${archivados}</b>
+      </div>
+
+      <input
+        id="tr_buscar"
+        class="zx_tr_buscar"
+        placeholder="Buscar trabajo, cliente, dirección, teléfono..."
+        value="${limpiar(ZX_TR_BUSQUEDA)}">
+
+      <div class="zx_tr_filtros">
+        <button class="zx_tr_filtro ${ZX_TR_FILTRO==="activos"?"zx_tr_filtro_on":""}" data-tr-filtro="activos">Activos</button>
+        <button class="zx_tr_filtro ${ZX_TR_FILTRO==="todos"?"zx_tr_filtro_on":""}" data-tr-filtro="todos">Todos</button>
+        <button class="zx_tr_filtro ${ZX_TR_FILTRO==="pendientes"?"zx_tr_filtro_on":""}" data-tr-filtro="pendientes">Pendientes</button>
+        <button class="zx_tr_filtro ${ZX_TR_FILTRO==="curso"?"zx_tr_filtro_on":""}" data-tr-filtro="curso">En curso</button>
+        <button class="zx_tr_filtro ${ZX_TR_FILTRO==="terminados"?"zx_tr_filtro_on":""}" data-tr-filtro="terminados">Terminados</button>
+        <button class="zx_tr_filtro ${ZX_TR_FILTRO==="urgentes"?"zx_tr_filtro_on":""}" data-tr-filtro="urgentes">Urgentes</button>
+        <button class="zx_tr_filtro ${ZX_TR_FILTRO==="archivados"?"zx_tr_filtro_on":""}" data-tr-filtro="archivados">Archivados</button>
       </div>
 
       <button class="zx_btn_big zx_verde" id="btn_nuevo_trabajo">
@@ -1304,6 +1500,7 @@ window.ZX_trabajos=async function(){
   });
 
   const datos=await cargarTrabajos();
+  const todos=await cargarTodosTrabajos();
   const tarjetas=[];
 
   for(const t of datos){
@@ -1311,7 +1508,7 @@ window.ZX_trabajos=async function(){
   }
 
   app().innerHTML=`
-    ${resumen(datos)}
+    ${resumen(todos)}
 
     <div class="zx_card">
       <h2>Listado</h2>
@@ -1327,6 +1524,24 @@ window.ZX_trabajos=async function(){
     formulario({});
   };
 
+  document.querySelectorAll("[data-tr-filtro]").forEach(btn=>{
+    btn.onclick=function(){
+      ZX_TR_FILTRO=btn.dataset.trFiltro || "activos";
+      ZX_trabajos();
+    };
+  });
+
+  const buscador=document.getElementById("tr_buscar");
+  if(buscador){
+    buscador.oninput=function(){
+      ZX_TR_BUSQUEDA=buscador.value || "";
+      clearTimeout(window.ZX_TR_TIMER);
+      window.ZX_TR_TIMER=setTimeout(function(){
+        ZX_trabajos();
+      },350);
+    };
+  }
+
   document.querySelectorAll("[data-tr-estado]").forEach(btn=>{btn.onclick=function(){ZX_cambiarEstadoTrabajo(btn.dataset.trEstado)}});
   document.querySelectorAll("[data-tr-tel]").forEach(btn=>{btn.onclick=function(){menuTelefono(btn.dataset.trTel)}});
   document.querySelectorAll("[data-tr-map]").forEach(btn=>{btn.onclick=function(){menuMapa(btn.dataset.trMap)}});
@@ -1339,12 +1554,59 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3099")) return;
+  if(document.getElementById("zx_trabajos_v3101")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3099";
+  s.id="zx_trabajos_v3101";
 
   s.innerHTML=`
+    .zx_tr_buscar{
+      width:100%;
+      margin:14px 0;
+      padding:16px;
+      border-radius:18px;
+      border:1px solid #cbd5e1;
+      background:#f8fafc;
+      color:#0f172a;
+      font-size:17px;
+      font-weight:850;
+    }
+
+    .zx_tr_filtros{
+      display:flex;
+      gap:8px;
+      overflow-x:auto;
+      padding:8px 0 14px;
+      margin-bottom:8px;
+    }
+
+    .zx_tr_filtro{
+      flex:0 0 auto;
+      border:0;
+      border-radius:999px;
+      padding:11px 14px;
+      background:#e5e7eb;
+      color:#0f172a;
+      font-size:15px;
+      font-weight:900;
+    }
+
+    .zx_tr_filtro_on{
+      background:#2563eb;
+      color:white;
+    }
+
+    .zx_link_dir{
+      border:0;
+      background:transparent;
+      color:#2563eb;
+      font-size:18px;
+      font-weight:900;
+      text-align:left;
+      padding:0;
+      text-decoration:underline;
+    }
+
     .zx_tr_grid2,.zx_plan_form_grid{
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -1363,10 +1625,7 @@ window.ZX_trabajos=async function(){
       margin-top:14px;
     }
 
-    .zx_plan_details{
-      margin-top:10px;
-    }
-
+    .zx_plan_details{margin-top:10px}
     .zx_plan_details summary{
       font-weight:900;
       color:#2563eb;
@@ -1423,28 +1682,12 @@ window.ZX_trabajos=async function(){
       align-items:center;
     }
 
-    .zx_tr_card{
-      border-width:3px;
-    }
-
-    .zx_tr_card_urgente{
-      border-color:#dc2626;
-      box-shadow:0 8px 28px rgba(220,38,38,.18);
-    }
-
-    .zx_tr_card_alta{
-      border-color:#ea580c;
-      box-shadow:0 8px 28px rgba(234,88,12,.14);
-    }
-
-    .zx_tr_card_bloqueado{
-      border-color:#991b1b;
-      box-shadow:0 8px 28px rgba(153,27,27,.22);
-    }
-
-    .zx_tr_card_terminado{
-      border-color:#16a34a;
-    }
+    .zx_tr_card{border-width:3px}
+    .zx_tr_card_urgente{border-color:#dc2626;box-shadow:0 8px 28px rgba(220,38,38,.18)}
+    .zx_tr_card_alta{border-color:#ea580c;box-shadow:0 8px 28px rgba(234,88,12,.14)}
+    .zx_tr_card_bloqueado{border-color:#991b1b;box-shadow:0 8px 28px rgba(153,27,27,.22)}
+    .zx_tr_card_terminado{border-color:#16a34a}
+    .zx_tr_card_archivado{border-color:#64748b;opacity:.82}
 
     .zx_tr_badges{
       display:flex;
@@ -1476,6 +1719,7 @@ window.ZX_trabajos=async function(){
     .zx_prio_media{background:#2563eb}
     .zx_prio_alta{background:#ea580c}
     .zx_prio_urgente{background:#dc2626}
+    .zx_archivado_badge{background:#334155}
 
     .zx_user_card{
       background:white;
