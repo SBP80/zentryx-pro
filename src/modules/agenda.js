@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA PRO
-// V3087 - AGENDA ↔ TRABAJOS + PIN BORRADO
+// V3089 - AGENDA ↔ TRABAJOS PROTEGIDO
 // ===============================
 (function(){
 "use strict";
@@ -75,9 +75,14 @@ function hashPin(pin){
   return btoa(String(pin));
 }
 
+function esEventoTrabajo(e){
+  return String(e?.tipo || "")==="trabajo" &&
+         String(e?.origen || "")==="trabajos" &&
+         String(e?.origen_id || "");
+}
+
 async function pedirPinAdminAgenda(){
   return new Promise(function(resolve){
-
     cerrarModalAgenda();
 
     document.body.insertAdjacentHTML("beforeend",`
@@ -85,19 +90,12 @@ async function pedirPinAdminAgenda(){
         <div class="zx_modal_caja">
           <h2>PIN administrador</h2>
 
-          <div class="zx_text">
-            Introduce el PIN para continuar.
-          </div>
+          <div class="zx_text">Introduce el PIN para continuar.</div>
 
           <input id="ag_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
 
-          <button class="zx_btn_big zx_verde" id="ag_pin_ok">
-            Confirmar
-          </button>
-
-          <button class="zx_btn_big zx_gris" id="ag_pin_cancelar">
-            Cancelar
-          </button>
+          <button class="zx_btn_big zx_verde" id="ag_pin_ok">Confirmar</button>
+          <button class="zx_btn_big zx_gris" id="ag_pin_cancelar">Cancelar</button>
         </div>
       </div>
     `);
@@ -146,12 +144,6 @@ async function pedirPinAdminAgenda(){
       resolve(true);
     };
   });
-}
-
-function esEventoTrabajo(e){
-  return String(e?.tipo || "")==="trabajo" &&
-         String(e?.origen || "")==="trabajos" &&
-         String(e?.origen_id || "");
 }
 
 function colorTipo(tipo){
@@ -203,6 +195,7 @@ function filtrarEventos(lista){
   if(ZX_AGENDA_FILTRO==="todos") return lista;
   return lista.filter(e=>String(e.tipo||"")===ZX_AGENDA_FILTRO);
 }
+
 async function sincronizarSolicitudes(){
   try{
     const r=await sb()
@@ -414,12 +407,8 @@ function abrirModalEvento(e=null,fecha=null){
 
         ${
           trabajoVinculado
-          ? `<button class="zx_btn_big zx_azul" id="ag_abrir_trabajo">
-              Abrir trabajo
-            </button>`
-          : `<button class="zx_btn_big zx_verde" id="ag_guardar">
-              Guardar
-            </button>`
+          ? `<button class="zx_btn_big zx_azul" id="ag_abrir_trabajo">Abrir trabajo</button>`
+          : `<button class="zx_btn_big zx_verde" id="ag_guardar">Guardar</button>`
         }
 
         <button class="zx_btn_big zx_gris" id="ag_cancelar">Cancelar</button>
@@ -439,6 +428,7 @@ function abrirModalEvento(e=null,fecha=null){
     };
   }
 }
+
 async function cambiarEstado(id,estado){
   const r=await sb()
     .from("agenda_eventos")
@@ -475,13 +465,8 @@ async function borrarEvento(id){
             Para modificarlo, archivarlo o borrarlo, abre el trabajo original.
           </div>
 
-          <button class="zx_btn_big zx_azul" id="ag_borrar_abrir_trabajo">
-            Abrir trabajo
-          </button>
-
-          <button class="zx_btn_big zx_gris" id="ag_borrar_cancelar">
-            Cancelar
-          </button>
+          <button class="zx_btn_big zx_azul" id="ag_borrar_abrir_trabajo">Abrir trabajo</button>
+          <button class="zx_btn_big zx_gris" id="ag_borrar_cancelar">Cancelar</button>
         </div>
       </div>
     `);
@@ -491,29 +476,6 @@ async function borrarEvento(id){
     };
 
     document.getElementById("ag_borrar_cancelar").onclick=cerrarModalAgenda;
-
-    return;
-  }
-
-  const ok=await pedirPinAdminAgenda();
-  if(!ok) return;
-
-  if(!confirm("¿Eliminar evento?")) return;
-
-  const r=await sb()
-    .from("agenda_eventos")
-    .delete()
-    .eq("id",id);
-
-  if(r.error){
-    alert("Error borrando evento: "+r.error.message);
-    return;
-  }
-
-  cerrarModalAgenda();
-  ZX_agenda();
-}
-
     return;
   }
 
@@ -556,13 +518,8 @@ window.ZX_ag_verDia=function(fecha){
           : `<div class="zx_text">Sin eventos este día.</div>`
         }
 
-        <button class="zx_btn_big zx_verde" onclick="ZX_ag_nuevo('${fecha}')">
-          Añadir evento este día
-        </button>
-
-        <button class="zx_btn_big zx_gris" onclick="document.getElementById('zx_modal_agenda').remove()">
-          Cerrar
-        </button>
+        <button class="zx_btn_big zx_verde" onclick="ZX_ag_nuevo('${fecha}')">Añadir evento este día</button>
+        <button class="zx_btn_big zx_gris" onclick="document.getElementById('zx_modal_agenda').remove()">Cerrar</button>
       </div>
     </div>
   `);
@@ -656,6 +613,7 @@ function renderEvento(e){
     </div>
   `;
 }
+
 function renderCalendario(){
   const inicio=primerDiaMes(ZX_AGENDA_FECHA);
   const fin=ultimoDiaMes(ZX_AGENDA_FECHA);
@@ -758,9 +716,7 @@ function renderFiltros(){
       <h2>Agenda</h2>
       <div class="zx_text">Calendario general de empresa, operarios, clientes, vacaciones, revisiones y notas.</div>
 
-      <button class="zx_btn_big zx_verde" onclick="ZX_ag_nuevo('${hoy()}')">
-        Nuevo evento
-      </button>
+      <button class="zx_btn_big zx_verde" onclick="ZX_ag_nuevo('${hoy()}')">Nuevo evento</button>
 
       <div class="zx_ag_filters">
         ${tipos.map(t=>`
@@ -789,10 +745,10 @@ window.ZX_agenda=async function(){
 };
 
 (function(){
-  if(document.getElementById("zx_agenda_css_v3087")) return;
+  if(document.getElementById("zx_agenda_css_v3089")) return;
 
   const s=document.createElement("style");
-  s.id="zx_agenda_css_v3087";
+  s.id="zx_agenda_css_v3089";
 
   s.innerHTML=`
     .zx_ag_head{display:flex;justify-content:space-between;align-items:center;gap:10px}
