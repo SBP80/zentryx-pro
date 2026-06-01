@@ -471,15 +471,12 @@ async function borrarEvento(id){
 
           <div class="zx_text">
             Este evento pertenece a un trabajo.<br><br>
-            Para eliminarlo correctamente debes editar, archivar o borrar el trabajo original.
+            No se puede borrar desde Agenda para no romper la sincronización.<br><br>
+            Para modificarlo, archivarlo o borrarlo, abre el trabajo original.
           </div>
 
           <button class="zx_btn_big zx_azul" id="ag_borrar_abrir_trabajo">
             Abrir trabajo
-          </button>
-
-          <button class="zx_btn_big zx_rojo" id="ag_borrar_forzar">
-            Borrar solo este evento
           </button>
 
           <button class="zx_btn_big zx_gris" id="ag_borrar_cancelar">
@@ -495,27 +492,27 @@ async function borrarEvento(id){
 
     document.getElementById("ag_borrar_cancelar").onclick=cerrarModalAgenda;
 
-    document.getElementById("ag_borrar_forzar").onclick=async function(){
-      const ok=await pedirPinAdminAgenda();
-      if(!ok) return;
+    return;
+  }
 
-      if(!confirm("Borrar solo este evento puede romper la sincronización con el trabajo. ¿Continuar?")){
-        return;
-      }
+  const ok=await pedirPinAdminAgenda();
+  if(!ok) return;
 
-      const r=await sb()
-        .from("agenda_eventos")
-        .delete()
-        .eq("id",id);
+  if(!confirm("¿Eliminar evento?")) return;
 
-      if(r.error){
-        alert("Error borrando evento: "+r.error.message);
-        return;
-      }
+  const r=await sb()
+    .from("agenda_eventos")
+    .delete()
+    .eq("id",id);
 
-      cerrarModalAgenda();
-      ZX_agenda();
-    };
+  if(r.error){
+    alert("Error borrando evento: "+r.error.message);
+    return;
+  }
+
+  cerrarModalAgenda();
+  ZX_agenda();
+}
 
     return;
   }
