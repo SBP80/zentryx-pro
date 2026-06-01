@@ -430,9 +430,53 @@ function abrirModalEvento(e=null,fecha=null){
 }
 
 async function cambiarEstado(id,estado){
+  const e=ZX_AGENDA_CACHE.find(x=>String(x.id)===String(id));
+
+  if(!e){
+    alert("Evento no encontrado.");
+    return;
+  }
+
+  const nuevoEstadoTrabajo = estado==="completado" ? "terminado" :
+                             estado==="cancelado" ? "bloqueado" :
+                             "pendiente";
+
+  if(esEventoTrabajo(e)){
+    const rTrabajo=await sb()
+      .from("trabajos")
+      .update({estado:nuevoEstadoTrabajo})
+      .eq("id",String(e.origen_id));
+
+    if(rTrabajo.error){
+      alert("Error actualizando trabajo: "+rTrabajo.error.message);
+      return;
+    }
+
+    const rAgenda=await sb()
+      .from("agenda_eventos")
+      .update({
+        estado:estado,
+        updated_at:new Date().toISOString()
+      })
+      .eq("origen","trabajos")
+      .eq("origen_id",String(e.origen_id));
+
+    if(rAgenda.error){
+      alert("Error actualizando agenda: "+rAgenda.error.message);
+      return;
+    }
+
+    cerrarModalAgenda();
+    ZX_agenda();
+    return;
+  }
+
   const r=await sb()
     .from("agenda_eventos")
-    .update({estado,updated_at:new Date().toISOString()})
+    .update({
+      estado:estado,
+      updated_at:new Date().toISOString()
+    })
     .eq("id",id);
 
   if(r.error){
@@ -440,6 +484,7 @@ async function cambiarEstado(id,estado){
     return;
   }
 
+  cerrarModalAgenda();
   ZX_agenda();
 }
 
