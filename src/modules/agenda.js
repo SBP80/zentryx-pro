@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA PRO
-// V3086 - CLICK EN DÍA ABRE DÍA
+// V3087 - AGENDA ↔ TRABAJOS + PIN BORRADO
 // ===============================
 (function(){
 "use strict";
@@ -66,6 +66,94 @@ function ultimoDiaMes(d){
   return new Date(d.getFullYear(),d.getMonth()+1,0);
 }
 
+function cerrarModalAgenda(){
+  const m=document.getElementById("zx_modal_agenda");
+  if(m) m.remove();
+}
+
+function hashPin(pin){
+  return btoa(String(pin));
+}
+
+async function pedirPinAdminAgenda(){
+  return new Promise(function(resolve){
+
+    cerrarModalAgenda();
+
+    document.body.insertAdjacentHTML("beforeend",`
+      <div id="zx_modal_agenda" class="zx_modal_fondo">
+        <div class="zx_modal_caja">
+          <h2>PIN administrador</h2>
+
+          <div class="zx_text">
+            Introduce el PIN para continuar.
+          </div>
+
+          <input id="ag_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
+
+          <button class="zx_btn_big zx_verde" id="ag_pin_ok">
+            Confirmar
+          </button>
+
+          <button class="zx_btn_big zx_gris" id="ag_pin_cancelar">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    `);
+
+    document.getElementById("ag_pin_cancelar").onclick=function(){
+      cerrarModalAgenda();
+      resolve(false);
+    };
+
+    document.getElementById("ag_pin_ok").onclick=async function(){
+      const pin=document.getElementById("ag_pin_admin").value.trim();
+
+      if(!/^[0-9]{4}$/.test(pin)){
+        alert("PIN inválido.");
+        return;
+      }
+
+      const s=sesion();
+
+      const r=await sb()
+        .from("usuarios")
+        .select("id,usuario,rol,pin_hash")
+        .eq("id",s.id)
+        .maybeSingle();
+
+      if(r.error || !r.data){
+        alert("No se pudo validar usuario.");
+        return;
+      }
+
+      const rol=String(r.data.rol || "").toLowerCase();
+      const usuario=String(r.data.usuario || "").toLowerCase();
+      const admin=rol==="administrador" || usuario==="admin";
+
+      if(!admin){
+        alert("Solo administrador.");
+        return;
+      }
+
+      if(hashPin(pin)!==r.data.pin_hash){
+        alert("PIN incorrecto.");
+        return;
+      }
+
+      cerrarModalAgenda();
+      resolve(true);
+    };
+  });
+}
+
+function esEventoTrabajo(e){
+  return String(e?.tipo || "")==="trabajo" &&
+         String(e?.origen || "")==="trabajos" &&
+         String(e?.origen_id || "");
+}
+
 function colorTipo(tipo){
   const t=String(tipo||"").toLowerCase();
   if(t==="trabajo") return "zx_ag_tipo_trabajo";
@@ -115,7 +203,6 @@ function filtrarEventos(lista){
   if(ZX_AGENDA_FILTRO==="todos") return lista;
   return lista.filter(e=>String(e.tipo||"")===ZX_AGENDA_FILTRO);
 }
-
 async function sincronizarSolicitudes(){
   try{
     const r=await sb()
@@ -200,11 +287,6 @@ async function cargarEventos(){
   return datos;
 }
 
-function cerrarModalAgenda(){
-  const m=document.getElementById("zx_modal_agenda");
-  if(m) m.remove();
-}
-
 async function guardarEvento(id=null){
   const s=sesion();
 
@@ -257,14 +339,23 @@ function abrirModalEvento(e=null,fecha=null){
   cerrarModalAgenda();
 
   const isEdit=!!e;
+  const trabajoVinculado=esEventoTrabajo(e);
 
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_agenda" class="zx_modal_fondo">
       <div class="zx_modal_caja">
         <h2>${isEdit ? "Editar evento" : "Nuevo evento"}</h2>
 
+        ${
+          trabajoVinculado
+          ? `<div class="zx_ag_aviso_trabajo">
+              Este evento viene de un trabajo. Para modificar fecha, operario u horarios, edita el trabajo original.
+            </div>`
+          : ""
+        }
+
         <label class="zx_ag_label">Tipo</label>
-        <select id="ag_tipo">
+        <select id="ag_tipo" ${trabajoVinculado ? "disabled" : ""}>
           <option value="trabajo" ${e?.tipo==="trabajo"?"selected":""}>Trabajo</option>
           <option value="cita" ${e?.tipo==="cita"?"selected":""}>Cita</option>
           <option value="recordatorio" ${e?.tipo==="recordatorio"?"selected":""}>Recordatorio</option>
@@ -275,64 +366,79 @@ function abrirModalEvento(e=null,fecha=null){
         </select>
 
         <label class="zx_ag_label">Título</label>
-        <input id="ag_titulo" value="${limpiar(e?.titulo || "")}" placeholder="Título">
+        <input id="ag_titulo" value="${limpiar(e?.titulo || "")}" placeholder="Título" ${trabajoVinculado ? "readonly" : ""}>
 
         <label class="zx_ag_label">Descripción</label>
-        <textarea id="ag_desc" rows="4" placeholder="Notas, dirección, material, detalles...">${limpiar(e?.descripcion || "")}</textarea>
+        <textarea id="ag_desc" rows="4" placeholder="Notas, dirección, material, detalles..." ${trabajoVinculado ? "readonly" : ""}>${limpiar(e?.descripcion || "")}</textarea>
 
         <label class="zx_ag_label">Fecha inicio</label>
-        <input id="ag_fecha_inicio" type="date" value="${limpiar(e?.fecha_inicio || fecha || hoy())}">
+        <input id="ag_fecha_inicio" type="date" value="${limpiar(e?.fecha_inicio || fecha || hoy())}" ${trabajoVinculado ? "readonly" : ""}>
 
         <label class="zx_ag_label">Fecha fin</label>
-        <input id="ag_fecha_fin" type="date" value="${limpiar(e?.fecha_fin || e?.fecha_inicio || fecha || hoy())}">
+        <input id="ag_fecha_fin" type="date" value="${limpiar(e?.fecha_fin || e?.fecha_inicio || fecha || hoy())}" ${trabajoVinculado ? "readonly" : ""}>
 
         <div class="zx_ag_grid2">
           <div>
             <label class="zx_ag_label">Hora inicio</label>
-            <input id="ag_hora_inicio" type="time" value="${limpiar(e?.hora_inicio ? String(e.hora_inicio).slice(0,5) : "")}">
+            <input id="ag_hora_inicio" type="time" value="${limpiar(e?.hora_inicio ? String(e.hora_inicio).slice(0,5) : "")}" ${trabajoVinculado ? "readonly" : ""}>
           </div>
 
           <div>
             <label class="zx_ag_label">Hora fin</label>
-            <input id="ag_hora_fin" type="time" value="${limpiar(e?.hora_fin ? String(e.hora_fin).slice(0,5) : "")}">
+            <input id="ag_hora_fin" type="time" value="${limpiar(e?.hora_fin ? String(e.hora_fin).slice(0,5) : "")}" ${trabajoVinculado ? "readonly" : ""}>
           </div>
         </div>
 
         <label class="zx_ag_label">Operario</label>
-        <input id="ag_usuario" value="${limpiar(e?.usuario || "")}" placeholder="Nombre operario">
+        <input id="ag_usuario" value="${limpiar(e?.usuario || "")}" placeholder="Nombre operario" ${trabajoVinculado ? "readonly" : ""}>
 
         <label class="zx_ag_label">Cliente</label>
-        <input id="ag_cliente" value="${limpiar(e?.cliente || "")}" placeholder="Cliente">
+        <input id="ag_cliente" value="${limpiar(e?.cliente || "")}" placeholder="Cliente" ${trabajoVinculado ? "readonly" : ""}>
 
         <label class="zx_ag_label">Vehículo</label>
-        <input id="ag_vehiculo" value="${limpiar(e?.vehiculo || "")}" placeholder="Vehículo">
+        <input id="ag_vehiculo" value="${limpiar(e?.vehiculo || "")}" placeholder="Vehículo" ${trabajoVinculado ? "readonly" : ""}>
 
         <label class="zx_ag_label">Prioridad</label>
-        <select id="ag_prioridad">
+        <select id="ag_prioridad" ${trabajoVinculado ? "disabled" : ""}>
           <option value="normal" ${e?.prioridad==="normal"?"selected":""}>Normal</option>
           <option value="alta" ${e?.prioridad==="alta"?"selected":""}>Alta</option>
           <option value="baja" ${e?.prioridad==="baja"?"selected":""}>Baja</option>
         </select>
 
         <label class="zx_ag_label">Visible para</label>
-        <select id="ag_visible">
+        <select id="ag_visible" ${trabajoVinculado ? "disabled" : ""}>
           <option value="todos" ${e?.visible_para==="todos"?"selected":""}>Todos</option>
           <option value="admin" ${e?.visible_para==="admin"?"selected":""}>Solo admin</option>
           <option value="usuario" ${e?.visible_para==="usuario"?"selected":""}>Usuario</option>
         </select>
 
-        <button class="zx_btn_big zx_verde" id="ag_guardar">Guardar</button>
+        ${
+          trabajoVinculado
+          ? `<button class="zx_btn_big zx_azul" id="ag_abrir_trabajo">
+              Abrir trabajo
+            </button>`
+          : `<button class="zx_btn_big zx_verde" id="ag_guardar">
+              Guardar
+            </button>`
+        }
+
         <button class="zx_btn_big zx_gris" id="ag_cancelar">Cancelar</button>
       </div>
     </div>
   `);
 
   document.getElementById("ag_cancelar").onclick=cerrarModalAgenda;
-  document.getElementById("ag_guardar").onclick=function(){
-    guardarEvento(isEdit ? e.id : null);
-  };
-}
 
+  if(trabajoVinculado){
+    document.getElementById("ag_abrir_trabajo").onclick=function(){
+      ZX_ag_abrirTrabajo(e.origen_id);
+    };
+  }else{
+    document.getElementById("ag_guardar").onclick=function(){
+      guardarEvento(isEdit ? e.id : null);
+    };
+  }
+}
 async function cambiarEstado(id,estado){
   const r=await sb()
     .from("agenda_eventos")
@@ -348,6 +454,75 @@ async function cambiarEstado(id,estado){
 }
 
 async function borrarEvento(id){
+  const e=ZX_AGENDA_CACHE.find(x=>String(x.id)===String(id));
+
+  if(!e){
+    alert("Evento no encontrado.");
+    return;
+  }
+
+  if(esEventoTrabajo(e)){
+    cerrarModalAgenda();
+
+    document.body.insertAdjacentHTML("beforeend",`
+      <div id="zx_modal_agenda" class="zx_modal_fondo">
+        <div class="zx_modal_caja">
+          <h2>Evento de trabajo</h2>
+
+          <div class="zx_text">
+            Este evento pertenece a un trabajo.<br><br>
+            Para eliminarlo correctamente debes editar, archivar o borrar el trabajo original.
+          </div>
+
+          <button class="zx_btn_big zx_azul" id="ag_borrar_abrir_trabajo">
+            Abrir trabajo
+          </button>
+
+          <button class="zx_btn_big zx_rojo" id="ag_borrar_forzar">
+            Borrar solo este evento
+          </button>
+
+          <button class="zx_btn_big zx_gris" id="ag_borrar_cancelar">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    `);
+
+    document.getElementById("ag_borrar_abrir_trabajo").onclick=function(){
+      ZX_ag_abrirTrabajo(e.origen_id);
+    };
+
+    document.getElementById("ag_borrar_cancelar").onclick=cerrarModalAgenda;
+
+    document.getElementById("ag_borrar_forzar").onclick=async function(){
+      const ok=await pedirPinAdminAgenda();
+      if(!ok) return;
+
+      if(!confirm("Borrar solo este evento puede romper la sincronización con el trabajo. ¿Continuar?")){
+        return;
+      }
+
+      const r=await sb()
+        .from("agenda_eventos")
+        .delete()
+        .eq("id",id);
+
+      if(r.error){
+        alert("Error borrando evento: "+r.error.message);
+        return;
+      }
+
+      cerrarModalAgenda();
+      ZX_agenda();
+    };
+
+    return;
+  }
+
+  const ok=await pedirPinAdminAgenda();
+  if(!ok) return;
+
   if(!confirm("¿Eliminar evento?")) return;
 
   const r=await sb()
@@ -360,6 +535,7 @@ async function borrarEvento(id){
     return;
   }
 
+  cerrarModalAgenda();
   ZX_agenda();
 }
 
@@ -412,6 +588,24 @@ window.ZX_ag_borrar=function(id){
   borrarEvento(id);
 };
 
+window.ZX_ag_abrirTrabajo=function(id){
+  cerrarModalAgenda();
+
+  if(window.ZX_trabajos){
+    window.ZX_trabajos();
+
+    setTimeout(function(){
+      if(window.ZX_editarTrabajo){
+        window.ZX_editarTrabajo(id);
+      }
+    },500);
+
+    return;
+  }
+
+  alert("No se ha cargado el módulo Trabajos.");
+};
+
 window.ZX_ag_mesAnterior=function(){
   ZX_AGENDA_FECHA.setMonth(ZX_AGENDA_FECHA.getMonth()-1);
   ZX_agenda();
@@ -433,6 +627,8 @@ window.ZX_ag_filtro=function(tipo){
 };
 
 function renderEvento(e){
+  const trabajoVinculado=esEventoTrabajo(e);
+
   return `
     <div class="zx_ag_evento ${colorTipo(e.tipo)}">
       <div class="zx_ag_evento_top">
@@ -442,6 +638,7 @@ function renderEvento(e){
 
       <div class="zx_ag_evento_txt">
         ${limpiar(textoTipo(e.tipo))} · ${limpiar(textoEstado(e.estado))}
+        ${trabajoVinculado ? "<br><b>Vinculado a trabajo</b>" : ""}
         ${e.usuario ? "<br>Operario: "+limpiar(e.usuario) : ""}
         ${e.cliente ? "<br>Cliente: "+limpiar(e.cliente) : ""}
         ${e.vehiculo ? "<br>Vehículo: "+limpiar(e.vehiculo) : ""}
@@ -449,7 +646,12 @@ function renderEvento(e){
       </div>
 
       <div class="zx_ag_actions">
-        <button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Editar</button>
+        ${
+          trabajoVinculado
+          ? `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_abrirTrabajo('${e.origen_id}')">Abrir trabajo</button>`
+          : `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Editar</button>`
+        }
+
         <button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button>
         <button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button>
         <button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Borrar</button>
@@ -457,7 +659,6 @@ function renderEvento(e){
     </div>
   `;
 }
-
 function renderCalendario(){
   const inicio=primerDiaMes(ZX_AGENDA_FECHA);
   const fin=ultimoDiaMes(ZX_AGENDA_FECHA);
@@ -591,10 +792,10 @@ window.ZX_agenda=async function(){
 };
 
 (function(){
-  if(document.getElementById("zx_agenda_css")) return;
+  if(document.getElementById("zx_agenda_css_v3087")) return;
 
   const s=document.createElement("style");
-  s.id="zx_agenda_css";
+  s.id="zx_agenda_css_v3087";
 
   s.innerHTML=`
     .zx_ag_head{display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -630,10 +831,22 @@ window.ZX_agenda=async function(){
     .zx_ag_tipo_default{background:#334155}
     .zx_ag_label{display:block;margin-top:14px;margin-bottom:6px;font-size:15px;font-weight:900;color:#475569}
     .zx_ag_grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .zx_ag_aviso_trabajo{
+      background:#fff7ed;
+      border:1px solid #fed7aa;
+      color:#9a3412;
+      border-radius:18px;
+      padding:14px;
+      margin-bottom:14px;
+      font-size:16px;
+      font-weight:900;
+      line-height:1.35;
+    }
     @media(max-width:430px){
       .zx_ag_day{min-height:78px;padding:5px}
       .zx_ag_dot{font-size:9px;padding:2px 4px}
       .zx_ag_day_num{font-size:13px}
+      .zx_ag_actions{grid-template-columns:1fr}
     }
   `;
 
