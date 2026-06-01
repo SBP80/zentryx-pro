@@ -177,7 +177,7 @@ function textoEstado(e){
   const m={
     activo:"Activo",
     pendiente:"Pendiente",
-    completado:"Completado",
+    completado:"Terminado",
     cancelado:"Cancelado"
   };
   return m[e] || e || "Activo";
