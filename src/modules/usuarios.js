@@ -1,9 +1,11 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3013 - V3009 + PERMISOS SIN ROMPER DISEÑO
+// V3092 - COMPATIBLE + AJUSTE VISUAL MÓVIL
 // ===============================
 (function(){
 "use strict";
+
+let ZX_USUARIOS_COLUMNS=null;
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -38,21 +40,10 @@ function esEncargadoLocal(){
   return rolLocal()==="encargado";
 }
 
-function puedeCrearLocal(){
-  return esAdminLocal();
-}
-
-function puedeEditarLocal(){
-  return esAdminLocal() || esEncargadoLocal();
-}
-
-function puedeResetLocal(){
-  return esAdminLocal();
-}
-
-function puedeEliminarLocal(){
-  return esAdminLocal();
-}
+function puedeCrearLocal(){return esAdminLocal()}
+function puedeEditarLocal(){return esAdminLocal() || esEncargadoLocal()}
+function puedeResetLocal(){return esAdminLocal()}
+function puedeEliminarLocal(){return esAdminLocal()}
 
 function hashPin(pin){
   return btoa(String(pin));
@@ -76,83 +67,35 @@ function modal(titulo,contenido){
   `);
 }
 
-async function pedirPinConPermiso(accion,callback){
-  const s=sesion();
-
-  modal("PIN",`
-    <input id="zx_admin_pin" class="zx_pin_input" inputmode="numeric" maxlength="4" placeholder="PIN">
-    <button class="zx_btn_big zx_azul" id="zx_admin_ok">Confirmar</button>
-    <button class="zx_btn_big zx_gris" id="zx_admin_cancelar">Cancelar</button>
-  `);
-
-  document.getElementById("zx_admin_cancelar").onclick=cerrarModal;
-
-  document.getElementById("zx_admin_ok").onclick=async function(){
-    const pin=document.getElementById("zx_admin_pin").value.trim();
-
-    if(!/^[0-9]{4}$/.test(pin)){
-      alert("PIN inválido.");
-      return;
+function valor(u,keys){
+  for(const k of keys){
+    if(u && u[k]!==undefined && u[k]!==null && String(u[k]).trim()!==""){
+      return u[k];
     }
-
-    const res=await sb()
-      .from("usuarios")
-      .select("id,usuario,rol,pin_hash")
-      .eq("id",s.id)
-      .maybeSingle();
-
-    if(res.error || !res.data){
-      alert("No se pudo validar el usuario.");
-      return;
-    }
-
-    const rol=String(res.data.rol || "").toLowerCase();
-    const usuario=String(res.data.usuario || "").toLowerCase();
-
-    const esAdmin=(rol==="administrador" || usuario==="admin");
-    const esEncargado=(rol==="encargado");
-
-    let permitido=false;
-
-    if(accion==="crear") permitido=esAdmin;
-    if(accion==="editar") permitido=esAdmin || esEncargado;
-    if(accion==="reset") permitido=esAdmin;
-    if(accion==="eliminar") permitido=esAdmin;
-
-    if(!permitido){
-      alert("No tienes permiso.");
-      return;
-    }
-
-    if(hashPin(pin)!==res.data.pin_hash){
-      alert("PIN incorrecto.");
-      return;
-    }
-
-    cerrarModal();
-    callback();
-  };
+  }
+  return "";
 }
 
 function direccionCompleta(u){
   return [
-    u.via_tipo,
-    u.calle,
-    u.numero ? "Nº " + u.numero : "",
-    u.portal ? "Portal " + u.portal : "",
-    u.escalera ? "Esc. " + u.escalera : "",
-    u.piso ? "Piso " + u.piso : "",
-    u.puerta ? "Puerta " + u.puerta : "",
-    u.poblacion,
-    u.provincia,
-    u.codigo_postal,
-    u.pais
+    valor(u,["via_tipo","tipo_via"]),
+    valor(u,["calle","nombre_via","via_nombre"]),
+    valor(u,["numero"]) ? "Nº "+valor(u,["numero"]) : "",
+    valor(u,["portal"]) ? "Portal "+valor(u,["portal"]) : "",
+    valor(u,["escalera"]) ? "Esc. "+valor(u,["escalera"]) : "",
+    valor(u,["piso"]) ? "Piso "+valor(u,["piso"]) : "",
+    valor(u,["puerta"]) ? "Puerta "+valor(u,["puerta"]) : "",
+    valor(u,["poblacion"]),
+    valor(u,["provincia"]),
+    valor(u,["codigo_postal"]),
+    valor(u,["pais"])
   ].filter(Boolean).join(", ");
 }
 
 function avatar(u){
-  if(u.foto_url){
-    return `<img class="zx_user_avatar" src="${limpiar(u.foto_url)}" alt="Foto">`;
+  const foto=valor(u,["foto_url"]);
+  if(foto){
+    return `<img class="zx_user_avatar" src="${limpiar(foto)}" alt="Foto">`;
   }
 
   return `<div class="zx_user_avatar zx_user_avatar_empty">${limpiar((u.nombre || "?").charAt(0))}</div>`;
@@ -216,6 +159,63 @@ function enviarMail(email){
   location.href="mailto:"+email;
 }
 
+async function pedirPinConPermiso(accion,callback){
+  const s=sesion();
+
+  modal("PIN",`
+    <input id="zx_admin_pin" class="zx_pin_input" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
+    <button class="zx_btn_big zx_azul" id="zx_admin_ok">Confirmar</button>
+    <button class="zx_btn_big zx_gris" id="zx_admin_cancelar">Cancelar</button>
+  `);
+
+  document.getElementById("zx_admin_cancelar").onclick=cerrarModal;
+
+  document.getElementById("zx_admin_ok").onclick=async function(){
+    const pin=document.getElementById("zx_admin_pin").value.trim();
+
+    if(!/^[0-9]{4}$/.test(pin)){
+      alert("PIN inválido.");
+      return;
+    }
+
+    const res=await sb()
+      .from("usuarios")
+      .select("id,usuario,rol,pin_hash")
+      .eq("id",s.id)
+      .maybeSingle();
+
+    if(res.error || !res.data){
+      alert("No se pudo validar el usuario.");
+      return;
+    }
+
+    const rol=String(res.data.rol || "").toLowerCase();
+    const usuario=String(res.data.usuario || "").toLowerCase();
+
+    const admin=rol==="administrador" || usuario==="admin";
+    const encargado=rol==="encargado";
+
+    let permitido=false;
+    if(accion==="crear") permitido=admin;
+    if(accion==="editar") permitido=admin || encargado;
+    if(accion==="reset") permitido=admin;
+    if(accion==="eliminar") permitido=admin;
+
+    if(!permitido){
+      alert("No tienes permiso.");
+      return;
+    }
+
+    if(hashPin(pin)!==res.data.pin_hash){
+      alert("PIN incorrecto.");
+      return;
+    }
+
+    cerrarModal();
+    callback();
+  };
+}
+
 async function cargarUsuarios(){
   const cliente=sb();
 
@@ -234,7 +234,55 @@ async function cargarUsuarios(){
     return [];
   }
 
-  return res.data || [];
+  const datos=res.data || [];
+
+  if(datos.length){
+    ZX_USUARIOS_COLUMNS=Object.keys(datos[0]);
+  }
+
+  return datos;
+}
+
+function renderUsuario(u){
+  const dir=direccionCompleta(u);
+  const pinEstado=u.debe_crear_pin ? "Pendiente" : "Activo";
+
+  return `
+    <div class="zx_user_card">
+      ${avatar(u)}
+
+      <div class="zx_user_name">${limpiar(u.nombre || "-")}</div>
+
+      <div class="zx_user_data">
+        <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
+        <b>DNI:</b> ${limpiar(u.dni || "-")}<br>
+        <b>Teléfono:</b> ${limpiar(u.telefono || "-")}<br>
+        <b>Email:</b> <span class="zx_break">${limpiar(u.email || "-")}</span><br>
+        <b>Dirección:</b> <span class="zx_break">${limpiar(dir || "-")}</span><br>
+        <b>Rol:</b> ${limpiar(u.rol || "-")}<br>
+        <b>Estado:</b> ${limpiar(u.estado || "-")}<br>
+        <b>PIN:</b> ${limpiar(pinEstado)}
+      </div>
+
+      <div class="zx_user_actions">
+        ${u.telefono ? `<button class="zx_action_btn" data-action="tel" data-tel="${limpiar(u.telefono)}">Teléfono</button>` : ""}
+        ${u.email ? `<button class="zx_action_btn" data-action="mail" data-email="${limpiar(u.email)}">Mail</button>` : ""}
+        ${dir ? `<button class="zx_action_btn" data-action="mapa" data-dir="${limpiar(dir)}">Mapa</button>` : ""}
+      </div>
+
+      ${
+        puedeEditarLocal() || puedeResetLocal() || puedeEliminarLocal()
+        ? `
+          <div class="zx_user_actions">
+            ${puedeEditarLocal() ? `<button class="zx_action_btn zx_blue" data-action="editar" data-id="${limpiar(u.id)}">Editar</button>` : ""}
+            ${puedeResetLocal() ? `<button class="zx_action_btn zx_orange" data-action="reset" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Reset PIN</button>` : ""}
+            ${puedeEliminarLocal() ? `<button class="zx_action_btn zx_red" data-action="eliminar" data-id="${limpiar(u.id)}" data-usuario="${limpiar(u.usuario || "")}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Eliminar</button>` : ""}
+          </div>
+        `
+        : ``
+      }
+    </div>
+  `;
 }
 
 window.ZENTRYX_UI_usuarios=async function(){
@@ -244,72 +292,14 @@ window.ZENTRYX_UI_usuarios=async function(){
     <div class="zx_card">
       <h2>Usuarios</h2>
       <div class="zx_text">Gestión de usuarios, contacto, dirección, foto y acceso.</div>
-      ${
-        puedeCrearLocal()
-        ? `<button class="zx_btn_big zx_verde" id="btn_crear_usuario">Crear usuario</button>`
-        : ``
-      }
+      ${puedeCrearLocal() ? `<button class="zx_btn_big zx_verde" id="btn_crear_usuario">Crear usuario</button>` : ``}
     </div>
 
     <div class="zx_card">
       <h2>Listado</h2>
       ${
         usuarios.length
-        ? usuarios.map(function(u){
-          const dir=direccionCompleta(u);
-          const pinEstado=u.debe_crear_pin ? "Pendiente" : "Activo";
-
-          return `
-            <div class="zx_user_card">
-              ${avatar(u)}
-
-              <div class="zx_user_name">${limpiar(u.nombre || "-")}</div>
-
-              <div class="zx_user_data">
-                <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
-                <b>DNI:</b> ${limpiar(u.dni || "-")}<br>
-                <b>Teléfono:</b> ${limpiar(u.telefono || "-")}<br>
-                <b>Email:</b> ${limpiar(u.email || "-")}<br>
-                <b>Dirección:</b> ${limpiar(dir || "-")}<br>
-                <b>Rol:</b> ${limpiar(u.rol || "-")}<br>
-                <b>Estado:</b> ${limpiar(u.estado || "-")}<br>
-                <b>PIN:</b> ${limpiar(pinEstado)}
-              </div>
-
-              <div class="zx_user_actions">
-                ${u.telefono ? `<button class="zx_action_btn" data-action="tel" data-tel="${limpiar(u.telefono)}">Teléfono</button>` : ""}
-                ${u.email ? `<button class="zx_action_btn" data-action="mail" data-email="${limpiar(u.email)}">Mail</button>` : ""}
-                ${dir ? `<button class="zx_action_btn" data-action="mapa" data-dir="${limpiar(dir)}">Mapa</button>` : ""}
-              </div>
-
-              ${
-                puedeEditarLocal() || puedeResetLocal() || puedeEliminarLocal()
-                ? `
-                  <div class="zx_user_actions">
-                    ${
-                      puedeEditarLocal()
-                      ? `<button class="zx_action_btn zx_blue" data-action="editar" data-id="${limpiar(u.id)}">Editar</button>`
-                      : ``
-                    }
-
-                    ${
-                      puedeResetLocal()
-                      ? `<button class="zx_action_btn zx_orange" data-action="reset" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Reset PIN</button>`
-                      : ``
-                    }
-
-                    ${
-                      puedeEliminarLocal()
-                      ? `<button class="zx_action_btn zx_red" data-action="eliminar" data-id="${limpiar(u.id)}" data-usuario="${limpiar(u.usuario || "")}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Eliminar</button>`
-                      : ``
-                    }
-                  </div>
-                `
-                : ``
-              }
-            </div>
-          `;
-        }).join("")
+        ? usuarios.map(renderUsuario).join("")
         : `<div class="zx_text">No hay usuarios.</div>`
       }
     </div>
@@ -379,7 +369,7 @@ function selectVia(valor){
     <label class="zx_label" for="u_via_tipo">Tipo de vía</label>
     <select id="u_via_tipo">
       ${opciones.map(function(o){
-        return `<option value="${limpiar(o)}" ${valor===o ? "selected" : ""}>${o || "Seleccionar"}</option>`;
+        return `<option value="${limpiar(o)}" ${String(valor||"")===o ? "selected" : ""}>${limpiar(o || "Seleccionar")}</option>`;
       }).join("")}
     </select>
   `;
@@ -402,8 +392,8 @@ function formulario(u){
 
     <h3 class="zx_form_subtitle">Dirección</h3>
 
-    ${selectVia(u.via_tipo || "")}
-    ${input("u_calle","Calle / nombre de vía",u.calle)}
+    ${selectVia(valor(u,["via_tipo","tipo_via"]))}
+    ${input("u_calle","Calle / nombre de vía",valor(u,["calle","nombre_via","via_nombre"]))}
     ${input("u_numero","Número",u.numero)}
     ${input("u_portal","Portal",u.portal)}
     ${input("u_escalera","Escalera",u.escalera)}
@@ -454,6 +444,7 @@ async function editarUsuario(id){
     return;
   }
 
+  ZX_USUARIOS_COLUMNS=Object.keys(res.data);
   formulario(res.data);
 }
 
@@ -461,7 +452,8 @@ async function subirFoto(file,usuario){
   if(!file) return null;
 
   const ext=(file.name.split(".").pop() || "jpg").toLowerCase();
-  const path="usuarios/"+usuario+"_"+Date.now()+"."+ext;
+  const safe=String(usuario || "usuario").replace(/[^a-zA-Z0-9_-]/g,"_");
+  const path="usuarios/"+safe+"_"+Date.now()+"."+ext;
 
   const res=await sb().storage
     .from("zentryx-usuarios")
@@ -477,37 +469,54 @@ async function subirFoto(file,usuario){
     .getPublicUrl(path).data.publicUrl;
 }
 
+function setCampo(obj,nombres,valorCampo){
+  const cols=ZX_USUARIOS_COLUMNS || [];
+  let escrito=false;
+
+  nombres.forEach(n=>{
+    if(cols.includes(n)){
+      obj[n]=valorCampo;
+      escrito=true;
+    }
+  });
+
+  if(!escrito && nombres.length){
+    obj[nombres[0]]=valorCampo;
+  }
+}
+
 function datosFormulario(foto_url,id){
-  const datos={
-    nombre:document.getElementById("u_nombre").value.trim(),
-    usuario:document.getElementById("u_usuario").value.trim(),
-    dni:document.getElementById("u_dni").value.trim().toUpperCase(),
-    telefono:document.getElementById("u_telefono").value.trim(),
-    email:document.getElementById("u_email").value.trim().toLowerCase(),
+  const datos={};
 
-    via_tipo:document.getElementById("u_via_tipo").value,
-    calle:document.getElementById("u_calle").value.trim(),
-    numero:document.getElementById("u_numero").value.trim(),
-    portal:document.getElementById("u_portal").value.trim(),
-    escalera:document.getElementById("u_escalera").value.trim(),
-    piso:document.getElementById("u_piso").value.trim(),
-    puerta:document.getElementById("u_puerta").value.trim(),
-    poblacion:document.getElementById("u_poblacion").value.trim(),
-    provincia:document.getElementById("u_provincia").value.trim(),
-    codigo_postal:document.getElementById("u_codigo_postal").value.trim(),
-    pais:document.getElementById("u_pais").value.trim(),
+  setCampo(datos,["nombre"],document.getElementById("u_nombre").value.trim());
+  setCampo(datos,["usuario"],document.getElementById("u_usuario").value.trim());
+  setCampo(datos,["dni"],document.getElementById("u_dni").value.trim().toUpperCase());
+  setCampo(datos,["telefono"],document.getElementById("u_telefono").value.trim());
+  setCampo(datos,["email"],document.getElementById("u_email").value.trim().toLowerCase());
 
-    rol:document.getElementById("u_rol").value,
-    estado:document.getElementById("u_estado").value,
-    foto_url:foto_url,
-    updated_at:new Date().toISOString()
-  };
+  setCampo(datos,["via_tipo","tipo_via"],document.getElementById("u_via_tipo").value);
+  setCampo(datos,["calle","nombre_via","via_nombre"],document.getElementById("u_calle").value.trim());
+  setCampo(datos,["numero"],document.getElementById("u_numero").value.trim());
+  setCampo(datos,["portal"],document.getElementById("u_portal").value.trim());
+  setCampo(datos,["escalera"],document.getElementById("u_escalera").value.trim());
+  setCampo(datos,["piso"],document.getElementById("u_piso").value.trim());
+  setCampo(datos,["puerta"],document.getElementById("u_puerta").value.trim());
+  setCampo(datos,["poblacion"],document.getElementById("u_poblacion").value.trim());
+  setCampo(datos,["provincia"],document.getElementById("u_provincia").value.trim());
+  setCampo(datos,["codigo_postal"],document.getElementById("u_codigo_postal").value.trim());
+  setCampo(datos,["pais"],document.getElementById("u_pais").value.trim());
+
+  setCampo(datos,["rol"],document.getElementById("u_rol").value);
+  setCampo(datos,["estado"],document.getElementById("u_estado").value);
+  setCampo(datos,["foto_url"],foto_url);
+  setCampo(datos,["updated_at"],new Date().toISOString());
 
   if(!id){
-    datos.pin_hash=null;
-    datos.debe_crear_pin=true;
-    datos.pin_intentos=0;
-    datos.pin_bloqueado_hasta=null;
+    setCampo(datos,["pin_hash"],null);
+    setCampo(datos,["debe_crear_pin"],true);
+    setCampo(datos,["pin_intentos"],0);
+    setCampo(datos,["pin_bloqueado_hasta"],null);
+    setCampo(datos,["activo"],true);
   }
 
   return datos;
@@ -526,7 +535,7 @@ function validarFormulario(){
   if(usuario.length<3){alert("Usuario demasiado corto.");return false}
   if(!/^[a-zA-Z0-9_]+$/.test(usuario)){alert("Usuario solo puede tener letras, números y guion bajo.");return false}
   if(dni && !/^[0-9XYZxyz][0-9]{7}[A-Za-z]$/.test(dni)){alert("DNI/NIE no válido.");return false}
-  if(telefono && !/^[6789][0-9]{8}$/.test(telefono)){alert("Teléfono no válido.");return false}
+  if(telefono && !/^[6-9][0-9]{8}$/.test(telefono)){alert("Teléfono no válido.");return false}
   if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){alert("Email no válido.");return false}
   if(cp && !/^[0-9]{5}$/.test(cp)){alert("Código postal no válido.");return false}
 
@@ -573,16 +582,18 @@ async function guardarUsuario(id,fotoActual){
 async function resetPin(id,nombre){
   if(!confirm("¿Resetear PIN de "+nombre+"?")) return;
 
+  const datos={
+    pin_hash:null,
+    debe_crear_pin:true,
+    pin_intentos:0,
+    pin_bloqueado_hasta:null,
+    pin_restaurado_at:new Date().toISOString(),
+    updated_at:new Date().toISOString()
+  };
+
   const res=await sb()
     .from("usuarios")
-    .update({
-      pin_hash:null,
-      debe_crear_pin:true,
-      pin_intentos:0,
-      pin_bloqueado_hasta:null,
-      pin_restaurado_at:new Date().toISOString(),
-      updated_at:new Date().toISOString()
-    })
+    .update(datos)
     .eq("id",id);
 
   if(res.error){
@@ -623,10 +634,10 @@ async function eliminarUsuario(id,nombre,usuario){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3013")) return;
+  if(document.getElementById("zx_usuarios_v3092")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3013";
+  s.id="zx_usuarios_v3092";
 
   s.innerHTML=`
     .zx_user_card{
@@ -636,6 +647,7 @@ async function eliminarUsuario(id,nombre,usuario){
       padding:22px;
       margin:18px 0;
       box-shadow:0 8px 24px rgba(0,0,0,.04);
+      overflow:hidden;
     }
 
     .zx_user_avatar{
@@ -644,6 +656,7 @@ async function eliminarUsuario(id,nombre,usuario){
       border-radius:22px;
       object-fit:cover;
       margin-bottom:12px;
+      background:#e5e7eb;
     }
 
     .zx_user_avatar_empty{
@@ -661,6 +674,8 @@ async function eliminarUsuario(id,nombre,usuario){
       font-weight:900;
       color:#0f172a;
       margin-bottom:10px;
+      line-height:1.05;
+      word-break:break-word;
     }
 
     .zx_user_data{
@@ -668,6 +683,12 @@ async function eliminarUsuario(id,nombre,usuario){
       font-size:18px;
       line-height:1.55;
       font-weight:700;
+      overflow-wrap:anywhere;
+    }
+
+    .zx_break{
+      overflow-wrap:anywhere;
+      word-break:break-word;
     }
 
     .zx_user_actions{
@@ -685,11 +706,12 @@ async function eliminarUsuario(id,nombre,usuario){
       font-size:17px;
       font-weight:900;
       color:#111827;
+      min-height:54px;
     }
 
-    .zx_blue{background:#2563eb;color:white}
-    .zx_orange{background:#ea580c;color:white}
-    .zx_red{background:#dc2626;color:white}
+    .zx_blue{background:#2563eb!important;color:white!important}
+    .zx_orange{background:#ea580c!important;color:white!important}
+    .zx_red{background:#dc2626!important;color:white!important}
 
     .zx_modal_fondo{
       position:fixed;
@@ -699,18 +721,20 @@ async function eliminarUsuario(id,nombre,usuario){
       display:flex;
       align-items:center;
       justify-content:center;
-      padding:18px;
+      padding:14px;
     }
 
     .zx_modal_caja{
       width:100%;
-      max-width:460px;
+      max-width:520px;
       max-height:88vh;
       overflow:auto;
       background:white;
       border-radius:28px;
       padding:24px;
+      padding-bottom:calc(24px + env(safe-area-inset-bottom));
       box-shadow:0 20px 70px rgba(0,0,0,.35);
+      -webkit-overflow-scrolling:touch;
     }
 
     .zx_modal_caja h2{
@@ -718,22 +742,28 @@ async function eliminarUsuario(id,nombre,usuario){
       font-size:32px;
       font-weight:900;
       color:#0f172a;
+      line-height:1.05;
     }
 
     .zx_modal_caja input,
-    .zx_modal_caja select{
+    .zx_modal_caja select,
+    .zx_modal_caja textarea{
       width:100%;
       border:1px solid #d1d5db;
       border-radius:16px;
       padding:16px;
       font-size:18px;
+      font-weight:850;
       margin-bottom:10px;
+      color:#0f172a;
+      background:#f8fafc;
+      box-sizing:border-box;
     }
 
     .zx_label{
       display:block;
       margin:12px 0 6px;
-      color:#334155;
+      color:#64748b;
       font-size:15px;
       font-weight:900;
     }
@@ -749,6 +779,34 @@ async function eliminarUsuario(id,nombre,usuario){
       text-align:center;
       font-size:32px!important;
       letter-spacing:10px;
+    }
+
+    @media(max-width:430px){
+      .zx_user_card{
+        padding:18px;
+      }
+
+      .zx_user_name{
+        font-size:28px;
+      }
+
+      .zx_user_data{
+        font-size:17px;
+      }
+
+      .zx_user_actions{
+        grid-template-columns:1fr;
+      }
+
+      .zx_modal_caja{
+        max-height:82vh;
+        border-radius:24px;
+        padding:20px;
+      }
+
+      .zx_modal_caja h2{
+        font-size:30px;
+      }
     }
   `;
 
