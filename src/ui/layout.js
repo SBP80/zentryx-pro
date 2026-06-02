@@ -714,13 +714,14 @@ function puedeVerModulo(modulo){
   if(esAdmin()) return true;
 
   return [
-    "inicio",
-    "fichaje",
-    "agenda",
-    "clientes",
-    "trabajos",
-    "horas_extra"
-  ].includes(modulo);
+  "inicio",
+  "fichaje",
+  "agenda",
+  "clientes",
+  "trabajos",
+  "usuarios",
+  "horas_extra"
+].includes(modulo);
 }
 
 function botonNav(modulo,texto,accion){
