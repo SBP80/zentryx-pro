@@ -1,13 +1,12 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3102 - DIRECTORIO + DNI + DOCUMENTOS
+// V3103 - DIRECTORIO PRIVADO POR ROL
 // ===============================
 (function(){
 "use strict";
 
 const BUCKET_FOTOS="zentryx-usuarios";
 const BUCKET_DOCS="zentryx-usuarios-documentos";
-
 let ZX_USUARIOS_CACHE=[];
 
 function app(){return document.getElementById("app")}
@@ -33,15 +32,6 @@ function esAdmin(){
          String(s.usuario||"").toLowerCase()==="admin";
 }
 
-function esEncargado(){
-  return String(sesion().rol||"").toLowerCase()==="encargado";
-}
-
-function puedeEditar(){return esAdmin() || esEncargado()}
-function puedeCrear(){return esAdmin()}
-function puedeBorrar(){return esAdmin()}
-function puedeReset(){return esAdmin()}
-
 function cerrarModal(){
   const m=document.getElementById("zx_modal_usuario");
   if(m) m.remove();
@@ -59,12 +49,17 @@ function modal(titulo,html){
   `);
 }
 
-function hashPin(pin){
-  return btoa(String(pin));
+function hashPin(pin){return btoa(String(pin))}
+
+function formatoFecha(f){
+  if(!f) return "";
+  const p=String(f).slice(0,10).split("-");
+  if(p.length===3) return p[2]+"/"+p[1]+"/"+p[0];
+  return String(f);
 }
 
 function direccionCompleta(u){
-  const partes=[
+  return [
     u.via_tipo,
     u.calle,
     u.numero ? "Nº "+u.numero : "",
@@ -76,21 +71,13 @@ function direccionCompleta(u){
     u.provincia,
     u.codigo_postal,
     u.pais
-  ].filter(v=>String(v||"").trim()!=="" && String(v)!=="España");
-
-  if(!partes.length) return "";
-
-  const pais=String(u.pais||"").trim();
-  if(pais) partes.push(pais);
-
-  return partes.join(", ");
+  ].filter(Boolean).join(", ");
 }
 
 function avatar(u){
   if(u.foto_url){
     return `<img class="zx_user_avatar" src="${limpiar(u.foto_url)}" alt="Foto">`;
   }
-
   return `<div class="zx_user_avatar zx_user_avatar_empty">${limpiar((u.nombre || "?").charAt(0))}</div>`;
 }
 
@@ -125,7 +112,6 @@ function enviarMail(email){
 
 function menuMapa(dir){
   if(!dir){alert("Sin dirección.");return}
-
   const q=encodeURIComponent(dir);
 
   modal("Mapa",`
@@ -210,68 +196,15 @@ async function cargarUsuarios(){
   return ZX_USUARIOS_CACHE;
 }
 
-async function cargarDocumentos(usuarioId){
-  const r=await sb()
-    .from("usuarios_documentos")
-    .select("*")
-    .eq("usuario_id",String(usuarioId))
-    .order("created_at",{ascending:false});
-
-  if(r.error) return [];
-  return r.data || [];
-}
-
-function textoDocTipo(t){
-  const m={
-    dni_frontal:"DNI frontal",
-    dni_trasero:"DNI trasero",
-    contrato:"Contrato",
-    prl:"PRL",
-    carnet:"Carnet",
-    certificado:"Certificado",
-    medico:"Reconocimiento médico",
-    nomina:"Nómina",
-    otro:"Otro"
-  };
-
-  return m[t] || t || "Documento";
-}
-
-function renderDocumento(d){
-  return `
-    <div class="zx_doc_item">
-      <div>
-        <b>${limpiar(d.nombre || textoDocTipo(d.tipo))}</b><br>
-        <span>${limpiar(textoDocTipo(d.tipo))}</span>
-        ${d.fecha_caducidad ? `<br><span>Caduca: ${limpiar(formatoFecha(d.fecha_caducidad))}</span>` : ""}
-        ${d.notas ? `<br><span>${limpiar(d.notas)}</span>` : ""}
-      </div>
-
-      <div class="zx_doc_actions">
-        <button class="zx_action_btn zx_blue" data-doc-open="${limpiar(d.url || "")}">Ver</button>
-        ${puedeEditar() ? `<button class="zx_action_btn zx_red" data-doc-del="${limpiar(d.id)}">Borrar</button>` : ""}
-      </div>
-    </div>
-  `;
-}
-
-function formatoFecha(f){
-  if(!f) return "";
-  const p=String(f).slice(0,10).split("-");
-  if(p.length===3) return p[2]+"/"+p[1]+"/"+p[0];
-  return String(f);
-}
-
 function renderUsuario(u){
+  const admin=esAdmin();
   const dir=direccionCompleta(u);
   const pinEstado=u.debe_crear_pin ? "Pendiente" : "Activo";
-  const adminBtns=puedeEditar() || puedeReset() || puedeBorrar();
 
   return `
     <div class="zx_user_card">
       <div class="zx_user_top">
         ${avatar(u)}
-
         <div class="zx_user_head">
           <div class="zx_user_name">${limpiar(u.nombre || u.usuario || "-")}</div>
           <div class="zx_user_role">${limpiar(u.rol || "Usuario")} · ${limpiar(u.estado || "Activo")}</div>
@@ -283,14 +216,21 @@ function renderUsuario(u){
         <summary>Ver ficha</summary>
 
         <div class="zx_user_data">
-          <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
-          <b>DNI:</b> ${limpiar(u.dni || "-")}<br>
           <b>Teléfono:</b> ${limpiar(u.telefono || "-")}<br>
           <b>Email:</b> <span class="zx_break">${limpiar(u.email || "-")}</span><br>
           <b>Dirección:</b> <span class="zx_break">${limpiar(dir || "Sin dirección")}</span><br>
           <b>Rol:</b> ${limpiar(u.rol || "-")}<br>
-          <b>Estado:</b> ${limpiar(u.estado || "-")}<br>
-          <b>PIN:</b> ${limpiar(pinEstado)}
+          <b>Estado:</b> ${limpiar(u.estado || "-")}
+
+          ${
+            admin
+            ? `
+              <br><b>Usuario:</b> ${limpiar(u.usuario || "-")}
+              <br><b>DNI:</b> ${limpiar(u.dni || "-")}
+              <br><b>PIN:</b> ${limpiar(pinEstado)}
+            `
+            : ""
+          }
         </div>
       </details>
 
@@ -299,16 +239,16 @@ function renderUsuario(u){
         ${u.email ? `<button class="zx_action_btn" data-action="mail" data-email="${limpiar(u.email)}">Mail</button>` : ""}
         ${dir ? `<button class="zx_action_btn" data-action="mapa" data-dir="${limpiar(dir)}">Mapa</button>` : ""}
         <button class="zx_action_btn zx_morado_btn" data-action="mensaje" data-id="${limpiar(u.id)}">Mensaje</button>
-        <button class="zx_action_btn zx_blue" data-action="docs" data-id="${limpiar(u.id)}">Documentos</button>
       </div>
 
       ${
-        adminBtns
+        admin
         ? `
           <div class="zx_user_actions">
-            ${puedeEditar() ? `<button class="zx_action_btn zx_blue" data-action="editar" data-id="${limpiar(u.id)}">Editar</button>` : ""}
-            ${puedeReset() ? `<button class="zx_action_btn zx_yellow" data-action="reset" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Reset PIN</button>` : ""}
-            ${puedeBorrar() ? `<button class="zx_action_btn zx_red" data-action="eliminar" data-id="${limpiar(u.id)}" data-usuario="${limpiar(u.usuario || "")}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Eliminar</button>` : ""}
+            <button class="zx_action_btn zx_blue" data-action="docs" data-id="${limpiar(u.id)}">Documentos</button>
+            <button class="zx_action_btn zx_blue" data-action="editar" data-id="${limpiar(u.id)}">Editar</button>
+            <button class="zx_action_btn zx_yellow" data-action="reset" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Reset PIN</button>
+            <button class="zx_action_btn zx_red" data-action="eliminar" data-id="${limpiar(u.id)}" data-usuario="${limpiar(u.usuario || "")}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Eliminar</button>
           </div>
         `
         : ""
@@ -327,7 +267,7 @@ window.ZENTRYX_UI_usuarios=async function(){
         Directorio interno de empresa, contacto, documentos y permisos.
       </div>
 
-      ${puedeCrear() ? `<button class="zx_btn_big zx_verde" id="btn_crear_usuario">Crear usuario</button>` : ""}
+      ${esAdmin() ? `<button class="zx_btn_big zx_verde" id="btn_crear_usuario">Crear usuario</button>` : ""}
     </div>
 
     <div class="zx_card">
@@ -354,8 +294,11 @@ window.ZENTRYX_UI_usuarios=async function(){
       if(a==="tel") menuTelefono(btn.dataset.tel);
       if(a==="mail") enviarMail(btn.dataset.email);
       if(a==="mapa") menuMapa(btn.dataset.dir);
-      if(a==="docs") abrirDocumentos(btn.dataset.id);
       if(a==="mensaje") alert("Mensajes internos pendiente de crear.");
+
+      if(a==="docs"){
+        pedirPinAdmin(function(){abrirDocumentos(btn.dataset.id)});
+      }
 
       if(a==="editar"){
         pedirPinAdmin(function(){editarUsuario(btn.dataset.id)});
@@ -390,7 +333,6 @@ function input(id,label,value,type){
 
 function selectVia(valor){
   const opciones=["","Calle","Avenida","Plaza","Camino","Carretera","Paseo","Ronda","Travesía","Urbanización","Polígono"];
-
   return `
     <label class="zx_label" for="u_via_tipo">Tipo de vía</label>
     <select id="u_via_tipo">
@@ -500,19 +442,11 @@ async function subirFoto(file,usuario){
 function validarUsuario(){
   const nombre=document.getElementById("u_nombre").value.trim();
   const usuario=document.getElementById("u_usuario").value.trim();
-  const dni=document.getElementById("u_dni").value.trim();
-  const tel=document.getElementById("u_telefono").value.trim();
-  const email=document.getElementById("u_email").value.trim();
-  const cp=document.getElementById("u_codigo_postal").value.trim();
 
   if(!nombre){alert("Nombre obligatorio.");return false}
   if(!usuario){alert("Usuario obligatorio.");return false}
   if(usuario.length<3){alert("Usuario demasiado corto.");return false}
   if(!/^[a-zA-Z0-9_]+$/.test(usuario)){alert("Usuario solo puede tener letras, números y guion bajo.");return false}
-  if(dni && !/^[0-9XYZxyz][0-9]{7}[A-Za-z]$/.test(dni)){alert("DNI/NIE no válido.");return false}
-  if(tel && !/^[6-9][0-9]{8}$/.test(tel)){alert("Teléfono no válido.");return false}
-  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){alert("Email no válido.");return false}
-  if(cp && !/^[0-9]{5}$/.test(cp)){alert("Código postal no válido.");return false}
 
   return true;
 }
@@ -620,7 +554,6 @@ async function eliminarUsuario(id,nombre,usuario){
   }
 
   const txt=prompt("Escribe ELIMINAR para borrar "+nombre);
-
   if(txt!=="ELIMINAR") return;
 
   const r=await sb()
@@ -636,10 +569,53 @@ async function eliminarUsuario(id,nombre,usuario){
   ZX_usuarios();
 }
 
+async function cargarDocumentos(usuarioId){
+  const r=await sb()
+    .from("usuarios_documentos")
+    .select("*")
+    .eq("usuario_id",String(usuarioId))
+    .order("created_at",{ascending:false});
+
+  if(r.error) return [];
+  return r.data || [];
+}
+
+function textoDocTipo(t){
+  const m={
+    dni_frontal:"DNI frontal",
+    dni_trasero:"DNI trasero",
+    contrato:"Contrato",
+    prl:"PRL",
+    carnet:"Carnet",
+    certificado:"Certificado",
+    medico:"Reconocimiento médico",
+    nomina:"Nómina",
+    otro:"Otro"
+  };
+  return m[t] || t || "Documento";
+}
+
+function renderDocumento(d){
+  return `
+    <div class="zx_doc_item">
+      <div>
+        <b>${limpiar(d.nombre || textoDocTipo(d.tipo))}</b><br>
+        <span>${limpiar(textoDocTipo(d.tipo))}</span>
+        ${d.fecha_caducidad ? `<br><span>Caduca: ${limpiar(formatoFecha(d.fecha_caducidad))}</span>` : ""}
+        ${d.notas ? `<br><span>${limpiar(d.notas)}</span>` : ""}
+      </div>
+
+      <div class="zx_doc_actions">
+        <button class="zx_action_btn zx_blue" data-doc-open="${limpiar(d.url || "")}">Ver</button>
+        <button class="zx_action_btn zx_red" data-doc-del="${limpiar(d.id)}">Borrar</button>
+      </div>
+    </div>
+  `;
+}
+
 async function subirDocumento(file,usuarioId,tipo){
   if(!file) return null;
 
-  const ext=(file.name.split(".").pop() || "dat").toLowerCase();
   const safe=String(file.name || "documento").replace(/[^a-zA-Z0-9._-]/g,"_");
   const path=String(usuarioId)+"/"+tipo+"/"+Date.now()+"_"+safe;
 
@@ -664,47 +640,37 @@ async function abrirDocumentos(usuarioId){
       Usuario: <b>${limpiar(u?.nombre || u?.usuario || "")}</b>
     </div>
 
-    ${
-      puedeEditar()
-      ? `
-        <div class="zx_doc_form">
-          <label class="zx_label">Tipo</label>
-          <select id="doc_tipo">
-            <option value="dni_frontal">DNI frontal</option>
-            <option value="dni_trasero">DNI trasero</option>
-            <option value="contrato">Contrato</option>
-            <option value="prl">PRL</option>
-            <option value="carnet">Carnet</option>
-            <option value="certificado">Certificado</option>
-            <option value="medico">Reconocimiento médico</option>
-            <option value="nomina">Nómina</option>
-            <option value="otro">Otro</option>
-          </select>
+    <div class="zx_doc_form">
+      <label class="zx_label">Tipo</label>
+      <select id="doc_tipo">
+        <option value="dni_frontal">DNI frontal</option>
+        <option value="dni_trasero">DNI trasero</option>
+        <option value="contrato">Contrato</option>
+        <option value="prl">PRL</option>
+        <option value="carnet">Carnet</option>
+        <option value="certificado">Certificado</option>
+        <option value="medico">Reconocimiento médico</option>
+        <option value="nomina">Nómina</option>
+        <option value="otro">Otro</option>
+      </select>
 
-          <label class="zx_label">Archivo</label>
-          <input id="doc_file" type="file" accept="image/*,.pdf,.doc,.docx">
+      <label class="zx_label">Archivo</label>
+      <input id="doc_file" type="file" accept="image/*,.pdf,.doc,.docx">
 
-          <label class="zx_label">Nombre visible</label>
-          <input id="doc_nombre" placeholder="Nombre documento">
+      <label class="zx_label">Nombre visible</label>
+      <input id="doc_nombre" placeholder="Nombre documento">
 
-          <label class="zx_label">Fecha caducidad</label>
-          <input id="doc_caducidad" type="date">
+      <label class="zx_label">Fecha caducidad</label>
+      <input id="doc_caducidad" type="date">
 
-          <label class="zx_label">Notas</label>
-          <textarea id="doc_notas" rows="3" placeholder="Notas"></textarea>
+      <label class="zx_label">Notas</label>
+      <textarea id="doc_notas" rows="3" placeholder="Notas"></textarea>
 
-          <button class="zx_btn_big zx_verde" id="doc_guardar">Subir documento</button>
-        </div>
-      `
-      : ""
-    }
+      <button class="zx_btn_big zx_verde" id="doc_guardar">Subir documento</button>
+    </div>
 
     <div class="zx_doc_lista">
-      ${
-        docs.length
-        ? docs.map(renderDocumento).join("")
-        : `<div class="zx_text">Sin documentos.</div>`
-      }
+      ${docs.length ? docs.map(renderDocumento).join("") : `<div class="zx_text">Sin documentos.</div>`}
     </div>
 
     <button class="zx_btn_big zx_gris" id="doc_cerrar">Cerrar</button>
@@ -712,45 +678,42 @@ async function abrirDocumentos(usuarioId){
 
   document.getElementById("doc_cerrar").onclick=cerrarModal;
 
-  const guardar=document.getElementById("doc_guardar");
-  if(guardar){
-    guardar.onclick=async function(){
-      const tipo=document.getElementById("doc_tipo").value;
-      const file=document.getElementById("doc_file").files[0] || null;
-      const nombre=document.getElementById("doc_nombre").value.trim() || (file ? file.name : "");
-      const cad=document.getElementById("doc_caducidad").value || null;
-      const notas=document.getElementById("doc_notas").value.trim();
+  document.getElementById("doc_guardar").onclick=async function(){
+    const tipo=document.getElementById("doc_tipo").value;
+    const file=document.getElementById("doc_file").files[0] || null;
+    const nombre=document.getElementById("doc_nombre").value.trim() || (file ? file.name : "");
+    const cad=document.getElementById("doc_caducidad").value || null;
+    const notas=document.getElementById("doc_notas").value.trim();
 
-      if(!file){
-        alert("Selecciona archivo.");
-        return;
-      }
+    if(!file){
+      alert("Selecciona archivo.");
+      return;
+    }
 
-      const url=await subirDocumento(file,usuarioId,tipo);
-      if(!url) return;
+    const url=await subirDocumento(file,usuarioId,tipo);
+    if(!url) return;
 
-      const s=sesion();
+    const s=sesion();
 
-      const r=await sb()
-        .from("usuarios_documentos")
-        .insert([{
-          usuario_id:String(usuarioId),
-          tipo,
-          nombre,
-          url,
-          fecha_caducidad:cad,
-          notas,
-          creado_por:s.usuario || ""
-        }]);
+    const r=await sb()
+      .from("usuarios_documentos")
+      .insert([{
+        usuario_id:String(usuarioId),
+        tipo,
+        nombre,
+        url,
+        fecha_caducidad:cad,
+        notas,
+        creado_por:s.usuario || ""
+      }]);
 
-      if(r.error){
-        alert("Error guardando documento: "+r.error.message);
-        return;
-      }
+    if(r.error){
+      alert("Error guardando documento: "+r.error.message);
+      return;
+    }
 
-      abrirDocumentos(usuarioId);
-    };
-  }
+    abrirDocumentos(usuarioId);
+  };
 
   document.querySelectorAll("[data-doc-open]").forEach(btn=>{
     btn.onclick=function(){
@@ -782,10 +745,10 @@ async function borrarDocumento(id,usuarioId){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3102")) return;
+  if(document.getElementById("zx_usuarios_v3103")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3102";
+  s.id="zx_usuarios_v3103";
 
   s.innerHTML=`
     .zx_user_card{
@@ -798,11 +761,7 @@ async function borrarDocumento(id,usuarioId){
       overflow:hidden;
     }
 
-    .zx_user_top{
-      display:flex;
-      gap:14px;
-      align-items:center;
-    }
+    .zx_user_top{display:flex;gap:14px;align-items:center}
 
     .zx_user_avatar{
       width:72px;
@@ -823,10 +782,7 @@ async function borrarDocumento(id,usuarioId){
       font-weight:900;
     }
 
-    .zx_user_head{
-      min-width:0;
-      flex:1;
-    }
+    .zx_user_head{min-width:0;flex:1}
 
     .zx_user_name{
       color:#0f172a;
@@ -836,8 +792,7 @@ async function borrarDocumento(id,usuarioId){
       word-break:break-word;
     }
 
-    .zx_user_role,
-    .zx_user_phone{
+    .zx_user_role,.zx_user_phone{
       margin-top:5px;
       color:#64748b;
       font-size:15px;
@@ -869,10 +824,7 @@ async function borrarDocumento(id,usuarioId){
       overflow-wrap:anywhere;
     }
 
-    .zx_break{
-      overflow-wrap:anywhere;
-      word-break:break-word;
-    }
+    .zx_break{overflow-wrap:anywhere;word-break:break-word}
 
     .zx_user_actions{
       display:grid;
@@ -897,6 +849,21 @@ async function borrarDocumento(id,usuarioId){
     .zx_red{background:#dc2626!important;color:white!important}
     .zx_morado_btn{background:#7c3aed!important;color:white!important}
 
+    .zx_doc_form,.zx_doc_item{
+      background:#f8fafc;
+      border:1px solid #e5e7eb;
+      border-radius:20px;
+      padding:14px;
+      margin:14px 0;
+    }
+
+    .zx_doc_actions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:12px;
+    }
+
     .zx_modal_fondo{
       position:fixed;
       inset:0;
@@ -916,9 +883,7 @@ async function borrarDocumento(id,usuarioId){
       background:white;
       border-radius:28px;
       padding:22px;
-      padding-bottom:calc(22px + env(safe-area-inset-bottom));
       box-shadow:0 20px 70px rgba(0,0,0,.35);
-      -webkit-overflow-scrolling:touch;
     }
 
     .zx_modal_caja h2{
@@ -965,53 +930,10 @@ async function borrarDocumento(id,usuarioId){
       letter-spacing:10px;
     }
 
-    .zx_doc_form{
-      background:#f8fafc;
-      border:1px solid #e5e7eb;
-      border-radius:20px;
-      padding:14px;
-      margin:14px 0;
-    }
-
-    .zx_doc_item{
-      background:#f8fafc;
-      border:1px solid #e5e7eb;
-      border-radius:18px;
-      padding:14px;
-      margin-top:12px;
-      color:#334155;
-      font-size:15px;
-      font-weight:800;
-      overflow-wrap:anywhere;
-    }
-
-    .zx_doc_item b{
-      color:#0f172a;
-      font-size:17px;
-    }
-
-    .zx_doc_actions{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      margin-top:12px;
-    }
-
     @media(max-width:430px){
-      .zx_user_actions,
-      .zx_doc_actions{
-        grid-template-columns:1fr;
-      }
-
-      .zx_user_name{
-        font-size:24px;
-      }
-
-      .zx_modal_caja{
-        max-height:82vh;
-        border-radius:24px;
-        padding:19px;
-      }
+      .zx_user_actions,.zx_doc_actions{grid-template-columns:1fr}
+      .zx_user_name{font-size:24px}
+      .zx_modal_caja{max-height:82vh;border-radius:24px;padding:19px}
     }
   `;
 
