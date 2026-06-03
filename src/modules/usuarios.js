@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3092 - DIRECTORIO + DOCUMENTOS USUARIO
+// V3093 - DIRECTORIO + DOCUMENTOS + LABORAL USUARIO
 // ===============================
 (function(){
 "use strict";
@@ -42,6 +42,11 @@ function puedeVerPrivado(u){
 function puedeVerDocs(u){
   const s=sesion();
   return esAdminLocal() || String(s.id||"")===String(u.id||"");
+}
+
+function puedeVerLaboral(u){
+  const s=sesion();
+  return esAdminLocal() || esEncargadoLocal() || String(s.id||"")===String(u.id||"");
 }
 
 function hashPin(pin){
@@ -108,6 +113,7 @@ async function pedirPinConPermiso(accion,callback){
     if(accion==="reset") ok=admin;
     if(accion==="eliminar") ok=admin;
     if(accion==="docs") ok=admin;
+    if(accion==="laboral") ok=admin || encargado;
 
     if(!ok){
       alert("No tienes permiso.");
@@ -252,6 +258,7 @@ function renderUsuario(u){
   const pinEstado=u.debe_crear_pin ? "Pendiente" : "Activo";
   const privado=puedeVerPrivado(u);
   const docs=puedeVerDocs(u);
+  const laboral=puedeVerLaboral(u);
 
   return `
     <div class="zx_user_card">
@@ -289,9 +296,10 @@ function renderUsuario(u){
       </div>
 
       ${
-        docs || puedeEditar() || puedeReset() || puedeEliminar()
+        docs || laboral || puedeEditar() || puedeReset() || puedeEliminar()
         ? `
           <div class="zx_user_actions">
+            ${laboral ? `<button class="zx_action_btn zx_laboral" data-action="laboral" data-id="${limpiar(u.id)}">Laboral</button>` : ""}
             ${docs ? `<button class="zx_action_btn zx_blue" data-action="docs" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "Usuario")}">Documentos</button>` : ""}
             ${puedeEditar() ? `<button class="zx_action_btn zx_blue" data-action="editar" data-id="${limpiar(u.id)}">Editar</button>` : ""}
             ${puedeReset() ? `<button class="zx_action_btn zx_orange" data-action="reset" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Reset PIN</button>` : ""}
@@ -351,6 +359,11 @@ window.ZENTRYX_UI_usuarios=async function(){
         mensajeInterno(u || {});
       }
 
+      if(a==="laboral"){
+        const u=usuarios.find(x=>String(x.id)===String(btn.dataset.id));
+        verLaboralUsuario(u || {});
+      }
+
       if(a==="docs"){
         const u=usuarios.find(x=>String(x.id)===String(btn.dataset.id));
         verDocumentosUsuario(u || {id:btn.dataset.id,nombre:btn.dataset.nombre});
@@ -390,6 +403,22 @@ function input(id,label,value,type){
   return `
     <label class="zx_label" for="${id}">${label}</label>
     <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${label}">
+  `;
+}
+
+function inputNum(id,label,value){
+  return `
+    <label class="zx_label" for="${id}">${label}</label>
+    <input id="${id}" type="number" value="${limpiar(value ?? "")}" placeholder="${label}">
+  `;
+}
+
+function check(id,label,value){
+  return `
+    <label class="zx_check">
+      <input id="${id}" type="checkbox" ${value ? "checked" : ""}>
+      <span>${limpiar(label)}</span>
+    </label>
   `;
 }
 
@@ -646,6 +675,168 @@ async function eliminarUsuario(id,nombre,usuario){
   ZX_usuarios();
 }
 
+async function cargarLaboralUsuario(usuarioId){
+  const r=await sb()
+    .from("config_laboral")
+    .select("*")
+    .eq("usuario_id",String(usuarioId))
+    .maybeSingle();
+
+  if(r.error){
+    alert("Error cargando datos laborales: "+r.error.message);
+    return null;
+  }
+
+  return r.data || null;
+}
+
+function laboralDefault(u){
+  return {
+    usuario_id:String(u.id || ""),
+    usuario:u.usuario || "",
+    nombre:u.nombre || "",
+    horas_dia:8,
+    horas_semana:40,
+    trabaja_lunes:true,
+    trabaja_martes:true,
+    trabaja_miercoles:true,
+    trabaja_jueves:true,
+    trabaja_viernes:true,
+    trabaja_sabado:false,
+    trabaja_domingo:false,
+    vacaciones_dias:30,
+    asuntos_propios:0,
+    localidad:u.poblacion || "",
+    provincia:u.provincia || "",
+    pais:u.pais || "España"
+  };
+}
+
+function resumenLaboral(l){
+  return `
+    <div class="zx_laboral_resumen">
+      <div><b>${limpiar(l.horas_dia ?? 0)}</b><span>Horas/día</span></div>
+      <div><b>${limpiar(l.horas_semana ?? 0)}</b><span>Horas/semana</span></div>
+      <div><b>${limpiar(l.vacaciones_dias ?? 0)}</b><span>Vacaciones</span></div>
+      <div><b>${limpiar(l.asuntos_propios ?? 0)}</b><span>Asuntos propios</span></div>
+    </div>
+  `;
+}
+
+async function verLaboralUsuario(u){
+  const actual=await cargarLaboralUsuario(u.id);
+  const l=actual || laboralDefault(u);
+  const editable=puedeEditar();
+
+  modal("Laboral",`
+    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
+
+    ${resumenLaboral(l)}
+
+    <h3 class="zx_form_subtitle">Jornada</h3>
+
+    ${inputNum("lab_horas_dia","Horas por día",l.horas_dia)}
+    ${inputNum("lab_horas_semana","Horas por semana",l.horas_semana)}
+
+    <h3 class="zx_form_subtitle">Días de trabajo</h3>
+
+    <div class="zx_checks_grid">
+      ${check("lab_lunes","Lunes",l.trabaja_lunes)}
+      ${check("lab_martes","Martes",l.trabaja_martes)}
+      ${check("lab_miercoles","Miércoles",l.trabaja_miercoles)}
+      ${check("lab_jueves","Jueves",l.trabaja_jueves)}
+      ${check("lab_viernes","Viernes",l.trabaja_viernes)}
+      ${check("lab_sabado","Sábado",l.trabaja_sabado)}
+      ${check("lab_domingo","Domingo",l.trabaja_domingo)}
+    </div>
+
+    <h3 class="zx_form_subtitle">Vacaciones y asuntos propios</h3>
+
+    ${inputNum("lab_vacaciones","Vacaciones anuales en días",l.vacaciones_dias)}
+    ${inputNum("lab_asuntos","Asuntos propios en horas",l.asuntos_propios)}
+
+    <h3 class="zx_form_subtitle">Calendario laboral</h3>
+
+    ${input("lab_pais","País",l.pais || "España")}
+    ${input("lab_provincia","Provincia",l.provincia)}
+    ${input("lab_localidad","Localidad",l.localidad)}
+
+    <div class="zx_info_box">
+      Los festivos se conectarán después con la tabla de festivos laborales. Este bloque deja preparada la configuración por trabajador.
+    </div>
+
+    ${
+      editable
+      ? `<button class="zx_btn_big zx_verde" id="lab_guardar">Guardar laboral</button>`
+      : ``
+    }
+
+    <button class="zx_btn_big zx_gris" id="lab_cerrar">Cerrar</button>
+  `);
+
+  document.getElementById("lab_cerrar").onclick=cerrarModal;
+
+  const guardar=document.getElementById("lab_guardar");
+  if(guardar){
+    guardar.onclick=function(){
+      pedirPinConPermiso("laboral",function(){
+        guardarLaboralUsuario(u,actual);
+      });
+    };
+  }
+}
+
+function numVal(id,def){
+  const v=document.getElementById(id).value;
+  const n=Number(v);
+  if(Number.isFinite(n)) return n;
+  return def;
+}
+
+async function guardarLaboralUsuario(u,actual){
+  const datos={
+    usuario_id:String(u.id || ""),
+    usuario:String(u.usuario || ""),
+    nombre:String(u.nombre || u.usuario || ""),
+    horas_dia:numVal("lab_horas_dia",8),
+    horas_semana:numVal("lab_horas_semana",40),
+    trabaja_lunes:document.getElementById("lab_lunes").checked,
+    trabaja_martes:document.getElementById("lab_martes").checked,
+    trabaja_miercoles:document.getElementById("lab_miercoles").checked,
+    trabaja_jueves:document.getElementById("lab_jueves").checked,
+    trabaja_viernes:document.getElementById("lab_viernes").checked,
+    trabaja_sabado:document.getElementById("lab_sabado").checked,
+    trabaja_domingo:document.getElementById("lab_domingo").checked,
+    vacaciones_dias:numVal("lab_vacaciones",30),
+    asuntos_propios:numVal("lab_asuntos",0),
+    pais:document.getElementById("lab_pais").value.trim() || "España",
+    provincia:document.getElementById("lab_provincia").value.trim(),
+    localidad:document.getElementById("lab_localidad").value.trim()
+  };
+
+  let r;
+
+  if(actual && actual.id){
+    r=await sb()
+      .from("config_laboral")
+      .update(datos)
+      .eq("id",actual.id);
+  }else{
+    r=await sb()
+      .from("config_laboral")
+      .insert([datos]);
+  }
+
+  if(r.error){
+    alert("Error guardando laboral: "+r.error.message);
+    return;
+  }
+
+  alert("Datos laborales guardados.");
+  cerrarModal();
+  ZX_usuarios();
+}
+
 async function cargarDocumentos(usuarioId){
   const r=await sb()
     .from("usuarios_documentos")
@@ -810,10 +1001,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3092")) return;
+  if(document.getElementById("zx_usuarios_v3093")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3092";
+  s.id="zx_usuarios_v3093";
 
   s.innerHTML=`
     .zx_user_card{
@@ -916,6 +1107,7 @@ async function verDocumentosUsuario(u){
     .zx_orange{background:#facc15!important;color:#3b2500!important}
     .zx_red{background:#dc2626!important;color:white!important}
     .zx_purple{background:#7c3aed!important;color:white!important}
+    .zx_laboral{background:#0f766e!important;color:white!important}
 
     .zx_modal_fondo{
       position:fixed;
@@ -998,6 +1190,73 @@ async function verDocumentosUsuario(u){
       font-weight:800;
     }
 
+    .zx_laboral_resumen{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+      margin:14px 0 18px;
+    }
+
+    .zx_laboral_resumen div{
+      background:#f8fafc;
+      border:1px solid #e5e7eb;
+      border-radius:18px;
+      padding:14px;
+      text-align:center;
+    }
+
+    .zx_laboral_resumen b{
+      display:block;
+      font-size:28px;
+      font-weight:900;
+      color:#0f172a;
+    }
+
+    .zx_laboral_resumen span{
+      display:block;
+      color:#64748b;
+      font-size:14px;
+      font-weight:900;
+      margin-top:4px;
+    }
+
+    .zx_checks_grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+      margin-bottom:10px;
+    }
+
+    .zx_check{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      background:#f8fafc;
+      border:1px solid #e5e7eb;
+      border-radius:16px;
+      padding:12px;
+      font-weight:900;
+      color:#0f172a;
+    }
+
+    .zx_check input{
+      width:auto!important;
+      margin:0!important;
+      transform:scale(1.2);
+    }
+
+    .zx_info_box{
+      background:#eef2ff;
+      border:1px solid #c7d2fe;
+      color:#334155;
+      padding:14px;
+      border-radius:16px;
+      font-size:15px;
+      font-weight:800;
+      line-height:1.4;
+      margin:14px 0;
+    }
+
     @media(max-width:430px){
       .zx_user_top{
         grid-template-columns:76px 1fr;
@@ -1015,7 +1274,8 @@ async function verDocumentosUsuario(u){
       }
 
       .zx_user_actions,
-      .zx_doc_item{
+      .zx_doc_item,
+      .zx_checks_grid{
         grid-template-columns:1fr;
       }
     }
