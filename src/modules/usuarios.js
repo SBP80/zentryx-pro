@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3094 - DIRECTORIO + DOCUMENTOS + LABORAL CORREGIDO
+// V3095 - DIRECTORIO + DOCUMENTOS + LABORAL + HORARIOS_USUARIO
 // ===============================
 (function(){
 "use strict";
@@ -842,9 +842,71 @@ async function guardarLaboralDatos(datos,actual){
     return;
   }
 
+  const h=await sincronizarHorarioUsuario(datos);
+
+  if(h && h.error){
+    alert("Laboral guardado, pero no se pudo actualizar horarios_usuario: "+h.error.message);
+    return;
+  }
+
   alert("Datos laborales guardados.");
   cerrarModal();
   ZX_usuarios();
+}
+
+async function sincronizarHorarioUsuario(datos){
+  const minutosDia=Math.round(Number(datos.horas_dia || 0) * 60);
+
+  const horario={
+    user_id:String(datos.usuario_id || ""),
+    usuario_id:String(datos.usuario_id || ""),
+    usuario:String(datos.usuario || ""),
+    nombre:String(datos.nombre || ""),
+
+    trabaja:true,
+    activo:true,
+
+    lunes:datos.trabaja_lunes ? minutosDia : 0,
+    martes:datos.trabaja_martes ? minutosDia : 0,
+    miercoles:datos.trabaja_miercoles ? minutosDia : 0,
+    jueves:datos.trabaja_jueves ? minutosDia : 0,
+    viernes:datos.trabaja_viernes ? minutosDia : 0,
+    sabado:datos.trabaja_sabado ? minutosDia : 0,
+    domingo:datos.trabaja_domingo ? minutosDia : 0,
+
+    vacaciones:Math.round(Number(datos.vacaciones_dias || 0)),
+    asuntos:Math.round(Number(datos.asuntos_propios || 0)),
+    asuntos_horas:Math.round(Number(datos.asuntos_propios || 0)),
+
+    pais:String(datos.pais || "España"),
+    provincia:String(datos.provincia || ""),
+    localidad:String(datos.localidad || ""),
+
+    actualizado_en:new Date().toISOString()
+  };
+
+  const filtro="user_id.eq."+String(datos.usuario_id)+",usuario_id.eq."+String(datos.usuario_id);
+
+  const buscado=await sb()
+    .from("horarios_usuario")
+    .select("id")
+    .or(filtro)
+    .limit(1);
+
+  if(buscado.error){
+    return buscado;
+  }
+
+  if(buscado.data && buscado.data.length){
+    return await sb()
+      .from("horarios_usuario")
+      .update(horario)
+      .eq("id",buscado.data[0].id);
+  }
+
+  return await sb()
+    .from("horarios_usuario")
+    .insert([horario]);
 }
 
 // ===============================
@@ -1019,10 +1081,10 @@ async function verDocumentosUsuario(u){
 // ===============================
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3094")) return;
+  if(document.getElementById("zx_usuarios_v3095")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3094";
+  s.id="zx_usuarios_v3095";
 
   s.innerHTML=`
     .zx_user_card{
