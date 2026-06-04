@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3093 - DIRECTORIO + DOCUMENTOS + LABORAL USUARIO
+// V3094 - DIRECTORIO + DOCUMENTOS + LABORAL CORREGIDO
 // ===============================
 (function(){
 "use strict";
@@ -409,7 +409,7 @@ function input(id,label,value,type){
 function inputNum(id,label,value){
   return `
     <label class="zx_label" for="${id}">${label}</label>
-    <input id="${id}" type="number" value="${limpiar(value ?? "")}" placeholder="${label}">
+    <input id="${id}" type="number" step="0.01" value="${limpiar(value ?? "")}" placeholder="${label}">
   `;
 }
 
@@ -675,6 +675,10 @@ async function eliminarUsuario(id,nombre,usuario){
   ZX_usuarios();
 }
 
+// ===============================
+// LABORAL
+// ===============================
+
 async function cargarLaboralUsuario(usuarioId){
   const r=await sb()
     .from("config_laboral")
@@ -779,22 +783,26 @@ async function verLaboralUsuario(u){
   const guardar=document.getElementById("lab_guardar");
   if(guardar){
     guardar.onclick=function(){
+      const datos=leerDatosLaboralesFormulario(u);
+
       pedirPinConPermiso("laboral",function(){
-        guardarLaboralUsuario(u,actual);
+        guardarLaboralDatos(datos,actual);
       });
     };
   }
 }
 
 function numVal(id,def){
-  const v=document.getElementById(id).value;
-  const n=Number(v);
+  const el=document.getElementById(id);
+  if(!el) return def;
+
+  const n=Number(String(el.value || "").replace(",","."));
   if(Number.isFinite(n)) return n;
   return def;
 }
 
-async function guardarLaboralUsuario(u,actual){
-  const datos={
+function leerDatosLaboralesFormulario(u){
+  return {
     usuario_id:String(u.id || ""),
     usuario:String(u.usuario || ""),
     nombre:String(u.nombre || u.usuario || ""),
@@ -813,7 +821,9 @@ async function guardarLaboralUsuario(u,actual){
     provincia:document.getElementById("lab_provincia").value.trim(),
     localidad:document.getElementById("lab_localidad").value.trim()
   };
+}
 
+async function guardarLaboralDatos(datos,actual){
   let r;
 
   if(actual && actual.id){
@@ -836,6 +846,10 @@ async function guardarLaboralUsuario(u,actual){
   cerrarModal();
   ZX_usuarios();
 }
+
+// ===============================
+// DOCUMENTOS
+// ===============================
 
 async function cargarDocumentos(usuarioId){
   const r=await sb()
@@ -1000,11 +1014,15 @@ async function verDocumentosUsuario(u){
   });
 }
 
+// ===============================
+// ESTILOS
+// ===============================
+
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3093")) return;
+  if(document.getElementById("zx_usuarios_v3094")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3093";
+  s.id="zx_usuarios_v3094";
 
   s.innerHTML=`
     .zx_user_card{
