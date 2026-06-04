@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3073 - BLOQUE 1
+// V3074 - FESTIVOS POR PAIS / COMUNIDAD / PROVINCIA / LOCALIDAD
 // ===============================
 (function(){
 "use strict";
@@ -128,6 +128,97 @@ function minutosDesdeHora(hora){
   return null;
 }
 
+function normalizarTexto(v){
+  return String(v || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"");
+}
+
+function normalizarComunidadDesdeProvincia(provincia){
+  const p=normalizarTexto(provincia);
+
+  const mapa={
+    "madrid":"madrid",
+
+    "barcelona":"cataluna",
+    "girona":"cataluna",
+    "lleida":"cataluna",
+    "tarragona":"cataluna",
+
+    "valencia":"comunidad valenciana",
+    "alicante":"comunidad valenciana",
+    "castellon":"comunidad valenciana",
+
+    "sevilla":"andalucia",
+    "malaga":"andalucia",
+    "cadiz":"andalucia",
+    "cordoba":"andalucia",
+    "granada":"andalucia",
+    "huelva":"andalucia",
+    "jaen":"andalucia",
+    "almeria":"andalucia",
+
+    "zaragoza":"aragon",
+    "huesca":"aragon",
+    "teruel":"aragon",
+
+    "oviedo":"asturias",
+    "asturias":"asturias",
+
+    "baleares":"baleares",
+    "illes balears":"baleares",
+
+    "las palmas":"canarias",
+    "santa cruz de tenerife":"canarias",
+
+    "cantabria":"cantabria",
+
+    "albacete":"castilla-la mancha",
+    "ciudad real":"castilla-la mancha",
+    "cuenca":"castilla-la mancha",
+    "guadalajara":"castilla-la mancha",
+    "toledo":"castilla-la mancha",
+
+    "avila":"castilla y leon",
+    "burgos":"castilla y leon",
+    "leon":"castilla y leon",
+    "palencia":"castilla y leon",
+    "salamanca":"castilla y leon",
+    "segovia":"castilla y leon",
+    "soria":"castilla y leon",
+    "valladolid":"castilla y leon",
+    "zamora":"castilla y leon",
+
+    "caceres":"extremadura",
+    "badajoz":"extremadura",
+
+    "a coruna":"galicia",
+    "coruna":"galicia",
+    "lugo":"galicia",
+    "ourense":"galicia",
+    "pontevedra":"galicia",
+
+    "murcia":"murcia",
+
+    "navarra":"navarra",
+
+    "alava":"pais vasco",
+    "araba":"pais vasco",
+    "bizkaia":"pais vasco",
+    "vizcaya":"pais vasco",
+    "gipuzkoa":"pais vasco",
+    "guipuzcoa":"pais vasco",
+
+    "la rioja":"la rioja",
+    "ceuta":"ceuta",
+    "melilla":"melilla"
+  };
+
+  return mapa[p] || p;
+}
+
 // ===============================
 // TIPOS Y ESTADOS
 // ===============================
@@ -168,6 +259,7 @@ function colorEstado(e){
   if(e==="comida") return "#ea580c";
   return "#64748b";
 }
+
 // ===============================
 // SOLICITUDES Y CONTEXTO LABORAL
 // ===============================
@@ -316,30 +408,99 @@ async function contextoLaboralDia(fechaISOtxt){
     ...analisis
   };
 }
+
 // ===============================
 // FESTIVOS Y OBJETIVO DIARIO
 // ===============================
 async function esFestivo(fechaTxt){
 
+  const s=sesion();
   const fecha=String(fechaTxt||new Date().toISOString()).slice(0,10);
+
+  const conf=await sb()
+    .from("config_laboral")
+    .select("pais,provincia,localidad")
+    .eq("usuario_id",String(s.id))
+    .maybeSingle();
+
+  const paisUsuario=normalizarTexto(conf.data?.pais || "España");
+  const provinciaUsuario=normalizarTexto(conf.data?.provincia || "");
+  const localidadUsuario=normalizarTexto(conf.data?.localidad || "");
+  const comunidadUsuario=normalizarComunidadDesdeProvincia(provinciaUsuario);
 
   const r=await sb()
     .from("festivos")
     .select("*")
-    .eq("fecha",fecha)
-    .limit(1);
+    .eq("fecha",fecha);
 
   if(r.error || !r.data || !r.data.length){
     return {es:false,tipo:null,nombre:null};
   }
 
-  const f=r.data[0];
+  for(const f of r.data){
 
-  return {
-    es:true,
-    tipo:f.tipo || "festivo",
-    nombre:f.nombre || "Festivo"
-  };
+    const tipo=normalizarTexto(f.tipo || "");
+    const pais=normalizarTexto(f.pais || "");
+    const provincia=normalizarTexto(f.provincia || "");
+    const localidad=normalizarTexto(f.localidad || "");
+    const comunidad=normalizarTexto(f.comunidad || "");
+
+    if(tipo==="nacional"){
+      if(!pais || pais==="empty" || pais===paisUsuario){
+        return {
+          es:true,
+          tipo:f.tipo || "nacional",
+          nombre:f.nombre || "Festivo"
+        };
+      }
+    }
+
+    if(tipo==="autonomico"){
+      if(
+        comunidad &&
+        comunidad!=="empty" &&
+        (
+          comunidad===comunidadUsuario ||
+          comunidad===provinciaUsuario
+        )
+      ){
+        return {
+          es:true,
+          tipo:f.tipo || "autonomico",
+          nombre:f.nombre || "Festivo"
+        };
+      }
+    }
+
+    if(tipo==="local"){
+      if(
+        localidad &&
+        localidad!=="empty" &&
+        localidad===localidadUsuario
+      ){
+        return {
+          es:true,
+          tipo:f.tipo || "local",
+          nombre:f.nombre || "Festivo"
+        };
+      }
+    }
+
+    if(
+      provincia &&
+      provincia!=="empty" &&
+      provincia===provinciaUsuario &&
+      tipo!=="local"
+    ){
+      return {
+        es:true,
+        tipo:f.tipo || "festivo",
+        nombre:f.nombre || "Festivo"
+      };
+    }
+  }
+
+  return {es:false,tipo:null,nombre:null};
 }
 
 // ===============================
@@ -479,6 +640,7 @@ async function obtenerUbicacion(){
   });
 
 }
+
 // ===============================
 // JORNADAS Y FICHAJES
 // ===============================
@@ -631,6 +793,7 @@ function calcularEnVivo(eventos,estado){
     comidaSeg
   };
 }
+
 // ===============================
 // OPCIONES DE FICHAJE
 // ===============================
@@ -808,6 +971,7 @@ async function insertarFichaje(tipo,jornadaId,geo){
 
   return true;
 }
+
 // ===============================
 // SINCRONIZAR HORAS EXTRA
 // ===============================
@@ -945,6 +1109,7 @@ async function recalcularJornada(jornadaId){
     alert("Error recalculando jornada: "+r.error.message);
   }
 }
+
 // ===============================
 // REGISTRAR FICHAJE
 // ===============================
@@ -1080,6 +1245,7 @@ async function jornadasAdminHoy(){
 
   return r.data || [];
 }
+
 // ===============================
 // BORRAR JORNADA
 // ===============================
@@ -1179,6 +1345,7 @@ async function borrarFichaje(id){
   cerrarModal();
   ZX_fichaje_real();
 }
+
 // ===============================
 // EDITAR FICHAJE
 // ===============================
@@ -1322,6 +1489,7 @@ async function verFichajesJornada(jornadaId){
     };
   });
 }
+
 // ===============================
 // RESUMEN HTML
 // ===============================
@@ -1463,6 +1631,7 @@ function renderJornadaMini(j,admin){
     </div>
   `;
 }
+
 // ===============================
 // RENDER ADMIN RESUMEN
 // ===============================
@@ -1707,6 +1876,7 @@ window.ZX_toggleMisJornadas=function(){
   ZX_VER_MIS_JORNADAS=!ZX_VER_MIS_JORNADAS;
   ZX_fichaje_real();
 };
+
 // ===============================
 // PANTALLA PRINCIPAL
 // ===============================
