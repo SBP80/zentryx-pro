@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA PRO
-// V3089 - AGENDA ↔ TRABAJOS PROTEGIDO
+// V3090 - SELECTORES + SOLAPES + AGENDA ↔ TRABAJOS PROTEGIDO
 // ===============================
 (function(){
 "use strict";
@@ -81,6 +81,23 @@ function esEventoTrabajo(e){
          String(e?.origen_id || "");
 }
 
+function minHora(h){
+  if(!h) return null;
+  const p=String(h).slice(0,5).split(":");
+  if(p.length!==2) return null;
+  return Number(p[0])*60+Number(p[1]);
+}
+
+function rangosSolapan(aInicio,aFin,bInicio,bFin){
+  const ai=minHora(aInicio);
+  const af=minHora(aFin);
+  const bi=minHora(bInicio);
+  const bf=minHora(bFin);
+
+  if(ai===null || af===null || bi===null || bf===null) return false;
+  return ai<bf && bi<af;
+}
+
 async function pedirPinAdminAgenda(){
   return new Promise(function(resolve){
     cerrarModalAgenda();
@@ -89,11 +106,8 @@ async function pedirPinAdminAgenda(){
       <div id="zx_modal_agenda" class="zx_modal_fondo">
         <div class="zx_modal_caja">
           <h2>PIN administrador</h2>
-
           <div class="zx_text">Introduce el PIN para continuar.</div>
-
           <input id="ag_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
-
           <button class="zx_btn_big zx_verde" id="ag_pin_ok">Confirmar</button>
           <button class="zx_btn_big zx_gris" id="ag_pin_cancelar">Cancelar</button>
         </div>
@@ -196,6 +210,79 @@ function filtrarEventos(lista){
   return lista.filter(e=>String(e.tipo||"")===ZX_AGENDA_FILTRO);
 }
 
+async function cargarUsuariosAgenda(){
+  const r=await sb()
+    .from("usuarios")
+    .select("id,nombre,usuario,rol,estado,activo")
+    .eq("activo",true)
+    .order("nombre",{ascending:true});
+
+  if(r.error) return [];
+  return r.data || [];
+}
+
+async function cargarClientesAgenda(){
+  const r=await sb()
+    .from("clientes")
+    .select("*")
+    .order("nombre",{ascending:true});
+
+  if(r.error) return [];
+  return r.data || [];
+}
+
+async function cargarVehiculosAgenda(){
+  const r=await sb()
+    .from("vehiculos")
+    .select("*")
+    .order("matricula",{ascending:true});
+
+  if(r.error) return [];
+  return r.data || [];
+}
+
+function nombreCliente(c){
+  return c.nombre || c.razon_social || c.cliente || c.empresa || c.nombre_comercial || "";
+}
+
+function nombreVehiculo(v){
+  return [
+    v.matricula,
+    v.marca,
+    v.modelo
+  ].filter(Boolean).join(" ");
+}
+
+function opcionesUsuarios(lista,valor){
+  return `
+    <option value="">Sin asignar</option>
+    ${lista.map(u=>{
+      const nombre=u.nombre || u.usuario || "";
+      return `<option value="${limpiar(nombre)}" data-id="${limpiar(u.id)}" ${String(valor||"")===String(nombre)?"selected":""}>${limpiar(nombre)}</option>`;
+    }).join("")}
+  `;
+}
+
+function opcionesClientes(lista,valor){
+  return `
+    <option value="">Sin cliente</option>
+    ${lista.map(c=>{
+      const nombre=nombreCliente(c);
+      return `<option value="${limpiar(nombre)}" data-id="${limpiar(c.id||"")}" ${String(valor||"")===String(nombre)?"selected":""}>${limpiar(nombre)}</option>`;
+    }).join("")}
+  `;
+}
+
+function opcionesVehiculos(lista,valor){
+  return `
+    <option value="">Sin vehículo</option>
+    ${lista.map(v=>{
+      const nombre=nombreVehiculo(v);
+      return `<option value="${limpiar(nombre)}" data-id="${limpiar(v.id||"")}" ${String(valor||"")===String(nombre)?"selected":""}>${limpiar(nombre)}</option>`;
+    }).join("")}
+  `;
+}
+
 async function sincronizarSolicitudes(){
   try{
     const r=await sb()
@@ -280,8 +367,70 @@ async function cargarEventos(){
   return datos;
 }
 
+async function comprobarSolapes(data,idActual=null){
+  if(!data.fecha_inicio || !data.hora_inicio || !data.hora_fin){
+    return true;
+  }
+
+  const r=await sb()
+    .from("agenda_eventos")
+    .select("*")
+    .lte("fecha_inicio",data.fecha_fin || data.fecha_inicio)
+    .gte("fecha_fin",data.fecha_inicio)
+    .neq("estado","cancelado");
+
+  if(r.error){
+    alert("No se pudieron comprobar solapes: "+r.error.message);
+    return false;
+  }
+
+  const eventos=(r.data || []).filter(e=>String(e.id)!==String(idActual||""));
+
+  const solapeOperario=eventos.find(e=>{
+    if(!data.usuario || !e.usuario) return false;
+    if(String(e.usuario)!==String(data.usuario)) return false;
+    return rangosSolapan(data.hora_inicio,data.hora_fin,e.hora_inicio,e.hora_fin);
+  });
+
+  if(solapeOperario){
+    alert(
+      "El operario ya tiene otro evento en ese horario:\n\n"+
+      (solapeOperario.titulo || "Evento")+" "+
+      String(solapeOperario.hora_inicio || "").slice(0,5)+" - "+
+      String(solapeOperario.hora_fin || "").slice(0,5)
+    );
+    return false;
+  }
+
+  const solapeVehiculo=eventos.find(e=>{
+    if(!data.vehiculo || !e.vehiculo) return false;
+    if(String(e.vehiculo)!==String(data.vehiculo)) return false;
+    return rangosSolapan(data.hora_inicio,data.hora_fin,e.hora_inicio,e.hora_fin);
+  });
+
+  if(solapeVehiculo){
+    alert(
+      "El vehículo ya está asignado en ese horario:\n\n"+
+      (solapeVehiculo.titulo || "Evento")+" "+
+      String(solapeVehiculo.hora_inicio || "").slice(0,5)+" - "+
+      String(solapeVehiculo.hora_fin || "").slice(0,5)
+    );
+    return false;
+  }
+
+  return true;
+}
+
 async function guardarEvento(id=null){
   const s=sesion();
+
+  const selUsuario=document.getElementById("ag_usuario");
+  const selCliente=document.getElementById("ag_cliente");
+  const selVehiculo=document.getElementById("ag_vehiculo");
+
+  const usuarioOpt=selUsuario.options[selUsuario.selectedIndex];
+  const clienteOpt=selCliente.options[selCliente.selectedIndex];
+  const vehiculoOpt=selVehiculo.options[selVehiculo.selectedIndex];
 
   const data={
     tipo:document.getElementById("ag_tipo").value,
@@ -291,9 +440,12 @@ async function guardarEvento(id=null){
     fecha_fin:document.getElementById("ag_fecha_fin").value || document.getElementById("ag_fecha_inicio").value,
     hora_inicio:document.getElementById("ag_hora_inicio").value || null,
     hora_fin:document.getElementById("ag_hora_fin").value || null,
-    usuario:document.getElementById("ag_usuario").value.trim(),
-    cliente:document.getElementById("ag_cliente").value.trim(),
-    vehiculo:document.getElementById("ag_vehiculo").value.trim(),
+    usuario:selUsuario.value,
+    usuario_id:usuarioOpt ? String(usuarioOpt.dataset.id || "") : "",
+    cliente:selCliente.value,
+    cliente_id:clienteOpt ? String(clienteOpt.dataset.id || "") : "",
+    vehiculo:selVehiculo.value,
+    vehiculo_id:vehiculoOpt ? String(vehiculoOpt.dataset.id || "") : "",
     prioridad:document.getElementById("ag_prioridad").value,
     visible_para:document.getElementById("ag_visible").value,
     estado:"activo",
@@ -305,6 +457,14 @@ async function guardarEvento(id=null){
     alert("Título y fecha son obligatorios.");
     return;
   }
+
+  if(data.hora_inicio && data.hora_fin && minHora(data.hora_fin)<=minHora(data.hora_inicio)){
+    alert("La hora fin debe ser posterior a la hora inicio.");
+    return;
+  }
+
+  const okSolape=await comprobarSolapes(data,id);
+  if(!okSolape) return;
 
   let r;
 
@@ -328,11 +488,15 @@ async function guardarEvento(id=null){
   ZX_agenda();
 }
 
-function abrirModalEvento(e=null,fecha=null){
+async function abrirModalEvento(e=null,fecha=null){
   cerrarModalAgenda();
 
   const isEdit=!!e;
   const trabajoVinculado=esEventoTrabajo(e);
+
+  const usuarios=await cargarUsuariosAgenda();
+  const clientes=await cargarClientesAgenda();
+  const vehiculos=await cargarVehiculosAgenda();
 
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_agenda" class="zx_modal_fondo">
@@ -383,13 +547,19 @@ function abrirModalEvento(e=null,fecha=null){
         </div>
 
         <label class="zx_ag_label">Operario</label>
-        <input id="ag_usuario" value="${limpiar(e?.usuario || "")}" placeholder="Nombre operario" ${trabajoVinculado ? "readonly" : ""}>
+        <select id="ag_usuario" ${trabajoVinculado ? "disabled" : ""}>
+          ${opcionesUsuarios(usuarios,e?.usuario || "")}
+        </select>
 
         <label class="zx_ag_label">Cliente</label>
-        <input id="ag_cliente" value="${limpiar(e?.cliente || "")}" placeholder="Cliente" ${trabajoVinculado ? "readonly" : ""}>
+        <select id="ag_cliente" ${trabajoVinculado ? "disabled" : ""}>
+          ${opcionesClientes(clientes,e?.cliente || "")}
+        </select>
 
         <label class="zx_ag_label">Vehículo</label>
-        <input id="ag_vehiculo" value="${limpiar(e?.vehiculo || "")}" placeholder="Vehículo" ${trabajoVinculado ? "readonly" : ""}>
+        <select id="ag_vehiculo" ${trabajoVinculado ? "disabled" : ""}>
+          ${opcionesVehiculos(vehiculos,e?.vehiculo || "")}
+        </select>
 
         <label class="zx_ag_label">Prioridad</label>
         <select id="ag_prioridad" ${trabajoVinculado ? "disabled" : ""}>
@@ -790,10 +960,10 @@ window.ZX_agenda=async function(){
 };
 
 (function(){
-  if(document.getElementById("zx_agenda_css_v3089")) return;
+  if(document.getElementById("zx_agenda_css_v3090")) return;
 
   const s=document.createElement("style");
-  s.id="zx_agenda_css_v3089";
+  s.id="zx_agenda_css_v3090";
 
   s.innerHTML=`
     .zx_ag_head{display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -839,6 +1009,18 @@ window.ZX_agenda=async function(){
       font-size:16px;
       font-weight:900;
       line-height:1.35;
+    }
+    #zx_modal_agenda select,
+    #zx_modal_agenda input,
+    #zx_modal_agenda textarea{
+      width:100%;
+      border:1px solid #cbd5e1;
+      border-radius:14px;
+      padding:12px;
+      font-size:16px;
+      font-weight:800;
+      color:#0f172a;
+      background:#f8fafc;
     }
     @media(max-width:430px){
       .zx_ag_day{min-height:78px;padding:5px}
