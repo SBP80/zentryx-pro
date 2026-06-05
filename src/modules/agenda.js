@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA PRO
-// V3090 - SELECTORES + SOLAPES + AGENDA ↔ TRABAJOS PROTEGIDO
+// V3091 - SELECTORES + SOLAPES SEGUROS + AGENDA ↔ TRABAJOS PROTEGIDO
 // ===============================
 (function(){
 "use strict";
@@ -258,7 +258,8 @@ function opcionesUsuarios(lista,valor){
     <option value="">Sin asignar</option>
     ${lista.map(u=>{
       const nombre=u.nombre || u.usuario || "";
-      return `<option value="${limpiar(nombre)}" data-id="${limpiar(u.id)}" ${String(valor||"")===String(nombre)?"selected":""}>${limpiar(nombre)}</option>`;
+      const texto=nombre+(u.rol ? " · "+u.rol : "");
+      return `<option value="${limpiar(nombre)}" data-id="${limpiar(u.id)}" ${String(valor||"")===String(nombre)?"selected":""}>${limpiar(texto)}</option>`;
     }).join("")}
   `;
 }
@@ -295,38 +296,46 @@ async function sincronizarSolicitudes(){
     for(const s of r.data){
       if(!s.id || !s.fecha_inicio) continue;
 
+      const tipo=s.tipo || "permiso";
+      const titulo=textoTipo(tipo)+" - "+(s.nombre || s.usuario || "Usuario");
+
+      const dataEvento={
+        tipo,
+        titulo,
+        descripcion:s.motivo || s.observaciones || "",
+        fecha_inicio:s.fecha_inicio,
+        fecha_fin:s.fecha_fin || s.fecha_inicio,
+        hora_inicio:s.hora_inicio || null,
+        hora_fin:s.hora_fin || null,
+        usuario_id:String(s.usuario_id || ""),
+        usuario:s.usuario || s.nombre || "",
+        estado:"activo",
+        prioridad:"normal",
+        creado_por:"sistema",
+        visible_para:"todos",
+        origen:"solicitudes",
+        origen_id:String(s.id)
+      };
+
       const existe=await sb()
         .from("agenda_eventos")
         .select("id")
         .eq("origen","solicitudes")
         .eq("origen_id",String(s.id))
-        .limit(1);
+        .maybeSingle();
 
       if(existe.error) continue;
-      if(existe.data && existe.data.length) continue;
 
-      const tipo=s.tipo || "permiso";
-      const titulo=textoTipo(tipo)+" - "+(s.nombre || s.usuario || "Usuario");
-
-      await sb()
-        .from("agenda_eventos")
-        .insert([{
-          tipo,
-          titulo,
-          descripcion:s.motivo || s.observaciones || "",
-          fecha_inicio:s.fecha_inicio,
-          fecha_fin:s.fecha_fin || s.fecha_inicio,
-          hora_inicio:s.hora_inicio || null,
-          hora_fin:s.hora_fin || null,
-          usuario_id:String(s.usuario_id || ""),
-          usuario:s.usuario || s.nombre || "",
-          estado:"activo",
-          prioridad:"normal",
-          creado_por:"sistema",
-          visible_para:"todos",
-          origen:"solicitudes",
-          origen_id:String(s.id)
-        }]);
+      if(existe.data && existe.data.id){
+        await sb()
+          .from("agenda_eventos")
+          .update(dataEvento)
+          .eq("id",existe.data.id);
+      }else{
+        await sb()
+          .from("agenda_eventos")
+          .insert([dataEvento]);
+      }
     }
   }catch(e){}
 }
@@ -387,8 +396,10 @@ async function comprobarSolapes(data,idActual=null){
   const eventos=(r.data || []).filter(e=>String(e.id)!==String(idActual||""));
 
   const solapeOperario=eventos.find(e=>{
-    if(!data.usuario || !e.usuario) return false;
-    if(String(e.usuario)!==String(data.usuario)) return false;
+    const mismoId=data.usuario_id && e.usuario_id && String(e.usuario_id)===String(data.usuario_id);
+    const mismoNombre=!data.usuario_id && data.usuario && e.usuario && String(e.usuario)===String(data.usuario);
+
+    if(!mismoId && !mismoNombre) return false;
     return rangosSolapan(data.hora_inicio,data.hora_fin,e.hora_inicio,e.hora_fin);
   });
 
@@ -403,8 +414,10 @@ async function comprobarSolapes(data,idActual=null){
   }
 
   const solapeVehiculo=eventos.find(e=>{
-    if(!data.vehiculo || !e.vehiculo) return false;
-    if(String(e.vehiculo)!==String(data.vehiculo)) return false;
+    const mismoId=data.vehiculo_id && e.vehiculo_id && String(e.vehiculo_id)===String(data.vehiculo_id);
+    const mismoNombre=!data.vehiculo_id && data.vehiculo && e.vehiculo && String(e.vehiculo)===String(data.vehiculo);
+
+    if(!mismoId && !mismoNombre) return false;
     return rangosSolapan(data.hora_inicio,data.hora_fin,e.hora_inicio,e.hora_fin);
   });
 
@@ -453,8 +466,25 @@ async function guardarEvento(id=null){
     origen:id ? "manual_editado" : "manual"
   };
 
+  if(data.tipo==="trabajo"){
+    alert("Los trabajos deben crearse desde el módulo Trabajos para mantener planificación, archivos, historial y agenda sincronizados.");
+
+    cerrarModalAgenda();
+
+    if(window.ZX_trabajos){
+      window.ZX_trabajos();
+    }
+
+    return;
+  }
+
   if(!data.titulo || !data.fecha_inicio){
     alert("Título y fecha son obligatorios.");
+    return;
+  }
+
+  if(data.visible_para==="usuario" && !data.usuario_id){
+    alert("Si el evento es visible solo para usuario, selecciona un operario.");
     return;
   }
 
@@ -511,9 +541,17 @@ async function abrirModalEvento(e=null,fecha=null){
           : ""
         }
 
+        ${
+          !trabajoVinculado
+          ? `<div class="zx_ag_aviso_trabajo">
+              Los trabajos reales se crean desde el módulo Trabajos. Desde Agenda puedes crear citas, notas, revisiones, vacaciones o permisos.
+            </div>`
+          : ""
+        }
+
         <label class="zx_ag_label">Tipo</label>
         <select id="ag_tipo" ${trabajoVinculado ? "disabled" : ""}>
-          <option value="trabajo" ${e?.tipo==="trabajo"?"selected":""}>Trabajo</option>
+          ${trabajoVinculado ? `<option value="trabajo" selected>Trabajo</option>` : ""}
           <option value="cita" ${e?.tipo==="cita"?"selected":""}>Cita</option>
           <option value="recordatorio" ${e?.tipo==="recordatorio"?"selected":""}>Recordatorio</option>
           <option value="revision" ${e?.tipo==="revision"?"selected":""}>Revisión</option>
@@ -960,10 +998,10 @@ window.ZX_agenda=async function(){
 };
 
 (function(){
-  if(document.getElementById("zx_agenda_css_v3090")) return;
+  if(document.getElementById("zx_agenda_css_v3091")) return;
 
   const s=document.createElement("style");
-  s.id="zx_agenda_css_v3090";
+  s.id="zx_agenda_css_v3091";
 
   s.innerHTML=`
     .zx_ag_head{display:flex;justify-content:space-between;align-items:center;gap:10px}
