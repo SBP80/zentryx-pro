@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3101 - ARCHIVADO + FILTROS + BUSCADOR + BORRADO SEGURO
+// V3102 - ARCHIVADO + FILTROS + BUSCADOR + BORRADO SEGURO + SOLAPES
 // ===============================
 (function(){
 "use strict";
@@ -27,6 +27,72 @@ function limpiar(v){
 
 function hoy(){
   return new Date().toISOString().slice(0,10);
+}
+
+function minHora(h){
+  if(!h) return null;
+  const p=String(h).slice(0,5).split(":");
+  if(p.length!==2) return null;
+  return Number(p[0])*60+Number(p[1]);
+}
+
+function rangosSolapan(aInicio,aFin,bInicio,bFin){
+  const ai=minHora(aInicio);
+  const af=minHora(aFin);
+  const bi=minHora(bInicio);
+  const bf=minHora(bFin);
+
+  if(ai===null || af===null || bi===null || bf===null) return false;
+  return ai<bf && bi<af;
+}
+
+async function comprobarSolapesPlanificacion(planificacion,trabajoIdActual=null){
+  for(const p of planificacion){
+    if(!p.fecha || !p.hora_inicio || !p.hora_fin || !p.usuario_id) continue;
+
+    if(minHora(p.hora_fin)<=minHora(p.hora_inicio)){
+      alert("La hora fin debe ser posterior a la hora inicio.");
+      return false;
+    }
+
+    const r=await sb()
+      .from("agenda_eventos")
+      .select("*")
+      .eq("fecha_inicio",p.fecha)
+      .neq("estado","cancelado");
+
+    if(r.error){
+      alert("Error comprobando solapes: "+r.error.message);
+      return false;
+    }
+
+    const eventos=(r.data || []).filter(e=>{
+      if(String(e.origen)==="trabajos" && String(e.origen_id)===String(trabajoIdActual||"")){
+        return false;
+      }
+      return true;
+    });
+
+    const solape=eventos.find(e=>{
+      const mismoUsuario=String(e.usuario_id||"")===String(p.usuario_id||"");
+      if(!mismoUsuario) return false;
+      return rangosSolapan(p.hora_inicio,p.hora_fin,e.hora_inicio,e.hora_fin);
+    });
+
+    if(solape){
+      alert(
+        "El operario ya tiene otro evento en ese horario:\n\n"+
+        (p.nombre || p.usuario || "Operario")+"\n"+
+        p.fecha+" · "+p.hora_inicio+" - "+p.hora_fin+"\n\n"+
+        "Evento existente: "+(solape.titulo || "Evento")+" "+
+        String(solape.hora_inicio || "").slice(0,5)+" - "+
+        String(solape.hora_fin || "").slice(0,5)
+      );
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function cerrarModalTrabajo(){
@@ -88,6 +154,7 @@ async function cargarUsuarios(){
   const r=await sb()
     .from("usuarios")
     .select("*")
+    .eq("activo",true)
     .order("nombre",{ascending:true});
 
   if(r.error) return [];
@@ -264,6 +331,7 @@ function claseTarjeta(t){
 
   return "";
 }
+
 function hashPin(pin){
   return btoa(String(pin));
 }
@@ -510,6 +578,7 @@ function renderHistorial(lista){
     </div>
   `).join("");
 }
+
 async function renderTrabajo(t){
   const dir=direccionTrabajo(t);
   const plan=await cargarPlanificacion(t.id);
@@ -850,6 +919,7 @@ async function formulario(t={}){
     guardarTrabajo(t.id || null,clientes);
   };
 }
+
 async function subirArchivoObra(file,tipo,trabajoId){
   if(!file || !trabajoId) return null;
 
@@ -1167,6 +1237,9 @@ async function guardarTrabajo(id,clientes){
     alert("Añade al menos un día, horario y operario.");
     return;
   }
+
+  const solapesOk=await comprobarSolapesPlanificacion(planificacion,id);
+  if(!solapesOk) return;
 
   const primera=planificacion[0];
 
@@ -1554,10 +1627,10 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3101")) return;
+  if(document.getElementById("zx_trabajos_v3102")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3101";
+  s.id="zx_trabajos_v3102";
 
   s.innerHTML=`
     .zx_tr_buscar{
