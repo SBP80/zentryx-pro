@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA PRO
-// V3093 - AGENDA LIMPIA + FESTIVOS FILTRADOS + SOLICITUDES SIN DUPLICADOS
+// V3093 - FESTIVOS FILTRADOS POR CONFIGURACIÓN EMPRESA
 // ===============================
 (function(){
 "use strict";
@@ -30,6 +30,21 @@ function limpiar(v){
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
+}
+
+function textoPlano(v){
+  return String(v ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .trim();
+}
+
+function coincideTexto(a,b){
+  const x=textoPlano(a);
+  const y=textoPlano(b);
+  if(!x || !y) return false;
+  return x===y;
 }
 
 function isoFecha(d){
@@ -98,6 +113,16 @@ function esEventoTrabajo(e){
          String(e?.origen_id || "");
 }
 
+function esEventoSistema(e){
+  const origen=String(e?.origen || "");
+  const tipo=String(e?.tipo || "");
+  return tipo==="festivo" ||
+         origen==="festivos" ||
+         origen==="calendario_festivos" ||
+         origen==="empresa_festivos" ||
+         origen==="solicitudes";
+}
+
 function minHora(h){
   if(!h) return null;
   const p=String(h).slice(0,5).split(":");
@@ -107,6 +132,7 @@ function minHora(h){
   const mm=Number(p[1]);
 
   if(Number.isNaN(hh) || Number.isNaN(mm)) return null;
+
   return hh*60+mm;
 }
 
@@ -122,6 +148,7 @@ function rangosSolapan(aInicio,aFin,bInicio,bFin){
 
 function estadoAprobado(v){
   const e=String(v || "").toLowerCase().trim();
+
   return [
     "aprobada",
     "aprobado",
@@ -133,12 +160,12 @@ function estadoAprobado(v){
 }
 
 function tipoSolicitudAgenda(tipo){
-  const t=String(tipo || "").toLowerCase().trim();
+  const t=textoPlano(tipo);
 
   if(t==="vacacion" || t==="vacaciones") return "vacaciones";
   if(t==="asunto_propio" || t==="asuntos_propios" || t==="asuntos propios") return "asuntos_propios";
   if(t==="permiso" || t==="permisos") return "permiso";
-  if(t==="baja" || t==="baja_medica" || t==="baja médica") return "baja_medica";
+  if(t==="baja" || t==="baja_medica" || t==="baja medica") return "baja_medica";
   if(t==="libranza" || t==="libre") return "libranza";
 
   return t || "permiso";
@@ -156,6 +183,151 @@ function tituloSolicitudAgenda(s,tipo){
   return textoTipo(tipo)+" - "+usuario;
 }
 
+async function cargarConfigEmpresaAgenda(){
+  const cfg={
+    pais:"España",
+    comunidad:"Madrid",
+    provincia:"Madrid",
+    municipio:"Pozuelo del Rey",
+    localidad:"Pozuelo del Rey"
+  };
+
+  try{
+    const tablas=[
+      "config_laboral",
+      "configuracion_laboral",
+      "org_empresa"
+    ];
+
+    for(const tabla of tablas){
+      const r=await sb()
+        .from(tabla)
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+
+      if(r.error || !r.data) continue;
+
+      const d=r.data;
+
+      cfg.pais=d.pais || d.empresa_pais || cfg.pais;
+      cfg.comunidad=d.comunidad || d.comunidad_autonoma || d.ccaa || cfg.comunidad;
+      cfg.provincia=d.provincia || cfg.provincia_empresa || cfg.provincia;
+      cfg.municipio=d.municipio || d.localidad || d.poblacion || cfg.municipio;
+      cfg.localidad=d.localidad || d.municipio || d.poblacion || cfg.localidad;
+
+      break;
+    }
+  }catch(e){}
+
+  return cfg;
+}
+
+function festivoPerteneceConfig(f,cfg){
+  const tipo=textoPlano(f.tipo || f.ambito || "");
+  const pais=f.pais || "España";
+  const comunidad=f.comunidad || f.comunidad_autonoma || f.ccaa || "";
+  const provincia=f.provincia || "";
+  const localidad=f.localidad || f.municipio || f.poblacion || "";
+
+  if(pais && cfg.pais && !coincideTexto(pais,cfg.pais)){
+    return false;
+  }
+
+  if(!tipo || tipo==="nacional"){
+    return true;
+  }
+
+  if(tipo==="autonomico" || tipo==="autonomica"){
+    return coincideTexto(comunidad,cfg.comunidad);
+  }
+
+  if(tipo==="provincial"){
+    return coincideTexto(provincia,cfg.provincia);
+  }
+
+  if(tipo==="local" || tipo==="municipal"){
+    return coincideTexto(localidad,cfg.localidad) ||
+           coincideTexto(localidad,cfg.municipio);
+  }
+
+  if(comunidad && !coincideTexto(comunidad,cfg.comunidad)){
+    return false;
+  }
+
+  if(provincia && !coincideTexto(provincia,cfg.provincia)){
+    return false;
+  }
+
+  if(localidad){
+    return coincideTexto(localidad,cfg.localidad) ||
+           coincideTexto(localidad,cfg.municipio);
+  }
+
+  return true;
+}
+
+async function pedirPinAdminAgenda(){
+  return new Promise(function(resolve){
+    cerrarModalAgenda();
+
+    document.body.insertAdjacentHTML("beforeend",`
+      <div id="zx_modal_agenda" class="zx_modal_fondo">
+        <div class="zx_modal_caja">
+          <h2>PIN administrador</h2>
+          <div class="zx_text">Introduce el PIN para continuar.</div>
+          <input id="ag_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
+          <button class="zx_btn_big zx_verde" id="ag_pin_ok">Confirmar</button>
+          <button class="zx_btn_big zx_gris" id="ag_pin_cancelar">Cancelar</button>
+        </div>
+      </div>
+    `);
+
+    document.getElementById("ag_pin_cancelar").onclick=function(){
+      cerrarModalAgenda();
+      resolve(false);
+    };
+
+    document.getElementById("ag_pin_ok").onclick=async function(){
+      const pin=document.getElementById("ag_pin_admin").value.trim();
+
+      if(!/^[0-9]{4}$/.test(pin)){
+        alert("PIN inválido.");
+        return;
+      }
+
+      const s=sesion();
+
+      const r=await sb()
+        .from("usuarios")
+        .select("id,usuario,rol,pin_hash")
+        .eq("id",s.id)
+        .maybeSingle();
+
+      if(r.error || !r.data){
+        alert("No se pudo validar usuario.");
+        return;
+      }
+
+      const rol=String(r.data.rol || "").toLowerCase();
+      const usuario=String(r.data.usuario || "").toLowerCase();
+      const admin=rol==="administrador" || usuario==="admin";
+
+      if(!admin){
+        alert("Solo administrador.");
+        return;
+      }
+
+      if(hashPin(pin)!==r.data.pin_hash){
+        alert("PIN incorrecto.");
+        return;
+      }
+
+      cerrarModalAgenda();
+      resolve(true);
+    };
+  });
+}
 function colorTipo(tipo){
   const t=String(tipo||"").toLowerCase();
 
@@ -190,6 +362,7 @@ function textoTipo(tipo){
 
   return m[tipo] || tipo || "Evento";
 }
+
 function textoEstado(e){
   const m={
     activo:"Activo",
@@ -214,66 +387,6 @@ function eventosDia(fecha){
 function filtrarEventos(lista){
   if(ZX_AGENDA_FILTRO==="todos") return lista;
   return lista.filter(e=>String(e.tipo||"")===ZX_AGENDA_FILTRO);
-}
-
-function eventoClave(e){
-  return [
-    String(e.origen || ""),
-    String(e.origen_id || ""),
-    String(e.tipo || ""),
-    normalizarFecha(e.fecha_inicio),
-    normalizarFecha(e.fecha_fin || e.fecha_inicio),
-    String(e.hora_inicio || ""),
-    String(e.hora_fin || ""),
-    String(e.usuario_id || ""),
-    String(e.titulo || "")
-  ].join("|");
-}
-
-function quitarDuplicadosEventos(lista){
-  const vistos=new Set();
-  const limpia=[];
-
-  for(const e of lista || []){
-    const clave=eventoClave(e);
-
-    if(vistos.has(clave)) continue;
-
-    vistos.add(clave);
-    limpia.push(e);
-  }
-
-  return limpia;
-}
-
-function esTipoNoLaborable(tipo){
-  const t=String(tipo || "");
-  return [
-    "festivo",
-    "vacaciones",
-    "asuntos_propios",
-    "permiso",
-    "baja_medica",
-    "libranza"
-  ].includes(t);
-}
-
-function puedeEditarDesdeAgenda(e){
-  if(esEventoTrabajo(e)) return false;
-  if(String(e.origen || "")==="solicitudes") return false;
-  if(String(e.origen || "")==="festivos") return false;
-  if(String(e.origen || "")==="calendario_festivos") return false;
-  if(String(e.origen || "")==="empresa_festivos") return false;
-  return true;
-}
-
-function mostrarAccionesEstado(e){
-  if(esEventoTrabajo(e)) return true;
-
-  const tipo=String(e.tipo || "");
-  if(esTipoNoLaborable(tipo)) return false;
-
-  return true;
 }
 
 async function cargarUsuariosAgenda(){
@@ -350,68 +463,6 @@ function opcionesVehiculos(lista,valor){
   `;
 }
 
-async function pedirPinAdminAgenda(){
-  return new Promise(function(resolve){
-    cerrarModalAgenda();
-
-    document.body.insertAdjacentHTML("beforeend",`
-      <div id="zx_modal_agenda" class="zx_modal_fondo">
-        <div class="zx_modal_caja">
-          <h2>PIN administrador</h2>
-          <div class="zx_text">Introduce el PIN para continuar.</div>
-          <input id="ag_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
-          <button class="zx_btn_big zx_verde" id="ag_pin_ok">Confirmar</button>
-          <button class="zx_btn_big zx_gris" id="ag_pin_cancelar">Cancelar</button>
-        </div>
-      </div>
-    `);
-
-    document.getElementById("ag_pin_cancelar").onclick=function(){
-      cerrarModalAgenda();
-      resolve(false);
-    };
-
-    document.getElementById("ag_pin_ok").onclick=async function(){
-      const pin=document.getElementById("ag_pin_admin").value.trim();
-
-      if(!/^[0-9]{4}$/.test(pin)){
-        alert("PIN inválido.");
-        return;
-      }
-
-      const s=sesion();
-
-      const r=await sb()
-        .from("usuarios")
-        .select("id,usuario,rol,pin_hash")
-        .eq("id",s.id)
-        .maybeSingle();
-
-      if(r.error || !r.data){
-        alert("No se pudo validar usuario.");
-        return;
-      }
-
-      const rol=String(r.data.rol || "").toLowerCase();
-      const usuario=String(r.data.usuario || "").toLowerCase();
-      const admin=rol==="administrador" || usuario==="admin";
-
-      if(!admin){
-        alert("Solo administrador.");
-        return;
-      }
-
-      if(hashPin(pin)!==r.data.pin_hash){
-        alert("PIN incorrecto.");
-        return;
-      }
-
-      cerrarModalAgenda();
-      resolve(true);
-    };
-  });
-}
-
 async function upsertEventoAgenda(origen,origenId,dataEvento){
   if(!origen || !origenId) return;
 
@@ -420,20 +471,49 @@ async function upsertEventoAgenda(origen,origenId,dataEvento){
     .select("id")
     .eq("origen",origen)
     .eq("origen_id",String(origenId))
-    .limit(1);
+    .maybeSingle();
 
   if(existe.error) return;
 
-  if(existe.data && existe.data.length){
+  if(existe.data && existe.data.id){
     await sb()
       .from("agenda_eventos")
       .update(dataEvento)
-      .eq("id",existe.data[0].id);
+      .eq("id",existe.data.id);
   }else{
     await sb()
       .from("agenda_eventos")
       .insert([dataEvento]);
   }
+}
+
+async function limpiarFestivosNoValidos(cfg){
+  try{
+    const r=await sb()
+      .from("agenda_eventos")
+      .select("*")
+      .eq("tipo","festivo");
+
+    if(r.error || !r.data) return;
+
+    for(const e of r.data){
+      const fake={
+        tipo:e.tipo_festivo || "",
+        ambito:e.ambito || "",
+        pais:e.pais || "España",
+        comunidad:e.comunidad || "",
+        provincia:e.provincia || "",
+        localidad:e.localidad || e.municipio || ""
+      };
+
+      if(!festivoPerteneceConfig(fake,cfg)){
+        await sb()
+          .from("agenda_eventos")
+          .delete()
+          .eq("id",e.id);
+      }
+    }
+  }catch(e){}
 }
 
 async function sincronizarSolicitudes(){
@@ -487,11 +567,16 @@ async function sincronizarSolicitudes(){
     }
   }catch(e){}
 }
+
 async function sincronizarFestivos(){
   try{
+    const cfg=await cargarConfigEmpresaAgenda();
+
+    await limpiarFestivosNoValidos(cfg);
+
     const tablas=[
-      "festivos",
       "calendario_festivos",
+      "festivos",
       "empresa_festivos"
     ];
 
@@ -503,29 +588,49 @@ async function sincronizarFestivos(){
       if(r.error || !r.data) continue;
 
       for(const f of r.data){
-        const id=f.id || f.fecha || f.dia;
-        const fecha=normalizarFecha(f.fecha || f.dia || f.fecha_inicio);
+        if(!festivoPerteneceConfig(f,cfg)) continue;
 
+        const id=f.id || [
+          tabla,
+          f.fecha || f.dia || f.fecha_inicio,
+          f.nombre || f.titulo || f.descripcion,
+          f.tipo || f.ambito || "",
+          f.comunidad || "",
+          f.provincia || "",
+          f.localidad || f.municipio || ""
+        ].join("_");
+
+        const fecha=normalizarFecha(f.fecha || f.dia || f.fecha_inicio);
         if(!id || !fecha) continue;
 
         const nombre=f.nombre || f.titulo || f.descripcion || "Festivo";
+        const tipoFestivo=String(f.tipo || f.ambito || "nacional").toLowerCase();
 
         const dataEvento={
           tipo:"festivo",
           titulo:"Festivo - "+nombre,
-          descripcion:f.descripcion || f.localidad || f.provincia || "",
+          descripcion:f.descripcion || f.localidad || f.provincia || f.comunidad || "",
           fecha_inicio:fecha,
           fecha_fin:normalizarFecha(f.fecha_fin || f.fecha || f.dia || f.fecha_inicio) || fecha,
           hora_inicio:null,
           hora_fin:null,
           usuario_id:"",
           usuario:"",
+          cliente_id:"",
+          cliente:"",
+          vehiculo_id:"",
+          vehiculo:"",
           estado:"activo",
           prioridad:"normal",
           creado_por:"sistema",
           visible_para:"todos",
           origen:tabla,
-          origen_id:String(id)
+          origen_id:String(id),
+          tipo_festivo:tipoFestivo,
+          pais:f.pais || cfg.pais || "España",
+          comunidad:f.comunidad || f.comunidad_autonoma || f.ccaa || "",
+          provincia:f.provincia || "",
+          localidad:f.localidad || f.municipio || f.poblacion || ""
         };
 
         await upsertEventoAgenda(tabla,id,dataEvento);
@@ -558,7 +663,7 @@ async function cargarEventos(){
     return [];
   }
 
-  let datos=quitarDuplicadosEventos(r.data || []);
+  let datos=r.data || [];
 
   if(!esAdmin()){
     datos=datos.filter(e=>{
@@ -590,7 +695,12 @@ async function comprobarSolapes(data,idActual=null){
 
   const eventos=(r.data || []).filter(e=>{
     if(String(e.id)===String(idActual || "")) return false;
-    if(esTipoNoLaborable(e.tipo)) return false;
+
+    const tipo=String(e.tipo || "");
+    if(tipo==="festivo" || tipo==="vacaciones" || tipo==="asuntos_propios" || tipo==="permiso" || tipo==="baja_medica" || tipo==="libranza"){
+      return false;
+    }
+
     return true;
   });
 
@@ -632,7 +742,6 @@ async function comprobarSolapes(data,idActual=null){
 
   return true;
 }
-
 async function guardarEvento(id=null){
   const s=sesion();
 
@@ -716,12 +825,13 @@ async function guardarEvento(id=null){
   cerrarModalAgenda();
   ZX_agenda();
 }
+
 async function abrirModalEvento(e=null,fecha=null){
   cerrarModalAgenda();
 
   const isEdit=!!e;
   const trabajoVinculado=esEventoTrabajo(e);
-  const editable=puedeEditarDesdeAgenda(e || {});
+  const soloLecturaSistema=String(e?.tipo || "")==="festivo" && String(e?.origen || "")!=="manual" && String(e?.origen || "")!=="manual_editado";
 
   const usuarios=await cargarUsuariosAgenda();
   const clientes=await cargarClientesAgenda();
@@ -741,15 +851,15 @@ async function abrirModalEvento(e=null,fecha=null){
         }
 
         ${
-          isEdit && !editable
+          soloLecturaSistema
           ? `<div class="zx_ag_aviso_trabajo">
-              Este evento viene de otro módulo. Para modificarlo, edita su origen.
+              Este festivo viene del calendario laboral configurado. Para cambiarlo, edita la tabla de festivos o la configuración laboral.
             </div>`
           : ""
         }
 
         ${
-          !isEdit
+          !trabajoVinculado && !soloLecturaSistema
           ? `<div class="zx_ag_aviso_trabajo">
               Los trabajos reales se crean desde el módulo Trabajos. Desde Agenda puedes crear citas, notas, revisiones, vacaciones, asuntos propios, festivos o permisos.
             </div>`
@@ -757,7 +867,7 @@ async function abrirModalEvento(e=null,fecha=null){
         }
 
         <label class="zx_ag_label">Tipo</label>
-        <select id="ag_tipo" ${!editable ? "disabled" : ""}>
+        <select id="ag_tipo" ${trabajoVinculado || soloLecturaSistema ? "disabled" : ""}>
           ${trabajoVinculado ? `<option value="trabajo" selected>Trabajo</option>` : ""}
           <option value="cita" ${e?.tipo==="cita"?"selected":""}>Cita</option>
           <option value="recordatorio" ${e?.tipo==="recordatorio"?"selected":""}>Recordatorio</option>
@@ -771,53 +881,53 @@ async function abrirModalEvento(e=null,fecha=null){
         </select>
 
         <label class="zx_ag_label">Título</label>
-        <input id="ag_titulo" value="${limpiar(e?.titulo || "")}" placeholder="Título" ${!editable ? "readonly" : ""}>
+        <input id="ag_titulo" value="${limpiar(e?.titulo || "")}" placeholder="Título" ${trabajoVinculado || soloLecturaSistema ? "readonly" : ""}>
 
         <label class="zx_ag_label">Descripción</label>
-        <textarea id="ag_desc" rows="4" placeholder="Notas, dirección, material, detalles..." ${!editable ? "readonly" : ""}>${limpiar(e?.descripcion || "")}</textarea>
+        <textarea id="ag_desc" rows="4" placeholder="Notas, dirección, material, detalles..." ${trabajoVinculado || soloLecturaSistema ? "readonly" : ""}>${limpiar(e?.descripcion || "")}</textarea>
 
         <label class="zx_ag_label">Fecha inicio</label>
-        <input id="ag_fecha_inicio" type="date" value="${limpiar(normalizarFecha(e?.fecha_inicio || fecha || hoy()))}" ${!editable ? "readonly" : ""}>
+        <input id="ag_fecha_inicio" type="date" value="${limpiar(normalizarFecha(e?.fecha_inicio || fecha || hoy()))}" ${trabajoVinculado || soloLecturaSistema ? "readonly" : ""}>
 
         <label class="zx_ag_label">Fecha fin</label>
-        <input id="ag_fecha_fin" type="date" value="${limpiar(normalizarFecha(e?.fecha_fin || e?.fecha_inicio || fecha || hoy()))}" ${!editable ? "readonly" : ""}>
+        <input id="ag_fecha_fin" type="date" value="${limpiar(normalizarFecha(e?.fecha_fin || e?.fecha_inicio || fecha || hoy()))}" ${trabajoVinculado || soloLecturaSistema ? "readonly" : ""}>
 
         <div class="zx_ag_grid2">
           <div>
             <label class="zx_ag_label">Hora inicio</label>
-            <input id="ag_hora_inicio" type="time" value="${limpiar(e?.hora_inicio ? String(e.hora_inicio).slice(0,5) : "")}" ${!editable ? "readonly" : ""}>
+            <input id="ag_hora_inicio" type="time" value="${limpiar(e?.hora_inicio ? String(e.hora_inicio).slice(0,5) : "")}" ${trabajoVinculado || soloLecturaSistema ? "readonly" : ""}>
           </div>
 
           <div>
             <label class="zx_ag_label">Hora fin</label>
-            <input id="ag_hora_fin" type="time" value="${limpiar(e?.hora_fin ? String(e.hora_fin).slice(0,5) : "")}" ${!editable ? "readonly" : ""}>
+            <input id="ag_hora_fin" type="time" value="${limpiar(e?.hora_fin ? String(e.hora_fin).slice(0,5) : "")}" ${trabajoVinculado || soloLecturaSistema ? "readonly" : ""}>
           </div>
         </div>
 
         <label class="zx_ag_label">Operario</label>
-        <select id="ag_usuario" ${!editable ? "disabled" : ""}>
+        <select id="ag_usuario" ${trabajoVinculado || soloLecturaSistema ? "disabled" : ""}>
           ${opcionesUsuarios(usuarios,e?.usuario || "")}
         </select>
 
         <label class="zx_ag_label">Cliente</label>
-        <select id="ag_cliente" ${!editable ? "disabled" : ""}>
+        <select id="ag_cliente" ${trabajoVinculado || soloLecturaSistema ? "disabled" : ""}>
           ${opcionesClientes(clientes,e?.cliente || "")}
         </select>
 
         <label class="zx_ag_label">Vehículo</label>
-        <select id="ag_vehiculo" ${!editable ? "disabled" : ""}>
+        <select id="ag_vehiculo" ${trabajoVinculado || soloLecturaSistema ? "disabled" : ""}>
           ${opcionesVehiculos(vehiculos,e?.vehiculo || "")}
         </select>
 
         <label class="zx_ag_label">Prioridad</label>
-        <select id="ag_prioridad" ${!editable ? "disabled" : ""}>
+        <select id="ag_prioridad" ${trabajoVinculado || soloLecturaSistema ? "disabled" : ""}>
           <option value="normal" ${e?.prioridad==="normal"?"selected":""}>Normal</option>
           <option value="alta" ${e?.prioridad==="alta"?"selected":""}>Alta</option>
           <option value="baja" ${e?.prioridad==="baja"?"selected":""}>Baja</option>
         </select>
 
         <label class="zx_ag_label">Visible para</label>
-        <select id="ag_visible" ${!editable ? "disabled" : ""}>
+        <select id="ag_visible" ${trabajoVinculado || soloLecturaSistema ? "disabled" : ""}>
           <option value="todos" ${e?.visible_para==="todos"?"selected":""}>Todos</option>
           <option value="admin" ${e?.visible_para==="admin"?"selected":""}>Solo admin</option>
           <option value="usuario" ${e?.visible_para==="usuario"?"selected":""}>Usuario</option>
@@ -826,12 +936,12 @@ async function abrirModalEvento(e=null,fecha=null){
         ${
           trabajoVinculado
           ? `<button class="zx_btn_big zx_azul" id="ag_abrir_trabajo">Abrir trabajo</button>`
-          : editable
-            ? `<button class="zx_btn_big zx_verde" id="ag_guardar">Guardar</button>`
-            : ""
+          : soloLecturaSistema
+            ? `<button class="zx_btn_big zx_azul" id="ag_cerrar_sistema">Cerrar</button>`
+            : `<button class="zx_btn_big zx_verde" id="ag_guardar">Guardar</button>`
         }
 
-        <button class="zx_btn_big zx_gris" id="ag_cancelar">Cerrar</button>
+        <button class="zx_btn_big zx_gris" id="ag_cancelar">Cancelar</button>
       </div>
     </div>
   `);
@@ -842,7 +952,9 @@ async function abrirModalEvento(e=null,fecha=null){
     document.getElementById("ag_abrir_trabajo").onclick=function(){
       ZX_ag_abrirTrabajo(e.origen_id);
     };
-  }else if(editable){
+  }else if(soloLecturaSistema){
+    document.getElementById("ag_cerrar_sistema").onclick=cerrarModalAgenda;
+  }else{
     document.getElementById("ag_guardar").onclick=function(){
       guardarEvento(isEdit ? e.id : null);
     };
@@ -857,8 +969,8 @@ async function cambiarEstado(id,estado){
     return;
   }
 
-  if(!mostrarAccionesEstado(e)){
-    alert("Este tipo de evento no se marca como hecho o cancelado desde Agenda.");
+  if(String(e.tipo || "")==="festivo" && String(e.origen || "")!=="manual" && String(e.origen || "")!=="manual_editado"){
+    alert("Los festivos del calendario laboral no se marcan como hechos ni cancelados desde Agenda.");
     return;
   }
 
@@ -912,7 +1024,6 @@ async function cambiarEstado(id,estado){
   cerrarModalAgenda();
   ZX_agenda();
 }
-
 async function borrarEvento(id){
   const e=ZX_AGENDA_CACHE.find(x=>String(x.id)===String(id));
 
@@ -921,8 +1032,36 @@ async function borrarEvento(id){
     return;
   }
 
-  if(!puedeEditarDesdeAgenda(e)){
-    alert("Este evento viene de otro módulo. No se puede borrar desde Agenda.");
+  if(String(e.tipo || "")==="festivo" && String(e.origen || "")!=="manual" && String(e.origen || "")!=="manual_editado"){
+    alert("Los festivos del calendario laboral se gestionan desde la tabla de festivos o desde configuración.");
+    return;
+  }
+
+  if(esEventoTrabajo(e)){
+    cerrarModalAgenda();
+
+    document.body.insertAdjacentHTML("beforeend",`
+      <div id="zx_modal_agenda" class="zx_modal_fondo">
+        <div class="zx_modal_caja">
+          <h2>Evento de trabajo</h2>
+
+          <div class="zx_text">
+            Este evento pertenece a un trabajo.<br><br>
+            No se puede borrar desde Agenda para no romper la sincronización.<br><br>
+            Para modificarlo, archivarlo o borrarlo, abre el trabajo original.
+          </div>
+
+          <button class="zx_btn_big zx_azul" id="ag_borrar_abrir_trabajo">Abrir trabajo</button>
+          <button class="zx_btn_big zx_gris" id="ag_borrar_cancelar">Cancelar</button>
+        </div>
+      </div>
+    `);
+
+    document.getElementById("ag_borrar_abrir_trabajo").onclick=function(){
+      ZX_ag_abrirTrabajo(e.origen_id);
+    };
+
+    document.getElementById("ag_borrar_cancelar").onclick=cerrarModalAgenda;
     return;
   }
 
@@ -1029,8 +1168,7 @@ window.ZX_ag_filtro=function(tipo){
 
 function renderEvento(e){
   const trabajoVinculado=esEventoTrabajo(e);
-  const editable=puedeEditarDesdeAgenda(e);
-  const accionesEstado=mostrarAccionesEstado(e);
+  const festivoSistema=String(e.tipo || "")==="festivo" && String(e.origen || "")!=="manual" && String(e.origen || "")!=="manual_editado";
 
   return `
     <div class="zx_ag_evento ${colorTipo(e.tipo)}">
@@ -1052,23 +1190,19 @@ function renderEvento(e){
         ${
           trabajoVinculado
           ? `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_abrirTrabajo('${e.origen_id}')">Abrir trabajo</button>`
-          : editable
-            ? `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Editar</button>`
-            : `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Ver</button>`
+          : festivoSistema
+            ? `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Ver</button>`
+            : `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Editar</button>
+               <button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button>
+               <button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button>
+               <button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Borrar</button>`
         }
 
         ${
-          accionesEstado
-          ? `
-            <button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button>
-            <button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button>
-          `
-          : ""
-        }
-
-        ${
-          editable
-          ? `<button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Borrar</button>`
+          trabajoVinculado
+          ? `<button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button>
+             <button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button>
+             <button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Borrar</button>`
           : ""
         }
       </div>
@@ -1131,7 +1265,6 @@ function renderCalendario(){
 
   return html;
 }
-
 function renderListas(){
   const hoyF=hoy();
   const manana=sumarDias(hoyF,1);
@@ -1220,26 +1353,120 @@ window.ZX_agenda=async function(){
     .zx_ag_head{display:flex;justify-content:space-between;align-items:center;gap:10px}
     .zx_ag_head button{border:0;border-radius:16px;background:#2563eb;color:white;font-size:30px;font-weight:900;width:58px;height:58px}
     .zx_ag_hoy_btn{width:auto!important;height:auto!important;padding:8px 16px!important;font-size:15px!important;background:#64748b!important}
-    .zx_ag_weekdays,.zx_ag_calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
-    .zx_ag_weekdays div{text-align:center;color:#64748b;font-weight:900;font-size:13px}
-    .zx_ag_day{min-height:92px;background:#f8fafc;border:1px solid #d1d5db;border-radius:14px;padding:7px;overflow:hidden}
+
+    .zx_ag_weekdays,
+    .zx_ag_calendar{
+      display:grid;
+      grid-template-columns:repeat(7,1fr);
+      gap:6px;
+      margin-top:12px;
+    }
+
+    .zx_ag_weekdays div{
+      text-align:center;
+      color:#64748b;
+      font-weight:900;
+      font-size:13px;
+    }
+
+    .zx_ag_day{
+      min-height:92px;
+      background:#f8fafc;
+      border:1px solid #d1d5db;
+      border-radius:14px;
+      padding:7px;
+      overflow:hidden;
+    }
+
     .zx_ag_empty{background:transparent;border:0}
     .zx_ag_today{border:3px solid #2563eb;background:#eff6ff}
     .zx_ag_day_num{font-size:15px;font-weight:900;margin-bottom:5px;color:#0f172a}
-    .zx_ag_dot{color:white;border-radius:8px;padding:3px 5px;font-size:11px;font-weight:900;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .zx_ag_more{font-size:11px;font-weight:900;color:#64748b;margin-top:3px}
-    .zx_ag_filters{display:flex;gap:8px;overflow-x:auto;margin-top:16px;padding-bottom:4px}
-    .zx_ag_filters button{border:0;border-radius:999px;padding:10px 14px;background:#e2e8f0;color:#0f172a;font-weight:900;white-space:nowrap}
-    .zx_ag_filters button.activo{background:#2563eb;color:white}
-    .zx_ag_evento{border-radius:18px;padding:14px;margin-top:12px;color:white}
-    .zx_ag_evento_top{display:flex;justify-content:space-between;gap:8px;font-size:18px;font-weight:900}
-    .zx_ag_evento_txt{margin-top:8px;line-height:1.4;font-size:15px;font-weight:750}
-    .zx_ag_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-    .zx_ag_btn{border:0;border-radius:14px;padding:11px;color:white;font-size:15px;font-weight:900}
+
+    .zx_ag_dot{
+      color:white;
+      border-radius:8px;
+      padding:3px 5px;
+      font-size:11px;
+      font-weight:900;
+      margin-top:3px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .zx_ag_more{
+      font-size:11px;
+      font-weight:900;
+      color:#64748b;
+      margin-top:3px;
+    }
+
+    .zx_ag_filters{
+      display:flex;
+      gap:8px;
+      overflow-x:auto;
+      margin-top:16px;
+      padding-bottom:4px;
+    }
+
+    .zx_ag_filters button{
+      border:0;
+      border-radius:999px;
+      padding:10px 14px;
+      background:#e2e8f0;
+      color:#0f172a;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    .zx_ag_filters button.activo{
+      background:#2563eb;
+      color:white;
+    }
+
+    .zx_ag_evento{
+      border-radius:18px;
+      padding:14px;
+      margin-top:12px;
+      color:white;
+    }
+
+    .zx_ag_evento_top{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      font-size:18px;
+      font-weight:900;
+    }
+
+    .zx_ag_evento_txt{
+      margin-top:8px;
+      line-height:1.4;
+      font-size:15px;
+      font-weight:750;
+    }
+
+    .zx_ag_actions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-top:12px;
+    }
+
+    .zx_ag_btn{
+      border:0;
+      border-radius:14px;
+      padding:11px;
+      color:white;
+      font-size:15px;
+      font-weight:900;
+    }
+
     .zx_ag_btn_blue{background:#2563eb}
     .zx_ag_btn_green{background:#16a34a}
     .zx_ag_btn_orange{background:#ea580c}
     .zx_ag_btn_red{background:#dc2626}
+
     .zx_ag_tipo_trabajo{background:#2563eb}
     .zx_ag_tipo_cita{background:#7c3aed}
     .zx_ag_tipo_vacaciones{background:#16a34a}
@@ -1251,9 +1478,33 @@ window.ZX_agenda=async function(){
     .zx_ag_tipo_festivo{background:#9333ea}
     .zx_ag_tipo_libranza{background:#0891b2}
     .zx_ag_tipo_default{background:#334155}
-    .zx_ag_label{display:block;margin-top:14px;margin-bottom:6px;font-size:15px;font-weight:900;color:#475569}
-    .zx_ag_grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .zx_ag_aviso_trabajo{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:18px;padding:14px;margin-bottom:14px;font-size:16px;font-weight:900;line-height:1.35}
+
+    .zx_ag_label{
+      display:block;
+      margin-top:14px;
+      margin-bottom:6px;
+      font-size:15px;
+      font-weight:900;
+      color:#475569;
+    }
+
+    .zx_ag_grid2{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .zx_ag_aviso_trabajo{
+      background:#fff7ed;
+      border:1px solid #fed7aa;
+      color:#9a3412;
+      border-radius:18px;
+      padding:14px;
+      margin-bottom:14px;
+      font-size:16px;
+      font-weight:900;
+      line-height:1.35;
+    }
 
     #zx_modal_agenda select,
     #zx_modal_agenda input,
