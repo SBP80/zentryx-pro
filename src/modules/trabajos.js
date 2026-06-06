@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3102 - ARCHIVADO + FILTROS + BUSCADOR + BORRADO SEGURO + SOLAPES
+// V3103 - SOLAPES CORREGIDOS POR FECHA
 // ===============================
 (function(){
 "use strict";
@@ -29,11 +29,41 @@ function hoy(){
   return new Date().toISOString().slice(0,10);
 }
 
+function normalizarFecha(f){
+  if(!f) return "";
+  const s=String(f).trim();
+
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+    return s.slice(0,10);
+  }
+
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){
+    const p=s.split("/");
+    return p[2]+"-"+p[1]+"-"+p[0];
+  }
+
+  return s.slice(0,10);
+}
+
+function formatoFechaES(f){
+  const x=normalizarFecha(f);
+  if(!x) return "";
+  const p=x.split("-");
+  if(p.length!==3) return x;
+  return p[2]+"/"+p[1]+"/"+p[0];
+}
+
 function minHora(h){
   if(!h) return null;
   const p=String(h).slice(0,5).split(":");
   if(p.length!==2) return null;
-  return Number(p[0])*60+Number(p[1]);
+
+  const hh=Number(p[0]);
+  const mm=Number(p[1]);
+
+  if(Number.isNaN(hh) || Number.isNaN(mm)) return null;
+
+  return hh*60+mm;
 }
 
 function rangosSolapan(aInicio,aFin,bInicio,bFin){
@@ -46,8 +76,45 @@ function rangosSolapan(aInicio,aFin,bInicio,bFin){
   return ai<bf && bi<af;
 }
 
+function mismoDiaEvento(e,fecha){
+  const f=normalizarFecha(fecha);
+  const ini=normalizarFecha(e.fecha_inicio);
+  const fin=normalizarFecha(e.fecha_fin || e.fecha_inicio);
+
+  if(!f || !ini) return false;
+
+  return f>=ini && f<=fin;
+}
+
+function mismoOperario(e,p){
+  const idEvento=String(e.usuario_id || "").trim();
+  const idPlan=String(p.usuario_id || "").trim();
+
+  if(idEvento && idPlan){
+    return idEvento===idPlan;
+  }
+
+  const nomEvento=String(e.usuario || "").trim().toLowerCase();
+  const nomPlan=String(p.nombre || p.usuario || "").trim().toLowerCase();
+
+  if(nomEvento && nomPlan){
+    return nomEvento===nomPlan;
+  }
+
+  return false;
+}
+
 async function comprobarSolapesPlanificacion(planificacion,trabajoIdActual=null){
-  for(const p of planificacion){
+  const filas=planificacion.map(p=>({
+    ...p,
+    fecha:normalizarFecha(p.fecha),
+    hora_inicio:p.hora_inicio ? String(p.hora_inicio).slice(0,5) : null,
+    hora_fin:p.hora_fin ? String(p.hora_fin).slice(0,5) : null
+  }));
+
+  for(let i=0;i<filas.length;i++){
+    const p=filas[i];
+
     if(!p.fecha || !p.hora_inicio || !p.hora_fin || !p.usuario_id) continue;
 
     if(minHora(p.hora_fin)<=minHora(p.hora_inicio)){
@@ -55,10 +122,28 @@ async function comprobarSolapesPlanificacion(planificacion,trabajoIdActual=null)
       return false;
     }
 
+    const interno=filas.find((x,idx)=>{
+      if(idx===i) return false;
+      if(!x.fecha || !x.hora_inicio || !x.hora_fin || !x.usuario_id) return false;
+      if(normalizarFecha(x.fecha)!==p.fecha) return false;
+      if(String(x.usuario_id)!==String(p.usuario_id)) return false;
+      return rangosSolapan(p.hora_inicio,p.hora_fin,x.hora_inicio,x.hora_fin);
+    });
+
+    if(interno){
+      alert(
+        "El operario está repetido en la planificación del mismo trabajo:\n\n"+
+        (p.nombre || p.usuario || "Operario")+"\n"+
+        formatoFechaES(p.fecha)+" · "+p.hora_inicio+" - "+p.hora_fin
+      );
+      return false;
+    }
+
     const r=await sb()
       .from("agenda_eventos")
       .select("*")
-      .eq("fecha_inicio",p.fecha)
+      .lte("fecha_inicio",p.fecha)
+      .gte("fecha_fin",p.fecha)
       .neq("estado","cancelado");
 
     if(r.error){
@@ -67,15 +152,17 @@ async function comprobarSolapesPlanificacion(planificacion,trabajoIdActual=null)
     }
 
     const eventos=(r.data || []).filter(e=>{
-      if(String(e.origen)==="trabajos" && String(e.origen_id)===String(trabajoIdActual||"")){
+      if(!mismoDiaEvento(e,p.fecha)) return false;
+
+      if(String(e.origen)==="trabajos" && String(e.origen_id)===String(trabajoIdActual || "")){
         return false;
       }
+
       return true;
     });
 
     const solape=eventos.find(e=>{
-      const mismoUsuario=String(e.usuario_id||"")===String(p.usuario_id||"");
-      if(!mismoUsuario) return false;
+      if(!mismoOperario(e,p)) return false;
       return rangosSolapan(p.hora_inicio,p.hora_fin,e.hora_inicio,e.hora_fin);
     });
 
@@ -83,8 +170,9 @@ async function comprobarSolapesPlanificacion(planificacion,trabajoIdActual=null)
       alert(
         "El operario ya tiene otro evento en ese horario:\n\n"+
         (p.nombre || p.usuario || "Operario")+"\n"+
-        p.fecha+" · "+p.hora_inicio+" - "+p.hora_fin+"\n\n"+
+        formatoFechaES(p.fecha)+" · "+p.hora_inicio+" - "+p.hora_fin+"\n\n"+
         "Evento existente: "+(solape.titulo || "Evento")+" "+
+        formatoFechaES(solape.fecha_inicio)+" · "+
         String(solape.hora_inicio || "").slice(0,5)+" - "+
         String(solape.hora_fin || "").slice(0,5)
       );
@@ -223,7 +311,6 @@ async function cargarTrabajos(){
 
   return datos;
 }
-
 async function cargarTodosTrabajos(){
   const r=await sb()
     .from("trabajos")
@@ -511,7 +598,7 @@ function renderPlanificacion(lista){
     <div class="zx_plan_compact">
       ${lista.map(p=>`
         <div class="zx_plan_row">
-          <div class="zx_plan_fecha">${limpiar(p.fecha || "")}</div>
+          <div class="zx_plan_fecha">${limpiar(formatoFechaES(p.fecha || ""))}</div>
 
           <div class="zx_plan_hora">
             ${limpiar(p.hora_inicio ? String(p.hora_inicio).slice(0,5) : "--:--")}
@@ -569,7 +656,7 @@ function renderHistorial(lista){
   return lista.map(h=>`
     <div class="zx_tr_hist_item">
       <b>${limpiar(h.usuario || "Usuario")}</b><br>
-      ${limpiar(h.fecha || "")}
+      ${limpiar(formatoFechaES(h.fecha || ""))}
       ${h.hora_inicio ? " · "+limpiar(String(h.hora_inicio).slice(0,5)) : ""}
       ${h.hora_fin ? " - "+limpiar(String(h.hora_fin).slice(0,5)) : ""}
       <br>
@@ -578,7 +665,6 @@ function renderHistorial(lista){
     </div>
   `).join("");
 }
-
 async function renderTrabajo(t){
   const dir=direccionTrabajo(t);
   const plan=await cargarPlanificacion(t.id);
@@ -667,7 +753,7 @@ function filaPlanificacionHTML(i,usuarios,p={}){
       <div class="zx_plan_form_grid">
         <div>
           <label class="zx_label">Fecha</label>
-          <input type="date" class="tr_plan_fecha" value="${limpiar(p.fecha || hoy())}">
+          <input type="date" class="tr_plan_fecha" value="${limpiar(normalizarFecha(p.fecha || hoy()))}">
         </div>
 
         <div>
@@ -720,7 +806,7 @@ function leerPlanificacionFormulario(){
     const opt=sel.options[sel.selectedIndex];
 
     return {
-      fecha:row.querySelector(".tr_plan_fecha").value,
+      fecha:normalizarFecha(row.querySelector(".tr_plan_fecha").value),
       hora_inicio:row.querySelector(".tr_plan_inicio").value || null,
       hora_fin:row.querySelector(".tr_plan_fin").value || null,
       usuario_id:sel.value || null,
@@ -878,8 +964,7 @@ async function formulario(t={}){
     cont.insertAdjacentHTML("beforeend",filaPlanificacionHTML(i,usuarios,{}));
     activarBotonesPlan();
   };
-
-  function activarBotonesPlan(){
+    function activarBotonesPlan(){
     document.querySelectorAll(".tr_plan_borrar").forEach(btn=>{
       btn.onclick=function(){
         const rows=document.querySelectorAll("[data-plan-row]");
@@ -898,7 +983,7 @@ async function formulario(t={}){
         const i=document.querySelectorAll("[data-plan-row]").length;
 
         const p={
-          fecha:row.querySelector(".tr_plan_fecha").value,
+          fecha:normalizarFecha(row.querySelector(".tr_plan_fecha").value),
           hora_inicio:row.querySelector(".tr_plan_inicio").value,
           hora_fin:row.querySelector(".tr_plan_fin").value,
           usuario_id:row.querySelector(".tr_plan_usuario").value,
@@ -923,7 +1008,6 @@ async function formulario(t={}){
 async function subirArchivoObra(file,tipo,trabajoId){
   if(!file || !trabajoId) return null;
 
-  const ext=(file.name.split(".").pop() || "dat").toLowerCase();
   const limpio=String(file.name || "archivo").replace(/[^a-zA-Z0-9._-]/g,"_");
   const path="trabajos/"+trabajoId+"/"+tipo+"/"+Date.now()+"_"+limpio;
 
@@ -1143,7 +1227,7 @@ window.ZX_tr_add_historial=async function(trabajoId){
         trabajo_id:String(trabajoId),
         usuario_id:String(sel.value),
         usuario:opt ? opt.dataset.nombre || opt.dataset.usuario || "" : "",
-        fecha:document.getElementById("tr_hist_fecha").value || hoy(),
+        fecha:normalizarFecha(document.getElementById("tr_hist_fecha").value || hoy()),
         hora_inicio:document.getElementById("tr_hist_inicio").value || null,
         hora_fin:document.getElementById("tr_hist_fin").value || null,
         tipo:document.getElementById("tr_hist_tipo").value,
@@ -1180,8 +1264,8 @@ async function sincronizarAgenda(trabajoId,data,planificacion){
         tipo:"trabajo",
         titulo:"Trabajo - "+data.titulo,
         descripcion:data.descripcion || "",
-        fecha_inicio:p.fecha,
-        fecha_fin:p.fecha,
+        fecha_inicio:normalizarFecha(p.fecha),
+        fecha_fin:normalizarFecha(p.fecha),
         hora_inicio:p.hora_inicio,
         hora_fin:p.hora_fin,
         cliente_id:String(data.cliente_id || ""),
@@ -1208,7 +1292,7 @@ async function guardarPlanificacion(trabajoId,lista){
 
   const insert=lista.map(p=>({
     trabajo_id:String(trabajoId),
-    fecha:p.fecha,
+    fecha:normalizarFecha(p.fecha),
     hora_inicio:p.hora_inicio,
     hora_fin:p.hora_fin,
     usuario_id:String(p.usuario_id || ""),
@@ -1250,7 +1334,7 @@ async function guardarTrabajo(id,clientes){
     cliente:cliente ? cliente.nombre || "" : "",
     usuario:planificacion.map(p=>p.nombre || p.usuario).filter(Boolean).join(", "),
 
-    fecha:primera.fecha,
+    fecha:normalizarFecha(primera.fecha),
     hora_inicio:primera.hora_inicio,
     hora_fin:primera.hora_fin,
 
@@ -1627,230 +1711,58 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3102")) return;
+  if(document.getElementById("zx_trabajos_v3103")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3102";
+  s.id="zx_trabajos_v3103";
 
   s.innerHTML=`
-    .zx_tr_buscar{
-      width:100%;
-      margin:14px 0;
-      padding:16px;
-      border-radius:18px;
-      border:1px solid #cbd5e1;
-      background:#f8fafc;
-      color:#0f172a;
-      font-size:17px;
-      font-weight:850;
-    }
-
-    .zx_tr_filtros{
-      display:flex;
-      gap:8px;
-      overflow-x:auto;
-      padding:8px 0 14px;
-      margin-bottom:8px;
-    }
-
-    .zx_tr_filtro{
-      flex:0 0 auto;
-      border:0;
-      border-radius:999px;
-      padding:11px 14px;
-      background:#e5e7eb;
-      color:#0f172a;
-      font-size:15px;
-      font-weight:900;
-    }
-
-    .zx_tr_filtro_on{
-      background:#2563eb;
-      color:white;
-    }
-
-    .zx_link_dir{
-      border:0;
-      background:transparent;
-      color:#2563eb;
-      font-size:18px;
-      font-weight:900;
-      text-align:left;
-      padding:0;
-      text-decoration:underline;
-    }
-
-    .zx_tr_grid2,.zx_plan_form_grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-    }
-
-    .zx_plan_form_grid{
-      grid-template-columns:1.2fr .9fr .9fr;
-    }
-
-    .zx_tr_plan_form,.zx_tr_panel{
-      background:#f8fafc;
-      border:1px solid #d1d5db;
-      border-radius:20px;
-      padding:14px;
-      margin-top:14px;
-    }
-
+    .zx_tr_buscar{width:100%;margin:14px 0;padding:16px;border-radius:18px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;font-size:17px;font-weight:850}
+    .zx_tr_filtros{display:flex;gap:8px;overflow-x:auto;padding:8px 0 14px;margin-bottom:8px}
+    .zx_tr_filtro{flex:0 0 auto;border:0;border-radius:999px;padding:11px 14px;background:#e5e7eb;color:#0f172a;font-size:15px;font-weight:900}
+    .zx_tr_filtro_on{background:#2563eb;color:white}
+    .zx_link_dir{border:0;background:transparent;color:#2563eb;font-size:18px;font-weight:900;text-align:left;padding:0;text-decoration:underline}
+    .zx_tr_grid2,.zx_plan_form_grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .zx_plan_form_grid{grid-template-columns:1.2fr .9fr .9fr}
+    .zx_tr_plan_form,.zx_tr_panel{background:#f8fafc;border:1px solid #d1d5db;border-radius:20px;padding:14px;margin-top:14px}
     .zx_plan_details{margin-top:10px}
-    .zx_plan_details summary{
-      font-weight:900;
-      color:#2563eb;
-      cursor:pointer;
-    }
-
-    .zx_plan_buttons{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      margin-top:10px;
-    }
-
-    .zx_plan_compact{
-      display:grid;
-      gap:8px;
-    }
-
-    .zx_plan_row{
-      display:grid;
-      grid-template-columns:1fr 1fr 1.2fr;
-      gap:8px;
-      align-items:center;
-      background:white;
-      border:1px solid #e5e7eb;
-      border-radius:14px;
-      padding:10px;
-      font-weight:850;
-      color:#0f172a;
-    }
-
+    .zx_plan_details summary{font-weight:900;color:#2563eb;cursor:pointer}
+    .zx_plan_buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .zx_plan_compact{display:grid;gap:8px}
+    .zx_plan_row{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:8px;align-items:center;background:white;border:1px solid #e5e7eb;border-radius:14px;padding:10px;font-weight:850;color:#0f172a}
     .zx_plan_fecha{color:#334155}
     .zx_plan_hora{color:#2563eb}
     .zx_plan_operario{color:#0f172a}
-    .zx_plan_notas{
-      grid-column:1/-1;
-      color:#64748b;
-      font-size:14px;
-      font-weight:750;
-    }
-
-    .zx_tr_file_item,.zx_tr_mat_item,.zx_tr_hist_item{
-      background:white;
-      border:1px solid #e5e7eb;
-      border-radius:16px;
-      padding:12px;
-      margin-top:10px;
-    }
-
-    .zx_tr_file_item{
-      display:grid;
-      grid-template-columns:1fr auto;
-      gap:10px;
-      align-items:center;
-    }
-
+    .zx_plan_notas{grid-column:1/-1;color:#64748b;font-size:14px;font-weight:750}
+    .zx_tr_file_item,.zx_tr_mat_item,.zx_tr_hist_item{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin-top:10px}
+    .zx_tr_file_item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
     .zx_tr_card{border-width:3px}
     .zx_tr_card_urgente{border-color:#dc2626;box-shadow:0 8px 28px rgba(220,38,38,.18)}
     .zx_tr_card_alta{border-color:#ea580c;box-shadow:0 8px 28px rgba(234,88,12,.14)}
     .zx_tr_card_bloqueado{border-color:#991b1b;box-shadow:0 8px 28px rgba(153,27,27,.22)}
     .zx_tr_card_terminado{border-color:#16a34a}
     .zx_tr_card_archivado{border-color:#64748b;opacity:.82}
-
-    .zx_tr_badges{
-      display:flex;
-      flex-wrap:wrap;
-      gap:8px;
-      margin:8px 0 12px;
-    }
-
-    .zx_badge{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      border-radius:999px;
-      padding:8px 12px;
-      color:white;
-      font-size:14px;
-      font-weight:900;
-      text-transform:uppercase;
-      letter-spacing:.3px;
-    }
-
+    .zx_tr_badges{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
+    .zx_badge{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:8px 12px;color:white;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:.3px}
     .zx_estado_pendiente{background:#ea580c!important;color:white!important}
     .zx_estado_curso{background:#2563eb!important;color:white!important}
     .zx_estado_terminado{background:#16a34a!important;color:white!important}
     .zx_estado_bloqueado{background:#991b1b!important;color:white!important}
     .zx_estado_neutro{background:#64748b!important;color:white!important}
-
     .zx_prio_baja{background:#64748b}
     .zx_prio_media{background:#2563eb}
     .zx_prio_alta{background:#ea580c}
     .zx_prio_urgente{background:#dc2626}
     .zx_archivado_badge{background:#334155}
-
-    .zx_user_card{
-      background:white;
-      border:1px solid #d1d5db;
-      border-radius:24px;
-      padding:22px;
-      margin:18px 0;
-      box-shadow:0 8px 24px rgba(0,0,0,.04);
-    }
-
-    .zx_user_name{
-      font-size:30px;
-      font-weight:900;
-      color:#0f172a;
-      margin-bottom:10px;
-    }
-
-    .zx_user_data{
-      color:#334155;
-      font-size:18px;
-      line-height:1.55;
-      font-weight:700;
-    }
-
-    .zx_user_actions{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:10px;
-      margin-top:14px;
-    }
-
-    .zx_action_btn{
-      border:0;
-      border-radius:16px;
-      background:#e5e7eb;
-      padding:14px;
-      font-size:17px;
-      font-weight:900;
-      color:#111827;
-    }
-
+    .zx_user_card{background:white;border:1px solid #d1d5db;border-radius:24px;padding:22px;margin:18px 0;box-shadow:0 8px 24px rgba(0,0,0,.04)}
+    .zx_user_name{font-size:30px;font-weight:900;color:#0f172a;margin-bottom:10px}
+    .zx_user_data{color:#334155;font-size:18px;line-height:1.55;font-weight:700}
+    .zx_user_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+    .zx_action_btn{border:0;border-radius:16px;background:#e5e7eb;padding:14px;font-size:17px;font-weight:900;color:#111827}
     .zx_blue{background:#2563eb;color:white}
     .zx_red{background:#dc2626;color:white}
-
-    .zx_label{
-      display:block;
-      margin:12px 0 6px;
-      color:#334155;
-      font-size:15px;
-      font-weight:900;
-    }
-
-    .zx_form_subtitle{
-      margin:22px 0 8px;
-      color:#0f172a;
-      font-size:24px;
-      font-weight:900;
-    }
+    .zx_label{display:block;margin:12px 0 6px;color:#334155;font-size:15px;font-weight:900}
+    .zx_form_subtitle{margin:22px 0 8px;color:#0f172a;font-size:24px;font-weight:900}
 
     @media(max-width:430px){
       .zx_tr_grid2,
