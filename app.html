@@ -18,11 +18,18 @@ function checkLogin(){
 
   try{
     const ses=JSON.parse(s);
-    if(!ses.id || !ses.usuario) throw "sesión inválida";
+
+    if(!ses.id || !ses.usuario){
+      throw "sesión inválida";
+    }
+
     return true;
+
   }catch(e){
+
     localStorage.removeItem("zentryx_session");
     localStorage.removeItem("usuario");
+
     location.replace("index.html?v="+ZX_VERSION);
     return false;
   }
@@ -41,6 +48,7 @@ window.sb=supabase.createClient(
 
 window.supabaseClient=window.sb;
 </script>
+
 </head>
 
 <body>
@@ -51,13 +59,13 @@ window.supabaseClient=window.sb;
 
 <script src="src/modules/inicio.js?v=3091"></script>
 <script src="src/modules/usuarios.js?v=3103"></script>
-<script src="src/modules/config_laboral.js?v=3059"></script>
+<script src="src/modules/config_laboral.js?v=3060"></script>
 <script src="src/modules/solicitudes.js?v=3062"></script>
-<script src="src/modules/fichaje.js?v=3073"></script>
+<script src="src/modules/fichaje.js?v=3074"></script>
 <script src="src/modules/horas_extra.js?v=3080"></script>
-<script src="src/modules/agenda.js?v=3091"></script>
-<script src="src/modules/clientes.js?v=3092"></script>
-<script src="src/modules/trabajos.js?v=3101"></script>
+<script src="src/modules/agenda.js?v=3093"></script>
+<script src="src/modules/clientes.js?v=3096"></script>
+<script src="src/modules/trabajos.js?v=3103"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded",function(){
