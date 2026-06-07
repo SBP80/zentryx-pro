@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3095 - DIRECTORIO + DOCUMENTOS + LABORAL + HORARIOS_USUARIO
+// V3096 - DIRECTORIO + DOCUMENTOS + LABORAL CORREGIDO
 // ===============================
 (function(){
 "use strict";
 
 const DOC_BUCKET="zentryx-usuarios-docs";
+const FOTO_BUCKET="zentryx-usuarios";
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -60,6 +61,7 @@ function cerrarModal(){
 
 function modal(titulo,contenido){
   cerrarModal();
+
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal" class="zx_modal_fondo">
       <div class="zx_modal_caja">
@@ -73,8 +75,14 @@ function modal(titulo,contenido){
 async function pedirPinConPermiso(accion,callback){
   modal("PIN",`
     <input id="zx_admin_pin" class="zx_pin_input" inputmode="numeric" maxlength="4" placeholder="PIN">
-    <button class="zx_btn_big zx_azul" id="zx_admin_ok">Confirmar</button>
-    <button class="zx_btn_big zx_gris" id="zx_admin_cancelar">Cancelar</button>
+
+    <button class="zx_btn_big zx_azul" id="zx_admin_ok">
+      Confirmar
+    </button>
+
+    <button class="zx_btn_big zx_gris" id="zx_admin_cancelar">
+      Cancelar
+    </button>
   `);
 
   document.getElementById("zx_admin_cancelar").onclick=cerrarModal;
@@ -93,18 +101,19 @@ async function pedirPinConPermiso(accion,callback){
       .from("usuarios")
       .select("id,usuario,rol,pin_hash")
       .eq("id",s.id)
-      .maybeSingle();
+      .limit(1);
 
-    if(res.error || !res.data){
+    if(res.error || !res.data || !res.data.length){
       alert("No se pudo validar el usuario.");
       return;
     }
 
-    const rol=String(res.data.rol || "").toLowerCase();
-    const usuario=String(res.data.usuario || "").toLowerCase();
+    const u=res.data[0];
+    const rol=String(u.rol || "").toLowerCase();
+    const usuario=String(u.usuario || "").toLowerCase();
 
-    const admin=(rol==="administrador" || usuario==="admin");
-    const encargado=(rol==="encargado");
+    const admin=rol==="administrador" || usuario==="admin";
+    const encargado=rol==="encargado";
 
     let ok=false;
 
@@ -120,13 +129,16 @@ async function pedirPinConPermiso(accion,callback){
       return;
     }
 
-    if(hashPin(pin)!==res.data.pin_hash){
+    if(hashPin(pin)!==u.pin_hash){
       alert("PIN incorrecto.");
       return;
     }
 
     cerrarModal();
-    callback();
+
+    if(typeof callback==="function"){
+      callback();
+    }
   };
 }
 
@@ -187,6 +199,7 @@ function enviarMail(email){
     alert("Sin email.");
     return;
   }
+
   location.href="mailto:"+email;
 }
 
@@ -211,15 +224,20 @@ function menuMapa(dir){
   document.getElementById("map_cancelar").onclick=cerrarModal;
 }
 
-function mensajeInterno(u){
-  alert("Mensajería interna pendiente de conectar con tabla propia de mensajes.");
+function mensajeInterno(){
+  alert("Mensajería interna pendiente.");
 }
 
 async function cargarUsuarios(){
   const cliente=sb();
 
   if(!cliente){
-    app().innerHTML=`<div class="zx_card"><h2>Error</h2><div class="zx_text">Supabase no conectado.</div></div>`;
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Error</h2>
+        <div class="zx_text">Supabase no conectado.</div>
+      </div>
+    `;
     return [];
   }
 
@@ -230,7 +248,12 @@ async function cargarUsuarios(){
     .order("nombre",{ascending:true});
 
   if(res.error){
-    app().innerHTML=`<div class="zx_card"><h2>Error</h2><div class="zx_text">${limpiar(res.error.message)}</div></div>`;
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Error</h2>
+        <div class="zx_text">${limpiar(res.error.message)}</div>
+      </div>
+    `;
     return [];
   }
 
@@ -243,6 +266,7 @@ function renderFichaCorta(u){
   return `
     <details class="zx_user_details">
       <summary>Ver ficha</summary>
+
       <div class="zx_user_data zx_user_data_small">
         <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
         <b>Teléfono:</b> ${limpiar(u.telefono || "-")}<br>
@@ -264,6 +288,7 @@ function renderUsuario(u){
     <div class="zx_user_card">
       <div class="zx_user_top">
         ${avatar(u)}
+
         <div>
           <div class="zx_user_name">${limpiar(u.nombre || u.usuario || "-")}</div>
           <div class="zx_user_sub">${limpiar(u.rol || "-")} · ${limpiar(u.estado || "-")}</div>
@@ -318,7 +343,11 @@ window.ZENTRYX_UI_usuarios=async function(){
   app().innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
-      <div class="zx_text">Directorio interno de empresa, contacto, documentos y permisos.</div>
+
+      <div class="zx_text">
+        Directorio interno, contacto, documentación y datos laborales.
+      </div>
+
       ${
         puedeCrear()
         ? `<button class="zx_btn_big zx_verde" id="btn_crear_usuario">Crear usuario</button>`
@@ -328,6 +357,7 @@ window.ZENTRYX_UI_usuarios=async function(){
 
     <div class="zx_card">
       <h2>Directorio</h2>
+
       ${
         usuarios.length
         ? usuarios.map(renderUsuario).join("")
@@ -355,8 +385,7 @@ window.ZENTRYX_UI_usuarios=async function(){
       if(a==="mapa") menuMapa(btn.dataset.dir);
 
       if(a==="mensaje"){
-        const u=usuarios.find(x=>String(x.id)===String(btn.dataset.id));
-        mensajeInterno(u || {});
+        mensajeInterno();
       }
 
       if(a==="laboral"){
@@ -423,13 +452,30 @@ function check(id,label,value){
 }
 
 function selectVia(valor){
-  const opciones=["","Calle","Avenida","Plaza","Camino","Carretera","Paseo","Ronda","Travesía","Urbanización","Polígono"];
+  const opciones=[
+    "",
+    "Calle",
+    "Avenida",
+    "Plaza",
+    "Camino",
+    "Carretera",
+    "Paseo",
+    "Ronda",
+    "Travesía",
+    "Urbanización",
+    "Polígono"
+  ];
 
   return `
     <label class="zx_label" for="u_via_tipo">Tipo de vía</label>
+
     <select id="u_via_tipo">
       ${opciones.map(function(o){
-        return `<option value="${limpiar(o)}" ${String(valor||"")===o ? "selected" : ""}>${limpiar(o || "Seleccionar")}</option>`;
+        return `
+          <option value="${limpiar(o)}" ${String(valor||"")===o ? "selected" : ""}>
+            ${limpiar(o || "Seleccionar")}
+          </option>
+        `;
       }).join("")}
     </select>
   `;
@@ -482,7 +528,9 @@ function formulario(u){
       ${editando ? "Guardar cambios" : "Guardar"}
     </button>
 
-    <button class="zx_btn_big zx_gris" id="btn_cancelar_usuario">Cancelar</button>
+    <button class="zx_btn_big zx_gris" id="btn_cancelar_usuario">
+      Cancelar
+    </button>
   `);
 
   document.getElementById("btn_cancelar_usuario").onclick=cerrarModal;
@@ -497,14 +545,14 @@ async function editarUsuario(id){
     .from("usuarios")
     .select("*")
     .eq("id",id)
-    .maybeSingle();
+    .limit(1);
 
-  if(res.error || !res.data){
+  if(res.error || !res.data || !res.data.length){
     alert("No se pudo cargar el usuario.");
     return;
   }
 
-  formulario(res.data);
+  formulario(res.data[0]);
 }
 
 async function subirFoto(file,usuario){
@@ -515,7 +563,7 @@ async function subirFoto(file,usuario){
   const path="fotos/"+limpio+"_"+Date.now()+"."+ext;
 
   const res=await sb().storage
-    .from("zentryx-usuarios")
+    .from(FOTO_BUCKET)
     .upload(path,file,{upsert:true});
 
   if(res.error){
@@ -524,7 +572,7 @@ async function subirFoto(file,usuario){
   }
 
   return sb().storage
-    .from("zentryx-usuarios")
+    .from(FOTO_BUCKET)
     .getPublicUrl(path).data.publicUrl;
 }
 
@@ -561,6 +609,7 @@ function datosFormulario(foto_url,id){
     datos.pin_intentos=0;
     datos.pin_bloqueado_hasta=null;
     datos.acceso_estado="pendiente";
+    datos.created_at=new Date().toISOString();
   }
 
   return datos;
@@ -579,7 +628,7 @@ function validarFormulario(){
   if(usuario.length<3){alert("Usuario demasiado corto.");return false}
   if(!/^[a-zA-Z0-9_]+$/.test(usuario)){alert("Usuario solo puede tener letras, números y guion bajo.");return false}
   if(dni && !/^[0-9XYZxyz][0-9]{7}[A-Za-z]$/.test(dni)){alert("DNI/NIE no válido.");return false}
-  if(telefono && !/^[6789][0-9]{8}$/.test(telefono)){alert("Teléfono no válido.");return false}
+  if(telefono && !/^\+?[0-9]{9,15}$/.test(telefono.replace(/\s/g,""))){alert("Teléfono no válido.");return false}
   if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){alert("Email no válido.");return false}
   if(cp && !/^[0-9]{5}$/.test(cp)){alert("Código postal no válido.");return false}
 
@@ -595,9 +644,14 @@ async function guardarUsuario(id,fotoActual){
     .from("usuarios")
     .select("id")
     .eq("usuario",usuario)
-    .maybeSingle();
+    .limit(1);
 
-  if(dup.data && String(dup.data.id)!==String(id || "")){
+  if(dup.error){
+    alert("Error comprobando usuario: "+dup.error.message);
+    return;
+  }
+
+  if(dup.data && dup.data.length && String(dup.data[0].id)!==String(id || "")){
     alert("Ese usuario ya existe.");
     return;
   }
@@ -609,9 +663,14 @@ async function guardarUsuario(id,fotoActual){
   let res;
 
   if(id){
-    res=await sb().from("usuarios").update(datos).eq("id",id);
+    res=await sb()
+      .from("usuarios")
+      .update(datos)
+      .eq("id",id);
   }else{
-    res=await sb().from("usuarios").insert([datos]);
+    res=await sb()
+      .from("usuarios")
+      .insert([datos]);
   }
 
   if(res.error){
@@ -619,8 +678,25 @@ async function guardarUsuario(id,fotoActual){
     return;
   }
 
+  actualizarSesionSiEsUsuarioActual(id,datos);
+
   cerrarModal();
   ZX_usuarios();
+}
+
+function actualizarSesionSiEsUsuarioActual(id,datos){
+  const s=sesion();
+
+  if(!id || String(s.id||"")!==String(id)) return;
+
+  const nueva={
+    ...s,
+    usuario:datos.usuario || s.usuario,
+    nombre:datos.nombre || s.nombre,
+    rol:datos.rol || s.rol
+  };
+
+  localStorage.setItem("zentryx_session",JSON.stringify(nueva));
 }
 
 async function resetPin(id,nombre){
@@ -660,42 +736,122 @@ async function eliminarUsuario(id,nombre,usuario){
     return;
   }
 
-  if(!confirm("¿Eliminar usuario "+nombre+"?")) return;
+  if(!confirm("¿Desactivar usuario "+nombre+"?")) return;
 
   const res=await sb()
     .from("usuarios")
-    .delete()
+    .update({
+      activo:false,
+      estado:"Inactivo",
+      updated_at:new Date().toISOString()
+    })
     .eq("id",id);
 
   if(res.error){
-    alert("Error eliminando: "+res.error.message);
+    alert("Error desactivando usuario: "+res.error.message);
     return;
   }
 
   ZX_usuarios();
 }
 
-// ===============================
-// LABORAL
-// ===============================
-
 async function cargarLaboralUsuario(usuarioId){
-  const r=await sb()
+  const h=await sb()
+    .from("horarios_usuario")
+    .select("*")
+    .eq("usuario_id",String(usuarioId))
+    .eq("activo",true)
+    .limit(1);
+
+  if(!h.error && h.data && h.data.length){
+    return normalizarLaboralDesdeHorario(h.data[0]);
+  }
+
+  const c=await sb()
     .from("config_laboral")
     .select("*")
     .eq("usuario_id",String(usuarioId))
-    .maybeSingle();
+    .limit(1);
 
-  if(r.error){
-    alert("Error cargando datos laborales: "+r.error.message);
-    return null;
+  if(!c.error && c.data && c.data.length){
+    return normalizarLaboralDesdeConfig(c.data[0]);
   }
 
-  return r.data || null;
+  return null;
+}
+
+function normalizarLaboralDesdeHorario(h){
+  return {
+    origen:"horarios_usuario",
+    id:h.id,
+    usuario_id:h.usuario_id || h.user_id || "",
+    usuario:h.usuario || "",
+    nombre:h.nombre || "",
+    horas_dia:Number(h.lunes || h.martes || h.miercoles || h.jueves || h.viernes || 480)/60,
+    horas_semana:(
+      Number(h.lunes||0)+
+      Number(h.martes||0)+
+      Number(h.miercoles||0)+
+      Number(h.jueves||0)+
+      Number(h.viernes||0)+
+      Number(h.sabado||0)+
+      Number(h.domingo||0)
+    )/60,
+    trabaja_lunes:Number(h.lunes||0)>0,
+    trabaja_martes:Number(h.martes||0)>0,
+    trabaja_miercoles:Number(h.miercoles||0)>0,
+    trabaja_jueves:Number(h.jueves||0)>0,
+    trabaja_viernes:Number(h.viernes||0)>0,
+    trabaja_sabado:Number(h.sabado||0)>0,
+    trabaja_domingo:Number(h.domingo||0)>0,
+    vacaciones_dias:Number(h.vacaciones||30),
+    asuntos_propios:Number(h.asuntos_horas || h.asuntos || 0),
+    pais:h.pais || "España",
+    provincia:h.provincia || "",
+    localidad:h.localidad || "",
+    comunidad:h.comunidad || "",
+    convenio:h.convenio || "",
+    precio_hora:Number(h.precio_hora || 0),
+    precio_extra:Number(h.precio_extra || 0),
+    precio_extra_nocturna:Number(h.precio_extra_nocturna || 0),
+    precio_extra_festiva:Number(h.precio_extra_festiva || 0)
+  };
+}
+
+function normalizarLaboralDesdeConfig(c){
+  return {
+    origen:"config_laboral",
+    id:c.id,
+    usuario_id:c.usuario_id || "",
+    usuario:c.usuario || "",
+    nombre:c.nombre || "",
+    horas_dia:Number(c.horas_dia || 8),
+    horas_semana:Number(c.horas_semana || 40),
+    trabaja_lunes:c.trabaja_lunes!==false,
+    trabaja_martes:c.trabaja_martes!==false,
+    trabaja_miercoles:c.trabaja_miercoles!==false,
+    trabaja_jueves:c.trabaja_jueves!==false,
+    trabaja_viernes:c.trabaja_viernes!==false,
+    trabaja_sabado:c.trabaja_sabado===true,
+    trabaja_domingo:c.trabaja_domingo===true,
+    vacaciones_dias:Number(c.vacaciones_dias || 30),
+    asuntos_propios:Number(c.asuntos_propios || 0),
+    pais:c.pais || "España",
+    provincia:c.provincia || "",
+    localidad:c.localidad || "",
+    comunidad:c.comunidad || "",
+    convenio:c.convenio || "",
+    precio_hora:Number(c.precio_hora || 0),
+    precio_extra:Number(c.precio_extra || 0),
+    precio_extra_nocturna:Number(c.precio_extra_nocturna || 0),
+    precio_extra_festiva:Number(c.precio_extra_festiva || 0)
+  };
 }
 
 function laboralDefault(u){
   return {
+    origen:"nuevo",
+    id:null,
     usuario_id:String(u.id || ""),
     usuario:u.usuario || "",
     nombre:u.nombre || "",
@@ -710,9 +866,15 @@ function laboralDefault(u){
     trabaja_domingo:false,
     vacaciones_dias:30,
     asuntos_propios:0,
-    localidad:u.poblacion || "",
+    pais:u.pais || "España",
     provincia:u.provincia || "",
-    pais:u.pais || "España"
+    localidad:u.poblacion || "",
+    comunidad:"",
+    convenio:"",
+    precio_hora:0,
+    precio_extra:0,
+    precio_extra_nocturna:0,
+    precio_extra_festiva:0
   };
 }
 
@@ -733,7 +895,9 @@ async function verLaboralUsuario(u){
   const editable=puedeEditar();
 
   modal("Laboral",`
-    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
+    <div class="zx_text">
+      <b>${limpiar(u.nombre || u.usuario || "Usuario")}</b>
+    </div>
 
     ${resumenLaboral(l)}
 
@@ -759,15 +923,23 @@ async function verLaboralUsuario(u){
     ${inputNum("lab_vacaciones","Vacaciones anuales en días",l.vacaciones_dias)}
     ${inputNum("lab_asuntos","Asuntos propios en horas",l.asuntos_propios)}
 
+    <h3 class="zx_form_subtitle">Precios</h3>
+
+    ${inputNum("lab_precio_hora","Precio hora normal",l.precio_hora)}
+    ${inputNum("lab_precio_extra","Precio hora extra",l.precio_extra)}
+    ${inputNum("lab_precio_extra_nocturna","Precio hora extra nocturna",l.precio_extra_nocturna)}
+    ${inputNum("lab_precio_extra_festiva","Precio hora extra festiva",l.precio_extra_festiva)}
+
     <h3 class="zx_form_subtitle">Calendario laboral</h3>
 
     ${input("lab_pais","País",l.pais || "España")}
+    ${input("lab_comunidad","Comunidad autónoma",l.comunidad)}
     ${input("lab_provincia","Provincia",l.provincia)}
     ${input("lab_localidad","Localidad",l.localidad)}
 
-    <div class="zx_info_box">
-      Los festivos se conectarán después con la tabla de festivos laborales. Este bloque deja preparada la configuración por trabajador.
-    </div>
+    <h3 class="zx_form_subtitle">Convenio</h3>
+
+    ${input("lab_convenio","Convenio",l.convenio)}
 
     ${
       editable
@@ -781,12 +953,13 @@ async function verLaboralUsuario(u){
   document.getElementById("lab_cerrar").onclick=cerrarModal;
 
   const guardar=document.getElementById("lab_guardar");
+
   if(guardar){
     guardar.onclick=function(){
       const datos=leerDatosLaboralesFormulario(u);
 
       pedirPinConPermiso("laboral",function(){
-        guardarLaboralDatos(datos,actual);
+        guardarLaboralDatos(datos);
       });
     };
   }
@@ -806,8 +979,10 @@ function leerDatosLaboralesFormulario(u){
     usuario_id:String(u.id || ""),
     usuario:String(u.usuario || ""),
     nombre:String(u.nombre || u.usuario || ""),
+
     horas_dia:numVal("lab_horas_dia",8),
     horas_semana:numVal("lab_horas_semana",40),
+
     trabaja_lunes:document.getElementById("lab_lunes").checked,
     trabaja_martes:document.getElementById("lab_martes").checked,
     trabaja_miercoles:document.getElementById("lab_miercoles").checked,
@@ -815,37 +990,35 @@ function leerDatosLaboralesFormulario(u){
     trabaja_viernes:document.getElementById("lab_viernes").checked,
     trabaja_sabado:document.getElementById("lab_sabado").checked,
     trabaja_domingo:document.getElementById("lab_domingo").checked,
+
     vacaciones_dias:numVal("lab_vacaciones",30),
     asuntos_propios:numVal("lab_asuntos",0),
+
+    precio_hora:numVal("lab_precio_hora",0),
+    precio_extra:numVal("lab_precio_extra",0),
+    precio_extra_nocturna:numVal("lab_precio_extra_nocturna",0),
+    precio_extra_festiva:numVal("lab_precio_extra_festiva",0),
+
     pais:document.getElementById("lab_pais").value.trim() || "España",
+    comunidad:document.getElementById("lab_comunidad").value.trim(),
     provincia:document.getElementById("lab_provincia").value.trim(),
-    localidad:document.getElementById("lab_localidad").value.trim()
+    localidad:document.getElementById("lab_localidad").value.trim(),
+    convenio:document.getElementById("lab_convenio").value.trim()
   };
 }
 
-async function guardarLaboralDatos(datos,actual){
-  let r;
+async function guardarLaboralDatos(datos){
+  const r1=await guardarConfigLaboral(datos);
 
-  if(actual && actual.id){
-    r=await sb()
-      .from("config_laboral")
-      .update(datos)
-      .eq("id",actual.id);
-  }else{
-    r=await sb()
-      .from("config_laboral")
-      .insert([datos]);
-  }
-
-  if(r.error){
-    alert("Error guardando laboral: "+r.error.message);
+  if(r1 && r1.error){
+    alert("Error guardando config_laboral: "+r1.error.message);
     return;
   }
 
-  const h=await sincronizarHorarioUsuario(datos);
+  const r2=await guardarHorarioUsuario(datos);
 
-  if(h && h.error){
-    alert("Laboral guardado, pero no se pudo actualizar horarios_usuario: "+h.error.message);
+  if(r2 && r2.error){
+    alert("Error guardando horarios_usuario: "+r2.error.message);
     return;
   }
 
@@ -854,7 +1027,65 @@ async function guardarLaboralDatos(datos,actual){
   ZX_usuarios();
 }
 
-async function sincronizarHorarioUsuario(datos){
+async function guardarConfigLaboral(datos){
+  const buscado=await sb()
+    .from("config_laboral")
+    .select("id")
+    .eq("usuario_id",String(datos.usuario_id))
+    .limit(1);
+
+  if(buscado.error){
+    return buscado;
+  }
+
+  const data={
+    usuario_id:String(datos.usuario_id),
+    usuario:String(datos.usuario || ""),
+    nombre:String(datos.nombre || ""),
+
+    horas_dia:Number(datos.horas_dia || 8),
+    horas_semana:Number(datos.horas_semana || 40),
+
+    trabaja_lunes:!!datos.trabaja_lunes,
+    trabaja_martes:!!datos.trabaja_martes,
+    trabaja_miercoles:!!datos.trabaja_miercoles,
+    trabaja_jueves:!!datos.trabaja_jueves,
+    trabaja_viernes:!!datos.trabaja_viernes,
+    trabaja_sabado:!!datos.trabaja_sabado,
+    trabaja_domingo:!!datos.trabaja_domingo,
+
+    vacaciones_dias:Math.round(Number(datos.vacaciones_dias || 0)),
+    asuntos_propios:Math.round(Number(datos.asuntos_propios || 0)),
+
+    pais:String(datos.pais || "España"),
+    comunidad:String(datos.comunidad || ""),
+    provincia:String(datos.provincia || ""),
+    localidad:String(datos.localidad || ""),
+
+    convenio:String(datos.convenio || ""),
+    precio_hora:Number(datos.precio_hora || 0),
+    precio_extra:Number(datos.precio_extra || 0),
+    precio_extra_nocturna:Number(datos.precio_extra_nocturna || 0),
+    precio_extra_festiva:Number(datos.precio_extra_festiva || 0),
+
+    updated_at:new Date().toISOString()
+  };
+
+  if(buscado.data && buscado.data.length){
+    return await sb()
+      .from("config_laboral")
+      .update(data)
+      .eq("id",buscado.data[0].id);
+  }
+
+  data.created_at=new Date().toISOString();
+
+  return await sb()
+    .from("config_laboral")
+    .insert([data]);
+}
+
+async function guardarHorarioUsuario(datos){
   const minutosDia=Math.round(Number(datos.horas_dia || 0) * 60);
 
   const horario={
@@ -878,19 +1109,25 @@ async function sincronizarHorarioUsuario(datos){
     asuntos:Math.round(Number(datos.asuntos_propios || 0)),
     asuntos_horas:Math.round(Number(datos.asuntos_propios || 0)),
 
+    convenio:String(datos.convenio || ""),
+    precio_hora:Number(datos.precio_hora || 0),
+    precio_extra:Number(datos.precio_extra || 0),
+    precio_extra_nocturna:Number(datos.precio_extra_nocturna || 0),
+    precio_extra_festiva:Number(datos.precio_extra_festiva || 0),
+
     pais:String(datos.pais || "España"),
+    comunidad:String(datos.comunidad || ""),
     provincia:String(datos.provincia || ""),
     localidad:String(datos.localidad || ""),
 
     actualizado_en:new Date().toISOString()
   };
 
-  const filtro="user_id.eq."+String(datos.usuario_id)+",usuario_id.eq."+String(datos.usuario_id);
-
   const buscado=await sb()
     .from("horarios_usuario")
     .select("id")
-    .or(filtro)
+    .eq("usuario_id",String(datos.usuario_id))
+    .eq("activo",true)
     .limit(1);
 
   if(buscado.error){
@@ -908,10 +1145,6 @@ async function sincronizarHorarioUsuario(datos){
     .from("horarios_usuario")
     .insert([horario]);
 }
-
-// ===============================
-// DOCUMENTOS
-// ===============================
 
 async function cargarDocumentos(usuarioId){
   const r=await sb()
@@ -945,7 +1178,6 @@ function textoTipoDoc(tipo){
 async function subirDocumentoUsuario(file,usuarioId,tipo){
   if(!file) return null;
 
-  const ext=(file.name.split(".").pop() || "dat").toLowerCase();
   const limpio=String(file.name || "documento").replace(/[^a-zA-Z0-9._-]/g,"_");
   const path=String(usuarioId)+"/"+tipo+"/"+Date.now()+"_"+limpio;
 
@@ -967,7 +1199,9 @@ async function verDocumentosUsuario(u){
   const docs=await cargarDocumentos(u.id);
 
   modal("Documentos",`
-    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
+    <div class="zx_text">
+      <b>${limpiar(u.nombre || u.usuario || "Usuario")}</b>
+    </div>
 
     <label class="zx_label">Tipo</label>
     <select id="doc_tipo">
@@ -986,7 +1220,9 @@ async function verDocumentosUsuario(u){
     <label class="zx_label">Nombre visible</label>
     <input id="doc_nombre" placeholder="Nombre del documento">
 
-    <button class="zx_btn_big zx_verde" id="doc_subir">Subir documento</button>
+    <button class="zx_btn_big zx_verde" id="doc_subir">
+      Subir documento
+    </button>
 
     <h3 class="zx_form_subtitle">Archivos guardados</h3>
 
@@ -999,7 +1235,11 @@ async function verDocumentosUsuario(u){
               <b>${limpiar(d.nombre || "Documento")}</b><br>
               <span>${limpiar(textoTipoDoc(d.tipo))}</span>
             </div>
-            <button class="zx_action_btn zx_blue" data-doc-open="${limpiar(d.url)}">Abrir</button>
+
+            <button class="zx_action_btn zx_blue" data-doc-open="${limpiar(d.url)}">
+              Abrir
+            </button>
+
             ${
               esAdminLocal()
               ? `<button class="zx_action_btn zx_red" data-doc-del="${limpiar(d.id)}">Borrar</button>`
@@ -1011,7 +1251,9 @@ async function verDocumentosUsuario(u){
       }
     </div>
 
-    <button class="zx_btn_big zx_gris" id="doc_cerrar">Cerrar</button>
+    <button class="zx_btn_big zx_gris" id="doc_cerrar">
+      Cerrar
+    </button>
   `);
 
   document.getElementById("doc_cerrar").onclick=cerrarModal;
@@ -1038,7 +1280,8 @@ async function verDocumentosUsuario(u){
         tipo,
         nombre,
         url,
-        creado_por:s.usuario || ""
+        creado_por:s.usuario || "",
+        created_at:new Date().toISOString()
       }]);
 
     if(r.error){
@@ -1076,15 +1319,11 @@ async function verDocumentosUsuario(u){
   });
 }
 
-// ===============================
-// ESTILOS
-// ===============================
-
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3095")) return;
+  if(document.getElementById("zx_usuarios_v3096")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3095";
+  s.id="zx_usuarios_v3096";
 
   s.innerHTML=`
     .zx_user_card{
@@ -1131,7 +1370,8 @@ async function verDocumentosUsuario(u){
       word-break:break-word;
     }
 
-    .zx_user_sub,.zx_user_phone{
+    .zx_user_sub,
+    .zx_user_phone{
       color:#64748b;
       font-size:18px;
       font-weight:900;
@@ -1202,7 +1442,7 @@ async function verDocumentosUsuario(u){
 
     .zx_modal_caja{
       width:100%;
-      max-width:520px;
+      max-width:540px;
       max-height:88vh;
       overflow:auto;
       background:white;
@@ -1323,18 +1563,6 @@ async function verDocumentosUsuario(u){
       width:auto!important;
       margin:0!important;
       transform:scale(1.2);
-    }
-
-    .zx_info_box{
-      background:#eef2ff;
-      border:1px solid #c7d2fe;
-      color:#334155;
-      padding:14px;
-      border-radius:16px;
-      font-size:15px;
-      font-weight:800;
-      line-height:1.4;
-      margin:14px 0;
     }
 
     @media(max-width:430px){
