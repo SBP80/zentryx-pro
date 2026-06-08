@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3096 - DIRECTORIO + DOCUMENTOS + LABORAL CORREGIDO
+// V3097 - LABORAL CON SELECTORES + PRECIOS EXTRA
 // ===============================
 (function(){
 "use strict";
@@ -442,6 +442,21 @@ function inputNum(id,label,value){
   `;
 }
 
+function selectSimple(id,label,value,opciones){
+  return `
+    <label class="zx_label" for="${id}">${limpiar(label)}</label>
+    <select id="${id}">
+      <option value="">Seleccionar</option>
+      ${opciones.map(function(o){
+        return `
+          <option value="${limpiar(o)}" ${String(value||"")===String(o) ? "selected" : ""}>
+            ${limpiar(o)}
+          </option>
+        `;
+      }).join("")}
+    </select>
+  `;
+}
 function check(id,label,value){
   return `
     <label class="zx_check">
@@ -480,6 +495,104 @@ function selectVia(valor){
     </select>
   `;
 }
+
+const LISTA_COMUNIDADES=[
+  "Andalucía",
+  "Aragón",
+  "Asturias",
+  "Baleares",
+  "Canarias",
+  "Cantabria",
+  "Castilla-La Mancha",
+  "Castilla y León",
+  "Cataluña",
+  "Comunidad Valenciana",
+  "Extremadura",
+  "Galicia",
+  "La Rioja",
+  "Madrid",
+  "Murcia",
+  "Navarra",
+  "País Vasco",
+  "Ceuta",
+  "Melilla"
+];
+
+const LISTA_PROVINCIAS=[
+  "Madrid",
+  "Badajoz",
+  "Cáceres",
+  "Albacete",
+  "Alicante",
+  "Almería",
+  "Asturias",
+  "Ávila",
+  "Barcelona",
+  "Burgos",
+  "Cádiz",
+  "Cantabria",
+  "Castellón",
+  "Ciudad Real",
+  "Córdoba",
+  "Cuenca",
+  "Girona",
+  "Granada",
+  "Guadalajara",
+  "Guipúzcoa",
+  "Huelva",
+  "Huesca",
+  "Jaén",
+  "La Coruña",
+  "Las Palmas",
+  "León",
+  "Lleida",
+  "Lugo",
+  "Málaga",
+  "Murcia",
+  "Navarra",
+  "Ourense",
+  "Palencia",
+  "Pontevedra",
+  "Salamanca",
+  "Santa Cruz de Tenerife",
+  "Segovia",
+  "Sevilla",
+  "Soria",
+  "Tarragona",
+  "Teruel",
+  "Toledo",
+  "Valencia",
+  "Valladolid",
+  "Vizcaya",
+  "Zamora",
+  "Zaragoza"
+];
+
+const LISTA_LOCALIDADES=[
+  "Madrid",
+  "Alcalá de Henares",
+  "Pozuelo del Rey",
+  "Torrejón de Ardoz",
+  "Coslada",
+  "San Fernando de Henares",
+  "Badajoz",
+  "Cáceres",
+  "Mérida",
+  "Almendralejo",
+  "Don Benito",
+  "Villanueva de la Serena"
+];
+
+const LISTA_CONVENIOS=[
+  "Metal",
+  "Construcción",
+  "Fontanería",
+  "Climatización",
+  "Electricidad",
+  "Oficinas",
+  "Comercio",
+  "Personalizado"
+];
 
 function formulario(u){
   const editando=!!u.id;
@@ -754,7 +867,6 @@ async function eliminarUsuario(id,nombre,usuario){
 
   ZX_usuarios();
 }
-
 async function cargarLaboralUsuario(usuarioId){
   const h=await sb()
     .from("horarios_usuario")
@@ -782,7 +894,6 @@ async function cargarLaboralUsuario(usuarioId){
 
 function normalizarLaboralDesdeHorario(h){
   return {
-    origen:"horarios_usuario",
     id:h.id,
     usuario_id:h.usuario_id || h.user_id || "",
     usuario:h.usuario || "",
@@ -811,7 +922,6 @@ function normalizarLaboralDesdeHorario(h){
     localidad:h.localidad || "",
     comunidad:h.comunidad || "",
     convenio:h.convenio || "",
-    precio_hora:Number(h.precio_hora || 0),
     precio_extra:Number(h.precio_extra || 0),
     precio_extra_nocturna:Number(h.precio_extra_nocturna || 0),
     precio_extra_festiva:Number(h.precio_extra_festiva || 0)
@@ -820,7 +930,6 @@ function normalizarLaboralDesdeHorario(h){
 
 function normalizarLaboralDesdeConfig(c){
   return {
-    origen:"config_laboral",
     id:c.id,
     usuario_id:c.usuario_id || "",
     usuario:c.usuario || "",
@@ -841,7 +950,6 @@ function normalizarLaboralDesdeConfig(c){
     localidad:c.localidad || "",
     comunidad:c.comunidad || "",
     convenio:c.convenio || "",
-    precio_hora:Number(c.precio_hora || 0),
     precio_extra:Number(c.precio_extra || 0),
     precio_extra_nocturna:Number(c.precio_extra_nocturna || 0),
     precio_extra_festiva:Number(c.precio_extra_festiva || 0)
@@ -850,7 +958,6 @@ function normalizarLaboralDesdeConfig(c){
 
 function laboralDefault(u){
   return {
-    origen:"nuevo",
     id:null,
     usuario_id:String(u.id || ""),
     usuario:u.usuario || "",
@@ -871,7 +978,6 @@ function laboralDefault(u){
     localidad:u.poblacion || "",
     comunidad:"",
     convenio:"",
-    precio_hora:0,
     precio_extra:0,
     precio_extra_nocturna:0,
     precio_extra_festiva:0
@@ -923,23 +1029,22 @@ async function verLaboralUsuario(u){
     ${inputNum("lab_vacaciones","Vacaciones anuales en días",l.vacaciones_dias)}
     ${inputNum("lab_asuntos","Asuntos propios en horas",l.asuntos_propios)}
 
-    <h3 class="zx_form_subtitle">Precios</h3>
+    <h3 class="zx_form_subtitle">Precios horas extra</h3>
 
-    ${inputNum("lab_precio_hora","Precio hora normal",l.precio_hora)}
     ${inputNum("lab_precio_extra","Precio hora extra",l.precio_extra)}
     ${inputNum("lab_precio_extra_nocturna","Precio hora extra nocturna",l.precio_extra_nocturna)}
     ${inputNum("lab_precio_extra_festiva","Precio hora extra festiva",l.precio_extra_festiva)}
 
     <h3 class="zx_form_subtitle">Calendario laboral</h3>
 
-    ${input("lab_pais","País",l.pais || "España")}
-    ${input("lab_comunidad","Comunidad autónoma",l.comunidad)}
-    ${input("lab_provincia","Provincia",l.provincia)}
-    ${input("lab_localidad","Localidad",l.localidad)}
+    ${selectSimple("lab_pais","País",l.pais || "España",["España"])}
+    ${selectSimple("lab_comunidad","Comunidad autónoma",l.comunidad,LISTA_COMUNIDADES)}
+    ${selectSimple("lab_provincia","Provincia",l.provincia,LISTA_PROVINCIAS)}
+    ${selectSimple("lab_localidad","Localidad",l.localidad,LISTA_LOCALIDADES)}
 
     <h3 class="zx_form_subtitle">Convenio</h3>
 
-    ${input("lab_convenio","Convenio",l.convenio)}
+    ${selectSimple("lab_convenio","Convenio",l.convenio,LISTA_CONVENIOS)}
 
     ${
       editable
@@ -994,7 +1099,6 @@ function leerDatosLaboralesFormulario(u){
     vacaciones_dias:numVal("lab_vacaciones",30),
     asuntos_propios:numVal("lab_asuntos",0),
 
-    precio_hora:numVal("lab_precio_hora",0),
     precio_extra:numVal("lab_precio_extra",0),
     precio_extra_nocturna:numVal("lab_precio_extra_nocturna",0),
     precio_extra_festiva:numVal("lab_precio_extra_festiva",0),
@@ -1063,7 +1167,6 @@ async function guardarConfigLaboral(datos){
     localidad:String(datos.localidad || ""),
 
     convenio:String(datos.convenio || ""),
-    precio_hora:Number(datos.precio_hora || 0),
     precio_extra:Number(datos.precio_extra || 0),
     precio_extra_nocturna:Number(datos.precio_extra_nocturna || 0),
     precio_extra_festiva:Number(datos.precio_extra_festiva || 0),
@@ -1110,7 +1213,6 @@ async function guardarHorarioUsuario(datos){
     asuntos_horas:Math.round(Number(datos.asuntos_propios || 0)),
 
     convenio:String(datos.convenio || ""),
-    precio_hora:Number(datos.precio_hora || 0),
     precio_extra:Number(datos.precio_extra || 0),
     precio_extra_nocturna:Number(datos.precio_extra_nocturna || 0),
     precio_extra_festiva:Number(datos.precio_extra_festiva || 0),
@@ -1320,10 +1422,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3096")) return;
+  if(document.getElementById("zx_usuarios_v3097")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3096";
+  s.id="zx_usuarios_v3097";
 
   s.innerHTML=`
     .zx_user_card{
