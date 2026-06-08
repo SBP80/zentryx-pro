@@ -1,12 +1,53 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3097 - LABORAL CON SELECTORES + PRECIOS EXTRA
+// V3097 - LABORAL CON SELECTORES FILTRADOS
 // ===============================
 (function(){
 "use strict";
 
 const DOC_BUCKET="zentryx-usuarios-docs";
 const FOTO_BUCKET="zentryx-usuarios";
+
+const ZX_COMUNIDADES={
+  "Andalucía":["Almería","Cádiz","Córdoba","Granada","Huelva","Jaén","Málaga","Sevilla"],
+  "Aragón":["Huesca","Teruel","Zaragoza"],
+  "Asturias":["Asturias"],
+  "Cantabria":["Cantabria"],
+  "Castilla-La Mancha":["Albacete","Ciudad Real","Cuenca","Guadalajara","Toledo"],
+  "Castilla y León":["Ávila","Burgos","León","Palencia","Salamanca","Segovia","Soria","Valladolid","Zamora"],
+  "Cataluña":["Barcelona","Girona","Lleida","Tarragona"],
+  "Comunidad Valenciana":["Alicante","Castellón","Valencia"],
+  "Extremadura":["Badajoz","Cáceres"],
+  "Galicia":["A Coruña","Lugo","Ourense","Pontevedra"],
+  "Islas Baleares":["Islas Baleares"],
+  "Canarias":["Las Palmas","Santa Cruz de Tenerife"],
+  "La Rioja":["La Rioja"],
+  "Madrid":["Madrid"],
+  "Murcia":["Murcia"],
+  "Navarra":["Navarra"],
+  "País Vasco":["Álava","Bizkaia","Gipuzkoa"],
+  "Ceuta":["Ceuta"],
+  "Melilla":["Melilla"]
+};
+
+const ZX_LOCALIDADES={
+  "Madrid":["Madrid","Alcalá de Henares","Pozuelo del Rey","Torrejón de Ardoz","Coslada","San Fernando de Henares"],
+  "Badajoz":["Badajoz","Mérida","Don Benito","Villanueva de la Serena","Almendralejo","Zafra"],
+  "Cáceres":["Cáceres","Plasencia","Navalmoral de la Mata","Coria","Trujillo","Miajadas"]
+};
+
+const ZX_CONVENIOS=[
+  "Oficinas",
+  "Metal",
+  "Construcción",
+  "Fontanería",
+  "Climatización",
+  "Electricidad",
+  "Comercio",
+  "Hostelería",
+  "Transporte",
+  "Otro"
+];
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -61,7 +102,6 @@ function cerrarModal(){
 
 function modal(titulo,contenido){
   cerrarModal();
-
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal" class="zx_modal_fondo">
       <div class="zx_modal_caja">
@@ -75,14 +115,8 @@ function modal(titulo,contenido){
 async function pedirPinConPermiso(accion,callback){
   modal("PIN",`
     <input id="zx_admin_pin" class="zx_pin_input" inputmode="numeric" maxlength="4" placeholder="PIN">
-
-    <button class="zx_btn_big zx_azul" id="zx_admin_ok">
-      Confirmar
-    </button>
-
-    <button class="zx_btn_big zx_gris" id="zx_admin_cancelar">
-      Cancelar
-    </button>
+    <button class="zx_btn_big zx_azul" id="zx_admin_ok">Confirmar</button>
+    <button class="zx_btn_big zx_gris" id="zx_admin_cancelar">Cancelar</button>
   `);
 
   document.getElementById("zx_admin_cancelar").onclick=cerrarModal;
@@ -135,10 +169,7 @@ async function pedirPinConPermiso(accion,callback){
     }
 
     cerrarModal();
-
-    if(typeof callback==="function"){
-      callback();
-    }
+    if(typeof callback==="function") callback();
   };
 }
 
@@ -199,7 +230,6 @@ function enviarMail(email){
     alert("Sin email.");
     return;
   }
-
   location.href="mailto:"+email;
 }
 
@@ -227,7 +257,6 @@ function menuMapa(dir){
 function mensajeInterno(){
   alert("Mensajería interna pendiente.");
 }
-
 async function cargarUsuarios(){
   const cliente=sb();
 
@@ -266,7 +295,6 @@ function renderFichaCorta(u){
   return `
     <details class="zx_user_details">
       <summary>Ver ficha</summary>
-
       <div class="zx_user_data zx_user_data_small">
         <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
         <b>Teléfono:</b> ${limpiar(u.telefono || "-")}<br>
@@ -288,7 +316,6 @@ function renderUsuario(u){
     <div class="zx_user_card">
       <div class="zx_user_top">
         ${avatar(u)}
-
         <div>
           <div class="zx_user_name">${limpiar(u.nombre || u.usuario || "-")}</div>
           <div class="zx_user_sub">${limpiar(u.rol || "-")} · ${limpiar(u.estado || "-")}</div>
@@ -343,11 +370,7 @@ window.ZENTRYX_UI_usuarios=async function(){
   app().innerHTML=`
     <div class="zx_card">
       <h2>Usuarios</h2>
-
-      <div class="zx_text">
-        Directorio interno, contacto, documentación y datos laborales.
-      </div>
-
+      <div class="zx_text">Directorio interno, contacto, documentación y datos laborales.</div>
       ${
         puedeCrear()
         ? `<button class="zx_btn_big zx_verde" id="btn_crear_usuario">Crear usuario</button>`
@@ -357,7 +380,6 @@ window.ZENTRYX_UI_usuarios=async function(){
 
     <div class="zx_card">
       <h2>Directorio</h2>
-
       ${
         usuarios.length
         ? usuarios.map(renderUsuario).join("")
@@ -383,10 +405,7 @@ window.ZENTRYX_UI_usuarios=async function(){
       if(a==="tel") menuTelefono(btn.dataset.tel);
       if(a==="mail") enviarMail(btn.dataset.email);
       if(a==="mapa") menuMapa(btn.dataset.dir);
-
-      if(a==="mensaje"){
-        mensajeInterno();
-      }
+      if(a==="mensaje") mensajeInterno();
 
       if(a==="laboral"){
         const u=usuarios.find(x=>String(x.id)===String(btn.dataset.id));
@@ -435,28 +454,13 @@ function input(id,label,value,type){
   `;
 }
 
-function inputNum(id,label,value){
+function inputNum(id,label,value,step){
   return `
     <label class="zx_label" for="${id}">${label}</label>
-    <input id="${id}" type="number" step="0.01" value="${limpiar(value ?? "")}" placeholder="${label}">
+    <input id="${id}" type="number" step="${step || "1"}" value="${limpiar(value ?? "")}" placeholder="${label}">
   `;
 }
 
-function selectSimple(id,label,value,opciones){
-  return `
-    <label class="zx_label" for="${id}">${limpiar(label)}</label>
-    <select id="${id}">
-      <option value="">Seleccionar</option>
-      ${opciones.map(function(o){
-        return `
-          <option value="${limpiar(o)}" ${String(value||"")===String(o) ? "selected" : ""}>
-            ${limpiar(o)}
-          </option>
-        `;
-      }).join("")}
-    </select>
-  `;
-}
 function check(id,label,value){
   return `
     <label class="zx_check">
@@ -466,8 +470,19 @@ function check(id,label,value){
   `;
 }
 
+function selectSimple(id,label,valor,opciones){
+  return `
+    <label class="zx_label" for="${id}">${limpiar(label)}</label>
+    <select id="${id}">
+      ${opciones.map(function(o){
+        return `<option value="${limpiar(o)}" ${String(valor||"")===String(o) ? "selected" : ""}>${limpiar(o || "Seleccionar")}</option>`;
+      }).join("")}
+    </select>
+  `;
+}
+
 function selectVia(valor){
-  const opciones=[
+  return selectSimple("u_via_tipo","Tipo de vía",valor,[
     "",
     "Calle",
     "Avenida",
@@ -479,120 +494,8 @@ function selectVia(valor){
     "Travesía",
     "Urbanización",
     "Polígono"
-  ];
-
-  return `
-    <label class="zx_label" for="u_via_tipo">Tipo de vía</label>
-
-    <select id="u_via_tipo">
-      ${opciones.map(function(o){
-        return `
-          <option value="${limpiar(o)}" ${String(valor||"")===o ? "selected" : ""}>
-            ${limpiar(o || "Seleccionar")}
-          </option>
-        `;
-      }).join("")}
-    </select>
-  `;
+  ]);
 }
-
-const LISTA_COMUNIDADES=[
-  "Andalucía",
-  "Aragón",
-  "Asturias",
-  "Baleares",
-  "Canarias",
-  "Cantabria",
-  "Castilla-La Mancha",
-  "Castilla y León",
-  "Cataluña",
-  "Comunidad Valenciana",
-  "Extremadura",
-  "Galicia",
-  "La Rioja",
-  "Madrid",
-  "Murcia",
-  "Navarra",
-  "País Vasco",
-  "Ceuta",
-  "Melilla"
-];
-
-const LISTA_PROVINCIAS=[
-  "Madrid",
-  "Badajoz",
-  "Cáceres",
-  "Albacete",
-  "Alicante",
-  "Almería",
-  "Asturias",
-  "Ávila",
-  "Barcelona",
-  "Burgos",
-  "Cádiz",
-  "Cantabria",
-  "Castellón",
-  "Ciudad Real",
-  "Córdoba",
-  "Cuenca",
-  "Girona",
-  "Granada",
-  "Guadalajara",
-  "Guipúzcoa",
-  "Huelva",
-  "Huesca",
-  "Jaén",
-  "La Coruña",
-  "Las Palmas",
-  "León",
-  "Lleida",
-  "Lugo",
-  "Málaga",
-  "Murcia",
-  "Navarra",
-  "Ourense",
-  "Palencia",
-  "Pontevedra",
-  "Salamanca",
-  "Santa Cruz de Tenerife",
-  "Segovia",
-  "Sevilla",
-  "Soria",
-  "Tarragona",
-  "Teruel",
-  "Toledo",
-  "Valencia",
-  "Valladolid",
-  "Vizcaya",
-  "Zamora",
-  "Zaragoza"
-];
-
-const LISTA_LOCALIDADES=[
-  "Madrid",
-  "Alcalá de Henares",
-  "Pozuelo del Rey",
-  "Torrejón de Ardoz",
-  "Coslada",
-  "San Fernando de Henares",
-  "Badajoz",
-  "Cáceres",
-  "Mérida",
-  "Almendralejo",
-  "Don Benito",
-  "Villanueva de la Serena"
-];
-
-const LISTA_CONVENIOS=[
-  "Metal",
-  "Construcción",
-  "Fontanería",
-  "Climatización",
-  "Electricidad",
-  "Oficinas",
-  "Comercio",
-  "Personalizado"
-];
 
 function formulario(u){
   const editando=!!u.id;
@@ -623,31 +526,17 @@ function formulario(u){
     ${input("u_codigo_postal","Código postal",u.codigo_postal)}
     ${input("u_pais","País",u.pais || "España")}
 
-    <label class="zx_label" for="u_rol">Rol</label>
-    <select id="u_rol">
-      <option ${u.rol==="Administrador" ? "selected" : ""}>Administrador</option>
-      <option ${u.rol==="Encargado" ? "selected" : ""}>Encargado</option>
-      <option ${u.rol==="Operario" ? "selected" : ""}>Operario</option>
-      <option ${u.rol==="Oficina" ? "selected" : ""}>Oficina</option>
-    </select>
-
-    <label class="zx_label" for="u_estado">Estado</label>
-    <select id="u_estado">
-      <option ${u.estado==="Activo" ? "selected" : ""}>Activo</option>
-      <option ${u.estado==="Inactivo" ? "selected" : ""}>Inactivo</option>
-    </select>
+    ${selectSimple("u_rol","Rol",u.rol,["Administrador","Encargado","Operario","Oficina"])}
+    ${selectSimple("u_estado","Estado",u.estado || "Activo",["Activo","Inactivo"])}
 
     <button class="zx_btn_big ${editando ? "zx_azul" : "zx_verde"}" id="btn_guardar_usuario">
       ${editando ? "Guardar cambios" : "Guardar"}
     </button>
 
-    <button class="zx_btn_big zx_gris" id="btn_cancelar_usuario">
-      Cancelar
-    </button>
+    <button class="zx_btn_big zx_gris" id="btn_cancelar_usuario">Cancelar</button>
   `);
 
   document.getElementById("btn_cancelar_usuario").onclick=cerrarModal;
-
   document.getElementById("btn_guardar_usuario").onclick=function(){
     guardarUsuario(u.id || null,u.foto_url || null);
   };
@@ -696,7 +585,6 @@ function datosFormulario(foto_url,id){
     dni:document.getElementById("u_dni").value.trim().toUpperCase(),
     telefono:document.getElementById("u_telefono").value.trim(),
     email:document.getElementById("u_email").value.trim().toLowerCase(),
-
     via_tipo:document.getElementById("u_via_tipo").value,
     calle:document.getElementById("u_calle").value.trim(),
     numero:document.getElementById("u_numero").value.trim(),
@@ -708,7 +596,6 @@ function datosFormulario(foto_url,id){
     provincia:document.getElementById("u_provincia").value.trim(),
     codigo_postal:document.getElementById("u_codigo_postal").value.trim(),
     pais:document.getElementById("u_pais").value.trim(),
-
     rol:document.getElementById("u_rol").value,
     estado:document.getElementById("u_estado").value,
     activo:document.getElementById("u_estado").value==="Activo",
@@ -747,7 +634,6 @@ function validarFormulario(){
 
   return true;
 }
-
 async function guardarUsuario(id,fotoActual){
   if(!validarFormulario()) return;
 
@@ -867,6 +753,107 @@ async function eliminarUsuario(id,nombre,usuario){
 
   ZX_usuarios();
 }
+
+// ===============================
+// DATOS LABORALES
+// ===============================
+
+const ZX_COMUNIDADES=[
+  "",
+  "Andalucía",
+  "Aragón",
+  "Asturias",
+  "Baleares",
+  "Canarias",
+  "Cantabria",
+  "Castilla-La Mancha",
+  "Castilla y León",
+  "Cataluña",
+  "Comunidad Valenciana",
+  "Extremadura",
+  "Galicia",
+  "La Rioja",
+  "Madrid",
+  "Murcia",
+  "Navarra",
+  "País Vasco",
+  "Ceuta",
+  "Melilla"
+];
+
+const ZX_PROVINCIAS_POR_COMUNIDAD={
+  "Andalucía":["Almería","Cádiz","Córdoba","Granada","Huelva","Jaén","Málaga","Sevilla"],
+  "Aragón":["Huesca","Teruel","Zaragoza"],
+  "Asturias":["Asturias"],
+  "Baleares":["Baleares"],
+  "Canarias":["Las Palmas","Santa Cruz de Tenerife"],
+  "Cantabria":["Cantabria"],
+  "Castilla-La Mancha":["Albacete","Ciudad Real","Cuenca","Guadalajara","Toledo"],
+  "Castilla y León":["Ávila","Burgos","León","Palencia","Salamanca","Segovia","Soria","Valladolid","Zamora"],
+  "Cataluña":["Barcelona","Girona","Lleida","Tarragona"],
+  "Comunidad Valenciana":["Alicante","Castellón","Valencia"],
+  "Extremadura":["Badajoz","Cáceres"],
+  "Galicia":["A Coruña","Lugo","Ourense","Pontevedra"],
+  "La Rioja":["La Rioja"],
+  "Madrid":["Madrid"],
+  "Murcia":["Murcia"],
+  "Navarra":["Navarra"],
+  "País Vasco":["Álava","Bizkaia","Gipuzkoa"],
+  "Ceuta":["Ceuta"],
+  "Melilla":["Melilla"]
+};
+
+const ZX_LOCALIDADES_POR_PROVINCIA={
+  "Madrid":["Madrid","Alcalá de Henares","Pozuelo del Rey","Torrejón de Ardoz","Coslada","San Fernando de Henares"],
+  "Badajoz":["Badajoz","Mérida","Don Benito","Almendralejo","Villanueva de la Serena","Zafra"],
+  "Cáceres":["Cáceres","Plasencia","Navalmoral de la Mata","Trujillo","Coria","Miajadas"]
+};
+
+const ZX_CONVENIOS=[
+  "",
+  "Oficinas",
+  "Metal",
+  "Construcción",
+  "Fontanería",
+  "Climatización",
+  "Comercio",
+  "Transporte",
+  "Otro"
+];
+
+function opcionesProvincias(comunidad,provinciaActual){
+  const base=ZX_PROVINCIAS_POR_COMUNIDAD[comunidad] || [];
+  const lista=[...base];
+
+  if(provinciaActual && !lista.includes(provinciaActual)){
+    lista.unshift(provinciaActual);
+  }
+
+  return lista;
+}
+
+function opcionesLocalidades(provincia,localidadActual){
+  const base=ZX_LOCALIDADES_POR_PROVINCIA[provincia] || [];
+  const lista=[...base];
+
+  if(localidadActual && !lista.includes(localidadActual)){
+    lista.unshift(localidadActual);
+  }
+
+  return lista;
+}
+
+function selectLaboral(id,label,valor,opciones){
+  return `
+    <label class="zx_label" for="${id}">${limpiar(label)}</label>
+    <select id="${id}">
+      ${opciones.map(function(o){
+        return `<option value="${limpiar(o)}" ${String(valor||"")===String(o) ? "selected" : ""}>${limpiar(o || "Seleccionar")}</option>`;
+      }).join("")}
+    </select>
+  `;
+}
+
 async function cargarLaboralUsuario(usuarioId){
   const h=await sb()
     .from("horarios_usuario")
@@ -893,34 +880,37 @@ async function cargarLaboralUsuario(usuarioId){
 }
 
 function normalizarLaboralDesdeHorario(h){
+  const lunes=Number(h.lunes||0);
+  const martes=Number(h.martes||0);
+  const miercoles=Number(h.miercoles||0);
+  const jueves=Number(h.jueves||0);
+  const viernes=Number(h.viernes||0);
+  const sabado=Number(h.sabado||0);
+  const domingo=Number(h.domingo||0);
+
+  const primerDia=[lunes,martes,miercoles,jueves,viernes,sabado,domingo].find(x=>x>0) || 480;
+
   return {
+    origen:"horarios_usuario",
     id:h.id,
     usuario_id:h.usuario_id || h.user_id || "",
     usuario:h.usuario || "",
     nombre:h.nombre || "",
-    horas_dia:Number(h.lunes || h.martes || h.miercoles || h.jueves || h.viernes || 480)/60,
-    horas_semana:(
-      Number(h.lunes||0)+
-      Number(h.martes||0)+
-      Number(h.miercoles||0)+
-      Number(h.jueves||0)+
-      Number(h.viernes||0)+
-      Number(h.sabado||0)+
-      Number(h.domingo||0)
-    )/60,
-    trabaja_lunes:Number(h.lunes||0)>0,
-    trabaja_martes:Number(h.martes||0)>0,
-    trabaja_miercoles:Number(h.miercoles||0)>0,
-    trabaja_jueves:Number(h.jueves||0)>0,
-    trabaja_viernes:Number(h.viernes||0)>0,
-    trabaja_sabado:Number(h.sabado||0)>0,
-    trabaja_domingo:Number(h.domingo||0)>0,
+    horas_dia:Math.round(primerDia/60),
+    horas_semana:Math.round((lunes+martes+miercoles+jueves+viernes+sabado+domingo)/60),
+    trabaja_lunes:lunes>0,
+    trabaja_martes:martes>0,
+    trabaja_miercoles:miercoles>0,
+    trabaja_jueves:jueves>0,
+    trabaja_viernes:viernes>0,
+    trabaja_sabado:sabado>0,
+    trabaja_domingo:domingo>0,
     vacaciones_dias:Number(h.vacaciones||30),
     asuntos_propios:Number(h.asuntos_horas || h.asuntos || 0),
     pais:h.pais || "España",
+    comunidad:h.comunidad || "",
     provincia:h.provincia || "",
     localidad:h.localidad || "",
-    comunidad:h.comunidad || "",
     convenio:h.convenio || "",
     precio_extra:Number(h.precio_extra || 0),
     precio_extra_nocturna:Number(h.precio_extra_nocturna || 0),
@@ -930,12 +920,13 @@ function normalizarLaboralDesdeHorario(h){
 
 function normalizarLaboralDesdeConfig(c){
   return {
+    origen:"config_laboral",
     id:c.id,
     usuario_id:c.usuario_id || "",
     usuario:c.usuario || "",
     nombre:c.nombre || "",
-    horas_dia:Number(c.horas_dia || 8),
-    horas_semana:Number(c.horas_semana || 40),
+    horas_dia:Math.round(Number(c.horas_dia || 8)),
+    horas_semana:Math.round(Number(c.horas_semana || 40)),
     trabaja_lunes:c.trabaja_lunes!==false,
     trabaja_martes:c.trabaja_martes!==false,
     trabaja_miercoles:c.trabaja_miercoles!==false,
@@ -946,18 +937,18 @@ function normalizarLaboralDesdeConfig(c){
     vacaciones_dias:Number(c.vacaciones_dias || 30),
     asuntos_propios:Number(c.asuntos_propios || 0),
     pais:c.pais || "España",
+    comunidad:c.comunidad || "",
     provincia:c.provincia || "",
     localidad:c.localidad || "",
-    comunidad:c.comunidad || "",
     convenio:c.convenio || "",
     precio_extra:Number(c.precio_extra || 0),
     precio_extra_nocturna:Number(c.precio_extra_nocturna || 0),
     precio_extra_festiva:Number(c.precio_extra_festiva || 0)
   };
 }
-
 function laboralDefault(u){
   return {
+    origen:"nuevo",
     id:null,
     usuario_id:String(u.id || ""),
     usuario:u.usuario || "",
@@ -974,9 +965,9 @@ function laboralDefault(u){
     vacaciones_dias:30,
     asuntos_propios:0,
     pais:u.pais || "España",
+    comunidad:"",
     provincia:u.provincia || "",
     localidad:u.poblacion || "",
-    comunidad:"",
     convenio:"",
     precio_extra:0,
     precio_extra_nocturna:0,
@@ -1000,6 +991,9 @@ async function verLaboralUsuario(u){
   const l=actual || laboralDefault(u);
   const editable=puedeEditar();
 
+  const provincias=opcionesProvincias(l.comunidad,l.provincia);
+  const localidades=opcionesLocalidades(l.provincia,l.localidad);
+
   modal("Laboral",`
     <div class="zx_text">
       <b>${limpiar(u.nombre || u.usuario || "Usuario")}</b>
@@ -1009,8 +1003,8 @@ async function verLaboralUsuario(u){
 
     <h3 class="zx_form_subtitle">Jornada</h3>
 
-    ${inputNum("lab_horas_dia","Horas por día",l.horas_dia)}
-    ${inputNum("lab_horas_semana","Horas por semana",l.horas_semana)}
+    ${inputNum("lab_horas_dia","Horas por día",l.horas_dia,"0.25")}
+    ${inputNum("lab_horas_semana","Horas por semana",l.horas_semana,"0.25")}
 
     <h3 class="zx_form_subtitle">Días de trabajo</h3>
 
@@ -1026,25 +1020,25 @@ async function verLaboralUsuario(u){
 
     <h3 class="zx_form_subtitle">Vacaciones y asuntos propios</h3>
 
-    ${inputNum("lab_vacaciones","Vacaciones anuales en días",l.vacaciones_dias)}
-    ${inputNum("lab_asuntos","Asuntos propios en horas",l.asuntos_propios)}
+    ${inputNum("lab_vacaciones","Vacaciones anuales en días",l.vacaciones_dias,"1")}
+    ${inputNum("lab_asuntos","Asuntos propios en horas",l.asuntos_propios,"0.25")}
 
     <h3 class="zx_form_subtitle">Precios horas extra</h3>
 
-    ${inputNum("lab_precio_extra","Precio hora extra",l.precio_extra)}
-    ${inputNum("lab_precio_extra_nocturna","Precio hora extra nocturna",l.precio_extra_nocturna)}
-    ${inputNum("lab_precio_extra_festiva","Precio hora extra festiva",l.precio_extra_festiva)}
+    ${inputNum("lab_precio_extra","Precio hora extra",l.precio_extra,"0.01")}
+    ${inputNum("lab_precio_extra_nocturna","Precio hora extra nocturna",l.precio_extra_nocturna,"0.01")}
+    ${inputNum("lab_precio_extra_festiva","Precio hora extra festiva",l.precio_extra_festiva,"0.01")}
 
     <h3 class="zx_form_subtitle">Calendario laboral</h3>
 
-    ${selectSimple("lab_pais","País",l.pais || "España",["España"])}
-    ${selectSimple("lab_comunidad","Comunidad autónoma",l.comunidad,LISTA_COMUNIDADES)}
-    ${selectSimple("lab_provincia","Provincia",l.provincia,LISTA_PROVINCIAS)}
-    ${selectSimple("lab_localidad","Localidad",l.localidad,LISTA_LOCALIDADES)}
+    ${selectLaboral("lab_pais","País",l.pais || "España",["España"])}
+    ${selectLaboral("lab_comunidad","Comunidad autónoma",l.comunidad,ZX_COMUNIDADES)}
+    ${selectLaboral("lab_provincia","Provincia",l.provincia,["",...provincias])}
+    ${selectLaboral("lab_localidad","Localidad",l.localidad,["",...localidades])}
 
     <h3 class="zx_form_subtitle">Convenio</h3>
 
-    ${selectSimple("lab_convenio","Convenio",l.convenio,LISTA_CONVENIOS)}
+    ${selectLaboral("lab_convenio","Convenio",l.convenio,ZX_CONVENIOS)}
 
     ${
       editable
@@ -1057,6 +1051,8 @@ async function verLaboralUsuario(u){
 
   document.getElementById("lab_cerrar").onclick=cerrarModal;
 
+  activarFiltrosUbicacion();
+
   const guardar=document.getElementById("lab_guardar");
 
   if(guardar){
@@ -1068,6 +1064,34 @@ async function verLaboralUsuario(u){
       });
     };
   }
+}
+
+function activarFiltrosUbicacion(){
+  const comunidad=document.getElementById("lab_comunidad");
+  const provincia=document.getElementById("lab_provincia");
+  const localidad=document.getElementById("lab_localidad");
+
+  if(!comunidad || !provincia || !localidad) return;
+
+  comunidad.onchange=function(){
+    const provincias=opcionesProvincias(comunidad.value,"");
+
+    provincia.innerHTML=[
+      `<option value="">Seleccionar</option>`,
+      ...provincias.map(p=>`<option value="${limpiar(p)}">${limpiar(p)}</option>`)
+    ].join("");
+
+    localidad.innerHTML=`<option value="">Seleccionar</option>`;
+  };
+
+  provincia.onchange=function(){
+    const localidades=opcionesLocalidades(provincia.value,"");
+
+    localidad.innerHTML=[
+      `<option value="">Seleccionar</option>`,
+      ...localidades.map(l=>`<option value="${limpiar(l)}">${limpiar(l)}</option>`)
+    ].join("");
+  };
 }
 
 function numVal(id,def){
@@ -1159,7 +1183,7 @@ async function guardarConfigLaboral(datos){
     trabaja_domingo:!!datos.trabaja_domingo,
 
     vacaciones_dias:Math.round(Number(datos.vacaciones_dias || 0)),
-    asuntos_propios:Math.round(Number(datos.asuntos_propios || 0)),
+    asuntos_propios:Number(datos.asuntos_propios || 0),
 
     pais:String(datos.pais || "España"),
     comunidad:String(datos.comunidad || ""),
@@ -1187,7 +1211,6 @@ async function guardarConfigLaboral(datos){
     .from("config_laboral")
     .insert([data]);
 }
-
 async function guardarHorarioUsuario(datos){
   const minutosDia=Math.round(Number(datos.horas_dia || 0) * 60);
 
@@ -1209,8 +1232,8 @@ async function guardarHorarioUsuario(datos){
     domingo:datos.trabaja_domingo ? minutosDia : 0,
 
     vacaciones:Math.round(Number(datos.vacaciones_dias || 0)),
-    asuntos:Math.round(Number(datos.asuntos_propios || 0)),
-    asuntos_horas:Math.round(Number(datos.asuntos_propios || 0)),
+    asuntos:Number(datos.asuntos_propios || 0),
+    asuntos_horas:Number(datos.asuntos_propios || 0),
 
     convenio:String(datos.convenio || ""),
     precio_extra:Number(datos.precio_extra || 0),
@@ -1247,6 +1270,10 @@ async function guardarHorarioUsuario(datos){
     .from("horarios_usuario")
     .insert([horario]);
 }
+
+// ===============================
+// DOCUMENTOS
+// ===============================
 
 async function cargarDocumentos(usuarioId){
   const r=await sb()
@@ -1421,11 +1448,15 @@ async function verDocumentosUsuario(u){
   });
 }
 
+// ===============================
+// ESTILOS
+// ===============================
+
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3097")) return;
+  if(document.getElementById("zx_usuarios_v3098")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3097";
+  s.id="zx_usuarios_v3098";
 
   s.innerHTML=`
     .zx_user_card{
