@@ -4,6 +4,7 @@
 // ===============================
 (function(){
 "use strict";
+alert("usuarios.js cargado");
 console.log("USUARIOS 3103 CARGADO");
 alert("USUARIOS 3103");
 
