@@ -1,23 +1,19 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3097 - LABORAL CON SELECTORES FILTRADOS
+// V3104 - USUARIOS + LABORAL CORREGIDO
 // ===============================
 (function(){
-
-alert("USUARIOS CARGADO");
-
 "use strict";
-alert("usuarios.js cargado");
-console.log("USUARIOS 3103 CARGADO");
-alert("USUARIOS 3103");
 
 const DOC_BUCKET="zentryx-usuarios-docs";
 const FOTO_BUCKET="zentryx-usuarios";
 
-const ZX_COMUNIDADES={
+const ZX_PROVINCIAS_POR_COMUNIDAD={
   "Andalucía":["Almería","Cádiz","Córdoba","Granada","Huelva","Jaén","Málaga","Sevilla"],
   "Aragón":["Huesca","Teruel","Zaragoza"],
   "Asturias":["Asturias"],
+  "Baleares":["Baleares"],
+  "Canarias":["Las Palmas","Santa Cruz de Tenerife"],
   "Cantabria":["Cantabria"],
   "Castilla-La Mancha":["Albacete","Ciudad Real","Cuenca","Guadalajara","Toledo"],
   "Castilla y León":["Ávila","Burgos","León","Palencia","Salamanca","Segovia","Soria","Valladolid","Zamora"],
@@ -25,8 +21,6 @@ const ZX_COMUNIDADES={
   "Comunidad Valenciana":["Alicante","Castellón","Valencia"],
   "Extremadura":["Badajoz","Cáceres"],
   "Galicia":["A Coruña","Lugo","Ourense","Pontevedra"],
-  "Islas Baleares":["Islas Baleares"],
-  "Canarias":["Las Palmas","Santa Cruz de Tenerife"],
   "La Rioja":["La Rioja"],
   "Madrid":["Madrid"],
   "Murcia":["Murcia"],
@@ -36,13 +30,16 @@ const ZX_COMUNIDADES={
   "Melilla":["Melilla"]
 };
 
-const ZX_LOCALIDADES={
+const ZX_COMUNIDADES=["",...Object.keys(ZX_PROVINCIAS_POR_COMUNIDAD)];
+
+const ZX_LOCALIDADES_POR_PROVINCIA={
   "Madrid":["Madrid","Alcalá de Henares","Pozuelo del Rey","Torrejón de Ardoz","Coslada","San Fernando de Henares"],
   "Badajoz":["Badajoz","Mérida","Don Benito","Villanueva de la Serena","Almendralejo","Zafra"],
   "Cáceres":["Cáceres","Plasencia","Navalmoral de la Mata","Coria","Trujillo","Miajadas"]
 };
 
 const ZX_CONVENIOS=[
+  "",
   "Oficinas",
   "Metal",
   "Construcción",
@@ -108,6 +105,7 @@ function cerrarModal(){
 
 function modal(titulo,contenido){
   cerrarModal();
+
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal" class="zx_modal_fondo">
       <div class="zx_modal_caja">
@@ -175,10 +173,12 @@ async function pedirPinConPermiso(accion,callback){
     }
 
     cerrarModal();
-    if(typeof callback==="function") callback();
+
+    if(typeof callback==="function"){
+      callback();
+    }
   };
 }
-
 function direccionCompleta(u){
   return [
     u.via_tipo,
@@ -236,6 +236,7 @@ function enviarMail(email){
     alert("Sin email.");
     return;
   }
+
   location.href="mailto:"+email;
 }
 
@@ -263,6 +264,7 @@ function menuMapa(dir){
 function mensajeInterno(){
   alert("Mensajería interna pendiente.");
 }
+
 async function cargarUsuarios(){
   const cliente=sb();
 
@@ -369,7 +371,6 @@ function renderUsuario(u){
     </div>
   `;
 }
-
 window.ZENTRYX_UI_usuarios=async function(){
   const usuarios=await cargarUsuarios();
 
@@ -450,20 +451,22 @@ window.ZX_usuarios=function(){
     if(b.dataset.modulo==="usuarios") b.classList.add("zx_activo");
   });
 
-  window.ZENTRYX_UI_usuarios();
+  if(window.ZENTRYX_UI_usuarios){
+    window.ZENTRYX_UI_usuarios();
+  }
 };
 
 function input(id,label,value,type){
   return `
-    <label class="zx_label" for="${id}">${label}</label>
-    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${label}">
+    <label class="zx_label" for="${id}">${limpiar(label)}</label>
+    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${limpiar(label)}">
   `;
 }
 
 function inputNum(id,label,value,step){
   return `
-    <label class="zx_label" for="${id}">${label}</label>
-    <input id="${id}" type="number" step="${step || "1"}" value="${limpiar(value ?? "")}" placeholder="${label}">
+    <label class="zx_label" for="${id}">${limpiar(label)}</label>
+    <input id="${id}" type="number" step="${step || "1"}" value="${limpiar(value ?? "")}" placeholder="${limpiar(label)}">
   `;
 }
 
@@ -562,7 +565,6 @@ async function editarUsuario(id){
 
   formulario(res.data[0]);
 }
-
 async function subirFoto(file,usuario){
   if(!file) return null;
 
@@ -591,6 +593,7 @@ function datosFormulario(foto_url,id){
     dni:document.getElementById("u_dni").value.trim().toUpperCase(),
     telefono:document.getElementById("u_telefono").value.trim(),
     email:document.getElementById("u_email").value.trim().toLowerCase(),
+
     via_tipo:document.getElementById("u_via_tipo").value,
     calle:document.getElementById("u_calle").value.trim(),
     numero:document.getElementById("u_numero").value.trim(),
@@ -602,6 +605,7 @@ function datosFormulario(foto_url,id){
     provincia:document.getElementById("u_provincia").value.trim(),
     codigo_postal:document.getElementById("u_codigo_postal").value.trim(),
     pais:document.getElementById("u_pais").value.trim(),
+
     rol:document.getElementById("u_rol").value,
     estado:document.getElementById("u_estado").value,
     activo:document.getElementById("u_estado").value==="Activo",
@@ -640,6 +644,7 @@ function validarFormulario(){
 
   return true;
 }
+
 async function guardarUsuario(id,fotoActual){
   if(!validarFormulario()) return;
 
@@ -759,74 +764,6 @@ async function eliminarUsuario(id,nombre,usuario){
 
   ZX_usuarios();
 }
-
-// ===============================
-// DATOS LABORALES
-// ===============================
-
-const ZX_COMUNIDADES=[
-  "",
-  "Andalucía",
-  "Aragón",
-  "Asturias",
-  "Baleares",
-  "Canarias",
-  "Cantabria",
-  "Castilla-La Mancha",
-  "Castilla y León",
-  "Cataluña",
-  "Comunidad Valenciana",
-  "Extremadura",
-  "Galicia",
-  "La Rioja",
-  "Madrid",
-  "Murcia",
-  "Navarra",
-  "País Vasco",
-  "Ceuta",
-  "Melilla"
-];
-
-const ZX_PROVINCIAS_POR_COMUNIDAD={
-  "Andalucía":["Almería","Cádiz","Córdoba","Granada","Huelva","Jaén","Málaga","Sevilla"],
-  "Aragón":["Huesca","Teruel","Zaragoza"],
-  "Asturias":["Asturias"],
-  "Baleares":["Baleares"],
-  "Canarias":["Las Palmas","Santa Cruz de Tenerife"],
-  "Cantabria":["Cantabria"],
-  "Castilla-La Mancha":["Albacete","Ciudad Real","Cuenca","Guadalajara","Toledo"],
-  "Castilla y León":["Ávila","Burgos","León","Palencia","Salamanca","Segovia","Soria","Valladolid","Zamora"],
-  "Cataluña":["Barcelona","Girona","Lleida","Tarragona"],
-  "Comunidad Valenciana":["Alicante","Castellón","Valencia"],
-  "Extremadura":["Badajoz","Cáceres"],
-  "Galicia":["A Coruña","Lugo","Ourense","Pontevedra"],
-  "La Rioja":["La Rioja"],
-  "Madrid":["Madrid"],
-  "Murcia":["Murcia"],
-  "Navarra":["Navarra"],
-  "País Vasco":["Álava","Bizkaia","Gipuzkoa"],
-  "Ceuta":["Ceuta"],
-  "Melilla":["Melilla"]
-};
-
-const ZX_LOCALIDADES_POR_PROVINCIA={
-  "Madrid":["Madrid","Alcalá de Henares","Pozuelo del Rey","Torrejón de Ardoz","Coslada","San Fernando de Henares"],
-  "Badajoz":["Badajoz","Mérida","Don Benito","Almendralejo","Villanueva de la Serena","Zafra"],
-  "Cáceres":["Cáceres","Plasencia","Navalmoral de la Mata","Trujillo","Coria","Miajadas"]
-};
-
-const ZX_CONVENIOS=[
-  "",
-  "Oficinas",
-  "Metal",
-  "Construcción",
-  "Fontanería",
-  "Climatización",
-  "Comercio",
-  "Transporte",
-  "Otro"
-];
-
 function opcionesProvincias(comunidad,provinciaActual){
   const base=ZX_PROVINCIAS_POR_COMUNIDAD[comunidad] || [];
   const lista=[...base];
@@ -886,31 +823,32 @@ async function cargarLaboralUsuario(usuarioId){
 }
 
 function normalizarLaboralDesdeHorario(h){
-  const lunes=Number(h.lunes||0);
-  const martes=Number(h.martes||0);
-  const miercoles=Number(h.miercoles||0);
-  const jueves=Number(h.jueves||0);
-  const viernes=Number(h.viernes||0);
-  const sabado=Number(h.sabado||0);
-  const domingo=Number(h.domingo||0);
+  const dias=[
+    Number(h.lunes||0),
+    Number(h.martes||0),
+    Number(h.miercoles||0),
+    Number(h.jueves||0),
+    Number(h.viernes||0),
+    Number(h.sabado||0),
+    Number(h.domingo||0)
+  ];
 
-  const primerDia=[lunes,martes,miercoles,jueves,viernes,sabado,domingo].find(x=>x>0) || 480;
+  const primerDia=dias.find(x=>x>0) || 480;
 
   return {
-    origen:"horarios_usuario",
     id:h.id,
     usuario_id:h.usuario_id || h.user_id || "",
     usuario:h.usuario || "",
     nombre:h.nombre || "",
-    horas_dia:Math.round(primerDia/60),
-    horas_semana:Math.round((lunes+martes+miercoles+jueves+viernes+sabado+domingo)/60),
-    trabaja_lunes:lunes>0,
-    trabaja_martes:martes>0,
-    trabaja_miercoles:miercoles>0,
-    trabaja_jueves:jueves>0,
-    trabaja_viernes:viernes>0,
-    trabaja_sabado:sabado>0,
-    trabaja_domingo:domingo>0,
+    horas_dia:Number((primerDia/60).toFixed(2)),
+    horas_semana:Number((dias.reduce((a,b)=>a+b,0)/60).toFixed(2)),
+    trabaja_lunes:dias[0]>0,
+    trabaja_martes:dias[1]>0,
+    trabaja_miercoles:dias[2]>0,
+    trabaja_jueves:dias[3]>0,
+    trabaja_viernes:dias[4]>0,
+    trabaja_sabado:dias[5]>0,
+    trabaja_domingo:dias[6]>0,
     vacaciones_dias:Number(h.vacaciones||30),
     asuntos_propios:Number(h.asuntos_horas || h.asuntos || 0),
     pais:h.pais || "España",
@@ -926,13 +864,12 @@ function normalizarLaboralDesdeHorario(h){
 
 function normalizarLaboralDesdeConfig(c){
   return {
-    origen:"config_laboral",
     id:c.id,
     usuario_id:c.usuario_id || "",
     usuario:c.usuario || "",
     nombre:c.nombre || "",
-    horas_dia:Math.round(Number(c.horas_dia || 8)),
-    horas_semana:Math.round(Number(c.horas_semana || 40)),
+    horas_dia:Number(c.horas_dia || 8),
+    horas_semana:Number(c.horas_semana || 40),
     trabaja_lunes:c.trabaja_lunes!==false,
     trabaja_martes:c.trabaja_martes!==false,
     trabaja_miercoles:c.trabaja_miercoles!==false,
@@ -952,9 +889,9 @@ function normalizarLaboralDesdeConfig(c){
     precio_extra_festiva:Number(c.precio_extra_festiva || 0)
   };
 }
+
 function laboralDefault(u){
   return {
-    origen:"nuevo",
     id:null,
     usuario_id:String(u.id || ""),
     usuario:u.usuario || "",
@@ -1001,19 +938,15 @@ async function verLaboralUsuario(u){
   const localidades=opcionesLocalidades(l.provincia,l.localidad);
 
   modal("Laboral",`
-    <div class="zx_text">
-      <b>${limpiar(u.nombre || u.usuario || "Usuario")}</b>
-    </div>
+    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
 
     ${resumenLaboral(l)}
 
     <h3 class="zx_form_subtitle">Jornada</h3>
-
     ${inputNum("lab_horas_dia","Horas por día",l.horas_dia,"0.25")}
     ${inputNum("lab_horas_semana","Horas por semana",l.horas_semana,"0.25")}
 
     <h3 class="zx_form_subtitle">Días de trabajo</h3>
-
     <div class="zx_checks_grid">
       ${check("lab_lunes","Lunes",l.trabaja_lunes)}
       ${check("lab_martes","Martes",l.trabaja_martes)}
@@ -1025,46 +958,34 @@ async function verLaboralUsuario(u){
     </div>
 
     <h3 class="zx_form_subtitle">Vacaciones y asuntos propios</h3>
-
     ${inputNum("lab_vacaciones","Vacaciones anuales en días",l.vacaciones_dias,"1")}
     ${inputNum("lab_asuntos","Asuntos propios en horas",l.asuntos_propios,"0.25")}
 
     <h3 class="zx_form_subtitle">Precios horas extra</h3>
-
     ${inputNum("lab_precio_extra","Precio hora extra",l.precio_extra,"0.01")}
     ${inputNum("lab_precio_extra_nocturna","Precio hora extra nocturna",l.precio_extra_nocturna,"0.01")}
     ${inputNum("lab_precio_extra_festiva","Precio hora extra festiva",l.precio_extra_festiva,"0.01")}
 
     <h3 class="zx_form_subtitle">Calendario laboral</h3>
-
     ${selectLaboral("lab_pais","País",l.pais || "España",["España"])}
     ${selectLaboral("lab_comunidad","Comunidad autónoma",l.comunidad,ZX_COMUNIDADES)}
     ${selectLaboral("lab_provincia","Provincia",l.provincia,["",...provincias])}
     ${selectLaboral("lab_localidad","Localidad",l.localidad,["",...localidades])}
 
     <h3 class="zx_form_subtitle">Convenio</h3>
-
     ${selectLaboral("lab_convenio","Convenio",l.convenio,ZX_CONVENIOS)}
 
-    ${
-      editable
-      ? `<button class="zx_btn_big zx_verde" id="lab_guardar">Guardar laboral</button>`
-      : ``
-    }
-
+    ${editable ? `<button class="zx_btn_big zx_verde" id="lab_guardar">Guardar laboral</button>` : ``}
     <button class="zx_btn_big zx_gris" id="lab_cerrar">Cerrar</button>
   `);
 
   document.getElementById("lab_cerrar").onclick=cerrarModal;
-
   activarFiltrosUbicacion();
 
   const guardar=document.getElementById("lab_guardar");
-
   if(guardar){
     guardar.onclick=function(){
       const datos=leerDatosLaboralesFormulario(u);
-
       pedirPinConPermiso("laboral",function(){
         guardarLaboralDatos(datos);
       });
@@ -1105,8 +1026,7 @@ function numVal(id,def){
   if(!el) return def;
 
   const n=Number(String(el.value || "").replace(",","."));
-  if(Number.isFinite(n)) return n;
-  return def;
+  return Number.isFinite(n) ? n : def;
 }
 
 function leerDatosLaboralesFormulario(u){
@@ -1143,14 +1063,12 @@ function leerDatosLaboralesFormulario(u){
 
 async function guardarLaboralDatos(datos){
   const r1=await guardarConfigLaboral(datos);
-
   if(r1 && r1.error){
     alert("Error guardando config_laboral: "+r1.error.message);
     return;
   }
 
   const r2=await guardarHorarioUsuario(datos);
-
   if(r2 && r2.error){
     alert("Error guardando horarios_usuario: "+r2.error.message);
     return;
@@ -1168,9 +1086,7 @@ async function guardarConfigLaboral(datos){
     .eq("usuario_id",String(datos.usuario_id))
     .limit(1);
 
-  if(buscado.error){
-    return buscado;
-  }
+  if(buscado.error) return buscado;
 
   const data={
     usuario_id:String(datos.usuario_id),
@@ -1217,6 +1133,7 @@ async function guardarConfigLaboral(datos){
     .from("config_laboral")
     .insert([data]);
 }
+
 async function guardarHorarioUsuario(datos){
   const minutosDia=Math.round(Number(datos.horas_dia || 0) * 60);
 
@@ -1261,9 +1178,7 @@ async function guardarHorarioUsuario(datos){
     .eq("activo",true)
     .limit(1);
 
-  if(buscado.error){
-    return buscado;
-  }
+  if(buscado.error) return buscado;
 
   if(buscado.data && buscado.data.length){
     return await sb()
@@ -1276,10 +1191,6 @@ async function guardarHorarioUsuario(datos){
     .from("horarios_usuario")
     .insert([horario]);
 }
-
-// ===============================
-// DOCUMENTOS
-// ===============================
 
 async function cargarDocumentos(usuarioId){
   const r=await sb()
@@ -1334,9 +1245,7 @@ async function verDocumentosUsuario(u){
   const docs=await cargarDocumentos(u.id);
 
   modal("Documentos",`
-    <div class="zx_text">
-      <b>${limpiar(u.nombre || u.usuario || "Usuario")}</b>
-    </div>
+    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
 
     <label class="zx_label">Tipo</label>
     <select id="doc_tipo">
@@ -1355,9 +1264,7 @@ async function verDocumentosUsuario(u){
     <label class="zx_label">Nombre visible</label>
     <input id="doc_nombre" placeholder="Nombre del documento">
 
-    <button class="zx_btn_big zx_verde" id="doc_subir">
-      Subir documento
-    </button>
+    <button class="zx_btn_big zx_verde" id="doc_subir">Subir documento</button>
 
     <h3 class="zx_form_subtitle">Archivos guardados</h3>
 
@@ -1370,25 +1277,15 @@ async function verDocumentosUsuario(u){
               <b>${limpiar(d.nombre || "Documento")}</b><br>
               <span>${limpiar(textoTipoDoc(d.tipo))}</span>
             </div>
-
-            <button class="zx_action_btn zx_blue" data-doc-open="${limpiar(d.url)}">
-              Abrir
-            </button>
-
-            ${
-              esAdminLocal()
-              ? `<button class="zx_action_btn zx_red" data-doc-del="${limpiar(d.id)}">Borrar</button>`
-              : ""
-            }
+            <button class="zx_action_btn zx_blue" data-doc-open="${limpiar(d.url)}">Abrir</button>
+            ${esAdminLocal() ? `<button class="zx_action_btn zx_red" data-doc-del="${limpiar(d.id)}">Borrar</button>` : ""}
           </div>
         `).join("")
         : `<div class="zx_text">Sin documentos.</div>`
       }
     </div>
 
-    <button class="zx_btn_big zx_gris" id="doc_cerrar">
-      Cerrar
-    </button>
+    <button class="zx_btn_big zx_gris" id="doc_cerrar">Cerrar</button>
   `);
 
   document.getElementById("doc_cerrar").onclick=cerrarModal;
@@ -1454,279 +1351,49 @@ async function verDocumentosUsuario(u){
   });
 }
 
-// ===============================
-// ESTILOS
-// ===============================
-
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3098")) return;
+  if(document.getElementById("zx_usuarios_v3104")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3098";
+  s.id="zx_usuarios_v3104";
 
   s.innerHTML=`
-    .zx_user_card{
-      background:white;
-      border:1px solid #d1d5db;
-      border-radius:24px;
-      padding:22px;
-      margin:18px 0;
-      box-shadow:0 8px 24px rgba(0,0,0,.04);
-      overflow:hidden;
-    }
-
-    .zx_user_top{
-      display:grid;
-      grid-template-columns:92px 1fr;
-      gap:18px;
-      align-items:center;
-      margin-bottom:14px;
-    }
-
-    .zx_user_avatar{
-      width:92px;
-      height:92px;
-      border-radius:24px;
-      object-fit:cover;
-      background:#e5e7eb;
-    }
-
-    .zx_user_avatar_empty{
-      background:linear-gradient(135deg,#2563eb,#10b981);
-      color:white;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:38px;
-      font-weight:900;
-    }
-
-    .zx_user_name{
-      font-size:30px;
-      font-weight:900;
-      color:#0f172a;
-      margin-bottom:4px;
-      word-break:break-word;
-    }
-
-    .zx_user_sub,
-    .zx_user_phone{
-      color:#64748b;
-      font-size:18px;
-      font-weight:900;
-      line-height:1.35;
-      word-break:break-word;
-    }
-
-    .zx_user_data{
-      color:#334155;
-      font-size:18px;
-      line-height:1.55;
-      font-weight:700;
-      word-break:break-word;
-    }
-
-    .zx_user_data_small{
-      margin-top:12px;
-    }
-
-    .zx_user_details{
-      margin:12px 0;
-      background:#f8fafc;
-      border:1px solid #e5e7eb;
-      border-radius:18px;
-      padding:12px;
-    }
-
-    .zx_user_details summary{
-      color:#2563eb;
-      font-size:18px;
-      font-weight:900;
-      cursor:pointer;
-    }
-
-    .zx_user_actions{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:10px;
-      margin-top:14px;
-    }
-
-    .zx_action_btn{
-      border:0;
-      border-radius:16px;
-      background:#e5e7eb;
-      padding:14px;
-      font-size:17px;
-      font-weight:900;
-      color:#111827;
-    }
-
+    .zx_user_card{background:white;border:1px solid #d1d5db;border-radius:24px;padding:22px;margin:18px 0;box-shadow:0 8px 24px rgba(0,0,0,.04);overflow:hidden}
+    .zx_user_top{display:grid;grid-template-columns:92px 1fr;gap:18px;align-items:center;margin-bottom:14px}
+    .zx_user_avatar{width:92px;height:92px;border-radius:24px;object-fit:cover;background:#e5e7eb}
+    .zx_user_avatar_empty{background:linear-gradient(135deg,#2563eb,#10b981);color:white;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900}
+    .zx_user_name{font-size:30px;font-weight:900;color:#0f172a;margin-bottom:4px;word-break:break-word}
+    .zx_user_sub,.zx_user_phone{color:#64748b;font-size:18px;font-weight:900;line-height:1.35;word-break:break-word}
+    .zx_user_data{color:#334155;font-size:18px;line-height:1.55;font-weight:700;word-break:break-word}
+    .zx_user_data_small{margin-top:12px}
+    .zx_user_details{margin:12px 0;background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:12px}
+    .zx_user_details summary{color:#2563eb;font-size:18px;font-weight:900;cursor:pointer}
+    .zx_user_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+    .zx_action_btn{border:0;border-radius:16px;background:#e5e7eb;padding:14px;font-size:17px;font-weight:900;color:#111827}
     .zx_blue{background:#2563eb!important;color:white!important}
     .zx_orange{background:#facc15!important;color:#3b2500!important}
     .zx_red{background:#dc2626!important;color:white!important}
     .zx_purple{background:#7c3aed!important;color:white!important}
     .zx_laboral{background:#0f766e!important;color:white!important}
-
-    .zx_modal_fondo{
-      position:fixed;
-      inset:0;
-      z-index:999999;
-      background:rgba(15,23,42,.68);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:18px;
-    }
-
-    .zx_modal_caja{
-      width:100%;
-      max-width:540px;
-      max-height:88vh;
-      overflow:auto;
-      background:white;
-      border-radius:28px;
-      padding:24px;
-      box-shadow:0 20px 70px rgba(0,0,0,.35);
-    }
-
-    .zx_modal_caja h2{
-      margin:0 0 18px;
-      font-size:32px;
-      font-weight:900;
-      color:#0f172a;
-    }
-
-    .zx_modal_caja input,
-    .zx_modal_caja select,
-    .zx_modal_caja textarea{
-      width:100%;
-      border:1px solid #d1d5db;
-      border-radius:16px;
-      padding:16px;
-      font-size:18px;
-      margin-bottom:10px;
-      background:#f8fafc;
-      color:#0f172a;
-      font-weight:800;
-    }
-
-    .zx_label{
-      display:block;
-      margin:12px 0 6px;
-      color:#334155;
-      font-size:15px;
-      font-weight:900;
-    }
-
-    .zx_form_subtitle{
-      margin:22px 0 8px;
-      color:#0f172a;
-      font-size:24px;
-      font-weight:900;
-    }
-
-    .zx_pin_input{
-      text-align:center;
-      font-size:32px!important;
-      letter-spacing:10px;
-    }
-
-    .zx_doc_item{
-      display:grid;
-      grid-template-columns:1fr auto auto;
-      gap:8px;
-      align-items:center;
-      background:#f8fafc;
-      border:1px solid #e5e7eb;
-      border-radius:18px;
-      padding:12px;
-      margin-top:10px;
-    }
-
-    .zx_doc_item span{
-      color:#64748b;
-      font-weight:800;
-    }
-
-    .zx_laboral_resumen{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:10px;
-      margin:14px 0 18px;
-    }
-
-    .zx_laboral_resumen div{
-      background:#f8fafc;
-      border:1px solid #e5e7eb;
-      border-radius:18px;
-      padding:14px;
-      text-align:center;
-    }
-
-    .zx_laboral_resumen b{
-      display:block;
-      font-size:28px;
-      font-weight:900;
-      color:#0f172a;
-    }
-
-    .zx_laboral_resumen span{
-      display:block;
-      color:#64748b;
-      font-size:14px;
-      font-weight:900;
-      margin-top:4px;
-    }
-
-    .zx_checks_grid{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:10px;
-      margin-bottom:10px;
-    }
-
-    .zx_check{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      background:#f8fafc;
-      border:1px solid #e5e7eb;
-      border-radius:16px;
-      padding:12px;
-      font-weight:900;
-      color:#0f172a;
-    }
-
-    .zx_check input{
-      width:auto!important;
-      margin:0!important;
-      transform:scale(1.2);
-    }
+    .zx_laboral_resumen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 18px}
+    .zx_laboral_resumen div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:14px;text-align:center}
+    .zx_laboral_resumen b{display:block;font-size:28px;font-weight:900;color:#0f172a}
+    .zx_laboral_resumen span{display:block;color:#64748b;font-size:14px;font-weight:900;margin-top:4px}
+    .zx_checks_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
+    .zx_check{display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;font-weight:900;color:#0f172a}
+    .zx_check input{width:auto!important;margin:0!important;transform:scale(1.2)}
+    .zx_doc_item{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin-top:10px}
+    .zx_doc_item span{color:#64748b;font-weight:800}
 
     @media(max-width:430px){
-      .zx_user_top{
-        grid-template-columns:76px 1fr;
-        gap:14px;
-      }
-
-      .zx_user_avatar{
-        width:76px;
-        height:76px;
-        border-radius:22px;
-      }
-
-      .zx_user_name{
-        font-size:28px;
-      }
-
-      .zx_user_actions,
-      .zx_doc_item,
-      .zx_checks_grid{
-        grid-template-columns:1fr;
-      }
+      .zx_user_top{grid-template-columns:76px 1fr;gap:14px}
+      .zx_user_avatar{width:76px;height:76px;border-radius:22px}
+      .zx_user_name{font-size:28px}
+      .zx_user_actions,.zx_doc_item,.zx_checks_grid{grid-template-columns:1fr}
     }
   `;
 
   document.head.appendChild(s);
+})();
+
 })();
