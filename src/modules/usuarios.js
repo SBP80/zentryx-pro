@@ -3,6 +3,9 @@
 // V3097 - LABORAL CON SELECTORES FILTRADOS
 // ===============================
 (function(){
+
+alert("USUARIOS CARGADO");
+
 "use strict";
 alert("usuarios.js cargado");
 console.log("USUARIOS 3103 CARGADO");
