@@ -4,6 +4,8 @@
 // ===============================
 (function(){
 "use strict";
+console.log("USUARIOS 3103 CARGADO");
+alert("USUARIOS 3103");
 
 const DOC_BUCKET="zentryx-usuarios-docs";
 const FOTO_BUCKET="zentryx-usuarios";
@@ -1723,6 +1725,4 @@ async function verDocumentosUsuario(u){
   `;
 
   document.head.appendChild(s);
-})();
-
 })();
