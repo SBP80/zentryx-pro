@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3106 - CONTACTO EMERGENCIA
+// V3107 - CONTACTO + TELEFONOS + EMAILS PRO
 // ===============================
 (function(){
 "use strict";
@@ -33,7 +33,7 @@ const ZX_PROVINCIAS_POR_COMUNIDAD={
 const ZX_COMUNIDADES=["",...Object.keys(ZX_PROVINCIAS_POR_COMUNIDAD)];
 
 const ZX_LOCALIDADES_POR_PROVINCIA={
-  "Madrid":["Madrid","Alcalá de Henares","Pozuelo del Rey","Torrejón de Ardoz","Coslada","San Fernando de Henares","Mejorada del Campo","Loeches","Arganda del Rey","Campo Real","Nuevo Baztán","Valverde de Alcalá"],
+  "Madrid":["Madrid","Alcalá de Henares","Pozuelo del Rey","Torrejón de Ardoz","Coslada","San Fernando de Henares","Mejorada del Campo","Loeches","Arganda del Rey","Campo Real","Nuevo Baztán","Valverde de Alcalá","Pozuelo del Rey"],
   "Badajoz":["Badajoz","Mérida","Don Benito","Villanueva de la Serena","Almendralejo","Zafra"],
   "Cáceres":["Cáceres","Plasencia","Navalmoral de la Mata","Coria","Trujillo","Miajadas"]
 };
@@ -109,7 +109,6 @@ function puedeVerLaboral(u){
   const s=sesion();
   return esAdminLocal() || esEncargadoLocal() || String(s.id||"")===String(u.id||"");
 }
-
 function hashPin(pin){
   return btoa(String(pin));
 }
@@ -196,6 +195,7 @@ async function pedirPinConPermiso(accion,callback){
     }
   };
 }
+
 function direccionCompleta(u){
   return [
     u.via_tipo,
@@ -214,30 +214,17 @@ function direccionCompleta(u){
 
 function avatar(u){
   if(u.foto_url){
-    return `
-      <img
-        class="zx_user_avatar"
-        src="${limpiar(u.foto_url)}"
-        alt="Foto"
-      >
-    `;
+    return `<img class="zx_user_avatar" src="${limpiar(u.foto_url)}" alt="Foto">`;
   }
 
-  return `
-    <div class="zx_user_avatar zx_user_avatar_empty">
-      ${limpiar((u.nombre || u.usuario || "?").charAt(0).toUpperCase())}
-    </div>
-  `;
+  return `<div class="zx_user_avatar zx_user_avatar_empty">${limpiar((u.nombre || u.usuario || "?").charAt(0).toUpperCase())}</div>`;
 }
 
 function telefonoLimpio(tel){
   let n=String(tel || "").replace(/[^\d+]/g,"");
 
   if(n.startsWith("+")) return n;
-
-  if(n.length===9){
-    return "+34"+n;
-  }
+  if(n.length===9) return "+34"+n;
 
   return n;
 }
@@ -251,35 +238,15 @@ function menuTelefono(tel){
   }
 
   modal("Teléfono",`
-    <button class="zx_btn_big zx_azul" id="tel_llamar">
-      Llamar
-    </button>
-
-    <button class="zx_btn_big zx_verde" id="tel_sms">
-      SMS
-    </button>
-
-    <button class="zx_btn_big zx_verde" id="tel_whatsapp">
-      WhatsApp
-    </button>
-
-    <button class="zx_btn_big zx_gris" id="tel_cancelar">
-      Cancelar
-    </button>
+    <button class="zx_btn_big zx_azul" id="tel_llamar">Llamar</button>
+    <button class="zx_btn_big zx_verde" id="tel_sms">SMS</button>
+    <button class="zx_btn_big zx_verde" id="tel_whatsapp">WhatsApp</button>
+    <button class="zx_btn_big zx_gris" id="tel_cancelar">Cancelar</button>
   `);
 
-  document.getElementById("tel_llamar").onclick=function(){
-    location.href="tel:"+n;
-  };
-
-  document.getElementById("tel_sms").onclick=function(){
-    location.href="sms:"+n;
-  };
-
-  document.getElementById("tel_whatsapp").onclick=function(){
-    location.href="https://wa.me/"+n.replace("+","");
-  };
-
+  document.getElementById("tel_llamar").onclick=function(){location.href="tel:"+n};
+  document.getElementById("tel_sms").onclick=function(){location.href="sms:"+n};
+  document.getElementById("tel_whatsapp").onclick=function(){location.href="https://wa.me/"+n.replace("+","")};
   document.getElementById("tel_cancelar").onclick=cerrarModal;
 }
 
@@ -301,53 +268,29 @@ function menuMapa(dir){
   const q=encodeURIComponent(dir);
 
   modal("Mapa",`
-    <button class="zx_btn_big zx_azul" id="map_apple">
-      Apple Maps
-    </button>
-
-    <button class="zx_btn_big zx_verde" id="map_google">
-      Google Maps
-    </button>
-
-    <button class="zx_btn_big zx_naranja" id="map_waze">
-      Waze
-    </button>
-
-    <button class="zx_btn_big zx_gris" id="map_cancelar">
-      Cancelar
-    </button>
+    <button class="zx_btn_big zx_azul" id="map_apple">Apple Maps</button>
+    <button class="zx_btn_big zx_verde" id="map_google">Google Maps</button>
+    <button class="zx_btn_big zx_naranja" id="map_waze">Waze</button>
+    <button class="zx_btn_big zx_gris" id="map_cancelar">Cancelar</button>
   `);
 
-  document.getElementById("map_apple").onclick=function(){
-    location.href="https://maps.apple.com/?q="+q;
-  };
-
-  document.getElementById("map_google").onclick=function(){
-    location.href="https://www.google.com/maps/search/?api=1&query="+q;
-  };
-
-  document.getElementById("map_waze").onclick=function(){
-    location.href="https://waze.com/ul?q="+q;
-  };
-
+  document.getElementById("map_apple").onclick=function(){location.href="https://maps.apple.com/?q="+q};
+  document.getElementById("map_google").onclick=function(){location.href="https://www.google.com/maps/search/?api=1&query="+q};
+  document.getElementById("map_waze").onclick=function(){location.href="https://waze.com/ul?q="+q};
   document.getElementById("map_cancelar").onclick=cerrarModal;
 }
 
 function mensajeInterno(){
   alert("Mensajería interna pendiente.");
 }
-
 async function cargarUsuarios(){
-
   const cliente=sb();
 
   if(!cliente){
     app().innerHTML=`
       <div class="zx_card">
         <h2>Error</h2>
-        <div class="zx_text">
-          Supabase no conectado.
-        </div>
+        <div class="zx_text">Supabase no conectado.</div>
       </div>
     `;
     return [];
@@ -372,9 +315,7 @@ async function cargarUsuarios(){
     app().innerHTML=`
       <div class="zx_card">
         <h2>Error</h2>
-        <div class="zx_text">
-          ${limpiar(res.error.message)}
-        </div>
+        <div class="zx_text">${limpiar(res.error.message)}</div>
       </div>
     `;
     return [];
@@ -383,39 +324,29 @@ async function cargarUsuarios(){
   return res.data || [];
 }
 
-function renderFichaCorta(u){
+function renderFiltroUsuarios(){
+  return `
+    <div class="zx_user_filter">
+      <button class="${ZX_FILTRO_USUARIOS==="activos" ? "zx_filter_on" : ""}" data-user-filter="activos">Activos</button>
+      <button class="${ZX_FILTRO_USUARIOS==="inactivos" ? "zx_filter_on" : ""}" data-user-filter="inactivos">Inactivos</button>
+      <button class="${ZX_FILTRO_USUARIOS==="todos" ? "zx_filter_on" : ""}" data-user-filter="todos">Todos</button>
+    </div>
+  `;
+}
 
+function renderFichaCorta(u){
   const dir=direccionCompleta(u);
 
   return `
     <details class="zx_user_details">
       <summary>Ver ficha</summary>
-
       <div class="zx_user_data zx_user_data_small">
         <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
-        <b>Teléfono:</b> ${limpiar(u.telefono || "-")}<br>
-        <b>Email:</b> ${limpiar(u.email || "-")}<br>
+        <b>Teléfono:</b> ${limpiar(u.telefono || u.telefono_personal || u.telefono_empresa || "-")}<br>
+        <b>Email:</b> ${limpiar(u.email || u.email_personal || u.email_empresa || "-")}<br>
         <b>Dirección:</b> ${limpiar(dir || "-")}
       </div>
-
     </details>
-  `;
-}
-function renderFiltroUsuarios(){
-  return `
-    <div class="zx_user_filter">
-      <button class="${ZX_FILTRO_USUARIOS==="activos" ? "zx_filter_on" : ""}" data-user-filter="activos">
-        Activos
-      </button>
-
-      <button class="${ZX_FILTRO_USUARIOS==="inactivos" ? "zx_filter_on" : ""}" data-user-filter="inactivos">
-        Inactivos
-      </button>
-
-      <button class="${ZX_FILTRO_USUARIOS==="todos" ? "zx_filter_on" : ""}" data-user-filter="todos">
-        Todos
-      </button>
-    </div>
   `;
 }
 
@@ -444,6 +375,19 @@ function textoEmergencia(u){
   `;
 }
 
+function renderTelefonosEmails(u){
+  return `
+    <div class="zx_contact_box">
+      <b>Teléfonos y emails</b><br>
+      <b>Tel. principal:</b> ${limpiar(u.telefono || "-")}<br>
+      <b>Tel. personal:</b> ${limpiar(u.telefono_personal || "-")}<br>
+      <b>Tel. empresa:</b> ${limpiar(u.telefono_empresa || "-")}<br>
+      <b>Email principal:</b> ${limpiar(u.email || "-")}<br>
+      <b>Email personal:</b> ${limpiar(u.email_personal || "-")}<br>
+      <b>Email empresa:</b> ${limpiar(u.email_empresa || "-")}
+    </div>
+  `;
+}
 function renderUsuario(u){
   const dir=direccionCompleta(u);
   const activo=u.activo!==false;
@@ -457,11 +401,14 @@ function renderUsuario(u){
     <div class="zx_user_card ${activo ? "" : "zx_user_inactivo"}">
       <div class="zx_user_top">
         ${avatar(u)}
-
         <div>
           <div class="zx_user_name">${limpiar(u.nombre || u.usuario || "-")}</div>
           <div class="zx_user_sub">${limpiar(u.rol || "-")} · ${limpiar(u.estado || "-")}</div>
-          ${u.telefono ? `<div class="zx_user_phone">${limpiar(u.telefono)}</div>` : ""}
+          ${
+            u.telefono || u.telefono_personal || u.telefono_empresa
+            ? `<div class="zx_user_phone">${limpiar(u.telefono || u.telefono_personal || u.telefono_empresa)}</div>`
+            : ""
+          }
         </div>
       </div>
 
@@ -471,8 +418,6 @@ function renderUsuario(u){
           <div class="zx_user_data">
             <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
             <b>DNI:</b> ${limpiar(u.dni || "-")}<br>
-            <b>Teléfono:</b> ${limpiar(u.telefono || "-")}<br>
-            <b>Email:</b> ${limpiar(u.email || "-")}<br>
             <b>Dirección:</b> ${limpiar(dir || "-")}<br>
             <b>Rol:</b> ${limpiar(u.rol || "-")}<br>
             <b>Estado:</b> ${limpiar(u.estado || "-")}<br>
@@ -480,14 +425,21 @@ function renderUsuario(u){
             <b>PIN:</b> ${limpiar(pinEstado)}
           </div>
 
+          ${renderTelefonosEmails(u)}
           ${textoEmergencia(u)}
         `
         : renderFichaCorta(u)
       }
 
       <div class="zx_user_actions">
-        ${u.telefono ? `<button class="zx_action_btn" data-action="tel" data-tel="${limpiar(u.telefono)}">Teléfono</button>` : ""}
-        ${u.email ? `<button class="zx_action_btn" data-action="mail" data-email="${limpiar(u.email)}">Mail</button>` : ""}
+        ${u.telefono ? `<button class="zx_action_btn" data-action="tel" data-tel="${limpiar(u.telefono)}">Tel. principal</button>` : ""}
+        ${u.telefono_personal ? `<button class="zx_action_btn" data-action="tel" data-tel="${limpiar(u.telefono_personal)}">Tel. personal</button>` : ""}
+        ${u.telefono_empresa ? `<button class="zx_action_btn" data-action="tel" data-tel="${limpiar(u.telefono_empresa)}">Tel. empresa</button>` : ""}
+
+        ${u.email ? `<button class="zx_action_btn" data-action="mail" data-email="${limpiar(u.email)}">Mail principal</button>` : ""}
+        ${u.email_personal ? `<button class="zx_action_btn" data-action="mail" data-email="${limpiar(u.email_personal)}">Mail personal</button>` : ""}
+        ${u.email_empresa ? `<button class="zx_action_btn" data-action="mail" data-email="${limpiar(u.email_empresa)}">Mail empresa</button>` : ""}
+
         ${dir ? `<button class="zx_action_btn" data-action="mapa" data-dir="${limpiar(dir)}">Mapa</button>` : ""}
         <button class="zx_action_btn zx_purple" data-action="mensaje" data-id="${limpiar(u.id)}">Mensaje</button>
       </div>
@@ -697,11 +649,18 @@ function formulario(u){
     ${input("u_nombre","Nombre completo",u.nombre)}
     ${input("u_usuario","Usuario",u.usuario)}
     ${input("u_dni","DNI / NIE",u.dni)}
-    ${input("u_telefono","Teléfono",u.telefono,"tel")}
-    ${input("u_email","Email",u.email,"email")}
+
+    <h3 class="zx_form_subtitle">Teléfonos</h3>
+    ${input("u_telefono","Teléfono principal",u.telefono,"tel")}
+    ${input("u_telefono_personal","Teléfono personal",u.telefono_personal,"tel")}
+    ${input("u_telefono_empresa","Teléfono empresa",u.telefono_empresa,"tel")}
+
+    <h3 class="zx_form_subtitle">Emails</h3>
+    ${input("u_email","Email principal",u.email,"email")}
+    ${input("u_email_personal","Email personal",u.email_personal,"email")}
+    ${input("u_email_empresa","Email empresa",u.email_empresa,"email")}
 
     <h3 class="zx_form_subtitle">Dirección</h3>
-
     ${selectVia(u.via_tipo || "")}
     ${input("u_calle","Calle / nombre de vía",u.calle)}
     ${input("u_numero","Número",u.numero)}
@@ -715,7 +674,6 @@ function formulario(u){
     ${input("u_pais","País",u.pais || "España")}
 
     <h3 class="zx_form_subtitle">Contacto de emergencia</h3>
-
     ${input("u_emergencia_nombre","Nombre completo del contacto",u.emergencia_nombre)}
     ${selectSimple("u_emergencia_relacion","Relación",u.emergencia_relacion,ZX_RELACIONES_EMERGENCIA)}
     ${input("u_emergencia_telefono","Teléfono principal",u.emergencia_telefono,"tel")}
@@ -781,8 +739,14 @@ function datosFormulario(foto_url,id){
     nombre:document.getElementById("u_nombre").value.trim(),
     usuario:document.getElementById("u_usuario").value.trim(),
     dni:document.getElementById("u_dni").value.trim().toUpperCase(),
+
     telefono:document.getElementById("u_telefono").value.trim(),
+    telefono_personal:document.getElementById("u_telefono_personal").value.trim(),
+    telefono_empresa:document.getElementById("u_telefono_empresa").value.trim(),
+
     email:document.getElementById("u_email").value.trim().toLowerCase(),
+    email_personal:document.getElementById("u_email_personal").value.trim().toLowerCase(),
+    email_empresa:document.getElementById("u_email_empresa").value.trim().toLowerCase(),
 
     via_tipo:document.getElementById("u_via_tipo").value,
     calle:document.getElementById("u_calle").value.trim(),
@@ -827,13 +791,24 @@ function validarTelefonoFlexible(tel){
   return /^\+?[0-9]{9,15}$/.test(String(tel).replace(/\s/g,""));
 }
 
+function validarEmailFlexible(email){
+  if(!email) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email));
+}
+
 function validarFormulario(){
   const nombre=document.getElementById("u_nombre").value.trim();
   const usuario=document.getElementById("u_usuario").value.trim();
   const dni=document.getElementById("u_dni").value.trim();
-  const telefono=document.getElementById("u_telefono").value.trim();
-  const email=document.getElementById("u_email").value.trim();
   const cp=document.getElementById("u_codigo_postal").value.trim();
+
+  const tel1=document.getElementById("u_telefono").value.trim();
+  const tel2=document.getElementById("u_telefono_personal").value.trim();
+  const tel3=document.getElementById("u_telefono_empresa").value.trim();
+
+  const email1=document.getElementById("u_email").value.trim();
+  const email2=document.getElementById("u_email_personal").value.trim();
+  const email3=document.getElementById("u_email_empresa").value.trim();
 
   const emNombre=document.getElementById("u_emergencia_nombre").value.trim();
   const emTel=document.getElementById("u_emergencia_telefono").value.trim();
@@ -845,8 +820,15 @@ function validarFormulario(){
   if(usuario.length<3){alert("Usuario demasiado corto.");return false}
   if(!/^[a-zA-Z0-9_]+$/.test(usuario)){alert("Usuario solo puede tener letras, números y guion bajo.");return false}
   if(dni && !/^[0-9XYZxyz][0-9]{7}[A-Za-z]$/.test(dni)){alert("DNI/NIE no válido.");return false}
-  if(!validarTelefonoFlexible(telefono)){alert("Teléfono no válido.");return false}
-  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){alert("Email no válido.");return false}
+
+  if(!validarTelefonoFlexible(tel1)){alert("Teléfono principal no válido.");return false}
+  if(!validarTelefonoFlexible(tel2)){alert("Teléfono personal no válido.");return false}
+  if(!validarTelefonoFlexible(tel3)){alert("Teléfono empresa no válido.");return false}
+
+  if(!validarEmailFlexible(email1)){alert("Email principal no válido.");return false}
+  if(!validarEmailFlexible(email2)){alert("Email personal no válido.");return false}
+  if(!validarEmailFlexible(email3)){alert("Email empresa no válido.");return false}
+
   if(cp && !/^[0-9]{5}$/.test(cp)){alert("Código postal no válido.");return false}
 
   if((emTel || emTel2 || emEmail) && !emNombre){
@@ -856,7 +838,7 @@ function validarFormulario(){
 
   if(!validarTelefonoFlexible(emTel)){alert("Teléfono principal de emergencia no válido.");return false}
   if(!validarTelefonoFlexible(emTel2)){alert("Teléfono secundario de emergencia no válido.");return false}
-  if(emEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emEmail)){alert("Email de emergencia no válido.");return false}
+  if(!validarEmailFlexible(emEmail)){alert("Email de emergencia no válido.");return false}
 
   return true;
 }
@@ -1600,10 +1582,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3106")) return;
+  if(document.getElementById("zx_usuarios_v3107")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3106";
+  s.id="zx_usuarios_v3107";
 
   s.innerHTML=`
     .zx_user_card{background:white;border:1px solid #d1d5db;border-radius:24px;padding:22px;margin:18px 0;box-shadow:0 8px 24px rgba(0,0,0,.04);overflow:hidden}
@@ -1628,6 +1610,7 @@ async function verDocumentosUsuario(u){
     .zx_green{background:#16a34a!important;color:white!important}
     .zx_purple{background:#7c3aed!important;color:white!important}
     .zx_laboral{background:#0f766e!important;color:white!important}
+    .zx_contact_box{background:#f8fafc;border:1px solid #e5e7eb;border-left:8px solid #2563eb;border-radius:18px;padding:14px;margin:14px 0;color:#334155;font-size:16px;font-weight:800;line-height:1.45}
     .zx_emergencia_box{background:#fff1f2;border:1px solid #fecdd3;border-left:8px solid #dc2626;border-radius:18px;padding:14px;margin:14px 0;color:#7f1d1d;font-size:16px;font-weight:800;line-height:1.45}
     .zx_laboral_resumen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 18px}
     .zx_laboral_resumen div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:14px;text-align:center}
