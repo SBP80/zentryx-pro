@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3104 - USUARIOS + LABORAL CORREGIDO
+// V3105 - USUARIOS + INACTIVOS + REACTIVAR + LOCALIDAD LIBRE
 // ===============================
 (function(){
 "use strict";
@@ -33,7 +33,7 @@ const ZX_PROVINCIAS_POR_COMUNIDAD={
 const ZX_COMUNIDADES=["",...Object.keys(ZX_PROVINCIAS_POR_COMUNIDAD)];
 
 const ZX_LOCALIDADES_POR_PROVINCIA={
-  "Madrid":["Madrid","Alcalá de Henares","Pozuelo del Rey","Torrejón de Ardoz","Coslada","San Fernando de Henares"],
+  "Madrid":["Madrid","Alcalá de Henares","Pozuelo del Rey","Torrejón de Ardoz","Coslada","San Fernando de Henares","Mejorada del Campo","Loeches","Arganda del Rey","Campo Real","Nuevo Baztán","Valverde de Alcalá"],
   "Badajoz":["Badajoz","Mérida","Don Benito","Villanueva de la Serena","Almendralejo","Zafra"],
   "Cáceres":["Cáceres","Plasencia","Navalmoral de la Mata","Coria","Trujillo","Miajadas"]
 };
@@ -51,6 +51,8 @@ const ZX_CONVENIOS=[
   "Transporte",
   "Otro"
 ];
+
+let ZX_FILTRO_USUARIOS="activos";
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -78,6 +80,7 @@ function puedeCrear(){return esAdminLocal()}
 function puedeEditar(){return esAdminLocal() || esEncargadoLocal()}
 function puedeReset(){return esAdminLocal()}
 function puedeEliminar(){return esAdminLocal()}
+function puedeReactivar(){return esAdminLocal()}
 
 function puedeVerPrivado(u){
   const s=sesion();
@@ -159,6 +162,7 @@ async function pedirPinConPermiso(accion,callback){
     if(accion==="editar") ok=admin || encargado;
     if(accion==="reset") ok=admin;
     if(accion==="eliminar") ok=admin;
+    if(accion==="reactivar") ok=admin;
     if(accion==="docs") ok=admin;
     if(accion==="laboral") ok=admin || encargado;
 
@@ -278,11 +282,20 @@ async function cargarUsuarios(){
     return [];
   }
 
-  const res=await cliente
+  let q=cliente
     .from("usuarios")
     .select("*")
-    .eq("activo",true)
     .order("nombre",{ascending:true});
+
+  if(ZX_FILTRO_USUARIOS==="activos"){
+    q=q.eq("activo",true);
+  }
+
+  if(ZX_FILTRO_USUARIOS==="inactivos"){
+    q=q.eq("activo",false);
+  }
+
+  const res=await q;
 
   if(res.error){
     app().innerHTML=`
@@ -295,6 +308,22 @@ async function cargarUsuarios(){
   }
 
   return res.data || [];
+}
+
+function renderFiltroUsuarios(){
+  return `
+    <div class="zx_user_filter">
+      <button class="${ZX_FILTRO_USUARIOS==="activos" ? "zx_filter_on" : ""}" data-user-filter="activos">
+        Activos
+      </button>
+      <button class="${ZX_FILTRO_USUARIOS==="inactivos" ? "zx_filter_on" : ""}" data-user-filter="inactivos">
+        Inactivos
+      </button>
+      <button class="${ZX_FILTRO_USUARIOS==="todos" ? "zx_filter_on" : ""}" data-user-filter="todos">
+        Todos
+      </button>
+    </div>
+  `;
 }
 
 function renderFichaCorta(u){
@@ -315,13 +344,14 @@ function renderFichaCorta(u){
 
 function renderUsuario(u){
   const dir=direccionCompleta(u);
+  const activo=u.activo!==false;
   const pinEstado=u.debe_crear_pin ? "Pendiente" : "Activo";
   const privado=puedeVerPrivado(u);
   const docs=puedeVerDocs(u);
   const laboral=puedeVerLaboral(u);
 
   return `
-    <div class="zx_user_card">
+    <div class="zx_user_card ${activo ? "" : "zx_user_inactivo"}">
       <div class="zx_user_top">
         ${avatar(u)}
         <div>
@@ -342,6 +372,7 @@ function renderUsuario(u){
             <b>Dirección:</b> ${limpiar(dir || "-")}<br>
             <b>Rol:</b> ${limpiar(u.rol || "-")}<br>
             <b>Estado:</b> ${limpiar(u.estado || "-")}<br>
+            <b>Activo:</b> ${activo ? "Sí" : "No"}<br>
             <b>PIN:</b> ${limpiar(pinEstado)}
           </div>
         `
@@ -356,14 +387,18 @@ function renderUsuario(u){
       </div>
 
       ${
-        docs || laboral || puedeEditar() || puedeReset() || puedeEliminar()
+        docs || laboral || puedeEditar() || puedeReset() || puedeEliminar() || puedeReactivar()
         ? `
           <div class="zx_user_actions">
             ${laboral ? `<button class="zx_action_btn zx_laboral" data-action="laboral" data-id="${limpiar(u.id)}">Laboral</button>` : ""}
             ${docs ? `<button class="zx_action_btn zx_blue" data-action="docs" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "Usuario")}">Documentos</button>` : ""}
             ${puedeEditar() ? `<button class="zx_action_btn zx_blue" data-action="editar" data-id="${limpiar(u.id)}">Editar</button>` : ""}
             ${puedeReset() ? `<button class="zx_action_btn zx_orange" data-action="reset" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Reset PIN</button>` : ""}
-            ${puedeEliminar() ? `<button class="zx_action_btn zx_red" data-action="eliminar" data-id="${limpiar(u.id)}" data-usuario="${limpiar(u.usuario || "")}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Eliminar</button>` : ""}
+            ${
+              activo
+              ? `${puedeEliminar() ? `<button class="zx_action_btn zx_red" data-action="eliminar" data-id="${limpiar(u.id)}" data-usuario="${limpiar(u.usuario || "")}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Desactivar</button>` : ""}`
+              : `${puedeReactivar() ? `<button class="zx_action_btn zx_green" data-action="reactivar" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "usuario")}">Reactivar</button>` : ""}`
+            }
           </div>
         `
         : ""
@@ -378,6 +413,9 @@ window.ZENTRYX_UI_usuarios=async function(){
     <div class="zx_card">
       <h2>Usuarios</h2>
       <div class="zx_text">Directorio interno, contacto, documentación y datos laborales.</div>
+
+      ${renderFiltroUsuarios()}
+
       ${
         puedeCrear()
         ? `<button class="zx_btn_big zx_verde" id="btn_crear_usuario">Crear usuario</button>`
@@ -390,10 +428,17 @@ window.ZENTRYX_UI_usuarios=async function(){
       ${
         usuarios.length
         ? usuarios.map(renderUsuario).join("")
-        : `<div class="zx_text">No hay usuarios.</div>`
+        : `<div class="zx_text">No hay usuarios para este filtro.</div>`
       }
     </div>
   `;
+
+  document.querySelectorAll("[data-user-filter]").forEach(function(btn){
+    btn.onclick=function(){
+      ZX_FILTRO_USUARIOS=btn.dataset.userFilter || "activos";
+      ZX_usuarios();
+    };
+  });
 
   const crear=document.getElementById("btn_crear_usuario");
 
@@ -438,7 +483,13 @@ window.ZENTRYX_UI_usuarios=async function(){
 
       if(a==="eliminar"){
         pedirPinConPermiso("eliminar",function(){
-          eliminarUsuario(btn.dataset.id,btn.dataset.nombre,btn.dataset.usuario);
+          desactivarUsuario(btn.dataset.id,btn.dataset.nombre,btn.dataset.usuario);
+        });
+      }
+
+      if(a==="reactivar"){
+        pedirPinConPermiso("reactivar",function(){
+          reactivarUsuario(btn.dataset.id,btn.dataset.nombre);
         });
       }
     };
@@ -467,6 +518,14 @@ function inputNum(id,label,value,step){
   return `
     <label class="zx_label" for="${id}">${limpiar(label)}</label>
     <input id="${id}" type="number" step="${step || "1"}" value="${limpiar(value ?? "")}" placeholder="${limpiar(label)}">
+  `;
+}
+
+function inputConLista(id,label,value,datalistId){
+  return `
+    <label class="zx_label" for="${id}">${limpiar(label)}</label>
+    <input id="${id}" list="${datalistId}" type="text" value="${limpiar(value || "")}" placeholder="${limpiar(label)}">
+    <datalist id="${datalistId}"></datalist>
   `;
 }
 
@@ -733,16 +792,16 @@ async function resetPin(id,nombre){
   ZX_usuarios();
 }
 
-async function eliminarUsuario(id,nombre,usuario){
+async function desactivarUsuario(id,nombre,usuario){
   const s=sesion();
 
   if(String(usuario || "").toLowerCase()==="admin"){
-    alert("No se puede eliminar el administrador principal.");
+    alert("No se puede desactivar el administrador principal.");
     return;
   }
 
   if(String(s.id || "")===String(id)){
-    alert("No puedes eliminar tu propio usuario.");
+    alert("No puedes desactivar tu propio usuario.");
     return;
   }
 
@@ -762,6 +821,27 @@ async function eliminarUsuario(id,nombre,usuario){
     return;
   }
 
+  ZX_usuarios();
+}
+
+async function reactivarUsuario(id,nombre){
+  if(!confirm("¿Reactivar usuario "+nombre+"?")) return;
+
+  const res=await sb()
+    .from("usuarios")
+    .update({
+      activo:true,
+      estado:"Activo",
+      updated_at:new Date().toISOString()
+    })
+    .eq("id",id);
+
+  if(res.error){
+    alert("Error reactivando usuario: "+res.error.message);
+    return;
+  }
+
+  alert("Usuario reactivado.");
   ZX_usuarios();
 }
 function opcionesProvincias(comunidad,provinciaActual){
@@ -929,13 +1009,23 @@ function resumenLaboral(l){
   `;
 }
 
+function cargarDatalistLocalidades(provincia,valorActual){
+  const dl=document.getElementById("lab_localidad_lista");
+  if(!dl) return;
+
+  const lista=opcionesLocalidades(provincia,valorActual);
+
+  dl.innerHTML=lista.map(function(l){
+    return `<option value="${limpiar(l)}"></option>`;
+  }).join("");
+}
+
 async function verLaboralUsuario(u){
   const actual=await cargarLaboralUsuario(u.id);
   const l=actual || laboralDefault(u);
   const editable=puedeEditar();
 
   const provincias=opcionesProvincias(l.comunidad,l.provincia);
-  const localidades=opcionesLocalidades(l.provincia,l.localidad);
 
   modal("Laboral",`
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
@@ -970,7 +1060,7 @@ async function verLaboralUsuario(u){
     ${selectLaboral("lab_pais","País",l.pais || "España",["España"])}
     ${selectLaboral("lab_comunidad","Comunidad autónoma",l.comunidad,ZX_COMUNIDADES)}
     ${selectLaboral("lab_provincia","Provincia",l.provincia,["",...provincias])}
-    ${selectLaboral("lab_localidad","Localidad",l.localidad,["",...localidades])}
+    ${inputConLista("lab_localidad","Localidad",l.localidad,"lab_localidad_lista")}
 
     <h3 class="zx_form_subtitle">Convenio</h3>
     ${selectLaboral("lab_convenio","Convenio",l.convenio,ZX_CONVENIOS)}
@@ -980,6 +1070,8 @@ async function verLaboralUsuario(u){
   `);
 
   document.getElementById("lab_cerrar").onclick=cerrarModal;
+
+  cargarDatalistLocalidades(l.provincia,l.localidad);
   activarFiltrosUbicacion();
 
   const guardar=document.getElementById("lab_guardar");
@@ -992,7 +1084,6 @@ async function verLaboralUsuario(u){
     };
   }
 }
-
 function activarFiltrosUbicacion(){
   const comunidad=document.getElementById("lab_comunidad");
   const provincia=document.getElementById("lab_provincia");
@@ -1008,16 +1099,13 @@ function activarFiltrosUbicacion(){
       ...provincias.map(p=>`<option value="${limpiar(p)}">${limpiar(p)}</option>`)
     ].join("");
 
-    localidad.innerHTML=`<option value="">Seleccionar</option>`;
+    localidad.value="";
+    cargarDatalistLocalidades("", "");
   };
 
   provincia.onchange=function(){
-    const localidades=opcionesLocalidades(provincia.value,"");
-
-    localidad.innerHTML=[
-      `<option value="">Seleccionar</option>`,
-      ...localidades.map(l=>`<option value="${limpiar(l)}">${limpiar(l)}</option>`)
-    ].join("");
+    localidad.value="";
+    cargarDatalistLocalidades(provincia.value,"");
   };
 }
 
@@ -1063,12 +1151,14 @@ function leerDatosLaboralesFormulario(u){
 
 async function guardarLaboralDatos(datos){
   const r1=await guardarConfigLaboral(datos);
+
   if(r1 && r1.error){
     alert("Error guardando config_laboral: "+r1.error.message);
     return;
   }
 
   const r2=await guardarHorarioUsuario(datos);
+
   if(r2 && r2.error){
     alert("Error guardando horarios_usuario: "+r2.error.message);
     return;
@@ -1352,13 +1442,17 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3104")) return;
+  if(document.getElementById("zx_usuarios_v3105")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3104";
+  s.id="zx_usuarios_v3105";
 
   s.innerHTML=`
     .zx_user_card{background:white;border:1px solid #d1d5db;border-radius:24px;padding:22px;margin:18px 0;box-shadow:0 8px 24px rgba(0,0,0,.04);overflow:hidden}
+    .zx_user_inactivo{opacity:.65;border-left:8px solid #dc2626}
+    .zx_user_filter{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
+    .zx_user_filter button{border:0;border-radius:14px;background:#e5e7eb;color:#111827;padding:12px;font-weight:900;font-size:15px}
+    .zx_user_filter .zx_filter_on{background:#2563eb;color:white}
     .zx_user_top{display:grid;grid-template-columns:92px 1fr;gap:18px;align-items:center;margin-bottom:14px}
     .zx_user_avatar{width:92px;height:92px;border-radius:24px;object-fit:cover;background:#e5e7eb}
     .zx_user_avatar_empty{background:linear-gradient(135deg,#2563eb,#10b981);color:white;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900}
@@ -1373,6 +1467,7 @@ async function verDocumentosUsuario(u){
     .zx_blue{background:#2563eb!important;color:white!important}
     .zx_orange{background:#facc15!important;color:#3b2500!important}
     .zx_red{background:#dc2626!important;color:white!important}
+    .zx_green{background:#16a34a!important;color:white!important}
     .zx_purple{background:#7c3aed!important;color:white!important}
     .zx_laboral{background:#0f766e!important;color:white!important}
     .zx_laboral_resumen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 18px}
@@ -1390,6 +1485,7 @@ async function verDocumentosUsuario(u){
       .zx_user_avatar{width:76px;height:76px;border-radius:22px}
       .zx_user_name{font-size:28px}
       .zx_user_actions,.zx_doc_item,.zx_checks_grid{grid-template-columns:1fr}
+      .zx_user_filter{grid-template-columns:1fr}
     }
   `;
 
