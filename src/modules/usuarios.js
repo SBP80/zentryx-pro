@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3108 - CONTACTO LIMPIO + EMAILS/TELÉFONOS PRO
+// V3109 - DOCUMENTOS PRO
 // ===============================
 (function(){
 "use strict";
@@ -1146,12 +1146,10 @@ async function verLaboralUsuario(u){
   const actual=await cargarLaboralUsuario(u.id);
   const l=actual || laboralDefault(u);
   const editable=puedeEditar();
-
   const provincias=opcionesProvincias(l.comunidad,l.provincia);
 
   modal("Laboral",`
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
-
     ${resumenLaboral(l)}
 
     <h3 class="zx_form_subtitle">Jornada</h3>
@@ -1192,7 +1190,6 @@ async function verLaboralUsuario(u){
   `);
 
   document.getElementById("lab_cerrar").onclick=cerrarModal;
-
   cargarDatalistLocalidades(l.provincia,l.localidad);
   activarFiltrosUbicacion();
 
@@ -1245,10 +1242,8 @@ function leerDatosLaboralesFormulario(u){
     usuario_id:String(u.id || ""),
     usuario:String(u.usuario || ""),
     nombre:String(u.nombre || u.usuario || ""),
-
     horas_dia:numVal("lab_horas_dia",8),
     horas_semana:numVal("lab_horas_semana",40),
-
     trabaja_lunes:document.getElementById("lab_lunes").checked,
     trabaja_martes:document.getElementById("lab_martes").checked,
     trabaja_miercoles:document.getElementById("lab_miercoles").checked,
@@ -1256,14 +1251,11 @@ function leerDatosLaboralesFormulario(u){
     trabaja_viernes:document.getElementById("lab_viernes").checked,
     trabaja_sabado:document.getElementById("lab_sabado").checked,
     trabaja_domingo:document.getElementById("lab_domingo").checked,
-
     vacaciones_dias:numVal("lab_vacaciones",30),
     asuntos_propios:numVal("lab_asuntos",0),
-
     precio_extra:numVal("lab_precio_extra",0),
     precio_extra_nocturna:numVal("lab_precio_extra_nocturna",0),
     precio_extra_festiva:numVal("lab_precio_extra_festiva",0),
-
     pais:document.getElementById("lab_pais").value.trim() || "España",
     comunidad:document.getElementById("lab_comunidad").value.trim(),
     provincia:document.getElementById("lab_provincia").value.trim(),
@@ -1274,14 +1266,12 @@ function leerDatosLaboralesFormulario(u){
 
 async function guardarLaboralDatos(datos){
   const r1=await guardarConfigLaboral(datos);
-
   if(r1 && r1.error){
     alert("Error guardando config_laboral: "+r1.error.message);
     return;
   }
 
   const r2=await guardarHorarioUsuario(datos);
-
   if(r2 && r2.error){
     alert("Error guardando horarios_usuario: "+r2.error.message);
     return;
@@ -1305,10 +1295,8 @@ async function guardarConfigLaboral(datos){
     usuario_id:String(datos.usuario_id),
     usuario:String(datos.usuario || ""),
     nombre:String(datos.nombre || ""),
-
     horas_dia:Number(datos.horas_dia || 8),
     horas_semana:Number(datos.horas_semana || 40),
-
     trabaja_lunes:!!datos.trabaja_lunes,
     trabaja_martes:!!datos.trabaja_martes,
     trabaja_miercoles:!!datos.trabaja_miercoles,
@@ -1316,35 +1304,25 @@ async function guardarConfigLaboral(datos){
     trabaja_viernes:!!datos.trabaja_viernes,
     trabaja_sabado:!!datos.trabaja_sabado,
     trabaja_domingo:!!datos.trabaja_domingo,
-
     vacaciones_dias:Math.round(Number(datos.vacaciones_dias || 0)),
     asuntos_propios:Number(datos.asuntos_propios || 0),
-
     pais:String(datos.pais || "España"),
     comunidad:String(datos.comunidad || ""),
     provincia:String(datos.provincia || ""),
     localidad:String(datos.localidad || ""),
-
     convenio:String(datos.convenio || ""),
     precio_extra:Number(datos.precio_extra || 0),
     precio_extra_nocturna:Number(datos.precio_extra_nocturna || 0),
     precio_extra_festiva:Number(datos.precio_extra_festiva || 0),
-
     updated_at:new Date().toISOString()
   };
 
   if(buscado.data && buscado.data.length){
-    return await sb()
-      .from("config_laboral")
-      .update(data)
-      .eq("id",buscado.data[0].id);
+    return await sb().from("config_laboral").update(data).eq("id",buscado.data[0].id);
   }
 
   data.created_at=new Date().toISOString();
-
-  return await sb()
-    .from("config_laboral")
-    .insert([data]);
+  return await sb().from("config_laboral").insert([data]);
 }
 
 async function guardarHorarioUsuario(datos){
@@ -1355,10 +1333,8 @@ async function guardarHorarioUsuario(datos){
     usuario_id:String(datos.usuario_id || ""),
     usuario:String(datos.usuario || ""),
     nombre:String(datos.nombre || ""),
-
     trabaja:true,
     activo:true,
-
     lunes:datos.trabaja_lunes ? minutosDia : 0,
     martes:datos.trabaja_martes ? minutosDia : 0,
     miercoles:datos.trabaja_miercoles ? minutosDia : 0,
@@ -1366,21 +1342,17 @@ async function guardarHorarioUsuario(datos){
     viernes:datos.trabaja_viernes ? minutosDia : 0,
     sabado:datos.trabaja_sabado ? minutosDia : 0,
     domingo:datos.trabaja_domingo ? minutosDia : 0,
-
     vacaciones:Math.round(Number(datos.vacaciones_dias || 0)),
     asuntos:Number(datos.asuntos_propios || 0),
     asuntos_horas:Number(datos.asuntos_propios || 0),
-
     convenio:String(datos.convenio || ""),
     precio_extra:Number(datos.precio_extra || 0),
     precio_extra_nocturna:Number(datos.precio_extra_nocturna || 0),
     precio_extra_festiva:Number(datos.precio_extra_festiva || 0),
-
     pais:String(datos.pais || "España"),
     comunidad:String(datos.comunidad || ""),
     provincia:String(datos.provincia || ""),
     localidad:String(datos.localidad || ""),
-
     actualizado_en:new Date().toISOString()
   };
 
@@ -1394,15 +1366,10 @@ async function guardarHorarioUsuario(datos){
   if(buscado.error) return buscado;
 
   if(buscado.data && buscado.data.length){
-    return await sb()
-      .from("horarios_usuario")
-      .update(horario)
-      .eq("id",buscado.data[0].id);
+    return await sb().from("horarios_usuario").update(horario).eq("id",buscado.data[0].id);
   }
 
-  return await sb()
-    .from("horarios_usuario")
-    .insert([horario]);
+  return await sb().from("horarios_usuario").insert([horario]);
 }
 
 async function cargarDocumentos(usuarioId){
@@ -1410,6 +1377,7 @@ async function cargarDocumentos(usuarioId){
     .from("usuarios_documentos")
     .select("*")
     .eq("usuario_id",String(usuarioId))
+    .or("eliminado.is.null,eliminado.eq.false")
     .order("created_at",{ascending:false});
 
   if(r.error){
@@ -1434,6 +1402,16 @@ function textoTipoDoc(tipo){
   return m[tipo] || tipo || "Documento";
 }
 
+function esImagen(url,nombre){
+  const t=String(url || nombre || "").toLowerCase();
+  return t.endsWith(".jpg") || t.endsWith(".jpeg") || t.endsWith(".png") || t.endsWith(".webp") || t.endsWith(".gif");
+}
+
+function esPDF(url,nombre){
+  const t=String(url || nombre || "").toLowerCase();
+  return t.endsWith(".pdf");
+}
+
 async function subirDocumentoUsuario(file,usuarioId,tipo){
   if(!file) return null;
 
@@ -1449,9 +1427,84 @@ async function subirDocumentoUsuario(file,usuarioId,tipo){
     return null;
   }
 
-  return sb().storage
-    .from(DOC_BUCKET)
-    .getPublicUrl(path).data.publicUrl;
+  return sb().storage.from(DOC_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+function vistaPreviaDocumento(d){
+  if(esImagen(d.url,d.nombre)){
+    return `<img class="zx_doc_preview_img" src="${limpiar(d.url)}" alt="${limpiar(d.nombre || "Documento")}">`;
+  }
+
+  if(esPDF(d.url,d.nombre)){
+    return `<iframe class="zx_doc_preview_pdf" src="${limpiar(d.url)}"></iframe>`;
+  }
+
+  return `<div class="zx_text">Vista previa no disponible para este tipo de archivo.</div>`;
+}
+
+function abrirVistaDocumento(d){
+  modal("Vista previa",`
+    <div class="zx_text"><b>${limpiar(d.nombre || "Documento")}</b></div>
+    <div class="zx_doc_preview_box">
+      ${vistaPreviaDocumento(d)}
+    </div>
+    <button class="zx_btn_big zx_azul" id="doc_preview_abrir">Abrir archivo</button>
+    <button class="zx_btn_big zx_gris" id="doc_preview_cerrar">Cerrar</button>
+  `);
+
+  document.getElementById("doc_preview_abrir").onclick=function(){
+    window.open(d.url,"_blank");
+  };
+
+  document.getElementById("doc_preview_cerrar").onclick=cerrarModal;
+}
+
+async function renombrarDocumento(id,nombreActual,u){
+  const nuevo=prompt("Nuevo nombre del documento:",nombreActual || "");
+
+  if(nuevo===null) return;
+
+  const limpio=String(nuevo || "").trim();
+  if(!limpio){
+    alert("El nombre no puede estar vacío.");
+    return;
+  }
+
+  const r=await sb()
+    .from("usuarios_documentos")
+    .update({
+      nombre:limpio,
+      updated_at:new Date().toISOString()
+    })
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error renombrando documento: "+r.error.message);
+    return;
+  }
+
+  verDocumentosUsuario(u);
+}
+
+async function borrarDocumentoLogico(id,u){
+  const s=sesion();
+
+  const r=await sb()
+    .from("usuarios_documentos")
+    .update({
+      eliminado:true,
+      eliminado_at:new Date().toISOString(),
+      eliminado_por:s.usuario || "",
+      updated_at:new Date().toISOString()
+    })
+    .eq("id",id);
+
+  if(r.error){
+    alert("Error borrando documento: "+r.error.message);
+    return;
+  }
+
+  verDocumentosUsuario(u);
 }
 
 async function verDocumentosUsuario(u){
@@ -1490,7 +1543,10 @@ async function verDocumentosUsuario(u){
               <b>${limpiar(d.nombre || "Documento")}</b><br>
               <span>${limpiar(textoTipoDoc(d.tipo))}</span>
             </div>
+
+            <button class="zx_action_btn zx_azul" data-doc-preview="${limpiar(d.id)}">Vista</button>
             <button class="zx_action_btn zx_blue" data-doc-open="${limpiar(d.url)}">Abrir</button>
+            <button class="zx_action_btn zx_orange" data-doc-rename="${limpiar(d.id)}">Renombrar</button>
             ${esAdminLocal() ? `<button class="zx_action_btn zx_red" data-doc-del="${limpiar(d.id)}">Borrar</button>` : ""}
           </div>
         `).join("")
@@ -1525,8 +1581,10 @@ async function verDocumentosUsuario(u){
         tipo,
         nombre,
         url,
+        eliminado:false,
         creado_por:s.usuario || "",
-        created_at:new Date().toISOString()
+        created_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
       }]);
 
     if(r.error){
@@ -1543,32 +1601,35 @@ async function verDocumentosUsuario(u){
     };
   });
 
+  document.querySelectorAll("[data-doc-preview]").forEach(btn=>{
+    btn.onclick=function(){
+      const d=docs.find(x=>String(x.id)===String(btn.dataset.docPreview));
+      if(d) abrirVistaDocumento(d);
+    };
+  });
+
+  document.querySelectorAll("[data-doc-rename]").forEach(btn=>{
+    btn.onclick=function(){
+      const d=docs.find(x=>String(x.id)===String(btn.dataset.docRename));
+      if(d) renombrarDocumento(d.id,d.nombre,u);
+    };
+  });
+
   document.querySelectorAll("[data-doc-del]").forEach(btn=>{
     btn.onclick=function(){
       pedirPinConPermiso("docs",async function(){
         if(!confirm("¿Borrar documento?")) return;
-
-        const r=await sb()
-          .from("usuarios_documentos")
-          .delete()
-          .eq("id",btn.dataset.docDel);
-
-        if(r.error){
-          alert("Error borrando documento: "+r.error.message);
-          return;
-        }
-
-        verDocumentosUsuario(u);
+        await borrarDocumentoLogico(btn.dataset.docDel,u);
       });
     };
   });
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3108")) return;
+  if(document.getElementById("zx_usuarios_v3109")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3108";
+  s.id="zx_usuarios_v3109";
 
   s.innerHTML=`
     .zx_user_card{background:white;border:1px solid #d1d5db;border-radius:24px;padding:22px;margin:18px 0;box-shadow:0 8px 24px rgba(0,0,0,.04);overflow:hidden}
@@ -1587,7 +1648,7 @@ async function verDocumentosUsuario(u){
     .zx_user_details summary{color:#2563eb;font-size:18px;font-weight:900;cursor:pointer}
     .zx_user_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
     .zx_action_btn{border:0;border-radius:16px;background:#e5e7eb;padding:14px;font-size:17px;font-weight:900;color:#111827}
-    .zx_blue{background:#2563eb!important;color:white!important}
+    .zx_blue,.zx_azul{background:#2563eb!important;color:white!important}
     .zx_orange{background:#facc15!important;color:#3b2500!important}
     .zx_red{background:#dc2626!important;color:white!important}
     .zx_green{background:#16a34a!important;color:white!important}
@@ -1602,8 +1663,11 @@ async function verDocumentosUsuario(u){
     .zx_checks_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
     .zx_check{display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;font-weight:900;color:#0f172a}
     .zx_check input{width:auto!important;margin:0!important;transform:scale(1.2)}
-    .zx_doc_item{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin-top:10px}
+    .zx_doc_item{display:grid;grid-template-columns:1fr auto auto auto auto;gap:8px;align-items:center;background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin-top:10px}
     .zx_doc_item span{color:#64748b;font-weight:800}
+    .zx_doc_preview_box{margin-top:14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:10px;overflow:hidden}
+    .zx_doc_preview_img{width:100%;border-radius:14px;display:block}
+    .zx_doc_preview_pdf{width:100%;height:68vh;border:0;border-radius:14px;background:white}
 
     @media(max-width:430px){
       .zx_user_top{grid-template-columns:76px 1fr;gap:14px}
