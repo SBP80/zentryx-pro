@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3126 - FICHA PROFESIONAL CON RESUMEN LABORAL
+// V3127 - IMPRIMIR FICHA USUARIO + RESUMEN LABORAL
 // ===============================
 (function(){
 "use strict";
@@ -736,6 +736,64 @@ async function cargarResumenRapidoUsuario(usuarioId){
   };
 }
 
+function imprimirFichaActual(){
+  const modal=document.querySelector("#zx_modal .zx_modal_caja");
+
+  if(!modal){
+    alert("No hay ficha abierta.");
+    return;
+  }
+
+  const contenido=modal.innerHTML;
+  const w=window.open("","_blank");
+
+  if(!w){
+    alert("El navegador ha bloqueado la ventana de impresión.");
+    return;
+  }
+
+  w.document.open();
+  w.document.write(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Ficha usuario</title>
+      <style>
+        *{box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#0f172a;margin:24px;background:white}
+        h2{font-size:28px;margin:0 0 18px}
+        h3{font-size:18px;margin:0 0 10px}
+        button,input,select,textarea{display:none!important}
+        img{max-width:120px;border-radius:18px}
+        .zx_ficha_head{display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:center;margin-bottom:18px}
+        .zx_ficha_nombre{font-size:28px;font-weight:900}
+        .zx_ficha_meta{color:#64748b;font-weight:800}
+        .zx_ficha_bloque,.zx_contact_box,.zx_emergencia_box,.zx_ficha_indicadores div,.zx_ficha_resumen_rapido div,.zx_ficha_laboral_grid div{border:1px solid #d1d5db;border-radius:14px;padding:12px;margin:10px 0}
+        .zx_ficha_resumen_rapido,.zx_ficha_laboral_grid,.zx_ficha_indicadores{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+        .zx_user_data,.zx_contact_box,.zx_emergencia_box,.zx_ficha_laboral_linea{font-size:14px;line-height:1.5}
+        span{color:#64748b;font-weight:800}
+        b{font-weight:900}
+        @media print{
+          body{margin:12mm}
+          .zx_ficha_bloque,.zx_contact_box,.zx_emergencia_box{break-inside:avoid}
+        }
+      </style>
+    </head>
+    <body>
+      ${contenido}
+      <script>
+        window.onload=function(){
+          setTimeout(function(){window.print()},250);
+        };
+      <\/script>
+    </body>
+    </html>
+  `);
+  w.document.close();
+}
+
 function renderResumenLaboralFicha(l){
   if(!l) return "";
 
@@ -949,6 +1007,7 @@ async function abrirFichaUsuario(u){
       ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_dni">DNI</button>` : ""}
       ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_docs">Documentos</button>` : ""}
       ${puedeVerPrivado(u) ? `<button class="zx_action_btn zx_purple" id="f_historial">Historial</button>` : ""}
+      <button class="zx_action_btn zx_green" id="f_imprimir">Imprimir ficha</button>
       ${puedeReset() ? `<button class="zx_action_btn zx_orange" id="f_reset">Reset PIN</button>` : ""}
       ${
         activo
@@ -977,6 +1036,7 @@ async function abrirFichaUsuario(u){
   asignar("f_dni",()=>verDniUsuario(u));
   asignar("f_docs",()=>verDocumentosUsuario(u));
   asignar("f_historial",()=>verHistorialUsuario(u));
+  asignar("f_imprimir",()=>imprimirFichaActual());
   asignar("f_reset",()=>pedirPinConPermiso("reset",()=>resetPin(u.id,u.nombre || u.usuario || "usuario")));
   asignar("f_desactivar",()=>pedirPinConPermiso("eliminar",()=>desactivarUsuario(u.id,u.nombre || u.usuario || "usuario",u.usuario)));
   asignar("f_reactivar",()=>pedirPinConPermiso("reactivar",()=>reactivarUsuario(u.id,u.nombre || u.usuario || "usuario")));
@@ -2593,10 +2653,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3126")) return;
+  if(document.getElementById("zx_usuarios_v3127")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3126";
+  s.id="zx_usuarios_v3127";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
