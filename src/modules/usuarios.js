@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3120 - DISPONIBILIDAD LABORAL MEJORADA + SALDOS + DNI + HISTORIAL
+// V3121 - DISPONIBILIDAD COMPACTA + HISTORIAL LABORAL
 // ===============================
 (function(){
 "use strict";
@@ -1311,6 +1311,90 @@ function cargarDatalistLocalidades(provincia,valorActual){
   }).join("");
 }
 
+function fechaSolicitud(s){
+  return s.fecha || s.fecha_inicio || s.desde || s.inicio || s.created_at || "";
+}
+
+function fechaFinSolicitud(s){
+  return s.fecha_fin || s.hasta || s.fin || s.fecha || s.fecha_inicio || s.desde || s.inicio || "";
+}
+
+function horasSolicitud(s){
+  const h=Number(s.horas || s.total_horas || s.asuntos_horas || s.duracion_horas || 0);
+  if(Number.isFinite(h) && h>0) return h;
+
+  const tipo=tipoSolicitudNormalizado(s.tipo || s.categoria || "");
+  if(tipo.includes("asuntos")){
+    return diasEntreFechas(fechaSolicitud(s),fechaFinSolicitud(s))*8;
+  }
+
+  return 0;
+}
+
+function etiquetaTipoSolicitud(tipo){
+  const t=tipoSolicitudNormalizado(tipo);
+
+  if(t.includes("vacacion")) return "Vacaciones";
+  if(t.includes("asuntos")) return "Asuntos propios";
+  if(t.includes("baja")) return "Baja";
+  if(t.includes("permiso")) return "Permiso";
+  if(t.includes("ausencia")) return "Ausencia";
+
+  return String(tipo || "Solicitud").replaceAll("_"," ");
+}
+
+function renderHistorialLaboral(solicitudes){
+  const lista=(solicitudes || [])
+    .slice()
+    .sort(function(a,b){
+      return String(fechaSolicitud(b)).localeCompare(String(fechaSolicitud(a)));
+    })
+    .slice(0,12);
+
+  if(!lista.length){
+    return `
+      <h3 class="zx_form_subtitle">Historial laboral</h3>
+      <div class="zx_text">Sin solicitudes laborales registradas.</div>
+    `;
+  }
+
+  return `
+    <h3 class="zx_form_subtitle">Historial laboral</h3>
+    <div class="zx_solicitudes_laboral_lista">
+      ${lista.map(function(s){
+        const tipo=etiquetaTipoSolicitud(s.tipo || s.categoria || "");
+        const estado=String(s.estado || "-").replaceAll("_"," ");
+        const ini=fechaSolicitud(s);
+        const fin=fechaFinSolicitud(s);
+        const dias=diasEntreFechas(ini,fin);
+        const horas=horasSolicitud(s);
+
+        let detalle="";
+
+        if(tipo==="Asuntos propios"){
+          detalle=textoHorasLaboral(horas);
+        }else if(dias>0){
+          detalle=textoNumeroLaboral(dias)+" día"+(dias===1 ? "" : "s");
+        }
+
+        return `
+          <div class="zx_solicitud_laboral_item">
+            <div>
+              <b>${limpiar(tipo)}</b>
+              <span>${limpiar(formatoFecha(ini))}${fin && fechaISO(fin)!==fechaISO(ini) ? " - "+limpiar(formatoFecha(fin)) : ""}</span>
+            </div>
+
+            <div>
+              <em>${limpiar(estado)}</em>
+              ${detalle ? `<span>${limpiar(detalle)}</span>` : ``}
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
 async function verLaboralUsuario(u){
   const actual=await cargarLaboralUsuario(u.id);
   const l=actual || laboralDefault(u);
@@ -1322,6 +1406,8 @@ async function verLaboralUsuario(u){
   modal("Laboral",`
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
     ${resumenLaboral(l,consumo)}
+
+    ${renderHistorialLaboral(solicitudes)}
 
     <h3 class="zx_form_subtitle">Jornada</h3>
     ${inputNum("lab_horas_dia","Horas por día",l.horas_dia,"0.25")}
@@ -1662,6 +1748,21 @@ function avisoSaldo(nombre,restante,unidad){
   `;
 }
 
+function estadoSaldo(restante,asignado){
+  const r=Number(restante || 0);
+  const a=Number(asignado || 0);
+
+  if(r<=0) return "zx_saldo_mal";
+  if(a>0 && r<=a*0.25) return "zx_saldo_cero";
+
+  return "zx_saldo_ok";
+}
+
+function renderUso(pct){
+  if(Number(pct || 0)<=1) return "";
+  return `<p>Uso: ${limpiar(pct)}%</p>`;
+}
+
 function renderResumenConsumo(l,consumo){
   const vacacionesAsignadas=numeroLaboral(l.vacaciones_dias || 0);
   const asuntosAsignados=numeroLaboral(l.asuntos_propios || 0);
@@ -1684,22 +1785,22 @@ function renderResumenConsumo(l,consumo){
     ${avisoSaldo("Asuntos propios",asuntosRestantes,"horas")}
 
     <div class="zx_consumo_grid">
-      <div class="zx_consumo_card ${claseSaldo(vacacionesRestantes)}">
+      <div class="zx_consumo_card ${estadoSaldo(vacacionesRestantes,vacacionesAsignadas)}">
         <h3>Vacaciones</h3>
-        <b>${limpiar(textoNumeroLaboral(vacacionesRestantes))}</b>
-        <span>Días disponibles</span>
+        <b>${limpiar(textoNumeroLaboral(vacacionesRestantes))} días</b>
+        <span>Disponibles</span>
 
         <div class="zx_barra_consumo">
           <div style="width:${limpiar(pctVacaciones)}%"></div>
         </div>
 
-        <p>Asignadas: ${limpiar(textoNumeroLaboral(vacacionesAsignadas))} días</p>
-        <p>Consumidas: ${limpiar(textoNumeroLaboral(vacacionesConsumidas))} días</p>
-        <p>Pendientes: ${limpiar(textoNumeroLaboral(vacacionesPendientes))} días</p>
-        <p>Uso: ${limpiar(pctVacaciones)}%</p>
+        <p>Asignadas: ${limpiar(textoNumeroLaboral(vacacionesAsignadas))}</p>
+        <p>Consumidas: ${limpiar(textoNumeroLaboral(vacacionesConsumidas))}</p>
+        <p>Pendientes: ${limpiar(textoNumeroLaboral(vacacionesPendientes))}</p>
+        ${renderUso(pctVacaciones)}
       </div>
 
-      <div class="zx_consumo_card ${claseSaldo(asuntosRestantes)}">
+      <div class="zx_consumo_card ${estadoSaldo(asuntosRestantes,asuntosAsignados)}">
         <h3>Asuntos propios</h3>
         <b>${limpiar(textoHorasLaboral(asuntosRestantes))}</b>
         <span>Disponibles</span>
@@ -1711,13 +1812,13 @@ function renderResumenConsumo(l,consumo){
         <p>Asignadas: ${limpiar(textoHorasLaboral(asuntosAsignados))}</p>
         <p>Consumidas: ${limpiar(textoHorasLaboral(asuntosConsumidos))}</p>
         <p>Pendientes: ${limpiar(textoHorasLaboral(asuntosPendientes))}</p>
-        <p>Uso: ${limpiar(pctAsuntos)}%</p>
+        ${renderUso(pctAsuntos)}
       </div>
 
       <div class="zx_consumo_card">
         <h3>Otros</h3>
-        <b>${limpiar(textoNumeroLaboral(consumo.permisos || 0))}</b>
-        <span>Días de permiso</span>
+        <b>${limpiar(textoNumeroLaboral(consumo.permisos || 0))} días</b>
+        <span>Permisos aprobados</span>
         <p>Bajas aprobadas: ${limpiar(textoNumeroLaboral(consumo.bajas || 0))} días</p>
       </div>
     </div>
@@ -2196,10 +2297,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3120")) return;
+  if(document.getElementById("zx_usuarios_v3121")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3120";
+  s.id="zx_usuarios_v3121";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -2270,6 +2371,14 @@ async function verDocumentosUsuario(u){
     .zx_saldo_alerta{background:#fff1f2;border:1px solid #fecdd3;border-left:7px solid #dc2626;color:#7f1d1d;border-radius:16px;padding:12px;margin:10px 0;font-size:14px;font-weight:900;line-height:1.35}
     .zx_barra_consumo{height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:10px 0 12px}
     .zx_barra_consumo div{height:100%;background:#2563eb;border-radius:999px}
+    .zx_saldo_ok .zx_barra_consumo div{background:#16a34a}
+    .zx_saldo_cero .zx_barra_consumo div{background:#facc15}
+    .zx_saldo_mal .zx_barra_consumo div{background:#dc2626}
+    .zx_solicitudes_laboral_lista{display:flex;flex-direction:column;gap:8px;margin:10px 0 18px}
+    .zx_solicitud_laboral_item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px}
+    .zx_solicitud_laboral_item b{display:block;color:#0f172a;font-size:15px;font-weight:900}
+    .zx_solicitud_laboral_item span{display:block;color:#64748b;font-size:13px;font-weight:800;margin-top:3px}
+    .zx_solicitud_laboral_item em{display:block;font-style:normal;text-align:right;color:#334155;font-size:13px;font-weight:900;text-transform:capitalize}
 
     @media(max-width:430px){
       .zx_user_filter,.zx_ficha_acciones,.zx_doc_item,.zx_checks_grid{grid-template-columns:1fr}
