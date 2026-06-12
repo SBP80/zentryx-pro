@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3125 - RESUMEN RAPIDO EN FICHA
+// V3126 - FICHA PROFESIONAL CON RESUMEN LABORAL
 // ===============================
 (function(){
 "use strict";
@@ -736,6 +736,60 @@ async function cargarResumenRapidoUsuario(usuarioId){
   };
 }
 
+function renderResumenLaboralFicha(l){
+  if(!l) return "";
+
+  const dias=[
+    l.trabaja_lunes ? "L" : "",
+    l.trabaja_martes ? "M" : "",
+    l.trabaja_miercoles ? "X" : "",
+    l.trabaja_jueves ? "J" : "",
+    l.trabaja_viernes ? "V" : "",
+    l.trabaja_sabado ? "S" : "",
+    l.trabaja_domingo ? "D" : ""
+  ].filter(Boolean).join(" ");
+
+  return `
+    <div class="zx_ficha_bloque zx_ficha_laboral_mini">
+      <h3>Resumen laboral</h3>
+
+      <div class="zx_ficha_laboral_grid">
+        <div>
+          <span>Horas/día</span>
+          <b>${limpiar(l.horas_dia ?? "-")}</b>
+        </div>
+
+        <div>
+          <span>Horas/semana</span>
+          <b>${limpiar(l.horas_semana ?? "-")}</b>
+        </div>
+
+        <div>
+          <span>Vacaciones</span>
+          <b>${limpiar(l.vacaciones_dias ?? "-")}</b>
+        </div>
+
+        <div>
+          <span>Asuntos propios</span>
+          <b>${limpiar(l.asuntos_propios ?? "-")}</b>
+        </div>
+      </div>
+
+      <div class="zx_ficha_laboral_linea">
+        <b>Días:</b> ${limpiar(dias || "-")}
+      </div>
+
+      <div class="zx_ficha_laboral_linea">
+        <b>Calendario:</b> ${limpiar([l.pais,l.comunidad,l.provincia,l.localidad].filter(Boolean).join(" · ") || "-")}
+      </div>
+
+      <div class="zx_ficha_laboral_linea">
+        <b>Convenio:</b> ${limpiar(l.convenio || "-")}
+      </div>
+    </div>
+  `;
+}
+
 function renderResumenRapidoFicha(r){
   if(!r) return "";
 
@@ -798,7 +852,7 @@ function renderIndicadoresFicha(u,ultimoFichaje){
   `;
 }
 
-function renderFichaUsuario(u,ultimoFichaje,resumenRapido){
+function renderFichaUsuario(u,ultimoFichaje,resumenRapido,resumenLaboralMini){
   const activo=u.activo!==false;
   const pinEstado=u.debe_crear_pin ? "Pendiente" : "Activo";
 
@@ -814,6 +868,7 @@ function renderFichaUsuario(u,ultimoFichaje,resumenRapido){
 
       ${renderIndicadoresFicha(u,ultimoFichaje)}
       ${renderResumenRapidoFicha(resumenRapido)}
+      ${renderResumenLaboralFicha(resumenLaboralMini)}
 
       <div class="zx_ficha_bloque">
         <h3>Datos personales</h3>
@@ -873,9 +928,10 @@ async function abrirFichaUsuario(u){
   const activo=u.activo!==false;
   const ultimoFichaje=await cargarUltimoFichajeUsuario(u.id);
   const resumenRapido=await cargarResumenRapidoUsuario(u.id);
+  const resumenLaboralMini=await cargarLaboralUsuario(u.id);
 
   modal(u.nombre || u.usuario || "Usuario",`
-    ${renderFichaUsuario(u,ultimoFichaje,resumenRapido)}
+    ${renderFichaUsuario(u,ultimoFichaje,resumenRapido,resumenLaboralMini)}
 
     <div class="zx_ficha_acciones">
       ${u.telefono_personal ? `<button class="zx_action_btn" id="f_tel_personal">Tel. personal</button>` : ""}
@@ -2537,10 +2593,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3125")) return;
+  if(document.getElementById("zx_usuarios_v3126")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3125";
+  s.id="zx_usuarios_v3126";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -2591,6 +2647,12 @@ async function verDocumentosUsuario(u){
     .zx_ficha_resumen_rapido b{display:block;color:#0f172a;font-size:28px;font-weight:900;margin-top:4px}
     .zx_ficha_resumen_rapido .zx_resumen_alerta{background:#fff1f2;border-color:#fecdd3}
     .zx_ficha_resumen_rapido .zx_resumen_alerta b{color:#dc2626}
+    .zx_ficha_laboral_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}
+    .zx_ficha_laboral_grid div{background:white;border:1px solid #e5e7eb;border-radius:14px;padding:10px}
+    .zx_ficha_laboral_grid span{display:block;color:#64748b;font-size:12px;font-weight:900}
+    .zx_ficha_laboral_grid b{display:block;color:#0f172a;font-size:22px;font-weight:900;margin-top:4px}
+    .zx_ficha_laboral_linea{color:#334155;font-size:14px;font-weight:800;line-height:1.4;margin-top:7px}
+    .zx_ficha_laboral_linea b{color:#0f172a}
     .zx_laboral_resumen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 18px}
     .zx_laboral_resumen div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:14px;text-align:center}
     .zx_laboral_resumen b{display:block;font-size:28px;font-weight:900;color:#0f172a}
