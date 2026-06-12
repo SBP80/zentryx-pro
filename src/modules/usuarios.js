@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3121 - DISPONIBILIDAD COMPACTA + HISTORIAL LABORAL
+// V3122 - HISTORIAL LABORAL CORREGIDO
 // ===============================
 (function(){
 "use strict";
@@ -1381,7 +1381,7 @@ function renderHistorialLaboral(solicitudes){
           <div class="zx_solicitud_laboral_item">
             <div>
               <b>${limpiar(tipo)}</b>
-              <span>${limpiar(formatoFecha(ini))}${fin && fechaISO(fin)!==fechaISO(ini) ? " - "+limpiar(formatoFecha(fin)) : ""}</span>
+              <span>${limpiar(fechaES(ini))}${fin && fechaISO(fin)!==fechaISO(ini) ? " - "+limpiar(fechaES(fin)) : ""}</span>
             </div>
 
             <div>
@@ -2297,10 +2297,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3121")) return;
+  if(document.getElementById("zx_usuarios_v3122")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3121";
+  s.id="zx_usuarios_v3122";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
