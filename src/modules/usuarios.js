@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3115 - BUSCADOR SIN CERRAR TECLADO + LISTA COMPACTA PRO
+// V3116 - HISTORIAL USUARIO + BUSCADOR ESTABLE
 // ===============================
 (function(){
 "use strict";
@@ -91,6 +91,30 @@ function normalizarTexto(v){
 
 function soloNumeros(v){
   return String(v ?? "").replace(/\D/g,"");
+}
+
+function fechaES(v){
+  if(!v) return "-";
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime())){
+    const s=String(v);
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+      const p=s.slice(0,10).split("-");
+      return p[2]+"/"+p[1]+"/"+p[0];
+    }
+    return s;
+  }
+
+  return String(d.getDate()).padStart(2,"0")+"/"+
+         String(d.getMonth()+1).padStart(2,"0")+"/"+
+         d.getFullYear();
+}
+
+function horaES(v){
+  if(!v) return "";
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime())) return "";
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
 }
 
 function sesion(){
@@ -629,6 +653,7 @@ function abrirFichaUsuario(u){
       ${puedeEditar() ? `<button class="zx_action_btn zx_blue" id="f_editar">Editar</button>` : ""}
       ${puedeVerLaboral(u) ? `<button class="zx_action_btn zx_laboral" id="f_laboral">Laboral</button>` : ""}
       ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_docs">Documentos</button>` : ""}
+      ${puedeVerPrivado(u) ? `<button class="zx_action_btn zx_purple" id="f_historial">Historial</button>` : ""}
       ${puedeReset() ? `<button class="zx_action_btn zx_orange" id="f_reset">Reset PIN</button>` : ""}
       ${
         activo
@@ -655,6 +680,7 @@ function abrirFichaUsuario(u){
   asignar("f_editar",()=>pedirPinConPermiso("editar",()=>editarUsuario(u.id)));
   asignar("f_laboral",()=>verLaboralUsuario(u));
   asignar("f_docs",()=>verDocumentosUsuario(u));
+  asignar("f_historial",()=>verHistorialUsuario(u));
   asignar("f_reset",()=>pedirPinConPermiso("reset",()=>resetPin(u.id,u.nombre || u.usuario || "usuario")));
   asignar("f_desactivar",()=>pedirPinConPermiso("eliminar",()=>desactivarUsuario(u.id,u.nombre || u.usuario || "usuario",u.usuario)));
   asignar("f_reactivar",()=>pedirPinConPermiso("reactivar",()=>reactivarUsuario(u.id,u.nombre || u.usuario || "usuario")));
@@ -1509,6 +1535,158 @@ async function guardarHorarioUsuario(datos){
   return await sb().from("horarios_usuario").insert([horario]);
 }
 
+/* HISTORIAL */
+async function consultaHistorial(tabla,campo,usuarioId,orden){
+  try{
+    const r=await sb()
+      .from(tabla)
+      .select("*")
+      .eq(campo,String(usuarioId))
+      .order(orden,{ascending:false})
+      .limit(30);
+
+    if(r.error) return [];
+    return r.data || [];
+  }catch(e){
+    return [];
+  }
+}
+
+async function cargarHistorialUsuario(u){
+  const usuarioId=String(u.id || "");
+
+  const jornadasA=await consultaHistorial("jornadas","usuario_id",usuarioId,"fecha");
+  const jornadasB=await consultaHistorial("jornadas","user_id",usuarioId,"fecha");
+  const fichajesA=await consultaHistorial("fichajes","usuario_id",usuarioId,"created_at");
+  const fichajesB=await consultaHistorial("fichajes","user_id",usuarioId,"created_at");
+  const horasA=await consultaHistorial("horas_extra_pro","usuario_id",usuarioId,"fecha");
+  const horasB=await consultaHistorial("horas_extra_pro","user_id",usuarioId,"fecha");
+  const solicitudesA=await consultaHistorial("solicitudes_laborales","usuario_id",usuarioId,"created_at");
+  const solicitudesB=await consultaHistorial("solicitudes_laborales","user_id",usuarioId,"created_at");
+
+  return {
+    jornadas:[...jornadasA,...jornadasB],
+    fichajes:[...fichajesA,...fichajesB],
+    horas:[...horasA,...horasB],
+    solicitudes:[...solicitudesA,...solicitudesB]
+  };
+}
+
+function textoMinutos(min){
+  const n=Number(min || 0);
+  if(!Number.isFinite(n) || n<=0) return "0 h";
+  const h=Math.floor(n/60);
+  const m=n%60;
+  return h+" h"+(m ? " "+m+" min" : "");
+}
+
+function itemHistorial(titulo,meta,detalle){
+  return `
+    <div class="zx_hist_item">
+      <b>${limpiar(titulo || "-")}</b>
+      <span>${limpiar(meta || "")}</span>
+      ${detalle ? `<p>${limpiar(detalle)}</p>` : ""}
+    </div>
+  `;
+}
+
+function renderHistorialJornadas(lista){
+  if(!lista.length) return `<div class="zx_text">Sin jornadas registradas.</div>`;
+
+  return lista.slice(0,12).map(j=>{
+    const fecha=fechaES(j.fecha || j.created_at || j.inicio);
+    const estado=j.estado || (j.cerrada ? "Cerrada" : "Abierta");
+    const minutos=textoMinutos(j.minutos_trabajados || j.minutos_total || j.total_minutos || 0);
+    const extra=textoMinutos(j.minutos_extra || 0);
+
+    return itemHistorial(
+      "Jornada "+fecha,
+      estado,
+      "Trabajado: "+minutos+" · Extra: "+extra
+    );
+  }).join("");
+}
+
+function renderHistorialFichajes(lista){
+  if(!lista.length) return `<div class="zx_text">Sin fichajes registrados.</div>`;
+
+  return lista.slice(0,12).map(f=>{
+    const fecha=fechaES(f.created_at || f.fecha || f.hora);
+    const hora=horaES(f.created_at || f.hora || f.fecha);
+    const tipo=f.tipo || f.accion || f.estado || "Fichaje";
+    const detalle=[
+      f.direccion,
+      f.vehiculo_matricula ? "Vehículo: "+f.vehiculo_matricula : "",
+      f.km ? "Km: "+f.km : ""
+    ].filter(Boolean).join(" · ");
+
+    return itemHistorial(tipo,fecha+(hora ? " · "+hora : ""),detalle);
+  }).join("");
+}
+
+function renderHistorialHoras(lista){
+  if(!lista.length) return `<div class="zx_text">Sin horas extra registradas.</div>`;
+
+  return lista.slice(0,12).map(h=>{
+    const fecha=fechaES(h.fecha || h.created_at);
+    const minutos=textoMinutos(h.minutos || h.minutos_extra || h.total_minutos || 0);
+    const estado=h.estado || (h.pagada ? "Pagada" : "Pendiente");
+    const tipo=h.tipo || "Hora extra";
+
+    return itemHistorial(tipo,fecha+" · "+estado,minutos);
+  }).join("");
+}
+
+function renderHistorialSolicitudes(lista){
+  if(!lista.length) return `<div class="zx_text">Sin solicitudes registradas.</div>`;
+
+  return lista.slice(0,12).map(s=>{
+    const fecha=fechaES(s.fecha || s.created_at || s.desde);
+    const hasta=s.hasta || s.fecha_fin ? " - "+fechaES(s.hasta || s.fecha_fin) : "";
+    const tipo=s.tipo || "Solicitud";
+    const estado=s.estado || "Pendiente";
+
+    return itemHistorial(tipo,fecha+hasta+" · "+estado,s.motivo || s.observaciones || "");
+  }).join("");
+}
+
+async function verHistorialUsuario(u){
+  modal("Historial",`
+    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
+    <div class="zx_text">Cargando historial...</div>
+  `);
+
+  const h=await cargarHistorialUsuario(u);
+
+  modal("Historial",`
+    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
+
+    <details class="zx_hist_section" open>
+      <summary>Jornadas</summary>
+      ${renderHistorialJornadas(h.jornadas)}
+    </details>
+
+    <details class="zx_hist_section">
+      <summary>Fichajes</summary>
+      ${renderHistorialFichajes(h.fichajes)}
+    </details>
+
+    <details class="zx_hist_section">
+      <summary>Horas extra</summary>
+      ${renderHistorialHoras(h.horas)}
+    </details>
+
+    <details class="zx_hist_section">
+      <summary>Solicitudes</summary>
+      ${renderHistorialSolicitudes(h.solicitudes)}
+    </details>
+
+    <button class="zx_btn_big zx_gris" id="hist_cerrar">Cerrar</button>
+  `);
+
+  document.getElementById("hist_cerrar").onclick=cerrarModal;
+}
+
 /* DOCUMENTOS */
 async function cargarDocumentos(usuarioId){
   const r=await sb()
@@ -1753,10 +1931,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3115")) return;
+  if(document.getElementById("zx_usuarios_v3116")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3115";
+  s.id="zx_usuarios_v3116";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -1789,6 +1967,7 @@ async function verDocumentosUsuario(u){
     .zx_green{background:#16a34a!important;color:white!important}
     .zx_red{background:#dc2626!important;color:white!important}
     .zx_orange{background:#facc15!important;color:#3b2500!important}
+    .zx_purple{background:#7c3aed!important;color:white!important}
     .zx_laboral{background:#0f766e!important;color:white!important}
     .zx_contact_box{background:#f8fafc;border:1px solid #e5e7eb;border-left:8px solid #2563eb;border-radius:16px;padding:12px;margin:12px 0;font-size:15px;font-weight:700;line-height:1.5}
     .zx_emergencia_box{background:#fff1f2;border:1px solid #fecdd3;border-left:8px solid #dc2626;border-radius:16px;padding:12px;margin:12px 0;color:#7f1d1d;font-size:15px;font-weight:800;line-height:1.5}
@@ -1805,6 +1984,12 @@ async function verDocumentosUsuario(u){
     .zx_doc_preview_box{margin-top:14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:10px;overflow:hidden}
     .zx_doc_preview_img{width:100%;border-radius:14px;display:block}
     .zx_doc_preview_pdf{width:100%;height:68vh;border:0;border-radius:14px;background:white}
+    .zx_hist_section{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin:12px 0}
+    .zx_hist_section summary{font-size:17px;font-weight:900;color:#0f172a;cursor:pointer}
+    .zx_hist_item{background:white;border:1px solid #e5e7eb;border-radius:14px;padding:11px;margin-top:9px}
+    .zx_hist_item b{display:block;color:#0f172a;font-size:15px;font-weight:900}
+    .zx_hist_item span{display:block;color:#64748b;font-size:13px;font-weight:800;margin-top:3px}
+    .zx_hist_item p{margin:6px 0 0 0;color:#334155;font-size:13px;font-weight:700;line-height:1.35}
 
     @media(max-width:430px){
       .zx_user_filter,.zx_ficha_acciones,.zx_doc_item,.zx_checks_grid{grid-template-columns:1fr}
