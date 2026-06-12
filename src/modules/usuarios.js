@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3128 - ROLES PROFESIONALES + IMPRIMIR FICHA
+// V3129 - AUDITORIA BASICA DE USUARIOS + ROLES
 // ===============================
 (function(){
 "use strict";
@@ -1031,6 +1031,7 @@ async function abrirFichaUsuario(u){
       ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_dni">DNI</button>` : ""}
       ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_docs">Documentos</button>` : ""}
       ${puedeVerPrivado(u) ? `<button class="zx_action_btn zx_purple" id="f_historial">Historial</button>` : ""}
+      ${puedeVerPrivado(u) ? `<button class="zx_action_btn zx_purple" id="f_auditoria">Auditoría</button>` : ""}
       <button class="zx_action_btn zx_green" id="f_imprimir">Imprimir ficha</button>
       ${puedeReset() ? `<button class="zx_action_btn zx_orange" id="f_reset">Reset PIN</button>` : ""}
       ${
@@ -1060,6 +1061,7 @@ async function abrirFichaUsuario(u){
   asignar("f_dni",()=>verDniUsuario(u));
   asignar("f_docs",()=>verDocumentosUsuario(u));
   asignar("f_historial",()=>verHistorialUsuario(u));
+  asignar("f_auditoria",()=>verAuditoriaUsuario(u));
   asignar("f_imprimir",()=>imprimirFichaActual());
   asignar("f_reset",()=>pedirPinConPermiso("reset",()=>resetPin(u.id,u.nombre || u.usuario || "usuario")));
   asignar("f_desactivar",()=>pedirPinConPermiso("eliminar",()=>desactivarUsuario(u.id,u.nombre || u.usuario || "usuario",u.usuario)));
@@ -1399,6 +1401,106 @@ function validarFormulario(){
   return true;
 }
 
+function camposAuditablesUsuario(){
+  return [
+    "nombre",
+    "usuario",
+    "dni",
+    "telefono_personal",
+    "telefono_empresa",
+    "email_personal",
+    "email_empresa",
+    "via_tipo",
+    "calle",
+    "numero",
+    "portal",
+    "escalera",
+    "piso",
+    "puerta",
+    "poblacion",
+    "provincia",
+    "codigo_postal",
+    "pais",
+    "emergencia_nombre",
+    "emergencia_relacion",
+    "emergencia_telefono",
+    "emergencia_email",
+    "rol",
+    "estado",
+    "activo"
+  ];
+}
+
+function calcularCambiosUsuario(antes,despues){
+  const cambios=[];
+
+  camposAuditablesUsuario().forEach(function(campo){
+    const a=String((antes && antes[campo]) ?? "");
+    const b=String((despues && despues[campo]) ?? "");
+
+    if(a!==b){
+      cambios.push({
+        campo,
+        antes:a,
+        despues:b
+      });
+    }
+  });
+
+  return cambios;
+}
+
+async function registrarAuditoriaUsuario(usuarioId,accion,cambios){
+  try{
+    const s=sesion();
+
+    await sb()
+      .from("historial_usuario")
+      .insert([{
+        usuario_id:String(usuarioId || ""),
+        accion:String(accion || ""),
+        cambios:JSON.stringify(cambios || []),
+        realizado_por:s.usuario || "",
+        realizado_por_id:s.id || null,
+        created_at:new Date().toISOString()
+      }]);
+  }catch(e){
+    try{
+      const s=sesion();
+
+      await sb()
+        .from("historial_modificaciones")
+        .insert([{
+          tabla:"usuarios",
+          registro_id:String(usuarioId || ""),
+          accion:String(accion || ""),
+          detalle:JSON.stringify(cambios || []),
+          usuario:s.usuario || "",
+          usuario_id:s.id || null,
+          created_at:new Date().toISOString()
+        }]);
+    }catch(e2){}
+  }
+}
+
+async function cargarUsuarioAntesDeGuardar(id){
+  if(!id) return null;
+
+  try{
+    const r=await sb()
+      .from("usuarios")
+      .select("*")
+      .eq("id",id)
+      .limit(1);
+
+    if(!r.error && r.data && r.data.length){
+      return r.data[0];
+    }
+  }catch(e){}
+
+  return null;
+}
+
 async function guardarUsuario(id,fotoActual){
   if(!validarFormulario()) return;
 
@@ -1420,17 +1522,30 @@ async function guardarUsuario(id,fotoActual){
     return;
   }
 
+  const antes=await cargarUsuarioAntesDeGuardar(id);
+
   const file=document.getElementById("u_foto").files[0] || null;
   const nuevaFoto=await subirFoto(file,usuario);
   const datos=datosFormulario(nuevaFoto || fotoActual || null,id);
 
   const res=id
     ? await sb().from("usuarios").update(datos).eq("id",id)
-    : await sb().from("usuarios").insert([datos]);
+    : await sb().from("usuarios").insert([datos]).select("id").limit(1);
 
   if(res.error){
     alert("Error guardando: "+res.error.message);
     return;
+  }
+
+  const usuarioId=id || (res.data && res.data[0] ? res.data[0].id : "");
+
+  if(id){
+    const cambios=calcularCambiosUsuario(antes,datos);
+    if(cambios.length){
+      await registrarAuditoriaUsuario(usuarioId,"editar_usuario",cambios);
+    }
+  }else{
+    await registrarAuditoriaUsuario(usuarioId,"crear_usuario",[{campo:"usuario",antes:"",despues:datos.usuario || ""}]);
   }
 
   actualizarSesionSiEsUsuarioActual(id,datos);
@@ -1472,6 +1587,8 @@ async function resetPin(id,nombre){
     return;
   }
 
+  await registrarAuditoriaUsuario(id,"reset_pin",[{campo:"pin",antes:"activo",despues:"pendiente"}]);
+
   alert("PIN reseteado.");
   ZX_usuarios();
 }
@@ -1505,6 +1622,8 @@ async function desactivarUsuario(id,nombre,usuario){
     return;
   }
 
+  await registrarAuditoriaUsuario(id,"desactivar_usuario",[{campo:"activo",antes:"true",despues:"false"}]);
+
   ZX_usuarios();
 }
 
@@ -1524,6 +1643,8 @@ async function reactivarUsuario(id,nombre){
     alert("Error reactivando usuario: "+res.error.message);
     return;
   }
+
+  await registrarAuditoriaUsuario(id,"reactivar_usuario",[{campo:"activo",antes:"false",despues:"true"}]);
 
   alert("Usuario reactivado.");
   ZX_usuarios();
@@ -2396,6 +2517,104 @@ async function verHistorialUsuario(u){
   document.getElementById("hist_cerrar").onclick=cerrarModal;
 }
 
+/* AUDITORIA USUARIO */
+async function cargarAuditoriaUsuario(usuarioId){
+  try{
+    const r=await sb()
+      .from("historial_usuario")
+      .select("*")
+      .eq("usuario_id",String(usuarioId))
+      .order("created_at",{ascending:false})
+      .limit(50);
+
+    if(!r.error && r.data){
+      return r.data.map(x=>({
+        fecha:x.created_at,
+        accion:x.accion,
+        usuario:x.realizado_por,
+        detalle:x.cambios
+      }));
+    }
+  }catch(e){}
+
+  try{
+    const r=await sb()
+      .from("historial_modificaciones")
+      .select("*")
+      .eq("tabla","usuarios")
+      .eq("registro_id",String(usuarioId))
+      .order("created_at",{ascending:false})
+      .limit(50);
+
+    if(!r.error && r.data){
+      return r.data.map(x=>({
+        fecha:x.created_at,
+        accion:x.accion,
+        usuario:x.usuario,
+        detalle:x.detalle
+      }));
+    }
+  }catch(e){}
+
+  return [];
+}
+
+function parseDetalleAuditoria(v){
+  try{
+    const x=JSON.parse(v || "[]");
+    if(Array.isArray(x)) return x;
+  }catch(e){}
+
+  return [];
+}
+
+function renderAuditoriaCambios(detalle){
+  const cambios=parseDetalleAuditoria(detalle);
+
+  if(!cambios.length){
+    return `<div class="zx_text">Sin detalle de campos.</div>`;
+  }
+
+  return cambios.map(c=>`
+    <div class="zx_audit_cambio">
+      <b>${limpiar(c.campo || "-")}</b>
+      <span>Antes: ${limpiar(c.antes || "-")}</span>
+      <span>Después: ${limpiar(c.despues || "-")}</span>
+    </div>
+  `).join("");
+}
+
+async function verAuditoriaUsuario(u){
+  modal("Auditoría",`
+    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
+    <div class="zx_text">Cargando auditoría...</div>
+  `);
+
+  const datos=await cargarAuditoriaUsuario(u.id);
+
+  modal("Auditoría",`
+    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
+
+    ${
+      datos.length
+      ? datos.map(a=>`
+        <details class="zx_audit_item">
+          <summary>
+            <b>${limpiar(String(a.accion || "-").replaceAll("_"," "))}</b>
+            <span>${limpiar(fechaHoraES(a.fecha))} · ${limpiar(a.usuario || "-")}</span>
+          </summary>
+          ${renderAuditoriaCambios(a.detalle)}
+        </details>
+      `).join("")
+      : `<div class="zx_text">Sin auditoría registrada.</div>`
+    }
+
+    <button class="zx_btn_big zx_gris" id="audit_cerrar">Cerrar</button>
+  `);
+
+  document.getElementById("audit_cerrar").onclick=cerrarModal;
+}
+
 /* DOCUMENTOS */
 async function cargarDocumentos(usuarioId){
   const r=await sb()
@@ -2688,10 +2907,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3128")) return;
+  if(document.getElementById("zx_usuarios_v3129")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3128";
+  s.id="zx_usuarios_v3129";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -2776,6 +2995,13 @@ async function verDocumentosUsuario(u){
     .zx_hist_item b{display:block;color:#0f172a;font-size:15px;font-weight:900}
     .zx_hist_item span{display:block;color:#64748b;font-size:13px;font-weight:800;margin-top:3px}
     .zx_hist_item p{margin:6px 0 0 0;color:#334155;font-size:13px;font-weight:700;line-height:1.35}
+    .zx_audit_item{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin:10px 0}
+    .zx_audit_item summary{cursor:pointer}
+    .zx_audit_item summary b{display:block;color:#0f172a;font-size:15px;font-weight:900;text-transform:capitalize}
+    .zx_audit_item summary span{display:block;color:#64748b;font-size:13px;font-weight:800;margin-top:3px}
+    .zx_audit_cambio{background:white;border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin-top:8px}
+    .zx_audit_cambio b{display:block;color:#0f172a;font-size:13px;font-weight:900}
+    .zx_audit_cambio span{display:block;color:#334155;font-size:12px;font-weight:800;margin-top:3px;word-break:break-word}
     .zx_dni_grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
     .zx_dni_box{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px}
     .zx_dni_box h3{margin:0 0 8px 0;font-size:17px;color:#0f172a}
