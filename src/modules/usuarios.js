@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3116 - HISTORIAL USUARIO + BUSCADOR ESTABLE
+// V3117 - DNI EN FICHA + HISTORIAL USUARIO
 // ===============================
 (function(){
 "use strict";
@@ -652,6 +652,7 @@ function abrirFichaUsuario(u){
     <div class="zx_ficha_acciones">
       ${puedeEditar() ? `<button class="zx_action_btn zx_blue" id="f_editar">Editar</button>` : ""}
       ${puedeVerLaboral(u) ? `<button class="zx_action_btn zx_laboral" id="f_laboral">Laboral</button>` : ""}
+      ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_dni">DNI</button>` : ""}
       ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_docs">Documentos</button>` : ""}
       ${puedeVerPrivado(u) ? `<button class="zx_action_btn zx_purple" id="f_historial">Historial</button>` : ""}
       ${puedeReset() ? `<button class="zx_action_btn zx_orange" id="f_reset">Reset PIN</button>` : ""}
@@ -679,6 +680,7 @@ function abrirFichaUsuario(u){
   asignar("f_emergencia_mail",()=>enviarMail(u.emergencia_email));
   asignar("f_editar",()=>pedirPinConPermiso("editar",()=>editarUsuario(u.id)));
   asignar("f_laboral",()=>verLaboralUsuario(u));
+  asignar("f_dni",()=>verDniUsuario(u));
   asignar("f_docs",()=>verDocumentosUsuario(u));
   asignar("f_historial",()=>verHistorialUsuario(u));
   asignar("f_reset",()=>pedirPinConPermiso("reset",()=>resetPin(u.id,u.nombre || u.usuario || "usuario")));
@@ -1815,6 +1817,54 @@ async function borrarDocumentoLogico(id,u){
   verDocumentosUsuario(u);
 }
 
+async function verDniUsuario(u){
+  const docs=await cargarDocumentos(u.id);
+  const frontal=docs.find(d=>String(d.tipo||"")==="dni_frontal") || null;
+  const trasero=docs.find(d=>String(d.tipo||"")==="dni_trasero") || null;
+
+  modal("DNI",`
+    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
+
+    <div class="zx_dni_grid">
+      <div class="zx_dni_box">
+        <h3>DNI frontal</h3>
+        ${
+          frontal
+          ? `
+            <div class="zx_doc_preview_box">${vistaPreviaDocumento(frontal)}</div>
+            <button class="zx_btn_big zx_azul" id="dni_frontal_abrir">Abrir frontal</button>
+          `
+          : `<div class="zx_text">No hay DNI frontal subido.</div>`
+        }
+      </div>
+
+      <div class="zx_dni_box">
+        <h3>DNI trasero</h3>
+        ${
+          trasero
+          ? `
+            <div class="zx_doc_preview_box">${vistaPreviaDocumento(trasero)}</div>
+            <button class="zx_btn_big zx_azul" id="dni_trasero_abrir">Abrir trasero</button>
+          `
+          : `<div class="zx_text">No hay DNI trasero subido.</div>`
+        }
+      </div>
+    </div>
+
+    <button class="zx_btn_big zx_blue" id="dni_ir_docs">Gestionar documentos</button>
+    <button class="zx_btn_big zx_gris" id="dni_cerrar">Cerrar</button>
+  `);
+
+  const b1=document.getElementById("dni_frontal_abrir");
+  if(b1 && frontal) b1.onclick=function(){window.open(frontal.url,"_blank")};
+
+  const b2=document.getElementById("dni_trasero_abrir");
+  if(b2 && trasero) b2.onclick=function(){window.open(trasero.url,"_blank")};
+
+  document.getElementById("dni_ir_docs").onclick=function(){verDocumentosUsuario(u)};
+  document.getElementById("dni_cerrar").onclick=cerrarModal;
+}
+
 async function verDocumentosUsuario(u){
   const docs=await cargarDocumentos(u.id);
 
@@ -1931,10 +1981,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3116")) return;
+  if(document.getElementById("zx_usuarios_v3117")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3116";
+  s.id="zx_usuarios_v3117";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -1990,6 +2040,9 @@ async function verDocumentosUsuario(u){
     .zx_hist_item b{display:block;color:#0f172a;font-size:15px;font-weight:900}
     .zx_hist_item span{display:block;color:#64748b;font-size:13px;font-weight:800;margin-top:3px}
     .zx_hist_item p{margin:6px 0 0 0;color:#334155;font-size:13px;font-weight:700;line-height:1.35}
+    .zx_dni_grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+    .zx_dni_box{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px}
+    .zx_dni_box h3{margin:0 0 8px 0;font-size:17px;color:#0f172a}
 
     @media(max-width:430px){
       .zx_user_filter,.zx_ficha_acciones,.zx_doc_item,.zx_checks_grid{grid-template-columns:1fr}
