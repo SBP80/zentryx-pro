@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3117 - DNI EN FICHA + HISTORIAL USUARIO
+// V3118 - VACACIONES Y ASUNTOS CONSUMIDOS + DNI + HISTORIAL
 // ===============================
 (function(){
 "use strict";
@@ -1310,12 +1310,17 @@ function cargarDatalistLocalidades(provincia,valorActual){
 async function verLaboralUsuario(u){
   const actual=await cargarLaboralUsuario(u.id);
   const l=actual || laboralDefault(u);
+  const solicitudes=await cargarSolicitudesUsuario(String(u.id || ""));
+  const consumo=calcularConsumoLaboral(solicitudes);
   const editable=puedeEditar();
   const provincias=opcionesProvincias(l.comunidad,l.provincia);
 
   modal("Laboral",`
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
     ${resumenLaboral(l)}
+
+    <h3 class="zx_form_subtitle">Disponibilidad</h3>
+    ${renderResumenConsumo(l,consumo)}
 
     <h3 class="zx_form_subtitle">Jornada</h3>
     ${inputNum("lab_horas_dia","Horas por día",l.horas_dia,"0.25")}
@@ -1537,6 +1542,109 @@ async function guardarHorarioUsuario(datos){
   return await sb().from("horarios_usuario").insert([horario]);
 }
 
+/* RESUMEN LABORAL */
+async function cargarSolicitudesUsuario(usuarioId){
+  const a=await consultaHistorial("solicitudes_laborales","usuario_id",usuarioId,"created_at");
+  const b=await consultaHistorial("solicitudes_laborales","user_id",usuarioId,"created_at");
+
+  const mapa=new Map();
+
+  [...a,...b].forEach(s=>{
+    const k=String(s.id || JSON.stringify(s));
+    if(!mapa.has(k)) mapa.set(k,s);
+  });
+
+  return Array.from(mapa.values());
+}
+
+function calcularConsumoLaboral(solicitudes){
+  let vacacionesDias=0;
+  let vacacionesPendientes=0;
+  let asuntosHoras=0;
+  let asuntosPendientes=0;
+  let permisos=0;
+  let bajas=0;
+
+  solicitudes.forEach(s=>{
+    const tipo=tipoSolicitudNormalizado(s.tipo || s.categoria || "");
+    const estado=tipoSolicitudNormalizado(s.estado || "");
+
+    const aprobada=estado==="aprobada" || estado==="aprobado" || estado==="aceptada" || estado==="aceptado";
+    const pendiente=estado==="pendiente" || estado==="solicitada" || estado==="solicitado";
+
+    const dias=diasEntreFechas(s.fecha || s.fecha_inicio || s.desde || s.inicio,s.fecha_fin || s.hasta || s.fin);
+    const horas=Number(s.horas || s.total_horas || s.asuntos_horas || s.duracion_horas || 0);
+
+    if(tipo.includes("vacacion")){
+      if(aprobada) vacacionesDias+=dias;
+      if(pendiente) vacacionesPendientes+=dias;
+      return;
+    }
+
+    if(tipo.includes("asuntos")){
+      const h=horas>0 ? horas : dias*8;
+      if(aprobada) asuntosHoras+=h;
+      if(pendiente) asuntosPendientes+=h;
+      return;
+    }
+
+    if(tipo.includes("baja")){
+      if(aprobada) bajas+=dias;
+      return;
+    }
+
+    if(tipo.includes("permiso") || tipo.includes("ausencia")){
+      if(aprobada) permisos+=dias;
+    }
+  });
+
+  return {
+    vacacionesDias,
+    vacacionesPendientes,
+    asuntosHoras,
+    asuntosPendientes,
+    permisos,
+    bajas
+  };
+}
+
+function renderResumenConsumo(l,consumo){
+  const vacacionesAsignadas=Number(l.vacaciones_dias || 0);
+  const asuntosAsignados=Number(l.asuntos_propios || 0);
+
+  const vacacionesRestantes=Math.max(0,vacacionesAsignadas-consumo.vacacionesDias);
+  const asuntosRestantes=Math.max(0,asuntosAsignados-consumo.asuntosHoras);
+
+  return `
+    <div class="zx_consumo_grid">
+      <div class="zx_consumo_card">
+        <h3>Vacaciones</h3>
+        <b>${limpiar(vacacionesRestantes)}</b>
+        <span>Disponibles</span>
+        <p>Asignadas: ${limpiar(vacacionesAsignadas)} días</p>
+        <p>Consumidas: ${limpiar(consumo.vacacionesDias)} días</p>
+        <p>Pendientes: ${limpiar(consumo.vacacionesPendientes)} días</p>
+      </div>
+
+      <div class="zx_consumo_card">
+        <h3>Asuntos propios</h3>
+        <b>${limpiar(asuntosRestantes)}</b>
+        <span>Horas disponibles</span>
+        <p>Asignadas: ${limpiar(asuntosAsignados)} h</p>
+        <p>Consumidas: ${limpiar(consumo.asuntosHoras)} h</p>
+        <p>Pendientes: ${limpiar(consumo.asuntosPendientes)} h</p>
+      </div>
+
+      <div class="zx_consumo_card">
+        <h3>Otros</h3>
+        <b>${limpiar(consumo.permisos)}</b>
+        <span>Días de permiso</span>
+        <p>Bajas aprobadas: ${limpiar(consumo.bajas)} días</p>
+      </div>
+    </div>
+  `;
+}
+
 /* HISTORIAL */
 async function consultaHistorial(tabla,campo,usuarioId,orden){
   try{
@@ -1580,6 +1688,34 @@ function textoMinutos(min){
   const h=Math.floor(n/60);
   const m=n%60;
   return h+" h"+(m ? " "+m+" min" : "");
+}
+
+function fechaISO(v){
+  if(!v) return "";
+  const s=String(v);
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0,10);
+}
+
+function diasEntreFechas(inicio,fin){
+  const a=fechaISO(inicio);
+  const b=fechaISO(fin || inicio);
+
+  if(!a) return 0;
+
+  const da=new Date(a+"T00:00:00");
+  const db=new Date((b || a)+"T00:00:00");
+
+  if(Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return 0;
+
+  const ms=db.getTime()-da.getTime();
+  return Math.max(1,Math.round(ms/86400000)+1);
+}
+
+function tipoSolicitudNormalizado(v){
+  return normalizarTexto(v).replaceAll(" ","_").replaceAll("-","_");
 }
 
 function itemHistorial(titulo,meta,detalle){
@@ -1981,10 +2117,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3117")) return;
+  if(document.getElementById("zx_usuarios_v3118")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3117";
+  s.id="zx_usuarios_v3118";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -2043,6 +2179,12 @@ async function verDocumentosUsuario(u){
     .zx_dni_grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
     .zx_dni_box{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px}
     .zx_dni_box h3{margin:0 0 8px 0;font-size:17px;color:#0f172a}
+    .zx_consumo_grid{display:grid;grid-template-columns:1fr;gap:10px;margin:12px 0}
+    .zx_consumo_card{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:13px}
+    .zx_consumo_card h3{margin:0 0 8px 0;color:#0f172a;font-size:17px}
+    .zx_consumo_card b{display:block;font-size:30px;font-weight:900;color:#0f172a}
+    .zx_consumo_card span{display:block;color:#64748b;font-size:13px;font-weight:900;margin-bottom:8px}
+    .zx_consumo_card p{margin:4px 0;color:#334155;font-size:14px;font-weight:800;line-height:1.3}
 
     @media(max-width:430px){
       .zx_user_filter,.zx_ficha_acciones,.zx_doc_item,.zx_checks_grid{grid-template-columns:1fr}
