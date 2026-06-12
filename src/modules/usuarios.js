@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3127 - IMPRIMIR FICHA USUARIO + RESUMEN LABORAL
+// V3128 - ROLES PROFESIONALES + IMPRIMIR FICHA
 // ===============================
 (function(){
 "use strict";
@@ -126,16 +126,18 @@ function rolLocal(){return String(sesion().rol || "").toLowerCase()}
 function usuarioLocal(){return String(sesion().usuario || "").toLowerCase()}
 function esAdminLocal(){return rolLocal()==="administrador" || usuarioLocal()==="admin"}
 function esEncargadoLocal(){return rolLocal()==="encargado"}
+function esGerenteLocal(){return rolLocal()==="gerente"}
+function esSupervisorLocal(){return rolLocal()==="supervisor"}
 
 function puedeCrear(){return esAdminLocal()}
-function puedeEditar(){return esAdminLocal() || esEncargadoLocal()}
+function puedeEditar(){return esAdminLocal() || esGerenteLocal() || esSupervisorLocal() || esEncargadoLocal()}
 function puedeReset(){return esAdminLocal()}
 function puedeEliminar(){return esAdminLocal()}
 function puedeReactivar(){return esAdminLocal()}
 
 function puedeVerPrivado(u){
   const s=sesion();
-  return esAdminLocal() || esEncargadoLocal() || String(s.id||"")===String(u.id||"");
+  return esAdminLocal() || esGerenteLocal() || esSupervisorLocal() || esEncargadoLocal() || String(s.id||"")===String(u.id||"");
 }
 
 function puedeVerDocs(u){
@@ -145,7 +147,7 @@ function puedeVerDocs(u){
 
 function puedeVerLaboral(u){
   const s=sesion();
-  return esAdminLocal() || esEncargadoLocal() || String(s.id||"")===String(u.id||"");
+  return esAdminLocal() || esGerenteLocal() || esSupervisorLocal() || esEncargadoLocal() || String(s.id||"")===String(u.id||"");
 }
 
 function hashPin(pin){
@@ -270,6 +272,26 @@ function mensajeInterno(){
   alert("Mensajería interna pendiente.");
 }
 
+function claseRol(rol){
+  const r=normalizarTexto(rol);
+
+  if(r==="administrador") return "zx_rol_admin";
+  if(r==="gerente") return "zx_rol_gerente";
+  if(r==="supervisor") return "zx_rol_supervisor";
+  if(r==="encargado") return "zx_rol_encargado";
+  if(r==="administrativo") return "zx_rol_administ";
+  if(r==="comercial") return "zx_rol_comercial";
+  if(r==="tecnico") return "zx_rol_tecnico";
+  if(r==="operario") return "zx_rol_operario";
+  if(r==="invitado") return "zx_rol_invitado";
+
+  return "zx_rol_default";
+}
+
+function badgeRol(rol){
+  return `<span class="zx_rol_badge ${claseRol(rol)}">${limpiar(rol || "-")}</span>`;
+}
+
 function textoBusquedaUsuario(u){
   return normalizarTexto([
     u.nombre,
@@ -378,16 +400,18 @@ async function pedirPinConPermiso(accion,callback){
 
     const admin=rol==="administrador" || usuario==="admin";
     const encargado=rol==="encargado";
+    const gerente=rol==="gerente";
+    const supervisor=rol==="supervisor";
 
     let ok=false;
 
     if(accion==="crear") ok=admin;
-    if(accion==="editar") ok=admin || encargado;
+    if(accion==="editar") ok=admin || gerente || supervisor || encargado;
     if(accion==="reset") ok=admin;
     if(accion==="eliminar") ok=admin;
     if(accion==="reactivar") ok=admin;
     if(accion==="docs") ok=admin;
-    if(accion==="laboral") ok=admin || encargado;
+    if(accion==="laboral") ok=admin || gerente || supervisor || encargado;
 
     if(!ok){
       alert("No tienes permiso.");
@@ -920,7 +944,7 @@ function renderFichaUsuario(u,ultimoFichaje,resumenRapido,resumenLaboralMini){
         ${avatar(u)}
         <div>
           <div class="zx_ficha_nombre">${limpiar(u.nombre || u.usuario || "-")}</div>
-          <div class="zx_ficha_meta">${limpiar(u.rol || "-")} · ${limpiar(u.estado || "-")}</div>
+          <div class="zx_ficha_meta">${badgeRol(u.rol)} <span>${limpiar(u.estado || "-")}</span></div>
         </div>
       </div>
 
@@ -969,7 +993,7 @@ function renderUsuario(u){
 
         <div class="zx_user_row_info">
           <div class="zx_user_row_name">${limpiar(u.nombre || u.usuario || "-")}</div>
-          <div class="zx_user_row_meta">${limpiar(u.rol || "-")} · ${limpiar(u.estado || "-")}</div>
+          <div class="zx_user_row_meta">${badgeRol(u.rol)} <span>${limpiar(u.estado || "-")}</span></div>
           ${telefono ? `<div class="zx_user_row_phone">${limpiar(telefono)}</div>` : ""}
         </div>
 
@@ -1211,7 +1235,18 @@ function formulario(u){
     <label class="zx_label" for="u_emergencia_observaciones">Observaciones emergencia</label>
     <textarea id="u_emergencia_observaciones" rows="4" placeholder="Observaciones emergencia">${limpiar(u.emergencia_observaciones || "")}</textarea>
 
-    ${selectSimple("u_rol","Rol",u.rol,["Administrador","Encargado","Operario","Oficina"])}
+    ${selectSimple("u_rol","Rol",u.rol,[
+      "Administrador",
+      "Gerente",
+      "Supervisor",
+      "Encargado",
+      "Administrativo",
+      "Comercial",
+      "Técnico",
+      "Operario",
+      "Oficina",
+      "Invitado"
+    ])}
     ${selectSimple("u_estado","Estado",u.estado || "Activo",["Activo","Inactivo"])}
 
     <button class="zx_btn_big ${editando ? "zx_azul" : "zx_verde"}" id="btn_guardar_usuario">
@@ -2653,10 +2688,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3127")) return;
+  if(document.getElementById("zx_usuarios_v3128")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3127";
+  s.id="zx_usuarios_v3128";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -2678,6 +2713,16 @@ async function verDocumentosUsuario(u){
     .zx_user_avatar_empty{background:linear-gradient(135deg,#2563eb,#10b981);color:white;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900}
     .zx_user_row_name{font-size:18px;font-weight:900;color:#0f172a;line-height:1.15;word-break:break-word}
     .zx_user_row_meta,.zx_user_row_phone{color:#64748b;font-size:13px;font-weight:800;margin-top:2px;word-break:break-word}
+    .zx_rol_badge{display:inline-block;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:900;line-height:1;background:#e5e7eb;color:#111827;margin-right:5px}
+    .zx_rol_admin{background:#dc2626;color:white}
+    .zx_rol_gerente{background:#7c3aed;color:white}
+    .zx_rol_supervisor{background:#2563eb;color:white}
+    .zx_rol_encargado{background:#0f766e;color:white}
+    .zx_rol_administ{background:#0891b2;color:white}
+    .zx_rol_comercial{background:#f59e0b;color:#3b2500}
+    .zx_rol_tecnico{background:#16a34a;color:white}
+    .zx_rol_operario{background:#334155;color:white}
+    .zx_rol_invitado{background:#e5e7eb;color:#475569}
     .zx_user_open_btn{border:0;border-radius:12px;background:#2563eb;color:white;padding:10px 12px;font-size:13px;font-weight:900}
     .zx_ficha_head{display:grid;grid-template-columns:72px 1fr;gap:12px;align-items:center;margin-bottom:14px}
     .zx_ficha_nombre{font-size:23px;font-weight:900;color:#0f172a;line-height:1.15}
