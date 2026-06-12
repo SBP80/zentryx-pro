@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3114 - USUARIOS CERRADO + LISTA COMPACTA PRO
+// V3115 - BUSCADOR SIN CERRAR TECLADO + LISTA COMPACTA PRO
 // ===============================
 (function(){
 "use strict";
@@ -10,6 +10,7 @@ const FOTO_BUCKET="zentryx-usuarios";
 
 let ZX_FILTRO_USUARIOS="activos";
 let ZX_BUSQUEDA_USUARIOS="";
+let ZX_USUARIOS_CACHE=[];
 
 const ZX_PROVINCIAS_POR_COMUNIDAD={
   "Andalucía":["Almería","Cádiz","Córdoba","Granada","Huelva","Jaén","Málaga","Sevilla"],
@@ -396,14 +397,49 @@ async function cargarUsuarios(){
     return [];
   }
 
-  const lista=res.data || [];
+  ZX_USUARIOS_CACHE=res.data || [];
+  return filtrarUsuariosEnMemoria();
+}
+
+function filtrarUsuariosEnMemoria(){
   const q=String(ZX_BUSQUEDA_USUARIOS || "").trim();
 
-  if(!q) return lista;
+  if(!q){
+    return ZX_USUARIOS_CACHE || [];
+  }
 
-  return lista.filter(function(u){
+  return (ZX_USUARIOS_CACHE || []).filter(function(u){
     return coincideBusqueda(u,q);
   });
+}
+
+function renderListaUsuarios(datos){
+  return `
+    ${
+      datos.length
+      ? datos.map(renderUsuario).join("")
+      : `
+        <div class="zx_card">
+          <div class="zx_text">No hay usuarios para este filtro o búsqueda.</div>
+        </div>
+      `
+    }
+  `;
+}
+
+function pintarListaUsuarios(){
+  const lista=document.getElementById("zx_usuarios_lista");
+  const contador=document.getElementById("zx_usuarios_contador");
+  const datos=filtrarUsuariosEnMemoria();
+
+  if(contador){
+    contador.textContent=datos.length+" usuario(s)";
+  }
+
+  if(lista){
+    lista.innerHTML=renderListaUsuarios(datos);
+    conectarAccionesUsuarios(datos);
+  }
 }
 
 function renderFiltroUsuarios(){
@@ -440,23 +476,24 @@ function conectarBuscadorUsuarios(){
   if(buscar){
     buscar.oninput=function(){
       ZX_BUSQUEDA_USUARIOS=buscar.value || "";
+      pintarListaUsuarios();
 
-      clearTimeout(window.ZX_BUSCAR_USUARIOS_TIMER);
+      const limpiarBusqueda=document.getElementById("zx_limpiar_busqueda_usuarios");
+      if(!limpiarBusqueda && ZX_BUSQUEDA_USUARIOS){
+        const caja=buscar.closest(".zx_user_search");
+        if(caja){
+          caja.insertAdjacentHTML("beforeend",`<button id="zx_limpiar_busqueda_usuarios" type="button">✕</button>`);
+          conectarBotonLimpiarBusqueda();
+        }
+      }
 
-      window.ZX_BUSCAR_USUARIOS_TIMER=setTimeout(function(){
-        ZX_usuarios();
-      },180);
+      if(limpiarBusqueda && !ZX_BUSQUEDA_USUARIOS){
+        limpiarBusqueda.remove();
+      }
     };
   }
 
-  const limpiarBusqueda=document.getElementById("zx_limpiar_busqueda_usuarios");
-
-  if(limpiarBusqueda){
-    limpiarBusqueda.onclick=function(){
-      ZX_BUSQUEDA_USUARIOS="";
-      ZX_usuarios();
-    };
-  }
+  conectarBotonLimpiarBusqueda();
 
   document.querySelectorAll("[data-user-filter]").forEach(function(btn){
     btn.onclick=function(){
@@ -464,6 +501,21 @@ function conectarBuscadorUsuarios(){
       ZX_usuarios();
     };
   });
+}
+
+function conectarBotonLimpiarBusqueda(){
+  const limpiarBusqueda=document.getElementById("zx_limpiar_busqueda_usuarios");
+  const buscar=document.getElementById("zx_buscar_usuarios");
+
+  if(limpiarBusqueda){
+    limpiarBusqueda.onclick=function(){
+      ZX_BUSQUEDA_USUARIOS="";
+      if(buscar) buscar.value="";
+      limpiarBusqueda.remove();
+      pintarListaUsuarios();
+      if(buscar) buscar.focus();
+    };
+  }
 }
 
 function tieneEmergencia(u){
@@ -617,7 +669,7 @@ window.ZENTRYX_UI_usuarios=async function(){
       <div class="zx_usuarios_head_top">
         <div>
           <h2>Usuarios</h2>
-          <div class="zx_text">${usuarios.length} usuario(s)</div>
+          <div class="zx_text" id="zx_usuarios_contador">${usuarios.length} usuario(s)</div>
         </div>
 
         ${
@@ -630,16 +682,8 @@ window.ZENTRYX_UI_usuarios=async function(){
       ${renderFiltroUsuarios()}
     </div>
 
-    <div class="zx_usuarios_lista">
-      ${
-        usuarios.length
-        ? usuarios.map(renderUsuario).join("")
-        : `
-          <div class="zx_card">
-            <div class="zx_text">No hay usuarios para este filtro o búsqueda.</div>
-          </div>
-        `
-      }
+    <div class="zx_usuarios_lista" id="zx_usuarios_lista">
+      ${renderListaUsuarios(usuarios)}
     </div>
   `;
 
@@ -655,6 +699,10 @@ window.ZENTRYX_UI_usuarios=async function(){
     };
   }
 
+  conectarAccionesUsuarios(usuarios);
+};
+
+function conectarAccionesUsuarios(usuarios){
   document.querySelectorAll("[data-action]").forEach(function(btn){
     btn.onclick=function(){
       const a=btn.dataset.action;
@@ -665,7 +713,7 @@ window.ZENTRYX_UI_usuarios=async function(){
       }
     };
   });
-};
+}
 
 window.ZX_usuarios=function(){
   document.querySelectorAll(".zx_nav_btn").forEach(function(b){
@@ -1705,10 +1753,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3114")) return;
+  if(document.getElementById("zx_usuarios_v3115")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3114";
+  s.id="zx_usuarios_v3115";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
