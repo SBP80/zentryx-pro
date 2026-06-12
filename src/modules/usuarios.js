@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3118 - VACACIONES Y ASUNTOS CONSUMIDOS + DNI + HISTORIAL
+// V3120 - DISPONIBILIDAD LABORAL MEJORADA + SALDOS + DNI + HISTORIAL
 // ===============================
 (function(){
 "use strict";
@@ -1285,14 +1285,18 @@ function laboralDefault(u){
   };
 }
 
-function resumenLaboral(l){
+function resumenLaboral(l,consumo){
+  const bloqueConsumo=consumo ? renderResumenConsumo(l,consumo) : "";
+
   return `
     <div class="zx_laboral_resumen">
       <div><b>${limpiar(l.horas_dia ?? 0)}</b><span>Horas/día</span></div>
       <div><b>${limpiar(l.horas_semana ?? 0)}</b><span>Horas/semana</span></div>
-      <div><b>${limpiar(l.vacaciones_dias ?? 0)}</b><span>Vacaciones</span></div>
-      <div><b>${limpiar(l.asuntos_propios ?? 0)}</b><span>Asuntos propios</span></div>
+      <div><b>${limpiar(l.vacaciones_dias ?? 0)}</b><span>Vacaciones asignadas</span></div>
+      <div><b>${limpiar(l.asuntos_propios ?? 0)}</b><span>Asuntos propios asignados</span></div>
     </div>
+
+    ${bloqueConsumo}
   `;
 }
 
@@ -1317,10 +1321,7 @@ async function verLaboralUsuario(u){
 
   modal("Laboral",`
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
-    ${resumenLaboral(l)}
-
-    <h3 class="zx_form_subtitle">Disponibilidad</h3>
-    ${renderResumenConsumo(l,consumo)}
+    ${resumenLaboral(l,consumo)}
 
     <h3 class="zx_form_subtitle">Jornada</h3>
     ${inputNum("lab_horas_dia","Horas por día",l.horas_dia,"0.25")}
@@ -1608,38 +1609,116 @@ function calcularConsumoLaboral(solicitudes){
   };
 }
 
-function renderResumenConsumo(l,consumo){
-  const vacacionesAsignadas=Number(l.vacaciones_dias || 0);
-  const asuntosAsignados=Number(l.asuntos_propios || 0);
+function numeroLaboral(v){
+  const n=Number(v || 0);
+  if(!Number.isFinite(n)) return 0;
+  return Math.round(n*100)/100;
+}
 
-  const vacacionesRestantes=Math.max(0,vacacionesAsignadas-consumo.vacacionesDias);
-  const asuntosRestantes=Math.max(0,asuntosAsignados-consumo.asuntosHoras);
+function textoNumeroLaboral(v){
+  const n=numeroLaboral(v);
+  if(Number.isInteger(n)) return String(n);
+  return String(n).replace(".",",");
+}
+
+function textoHorasLaboral(v){
+  const n=numeroLaboral(v);
+  const totalMin=Math.round(n*60);
+  const h=Math.floor(totalMin/60);
+  const m=totalMin%60;
+
+  if(totalMin<=0) return "0 h";
+  if(m===0) return h+" h";
+  if(h===0) return m+" min";
+
+  return h+" h "+m+" min";
+}
+
+function porcentajeConsumo(consumido,asignado){
+  const a=Number(asignado || 0);
+  const c=Number(consumido || 0);
+
+  if(!a || a<=0) return 0;
+
+  return Math.max(0,Math.min(100,Math.round((c/a)*100)));
+}
+
+function claseSaldo(restante){
+  const r=Number(restante || 0);
+  if(r<0) return "zx_saldo_mal";
+  if(r===0) return "zx_saldo_cero";
+  return "zx_saldo_ok";
+}
+
+function avisoSaldo(nombre,restante,unidad){
+  const r=Number(restante || 0);
+
+  if(r>=0) return "";
 
   return `
+    <div class="zx_saldo_alerta">
+      Aviso: ${limpiar(nombre)} tiene saldo negativo de ${limpiar(textoNumeroLaboral(Math.abs(r)))} ${limpiar(unidad)}.
+    </div>
+  `;
+}
+
+function renderResumenConsumo(l,consumo){
+  const vacacionesAsignadas=numeroLaboral(l.vacaciones_dias || 0);
+  const asuntosAsignados=numeroLaboral(l.asuntos_propios || 0);
+
+  const vacacionesConsumidas=numeroLaboral(consumo.vacacionesDias || 0);
+  const vacacionesPendientes=numeroLaboral(consumo.vacacionesPendientes || 0);
+  const asuntosConsumidos=numeroLaboral(consumo.asuntosHoras || 0);
+  const asuntosPendientes=numeroLaboral(consumo.asuntosPendientes || 0);
+
+  const vacacionesRestantes=numeroLaboral(vacacionesAsignadas-vacacionesConsumidas);
+  const asuntosRestantes=numeroLaboral(asuntosAsignados-asuntosConsumidos);
+
+  const pctVacaciones=porcentajeConsumo(vacacionesConsumidas,vacacionesAsignadas);
+  const pctAsuntos=porcentajeConsumo(asuntosConsumidos,asuntosAsignados);
+
+  return `
+    <h3 class="zx_form_subtitle">Disponibilidad</h3>
+
+    ${avisoSaldo("Vacaciones",vacacionesRestantes,"días")}
+    ${avisoSaldo("Asuntos propios",asuntosRestantes,"horas")}
+
     <div class="zx_consumo_grid">
-      <div class="zx_consumo_card">
+      <div class="zx_consumo_card ${claseSaldo(vacacionesRestantes)}">
         <h3>Vacaciones</h3>
-        <b>${limpiar(vacacionesRestantes)}</b>
-        <span>Disponibles</span>
-        <p>Asignadas: ${limpiar(vacacionesAsignadas)} días</p>
-        <p>Consumidas: ${limpiar(consumo.vacacionesDias)} días</p>
-        <p>Pendientes: ${limpiar(consumo.vacacionesPendientes)} días</p>
+        <b>${limpiar(textoNumeroLaboral(vacacionesRestantes))}</b>
+        <span>Días disponibles</span>
+
+        <div class="zx_barra_consumo">
+          <div style="width:${limpiar(pctVacaciones)}%"></div>
+        </div>
+
+        <p>Asignadas: ${limpiar(textoNumeroLaboral(vacacionesAsignadas))} días</p>
+        <p>Consumidas: ${limpiar(textoNumeroLaboral(vacacionesConsumidas))} días</p>
+        <p>Pendientes: ${limpiar(textoNumeroLaboral(vacacionesPendientes))} días</p>
+        <p>Uso: ${limpiar(pctVacaciones)}%</p>
       </div>
 
-      <div class="zx_consumo_card">
+      <div class="zx_consumo_card ${claseSaldo(asuntosRestantes)}">
         <h3>Asuntos propios</h3>
-        <b>${limpiar(asuntosRestantes)}</b>
-        <span>Horas disponibles</span>
-        <p>Asignadas: ${limpiar(asuntosAsignados)} h</p>
-        <p>Consumidas: ${limpiar(consumo.asuntosHoras)} h</p>
-        <p>Pendientes: ${limpiar(consumo.asuntosPendientes)} h</p>
+        <b>${limpiar(textoHorasLaboral(asuntosRestantes))}</b>
+        <span>Disponibles</span>
+
+        <div class="zx_barra_consumo">
+          <div style="width:${limpiar(pctAsuntos)}%"></div>
+        </div>
+
+        <p>Asignadas: ${limpiar(textoHorasLaboral(asuntosAsignados))}</p>
+        <p>Consumidas: ${limpiar(textoHorasLaboral(asuntosConsumidos))}</p>
+        <p>Pendientes: ${limpiar(textoHorasLaboral(asuntosPendientes))}</p>
+        <p>Uso: ${limpiar(pctAsuntos)}%</p>
       </div>
 
       <div class="zx_consumo_card">
         <h3>Otros</h3>
-        <b>${limpiar(consumo.permisos)}</b>
+        <b>${limpiar(textoNumeroLaboral(consumo.permisos || 0))}</b>
         <span>Días de permiso</span>
-        <p>Bajas aprobadas: ${limpiar(consumo.bajas)} días</p>
+        <p>Bajas aprobadas: ${limpiar(textoNumeroLaboral(consumo.bajas || 0))} días</p>
       </div>
     </div>
   `;
@@ -2117,10 +2196,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3118")) return;
+  if(document.getElementById("zx_usuarios_v3120")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3118";
+  s.id="zx_usuarios_v3120";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -2185,6 +2264,12 @@ async function verDocumentosUsuario(u){
     .zx_consumo_card b{display:block;font-size:30px;font-weight:900;color:#0f172a}
     .zx_consumo_card span{display:block;color:#64748b;font-size:13px;font-weight:900;margin-bottom:8px}
     .zx_consumo_card p{margin:4px 0;color:#334155;font-size:14px;font-weight:800;line-height:1.3}
+    .zx_saldo_ok{border-left:7px solid #16a34a}
+    .zx_saldo_cero{border-left:7px solid #facc15}
+    .zx_saldo_mal{border-left:7px solid #dc2626;background:#fff1f2}
+    .zx_saldo_alerta{background:#fff1f2;border:1px solid #fecdd3;border-left:7px solid #dc2626;color:#7f1d1d;border-radius:16px;padding:12px;margin:10px 0;font-size:14px;font-weight:900;line-height:1.35}
+    .zx_barra_consumo{height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:10px 0 12px}
+    .zx_barra_consumo div{height:100%;background:#2563eb;border-radius:999px}
 
     @media(max-width:430px){
       .zx_user_filter,.zx_ficha_acciones,.zx_doc_item,.zx_checks_grid{grid-template-columns:1fr}
