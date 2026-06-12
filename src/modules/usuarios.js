@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3111 - BUSCADOR CORREGIDO + LISTA LIMPIA
+// V3114 - USUARIOS CERRADO + LISTA COMPACTA PRO
 // ===============================
 (function(){
 "use strict";
@@ -122,6 +122,7 @@ function puedeVerLaboral(u){
   const s=sesion();
   return esAdminLocal() || esEncargadoLocal() || String(s.id||"")===String(u.id||"");
 }
+
 function hashPin(pin){
   return btoa(String(pin));
 }
@@ -160,16 +161,24 @@ function direccionCompleta(u){
   ].filter(Boolean).join(", ");
 }
 
+function inicialUsuario(u){
+  return limpiar((u.nombre || u.usuario || "?").charAt(0).toUpperCase());
+}
+
 function avatar(u){
   if(u.foto_url){
-    return `<img class="zx_user_avatar" src="${limpiar(u.foto_url)}">`;
+    return `<img class="zx_user_avatar" src="${limpiar(u.foto_url)}" alt="Foto">`;
   }
 
-  return `
-    <div class="zx_user_avatar zx_user_avatar_empty">
-      ${limpiar((u.nombre || u.usuario || "?").charAt(0).toUpperCase())}
-    </div>
-  `;
+  return `<div class="zx_user_avatar zx_user_avatar_empty">${inicialUsuario(u)}</div>`;
+}
+
+function avatarMini(u){
+  if(u.foto_url){
+    return `<img class="zx_user_row_avatar" src="${limpiar(u.foto_url)}" alt="Foto">`;
+  }
+
+  return `<div class="zx_user_row_avatar zx_user_avatar_empty">${inicialUsuario(u)}</div>`;
 }
 
 function telefonoLimpio(tel){
@@ -258,24 +267,22 @@ function textoBusquedaUsuario(u){
 }
 
 function coincideBusqueda(u,busqueda){
-
   const q=normalizarTexto(busqueda);
 
   if(!q) return true;
 
   const texto=textoBusquedaUsuario(u);
-
   if(texto.includes(q)) return true;
 
   const qNumeros=soloNumeros(q);
 
   if(qNumeros){
-
     const numeros=soloNumeros([
       u.telefono_personal,
       u.telefono_empresa,
       u.emergencia_telefono,
-      u.dni
+      u.dni,
+      u.codigo_postal
     ].join(" "));
 
     if(numeros.includes(qNumeros)){
@@ -285,6 +292,7 @@ function coincideBusqueda(u,busqueda){
 
   return false;
 }
+
 async function pedirPinConPermiso(accion,callback){
   modal("PIN",`
     <input id="zx_admin_pin" class="zx_pin_input" inputmode="numeric" maxlength="4" placeholder="PIN">
@@ -439,12 +447,6 @@ function conectarBuscadorUsuarios(){
         ZX_usuarios();
       },180);
     };
-
-    setTimeout(function(){
-      const len=buscar.value.length;
-      buscar.focus();
-      try{buscar.setSelectionRange(len,len)}catch(e){}
-    },40);
   }
 
   const limpiarBusqueda=document.getElementById("zx_limpiar_busqueda_usuarios");
@@ -463,6 +465,7 @@ function conectarBuscadorUsuarios(){
     };
   });
 }
+
 function tieneEmergencia(u){
   return !!(
     u.emergencia_nombre ||
@@ -492,14 +495,19 @@ function renderFichaUsuario(u){
 
   return `
     <div class="zx_ficha_usuario">
+      <div class="zx_ficha_head">
+        ${avatar(u)}
+        <div>
+          <div class="zx_ficha_nombre">${limpiar(u.nombre || u.usuario || "-")}</div>
+          <div class="zx_ficha_meta">${limpiar(u.rol || "-")} · ${limpiar(u.estado || "-")}</div>
+        </div>
+      </div>
+
       <div class="zx_ficha_bloque">
         <h3>Datos personales</h3>
         <div class="zx_user_data">
           <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
-          <b>Nombre:</b> ${limpiar(u.nombre || "-")}<br>
           <b>DNI:</b> ${limpiar(u.dni || "-")}<br>
-          <b>Rol:</b> ${limpiar(u.rol || "-")}<br>
-          <b>Estado:</b> ${limpiar(u.estado || "-")}<br>
           <b>Activo:</b> ${activo ? "Sí" : "No"}<br>
           <b>PIN:</b> ${limpiar(pinEstado)}
         </div>
@@ -530,24 +538,19 @@ function renderUsuario(u){
   const telefono=u.telefono_personal || u.telefono_empresa || "";
 
   return `
-    <div class="zx_user_card ${activo ? "" : "zx_user_inactivo"}">
-      <div class="zx_user_top">
-        ${avatar(u)}
+    <div class="zx_user_row ${activo ? "" : "zx_user_inactivo"}">
+      <div class="zx_user_row_main">
+        ${avatarMini(u)}
 
-        <div>
-          <div class="zx_user_name">${limpiar(u.nombre || u.usuario || "-")}</div>
-          <div class="zx_user_sub">${limpiar(u.rol || "-")} · ${limpiar(u.estado || "-")}</div>
-          ${telefono ? `<div class="zx_user_phone">${limpiar(telefono)}</div>` : ""}
+        <div class="zx_user_row_info">
+          <div class="zx_user_row_name">${limpiar(u.nombre || u.usuario || "-")}</div>
+          <div class="zx_user_row_meta">${limpiar(u.rol || "-")} · ${limpiar(u.estado || "-")}</div>
+          ${telefono ? `<div class="zx_user_row_phone">${limpiar(telefono)}</div>` : ""}
         </div>
-      </div>
 
-      <button class="zx_btn_big zx_azul" data-action="abrir_ficha" data-id="${limpiar(u.id)}">
-        Abrir ficha
-      </button>
-
-      <div class="zx_user_actions">
-        ${puedeVerLaboral(u) ? `<button class="zx_action_btn zx_laboral" data-action="laboral" data-id="${limpiar(u.id)}">Laboral</button>` : ""}
-        ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" data-action="docs" data-id="${limpiar(u.id)}" data-nombre="${limpiar(u.nombre || u.usuario || "Usuario")}">Documentos</button>` : ""}
+        <button class="zx_user_open_btn" data-action="abrir_ficha" data-id="${limpiar(u.id)}">
+          Abrir
+        </button>
       </div>
     </div>
   `;
@@ -560,7 +563,7 @@ function abrirFichaUsuario(u){
   modal(u.nombre || u.usuario || "Usuario",`
     ${renderFichaUsuario(u)}
 
-    <div class="zx_user_actions">
+    <div class="zx_ficha_acciones">
       ${u.telefono_personal ? `<button class="zx_action_btn" id="f_tel_personal">Tel. personal</button>` : ""}
       ${u.telefono_empresa ? `<button class="zx_action_btn" id="f_tel_empresa">Tel. empresa</button>` : ""}
       ${u.email_personal ? `<button class="zx_action_btn" id="f_mail_personal">Email personal</button>` : ""}
@@ -570,7 +573,7 @@ function abrirFichaUsuario(u){
       ${u.emergencia_email ? `<button class="zx_action_btn zx_orange" id="f_emergencia_mail">Mail emergencia</button>` : ""}
     </div>
 
-    <div class="zx_user_actions">
+    <div class="zx_ficha_acciones">
       ${puedeEditar() ? `<button class="zx_action_btn zx_blue" id="f_editar">Editar</button>` : ""}
       ${puedeVerLaboral(u) ? `<button class="zx_action_btn zx_laboral" id="f_laboral">Laboral</button>` : ""}
       ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_docs">Documentos</button>` : ""}
@@ -605,6 +608,7 @@ function abrirFichaUsuario(u){
   asignar("f_reactivar",()=>pedirPinConPermiso("reactivar",()=>reactivarUsuario(u.id,u.nombre || u.usuario || "usuario")));
   asignar("f_cerrar",cerrarModal);
 }
+
 window.ZENTRYX_UI_usuarios=async function(){
   const usuarios=await cargarUsuarios();
 
@@ -658,14 +662,6 @@ window.ZENTRYX_UI_usuarios=async function(){
 
       if(a==="abrir_ficha" && u){
         abrirFichaUsuario(u);
-      }
-
-      if(a==="laboral" && u){
-        verLaboralUsuario(u);
-      }
-
-      if(a==="docs" && u){
-        verDocumentosUsuario(u);
       }
     };
   });
@@ -739,6 +735,7 @@ function selectVia(valor){
     "Polígono"
   ]);
 }
+
 function formulario(u){
   const editando=!!u.id;
 
@@ -893,6 +890,7 @@ function validarEmailFlexible(email){
   if(!email) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email));
 }
+
 function validarFormulario(){
   const nombre=document.getElementById("u_nombre").value.trim();
   const usuario=document.getElementById("u_usuario").value.trim();
@@ -959,18 +957,9 @@ async function guardarUsuario(id,fotoActual){
   const nuevaFoto=await subirFoto(file,usuario);
   const datos=datosFormulario(nuevaFoto || fotoActual || null,id);
 
-  let res;
-
-  if(id){
-    res=await sb()
-      .from("usuarios")
-      .update(datos)
-      .eq("id",id);
-  }else{
-    res=await sb()
-      .from("usuarios")
-      .insert([datos]);
-  }
+  const res=id
+    ? await sb().from("usuarios").update(datos).eq("id",id)
+    : await sb().from("usuarios").insert([datos]);
 
   if(res.error){
     alert("Error guardando: "+res.error.message);
@@ -988,14 +977,12 @@ function actualizarSesionSiEsUsuarioActual(id,datos){
 
   if(!id || String(s.id||"")!==String(id)) return;
 
-  const nueva={
+  localStorage.setItem("zentryx_session",JSON.stringify({
     ...s,
     usuario:datos.usuario || s.usuario,
     nombre:datos.nombre || s.nombre,
     rol:datos.rol || s.rol
-  };
-
-  localStorage.setItem("zentryx_session",JSON.stringify(nueva));
+  }));
 }
 
 async function resetPin(id,nombre){
@@ -1098,14 +1085,7 @@ function opcionesLocalidades(provincia,localidadActual){
 }
 
 function selectLaboral(id,label,valor,opciones){
-  return `
-    <label class="zx_label" for="${id}">${limpiar(label)}</label>
-    <select id="${id}">
-      ${opciones.map(function(o){
-        return `<option value="${limpiar(o)}" ${String(valor||"")===String(o) ? "selected" : ""}>${limpiar(o || "Seleccionar")}</option>`;
-      }).join("")}
-    </select>
-  `;
+  return selectSimple(id,label,valor,opciones);
 }
 
 async function cargarLaboralUsuario(usuarioId){
@@ -1200,6 +1180,7 @@ function normalizarLaboralDesdeConfig(c){
     precio_extra_festiva:Number(c.precio_extra_festiva || 0)
   };
 }
+
 function laboralDefault(u){
   return {
     id:null,
@@ -1724,10 +1705,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3111")) return;
+  if(document.getElementById("zx_usuarios_v3114")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3111";
+  s.id="zx_usuarios_v3114";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -1739,15 +1720,22 @@ async function verDocumentosUsuario(u){
     .zx_user_filter{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
     .zx_user_filter button{border:0;border-radius:14px;background:#e5e7eb;color:#111827;padding:12px;font-weight:900}
     .zx_filter_on{background:#2563eb!important;color:white!important}
-    .zx_usuarios_lista{display:flex;flex-direction:column;gap:12px}
-    .zx_user_card{background:white;border:1px solid #d1d5db;border-radius:20px;padding:14px;box-shadow:0 4px 14px rgba(0,0,0,.04);overflow:hidden}
+    .zx_usuarios_lista{display:flex;flex-direction:column;gap:10px}
+    .zx_user_row{background:white;border:1px solid #d1d5db;border-radius:18px;padding:10px 12px;box-shadow:0 3px 12px rgba(0,0,0,.035);overflow:hidden}
     .zx_user_inactivo{opacity:.65;border-left:8px solid #dc2626}
-    .zx_user_top{display:grid;grid-template-columns:68px 1fr;gap:12px;align-items:center;margin-bottom:12px}
-    .zx_user_avatar{width:68px;height:68px;border-radius:18px;object-fit:cover;background:#e5e7eb}
-    .zx_user_avatar_empty{background:linear-gradient(135deg,#2563eb,#10b981);color:white;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900}
-    .zx_user_name{font-size:22px;font-weight:900;color:#0f172a;line-height:1.15}
-    .zx_user_sub,.zx_user_phone{color:#64748b;font-size:15px;font-weight:800;margin-top:3px}
-    .zx_user_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+    .zx_user_row_main{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center}
+    .zx_user_row_avatar{width:52px;height:52px;border-radius:15px;object-fit:cover;background:#e5e7eb}
+    .zx_user_avatar{width:72px;height:72px;border-radius:18px;object-fit:cover;background:#e5e7eb}
+    .zx_user_avatar_empty{background:linear-gradient(135deg,#2563eb,#10b981);color:white;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900}
+    .zx_user_row_name{font-size:18px;font-weight:900;color:#0f172a;line-height:1.15;word-break:break-word}
+    .zx_user_row_meta,.zx_user_row_phone{color:#64748b;font-size:13px;font-weight:800;margin-top:2px;word-break:break-word}
+    .zx_user_open_btn{border:0;border-radius:12px;background:#2563eb;color:white;padding:10px 12px;font-size:13px;font-weight:900}
+    .zx_ficha_head{display:grid;grid-template-columns:72px 1fr;gap:12px;align-items:center;margin-bottom:14px}
+    .zx_ficha_nombre{font-size:23px;font-weight:900;color:#0f172a;line-height:1.15}
+    .zx_ficha_meta{font-size:14px;font-weight:800;color:#64748b;margin-top:4px}
+    .zx_ficha_bloque{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin:10px 0}
+    .zx_ficha_bloque h3{margin:0 0 8px 0;font-size:16px;color:#0f172a}
+    .zx_ficha_acciones{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
     .zx_action_btn{border:0;border-radius:14px;padding:12px;font-size:14px;font-weight:900;background:#e5e7eb;color:#111827}
     .zx_blue,.zx_azul{background:#2563eb!important;color:white!important}
     .zx_green{background:#16a34a!important;color:white!important}
@@ -1771,10 +1759,11 @@ async function verDocumentosUsuario(u){
     .zx_doc_preview_pdf{width:100%;height:68vh;border:0;border-radius:14px;background:white}
 
     @media(max-width:430px){
-      .zx_user_filter,.zx_user_actions,.zx_doc_item,.zx_checks_grid{grid-template-columns:1fr}
-      .zx_user_top{grid-template-columns:60px 1fr}
-      .zx_user_avatar{width:60px;height:60px}
-      .zx_user_name{font-size:20px}
+      .zx_user_filter,.zx_ficha_acciones,.zx_doc_item,.zx_checks_grid{grid-template-columns:1fr}
+      .zx_user_row_main{grid-template-columns:48px 1fr auto}
+      .zx_user_row_avatar{width:48px;height:48px;border-radius:14px}
+      .zx_user_row_name{font-size:17px}
+      .zx_user_open_btn{padding:9px 10px;font-size:12px}
     }
   `;
 
