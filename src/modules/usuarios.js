@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3122 - HISTORIAL LABORAL CORREGIDO
+// V3123 - BUSCADOR MULTIPALABRA + RESUMEN DE FILTROS
 // ===============================
 (function(){
 "use strict";
@@ -277,16 +277,27 @@ function textoBusquedaUsuario(u){
     u.dni,
     u.rol,
     u.estado,
+    u.activo===false ? "inactivo inactiva baja" : "activo activa alta",
     u.telefono_personal,
     u.telefono_empresa,
     u.email_personal,
     u.email_empresa,
     u.emergencia_nombre,
+    u.emergencia_relacion,
     u.emergencia_telefono,
     u.emergencia_email,
+    u.emergencia_observaciones,
+    u.via_tipo,
+    u.calle,
+    u.numero,
+    u.portal,
+    u.escalera,
+    u.piso,
+    u.puerta,
     u.poblacion,
     u.provincia,
     u.codigo_postal,
+    u.pais,
     direccionCompleta(u)
   ].join(" "));
 }
@@ -297,7 +308,17 @@ function coincideBusqueda(u,busqueda){
   if(!q) return true;
 
   const texto=textoBusquedaUsuario(u);
+
   if(texto.includes(q)) return true;
+
+  const palabras=q
+    .split(/\s+/)
+    .map(p=>p.trim())
+    .filter(Boolean);
+
+  if(palabras.length && palabras.every(p=>texto.includes(p))){
+    return true;
+  }
 
   const qNumeros=soloNumeros(q);
 
@@ -307,7 +328,10 @@ function coincideBusqueda(u,busqueda){
       u.telefono_empresa,
       u.emergencia_telefono,
       u.dni,
-      u.codigo_postal
+      u.codigo_postal,
+      u.numero,
+      u.piso,
+      u.puerta
     ].join(" "));
 
     if(numeros.includes(qNumeros)){
@@ -444,7 +468,7 @@ function renderListaUsuarios(datos){
       ? datos.map(renderUsuario).join("")
       : `
         <div class="zx_card">
-          <div class="zx_text">No hay usuarios para este filtro o búsqueda.</div>
+          <div class="zx_text">No hay usuarios que coincidan con este filtro o búsqueda.</div>
         </div>
       `
     }
@@ -490,6 +514,24 @@ function renderFiltroUsuarios(){
         <button class="${ZX_FILTRO_USUARIOS==="inactivos" ? "zx_filter_on" : ""}" data-user-filter="inactivos">Inactivos</button>
         <button class="${ZX_FILTRO_USUARIOS==="todos" ? "zx_filter_on" : ""}" data-user-filter="todos">Todos</button>
       </div>
+    </div>
+  `;
+}
+
+function renderResumenFiltroUsuarios(total){
+  const partes=[];
+
+  if(ZX_FILTRO_USUARIOS==="activos") partes.push("Activos");
+  if(ZX_FILTRO_USUARIOS==="inactivos") partes.push("Inactivos");
+  if(ZX_FILTRO_USUARIOS==="todos") partes.push("Todos");
+
+  if(ZX_BUSQUEDA_USUARIOS.trim()){
+    partes.push("Búsqueda: "+ZX_BUSQUEDA_USUARIOS.trim());
+  }
+
+  return `
+    <div class="zx_user_filter_resume">
+      ${limpiar(total)} resultado(s) · ${limpiar(partes.join(" · "))}
     </div>
   `;
 }
@@ -708,6 +750,8 @@ window.ZENTRYX_UI_usuarios=async function(){
       </div>
 
       ${renderFiltroUsuarios()}
+
+      ${renderResumenFiltroUsuarios(usuarios.length)}
     </div>
 
     <div class="zx_usuarios_lista" id="zx_usuarios_lista">
@@ -2297,10 +2341,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3122")) return;
+  if(document.getElementById("zx_usuarios_v3123")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3122";
+  s.id="zx_usuarios_v3123";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -2311,6 +2355,7 @@ async function verDocumentosUsuario(u){
     .zx_user_search button{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:#e5e7eb;width:32px;height:32px;border-radius:10px;font-weight:900}
     .zx_user_filter{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
     .zx_user_filter button{border:0;border-radius:14px;background:#e5e7eb;color:#111827;padding:12px;font-weight:900}
+    .zx_user_filter_resume{margin-top:10px;color:#64748b;font-size:13px;font-weight:900;line-height:1.35}
     .zx_filter_on{background:#2563eb!important;color:white!important}
     .zx_usuarios_lista{display:flex;flex-direction:column;gap:10px}
     .zx_user_row{background:white;border:1px solid #d1d5db;border-radius:18px;padding:10px 12px;box-shadow:0 3px 12px rgba(0,0,0,.035);overflow:hidden}
