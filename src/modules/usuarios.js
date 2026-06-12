@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3123 - BUSCADOR MULTIPALABRA + RESUMEN DE FILTROS
+// V3124 - FICHA CON ULTIMO ACCESO Y ULTIMO FICHAJE
 // ===============================
 (function(){
 "use strict";
@@ -607,7 +607,98 @@ function textoEmergencia(u){
   `;
 }
 
-function renderFichaUsuario(u){
+function fechaHoraES(v){
+  if(!v) return "-";
+
+  try{
+    const d=new Date(v);
+    if(isNaN(d.getTime())) return "-";
+
+    const dd=String(d.getDate()).padStart(2,"0");
+    const mm=String(d.getMonth()+1).padStart(2,"0");
+    const yy=d.getFullYear();
+    const hh=String(d.getHours()).padStart(2,"0");
+    const mi=String(d.getMinutes()).padStart(2,"0");
+
+    return dd+"/"+mm+"/"+yy+" · "+hh+":"+mi;
+  }catch(e){
+    return "-";
+  }
+}
+
+function valorUltimoAcceso(u){
+  return u.ultimo_acceso ||
+         u.last_login ||
+         u.last_sign_in_at ||
+         u.ultimo_login ||
+         u.acceso_ultimo ||
+         "";
+}
+
+async function cargarUltimoFichajeUsuario(usuarioId){
+  try{
+    const r=await sb()
+      .from("fichajes")
+      .select("*")
+      .eq("usuario_id",String(usuarioId))
+      .order("created_at",{ascending:false})
+      .limit(1);
+
+    if(!r.error && r.data && r.data.length){
+      return r.data[0];
+    }
+  }catch(e){}
+
+  try{
+    const r=await sb()
+      .from("fichajes")
+      .select("*")
+      .eq("user_id",String(usuarioId))
+      .order("created_at",{ascending:false})
+      .limit(1);
+
+    if(!r.error && r.data && r.data.length){
+      return r.data[0];
+    }
+  }catch(e){}
+
+  return null;
+}
+
+function textoUltimoFichaje(f){
+  if(!f) return "-";
+
+  const tipo=f.tipo || f.accion || f.estado || "fichaje";
+  const fecha=f.created_at || f.fecha_hora || f.fecha || f.hora || "";
+
+  return String(tipo).replaceAll("_"," ")+" · "+fechaHoraES(fecha);
+}
+
+function renderIndicadoresFicha(u,ultimoFichaje){
+  const activo=u.activo!==false;
+  const ultimoAcceso=valorUltimoAcceso(u);
+
+  return `
+    <div class="zx_ficha_indicadores">
+      <div class="${activo ? "zx_ind_ok" : "zx_ind_bad"}">
+        <span>Estado</span>
+        <b>${activo ? "Activo" : "Inactivo"}</b>
+      </div>
+
+      <div>
+        <span>Último acceso</span>
+        <b>${limpiar(fechaHoraES(ultimoAcceso))}</b>
+      </div>
+
+      <div>
+        <span>Último fichaje</span>
+        <b>${limpiar(textoUltimoFichaje(ultimoFichaje))}</b>
+      </div>
+    </div>
+  `;
+}
+
+function renderFichaUsuario(u,ultimoFichaje){
   const activo=u.activo!==false;
   const pinEstado=u.debe_crear_pin ? "Pendiente" : "Activo";
 
@@ -620,6 +711,8 @@ function renderFichaUsuario(u){
           <div class="zx_ficha_meta">${limpiar(u.rol || "-")} · ${limpiar(u.estado || "-")}</div>
         </div>
       </div>
+
+      ${renderIndicadoresFicha(u,ultimoFichaje)}
 
       <div class="zx_ficha_bloque">
         <h3>Datos personales</h3>
@@ -674,12 +767,13 @@ function renderUsuario(u){
   `;
 }
 
-function abrirFichaUsuario(u){
+async function abrirFichaUsuario(u){
   const dir=direccionCompleta(u);
   const activo=u.activo!==false;
+  const ultimoFichaje=await cargarUltimoFichajeUsuario(u.id);
 
   modal(u.nombre || u.usuario || "Usuario",`
-    ${renderFichaUsuario(u)}
+    ${renderFichaUsuario(u,ultimoFichaje)}
 
     <div class="zx_ficha_acciones">
       ${u.telefono_personal ? `<button class="zx_action_btn" id="f_tel_personal">Tel. personal</button>` : ""}
@@ -2341,10 +2435,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3123")) return;
+  if(document.getElementById("zx_usuarios_v3124")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3123";
+  s.id="zx_usuarios_v3124";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -2383,6 +2477,12 @@ async function verDocumentosUsuario(u){
     .zx_contact_box{background:#f8fafc;border:1px solid #e5e7eb;border-left:8px solid #2563eb;border-radius:16px;padding:12px;margin:12px 0;font-size:15px;font-weight:700;line-height:1.5}
     .zx_emergencia_box{background:#fff1f2;border:1px solid #fecdd3;border-left:8px solid #dc2626;border-radius:16px;padding:12px;margin:12px 0;color:#7f1d1d;font-size:15px;font-weight:800;line-height:1.5}
     .zx_user_data{color:#334155;line-height:1.6;font-size:15px;font-weight:700}
+    .zx_ficha_indicadores{display:grid;grid-template-columns:1fr;gap:10px;margin:8px 0 16px}
+    .zx_ficha_indicadores div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;border-left:7px solid #2563eb}
+    .zx_ficha_indicadores span{display:block;color:#64748b;font-size:13px;font-weight:900;margin-bottom:3px}
+    .zx_ficha_indicadores b{display:block;color:#0f172a;font-size:16px;font-weight:900;line-height:1.25}
+    .zx_ficha_indicadores .zx_ind_ok{border-left-color:#16a34a}
+    .zx_ficha_indicadores .zx_ind_bad{border-left-color:#dc2626;background:#fff1f2}
     .zx_laboral_resumen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 18px}
     .zx_laboral_resumen div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:14px;text-align:center}
     .zx_laboral_resumen b{display:block;font-size:28px;font-weight:900;color:#0f172a}
