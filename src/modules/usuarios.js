@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3124 - FICHA CON ULTIMO ACCESO Y ULTIMO FICHAJE
+// V3125 - RESUMEN RAPIDO EN FICHA
 // ===============================
 (function(){
 "use strict";
@@ -674,6 +674,106 @@ function textoUltimoFichaje(f){
   return String(tipo).replaceAll("_"," ")+" · "+fechaHoraES(fecha);
 }
 
+async function consultarTablaUsuario(tabla,usuarioId,limite){
+  const campos=["usuario_id","user_id","trabajador_id","empleado_id"];
+
+  for(const campo of campos){
+    try{
+      const r=await sb()
+        .from(tabla)
+        .select("*")
+        .eq(campo,String(usuarioId))
+        .limit(limite || 100);
+
+      if(!r.error){
+        return r.data || [];
+      }
+    }catch(e){}
+  }
+
+  return [];
+}
+
+async function cargarResumenRapidoUsuario(usuarioId){
+  const solicitudes=await consultarTablaUsuario("solicitudes_laborales",usuarioId,80);
+  const horas=await consultarTablaUsuario("horas_extra_pro",usuarioId,120);
+  const jornadas=await consultarTablaUsuario("jornadas",usuarioId,80);
+
+  const estado=function(x){
+    return String(x.estado || x.estado_admin || x.validacion_estado || "").toLowerCase();
+  };
+
+  const solicitudesPendientes=solicitudes.filter(s=>estado(s).includes("pend")).length;
+  const solicitudesAprobadas=solicitudes.filter(s=>estado(s).includes("aprob")).length;
+
+  const horasPendientes=horas.filter(h=>{
+    const e=estado(h);
+    return e.includes("pend") || e==="";
+  }).length;
+
+  const horasValidadas=horas.filter(h=>{
+    const e=estado(h);
+    return e.includes("valid") || e.includes("aprob");
+  }).length;
+
+  const horasPagadas=horas.filter(h=>{
+    const e=estado(h);
+    return e.includes("pagad") || e.includes("cobrad");
+  }).length;
+
+  const jornadasAbiertas=jornadas.filter(j=>{
+    const e=estado(j);
+    return e.includes("abierta") || e.includes("abierto") || j.abierta===true || !j.fin;
+  }).length;
+
+  return {
+    solicitudesPendientes,
+    solicitudesAprobadas,
+    horasPendientes,
+    horasValidadas,
+    horasPagadas,
+    jornadasAbiertas
+  };
+}
+
+function renderResumenRapidoFicha(r){
+  if(!r) return "";
+
+  return `
+    <div class="zx_ficha_resumen_rapido">
+      <div>
+        <span>Solicitudes pendientes</span>
+        <b>${limpiar(r.solicitudesPendientes || 0)}</b>
+      </div>
+
+      <div>
+        <span>Solicitudes aprobadas</span>
+        <b>${limpiar(r.solicitudesAprobadas || 0)}</b>
+      </div>
+
+      <div>
+        <span>Horas extra pendientes</span>
+        <b>${limpiar(r.horasPendientes || 0)}</b>
+      </div>
+
+      <div>
+        <span>Horas extra validadas</span>
+        <b>${limpiar(r.horasValidadas || 0)}</b>
+      </div>
+
+      <div>
+        <span>Horas extra pagadas/cobradas</span>
+        <b>${limpiar(r.horasPagadas || 0)}</b>
+      </div>
+
+      <div class="${Number(r.jornadasAbiertas || 0)>0 ? "zx_resumen_alerta" : ""}">
+        <span>Jornadas abiertas</span>
+        <b>${limpiar(r.jornadasAbiertas || 0)}</b>
+      </div>
+    </div>
+  `;
+}
+
 function renderIndicadoresFicha(u,ultimoFichaje){
   const activo=u.activo!==false;
   const ultimoAcceso=valorUltimoAcceso(u);
@@ -698,7 +798,7 @@ function renderIndicadoresFicha(u,ultimoFichaje){
   `;
 }
 
-function renderFichaUsuario(u,ultimoFichaje){
+function renderFichaUsuario(u,ultimoFichaje,resumenRapido){
   const activo=u.activo!==false;
   const pinEstado=u.debe_crear_pin ? "Pendiente" : "Activo";
 
@@ -713,6 +813,7 @@ function renderFichaUsuario(u,ultimoFichaje){
       </div>
 
       ${renderIndicadoresFicha(u,ultimoFichaje)}
+      ${renderResumenRapidoFicha(resumenRapido)}
 
       <div class="zx_ficha_bloque">
         <h3>Datos personales</h3>
@@ -771,9 +872,10 @@ async function abrirFichaUsuario(u){
   const dir=direccionCompleta(u);
   const activo=u.activo!==false;
   const ultimoFichaje=await cargarUltimoFichajeUsuario(u.id);
+  const resumenRapido=await cargarResumenRapidoUsuario(u.id);
 
   modal(u.nombre || u.usuario || "Usuario",`
-    ${renderFichaUsuario(u,ultimoFichaje)}
+    ${renderFichaUsuario(u,ultimoFichaje,resumenRapido)}
 
     <div class="zx_ficha_acciones">
       ${u.telefono_personal ? `<button class="zx_action_btn" id="f_tel_personal">Tel. personal</button>` : ""}
@@ -2435,10 +2537,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3124")) return;
+  if(document.getElementById("zx_usuarios_v3125")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3124";
+  s.id="zx_usuarios_v3125";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -2483,6 +2585,12 @@ async function verDocumentosUsuario(u){
     .zx_ficha_indicadores b{display:block;color:#0f172a;font-size:16px;font-weight:900;line-height:1.25}
     .zx_ficha_indicadores .zx_ind_ok{border-left-color:#16a34a}
     .zx_ficha_indicadores .zx_ind_bad{border-left-color:#dc2626;background:#fff1f2}
+    .zx_ficha_resumen_rapido{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 16px}
+    .zx_ficha_resumen_rapido div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px}
+    .zx_ficha_resumen_rapido span{display:block;color:#64748b;font-size:12px;font-weight:900;line-height:1.25}
+    .zx_ficha_resumen_rapido b{display:block;color:#0f172a;font-size:28px;font-weight:900;margin-top:4px}
+    .zx_ficha_resumen_rapido .zx_resumen_alerta{background:#fff1f2;border-color:#fecdd3}
+    .zx_ficha_resumen_rapido .zx_resumen_alerta b{color:#dc2626}
     .zx_laboral_resumen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 18px}
     .zx_laboral_resumen div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:14px;text-align:center}
     .zx_laboral_resumen b{display:block;font-size:28px;font-weight:900;color:#0f172a}
