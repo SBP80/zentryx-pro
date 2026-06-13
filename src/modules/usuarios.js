@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3129 - AUDITORIA BASICA DE USUARIOS + ROLES
+// V3130 - SIN DEPENDENCIA DE CONFIG_LABORAL
 // ===============================
 (function(){
 "use strict";
@@ -1688,14 +1688,15 @@ async function cargarLaboralUsuario(usuarioId){
     return normalizarLaboralDesdeHorario(h.data[0]);
   }
 
-  const c=await sb()
-    .from("config_laboral")
+  const h2=await sb()
+    .from("horarios_usuario")
     .select("*")
-    .eq("usuario_id",String(usuarioId))
+    .eq("user_id",String(usuarioId))
+    .eq("activo",true)
     .limit(1);
 
-  if(!c.error && c.data && c.data.length){
-    return normalizarLaboralDesdeConfig(c.data[0]);
+  if(!h2.error && h2.data && h2.data.length){
+    return normalizarLaboralDesdeHorario(h2.data[0]);
   }
 
   return null;
@@ -2034,64 +2035,58 @@ function leerDatosLaboralesFormulario(u){
 }
 
 async function guardarLaboralDatos(datos){
-  const r1=await guardarConfigLaboral(datos);
-  if(r1 && r1.error){
-    alert("Error guardando config_laboral: "+r1.error.message);
+  const r=await guardarHorarioUsuario(datos);
+
+  if(r && r.error){
+    alert("Error guardando horarios_usuario: "+r.error.message);
     return;
   }
 
-  const r2=await guardarHorarioUsuario(datos);
-  if(r2 && r2.error){
-    alert("Error guardando horarios_usuario: "+r2.error.message);
-    return;
-  }
+  await guardarSaldoAusenciasUsuario(datos);
+  await registrarAuditoriaUsuario(datos.usuario_id,"laboral_modificado",[
+    {campo:"horas_dia",antes:"",despues:String(datos.horas_dia || "")},
+    {campo:"horas_semana",antes:"",despues:String(datos.horas_semana || "")},
+    {campo:"vacaciones_dias",antes:"",despues:String(datos.vacaciones_dias || "")},
+    {campo:"asuntos_propios",antes:"",despues:String(datos.asuntos_propios || "")}
+  ]);
 
   alert("Datos laborales guardados.");
   cerrarModal();
   ZX_usuarios();
 }
 
-async function guardarConfigLaboral(datos){
-  const buscado=await sb()
-    .from("config_laboral")
-    .select("id")
-    .eq("usuario_id",String(datos.usuario_id))
-    .limit(1);
 
-  if(buscado.error) return buscado;
 
-  const data={
-    usuario_id:String(datos.usuario_id),
-    usuario:String(datos.usuario || ""),
-    nombre:String(datos.nombre || ""),
-    horas_dia:Number(datos.horas_dia || 8),
-    horas_semana:Number(datos.horas_semana || 40),
-    trabaja_lunes:!!datos.trabaja_lunes,
-    trabaja_martes:!!datos.trabaja_martes,
-    trabaja_miercoles:!!datos.trabaja_miercoles,
-    trabaja_jueves:!!datos.trabaja_jueves,
-    trabaja_viernes:!!datos.trabaja_viernes,
-    trabaja_sabado:!!datos.trabaja_sabado,
-    trabaja_domingo:!!datos.trabaja_domingo,
-    vacaciones_dias:Math.round(Number(datos.vacaciones_dias || 0)),
-    asuntos_propios:Number(datos.asuntos_propios || 0),
-    pais:String(datos.pais || "España"),
-    comunidad:String(datos.comunidad || ""),
-    provincia:String(datos.provincia || ""),
-    localidad:String(datos.localidad || ""),
-    convenio:String(datos.convenio || ""),
-    precio_extra:Number(datos.precio_extra || 0),
-    precio_extra_nocturna:Number(datos.precio_extra_nocturna || 0),
-    precio_extra_festiva:Number(datos.precio_extra_festiva || 0),
-    updated_at:new Date().toISOString()
-  };
+async function guardarSaldoAusenciasUsuario(datos){
+  try{
+    const anio=new Date().getFullYear();
+    const usuarioId=String(datos.usuario_id || "");
 
-  if(buscado.data && buscado.data.length){
-    return await sb().from("config_laboral").update(data).eq("id",buscado.data[0].id);
-  }
+    if(!usuarioId) return;
 
-  data.created_at=new Date().toISOString();
-  return await sb().from("config_laboral").insert([data]);
+    const buscado=await sb()
+      .from("saldos_ausencias")
+      .select("id")
+      .eq("user_id",usuarioId)
+      .eq("anio",anio)
+      .limit(1);
+
+    if(buscado.error) return;
+
+    const saldo={
+      user_id:usuarioId,
+      anio:anio,
+      dias_vacaciones:Math.round(Number(datos.vacaciones_dias || 0)),
+      dias_asuntos_propios:Number(datos.asuntos_propios || 0)
+    };
+
+    if(buscado.data && buscado.data.length){
+      await sb().from("saldos_ausencias").update(saldo).eq("id",buscado.data[0].id);
+    }else{
+      saldo.created_at=new Date().toISOString();
+      await sb().from("saldos_ausencias").insert([saldo]);
+    }
+  }catch(e){}
 }
 
 async function guardarHorarioUsuario(datos){
@@ -2907,10 +2902,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3129")) return;
+  if(document.getElementById("zx_usuarios_v3130")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3129";
+  s.id="zx_usuarios_v3130";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
