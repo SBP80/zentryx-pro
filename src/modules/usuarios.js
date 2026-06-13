@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3133 - PERMISOS POR ROL CORREGIDOS
+// V3134 - PERMISOS OPERARIO SOLO LECTURA
 // ===============================
 (function(){
 "use strict";
@@ -143,6 +143,16 @@ function puedeGestionarDocs(u){return esAdminLocal()}
 function puedeSubirDocs(u){return esAdminLocal()}
 function puedeBorrarDocs(u){return esAdminLocal()}
 
+/*
+PERMISOS USUARIOS V3134
+- Administrador: todo.
+- Gerente/Supervisor/Encargado: consulta general, sin modificar usuarios.
+- Operario/Técnico/Oficina/Comercial/Administrativo: consulta general, sin modificar usuarios.
+- Invitado: sin acceso.
+- Documentos personales: administrador o propio usuario.
+- Historial/Auditoría: administrador, mandos o propio usuario.
+- Laboral: visible en consulta para usuarios con acceso, editable solo administrador.
+*/
 function puedeVerPrivado(u){
   return esAdminLocal() || esRolGestion() || esMismoUsuario(u);
 }
@@ -152,7 +162,7 @@ function puedeVerDocs(u){
 }
 
 function puedeVerLaboral(u){
-  return esAdminLocal() || esRolGestion() || esMismoUsuario(u);
+  return puedeEntrarUsuarios();
 }
 
 function puedeEditarLaboral(u){
@@ -160,8 +170,7 @@ function puedeEditarLaboral(u){
 }
 
 function puedeVerUsuario(u){
-  if(esAdminLocal() || esRolGestion()) return true;
-  return esMismoUsuario(u);
+  return puedeEntrarUsuarios();
 }
 
 function hashPin(pin){
@@ -471,10 +480,6 @@ async function cargarUsuarios(){
       </div>
     `;
     return [];
-  }
-
-  if(!esAdminLocal() && !esRolGestion()){
-    consulta=consulta.eq("id",idSesion());
   }
 
   if(ZX_FILTRO_USUARIOS==="activos"){
@@ -3026,10 +3031,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3133")) return;
+  if(document.getElementById("zx_usuarios_v3134")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3133";
+  s.id="zx_usuarios_v3134";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
