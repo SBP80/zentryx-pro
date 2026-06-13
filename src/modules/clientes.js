@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES PRO
-// V3096 - CONTACTO CORREGIDO + DOCUMENTOS
+// V3097 - PERMISOS POR ROL + OPERARIO SOLO LECTURA
 // ===============================
 (function(){
 "use strict";
@@ -17,10 +17,41 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
+function normalizarTexto(v){
+  return String(v ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .trim();
+}
+
 function sesion(){
   try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}
   catch(e){return {}}
 }
+
+function rolLocal(){return normalizarTexto(sesion().rol || "")}
+function usuarioLocal(){return normalizarTexto(sesion().usuario || "")}
+function esAdmin(){return rolLocal()==="administrador" || usuarioLocal()==="admin"}
+function esGerente(){return rolLocal()==="gerente"}
+function esSupervisor(){return rolLocal()==="supervisor"}
+function esEncargado(){return rolLocal()==="encargado"}
+function esAdministrativo(){return rolLocal()==="administrativo" || rolLocal()==="oficina"}
+function esInvitado(){return rolLocal()==="invitado" || rolLocal()===""}
+
+function puedeEntrarClientes(){
+  return !esInvitado();
+}
+
+function puedeGestionarClientes(){
+  return esAdmin() || esGerente() || esSupervisor() || esEncargado() || esAdministrativo();
+}
+
+function puedeCrearCliente(){return puedeGestionarClientes()}
+function puedeEditarCliente(){return puedeGestionarClientes()}
+function puedeBorrarCliente(){return esAdmin()}
+function puedeVerDocumentoCliente(){return puedeGestionarClientes()}
+function puedeSubirDocumentoCliente(){return puedeGestionarClientes()}
 
 function cerrarModal(){
   const m=document.getElementById("zx_modal_cliente");
@@ -59,6 +90,8 @@ function menuTelefono(tel,mensaje){
   }
 
   const msg=encodeURIComponent(mensaje || "");
+
+  cerrarModal();
 
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_cliente" class="zx_modal_fondo">
@@ -105,6 +138,8 @@ function menuMapa(dir){
 
   const q=encodeURIComponent(dir);
 
+  cerrarModal();
+
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_cliente" class="zx_modal_fondo">
       <div class="zx_modal_caja">
@@ -134,6 +169,11 @@ function menuMapa(dir){
 }
 
 async function subirArchivo(file,nombre){
+  if(!puedeSubirDocumentoCliente()){
+    alert("No tienes permiso para subir documentos de clientes.");
+    return null;
+  }
+
   if(!file) return null;
 
   const ext=(file.name.split(".").pop() || "dat").toLowerCase();
@@ -155,6 +195,16 @@ async function subirArchivo(file,nombre){
 }
 
 async function cargarClientes(){
+  if(!puedeEntrarClientes()){
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Clientes</h2>
+        <div class="zx_text">No tienes permiso para acceder a Clientes.</div>
+      </div>
+    `;
+    return [];
+  }
+
   const r=await sb()
     .from("clientes")
     .select("*")
@@ -175,40 +225,48 @@ async function cargarClientes(){
 
 function renderCliente(c){
   const dir=direccionCompleta(c);
+  const gestion=puedeGestionarClientes();
 
   return `
-    <div class="zx_user_card">
-      <div class="zx_user_name">${limpiar(c.nombre || "Cliente")}</div>
+    <div class="zx_cliente_card">
+      <div class="zx_cliente_name">${limpiar(c.nombre || "Cliente")}</div>
 
-      <div class="zx_user_data">
+      <div class="zx_cliente_data">
         <b>Tipo:</b> ${limpiar(c.tipo || "-")}<br>
-        <b>NIF:</b> ${limpiar(c.nif || "-")}<br>
+        ${gestion ? `<b>NIF/CIF:</b> ${limpiar(c.nif || "-")}<br>` : ""}
         <b>Teléfono:</b> ${limpiar(c.telefono || "-")}<br>
+        ${gestion && c.telefono_2 ? `<b>Teléfono 2:</b> ${limpiar(c.telefono_2 || "-")}<br>` : ""}
         <b>Email:</b> ${limpiar(c.email || "-")}<br>
         <b>Contacto:</b> ${limpiar(c.persona_contacto || "-")}<br>
         <b>Dirección:</b> ${limpiar(dir || "-")}<br>
-        <b>Notas:</b> ${limpiar(c.notas || "-")}
+        <b>Notas técnicas:</b> ${limpiar(c.notas || "-")}
       </div>
 
-      <div class="zx_user_actions">
+      <div class="zx_cliente_actions">
         ${c.telefono ? `<button class="zx_action_btn" data-cli-tel="${limpiar(c.telefono)}" data-cli-msg="${limpiar(c.mensaje_predefinido || "")}">Teléfono</button>` : ""}
         ${c.email ? `<button class="zx_action_btn" data-cli-mail="${limpiar(c.email)}">Mail</button>` : ""}
         ${dir ? `<button class="zx_action_btn" data-cli-map="${limpiar(dir)}">Mapa</button>` : ""}
-        ${c.documento_url ? `<button class="zx_action_btn zx_blue" data-cli-doc="${limpiar(c.documento_url)}">Documento</button>` : ""}
+        ${puedeVerDocumentoCliente() && c.documento_url ? `<button class="zx_action_btn zx_blue" data-cli-doc="${limpiar(c.documento_url)}">Documento</button>` : ""}
       </div>
 
-      <div class="zx_user_actions">
-        <button class="zx_action_btn zx_blue" data-cli-edit="${limpiar(c.id)}">Editar</button>
-        <button class="zx_action_btn zx_red" data-cli-del="${limpiar(c.id)}">Borrar</button>
-      </div>
+      ${
+        puedeEditarCliente() || puedeBorrarCliente()
+        ? `
+          <div class="zx_cliente_actions">
+            ${puedeEditarCliente() ? `<button class="zx_action_btn zx_blue" data-cli-edit="${limpiar(c.id)}">Editar</button>` : ""}
+            ${puedeBorrarCliente() ? `<button class="zx_action_btn zx_red" data-cli-del="${limpiar(c.id)}">Borrar</button>` : ""}
+          </div>
+        `
+        : `<div class="zx_permiso_info">Modo consulta: no puedes crear, editar ni borrar clientes.</div>`
+      }
     </div>
   `;
 }
 
 function input(id,label,value,type){
   return `
-    <label class="zx_label" for="${id}">${label}</label>
-    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${label}">
+    <label class="zx_label" for="${id}">${limpiar(label)}</label>
+    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${limpiar(label)}">
   `;
 }
 
@@ -243,6 +301,16 @@ function selectVia(valor){
 }
 
 function formulario(c={}){
+  if(c.id && !puedeEditarCliente()){
+    alert("No tienes permiso para editar clientes.");
+    return;
+  }
+
+  if(!c.id && !puedeCrearCliente()){
+    alert("No tienes permiso para crear clientes.");
+    return;
+  }
+
   cerrarModal();
 
   document.body.insertAdjacentHTML("beforeend",`
@@ -285,8 +353,8 @@ function formulario(c={}){
 
         <h3 class="zx_form_subtitle">Notas y mensaje</h3>
 
-        <label class="zx_label" for="c_notas">Notas</label>
-        <textarea id="c_notas" rows="4" placeholder="Notas">${limpiar(c.notas || "")}</textarea>
+        <label class="zx_label" for="c_notas">Notas técnicas</label>
+        <textarea id="c_notas" rows="4" placeholder="Notas técnicas">${limpiar(c.notas || "")}</textarea>
 
         <label class="zx_label" for="c_mensaje">Mensaje predefinido WhatsApp/SMS</label>
         <textarea id="c_mensaje" rows="4" placeholder="Mensaje">${limpiar(c.mensaje_predefinido || "")}</textarea>
@@ -310,6 +378,16 @@ function formulario(c={}){
 }
 
 async function guardarCliente(id,documentoActual,nombreDocActual){
+  if(id && !puedeEditarCliente()){
+    alert("No tienes permiso para editar clientes.");
+    return;
+  }
+
+  if(!id && !puedeCrearCliente()){
+    alert("No tienes permiso para crear clientes.");
+    return;
+  }
+
   const s=sesion();
 
   const nombre=document.getElementById("c_nombre").value.trim();
@@ -376,6 +454,11 @@ async function guardarCliente(id,documentoActual,nombreDocActual){
 }
 
 async function editarCliente(id){
+  if(!puedeEditarCliente()){
+    alert("No tienes permiso para editar clientes.");
+    return;
+  }
+
   const r=await sb()
     .from("clientes")
     .select("*")
@@ -391,6 +474,11 @@ async function editarCliente(id){
 }
 
 async function borrarCliente(id){
+  if(!puedeBorrarCliente()){
+    alert("No tienes permiso para borrar clientes.");
+    return;
+  }
+
   if(!confirm("¿Borrar cliente?")) return;
 
   const r=await sb()
@@ -416,14 +504,22 @@ window.ZX_clientes=async function(){
 
   const datos=await cargarClientes();
 
+  if(!puedeEntrarClientes()) return;
+
   app().innerHTML=`
     <div class="zx_card">
       <h2>Clientes</h2>
-      <div class="zx_text">Gestión de clientes, contacto, dirección y documentación.</div>
+      <div class="zx_text">Consulta de clientes, contacto, dirección y documentación según permisos.</div>
 
-      <button class="zx_btn_big zx_verde" id="btn_nuevo_cliente">
-        Nuevo cliente
-      </button>
+      ${
+        puedeCrearCliente()
+        ? `
+          <button class="zx_btn_big zx_verde" id="btn_nuevo_cliente">
+            Nuevo cliente
+          </button>
+        `
+        : `<div class="zx_permiso_info">Modo consulta: no puedes crear ni editar clientes.</div>`
+      }
     </div>
 
     <div class="zx_card">
@@ -436,9 +532,12 @@ window.ZX_clientes=async function(){
     </div>
   `;
 
-  document.getElementById("btn_nuevo_cliente").onclick=function(){
-    formulario({});
-  };
+  const nuevo=document.getElementById("btn_nuevo_cliente");
+  if(nuevo){
+    nuevo.onclick=function(){
+      formulario({});
+    };
+  }
 
   document.querySelectorAll("[data-cli-tel]").forEach(btn=>{
     btn.onclick=function(){
@@ -460,6 +559,10 @@ window.ZX_clientes=async function(){
 
   document.querySelectorAll("[data-cli-doc]").forEach(btn=>{
     btn.onclick=function(){
+      if(!puedeVerDocumentoCliente()){
+        alert("No tienes permiso para ver documentos de clientes.");
+        return;
+      }
       window.open(btn.dataset.cliDoc,"_blank");
     };
   });
@@ -478,13 +581,13 @@ window.ZX_clientes=async function(){
 };
 
 (function estilosClientes(){
-  if(document.getElementById("zx_clientes_v3096")) return;
+  if(document.getElementById("zx_clientes_v3097")) return;
 
   const s=document.createElement("style");
-  s.id="zx_clientes_v3096";
+  s.id="zx_clientes_v3097";
 
   s.innerHTML=`
-    .zx_user_card{
+    .zx_cliente_card{
       background:white;
       border:1px solid #d1d5db;
       border-radius:24px;
@@ -493,21 +596,21 @@ window.ZX_clientes=async function(){
       box-shadow:0 8px 24px rgba(0,0,0,.04);
     }
 
-    .zx_user_name{
+    .zx_cliente_name{
       font-size:30px;
       font-weight:900;
       color:#0f172a;
       margin-bottom:10px;
     }
 
-    .zx_user_data{
+    .zx_cliente_data{
       color:#334155;
       font-size:18px;
       line-height:1.55;
       font-weight:700;
     }
 
-    .zx_user_actions{
+    .zx_cliente_actions{
       display:grid;
       grid-template-columns:repeat(2,minmax(0,1fr));
       gap:10px;
@@ -524,8 +627,21 @@ window.ZX_clientes=async function(){
       color:#111827;
     }
 
-    .zx_blue{background:#2563eb;color:white}
-    .zx_red{background:#dc2626;color:white}
+    .zx_blue{background:#2563eb!important;color:white!important}
+    .zx_red{background:#dc2626!important;color:white!important}
+
+    .zx_permiso_info{
+      background:#f8fafc;
+      border:1px solid #e5e7eb;
+      border-left:8px solid #64748b;
+      border-radius:16px;
+      padding:12px;
+      margin:14px 0 0;
+      color:#334155;
+      font-size:15px;
+      font-weight:900;
+      line-height:1.4;
+    }
 
     .zx_label{
       display:block;
@@ -540,6 +656,13 @@ window.ZX_clientes=async function(){
       color:#0f172a;
       font-size:24px;
       font-weight:900;
+    }
+
+    @media(max-width:430px){
+      .zx_cliente_actions{grid-template-columns:1fr}
+      .zx_cliente_card{padding:16px;border-radius:20px}
+      .zx_cliente_name{font-size:24px}
+      .zx_cliente_data{font-size:16px}
     }
   `;
 
