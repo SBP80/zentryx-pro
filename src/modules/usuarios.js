@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3131 - CIERRE USUARIOS + AUDITORIA PROFESIONAL
+// V3132 - AUDITORIA CORREGIDA
 // ===============================
 (function(){
 "use strict";
@@ -1455,50 +1455,27 @@ async function registrarAuditoriaUsuario(usuarioId,accion,cambios){
   const detalle=JSON.stringify(cambios || []);
   const ahora=new Date().toISOString();
 
-  try{
-    await sb()
-      .from("usuarios_auditoria")
-      .insert([{
-        usuario_id:String(usuarioId || ""),
-        fecha:ahora,
-        accion:String(accion || ""),
-        detalle,
-        realizado_por:s.usuario || "",
-        realizado_por_id:s.id || null,
-        created_at:ahora
-      }]);
+  const fila={
+    usuario_id:String(usuarioId || ""),
+    fecha:ahora,
+    accion:String(accion || ""),
+    detalle,
+    realizado_por:s.usuario || "",
+    realizado_por_id:s.id || null,
+    created_at:ahora
+  };
 
-    return;
-  }catch(e){}
+  const r=await sb()
+    .from("usuarios_auditoria")
+    .insert([fila]);
 
-  try{
-    await sb()
-      .from("historial_usuario")
-      .insert([{
-        usuario_id:String(usuarioId || ""),
-        accion:String(accion || ""),
-        cambios:detalle,
-        realizado_por:s.usuario || "",
-        realizado_por_id:s.id || null,
-        created_at:ahora
-      }]);
+  if(r.error){
+    alert("Error guardando auditoría: "+r.error.message);
+    console.error("AUDITORIA ERROR:",r.error,fila);
+    return false;
+  }
 
-    return;
-  }catch(e2){}
-
-  try{
-    await sb()
-      .from("historial_modificaciones")
-      .insert([{
-        tabla:"usuarios",
-        registro_id:String(usuarioId || ""),
-        accion:String(accion || ""),
-        detalle,
-        usuario:s.usuario || "",
-        usuario_id:s.id || null,
-        created_at:ahora
-      }]);
-  }catch(e3){}
+  return true;
 }
 
 async function cargarUsuarioAntesDeGuardar(id){
@@ -2951,10 +2928,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3131")) return;
+  if(document.getElementById("zx_usuarios_v3132")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3131";
+  s.id="zx_usuarios_v3132";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
