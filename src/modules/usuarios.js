@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3134 - PERMISOS OPERARIO SOLO LECTURA
+// V3136 - OPERARIO VE SUS PRECIOS SIN EDITAR
 // ===============================
 (function(){
 "use strict";
@@ -161,8 +161,20 @@ function puedeVerDocs(u){
   return esAdminLocal() || esMismoUsuario(u);
 }
 
+function puedeVerDatosPersonales(u){
+  return esAdminLocal() || esRolGestion() || esMismoUsuario(u);
+}
+
+function puedeVerDatosEmergencia(u){
+  return esAdminLocal() || esRolGestion() || esMismoUsuario(u);
+}
+
+function puedeVerDatosLaboralesSensibles(u){
+  return esAdminLocal() || esGerenteLocal() || esMismoUsuario(u);
+}
+
 function puedeVerLaboral(u){
-  return puedeEntrarUsuarios();
+  return esAdminLocal() || esRolGestion() || esMismoUsuario(u);
 }
 
 function puedeEditarLaboral(u){
@@ -971,6 +983,10 @@ function renderIndicadoresFicha(u,ultimoFichaje){
 function renderFichaUsuario(u,ultimoFichaje,resumenRapido,resumenLaboralMini){
   const activo=u.activo!==false;
   const pinEstado=u.debe_crear_pin ? "Pendiente" : "Activo";
+  const verPersonales=puedeVerDatosPersonales(u);
+  const verPrivado=puedeVerPrivado(u);
+  const verLaboral=puedeVerLaboral(u);
+  const verEmergencia=puedeVerDatosEmergencia(u);
 
   return `
     <div class="zx_ficha_usuario">
@@ -982,36 +998,64 @@ function renderFichaUsuario(u,ultimoFichaje,resumenRapido,resumenLaboralMini){
         </div>
       </div>
 
-      ${renderIndicadoresFicha(u,ultimoFichaje)}
-      ${renderResumenRapidoFicha(resumenRapido)}
-      ${renderResumenLaboralFicha(resumenLaboralMini)}
+      ${verPrivado ? renderIndicadoresFicha(u,ultimoFichaje) : ""}
+
+      ${
+        verPrivado
+        ? renderResumenRapidoFicha(resumenRapido)
+        : ""
+      }
+
+      ${
+        verLaboral
+        ? renderResumenLaboralFicha(resumenLaboralMini)
+        : ""
+      }
 
       <div class="zx_ficha_bloque">
-        <h3>Datos personales</h3>
+        <h3>Datos visibles</h3>
         <div class="zx_user_data">
-          <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
-          <b>DNI:</b> ${limpiar(u.dni || "-")}<br>
-          <b>Activo:</b> ${activo ? "Sí" : "No"}<br>
-          <b>PIN:</b> ${limpiar(pinEstado)}
-        </div>
-      </div>
-
-      <div class="zx_ficha_bloque">
-        <h3>Contacto</h3>
-        <div class="zx_contact_box">
-          <b>Tel. personal:</b> ${limpiar(u.telefono_personal || "-")}<br>
+          <b>Nombre:</b> ${limpiar(u.nombre || "-")}<br>
+          <b>Rol:</b> ${limpiar(u.rol || "-")}<br>
           <b>Tel. empresa:</b> ${limpiar(u.telefono_empresa || "-")}<br>
-          <b>Email personal:</b> ${limpiar(u.email_personal || "-")}<br>
           <b>Email empresa:</b> ${limpiar(u.email_empresa || "-")}
         </div>
       </div>
 
-      <div class="zx_ficha_bloque">
-        <h3>Dirección</h3>
-        <div class="zx_user_data">${limpiar(direccionCompleta(u) || "-")}</div>
-      </div>
+      ${
+        verPersonales
+        ? `
+          <div class="zx_ficha_bloque">
+            <h3>Datos personales</h3>
+            <div class="zx_user_data">
+              <b>Usuario:</b> ${limpiar(u.usuario || "-")}<br>
+              <b>DNI:</b> ${limpiar(u.dni || "-")}<br>
+              <b>Activo:</b> ${activo ? "Sí" : "No"}<br>
+              <b>PIN:</b> ${limpiar(pinEstado)}
+            </div>
+          </div>
 
-      ${textoEmergencia(u)}
+          <div class="zx_ficha_bloque">
+            <h3>Contacto personal</h3>
+            <div class="zx_contact_box">
+              <b>Tel. personal:</b> ${limpiar(u.telefono_personal || "-")}<br>
+              <b>Email personal:</b> ${limpiar(u.email_personal || "-")}
+            </div>
+          </div>
+
+          <div class="zx_ficha_bloque">
+            <h3>Dirección</h3>
+            <div class="zx_user_data">${limpiar(direccionCompleta(u) || "-")}</div>
+          </div>
+        `
+        : `
+          <div class="zx_privacidad_box">
+            Vista limitada por permisos.
+          </div>
+        `
+      }
+
+      ${verEmergencia ? textoEmergencia(u) : ""}
     </div>
   `;
 }
@@ -1055,13 +1099,13 @@ async function abrirFichaUsuario(u){
     ${renderFichaUsuario(u,ultimoFichaje,resumenRapido,resumenLaboralMini)}
 
     <div class="zx_ficha_acciones">
-      ${u.telefono_personal ? `<button class="zx_action_btn" id="f_tel_personal">Tel. personal</button>` : ""}
+      ${puedeVerDatosPersonales(u) && u.telefono_personal ? `<button class="zx_action_btn" id="f_tel_personal">Tel. personal</button>` : ""}
       ${u.telefono_empresa ? `<button class="zx_action_btn" id="f_tel_empresa">Tel. empresa</button>` : ""}
-      ${u.email_personal ? `<button class="zx_action_btn" id="f_mail_personal">Email personal</button>` : ""}
+      ${puedeVerDatosPersonales(u) && u.email_personal ? `<button class="zx_action_btn" id="f_mail_personal">Email personal</button>` : ""}
       ${u.email_empresa ? `<button class="zx_action_btn" id="f_mail_empresa">Email empresa</button>` : ""}
-      ${dir ? `<button class="zx_action_btn" id="f_mapa">Mapa</button>` : ""}
-      ${u.emergencia_telefono ? `<button class="zx_action_btn zx_red" id="f_emergencia_tel">Emergencia</button>` : ""}
-      ${u.emergencia_email ? `<button class="zx_action_btn zx_orange" id="f_emergencia_mail">Mail emergencia</button>` : ""}
+      ${puedeVerDatosPersonales(u) && dir ? `<button class="zx_action_btn" id="f_mapa">Mapa</button>` : ""}
+      ${puedeVerDatosEmergencia(u) && u.emergencia_telefono ? `<button class="zx_action_btn zx_red" id="f_emergencia_tel">Emergencia</button>` : ""}
+      ${puedeVerDatosEmergencia(u) && u.emergencia_email ? `<button class="zx_action_btn zx_orange" id="f_emergencia_mail">Mail emergencia</button>` : ""}
     </div>
 
     <div class="zx_ficha_acciones">
@@ -2010,10 +2054,16 @@ async function verLaboralUsuario(u){
     ${inputNum("lab_vacaciones","Vacaciones anuales en días",l.vacaciones_dias,"1")}
     ${inputNum("lab_asuntos","Asuntos propios en horas",l.asuntos_propios,"0.25")}
 
-    <h3 class="zx_form_subtitle">Precios horas extra</h3>
-    ${inputNum("lab_precio_extra","Precio hora extra",l.precio_extra,"0.01")}
-    ${inputNum("lab_precio_extra_nocturna","Precio hora extra nocturna",l.precio_extra_nocturna,"0.01")}
-    ${inputNum("lab_precio_extra_festiva","Precio hora extra festiva",l.precio_extra_festiva,"0.01")}
+    ${
+      puedeVerDatosLaboralesSensibles(u)
+      ? `
+        <h3 class="zx_form_subtitle">Precios horas extra</h3>
+        ${inputNum("lab_precio_extra","Precio hora extra",l.precio_extra,"0.01")}
+        ${inputNum("lab_precio_extra_nocturna","Precio hora extra nocturna",l.precio_extra_nocturna,"0.01")}
+        ${inputNum("lab_precio_extra_festiva","Precio hora extra festiva",l.precio_extra_festiva,"0.01")}
+      `
+      : ``
+    }
 
     <h3 class="zx_form_subtitle">Calendario laboral</h3>
     ${selectLaboral("lab_pais","País",l.pais || "España",["España"])}
@@ -3031,10 +3081,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3134")) return;
+  if(document.getElementById("zx_usuarios_v3136")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3134";
+  s.id="zx_usuarios_v3136";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -3082,6 +3132,7 @@ async function verDocumentosUsuario(u){
     .zx_laboral{background:#0f766e!important;color:white!important}
     .zx_contact_box{background:#f8fafc;border:1px solid #e5e7eb;border-left:8px solid #2563eb;border-radius:16px;padding:12px;margin:12px 0;font-size:15px;font-weight:700;line-height:1.5}
     .zx_emergencia_box{background:#fff1f2;border:1px solid #fecdd3;border-left:8px solid #dc2626;border-radius:16px;padding:12px;margin:12px 0;color:#7f1d1d;font-size:15px;font-weight:800;line-height:1.5}
+    .zx_privacidad_box{background:#f8fafc;border:1px solid #e5e7eb;border-left:8px solid #64748b;border-radius:16px;padding:12px;margin:12px 0;color:#334155;font-size:14px;font-weight:900;line-height:1.4}
     .zx_user_data{color:#334155;line-height:1.6;font-size:15px;font-weight:700}
     .zx_ficha_indicadores{display:grid;grid-template-columns:1fr;gap:10px;margin:8px 0 16px}
     .zx_ficha_indicadores div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;border-left:7px solid #2563eb}
