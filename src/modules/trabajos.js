@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3107 - MATERIALES OBRA ANOTAR / LISTA / SUMAR REPETIDOS
+// V3108 - CATALOGO MATERIAL AUTOCOMPLETADO
 // ===============================
 (function(){
 "use strict";
@@ -1258,6 +1258,93 @@ function normalizarMaterialClave(v){
     .trim();
 }
 
+
+async function cargarCatalogoMateriales(){
+  try{
+    const r=await sb()
+      .from("materiales_catalogo")
+      .select("*")
+      .order("nombre",{ascending:true})
+      .limit(500);
+
+    if(!r.error && r.data) return r.data;
+  }catch(e){}
+
+  return [];
+}
+
+async function guardarMaterialEnCatalogo(nombre,unidad){
+  const n=String(nombre || "").trim();
+  const u=String(unidad || "").trim() || "ud";
+
+  if(!n) return;
+
+  try{
+    const clave=normalizarMaterialClave(n);
+
+    const buscado=await sb()
+      .from("materiales_catalogo")
+      .select("id,veces_usado")
+      .eq("clave",clave)
+      .limit(1);
+
+    if(!buscado.error && buscado.data && buscado.data.length){
+      const actual=buscado.data[0];
+
+      await sb()
+        .from("materiales_catalogo")
+        .update({
+          nombre:n,
+          unidad:u,
+          veces_usado:Number(actual.veces_usado || 0)+1,
+          updated_at:new Date().toISOString()
+        })
+        .eq("id",actual.id);
+
+      return;
+    }
+
+    await sb()
+      .from("materiales_catalogo")
+      .insert([{
+        nombre:n,
+        clave,
+        unidad:u,
+        veces_usado:1,
+        created_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+      }]);
+  }catch(e){}
+}
+
+function renderDatalistMateriales(catalogo){
+  return `
+    <datalist id="tr_materiales_catalogo">
+      ${(catalogo || []).map(m=>`
+        <option value="${limpiar(m.nombre || "")}" data-unidad="${limpiar(m.unidad || "")}"></option>
+      `).join("")}
+    </datalist>
+  `;
+}
+
+function aplicarAutocompletadoMateriales(catalogo){
+  const input=document.getElementById("tr_mat_obra_nombre");
+  const unidad=document.getElementById("tr_mat_obra_unidad");
+
+  if(!input || !unidad) return;
+
+  input.oninput=function(){
+    const valor=normalizarMaterialClave(input.value);
+    if(!valor) return;
+
+    const encontrado=(catalogo || []).find(m=>normalizarMaterialClave(m.nombre || "")===valor);
+
+    if(encontrado && encontrado.unidad && (!unidad.value || unidad.value==="ud")){
+      unidad.value=encontrado.unidad;
+    }
+  };
+}
+
 async function guardarMaterialSumando(trabajoId,material,cantidad,unidad,notas){
   const nombre=String(material || "").trim();
   const ud=String(unidad || "").trim() || "ud";
@@ -1312,6 +1399,7 @@ async function guardarMaterialSumando(trabajoId,material,cantidad,unidad,notas){
       return false;
     }
 
+    await guardarMaterialEnCatalogo(nombre,ud);
     return true;
   }
 
@@ -1330,6 +1418,7 @@ async function guardarMaterialSumando(trabajoId,material,cantidad,unidad,notas){
     return false;
   }
 
+  await guardarMaterialEnCatalogo(nombre,ud);
   return true;
 }
 
@@ -1370,6 +1459,8 @@ async function abrirMaterialesObra(trabajoId,modo){
   const datos=await obtenerTrabajoYMateriales(trabajoId);
   if(!datos) return;
 
+  let catalogo=await cargarCatalogoMateriales();
+
   cerrarModalTrabajo();
 
   const modoLista=modo==="lista";
@@ -1402,7 +1493,8 @@ async function abrirMaterialesObra(trabajoId,modo){
       </div>
 
       <label class="zx_label">Material</label>
-      <input id="tr_mat_obra_nombre" placeholder="Ej: codo de grimpar de 32 ⌀">
+      <input id="tr_mat_obra_nombre" list="tr_materiales_catalogo" placeholder="Ej: codo de grimpar de 32 ⌀">
+      ${renderDatalistMateriales(catalogo)}
 
       <div class="zx_tr_grid2">
         <div>
@@ -1442,7 +1534,14 @@ async function abrirMaterialesObra(trabajoId,modo){
       document.getElementById("tr_mat_obra_unidad").value="ud";
       document.getElementById("tr_mat_obra_notas").value="";
       alert("Material anotado.");
+
+      catalogo=await cargarCatalogoMateriales();
+      const viejo=document.getElementById("tr_materiales_catalogo");
+      if(viejo) viejo.outerHTML=renderDatalistMateriales(catalogo);
+      aplicarAutocompletadoMateriales(catalogo);
     };
+
+    aplicarAutocompletadoMateriales(catalogo);
   }
 
   async function pintarLista(){
@@ -1491,7 +1590,9 @@ window.ZX_tr_add_material=async function(trabajoId){
       <div class="zx_modal_caja">
         <h2>Añadir material</h2>
 
-        ${input("tr_mat_nombre","Material","")}
+        <label class="zx_label" for="tr_mat_nombre">Material</label>
+        <input id="tr_mat_nombre" list="tr_materiales_catalogo_general" placeholder="Material">
+        <datalist id="tr_materiales_catalogo_general"></datalist>
         ${input("tr_mat_cantidad","Cantidad","","number")}
         ${input("tr_mat_unidad","Unidad","ud")}
 
@@ -1503,6 +1604,27 @@ window.ZX_tr_add_material=async function(trabajoId){
       </div>
     </div>
   `);
+
+  cargarCatalogoMateriales().then(function(catalogo){
+    const dl=document.getElementById("tr_materiales_catalogo_general");
+    if(dl){
+      dl.innerHTML=(catalogo || []).map(m=>`<option value="${limpiar(m.nombre || "")}" data-unidad="${limpiar(m.unidad || "")}"></option>`).join("");
+    }
+
+    const input=document.getElementById("tr_mat_nombre");
+    const unidad=document.getElementById("tr_mat_unidad");
+
+    if(input && unidad){
+      input.oninput=function(){
+        const valor=normalizarMaterialClave(input.value);
+        const encontrado=(catalogo || []).find(m=>normalizarMaterialClave(m.nombre || "")===valor);
+
+        if(encontrado && encontrado.unidad && (!unidad.value || unidad.value==="ud")){
+          unidad.value=encontrado.unidad;
+        }
+      };
+    }
+  });
 
   document.getElementById("tr_mat_cancelar").onclick=cerrarModalTrabajo;
 
@@ -2269,10 +2391,10 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3107")) return;
+  if(document.getElementById("zx_trabajos_v3108")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3107";
+  s.id="zx_trabajos_v3108";
 
   s.innerHTML=`
     .zx_tr_head{display:flex;align-items:center;justify-content:space-between;gap:12px}
