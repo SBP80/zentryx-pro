@@ -1,12 +1,13 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3103 - SOLAPES CORREGIDOS POR FECHA
+// V3104 - PERMISOS POR ROL + OPERARIO SOLO CONSULTA TECNICA
 // ===============================
 (function(){
 "use strict";
 
 let ZX_TR_FILTRO="activos";
 let ZX_TR_BUSQUEDA="";
+let ZX_TR_CACHE=[];
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
@@ -25,6 +26,45 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
+function normalizarTexto(v){
+  return String(v ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .trim();
+}
+
+function rolLocal(){return normalizarTexto(sesion().rol || "")}
+function usuarioLocal(){return normalizarTexto(sesion().usuario || "")}
+function idSesion(){return String(sesion().id || "")}
+
+function esAdmin(){return rolLocal()==="administrador" || usuarioLocal()==="admin"}
+function esGerente(){return rolLocal()==="gerente"}
+function esSupervisor(){return rolLocal()==="supervisor"}
+function esEncargado(){return rolLocal()==="encargado"}
+function esAdministrativo(){return rolLocal()==="administrativo" || rolLocal()==="oficina"}
+function esInvitado(){return rolLocal()==="invitado" || rolLocal()===""}
+
+function puedeEntrarTrabajos(){return !esInvitado()}
+function puedeGestionarTrabajos(){return esAdmin() || esGerente() || esSupervisor() || esEncargado() || esAdministrativo()}
+function puedeCrearTrabajo(){return puedeGestionarTrabajos()}
+function puedeEditarTrabajo(){return puedeGestionarTrabajos()}
+function puedeCambiarEstadoTrabajo(){return puedeGestionarTrabajos()}
+function puedeArchivarTrabajo(){return esAdmin() || esGerente() || esSupervisor()}
+function puedeBorrarTrabajo(){return esAdmin()}
+function puedeSubirArchivoTrabajo(){return puedeGestionarTrabajos()}
+function puedeModificarMateriales(){return puedeGestionarTrabajos()}
+function puedeModificarHistorial(){return puedeGestionarTrabajos()}
+function puedeVerPrecios(){return esAdmin() || esGerente()}
+function puedeVerArchivoTrabajo(a){
+  if(!a) return false;
+  const tipo=normalizarTexto(a.tipo || "");
+  if(["factura","albaran","albarán","presupuesto","economico","económico","coste"].includes(tipo)){
+    return puedeVerPrecios();
+  }
+  return true;
+}
+
 function hoy(){
   return new Date().toISOString().slice(0,10);
 }
@@ -33,9 +73,7 @@ function normalizarFecha(f){
   if(!f) return "";
   const s=String(f).trim();
 
-  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
-    return s.slice(0,10);
-  }
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
 
   if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){
     const p=s.split("/");
@@ -82,7 +120,6 @@ function mismoDiaEvento(e,fecha){
   const fin=normalizarFecha(e.fecha_fin || e.fecha_inicio);
 
   if(!f || !ini) return false;
-
   return f>=ini && f<=fin;
 }
 
@@ -90,16 +127,12 @@ function mismoOperario(e,p){
   const idEvento=String(e.usuario_id || "").trim();
   const idPlan=String(p.usuario_id || "").trim();
 
-  if(idEvento && idPlan){
-    return idEvento===idPlan;
-  }
+  if(idEvento && idPlan) return idEvento===idPlan;
 
   const nomEvento=String(e.usuario || "").trim().toLowerCase();
   const nomPlan=String(p.nombre || p.usuario || "").trim().toLowerCase();
 
-  if(nomEvento && nomPlan){
-    return nomEvento===nomPlan;
-  }
+  if(nomEvento && nomPlan) return nomEvento===nomPlan;
 
   return false;
 }
@@ -223,8 +256,8 @@ function direccionTrabajo(t){
 
 function input(id,label,value,type){
   return `
-    <label class="zx_label" for="${id}">${label}</label>
-    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${label}">
+    <label class="zx_label" for="${id}">${limpiar(label)}</label>
+    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${limpiar(label)}">
   `;
 }
 
@@ -249,34 +282,43 @@ async function cargarUsuarios(){
   return r.data || [];
 }
 
+function trabajoAsignadoAlUsuario(t){
+  const s=sesion();
+  const id=String(s.id || "");
+  const usuario=normalizarTexto(s.usuario || "");
+  const nombre=normalizarTexto(s.nombre || "");
+
+  if(!id && !usuario && !nombre) return false;
+
+  if(String(t.usuario_id || "")===id) return true;
+  if(String(t.creado_por_id || "")===id) return true;
+  if(normalizarTexto(t.usuario || "").includes(usuario) && usuario) return true;
+  if(normalizarTexto(t.usuario || "").includes(nombre) && nombre) return true;
+
+  return true;
+}
+
 async function cargarTrabajos(){
+  if(!puedeEntrarTrabajos()){
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Trabajos</h2>
+        <div class="zx_text">No tienes permiso para acceder a Trabajos.</div>
+      </div>
+    `;
+    return [];
+  }
+
   let q=sb()
     .from("trabajos")
     .select("*");
 
-  if(ZX_TR_FILTRO==="activos"){
-    q=q.eq("archivado",false);
-  }
-
-  if(ZX_TR_FILTRO==="archivados"){
-    q=q.eq("archivado",true);
-  }
-
-  if(ZX_TR_FILTRO==="pendientes"){
-    q=q.eq("archivado",false).eq("estado","pendiente");
-  }
-
-  if(ZX_TR_FILTRO==="curso"){
-    q=q.eq("archivado",false).eq("estado","en_curso");
-  }
-
-  if(ZX_TR_FILTRO==="terminados"){
-    q=q.eq("archivado",false).eq("estado","terminado");
-  }
-
-  if(ZX_TR_FILTRO==="urgentes"){
-    q=q.eq("archivado",false).eq("prioridad","urgente");
-  }
+  if(ZX_TR_FILTRO==="activos") q=q.eq("archivado",false);
+  if(ZX_TR_FILTRO==="archivados") q=q.eq("archivado",true);
+  if(ZX_TR_FILTRO==="pendientes") q=q.eq("archivado",false).eq("estado","pendiente");
+  if(ZX_TR_FILTRO==="curso") q=q.eq("archivado",false).eq("estado","en_curso");
+  if(ZX_TR_FILTRO==="terminados") q=q.eq("archivado",false).eq("estado","terminado");
+  if(ZX_TR_FILTRO==="urgentes") q=q.eq("archivado",false).eq("prioridad","urgente");
 
   q=q.order("fecha",{ascending:true}).order("hora_inicio",{ascending:true});
 
@@ -287,30 +329,10 @@ async function cargarTrabajos(){
     return [];
   }
 
-  let datos=r.data || [];
-  const b=String(ZX_TR_BUSQUEDA || "").trim().toLowerCase();
-
-  if(b){
-    datos=datos.filter(t=>{
-      return [
-        t.titulo,
-        t.cliente,
-        t.usuario,
-        t.telefono_contacto,
-        t.direccion_obra,
-        t.direccion,
-        t.poblacion,
-        t.provincia,
-        t.codigo_postal,
-        t.pais,
-        t.descripcion,
-        t.notas
-      ].join(" ").toLowerCase().includes(b);
-    });
-  }
-
-  return datos;
+  ZX_TR_CACHE=r.data || [];
+  return filtrarTrabajos();
 }
+
 async function cargarTodosTrabajos(){
   const r=await sb()
     .from("trabajos")
@@ -318,6 +340,37 @@ async function cargarTodosTrabajos(){
 
   if(r.error) return [];
   return r.data || [];
+}
+
+function textoBusquedaTrabajo(t){
+  return normalizarTexto([
+    t.titulo,
+    t.cliente,
+    t.usuario,
+    t.persona_contacto,
+    t.telefono_contacto,
+    t.direccion_obra,
+    t.direccion,
+    t.poblacion,
+    t.provincia,
+    t.codigo_postal,
+    t.pais,
+    t.descripcion,
+    t.notas,
+    t.estado,
+    t.prioridad
+  ].join(" "));
+}
+
+function filtrarTrabajos(){
+  let datos=ZX_TR_CACHE || [];
+  const b=String(ZX_TR_BUSQUEDA || "").trim();
+
+  if(b){
+    datos=datos.filter(t=>textoBusquedaTrabajo(t).includes(normalizarTexto(b)));
+  }
+
+  return datos;
 }
 
 async function cargarPlanificacion(trabajoId){
@@ -344,7 +397,7 @@ async function cargarArchivos(trabajoId){
     .order("created_at",{ascending:false});
 
   if(r.error) return [];
-  return r.data || [];
+  return (r.data || []).filter(puedeVerArchivoTrabajo);
 }
 
 async function cargarMateriales(trabajoId){
@@ -442,7 +495,6 @@ async function registrarAuditoriaTrabajo(trabajo,accion,datosExtra={}){
 
 async function pedirPinAdmin(){
   return new Promise(function(resolve){
-
     cerrarModalTrabajo();
 
     document.body.insertAdjacentHTML("beforeend",`
@@ -450,19 +502,11 @@ async function pedirPinAdmin(){
         <div class="zx_modal_caja">
           <h2>PIN administrador</h2>
 
-          <div class="zx_text">
-            Introduce el PIN para continuar.
-          </div>
-
+          <div class="zx_text">Introduce el PIN para continuar.</div>
           <input id="tr_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
 
-          <button class="zx_btn_big zx_verde" id="tr_pin_ok">
-            Confirmar
-          </button>
-
-          <button class="zx_btn_big zx_gris" id="tr_pin_cancelar">
-            Cancelar
-          </button>
+          <button class="zx_btn_big zx_verde" id="tr_pin_ok">Confirmar</button>
+          <button class="zx_btn_big zx_gris" id="tr_pin_cancelar">Cancelar</button>
         </div>
       </div>
     `);
@@ -493,8 +537,8 @@ async function pedirPinAdmin(){
         return;
       }
 
-      const rol=String(r.data.rol || "").toLowerCase();
-      const usuario=String(r.data.usuario || "").toLowerCase();
+      const rol=normalizarTexto(r.data.rol || "");
+      const usuario=normalizarTexto(r.data.usuario || "");
       const admin=rol==="administrador" || usuario==="admin";
 
       if(!admin){
@@ -536,18 +580,9 @@ function menuTelefono(tel){
     </div>
   `);
 
-  document.getElementById("tr_tel_llamar").onclick=function(){
-    location.href="tel:"+n;
-  };
-
-  document.getElementById("tr_tel_sms").onclick=function(){
-    location.href="sms:"+n;
-  };
-
-  document.getElementById("tr_tel_was").onclick=function(){
-    location.href="https://wa.me/"+n.replace("+","");
-  };
-
+  document.getElementById("tr_tel_llamar").onclick=function(){location.href="tel:"+n};
+  document.getElementById("tr_tel_sms").onclick=function(){location.href="sms:"+n};
+  document.getElementById("tr_tel_was").onclick=function(){location.href="https://wa.me/"+n.replace("+","")};
   document.getElementById("tr_tel_cerrar").onclick=cerrarModalTrabajo;
 }
 
@@ -574,18 +609,9 @@ function menuMapa(dir){
     </div>
   `);
 
-  document.getElementById("tr_map_apple").onclick=function(){
-    location.href="https://maps.apple.com/?q="+q;
-  };
-
-  document.getElementById("tr_map_google").onclick=function(){
-    location.href="https://www.google.com/maps/search/?api=1&query="+q;
-  };
-
-  document.getElementById("tr_map_waze").onclick=function(){
-    location.href="https://waze.com/ul?q="+q;
-  };
-
+  document.getElementById("tr_map_apple").onclick=function(){location.href="https://maps.apple.com/?q="+q};
+  document.getElementById("tr_map_google").onclick=function(){location.href="https://www.google.com/maps/search/?api=1&query="+q};
+  document.getElementById("tr_map_waze").onclick=function(){location.href="https://waze.com/ul?q="+q};
   document.getElementById("tr_map_cerrar").onclick=cerrarModalTrabajo;
 }
 
@@ -599,15 +625,12 @@ function renderPlanificacion(lista){
       ${lista.map(p=>`
         <div class="zx_plan_row">
           <div class="zx_plan_fecha">${limpiar(formatoFechaES(p.fecha || ""))}</div>
-
           <div class="zx_plan_hora">
             ${limpiar(p.hora_inicio ? String(p.hora_inicio).slice(0,5) : "--:--")}
             -
             ${limpiar(p.hora_fin ? String(p.hora_fin).slice(0,5) : "--:--")}
           </div>
-
           <div class="zx_plan_operario">${limpiar(p.nombre || p.usuario || "Operario")}</div>
-
           ${p.notas ? `<div class="zx_plan_notas">${limpiar(p.notas)}</div>` : ""}
         </div>
       `).join("")}
@@ -617,7 +640,7 @@ function renderPlanificacion(lista){
 
 function renderArchivos(lista){
   if(!lista || !lista.length){
-    return `<div class="zx_text">Sin archivos.</div>`;
+    return `<div class="zx_text">Sin archivos visibles.</div>`;
   }
 
   return lista.map(a=>`
@@ -643,6 +666,9 @@ function renderMateriales(lista){
     <div class="zx_tr_mat_item">
       <b>${limpiar(m.material || "Material")}</b><br>
       ${limpiar(m.cantidad || "0")} ${limpiar(m.unidad || "")}
+      ${puedeVerPrecios() && m.precio ? `<br><span>Precio: ${limpiar(m.precio)} €</span>` : ""}
+      ${puedeVerPrecios() && m.proveedor ? `<br><span>Proveedor: ${limpiar(m.proveedor)}</span>` : ""}
+      ${puedeVerPrecios() && m.referencia ? `<br><span>Referencia: ${limpiar(m.referencia)}</span>` : ""}
       ${m.notas ? "<br>"+limpiar(m.notas) : ""}
     </div>
   `).join("");
@@ -665,6 +691,7 @@ function renderHistorial(lista){
     </div>
   `).join("");
 }
+
 async function renderTrabajo(t){
   const dir=direccionTrabajo(t);
   const plan=await cargarPlanificacion(t.id);
@@ -698,8 +725,10 @@ async function renderTrabajo(t){
           : "-"
         }<br>
         <b>Descripción:</b> ${limpiar(t.descripcion || "-")}<br>
-        <b>Notas:</b> ${limpiar(t.notas || "-")}
+        <b>Notas técnicas:</b> ${limpiar(t.notas || "-")}
       </div>
+
+      ${!puedeGestionarTrabajos() ? `<div class="zx_permiso_info">Modo consulta técnica: no puedes crear, editar, borrar ni ver datos económicos.</div>` : ""}
 
       <div class="zx_tr_panel">
         <h3>Planificación</h3>
@@ -709,39 +738,27 @@ async function renderTrabajo(t){
       <div class="zx_tr_panel">
         <h3>Archivos de obra</h3>
         ${renderArchivos(archivos)}
-
-        <button class="zx_btn_big zx_azul" data-tr-add-file="${limpiar(t.id)}">
-          Añadir archivo
-        </button>
+        ${puedeSubirArchivoTrabajo() ? `<button class="zx_btn_big zx_azul" data-tr-add-file="${limpiar(t.id)}">Añadir archivo</button>` : ""}
       </div>
 
       <div class="zx_tr_panel">
-        <h3>Materiales usados</h3>
+        <h3>Materiales</h3>
         ${renderMateriales(materiales)}
-
-        <button class="zx_btn_big zx_azul" data-tr-add-material="${limpiar(t.id)}">
-          Añadir material
-        </button>
+        ${puedeModificarMateriales() ? `<button class="zx_btn_big zx_azul" data-tr-add-material="${limpiar(t.id)}">Añadir material</button>` : ""}
       </div>
 
       <div class="zx_tr_panel">
         <h3>Historial</h3>
         ${renderHistorial(historial)}
-
-        <button class="zx_btn_big zx_azul" data-tr-add-historial="${limpiar(t.id)}">
-          Añadir historial
-        </button>
+        ${puedeModificarHistorial() ? `<button class="zx_btn_big zx_azul" data-tr-add-historial="${limpiar(t.id)}">Añadir historial</button>` : ""}
       </div>
 
       <div class="zx_user_actions">
-        <button class="zx_action_btn ${claseEstado(t.estado)}" data-tr-estado="${limpiar(t.id)}">
-          Cambiar estado
-        </button>
-
+        ${puedeCambiarEstadoTrabajo() ? `<button class="zx_action_btn ${claseEstado(t.estado)}" data-tr-estado="${limpiar(t.id)}">Cambiar estado</button>` : ""}
         ${t.telefono_contacto ? `<button class="zx_action_btn zx_blue" data-tr-tel="${limpiar(t.telefono_contacto)}">Teléfono</button>` : ""}
         ${dir ? `<button class="zx_action_btn zx_blue" data-tr-map="${limpiar(dir)}">Mapa</button>` : ""}
-        <button class="zx_action_btn zx_blue" data-tr-edit="${limpiar(t.id)}">Editar</button>
-        <button class="zx_action_btn zx_red" data-tr-del="${limpiar(t.id)}">Borrar</button>
+        ${puedeEditarTrabajo() ? `<button class="zx_action_btn zx_blue" data-tr-edit="${limpiar(t.id)}">Editar</button>` : ""}
+        ${(puedeArchivarTrabajo() || puedeBorrarTrabajo()) ? `<button class="zx_action_btn zx_red" data-tr-del="${limpiar(t.id)}">Gestionar</button>` : ""}
       </div>
     </div>
   `;
@@ -786,13 +803,8 @@ function filaPlanificacionHTML(i,usuarios,p={}){
       </details>
 
       <div class="zx_plan_buttons">
-        <button class="zx_action_btn zx_blue tr_plan_duplicar" type="button">
-          Duplicar
-        </button>
-
-        <button class="zx_action_btn zx_red tr_plan_borrar" type="button">
-          Quitar
-        </button>
+        <button class="zx_action_btn zx_blue tr_plan_duplicar" type="button">Duplicar</button>
+        <button class="zx_action_btn zx_red tr_plan_borrar" type="button">Quitar</button>
       </div>
     </div>
   `;
@@ -818,6 +830,16 @@ function leerPlanificacionFormulario(){
 }
 
 async function formulario(t={}){
+  if(t.id && !puedeEditarTrabajo()){
+    alert("No tienes permiso para editar trabajos.");
+    return;
+  }
+
+  if(!t.id && !puedeCrearTrabajo()){
+    alert("No tienes permiso para crear trabajos.");
+    return;
+  }
+
   const clientes=await cargarClientes();
   const usuarios=await cargarUsuarios();
   const planExistente=await cargarPlanificacion(t.id);
@@ -869,9 +891,7 @@ async function formulario(t={}){
         </button>
 
         <h3 class="zx_form_subtitle">Planificación</h3>
-        <div class="zx_text">
-          Añade días, horarios y operarios. Usa duplicar para repetir una fecha u horario.
-        </div>
+        <div class="zx_text">Añade días, horarios y operarios.</div>
 
         <div id="tr_plan_lista">
           ${
@@ -891,13 +911,8 @@ async function formulario(t={}){
         <label class="zx_label" for="tr_notas">Notas internas</label>
         <textarea id="tr_notas" rows="4" placeholder="Notas">${limpiar(t.notas || "")}</textarea>
 
-        <button class="zx_btn_big zx_verde" id="tr_guardar">
-          Guardar trabajo
-        </button>
-
-        <button class="zx_btn_big zx_gris" id="tr_cancelar">
-          Cancelar
-        </button>
+        <button class="zx_btn_big zx_verde" id="tr_guardar">Guardar trabajo</button>
+        <button class="zx_btn_big zx_gris" id="tr_cancelar">Cancelar</button>
       </div>
     </div>
   `);
@@ -964,7 +979,8 @@ async function formulario(t={}){
     cont.insertAdjacentHTML("beforeend",filaPlanificacionHTML(i,usuarios,{}));
     activarBotonesPlan();
   };
-    function activarBotonesPlan(){
+
+  function activarBotonesPlan(){
     document.querySelectorAll(".tr_plan_borrar").forEach(btn=>{
       btn.onclick=function(){
         const rows=document.querySelectorAll("[data-plan-row]");
@@ -999,13 +1015,15 @@ async function formulario(t={}){
   activarBotonesPlan();
 
   document.getElementById("tr_cancelar").onclick=cerrarModalTrabajo;
-
-  document.getElementById("tr_guardar").onclick=function(){
-    guardarTrabajo(t.id || null,clientes);
-  };
+  document.getElementById("tr_guardar").onclick=function(){guardarTrabajo(t.id || null,clientes)};
 }
 
 async function subirArchivoObra(file,tipo,trabajoId){
+  if(!puedeSubirArchivoTrabajo()){
+    alert("No tienes permiso para subir archivos.");
+    return null;
+  }
+
   if(!file || !trabajoId) return null;
 
   const limpio=String(file.name || "archivo").replace(/[^a-zA-Z0-9._-]/g,"_");
@@ -1026,6 +1044,11 @@ async function subirArchivoObra(file,tipo,trabajoId){
 }
 
 window.ZX_tr_add_file=async function(trabajoId){
+  if(!puedeSubirArchivoTrabajo()){
+    alert("No tienes permiso para añadir archivos.");
+    return;
+  }
+
   cerrarModalTrabajo();
 
   document.body.insertAdjacentHTML("beforeend",`
@@ -1035,11 +1058,11 @@ window.ZX_tr_add_file=async function(trabajoId){
 
         <label class="zx_label">Tipo</label>
         <select id="tr_file_tipo">
-          <option value="documento">Documento</option>
+          <option value="documento">Documento técnico</option>
           <option value="imagen">Imagen</option>
           <option value="video">Vídeo</option>
           <option value="manual">Manual</option>
-          <option value="factura">Factura / albarán</option>
+          ${puedeVerPrecios() ? `<option value="factura">Factura / albarán</option>` : ""}
           <option value="otro">Otro</option>
         </select>
 
@@ -1049,13 +1072,8 @@ window.ZX_tr_add_file=async function(trabajoId){
         <label class="zx_label">Nombre visible</label>
         <input id="tr_file_nombre" placeholder="Nombre del archivo">
 
-        <button class="zx_btn_big zx_verde" id="tr_file_guardar">
-          Guardar archivo
-        </button>
-
-        <button class="zx_btn_big zx_gris" id="tr_file_cancelar">
-          Cancelar
-        </button>
+        <button class="zx_btn_big zx_verde" id="tr_file_guardar">Guardar archivo</button>
+        <button class="zx_btn_big zx_gris" id="tr_file_cancelar">Cancelar</button>
       </div>
     </div>
   `);
@@ -1095,6 +1113,11 @@ window.ZX_tr_add_file=async function(trabajoId){
 };
 
 window.ZX_tr_add_material=async function(trabajoId){
+  if(!puedeModificarMateriales()){
+    alert("No tienes permiso para añadir materiales.");
+    return;
+  }
+
   cerrarModalTrabajo();
 
   document.body.insertAdjacentHTML("beforeend",`
@@ -1109,13 +1132,8 @@ window.ZX_tr_add_material=async function(trabajoId){
         <label class="zx_label">Notas</label>
         <textarea id="tr_mat_notas" rows="3" placeholder="Notas"></textarea>
 
-        <button class="zx_btn_big zx_verde" id="tr_mat_guardar">
-          Guardar material
-        </button>
-
-        <button class="zx_btn_big zx_gris" id="tr_mat_cancelar">
-          Cancelar
-        </button>
+        <button class="zx_btn_big zx_verde" id="tr_mat_guardar">Guardar material</button>
+        <button class="zx_btn_big zx_gris" id="tr_mat_cancelar">Cancelar</button>
       </div>
     </div>
   `);
@@ -1151,6 +1169,11 @@ window.ZX_tr_add_material=async function(trabajoId){
 };
 
 window.ZX_tr_add_historial=async function(trabajoId){
+  if(!puedeModificarHistorial()){
+    alert("No tienes permiso para añadir historial.");
+    return;
+  }
+
   const usuarios=await cargarUsuarios();
 
   cerrarModalTrabajo();
@@ -1199,13 +1222,8 @@ window.ZX_tr_add_historial=async function(trabajoId){
         <label class="zx_label">Notas</label>
         <textarea id="tr_hist_notas" rows="3" placeholder="Notas"></textarea>
 
-        <button class="zx_btn_big zx_verde" id="tr_hist_guardar">
-          Guardar historial
-        </button>
-
-        <button class="zx_btn_big zx_gris" id="tr_hist_cancelar">
-          Cancelar
-        </button>
+        <button class="zx_btn_big zx_verde" id="tr_hist_guardar">Guardar historial</button>
+        <button class="zx_btn_big zx_gris" id="tr_hist_cancelar">Cancelar</button>
       </div>
     </div>
   `);
@@ -1253,9 +1271,7 @@ async function sincronizarAgenda(trabajoId,data,planificacion){
     .eq("origen","trabajos")
     .eq("origen_id",String(trabajoId));
 
-  if(data.archivado){
-    return;
-  }
+  if(data.archivado) return;
 
   for(const p of planificacion){
     await sb()
@@ -1311,6 +1327,16 @@ async function guardarPlanificacion(trabajoId,lista){
 }
 
 async function guardarTrabajo(id,clientes){
+  if(id && !puedeEditarTrabajo()){
+    alert("No tienes permiso para editar trabajos.");
+    return;
+  }
+
+  if(!id && !puedeCrearTrabajo()){
+    alert("No tienes permiso para crear trabajos.");
+    return;
+  }
+
   const s=sesion();
 
   const clienteId=document.getElementById("tr_cliente").value || null;
@@ -1405,10 +1431,20 @@ async function guardarTrabajo(id,clientes){
 }
 
 window.ZX_nuevoTrabajo=function(){
+  if(!puedeCrearTrabajo()){
+    alert("No tienes permiso para crear trabajos.");
+    return;
+  }
+
   formulario({});
 };
 
 window.ZX_editarTrabajo=async function(id){
+  if(!puedeEditarTrabajo()){
+    alert("No tienes permiso para editar trabajos.");
+    return;
+  }
+
   const r=await sb()
     .from("trabajos")
     .select("*")
@@ -1424,6 +1460,11 @@ window.ZX_editarTrabajo=async function(id){
 };
 
 window.ZX_borrarTrabajo=async function(id){
+  if(!puedeArchivarTrabajo() && !puedeBorrarTrabajo()){
+    alert("No tienes permiso para gestionar trabajos.");
+    return;
+  }
+
   const r0=await sb()
     .from("trabajos")
     .select("*")
@@ -1450,18 +1491,18 @@ window.ZX_borrarTrabajo=async function(id){
         </div>
 
         ${
-          trabajo.archivado
-          ? `<button class="zx_btn_big zx_verde" id="tr_restaurar">Restaurar trabajo</button>`
-          : `<button class="zx_btn_big zx_naranja" id="tr_archivar">Archivar trabajo</button>`
+          puedeArchivarTrabajo()
+          ? (
+              trabajo.archivado
+              ? `<button class="zx_btn_big zx_verde" id="tr_restaurar">Restaurar trabajo</button>`
+              : `<button class="zx_btn_big zx_naranja" id="tr_archivar">Archivar trabajo</button>`
+            )
+          : ``
         }
 
-        <button class="zx_btn_big zx_rojo" id="tr_borrar_def">
-          Borrar definitivamente
-        </button>
+        ${puedeBorrarTrabajo() ? `<button class="zx_btn_big zx_rojo" id="tr_borrar_def">Borrar definitivamente</button>` : ``}
 
-        <button class="zx_btn_big zx_gris" id="tr_borrar_cancelar">
-          Cancelar
-        </button>
+        <button class="zx_btn_big zx_gris" id="tr_borrar_cancelar">Cancelar</button>
       </div>
     </div>
   `);
@@ -1484,11 +1525,7 @@ window.ZX_borrarTrabajo=async function(id){
         return;
       }
 
-      await sb()
-        .from("agenda_eventos")
-        .delete()
-        .eq("origen","trabajos")
-        .eq("origen_id",String(id));
+      await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
 
       await registrarAuditoriaTrabajo(trabajo,"ARCHIVAR_TRABAJO",{
         estado:trabajo.estado || "",
@@ -1529,40 +1566,48 @@ window.ZX_borrarTrabajo=async function(id){
     };
   }
 
-  document.getElementById("tr_borrar_def").onclick=async function(){
-    const ok=await pedirPinAdmin();
-    if(!ok) return;
+  const borrar=document.getElementById("tr_borrar_def");
+  if(borrar){
+    borrar.onclick=async function(){
+      const ok=await pedirPinAdmin();
+      if(!ok) return;
 
-    if(!confirm("Borrado definitivo. ¿Continuar?")) return;
+      if(!confirm("Borrado definitivo. ¿Continuar?")) return;
 
-    await registrarAuditoriaTrabajo(trabajo,"BORRAR_TRABAJO",{
-      estado:trabajo.estado || "",
-      prioridad:trabajo.prioridad || "",
-      cliente:trabajo.cliente || ""
-    });
+      await registrarAuditoriaTrabajo(trabajo,"BORRAR_TRABAJO",{
+        estado:trabajo.estado || "",
+        prioridad:trabajo.prioridad || "",
+        cliente:trabajo.cliente || ""
+      });
 
-    await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
-    await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id));
-    await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id));
-    await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id));
-    await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id));
+      await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
+      await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id));
+      await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id));
+      await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id));
+      await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id));
 
-    const r=await sb()
-      .from("trabajos")
-      .delete()
-      .eq("id",id);
+      const r=await sb()
+        .from("trabajos")
+        .delete()
+        .eq("id",id);
 
-    if(r.error){
-      alert("Error borrando trabajo: "+r.error.message);
-      return;
-    }
+      if(r.error){
+        alert("Error borrando trabajo: "+r.error.message);
+        return;
+      }
 
-    cerrarModalTrabajo();
-    ZX_trabajos();
-  };
+      cerrarModalTrabajo();
+      ZX_trabajos();
+    };
+  }
 };
 
 window.ZX_cambiarEstadoTrabajo=async function(id){
+  if(!puedeCambiarEstadoTrabajo()){
+    alert("No tienes permiso para cambiar estados.");
+    return;
+  }
+
   const r0=await sb()
     .from("trabajos")
     .select("*")
@@ -1614,16 +1659,19 @@ function resumen(datos){
 
   return `
     <div class="zx_card">
-      <h2>Trabajos</h2>
+      <div class="zx_tr_head">
+        <div>
+          <h2>Trabajos</h2>
+          <div class="zx_text">
+            Activos: <b>${activos}</b> · Pendientes: <b>${pendientes}</b> · En curso: <b>${curso}</b><br>
+            Terminados: <b>${terminados}</b> · Urgentes: <b>${urgentes}</b> · Archivados: <b>${archivados}</b>
+          </div>
+        </div>
 
-      <div class="zx_text">
-        Activos: <b>${activos}</b><br>
-        Pendientes: <b>${pendientes}</b><br>
-        En curso: <b>${curso}</b><br>
-        Terminados: <b>${terminados}</b><br>
-        Urgentes: <b>${urgentes}</b><br>
-        Archivados: <b>${archivados}</b>
+        ${puedeCrearTrabajo() ? `<button class="zx_btn_mini zx_verde" id="btn_nuevo_trabajo">Crear</button>` : ""}
       </div>
+
+      ${!puedeGestionarTrabajos() ? `<div class="zx_permiso_info">Modo consulta técnica: sin edición ni datos económicos.</div>` : ""}
 
       <input
         id="tr_buscar"
@@ -1640,10 +1688,6 @@ function resumen(datos){
         <button class="zx_tr_filtro ${ZX_TR_FILTRO==="urgentes"?"zx_tr_filtro_on":""}" data-tr-filtro="urgentes">Urgentes</button>
         <button class="zx_tr_filtro ${ZX_TR_FILTRO==="archivados"?"zx_tr_filtro_on":""}" data-tr-filtro="archivados">Archivados</button>
       </div>
-
-      <button class="zx_btn_big zx_verde" id="btn_nuevo_trabajo">
-        Nuevo trabajo
-      </button>
     </div>
   `;
 }
@@ -1651,9 +1695,7 @@ function resumen(datos){
 window.ZX_trabajos=async function(){
   document.querySelectorAll(".zx_nav_btn").forEach(b=>{
     b.classList.remove("zx_activo");
-    if(b.dataset.modulo==="trabajos"){
-      b.classList.add("zx_activo");
-    }
+    if(b.dataset.modulo==="trabajos") b.classList.add("zx_activo");
   });
 
   const datos=await cargarTrabajos();
@@ -1677,9 +1719,10 @@ window.ZX_trabajos=async function(){
     </div>
   `;
 
-  document.getElementById("btn_nuevo_trabajo").onclick=function(){
-    formulario({});
-  };
+  const nuevo=document.getElementById("btn_nuevo_trabajo");
+  if(nuevo){
+    nuevo.onclick=function(){formulario({})};
+  }
 
   document.querySelectorAll("[data-tr-filtro]").forEach(btn=>{
     btn.onclick=function(){
@@ -1695,7 +1738,7 @@ window.ZX_trabajos=async function(){
       clearTimeout(window.ZX_TR_TIMER);
       window.ZX_TR_TIMER=setTimeout(function(){
         ZX_trabajos();
-      },350);
+      },250);
     };
   }
 
@@ -1711,12 +1754,15 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3103")) return;
+  if(document.getElementById("zx_trabajos_v3104")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3103";
+  s.id="zx_trabajos_v3104";
 
   s.innerHTML=`
+    .zx_tr_head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .zx_btn_mini{border:0;border-radius:14px;padding:12px 18px;font-size:15px;font-weight:900}
+    .zx_permiso_info{background:#f8fafc;border:1px solid #e5e7eb;border-left:8px solid #64748b;border-radius:16px;padding:12px;margin:14px 0;color:#334155;font-size:15px;font-weight:900;line-height:1.4}
     .zx_tr_buscar{width:100%;margin:14px 0;padding:16px;border-radius:18px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;font-size:17px;font-weight:850}
     .zx_tr_filtros{display:flex;gap:8px;overflow-x:auto;padding:8px 0 14px;margin-bottom:8px}
     .zx_tr_filtro{flex:0 0 auto;border:0;border-radius:999px;padding:11px 14px;background:#e5e7eb;color:#0f172a;font-size:15px;font-weight:900}
@@ -1736,6 +1782,7 @@ window.ZX_trabajos=async function(){
     .zx_plan_notas{grid-column:1/-1;color:#64748b;font-size:14px;font-weight:750}
     .zx_tr_file_item,.zx_tr_mat_item,.zx_tr_hist_item{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin-top:10px}
     .zx_tr_file_item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+    .zx_tr_mat_item span{color:#64748b;font-weight:800}
     .zx_tr_card{border-width:3px}
     .zx_tr_card_urgente{border-color:#dc2626;box-shadow:0 8px 28px rgba(220,38,38,.18)}
     .zx_tr_card_alta{border-color:#ea580c;box-shadow:0 8px 28px rgba(234,88,12,.14)}
@@ -1759,19 +1806,25 @@ window.ZX_trabajos=async function(){
     .zx_user_data{color:#334155;font-size:18px;line-height:1.55;font-weight:700}
     .zx_user_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
     .zx_action_btn{border:0;border-radius:16px;background:#e5e7eb;padding:14px;font-size:17px;font-weight:900;color:#111827}
-    .zx_blue{background:#2563eb;color:white}
-    .zx_red{background:#dc2626;color:white}
+    .zx_blue{background:#2563eb!important;color:white!important}
+    .zx_red{background:#dc2626!important;color:white!important}
+    .zx_verde{background:#16a34a!important;color:white!important}
     .zx_label{display:block;margin:12px 0 6px;color:#334155;font-size:15px;font-weight:900}
     .zx_form_subtitle{margin:22px 0 8px;color:#0f172a;font-size:24px;font-weight:900}
 
     @media(max-width:430px){
+      .zx_tr_head,
       .zx_tr_grid2,
       .zx_plan_form_grid,
       .zx_user_actions,
       .zx_tr_file_item,
       .zx_plan_row{
         grid-template-columns:1fr;
+        display:grid;
       }
+      .zx_user_card{padding:16px;border-radius:20px}
+      .zx_user_name{font-size:24px}
+      .zx_user_data{font-size:16px}
     }
   `;
 
