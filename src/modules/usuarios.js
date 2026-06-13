@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3130 - SIN DEPENDENCIA DE CONFIG_LABORAL
+// V3131 - CIERRE USUARIOS + AUDITORIA PROFESIONAL
 // ===============================
 (function(){
 "use strict";
@@ -1451,36 +1451,54 @@ function calcularCambiosUsuario(antes,despues){
 }
 
 async function registrarAuditoriaUsuario(usuarioId,accion,cambios){
-  try{
-    const s=sesion();
+  const s=sesion();
+  const detalle=JSON.stringify(cambios || []);
+  const ahora=new Date().toISOString();
 
+  try{
+    await sb()
+      .from("usuarios_auditoria")
+      .insert([{
+        usuario_id:String(usuarioId || ""),
+        fecha:ahora,
+        accion:String(accion || ""),
+        detalle,
+        realizado_por:s.usuario || "",
+        realizado_por_id:s.id || null,
+        created_at:ahora
+      }]);
+
+    return;
+  }catch(e){}
+
+  try{
     await sb()
       .from("historial_usuario")
       .insert([{
         usuario_id:String(usuarioId || ""),
         accion:String(accion || ""),
-        cambios:JSON.stringify(cambios || []),
+        cambios:detalle,
         realizado_por:s.usuario || "",
         realizado_por_id:s.id || null,
-        created_at:new Date().toISOString()
+        created_at:ahora
       }]);
-  }catch(e){
-    try{
-      const s=sesion();
 
-      await sb()
-        .from("historial_modificaciones")
-        .insert([{
-          tabla:"usuarios",
-          registro_id:String(usuarioId || ""),
-          accion:String(accion || ""),
-          detalle:JSON.stringify(cambios || []),
-          usuario:s.usuario || "",
-          usuario_id:s.id || null,
-          created_at:new Date().toISOString()
-        }]);
-    }catch(e2){}
-  }
+    return;
+  }catch(e2){}
+
+  try{
+    await sb()
+      .from("historial_modificaciones")
+      .insert([{
+        tabla:"usuarios",
+        registro_id:String(usuarioId || ""),
+        accion:String(accion || ""),
+        detalle,
+        usuario:s.usuario || "",
+        usuario_id:s.id || null,
+        created_at:ahora
+      }]);
+  }catch(e3){}
 }
 
 async function cargarUsuarioAntesDeGuardar(id){
@@ -2516,6 +2534,24 @@ async function verHistorialUsuario(u){
 async function cargarAuditoriaUsuario(usuarioId){
   try{
     const r=await sb()
+      .from("usuarios_auditoria")
+      .select("*")
+      .eq("usuario_id",String(usuarioId))
+      .order("created_at",{ascending:false})
+      .limit(80);
+
+    if(!r.error && r.data){
+      return r.data.map(x=>({
+        fecha:x.fecha || x.created_at,
+        accion:x.accion,
+        usuario:x.realizado_por,
+        detalle:x.detalle
+      }));
+    }
+  }catch(e){}
+
+  try{
+    const r=await sb()
       .from("historial_usuario")
       .select("*")
       .eq("usuario_id",String(usuarioId))
@@ -2530,7 +2566,7 @@ async function cargarAuditoriaUsuario(usuarioId){
         detalle:x.cambios
       }));
     }
-  }catch(e){}
+  }catch(e2){}
 
   try{
     const r=await sb()
@@ -2549,7 +2585,7 @@ async function cargarAuditoriaUsuario(usuarioId){
         detalle:x.detalle
       }));
     }
-  }catch(e){}
+  }catch(e3){}
 
   return [];
 }
@@ -2714,6 +2750,10 @@ async function renombrarDocumento(id,nombreActual,u){
     return;
   }
 
+  await registrarAuditoriaUsuario(u.id,"documento_renombrado",[
+    {campo:"documento",antes:String(nombreActual || ""),despues:limpio}
+  ]);
+
   verDocumentosUsuario(u);
 }
 
@@ -2734,6 +2774,10 @@ async function borrarDocumentoLogico(id,u){
     alert("Error borrando documento: "+r.error.message);
     return;
   }
+
+  await registrarAuditoriaUsuario(u.id,"documento_eliminado",[
+    {campo:"documento_id",antes:String(id || ""),despues:"eliminado"}
+  ]);
 
   verDocumentosUsuario(u);
 }
@@ -2870,6 +2914,11 @@ async function verDocumentosUsuario(u){
       return;
     }
 
+    await registrarAuditoriaUsuario(u.id,"documento_subido",[
+      {campo:"tipo",antes:"",despues:tipo},
+      {campo:"nombre",antes:"",despues:nombre}
+    ]);
+
     verDocumentosUsuario(u);
   };
 
@@ -2902,10 +2951,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3130")) return;
+  if(document.getElementById("zx_usuarios_v3131")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3130";
+  s.id="zx_usuarios_v3131";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
