@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS PRO
-// V3132 - AUDITORIA CORREGIDA
+// V3133 - PERMISOS POR ROL CORREGIDOS
 // ===============================
 (function(){
 "use strict";
@@ -129,25 +129,39 @@ function esEncargadoLocal(){return rolLocal()==="encargado"}
 function esGerenteLocal(){return rolLocal()==="gerente"}
 function esSupervisorLocal(){return rolLocal()==="supervisor"}
 
+function idSesion(){return String(sesion().id || "")}
+function esMismoUsuario(u){return String(u && u.id || "")===idSesion()}
+function esRolGestion(){return esGerenteLocal() || esSupervisorLocal() || esEncargadoLocal()}
+
+function puedeEntrarUsuarios(){return !["invitado",""].includes(rolLocal()) || usuarioLocal()==="admin"}
 function puedeCrear(){return esAdminLocal()}
-function puedeEditar(){return esAdminLocal() || esGerenteLocal() || esSupervisorLocal() || esEncargadoLocal()}
+function puedeEditar(){return esAdminLocal()}
 function puedeReset(){return esAdminLocal()}
 function puedeEliminar(){return esAdminLocal()}
 function puedeReactivar(){return esAdminLocal()}
+function puedeGestionarDocs(u){return esAdminLocal()}
+function puedeSubirDocs(u){return esAdminLocal()}
+function puedeBorrarDocs(u){return esAdminLocal()}
 
 function puedeVerPrivado(u){
-  const s=sesion();
-  return esAdminLocal() || esGerenteLocal() || esSupervisorLocal() || esEncargadoLocal() || String(s.id||"")===String(u.id||"");
+  return esAdminLocal() || esRolGestion() || esMismoUsuario(u);
 }
 
 function puedeVerDocs(u){
-  const s=sesion();
-  return esAdminLocal() || String(s.id||"")===String(u.id||"");
+  return esAdminLocal() || esMismoUsuario(u);
 }
 
 function puedeVerLaboral(u){
-  const s=sesion();
-  return esAdminLocal() || esGerenteLocal() || esSupervisorLocal() || esEncargadoLocal() || String(s.id||"")===String(u.id||"");
+  return esAdminLocal() || esRolGestion() || esMismoUsuario(u);
+}
+
+function puedeEditarLaboral(u){
+  return esAdminLocal();
+}
+
+function puedeVerUsuario(u){
+  if(esAdminLocal() || esRolGestion()) return true;
+  return esMismoUsuario(u);
 }
 
 function hashPin(pin){
@@ -406,12 +420,12 @@ async function pedirPinConPermiso(accion,callback){
     let ok=false;
 
     if(accion==="crear") ok=admin;
-    if(accion==="editar") ok=admin || gerente || supervisor || encargado;
+    if(accion==="editar") ok=admin;
     if(accion==="reset") ok=admin;
     if(accion==="eliminar") ok=admin;
     if(accion==="reactivar") ok=admin;
     if(accion==="docs") ok=admin;
-    if(accion==="laboral") ok=admin || gerente || supervisor || encargado;
+    if(accion==="laboral") ok=admin;
 
     if(!ok){
       alert("No tienes permiso.");
@@ -449,6 +463,20 @@ async function cargarUsuarios(){
     .select("*")
     .order("nombre",{ascending:true});
 
+  if(!puedeEntrarUsuarios()){
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>Usuarios</h2>
+        <div class="zx_text">No tienes permiso para acceder a Usuarios.</div>
+      </div>
+    `;
+    return [];
+  }
+
+  if(!esAdminLocal() && !esRolGestion()){
+    consulta=consulta.eq("id",idSesion());
+  }
+
   if(ZX_FILTRO_USUARIOS==="activos"){
     consulta=consulta.eq("activo",true);
   }
@@ -475,12 +503,13 @@ async function cargarUsuarios(){
 
 function filtrarUsuariosEnMemoria(){
   const q=String(ZX_BUSQUEDA_USUARIOS || "").trim();
+  const base=(ZX_USUARIOS_CACHE || []).filter(puedeVerUsuario);
 
   if(!q){
-    return ZX_USUARIOS_CACHE || [];
+    return base;
   }
 
-  return (ZX_USUARIOS_CACHE || []).filter(function(u){
+  return base.filter(function(u){
     return coincideBusqueda(u,q);
   });
 }
@@ -1006,6 +1035,11 @@ function renderUsuario(u){
 }
 
 async function abrirFichaUsuario(u){
+  if(!puedeVerUsuario(u)){
+    alert("No tienes permiso para abrir esta ficha.");
+    return;
+  }
+
   const dir=direccionCompleta(u);
   const activo=u.activo!==false;
   const ultimoFichaje=await cargarUltimoFichajeUsuario(u.id);
@@ -1266,6 +1300,11 @@ function formulario(u){
 }
 
 async function editarUsuario(id){
+  if(!puedeEditar()){
+    alert("No tienes permiso para editar usuarios.");
+    return;
+  }
+
   const res=await sb()
     .from("usuarios")
     .select("*")
@@ -1497,6 +1536,16 @@ async function cargarUsuarioAntesDeGuardar(id){
 }
 
 async function guardarUsuario(id,fotoActual){
+  if(id && !puedeEditar()){
+    alert("No tienes permiso para editar usuarios.");
+    return;
+  }
+
+  if(!id && !puedeCrear()){
+    alert("No tienes permiso para crear usuarios.");
+    return;
+  }
+
   if(!validarFormulario()) return;
 
   const usuario=document.getElementById("u_usuario").value.trim();
@@ -1563,6 +1612,11 @@ function actualizarSesionSiEsUsuarioActual(id,datos){
 }
 
 async function resetPin(id,nombre){
+  if(!puedeReset()){
+    alert("No tienes permiso para resetear PIN.");
+    return;
+  }
+
   if(!confirm("¿Resetear PIN de "+nombre+"?")) return;
 
   const res=await sb()
@@ -1589,6 +1643,11 @@ async function resetPin(id,nombre){
 }
 
 async function desactivarUsuario(id,nombre,usuario){
+  if(!puedeEliminar()){
+    alert("No tienes permiso para desactivar usuarios.");
+    return;
+  }
+
   const s=sesion();
 
   if(String(usuario || "").toLowerCase()==="admin"){
@@ -1623,6 +1682,11 @@ async function desactivarUsuario(id,nombre,usuario){
 }
 
 async function reactivarUsuario(id,nombre){
+  if(!puedeReactivar()){
+    alert("No tienes permiso para reactivar usuarios.");
+    return;
+  }
+
   if(!confirm("¿Reactivar usuario "+nombre+"?")) return;
 
   const res=await sb()
@@ -1904,11 +1968,16 @@ function renderHistorialLaboral(solicitudes){
 }
 
 async function verLaboralUsuario(u){
+  if(!puedeVerLaboral(u)){
+    alert("No tienes permiso para ver laboral.");
+    return;
+  }
+
   const actual=await cargarLaboralUsuario(u.id);
   const l=actual || laboralDefault(u);
   const solicitudes=await cargarSolicitudesUsuario(String(u.id || ""));
   const consumo=calcularConsumoLaboral(solicitudes);
-  const editable=puedeEditar();
+  const editable=puedeEditarLaboral(u);
   const provincias=opcionesProvincias(l.comunidad,l.provincia);
 
   modal("Laboral",`
@@ -2030,6 +2099,11 @@ function leerDatosLaboralesFormulario(u){
 }
 
 async function guardarLaboralDatos(datos){
+  if(!esAdminLocal()){
+    alert("No tienes permiso para modificar datos laborales.");
+    return;
+  }
+
   const r=await guardarHorarioUsuario(datos);
 
   if(r && r.error){
@@ -2708,6 +2782,11 @@ function abrirVistaDocumento(d){
 }
 
 async function renombrarDocumento(id,nombreActual,u){
+  if(!puedeGestionarDocs(u)){
+    alert("No tienes permiso para renombrar documentos.");
+    return;
+  }
+
   const nuevo=prompt("Nuevo nombre del documento:",nombreActual || "");
   if(nuevo===null) return;
 
@@ -2735,6 +2814,11 @@ async function renombrarDocumento(id,nombreActual,u){
 }
 
 async function borrarDocumentoLogico(id,u){
+  if(!puedeBorrarDocs(u)){
+    alert("No tienes permiso para borrar documentos.");
+    return;
+  }
+
   const s=sesion();
 
   const r=await sb()
@@ -2808,29 +2892,40 @@ async function verDniUsuario(u){
 }
 
 async function verDocumentosUsuario(u){
+  if(!puedeVerDocs(u)){
+    alert("No tienes permiso para ver documentos.");
+    return;
+  }
+
   const docs=await cargarDocumentos(u.id);
 
   modal("Documentos",`
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
 
-    <label class="zx_label">Tipo</label>
-    <select id="doc_tipo">
-      <option value="dni_frontal">DNI frontal</option>
-      <option value="dni_trasero">DNI trasero</option>
-      <option value="contrato">Contrato</option>
-      <option value="certificado">Certificado</option>
-      <option value="carnet">Carnet</option>
-      <option value="formacion">Formación</option>
-      <option value="otro">Otro</option>
-    </select>
+    ${
+      puedeSubirDocs(u)
+      ? `
+        <label class="zx_label">Tipo</label>
+        <select id="doc_tipo">
+          <option value="dni_frontal">DNI frontal</option>
+          <option value="dni_trasero">DNI trasero</option>
+          <option value="contrato">Contrato</option>
+          <option value="certificado">Certificado</option>
+          <option value="carnet">Carnet</option>
+          <option value="formacion">Formación</option>
+          <option value="otro">Otro</option>
+        </select>
 
-    <label class="zx_label">Archivo</label>
-    <input id="doc_file" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
+        <label class="zx_label">Archivo</label>
+        <input id="doc_file" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
 
-    <label class="zx_label">Nombre visible</label>
-    <input id="doc_nombre" placeholder="Nombre del documento">
+        <label class="zx_label">Nombre visible</label>
+        <input id="doc_nombre" placeholder="Nombre del documento">
 
-    <button class="zx_btn_big zx_verde" id="doc_subir">Subir documento</button>
+        <button class="zx_btn_big zx_verde" id="doc_subir">Subir documento</button>
+      `
+      : `<div class="zx_text">Modo consulta: no puedes subir ni modificar documentos.</div>`
+    }
 
     <h3 class="zx_form_subtitle">Archivos guardados</h3>
 
@@ -2845,8 +2940,8 @@ async function verDocumentosUsuario(u){
             </div>
             <button class="zx_action_btn zx_azul" data-doc-preview="${limpiar(d.id)}">Vista</button>
             <button class="zx_action_btn zx_blue" data-doc-open="${limpiar(d.url)}">Abrir</button>
-            <button class="zx_action_btn zx_orange" data-doc-rename="${limpiar(d.id)}">Renombrar</button>
-            ${esAdminLocal() ? `<button class="zx_action_btn zx_red" data-doc-del="${limpiar(d.id)}">Borrar</button>` : ""}
+            ${puedeGestionarDocs(u) ? `<button class="zx_action_btn zx_orange" data-doc-rename="${limpiar(d.id)}">Renombrar</button>` : ""}
+            ${puedeBorrarDocs(u) ? `<button class="zx_action_btn zx_red" data-doc-del="${limpiar(d.id)}">Borrar</button>` : ""}
           </div>
         `).join("")
         : `<div class="zx_text">Sin documentos.</div>`
@@ -2858,7 +2953,9 @@ async function verDocumentosUsuario(u){
 
   document.getElementById("doc_cerrar").onclick=cerrarModal;
 
-  document.getElementById("doc_subir").onclick=async function(){
+  const docSubir=document.getElementById("doc_subir");
+  if(docSubir){
+    docSubir.onclick=async function(){
     const file=document.getElementById("doc_file").files[0] || null;
     const tipo=document.getElementById("doc_tipo").value;
     const nombre=document.getElementById("doc_nombre").value.trim() || (file ? file.name : "");
@@ -2897,7 +2994,8 @@ async function verDocumentosUsuario(u){
     ]);
 
     verDocumentosUsuario(u);
-  };
+    };
+  }
 
   document.querySelectorAll("[data-doc-open]").forEach(btn=>{
     btn.onclick=function(){window.open(btn.dataset.docOpen,"_blank")};
@@ -2928,10 +3026,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3132")) return;
+  if(document.getElementById("zx_usuarios_v3133")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3132";
+  s.id="zx_usuarios_v3133";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
