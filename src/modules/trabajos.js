@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3104 - PERMISOS POR ROL + OPERARIO SOLO CONSULTA TECNICA
+// V3105 - MODO OBRA RAPIDO + FOTOS Y VIDEOS
 // ===============================
 (function(){
 "use strict";
@@ -692,7 +692,139 @@ function renderHistorial(lista){
   `).join("");
 }
 
+
+function separarArchivosObra(lista){
+  const grupos={planos:[],fotos:[],videos:[],manuales:[],otros:[]};
+
+  (lista || []).forEach(a=>{
+    const tipo=normalizarTexto(a.tipo || "");
+    const nombre=normalizarTexto(a.nombre || "");
+    const url=normalizarTexto(a.url || "");
+
+    if(tipo.includes("plano") || nombre.includes("plano")){grupos.planos.push(a);return}
+    if(tipo.includes("imagen") || tipo.includes("foto") || /\.(jpg|jpeg|png|webp|gif)$/i.test(url)){grupos.fotos.push(a);return}
+    if(tipo.includes("video") || tipo.includes("vídeo") || /\.(mp4|mov|webm|m4v)$/i.test(url)){grupos.videos.push(a);return}
+    if(tipo.includes("manual") || nombre.includes("manual")){grupos.manuales.push(a);return}
+    grupos.otros.push(a);
+  });
+
+  return grupos;
+}
+
+function renderBotonesArchivoObra(titulo,lista,icono){
+  if(!lista || !lista.length) return "";
+
+  return `
+    <div class="zx_obra_file_group">
+      <h3>${limpiar(icono)} ${limpiar(titulo)}</h3>
+      ${lista.map(a=>`
+        <button class="zx_obra_file_btn" data-tr-open-file="${limpiar(a.url || "")}">
+          <b>${limpiar(a.nombre || titulo)}</b>
+          <span>${limpiar(a.tipo || "")}</span>
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderMaterialesObra(lista){
+  if(!lista || !lista.length) return `<div class="zx_text">Sin materiales asignados.</div>`;
+
+  return `
+    <div class="zx_obra_materiales">
+      ${lista.map(m=>`
+        <label class="zx_obra_mat_check">
+          <input type="checkbox" disabled>
+          <span>
+            <b>${limpiar(m.material || "Material")}</b>
+            <em>${limpiar(m.cantidad || "0")} ${limpiar(m.unidad || "")}</em>
+            ${m.notas ? `<small>${limpiar(m.notas)}</small>` : ""}
+          </span>
+        </label>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function renderTrabajoObra(t){
+  const dir=direccionTrabajo(t);
+  const plan=await cargarPlanificacion(t.id);
+  const archivos=await cargarArchivos(t.id);
+  const materiales=await cargarMateriales(t.id);
+  const grupos=separarArchivosObra(archivos);
+  const prioridad=t.prioridad || "media";
+
+  return `
+    <div class="zx_obra_card ${claseTarjeta(t)}">
+      <div class="zx_obra_top">
+        <div>
+          <div class="zx_obra_hora">
+            ${plan.length ? limpiar(String(plan[0].hora_inicio || "").slice(0,5) || "--:--")+" - "+limpiar(String(plan[0].hora_fin || "").slice(0,5) || "--:--") : ""}
+          </div>
+          <div class="zx_obra_titulo">${limpiar(t.titulo || "Trabajo")}</div>
+          <div class="zx_obra_cliente">${limpiar(t.cliente || "-")}</div>
+        </div>
+        <span class="zx_badge ${clasePrioridad(prioridad)}">${limpiar(textoPrioridad(prioridad))}</span>
+      </div>
+
+      <div class="zx_obra_direccion">${dir ? limpiar(dir) : "Sin dirección"}</div>
+
+      <div class="zx_obra_botones">
+        ${t.telefono_contacto ? `<button class="zx_obra_big_btn" data-tr-tel="${limpiar(t.telefono_contacto)}">📞 Llamar</button>` : ""}
+        ${dir ? `<button class="zx_obra_big_btn" data-tr-map="${limpiar(dir)}">🗺️ Mapa</button>` : ""}
+        ${grupos.planos.length ? `<button class="zx_obra_big_btn" onclick="document.getElementById('obra_planos_${limpiar(t.id)}').scrollIntoView({behavior:'smooth'})">📄 Planos</button>` : ""}
+        ${grupos.fotos.length ? `<button class="zx_obra_big_btn" onclick="document.getElementById('obra_fotos_${limpiar(t.id)}').scrollIntoView({behavior:'smooth'})">📷 Fotos</button>` : ""}
+        ${grupos.videos.length ? `<button class="zx_obra_big_btn" onclick="document.getElementById('obra_videos_${limpiar(t.id)}').scrollIntoView({behavior:'smooth'})">🎥 Vídeos</button>` : ""}
+        <button class="zx_obra_big_btn" onclick="document.getElementById('obra_materiales_${limpiar(t.id)}').scrollIntoView({behavior:'smooth'})">📦 Materiales</button>
+      </div>
+
+      <details class="zx_obra_section" open>
+        <summary>Planificación</summary>
+        ${renderPlanificacion(plan)}
+      </details>
+
+      <details class="zx_obra_section" open>
+        <summary>Descripción y notas</summary>
+        <div class="zx_user_data">
+          <b>Descripción:</b> ${limpiar(t.descripcion || "-")}<br>
+          <b>Notas técnicas:</b> ${limpiar(t.notas || "-")}
+        </div>
+      </details>
+
+      <details class="zx_obra_section" id="obra_planos_${limpiar(t.id)}" ${grupos.planos.length ? "open" : ""}>
+        <summary>Planos</summary>
+        ${renderBotonesArchivoObra("Planos",grupos.planos,"📄") || `<div class="zx_text">Sin planos.</div>`}
+      </details>
+
+      <details class="zx_obra_section" id="obra_fotos_${limpiar(t.id)}">
+        <summary>Fotos</summary>
+        ${renderBotonesArchivoObra("Fotos",grupos.fotos,"📷") || `<div class="zx_text">Sin fotos.</div>`}
+      </details>
+
+      <details class="zx_obra_section" id="obra_videos_${limpiar(t.id)}">
+        <summary>Vídeos</summary>
+        ${renderBotonesArchivoObra("Vídeos",grupos.videos,"🎥") || `<div class="zx_text">Sin vídeos.</div>`}
+      </details>
+
+      <details class="zx_obra_section">
+        <summary>Manuales y otros documentos</summary>
+        ${renderBotonesArchivoObra("Manuales",grupos.manuales,"📘")}
+        ${renderBotonesArchivoObra("Otros",grupos.otros,"📎") || (!grupos.manuales.length ? `<div class="zx_text">Sin documentos.</div>` : "")}
+      </details>
+
+      <details class="zx_obra_section" id="obra_materiales_${limpiar(t.id)}" open>
+        <summary>Materiales</summary>
+        ${renderMaterialesObra(materiales)}
+      </details>
+    </div>
+  `;
+}
+
 async function renderTrabajo(t){
+  if(!puedeGestionarTrabajos()){
+    return await renderTrabajoObra(t);
+  }
+
   const dir=direccionTrabajo(t);
   const plan=await cargarPlanificacion(t.id);
   const archivos=await cargarArchivos(t.id);
@@ -1058,9 +1190,10 @@ window.ZX_tr_add_file=async function(trabajoId){
 
         <label class="zx_label">Tipo</label>
         <select id="tr_file_tipo">
-          <option value="documento">Documento técnico</option>
-          <option value="imagen">Imagen</option>
+          <option value="plano">Plano</option>
+          <option value="foto">Foto</option>
           <option value="video">Vídeo</option>
+          <option value="documento">Documento técnico</option>
           <option value="manual">Manual</option>
           ${puedeVerPrecios() ? `<option value="factura">Factura / albarán</option>` : ""}
           <option value="otro">Otro</option>
@@ -1754,10 +1887,10 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3104")) return;
+  if(document.getElementById("zx_trabajos_v3105")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3104";
+  s.id="zx_trabajos_v3105";
 
   s.innerHTML=`
     .zx_tr_head{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -1811,6 +1944,28 @@ window.ZX_trabajos=async function(){
     .zx_verde{background:#16a34a!important;color:white!important}
     .zx_label{display:block;margin:12px 0 6px;color:#334155;font-size:15px;font-weight:900}
     .zx_form_subtitle{margin:22px 0 8px;color:#0f172a;font-size:24px;font-weight:900}
+
+    .zx_obra_card{background:white;border:3px solid #d1d5db;border-radius:24px;padding:16px;margin:16px 0;box-shadow:0 8px 24px rgba(0,0,0,.05)}
+    .zx_obra_top{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;margin-bottom:12px}
+    .zx_obra_hora{color:#2563eb;font-size:18px;font-weight:900;margin-bottom:4px}
+    .zx_obra_titulo{color:#0f172a;font-size:26px;font-weight:950;line-height:1.12}
+    .zx_obra_cliente{color:#64748b;font-size:16px;font-weight:900;margin-top:4px}
+    .zx_obra_direccion{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;color:#334155;font-size:15px;font-weight:850;line-height:1.35;margin-bottom:12px}
+    .zx_obra_botones{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+    .zx_obra_big_btn{border:0;border-radius:18px;background:#2563eb;color:white;padding:17px 12px;font-size:17px;font-weight:950;text-align:center}
+    .zx_obra_section{background:#f8fafc;border:1px solid #d1d5db;border-radius:18px;padding:12px;margin-top:12px}
+    .zx_obra_section summary{cursor:pointer;color:#0f172a;font-size:18px;font-weight:950}
+    .zx_obra_file_group{margin-top:10px}
+    .zx_obra_file_group h3{margin:10px 0 8px;color:#0f172a;font-size:17px;font-weight:950}
+    .zx_obra_file_btn{width:100%;border:1px solid #e5e7eb;background:white;border-radius:16px;padding:13px;margin-top:8px;text-align:left;color:#0f172a}
+    .zx_obra_file_btn b{display:block;font-size:15px;font-weight:950}
+    .zx_obra_file_btn span{display:block;color:#64748b;font-size:13px;font-weight:850;margin-top:3px}
+    .zx_obra_materiales{display:grid;gap:8px;margin-top:10px}
+    .zx_obra_mat_check{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;background:white;border:1px solid #e5e7eb;border-radius:16px;padding:12px}
+    .zx_obra_mat_check input{width:22px!important;height:22px!important;margin-top:2px!important}
+    .zx_obra_mat_check b{display:block;color:#0f172a;font-size:16px;font-weight:950}
+    .zx_obra_mat_check em{display:block;color:#2563eb;font-style:normal;font-size:14px;font-weight:900;margin-top:2px}
+    .zx_obra_mat_check small{display:block;color:#64748b;font-size:13px;font-weight:800;margin-top:4px}
 
     @media(max-width:430px){
       .zx_tr_head,
