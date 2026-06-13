@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3106 - MODO OBRA AFINADO + MATERIALES IMPRIMIR/ENVIAR
+// V3107 - MATERIALES OBRA ANOTAR / LISTA / SUMAR REPETIDOS
 // ===============================
 (function(){
 "use strict";
@@ -775,7 +775,7 @@ async function renderTrabajoObra(t){
         ${grupos.planos.length ? `<button class="zx_obra_big_btn" data-obra-jump="planos">📄 Planos</button>` : ""}
         ${grupos.fotos.length ? `<button class="zx_obra_big_btn" data-obra-jump="fotos">📷 Fotos</button>` : ""}
         ${grupos.videos.length ? `<button class="zx_obra_big_btn" data-obra-jump="videos">🎥 Vídeos</button>` : ""}
-        <button class="zx_obra_big_btn" data-obra-jump="materiales">📦 Materiales</button>
+        <button class="zx_obra_big_btn" data-tr-obra-materiales="${limpiar(t.id)}">📦 Materiales</button>
       </div>
 
       <details class="zx_obra_section" open>
@@ -1249,6 +1249,235 @@ window.ZX_tr_add_file=async function(trabajoId){
   };
 };
 
+
+function normalizarMaterialClave(v){
+  return normalizarTexto(v)
+    .replace(/ø/g,"diametro")
+    .replace(/⌀/g,"diametro")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+async function guardarMaterialSumando(trabajoId,material,cantidad,unidad,notas){
+  const nombre=String(material || "").trim();
+  const ud=String(unidad || "").trim() || "ud";
+  const nota=String(notas || "").trim();
+  const cant=Number(cantidad || 0);
+
+  if(!nombre){
+    alert("Introduce material.");
+    return false;
+  }
+
+  if(!Number.isFinite(cant) || cant<=0){
+    alert("Introduce cantidad correcta.");
+    return false;
+  }
+
+  const existentes=await sb()
+    .from("trabajos_materiales")
+    .select("*")
+    .eq("trabajo_id",String(trabajoId));
+
+  if(existentes.error){
+    alert("Error buscando materiales: "+existentes.error.message);
+    return false;
+  }
+
+  const claveNombre=normalizarMaterialClave(nombre);
+  const claveUnidad=normalizarMaterialClave(ud);
+
+  const repetido=(existentes.data || []).find(m=>{
+    return normalizarMaterialClave(m.material || "")===claveNombre &&
+           normalizarMaterialClave(m.unidad || "")===claveUnidad;
+  });
+
+  if(repetido){
+    const nuevaCantidad=Number(repetido.cantidad || 0)+cant;
+    const notasFinales=nota
+      ? [repetido.notas || "", nota].filter(Boolean).join(" / ")
+      : (repetido.notas || "");
+
+    const r=await sb()
+      .from("trabajos_materiales")
+      .update({
+        cantidad:nuevaCantidad,
+        unidad:ud,
+        notas:notasFinales
+      })
+      .eq("id",repetido.id);
+
+    if(r.error){
+      alert("Error actualizando material: "+r.error.message);
+      return false;
+    }
+
+    return true;
+  }
+
+  const r=await sb()
+    .from("trabajos_materiales")
+    .insert([{
+      trabajo_id:String(trabajoId),
+      material:nombre,
+      cantidad:cant,
+      unidad:ud,
+      notas:nota
+    }]);
+
+  if(r.error){
+    alert("Error guardando material: "+r.error.message);
+    return false;
+  }
+
+  return true;
+}
+
+function renderListaMaterialesModal(trabajo,materiales){
+  return `
+    <div class="zx_obra_material_modal_head">
+      <b>${limpiar(trabajo.titulo || "Trabajo")}</b>
+      <span>${limpiar(trabajo.cliente || "")}</span>
+    </div>
+
+    <div class="zx_obra_material_actions">
+      <button class="zx_action_btn zx_blue" id="tr_mat_modal_imprimir">Imprimir</button>
+      <button class="zx_action_btn zx_blue" id="tr_mat_modal_enviar">Enviar</button>
+    </div>
+
+    ${
+      materiales.length
+      ? `
+        <div class="zx_obra_materiales">
+          ${materiales.map(m=>`
+            <label class="zx_obra_mat_check">
+              <input type="checkbox">
+              <span>
+                <b>${limpiar(m.material || "Material")}</b>
+                <em>${limpiar(m.cantidad || "0")} ${limpiar(m.unidad || "")}</em>
+                ${m.notas ? `<small>${limpiar(m.notas)}</small>` : ""}
+              </span>
+            </label>
+          `).join("")}
+        </div>
+      `
+      : `<div class="zx_text">Sin materiales.</div>`
+    }
+  `;
+}
+
+async function abrirMaterialesObra(trabajoId,modo){
+  const datos=await obtenerTrabajoYMateriales(trabajoId);
+  if(!datos) return;
+
+  cerrarModalTrabajo();
+
+  const modoLista=modo==="lista";
+
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_trabajo" class="zx_modal_fondo">
+      <div class="zx_modal_caja">
+        <h2>Materiales</h2>
+
+        <div class="zx_obra_material_tabs">
+          <button class="${!modoLista ? "zx_mat_tab_on" : ""}" id="tr_mat_tab_anotar">Anotar material</button>
+          <button class="${modoLista ? "zx_mat_tab_on" : ""}" id="tr_mat_tab_lista">Ver lista</button>
+        </div>
+
+        <div id="tr_mat_modal_contenido"></div>
+
+        <button class="zx_btn_big zx_gris" id="tr_mat_modal_cerrar">Cerrar</button>
+      </div>
+    </div>
+  `);
+
+  async function pintarAnotar(){
+    document.getElementById("tr_mat_tab_anotar").classList.add("zx_mat_tab_on");
+    document.getElementById("tr_mat_tab_lista").classList.remove("zx_mat_tab_on");
+
+    document.getElementById("tr_mat_modal_contenido").innerHTML=`
+      <div class="zx_obra_material_modal_head">
+        <b>${limpiar(datos.trabajo.titulo || "Trabajo")}</b>
+        <span>${limpiar(datos.trabajo.cliente || "")}</span>
+      </div>
+
+      <label class="zx_label">Material</label>
+      <input id="tr_mat_obra_nombre" placeholder="Ej: codo de grimpar de 32 ⌀">
+
+      <div class="zx_tr_grid2">
+        <div>
+          <label class="zx_label">Cantidad</label>
+          <input id="tr_mat_obra_cantidad" type="number" step="0.01" inputmode="decimal" value="1">
+        </div>
+
+        <div>
+          <label class="zx_label">Unidad</label>
+          <input id="tr_mat_obra_unidad" value="ud" placeholder="ud, m, kg...">
+        </div>
+      </div>
+
+      <label class="zx_label">Notas</label>
+      <textarea id="tr_mat_obra_notas" rows="3" placeholder="Opcional"></textarea>
+
+      <button class="zx_btn_big zx_verde" id="tr_mat_obra_guardar">Añadir a la lista</button>
+
+      <div class="zx_permiso_info">
+        Si el material ya existe con la misma unidad, se suma la cantidad automáticamente.
+      </div>
+    `;
+
+    document.getElementById("tr_mat_obra_guardar").onclick=async function(){
+      const ok=await guardarMaterialSumando(
+        trabajoId,
+        document.getElementById("tr_mat_obra_nombre").value,
+        document.getElementById("tr_mat_obra_cantidad").value,
+        document.getElementById("tr_mat_obra_unidad").value,
+        document.getElementById("tr_mat_obra_notas").value
+      );
+
+      if(!ok) return;
+
+      document.getElementById("tr_mat_obra_nombre").value="";
+      document.getElementById("tr_mat_obra_cantidad").value="1";
+      document.getElementById("tr_mat_obra_unidad").value="ud";
+      document.getElementById("tr_mat_obra_notas").value="";
+      alert("Material anotado.");
+    };
+  }
+
+  async function pintarLista(){
+    document.getElementById("tr_mat_tab_lista").classList.add("zx_mat_tab_on");
+    document.getElementById("tr_mat_tab_anotar").classList.remove("zx_mat_tab_on");
+
+    const nuevos=await obtenerTrabajoYMateriales(trabajoId);
+    if(!nuevos) return;
+
+    document.getElementById("tr_mat_modal_contenido").innerHTML=renderListaMaterialesModal(nuevos.trabajo,nuevos.materiales);
+
+    document.getElementById("tr_mat_modal_imprimir").onclick=function(){
+      ZX_tr_print_materiales(trabajoId);
+    };
+
+    document.getElementById("tr_mat_modal_enviar").onclick=function(){
+      ZX_tr_share_materiales(trabajoId);
+    };
+  }
+
+  document.getElementById("tr_mat_tab_anotar").onclick=pintarAnotar;
+  document.getElementById("tr_mat_tab_lista").onclick=pintarLista;
+  document.getElementById("tr_mat_modal_cerrar").onclick=function(){
+    cerrarModalTrabajo();
+    ZX_trabajos();
+  };
+
+  if(modoLista) await pintarLista();
+  else await pintarAnotar();
+}
+
+window.ZX_tr_obra_materiales=async function(trabajoId){
+  await abrirMaterialesObra(trabajoId,"anotar");
+};
+
 window.ZX_tr_add_material=async function(trabajoId){
   if(!puedeModificarMateriales()){
     alert("No tienes permiso para añadir materiales.");
@@ -1285,20 +1514,15 @@ window.ZX_tr_add_material=async function(trabajoId){
       return;
     }
 
-    const r=await sb()
-      .from("trabajos_materiales")
-      .insert([{
-        trabajo_id:String(trabajoId),
-        material,
-        cantidad:Number(document.getElementById("tr_mat_cantidad").value || 0),
-        unidad:document.getElementById("tr_mat_unidad").value.trim(),
-        notas:document.getElementById("tr_mat_notas").value.trim()
-      }]);
+    const ok=await guardarMaterialSumando(
+      trabajoId,
+      material,
+      document.getElementById("tr_mat_cantidad").value,
+      document.getElementById("tr_mat_unidad").value,
+      document.getElementById("tr_mat_notas").value
+    );
 
-    if(r.error){
-      alert("Error guardando material: "+r.error.message);
-      return;
-    }
+    if(!ok) return;
 
     cerrarModalTrabajo();
     ZX_trabajos();
@@ -2029,6 +2253,7 @@ window.ZX_trabajos=async function(){
   document.querySelectorAll("[data-tr-add-historial]").forEach(btn=>{btn.onclick=function(){ZX_tr_add_historial(btn.dataset.trAddHistorial)}});
   document.querySelectorAll("[data-tr-print-materiales]").forEach(btn=>{btn.onclick=function(){ZX_tr_print_materiales(btn.dataset.trPrintMateriales)}});
   document.querySelectorAll("[data-tr-share-materiales]").forEach(btn=>{btn.onclick=function(){ZX_tr_share_materiales(btn.dataset.trShareMateriales)}});
+  document.querySelectorAll("[data-tr-obra-materiales]").forEach(btn=>{btn.onclick=function(){ZX_tr_obra_materiales(btn.dataset.trObraMateriales)}});
   document.querySelectorAll("[data-obra-jump]").forEach(btn=>{
     btn.onclick=function(){
       const card=btn.closest(".zx_obra_card");
@@ -2044,10 +2269,10 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3106")) return;
+  if(document.getElementById("zx_trabajos_v3107")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3106";
+  s.id="zx_trabajos_v3107";
 
   s.innerHTML=`
     .zx_tr_head{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -2118,6 +2343,12 @@ window.ZX_trabajos=async function(){
     .zx_obra_file_btn b{display:block;font-size:15px;font-weight:950}
     .zx_obra_file_btn span{display:block;color:#64748b;font-size:13px;font-weight:850;margin-top:3px}
     .zx_obra_material_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+    .zx_obra_material_tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 16px}
+    .zx_obra_material_tabs button{border:0;border-radius:16px;background:#e5e7eb;color:#0f172a;padding:14px 10px;font-size:15px;font-weight:950}
+    .zx_obra_material_tabs .zx_mat_tab_on{background:#2563eb!important;color:white!important}
+    .zx_obra_material_modal_head{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin:10px 0 14px}
+    .zx_obra_material_modal_head b{display:block;color:#0f172a;font-size:17px;font-weight:950}
+    .zx_obra_material_modal_head span{display:block;color:#64748b;font-size:14px;font-weight:850;margin-top:3px}
     .zx_obra_materiales{display:grid;gap:8px;margin-top:10px}
     .zx_obra_mat_check{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;background:white;border:1px solid #e5e7eb;border-radius:16px;padding:12px}
     .zx_obra_mat_check input{width:22px!important;height:22px!important;margin-top:2px!important}
