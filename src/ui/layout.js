@@ -1,22 +1,18 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3094 - COMPLETO + CLIENTES + TRABAJOS
+// V3095 - NOTAS + FECHAS + FLOTANTE CORREGIDO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3094";
+const ZX_VERSION="3095";
+let ZX_RELOJ_TIMER=null;
+let ZX_AGENDA_TIMER=null;
 
-// ===============================
-// BASE
-// ===============================
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
 function sb(){return window.sb || window.supabaseClient}
 
-// ===============================
-// SESIÓN
-// ===============================
 function sesion(){
   try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}
   catch(e){return {}}
@@ -46,9 +42,18 @@ function limpiar(v){
     .replaceAll("'","&#039;");
 }
 
-// ===============================
-// LIMPIAR LAYOUT
-// ===============================
+function hoyISO(){
+  return new Date().toISOString().slice(0,10);
+}
+
+function formatoFechaES(f){
+  if(!f) return "";
+  const s=String(f).slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return limpiar(s);
+  const p=s.split("-");
+  return p[2]+"/"+p[1]+"/"+p[0];
+}
+
 function limpiarLayout(){
   [
     "zx_topbar",
@@ -60,21 +65,24 @@ function limpiarLayout(){
     const el=$(id);
     if(el) el.remove();
   });
+
+  if(ZX_RELOJ_TIMER){
+    clearInterval(ZX_RELOJ_TIMER);
+    ZX_RELOJ_TIMER=null;
+  }
+
+  if(ZX_AGENDA_TIMER){
+    clearInterval(ZX_AGENDA_TIMER);
+    ZX_AGENDA_TIMER=null;
+  }
 }
 
-// ===============================
-// ESTILOS
-// ===============================
 function estilos(){
-
   const css=document.createElement("style");
   css.id="zx_css";
 
   css.innerHTML=`
-    *{
-      box-sizing:border-box;
-      -webkit-tap-highlight-color:transparent;
-    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 
     html,body{
       margin:0;
@@ -90,16 +98,15 @@ function estilos(){
 
     body{
       min-height:100vh;
-      padding-bottom:calc(env(safe-area-inset-bottom) + 110px);
+      padding-bottom:calc(env(safe-area-inset-bottom) + 132px);
     }
 
-    button,input,select,textarea{
-      font-family:inherit;
+    body.zx_modal_abierto #zx_postit{
+      display:none!important;
     }
 
-    button{
-      cursor:pointer;
-    }
+    button,input,select,textarea{font-family:inherit}
+    button{cursor:pointer}
 
     #zx_topbar{
       width:100%;
@@ -140,9 +147,7 @@ function estilos(){
       color:white;
     }
 
-    #zx_brand_txt{
-      min-width:0;
-    }
+    #zx_brand_txt{min-width:0}
 
     #zx_brand_txt h1{
       margin:0;
@@ -217,7 +222,7 @@ function estilos(){
       color:#422006;
       padding:12px 18px;
       min-width:92px;
-      font-size:24px;
+      font-size:21px;
       font-weight:900;
       display:flex;
       align-items:center;
@@ -226,7 +231,8 @@ function estilos(){
       box-shadow:0 8px 18px rgba(0,0,0,.18);
       flex:none;
     }
-        #zx_nav{
+
+    #zx_nav{
       width:100%;
       background:#071330;
       padding:12px 12px 14px;
@@ -257,9 +263,7 @@ function estilos(){
       text-align:center;
     }
 
-    .zx_nav_btn.zx_activo{
-      background:#2563eb;
-    }
+    .zx_nav_btn.zx_activo{background:#2563eb}
 
     #app{
       width:100%;
@@ -338,16 +342,16 @@ function estilos(){
     #zx_postit{
       position:fixed;
       right:18px;
-      bottom:calc(env(safe-area-inset-bottom) + 24px);
-      width:74px;
-      height:74px;
+      bottom:calc(env(safe-area-inset-bottom) + 34px);
+      width:66px;
+      height:66px;
       border-radius:50%;
       border:4px solid white;
       background:#facc15;
       color:#422006;
-      font-size:34px;
+      font-size:30px;
       font-weight:900;
-      z-index:9999;
+      z-index:9000;
       box-shadow:0 12px 32px rgba(0,0,0,.35);
       display:flex;
       align-items:center;
@@ -417,97 +421,36 @@ function estilos(){
     }
 
     @media(max-width:430px){
-      #zx_topbar{
-        padding:14px 14px 12px;
-      }
-
-      #zx_logo{
-        width:50px;
-        height:50px;
-        min-width:50px;
-        font-size:28px;
-      }
-
-      #zx_brand_txt h1{
-        font-size:22px;
-      }
-
-      #zx_brand_txt div{
-        font-size:13px;
-      }
-
-      #zx_salir{
-        padding:12px 15px;
-        font-size:15px;
-      }
-
-      #zx_reloj_inner{
-        gap:10px;
-      }
-
-      #zx_hora{
-        font-size:27px;
-      }
-
-      #zx_fecha{
-        font-size:13px;
-      }
-
-      #zx_agenda_btn{
-        min-width:86px;
-        padding:10px 14px;
-        font-size:23px;
-      }
-
-      .zx_nav_btn{
-        font-size:15px;
-        padding:13px 8px;
-      }
-
-      #app{
-        padding:16px 12px;
-      }
-
-      .zx_card{
-        padding:20px;
-        border-radius:22px;
-      }
-
-      .zx_card h2{
-        font-size:31px;
-      }
-
-      .zx_card h3{
-        font-size:23px;
-      }
+      #zx_topbar{padding:14px 14px 12px}
+      #zx_logo{width:50px;height:50px;min-width:50px;font-size:28px}
+      #zx_brand_txt h1{font-size:22px}
+      #zx_brand_txt div{font-size:13px}
+      #zx_salir{padding:12px 15px;font-size:15px}
+      #zx_reloj_inner{gap:10px}
+      #zx_hora{font-size:27px}
+      #zx_fecha{font-size:13px}
+      #zx_agenda_btn{min-width:86px;padding:10px 14px;font-size:20px}
+      .zx_nav_btn{font-size:15px;padding:13px 8px}
+      #app{padding:16px 12px}
+      .zx_card{padding:20px;border-radius:22px}
+      .zx_card h2{font-size:31px}
+      .zx_card h3{font-size:23px}
     }
 
     @media(min-width:700px){
-      #zx_nav_inner{
-        grid-template-columns:repeat(4,1fr);
-      }
-
-      #app{
-        padding:24px;
-      }
+      #zx_nav_inner{grid-template-columns:repeat(4,1fr)}
+      #app{padding:24px}
     }
 
     @media(min-width:1024px){
-      #zx_nav_inner{
-        grid-template-columns:repeat(6,1fr);
-      }
-
-      .zx_card{
-        padding:28px;
-      }
+      #zx_nav_inner{grid-template-columns:repeat(6,1fr)}
+      .zx_card{padding:28px}
     }
   `;
 
   document.head.appendChild(css);
 }
-// ===============================
-// TOPBAR
-// ===============================
+
 function topbar(){
   const u=usuarioActual();
 
@@ -518,7 +461,6 @@ function topbar(){
     <div id="zx_topbar_inner">
       <div id="zx_brand">
         <div id="zx_logo">Z</div>
-
         <div id="zx_brand_txt">
           <h1>Zentryx PRO</h1>
           <div>${limpiar(u.usuario || "usuario")} · ${limpiar(u.rol || "Sin rol")}</div>
@@ -538,9 +480,6 @@ function topbar(){
   };
 }
 
-// ===============================
-// RELOJ + ICONO AGENDA
-// ===============================
 function reloj(){
   const r=document.createElement("div");
   r.id="zx_reloj";
@@ -561,10 +500,10 @@ function reloj(){
   document.body.insertBefore(r,app());
 
   actualizarReloj();
-  setInterval(actualizarReloj,1000);
+  ZX_RELOJ_TIMER=setInterval(actualizarReloj,1000);
 
   actualizarContadorAgenda();
-  setInterval(actualizarContadorAgenda,60000);
+  ZX_AGENDA_TIMER=setInterval(actualizarContadorAgenda,60000);
 }
 
 function actualizarReloj(){
@@ -588,20 +527,33 @@ function actualizarReloj(){
 }
 
 async function eventosHoy(){
-  const hoy=new Date().toISOString().slice(0,10);
+  const f=hoyISO();
+  const u=usuarioActual();
 
-  const r=await sb()
+  let q=sb()
     .from("agenda_eventos")
     .select("*")
-    .lte("fecha_inicio",hoy)
-    .gte("fecha_fin",hoy)
+    .lte("fecha_inicio",f)
+    .gte("fecha_fin",f)
     .neq("estado","completado")
     .neq("estado","cancelado")
     .order("hora_inicio",{ascending:true})
     .limit(30);
 
+  const r=await q;
+
   if(r.error) return [];
-  return r.data || [];
+
+  let datos=r.data || [];
+
+  if(!esAdmin()){
+    datos=datos.filter(e=>{
+      return String(e.visible_para || "todos")==="todos" ||
+             String(e.usuario_id || "")===String(u.id || "");
+    });
+  }
+
+  return datos;
 }
 
 async function actualizarContadorAgenda(){
@@ -611,14 +563,12 @@ async function actualizarContadorAgenda(){
   try{
     const datos=await eventosHoy();
     btn.textContent=datos.length ? "📅 "+datos.length : "📅";
+    btn.title="Agenda de hoy";
   }catch(e){
     btn.textContent="📅";
   }
 }
 
-// ===============================
-// PANEL AGENDA HOY
-// ===============================
 function textoTipo(t){
   const m={
     recordatorio:"Nota",
@@ -636,7 +586,7 @@ function textoTipo(t){
 
 function renderEventoHoy(e){
   const hora=e.hora_inicio ? String(e.hora_inicio).slice(0,5) : "Sin hora";
-  const icono=e.tipo==="recordatorio" ? "📝" : "📅";
+  const icono=e.tipo==="recordatorio" ? "📝" : e.tipo==="trabajo" ? "🔧" : "📅";
 
   return `
     <div class="zx_list_item">
@@ -656,12 +606,40 @@ function renderEventoHoy(e){
         ? `<div class="zx_list_desc">${limpiar(e.descripcion)}</div>`
         : ""
       }
+
+      ${
+        e.tipo==="trabajo" && e.origen==="trabajos" && e.origen_id
+        ? `<button class="zx_btn_big zx_azul" onclick="ZX_abrirTrabajoDesdeLayout('${limpiar(e.origen_id)}')">Abrir trabajo</button>`
+        : ""
+      }
     </div>
   `;
 }
+
+window.ZX_abrirTrabajoDesdeLayout=function(id){
+  const m=$("zx_modal_agenda_hoy");
+  if(m) m.remove();
+
+  if(window.ZX_trabajos){
+    window.ZX_trabajos();
+
+    setTimeout(function(){
+      if(window.ZX_editarTrabajo){
+        window.ZX_editarTrabajo(id);
+      }
+    },500);
+
+    return;
+  }
+
+  alert("No se ha cargado Trabajos.");
+};
+
 window.ZX_abrirAgendaHoy=async function(){
   const anterior=$("zx_modal_agenda_hoy");
   if(anterior) anterior.remove();
+
+  document.body.classList.add("zx_modal_abierto");
 
   const modal=document.createElement("div");
   modal.id="zx_modal_agenda_hoy";
@@ -679,7 +657,7 @@ window.ZX_abrirAgendaHoy=async function(){
           Abrir Agenda
         </button>
 
-        <button class="zx_btn_big zx_gris" onclick="document.getElementById('zx_modal_agenda_hoy').remove()">
+        <button class="zx_btn_big zx_gris" onclick="ZX_cerrarModalAgendaHoy()">
           Cerrar
         </button>
       </div>
@@ -698,30 +676,32 @@ window.ZX_abrirAgendaHoy=async function(){
   }
 };
 
-window.ZX_abrirAgendaDesdePanel=function(){
+window.ZX_cerrarModalAgendaHoy=function(){
   const m=$("zx_modal_agenda_hoy");
   if(m) m.remove();
+  document.body.classList.remove("zx_modal_abierto");
+};
+
+window.ZX_abrirAgendaDesdePanel=function(){
+  window.ZX_cerrarModalAgendaHoy();
 
   if(window.ZX_abrirAgenda){
     window.ZX_abrirAgenda();
   }
 };
 
-// ===============================
-// NAVEGACIÓN
-// ===============================
 function puedeVerModulo(modulo){
   if(esAdmin()) return true;
 
   return [
-  "inicio",
-  "fichaje",
-  "agenda",
-  "clientes",
-  "trabajos",
-  "usuarios",
-  "horas_extra"
-].includes(modulo);
+    "inicio",
+    "fichaje",
+    "agenda",
+    "clientes",
+    "trabajos",
+    "usuarios",
+    "horas_extra"
+  ].includes(modulo);
 }
 
 function botonNav(modulo,texto,accion){
@@ -782,9 +762,6 @@ function abrirModulo(nombre,callback){
   }
 }
 
-// ===============================
-// NOTAS RÁPIDAS / POST-IT
-// ===============================
 async function cargarNotas(){
   const u=usuarioActual();
 
@@ -808,7 +785,7 @@ function renderNota(n){
       </div>
 
       <div class="zx_list_meta">
-        ${limpiar(String(n.fecha_inicio || "").slice(0,10))}
+        ${limpiar(formatoFechaES(n.fecha_inicio || ""))}
         ${n.hora_inicio ? " · "+limpiar(String(n.hora_inicio).slice(0,5)) : ""}
       </div>
 
@@ -823,6 +800,8 @@ window.ZX_abrirNotasRapidas=async function(){
   const anterior=$("zx_modal_notas");
   if(anterior) anterior.remove();
 
+  document.body.classList.add("zx_modal_abierto");
+
   const modal=document.createElement("div");
   modal.id="zx_modal_notas";
 
@@ -833,7 +812,10 @@ window.ZX_abrirNotasRapidas=async function(){
 
         <textarea id="zx_nota_rapida_texto" rows="5" placeholder="Escribe una nota o recordatorio..."></textarea>
 
-        <input id="zx_nota_rapida_fecha" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <label class="zx_text" style="display:block;margin-top:12px;">Fecha del aviso</label>
+        <input id="zx_nota_rapida_fecha" type="date" value="${hoyISO()}">
+
+        <label class="zx_text" style="display:block;margin-top:12px;">Hora del aviso</label>
         <input id="zx_nota_rapida_hora" type="time">
 
         <button class="zx_btn_big zx_verde" onclick="ZX_guardarNotaRapida()">
@@ -842,7 +824,7 @@ window.ZX_abrirNotasRapidas=async function(){
 
         <div id="zx_notas_rapidas_lista" style="margin-top:18px;"></div>
 
-        <button class="zx_btn_big zx_gris" onclick="document.getElementById('zx_modal_notas').remove()">
+        <button class="zx_btn_big zx_gris" onclick="ZX_cerrarNotasRapidas()">
           Cerrar
         </button>
       </div>
@@ -861,11 +843,17 @@ window.ZX_abrirNotasRapidas=async function(){
   }
 };
 
+window.ZX_cerrarNotasRapidas=function(){
+  const m=$("zx_modal_notas");
+  if(m) m.remove();
+  document.body.classList.remove("zx_modal_abierto");
+};
+
 window.ZX_guardarNotaRapida=async function(){
   const u=usuarioActual();
 
   const texto=String($("zx_nota_rapida_texto")?.value || "").trim();
-  const fecha=$("zx_nota_rapida_fecha")?.value || new Date().toISOString().slice(0,10);
+  const fecha=$("zx_nota_rapida_fecha")?.value || hoyISO();
   const hora=$("zx_nota_rapida_hora")?.value || null;
 
   if(!texto){
@@ -902,6 +890,8 @@ window.ZX_guardarNotaRapida=async function(){
 };
 
 window.ZX_borrarNotaRapida=async function(id){
+  if(!confirm("¿Borrar esta nota?")) return;
+
   const r=await sb()
     .from("agenda_eventos")
     .delete()
@@ -931,9 +921,6 @@ function botonPostit(){
   document.body.appendChild(b);
 }
 
-// ===============================
-// MÓDULOS
-// ===============================
 window.ZX_inicio=function(){
   abrirModulo("inicio",function(){
     if(window.ZENTRYX_UI_inicio){
@@ -1081,9 +1068,6 @@ window.ZX_configuracion=function(){
   });
 };
 
-// ===============================
-// INICIO LAYOUT
-// ===============================
 window.ZENTRYX_UI_LAYOUT={
   iniciar:function(){
     limpiarLayout();
@@ -1095,7 +1079,4 @@ window.ZENTRYX_UI_LAYOUT={
   }
 };
 
-// ===============================
-// FIN
-// ===============================
 })();
