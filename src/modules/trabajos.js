@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3111 - VISTA OBRA COMPACTA + MATERIAL PREPARADO
+// V3112 - LISTA MATERIAL UNIVERSAL + PREPARADO ADMIN
 // ===============================
 (function(){
 "use strict";
@@ -644,16 +644,28 @@ function renderMateriales(lista){
     return `<div class="zx_text">Sin materiales.</div>`;
   }
 
-  return lista.map(m=>`
-    <div class="zx_tr_mat_item">
-      <b>${limpiar(m.material || "Material")}</b><br>
-      ${limpiar(m.cantidad || "0")} ${limpiar(m.unidad || "")}
-      ${puedeVerPrecios() && m.precio ? `<br><span>Precio: ${limpiar(m.precio)} €</span>` : ""}
-      ${puedeVerPrecios() && m.proveedor ? `<br><span>Proveedor: ${limpiar(m.proveedor)}</span>` : ""}
-      ${puedeVerPrecios() && m.referencia ? `<br><span>Referencia: ${limpiar(m.referencia)}</span>` : ""}
-      ${m.notas ? "<br>"+limpiar(m.notas) : ""}
+  return `
+    <div class="zx_admin_materiales_lista">
+      ${lista.map(m=>`
+        <div class="zx_tr_mat_item ${materialPreparado(m) ? "zx_tr_mat_preparado" : ""}">
+          <label class="zx_admin_mat_check">
+            <input type="checkbox"
+              ${materialPreparado(m) ? "checked" : ""}
+              data-mat-preparado="${limpiar(m.id)}">
+            <span>
+              <b>${limpiar(m.material || "Material")}</b>
+              <em>${limpiar(m.cantidad || "0")} ${limpiar(m.unidad || "")}</em>
+              ${materialPreparado(m) ? `<small>Preparado${m.preparado_por ? " por "+limpiar(m.preparado_por) : ""}</small>` : `<small>Pendiente de preparar</small>`}
+              ${puedeVerPrecios() && m.precio ? `<small>Precio: ${limpiar(m.precio)} €</small>` : ""}
+              ${puedeVerPrecios() && m.proveedor ? `<small>Proveedor: ${limpiar(m.proveedor)}</small>` : ""}
+              ${puedeVerPrecios() && m.referencia ? `<small>Referencia: ${limpiar(m.referencia)}</small>` : ""}
+              ${m.notas ? `<small>${limpiar(m.notas)}</small>` : ""}
+            </span>
+          </label>
+        </div>
+      `).join("")}
     </div>
-  `).join("");
+  `;
 }
 
 function renderHistorial(lista){
@@ -1385,6 +1397,53 @@ async function cargarCatalogoMateriales(){
   }
 }
 
+
+async function cargarCatalogoMaterialesCompleto(){
+  const base=await cargarCatalogoMateriales();
+  const mapa=new Map();
+
+  (base || []).forEach(m=>{
+    const k=normalizarMaterialClave(m.nombre || "");
+    if(k) mapa.set(k,{...m});
+  });
+
+  try{
+    const r=await sb()
+      .from("trabajos_materiales")
+      .select("material,unidad")
+      .order("created_at",{ascending:false})
+      .limit(1000);
+
+    if(!r.error && r.data){
+      r.data.forEach(m=>{
+        const nombre=String(m.material || "").trim();
+        const clave=normalizarMaterialClave(nombre);
+        if(!clave) return;
+
+        if(mapa.has(clave)){
+          const actual=mapa.get(clave);
+          actual.veces_usado=Number(actual.veces_usado || 0)+1;
+          if(!actual.unidad && m.unidad) actual.unidad=m.unidad;
+          mapa.set(clave,actual);
+        }else{
+          mapa.set(clave,{
+            nombre:nombre,
+            clave:clave,
+            unidad:m.unidad || "ud",
+            veces_usado:1
+          });
+        }
+      });
+    }
+  }catch(e){}
+
+  return Array.from(mapa.values())
+    .sort((a,b)=>Number(b.veces_usado || 0)-Number(a.veces_usado || 0) || String(a.nombre || "").localeCompare(String(b.nombre || "")));
+}
+
+function refrescarSugerenciasMateriales(input,unidad,caja,catalogo){
+  pintarSugerenciasMateriales(input,unidad,caja,catalogo);
+}
 async function guardarMaterialEnCatalogo(nombre,unidad){
   const n=String(nombre || "").trim();
   const u=String(unidad || "").trim() || "ud";
@@ -1449,19 +1508,19 @@ function pintarSugerenciasMateriales(input,unidad,caja,catalogo){
 
   const q=normalizarMaterialClave(input.value);
 
-  if(!q){
-    caja.innerHTML="";
-    caja.style.display="none";
-    return;
-  }
-
   const resultados=(catalogo || [])
-    .filter(m=>normalizarMaterialClave(m.nombre || "").includes(q))
+    .filter(m=>{
+      const n=normalizarMaterialClave(m.nombre || "");
+      if(!n) return false;
+      if(!q) return false;
+      return n.includes(q) || q.includes(n);
+    })
+    .sort((a,b)=>Number(b.veces_usado || 0)-Number(a.veces_usado || 0))
     .slice(0,12);
 
   if(!resultados.length){
-    caja.innerHTML="";
-    caja.style.display="none";
+    caja.innerHTML=`<div class="zx_mat_sugerencia_vacia">Sin coincidencias guardadas todavía.</div>`;
+    caja.style.display=q ? "grid" : "none";
     return;
   }
 
@@ -1651,7 +1710,7 @@ async function abrirMaterialesObra(trabajoId,modo){
   const datos=await obtenerTrabajoYMateriales(trabajoId);
   if(!datos) return;
 
-  let catalogo=await cargarCatalogoMateriales();
+  let catalogo=await cargarCatalogoMaterialesCompleto();
 
   cerrarModalTrabajo();
 
@@ -1732,7 +1791,7 @@ async function abrirMaterialesObra(trabajoId,modo){
       document.getElementById("tr_mat_obra_sugerencias").innerHTML="";
       document.getElementById("tr_mat_obra_sugerencias").style.display="none";
 
-      catalogo=await cargarCatalogoMateriales();
+      catalogo=await cargarCatalogoMaterialesCompleto();
 
       alert("Material anotado.");
     };
@@ -1754,6 +1813,13 @@ async function abrirMaterialesObra(trabajoId,modo){
     document.getElementById("tr_mat_modal_enviar").onclick=function(){
       ZX_tr_share_materiales(trabajoId);
     };
+
+    document.querySelectorAll("#tr_mat_modal_contenido [data-mat-preparado]").forEach(chk=>{
+      chk.onchange=async function(){
+        await cambiarPreparadoMaterial(chk.dataset.matPreparado,chk.checked);
+        await pintarLista();
+      };
+    });
 
     document.querySelectorAll("[data-mat-editar]").forEach(btn=>{
       btn.onclick=function(){
@@ -1786,7 +1852,7 @@ async function editarMaterialModal(trabajoId,m){
     return;
   }
 
-  const catalogo=await cargarCatalogoMateriales();
+  const catalogo=await cargarCatalogoMaterialesCompleto();
 
   cerrarModalTrabajo();
 
@@ -2628,10 +2694,10 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3111")) return;
+  if(document.getElementById("zx_trabajos_v3112")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3111";
+  s.id="zx_trabajos_v3112";
 
   s.innerHTML=`
     .zx_tr_head{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -2753,6 +2819,22 @@ window.ZX_trabajos=async function(){
     .zx_obra_datos_compactos div{background:white;border:1px solid #e5e7eb;border-radius:14px;padding:10px}
     .zx_obra_datos_compactos b{display:block;color:#64748b;font-size:12px;font-weight:900;text-transform:uppercase}
     .zx_obra_datos_compactos span{display:block;color:#0f172a;font-size:14px;font-weight:850;margin-top:4px;line-height:1.25}
+
+
+    .zx_admin_materiales_lista{display:grid;gap:8px}
+    .zx_admin_mat_check{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}
+    .zx_admin_mat_check input{width:24px!important;height:24px!important;margin-top:2px!important}
+    .zx_admin_mat_check b{display:block;color:#0f172a;font-size:16px;font-weight:950}
+    .zx_admin_mat_check em{display:block;color:#2563eb;font-style:normal;font-size:14px;font-weight:900;margin-top:2px}
+    .zx_admin_mat_check small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:3px}
+    .zx_tr_mat_preparado{background:#ecfdf5!important;border-color:#86efac!important}
+    .zx_tr_mat_preparado b{text-decoration:line-through;color:#166534!important}
+    .zx_mat_autocomplete_wrap{position:relative}
+    .zx_mat_sugerencias{display:none;background:white;border:2px solid #bfdbfe;border-radius:18px;margin:6px 0 12px;padding:6px;box-shadow:0 10px 30px rgba(15,23,42,.16);max-height:280px;overflow:auto;z-index:999999}
+    .zx_mat_sugerencia{width:100%;border:0;background:#f8fafc;border-radius:14px;padding:12px;margin:4px 0;text-align:left}
+    .zx_mat_sugerencia b{display:block;color:#0f172a;font-size:15px;font-weight:950}
+    .zx_mat_sugerencia span{display:block;color:#64748b;font-size:12px;font-weight:850;margin-top:3px}
+    .zx_mat_sugerencia_vacia{background:#f8fafc;border-radius:14px;padding:12px;color:#64748b;font-size:13px;font-weight:850}
 
     @media(max-width:430px){
       .zx_tr_head,
