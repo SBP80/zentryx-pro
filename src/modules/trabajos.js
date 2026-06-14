@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3110 - MATERIALES PRO + CATALOGO AUTOCOMPLETADO REAL
+// V3111 - VISTA OBRA COMPACTA + MATERIAL PREPARADO
 // ===============================
 (function(){
 "use strict";
@@ -708,6 +708,122 @@ function renderBotonesArchivoObra(titulo,lista,icono){
   `;
 }
 
+
+function materialPreparado(m){
+  return m.preparado===true || m.preparado==="true" || m.preparado===1 || m.preparado==="1";
+}
+
+function resumenPreparacionMateriales(lista){
+  const total=(lista || []).length;
+  const preparados=(lista || []).filter(materialPreparado).length;
+  return {total,preparados,pendientes:Math.max(0,total-preparados)};
+}
+
+function clasePreparacionMateriales(lista){
+  const r=resumenPreparacionMateriales(lista);
+  if(!r.total) return "zx_mat_estado_vacio";
+  if(r.pendientes===0) return "zx_mat_estado_ok";
+  return "zx_mat_estado_pendiente";
+}
+
+function textoPreparacionMateriales(lista){
+  const r=resumenPreparacionMateriales(lista);
+  if(!r.total) return "Sin lista de material";
+  if(r.pendientes===0) return "Material preparado";
+  return r.preparados+" / "+r.total+" preparado(s)";
+}
+
+async function cambiarPreparadoMaterial(materialId,preparado){
+  const r=await sb()
+    .from("trabajos_materiales")
+    .update({
+      preparado:preparado,
+      preparado_at:preparado ? new Date().toISOString() : null,
+      preparado_por:preparado ? (sesion().usuario || "") : ""
+    })
+    .eq("id",String(materialId));
+
+  if(r.error){
+    alert("Error actualizando material preparado: "+r.error.message);
+    return;
+  }
+
+  ZX_trabajos();
+}
+
+async function marcarTodoMaterialPreparado(trabajoId){
+  const datos=await obtenerTrabajoYMateriales(trabajoId);
+  if(!datos || !datos.materiales.length){
+    alert("No hay materiales para preparar.");
+    return;
+  }
+
+  const r=await sb()
+    .from("trabajos_materiales")
+    .update({
+      preparado:true,
+      preparado_at:new Date().toISOString(),
+      preparado_por:sesion().usuario || ""
+    })
+    .eq("trabajo_id",String(trabajoId));
+
+  if(r.error){
+    alert("Error marcando material preparado: "+r.error.message);
+    return;
+  }
+
+  ZX_trabajos();
+}
+
+function renderMaterialesPreparacionObra(trabajoId,lista){
+  const r=resumenPreparacionMateriales(lista);
+
+  if(!lista || !lista.length){
+    return `
+      <div class="zx_obra_material_preparacion zx_mat_estado_vacio">
+        <div class="zx_mat_prepa_head">
+          <div>
+            <b>Sin material pendiente</b>
+            <span>No hay lista de preparación para esta obra.</span>
+          </div>
+          <button class="zx_action_btn zx_blue" data-tr-obra-materiales="${limpiar(trabajoId)}">Añadir</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="zx_obra_material_preparacion ${clasePreparacionMateriales(lista)}">
+      <div class="zx_mat_prepa_head">
+        <div>
+          <b>${r.pendientes===0 ? "Material preparado" : "Material pendiente"}</b>
+          <span>${limpiar(textoPreparacionMateriales(lista))}</span>
+        </div>
+
+        <button class="zx_action_btn zx_blue" data-tr-obra-materiales="${limpiar(trabajoId)}">Lista</button>
+      </div>
+
+      <div class="zx_mat_prepa_lista">
+        ${lista.map(m=>`
+          <label class="zx_mat_prepa_item ${materialPreparado(m) ? "zx_mat_prepa_item_ok" : ""}">
+            <input type="checkbox"
+              ${materialPreparado(m) ? "checked" : ""}
+              data-mat-preparado="${limpiar(m.id)}">
+            <span>
+              <b>${limpiar(m.material || "Material")}</b>
+              <em>${limpiar(m.cantidad || "0")} ${limpiar(m.unidad || "")}</em>
+              ${m.notas ? `<small>${limpiar(m.notas)}</small>` : ""}
+            </span>
+          </label>
+        `).join("")}
+      </div>
+
+      <button class="zx_btn_big zx_verde" data-mat-preparar-todo="${limpiar(trabajoId)}">
+        Marcar todo preparado
+      </button>
+    </div>
+  `;
+}
 function renderMaterialesObra(lista){
   if(!lista || !lista.length) return `<div class="zx_text">Sin materiales asignados.</div>`;
 
@@ -734,42 +850,59 @@ async function renderTrabajoObra(t){
   const materiales=await cargarMateriales(t.id);
   const grupos=separarArchivosObra(archivos);
   const prioridad=t.prioridad || "media";
+  const mat=resumenPreparacionMateriales(materiales);
+  const primerPlan=plan && plan.length ? plan[0] : null;
+  const horaTexto=primerPlan
+    ? String(primerPlan.hora_inicio || "").slice(0,5)+" - "+String(primerPlan.hora_fin || "").slice(0,5)
+    : "";
 
   return `
-    <div class="zx_obra_card ${claseTarjeta(t)}">
-      <div class="zx_obra_top">
+    <div class="zx_obra_card zx_obra_compacta ${claseTarjeta(t)}">
+      <div class="zx_obra_top_compacta">
         <div>
-          <div class="zx_obra_hora">
-            ${plan.length ? limpiar(String(plan[0].hora_inicio || "").slice(0,5) || "--:--")+" - "+limpiar(String(plan[0].hora_fin || "").slice(0,5) || "--:--") : ""}
-          </div>
+          <div class="zx_obra_hora">${limpiar(horaTexto || "Sin hora")}</div>
           <div class="zx_obra_titulo">${limpiar(t.titulo || "Trabajo")}</div>
           <div class="zx_obra_cliente">${limpiar(t.cliente || "-")}</div>
         </div>
-        <span class="zx_badge ${clasePrioridad(prioridad)}">${limpiar(textoPrioridad(prioridad))}</span>
+
+        <div class="zx_obra_estado_material ${clasePreparacionMateriales(materiales)}">
+          <b>${mat.total ? mat.preparados+"/"+mat.total : "0"}</b>
+          <span>Material</span>
+        </div>
       </div>
 
-      <div class="zx_obra_direccion">${dir ? limpiar(dir) : "Sin dirección"}</div>
+      ${renderMaterialesPreparacionObra(t.id,materiales)}
 
-      <div class="zx_obra_botones">
+      <div class="zx_obra_acciones_rapidas">
         ${t.telefono_contacto ? `<button class="zx_obra_big_btn" data-tr-tel="${limpiar(t.telefono_contacto)}">📞 Llamar</button>` : ""}
-        ${dir ? `<button class="zx_obra_big_btn" data-tr-map="${limpiar(dir)}">🗺️ Mapa</button>` : ""}
+        ${t.telefono_contacto ? `<button class="zx_obra_big_btn zx_obra_was" data-tr-was="${limpiar(t.telefono_contacto)}">💬 WhatsApp</button>` : ""}
+        ${dir ? `<button class="zx_obra_big_btn" data-tr-map="${limpiar(dir)}">🗺️ Navegar</button>` : ""}
         ${grupos.planos.length ? `<button class="zx_obra_big_btn" data-obra-jump="planos">📄 Planos</button>` : ""}
         ${grupos.fotos.length ? `<button class="zx_obra_big_btn" data-obra-jump="fotos">📷 Fotos</button>` : ""}
         ${grupos.videos.length ? `<button class="zx_obra_big_btn" data-obra-jump="videos">🎥 Vídeos</button>` : ""}
-        <button class="zx_obra_big_btn" data-tr-obra-materiales="${limpiar(t.id)}">📦 Materiales</button>
       </div>
 
       <details class="zx_obra_section" open>
-        <summary>Planificación</summary>
-        ${renderPlanificacion(plan)}
+        <summary>Datos de obra</summary>
+        <div class="zx_obra_datos_compactos">
+          <div><b>Dirección</b><span>${limpiar(dir || "Sin dirección")}</span></div>
+          <div><b>Contacto</b><span>${limpiar(t.persona_contacto || "-")}</span></div>
+          <div><b>Teléfono</b><span>${limpiar(t.telefono_contacto || "-")}</span></div>
+          <div><b>Prioridad</b><span>${limpiar(textoPrioridad(prioridad))}</span></div>
+        </div>
       </details>
 
-      <details class="zx_obra_section" open>
+      <details class="zx_obra_section">
         <summary>Descripción y notas</summary>
         <div class="zx_user_data">
           <b>Descripción:</b> ${limpiar(t.descripcion || "-")}<br>
           <b>Notas técnicas:</b> ${limpiar(t.notas || "-")}
         </div>
+      </details>
+
+      <details class="zx_obra_section">
+        <summary>Planificación</summary>
+        ${renderPlanificacion(plan)}
       </details>
 
       <details class="zx_obra_section" data-obra-section="planos" ${grupos.planos.length ? "open" : ""}>
@@ -792,19 +925,9 @@ async function renderTrabajoObra(t){
         ${renderBotonesArchivoObra("Manuales",grupos.manuales,"📘")}
         ${renderBotonesArchivoObra("Otros",grupos.otros,"📎") || (!grupos.manuales.length ? `<div class="zx_text">Sin documentos.</div>` : "")}
       </details>
-
-      <details class="zx_obra_section" data-obra-section="materiales" open>
-        <summary>Materiales</summary>
-        <div class="zx_obra_material_actions">
-          <button class="zx_action_btn zx_blue" data-tr-print-materiales="${limpiar(t.id)}">Imprimir lista</button>
-          <button class="zx_action_btn zx_blue" data-tr-share-materiales="${limpiar(t.id)}">Enviar lista</button>
-        </div>
-        ${renderMaterialesObra(materiales)}
-      </details>
     </div>
   `;
 }
-
 async function renderTrabajo(t){
   if(!puedeGestionarTrabajos()){
     return await renderTrabajoObra(t);
@@ -2471,6 +2594,7 @@ window.ZX_trabajos=async function(){
 
   document.querySelectorAll("[data-tr-estado]").forEach(btn=>{btn.onclick=function(){ZX_cambiarEstadoTrabajo(btn.dataset.trEstado)}});
   document.querySelectorAll("[data-tr-tel]").forEach(btn=>{btn.onclick=function(){menuTelefono(btn.dataset.trTel)}});
+  document.querySelectorAll("[data-tr-was]").forEach(btn=>{btn.onclick=function(){location.href="https://wa.me/"+telefonoLimpio(btn.dataset.trWas).replace("+","")}});
   document.querySelectorAll("[data-tr-map]").forEach(btn=>{btn.onclick=function(){menuMapa(btn.dataset.trMap)}});
   document.querySelectorAll("[data-tr-edit]").forEach(btn=>{btn.onclick=function(){ZX_editarTrabajo(btn.dataset.trEdit)}});
   document.querySelectorAll("[data-tr-del]").forEach(btn=>{btn.onclick=function(){ZX_borrarTrabajo(btn.dataset.trDel)}});
@@ -2481,6 +2605,14 @@ window.ZX_trabajos=async function(){
   document.querySelectorAll("[data-tr-print-materiales]").forEach(btn=>{btn.onclick=function(){ZX_tr_print_materiales(btn.dataset.trPrintMateriales)}});
   document.querySelectorAll("[data-tr-share-materiales]").forEach(btn=>{btn.onclick=function(){ZX_tr_share_materiales(btn.dataset.trShareMateriales)}});
   document.querySelectorAll("[data-tr-obra-materiales]").forEach(btn=>{btn.onclick=function(){ZX_tr_obra_materiales(btn.dataset.trObraMateriales)}});
+  document.querySelectorAll("[data-mat-preparado]").forEach(chk=>{
+    chk.onchange=function(){
+      cambiarPreparadoMaterial(chk.dataset.matPreparado,chk.checked);
+    };
+  });
+  document.querySelectorAll("[data-mat-preparar-todo]").forEach(btn=>{
+    btn.onclick=function(){marcarTodoMaterialPreparado(btn.dataset.matPrepararTodo)};
+  });
   document.querySelectorAll("[data-obra-jump]").forEach(btn=>{
     btn.onclick=function(){
       const card=btn.closest(".zx_obra_card");
@@ -2496,10 +2628,10 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3110")) return;
+  if(document.getElementById("zx_trabajos_v3111")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3110";
+  s.id="zx_trabajos_v3111";
 
   s.innerHTML=`
     .zx_tr_head{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -2591,6 +2723,36 @@ window.ZX_trabajos=async function(){
     .zx_mat_sugerencia:last-child{border-bottom:0}
     .zx_mat_sugerencia b{display:block;color:#0f172a;font-size:15px;font-weight:950}
     .zx_mat_sugerencia span{display:block;color:#64748b;font-size:12px;font-weight:850;margin-top:3px}
+
+
+    .zx_obra_compacta{padding:14px}
+    .zx_obra_top_compacta{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;margin-bottom:10px}
+    .zx_obra_estado_material{border-radius:18px;padding:10px 12px;text-align:center;min-width:78px;border:1px solid #e5e7eb}
+    .zx_obra_estado_material b{display:block;font-size:24px;font-weight:950;color:#0f172a;line-height:1}
+    .zx_obra_estado_material span{display:block;font-size:11px;font-weight:900;color:#64748b;margin-top:4px;text-transform:uppercase}
+    .zx_mat_estado_ok{background:#ecfdf5!important;border-color:#86efac!important}
+    .zx_mat_estado_ok b{color:#16a34a!important}
+    .zx_mat_estado_pendiente{background:#fff7ed!important;border-color:#fed7aa!important}
+    .zx_mat_estado_pendiente b{color:#ea580c!important}
+    .zx_mat_estado_vacio{background:#f8fafc!important;border-color:#e5e7eb!important}
+    .zx_obra_material_preparacion{border:1px solid #e5e7eb;border-radius:20px;padding:12px;margin:10px 0 12px}
+    .zx_mat_prepa_head{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:10px}
+    .zx_mat_prepa_head b{display:block;color:#0f172a;font-size:20px;font-weight:950;line-height:1.15}
+    .zx_mat_prepa_head span{display:block;color:#64748b;font-size:13px;font-weight:900;margin-top:3px}
+    .zx_mat_prepa_lista{display:grid;gap:7px;margin-bottom:10px;max-height:220px;overflow:auto;padding-right:2px}
+    .zx_mat_prepa_item{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;background:white;border:1px solid #e5e7eb;border-radius:14px;padding:10px}
+    .zx_mat_prepa_item input{width:23px!important;height:23px!important;margin-top:2px!important}
+    .zx_mat_prepa_item b{display:block;color:#0f172a;font-size:15px;font-weight:950}
+    .zx_mat_prepa_item em{display:block;color:#2563eb;font-style:normal;font-size:13px;font-weight:900;margin-top:2px}
+    .zx_mat_prepa_item small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:4px}
+    .zx_mat_prepa_item_ok{opacity:.66}
+    .zx_mat_prepa_item_ok b{text-decoration:line-through}
+    .zx_obra_acciones_rapidas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:10px 0}
+    .zx_obra_was{background:#16a34a!important}
+    .zx_obra_datos_compactos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .zx_obra_datos_compactos div{background:white;border:1px solid #e5e7eb;border-radius:14px;padding:10px}
+    .zx_obra_datos_compactos b{display:block;color:#64748b;font-size:12px;font-weight:900;text-transform:uppercase}
+    .zx_obra_datos_compactos span{display:block;color:#0f172a;font-size:14px;font-weight:850;margin-top:4px;line-height:1.25}
 
     @media(max-width:430px){
       .zx_tr_head,
