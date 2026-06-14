@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3113 - MATERIALES COMPACTOS + SELECCION UNICA
+// V3114 - LISTA MATERIALES EDITABLE COMPACTA
 // ===============================
 (function(){
 "use strict";
@@ -1681,23 +1681,23 @@ function renderListaMaterialesModal(trabajo,materiales){
       ? `
         <div class="zx_mat_lista_compacta">
           ${materiales.map(m=>`
-            <label class="zx_mat_linea_compacta ${materialPreparado(m) ? "zx_mat_linea_ok" : ""}" data-mat-row="${limpiar(m.id)}">
+            <div class="zx_mat_linea_compacta ${materialPreparado(m) ? "zx_mat_linea_ok" : ""}" data-mat-row="${limpiar(m.id)}">
               <input type="checkbox"
                 ${materialPreparado(m) ? "checked" : ""}
                 data-mat-preparado="${limpiar(m.id)}">
-              <span class="zx_mat_linea_texto" data-mat-select="${limpiar(m.id)}">
+              <button type="button" class="zx_mat_linea_texto" data-mat-select="${limpiar(m.id)}">
                 <b>${limpiar(m.material || "Material")}</b>
                 <em>${limpiar(m.cantidad || "0")} ${limpiar(m.unidad || "")}</em>
                 ${m.notas ? `<small>${limpiar(m.notas)}</small>` : ""}
-              </span>
-            </label>
+              </button>
+            </div>
           `).join("")}
         </div>
 
         <div id="tr_mat_acciones_seleccion" class="zx_mat_acciones_seleccion zx_mat_acciones_ocultas">
           <div>
             <b id="tr_mat_sel_nombre">Material seleccionado</b>
-            <span>Selecciona una línea para editar o borrar.</span>
+            <span>Ahora puedes editar o borrar solo el material seleccionado.</span>
           </div>
 
           <div class="zx_mat_acciones_botones">
@@ -1914,7 +1914,8 @@ async function abrirMaterialesObra(trabajoId,modo){
     const nuevos=await obtenerTrabajoYMateriales(trabajoId);
     if(!nuevos) return;
 
-    document.getElementById("tr_mat_modal_contenido").innerHTML=renderListaMaterialesModal(nuevos.trabajo,nuevos.materiales);
+    const cont=document.getElementById("tr_mat_modal_contenido");
+    cont.innerHTML=renderListaMaterialesModal(nuevos.trabajo,nuevos.materiales);
 
     document.getElementById("tr_mat_modal_imprimir").onclick=function(){
       ZX_tr_print_materiales(trabajoId);
@@ -1924,7 +1925,7 @@ async function abrirMaterialesObra(trabajoId,modo){
       ZX_tr_share_materiales(trabajoId);
     };
 
-    document.querySelectorAll("#tr_mat_modal_contenido [data-mat-preparado]").forEach(chk=>{
+    cont.querySelectorAll("[data-mat-preparado]").forEach(chk=>{
       chk.onchange=async function(e){
         e.stopPropagation();
         await cambiarPreparadoMaterial(chk.dataset.matPreparado,chk.checked);
@@ -1932,40 +1933,22 @@ async function abrirMaterialesObra(trabajoId,modo){
       };
     });
 
-    document.querySelectorAll("#tr_mat_modal_contenido [data-mat-select]").forEach(el=>{
-      el.onclick=function(e){
+    cont.querySelectorAll("[data-mat-select]").forEach(btn=>{
+      btn.onclick=function(e){
         e.preventDefault();
-        seleccionarMaterialLista(el.dataset.matSelect,nuevos.materiales);
+        e.stopPropagation();
+        seleccionarMaterialLista(btn.dataset.matSelect,nuevos.materiales);
       };
     });
 
-    document.querySelectorAll("#tr_mat_modal_contenido [data-mat-row]").forEach(row=>{
+    cont.querySelectorAll("[data-mat-row]").forEach(row=>{
       row.onclick=function(e){
         if(e.target && e.target.matches("input[type='checkbox']")) return;
         seleccionarMaterialLista(row.dataset.matRow,nuevos.materiales);
       };
     });
-
-    document.querySelectorAll("#tr_mat_modal_contenido [data-mat-preparado]").forEach(chk=>{
-      chk.onchange=async function(){
-        await cambiarPreparadoMaterial(chk.dataset.matPreparado,chk.checked);
-        await pintarLista();
-      };
-    });
-
-    document.querySelectorAll("[data-mat-editar]").forEach(btn=>{
-      btn.onclick=function(){
-        const m=nuevos.materiales.find(x=>String(x.id)===String(btn.dataset.matEditar));
-        if(m) editarMaterialModal(trabajoId,m);
-      };
-    });
-
-    document.querySelectorAll("[data-mat-borrar]").forEach(btn=>{
-      btn.onclick=function(){
-        borrarMaterial(trabajoId,btn.dataset.matBorrar);
-      };
-    });
   }
+
 
   document.getElementById("tr_mat_tab_anotar").onclick=pintarAnotar;
   document.getElementById("tr_mat_tab_lista").onclick=pintarLista;
@@ -2823,10 +2806,10 @@ window.ZX_trabajos=async function(){
 };
 
 (function estilosTrabajos(){
-  if(document.getElementById("zx_trabajos_v3113")) return;
+  if(document.getElementById("zx_trabajos_v3114")) return;
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3113";
+  s.id="zx_trabajos_v3114";
 
   s.innerHTML=`
     .zx_tr_head{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -2969,6 +2952,7 @@ window.ZX_trabajos=async function(){
     .zx_mat_lista_compacta{display:grid;gap:8px;margin:10px 0 12px}
     .zx_mat_linea_compacta{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;background:white;border:1px solid #e5e7eb;border-radius:16px;padding:10px;cursor:pointer}
     .zx_mat_linea_compacta input{width:24px!important;height:24px!important;margin-top:2px!important}
+    .zx_mat_linea_texto{border:0;background:transparent;text-align:left;padding:0;width:100%;display:block}
     .zx_mat_linea_texto b{display:block;color:#0f172a;font-size:15px;font-weight:950}
     .zx_mat_linea_texto em{display:block;color:#2563eb;font-size:13px;font-style:normal;font-weight:900;margin-top:2px}
     .zx_mat_linea_texto small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:4px}
