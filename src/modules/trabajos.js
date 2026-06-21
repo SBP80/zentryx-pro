@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3124 - HISTORIAL ORDENADO POR CREATED_AT + HORA LOCAL
+// V3125 - HISTORIAL ORDENADO + BLOQUEO DOBLE ARCHIVAR
 // Archivo completo + catálogo de materiales
 // ===============================
 (function(){
@@ -11,6 +11,7 @@ let ZX_TR_BUSQUEDA="";
 let ZX_TR_CACHE=[];
 let ZX_TR_TIMER=null;
 let ZX_TR_MATERIALES_CATALOGO=[];
+let ZX_TR_ARCHIVO_EN_PROCESO=false;
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
@@ -250,16 +251,53 @@ async function gestionarTrabajo(id){
   document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Gestionar trabajo</h2><div class="zx_text"><b>${limpiar(t.titulo||"Trabajo")}</b><br>Cliente: ${limpiar(t.cliente||"-")}<br>Estado: ${limpiar(estadoTexto(t.estado))}</div><div class="zx_tr_aviso">Archivar, restaurar y borrar definitivamente requieren PIN administrador.</div><button class="zx_btn_big ${t.archivado?"zx_verde":"zx_naranja"}" id="tr_archivar">${t.archivado?"Restaurar trabajo":"Archivar trabajo"}</button>${esAdmin()?`<button class="zx_btn_big zx_rojo" id="tr_borrar_def">Borrar definitivamente</button>`:""}<button class="zx_btn_big zx_gris" id="tr_cerrar_gestion">Cancelar</button></div></div>`);
   document.getElementById("tr_cerrar_gestion").onclick=cerrarModal;
   document.getElementById("tr_archivar").onclick=async function(){
-    const ok=await pedirPinAdmin();
-    if(!ok)return;
-    const trabajoAntes=await cargarTrabajo(id);
-    if(!trabajoAntes)return;
-    const nuevoArchivado=!trabajoAntes.archivado;
-    const r=await sb().from("trabajos").update({archivado:nuevoArchivado}).eq("id",String(id));
-    if(r.error){alert("Error: "+r.error.message);return}
-    if(nuevoArchivado){await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id)); const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo archivado.",{archivado:true}); if(!okHist)return; ZX_TR_FILTRO="archivados"}
-    else{const plan=await cargarPlanificacion(id); const actualizado={...trabajoAntes,archivado:false}; await sincronizarAgenda(id,actualizado,plan); const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo restaurado.",{archivado:false}); if(!okHist)return; ZX_TR_FILTRO="activos"}
-    cerrarModal(); await pintarTrabajos();
+    if(ZX_TR_ARCHIVO_EN_PROCESO) return;
+    ZX_TR_ARCHIVO_EN_PROCESO=true;
+
+    const btn=document.getElementById("tr_archivar");
+    const txtOriginal=btn ? btn.textContent : "";
+    if(btn){
+      btn.disabled=true;
+      btn.style.opacity=".55";
+      btn.textContent="Procesando...";
+    }
+
+    try{
+      const ok=await pedirPinAdmin();
+      if(!ok)return;
+
+      const trabajoAntes=await cargarTrabajo(id);
+      if(!trabajoAntes)return;
+
+      const nuevoArchivado=!trabajoAntes.archivado;
+      const r=await sb().from("trabajos").update({archivado:nuevoArchivado}).eq("id",String(id));
+      if(r.error){alert("Error: "+r.error.message);return}
+
+      if(nuevoArchivado){
+        await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
+        const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo archivado.",{archivado:true});
+        if(!okHist)return;
+        ZX_TR_FILTRO="archivados";
+      }else{
+        const plan=await cargarPlanificacion(id);
+        const actualizado={...trabajoAntes,archivado:false};
+        await sincronizarAgenda(id,actualizado,plan);
+        const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo restaurado.",{archivado:false});
+        if(!okHist)return;
+        ZX_TR_FILTRO="activos";
+      }
+
+      cerrarModal();
+      await pintarTrabajos();
+
+    }finally{
+      ZX_TR_ARCHIVO_EN_PROCESO=false;
+      if(btn){
+        btn.disabled=false;
+        btn.style.opacity="";
+        btn.textContent=txtOriginal;
+      }
+    }
   };
   const borrar=document.getElementById("tr_borrar_def");
   if(borrar)borrar.onclick=async function(){const ok=await pedirPinAdmin(); if(!ok)return; const texto=prompt("Para borrar definitivamente escribe: BORRAR"); if(String(texto||"").trim().toUpperCase()!=="BORRAR"){alert("Borrado cancelado.");return} await registrarHistorial(id,"borrado","Trabajo borrado definitivamente."); await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id)); await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id)); const r=await sb().from("trabajos").delete().eq("id",String(id)); if(r.error){alert("Error borrando: "+r.error.message);return} cerrarModal();pintarTrabajos()};
@@ -318,9 +356,9 @@ window.ZX_tr_add_file=function(id){abrirArchivo(id)};
 window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
 
 (function estilos(){
-  if(document.getElementById("zx_trabajos_v3124"))return;
-  ["zx_trabajos_v3116","zx_trabajos_v3117","zx_trabajos_v3118","zx_trabajos_v3119","zx_trabajos_v3120","zx_trabajos_v3121","zx_trabajos_v3122","zx_trabajos_v3123"].forEach(id=>{const e=document.getElementById(id); if(e)e.remove()});
-  const s=document.createElement("style"); s.id="zx_trabajos_v3124";
+  if(document.getElementById("zx_trabajos_v3125"))return;
+  ["zx_trabajos_v3116","zx_trabajos_v3117","zx_trabajos_v3118","zx_trabajos_v3119","zx_trabajos_v3120","zx_trabajos_v3121","zx_trabajos_v3122","zx_trabajos_v3123","zx_trabajos_v3124"].forEach(id=>{const e=document.getElementById(id); if(e)e.remove()});
+  const s=document.createElement("style"); s.id="zx_trabajos_v3125";
   s.innerHTML=`
     .zx_tr_top{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_crear{border:0;border-radius:18px;background:#16a34a;color:white;font-size:18px;font-weight:900;padding:15px 20px}.zx_tr_buscar{width:100%;margin:16px 0 8px;padding:16px;border-radius:18px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;font-size:17px;font-weight:850}.zx_tr_filtros{display:flex;gap:8px;overflow-x:auto;padding:8px 0 4px}.zx_tr_filtro{flex:0 0 auto;border:0;border-radius:999px;padding:11px 14px;background:#e5e7eb;color:#0f172a;font-size:15px;font-weight:900}.zx_tr_filtro.on{background:#2563eb;color:white}
     .zx_tr_card{background:white;border:2px solid #d1d5db;border-radius:24px;padding:18px;margin:16px 0;box-shadow:0 8px 24px rgba(15,23,42,.05)}.zx_tr_card.archivado{opacity:.72;border-color:#64748b}.zx_tr_card_head{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_card h3{font-size:30px;margin:0 0 10px;color:#0f172a;font-weight:950;line-height:1.1}.zx_tr_badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.zx_tr_badges span{display:inline-flex;border-radius:999px;color:white;padding:8px 12px;font-size:13px;font-weight:950;text-transform:uppercase}
@@ -335,5 +373,5 @@ window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
   document.head.appendChild(s);
 })();
 
-console.log("ZENTRYX trabajos.js V3124 completo cargado");
+console.log("ZENTRYX trabajos.js V3125 completo cargado");
 })();
