@@ -1,6 +1,7 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3121 - ARCHIVO COMPLETO + CATÁLOGO DE MATERIALES
+// V3122 - ARCHIVAR/RESTAURAR CON HISTORIAL VERIFICADO
+// Archivo completo + catálogo de materiales
 // ===============================
 (function(){
 "use strict";
@@ -68,6 +69,33 @@ async function registrarHistorial(trabajoId,tipo,notas,datos){
   let r=await sb().from("trabajos_historial").insert([{...base,datos:datos||{}}]).select().maybeSingle();
   if(r.error) r=await sb().from("trabajos_historial").insert([base]).select().maybeSingle();
   if(r.error){alert("No se pudo registrar historial automático: "+r.error.message);return false}
+  return true;
+}
+
+async function registrarHistorialObligatorio(trabajoId,tipo,notas,datos){
+  const ok=await registrarHistorial(trabajoId,tipo,notas,datos);
+  if(!ok) return false;
+
+  const comprobacion=await sb()
+    .from("trabajos_historial")
+    .select("id")
+    .eq("trabajo_id",String(trabajoId))
+    .eq("tipo",String(tipo||""))
+    .eq("notas",String(notas||""))
+    .order("fecha",{ascending:false})
+    .order("hora_inicio",{ascending:false})
+    .limit(1);
+
+  if(comprobacion.error){
+    alert("Historial guardado, pero no se pudo verificar: "+comprobacion.error.message);
+    return true;
+  }
+
+  if(!comprobacion.data || !comprobacion.data.length){
+    alert("No se encontró el historial recién creado. Revisa la tabla trabajos_historial.");
+    return false;
+  }
+
   return true;
 }
 
@@ -204,7 +232,59 @@ async function sincronizarAgenda(trabajoId,data,plan){await sb().from("agenda_ev
 
 async function cambiarEstadoTrabajo(id){const t=await cargarTrabajo(id); if(!t)return; cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Cambiar estado</h2><div class="zx_text"><b>${limpiar(t.titulo||"Trabajo")}</b><br>Estado actual: ${limpiar(estadoTexto(t.estado))}</div><button class="zx_btn_big zx_naranja" id="tr_est_pendiente">Pendiente</button><button class="zx_btn_big zx_azul" id="tr_est_curso">En curso</button><button class="zx_btn_big zx_verde" id="tr_est_terminado">Terminado</button><button class="zx_btn_big zx_rojo" id="tr_est_cancelado">Cancelado</button><button class="zx_btn_big zx_gris" id="tr_est_cerrar">Cerrar</button></div></div>`); document.getElementById("tr_est_cerrar").onclick=cerrarModal; document.getElementById("tr_est_pendiente").onclick=()=>aplicarEstado(id,t,"pendiente"); document.getElementById("tr_est_curso").onclick=()=>aplicarEstado(id,t,"en_curso"); document.getElementById("tr_est_terminado").onclick=()=>aplicarEstado(id,t,"terminado"); document.getElementById("tr_est_cancelado").onclick=()=>aplicarEstado(id,t,"cancelado")}
 async function aplicarEstado(id,t,nuevo){const actual=t.estado||"pendiente"; if(actual===nuevo){cerrarModal();return} if(nuevo==="cancelado"&&!confirm("¿Cancelar este trabajo?"))return; const r=await sb().from("trabajos").update({estado:nuevo}).eq("id",String(id)); if(r.error){alert("Error cambiando estado: "+r.error.message);return} await sb().from("agenda_eventos").update({estado:estadoAgenda(nuevo),updated_at:new Date().toISOString()}).eq("origen","trabajos").eq("origen_id",String(id)); await registrarHistorial(id,"estado","Estado cambiado de "+estadoTexto(actual)+" a "+estadoTexto(nuevo)+".",{anterior:actual,nuevo}); cerrarModal(); pintarTrabajos()}
-async function gestionarTrabajo(id){const t=await cargarTrabajo(id); if(!t)return; cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Gestionar trabajo</h2><div class="zx_text"><b>${limpiar(t.titulo||"Trabajo")}</b><br>Cliente: ${limpiar(t.cliente||"-")}<br>Estado: ${limpiar(estadoTexto(t.estado))}</div><div class="zx_tr_aviso">Archivar, restaurar y borrar definitivamente requieren PIN administrador.</div><button class="zx_btn_big ${t.archivado?"zx_verde":"zx_naranja"}" id="tr_archivar">${t.archivado?"Restaurar trabajo":"Archivar trabajo"}</button>${esAdmin()?`<button class="zx_btn_big zx_rojo" id="tr_borrar_def">Borrar definitivamente</button>`:""}<button class="zx_btn_big zx_gris" id="tr_cerrar_gestion">Cancelar</button></div></div>`); document.getElementById("tr_cerrar_gestion").onclick=cerrarModal; document.getElementById("tr_archivar").onclick=async function(){const ok=await pedirPinAdmin(); if(!ok)return; const nuevoArchivado=!t.archivado; const r=await sb().from("trabajos").update({archivado:nuevoArchivado}).eq("id",String(id)); if(r.error){alert("Error: "+r.error.message);return} if(nuevoArchivado){await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id)); await registrarHistorial(id,"archivo","Trabajo archivado.")}else{await sincronizarAgenda(id,{...t,archivado:false},await cargarPlanificacion(id)); await registrarHistorial(id,"archivo","Trabajo restaurado.")} cerrarModal();pintarTrabajos()}; const borrar=document.getElementById("tr_borrar_def"); if(borrar)borrar.onclick=async function(){const ok=await pedirPinAdmin(); if(!ok)return; const texto=prompt("Para borrar definitivamente escribe: BORRAR"); if(String(texto||"").trim().toUpperCase()!=="BORRAR"){alert("Borrado cancelado.");return} await registrarHistorial(id,"borrado","Trabajo borrado definitivamente."); await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id)); await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id)); const r=await sb().from("trabajos").delete().eq("id",String(id)); if(r.error){alert("Error borrando: "+r.error.message);return} cerrarModal();pintarTrabajos()}}
+
+async function gestionarTrabajo(id){
+  const t=await cargarTrabajo(id);
+  if(!t)return;
+  cerrarModal();
+  document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Gestionar trabajo</h2><div class="zx_text"><b>${limpiar(t.titulo||"Trabajo")}</b><br>Cliente: ${limpiar(t.cliente||"-")}<br>Estado: ${limpiar(estadoTexto(t.estado))}</div><div class="zx_tr_aviso">Archivar, restaurar y borrar definitivamente requieren PIN administrador.</div><button class="zx_btn_big ${t.archivado?"zx_verde":"zx_naranja"}" id="tr_archivar">${t.archivado?"Restaurar trabajo":"Archivar trabajo"}</button>${esAdmin()?`<button class="zx_btn_big zx_rojo" id="tr_borrar_def">Borrar definitivamente</button>`:""}<button class="zx_btn_big zx_gris" id="tr_cerrar_gestion">Cancelar</button></div></div>`);
+  document.getElementById("tr_cerrar_gestion").onclick=cerrarModal;
+
+  document.getElementById("tr_archivar").onclick=async function(){
+    const ok=await pedirPinAdmin();
+    if(!ok)return;
+
+    const trabajoAntes=await cargarTrabajo(id);
+    if(!trabajoAntes)return;
+
+    const nuevoArchivado=!trabajoAntes.archivado;
+    const r=await sb().from("trabajos").update({archivado:nuevoArchivado}).eq("id",String(id));
+    if(r.error){alert("Error: "+r.error.message);return}
+
+    if(nuevoArchivado){
+      await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
+      const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo archivado.",{archivado:true});
+      if(!okHist) return;
+      ZX_TR_FILTRO="archivados";
+    }else{
+      const plan=await cargarPlanificacion(id);
+      const actualizado={...trabajoAntes,archivado:false};
+      await sincronizarAgenda(id,actualizado,plan);
+      const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo restaurado.",{archivado:false});
+      if(!okHist) return;
+      ZX_TR_FILTRO="activos";
+    }
+
+    cerrarModal();
+    await pintarTrabajos();
+  };
+
+  const borrar=document.getElementById("tr_borrar_def");
+  if(borrar)borrar.onclick=async function(){
+    const ok=await pedirPinAdmin(); if(!ok)return;
+    const texto=prompt("Para borrar definitivamente escribe: BORRAR");
+    if(String(texto||"").trim().toUpperCase()!=="BORRAR"){alert("Borrado cancelado.");return}
+    await registrarHistorial(id,"borrado","Trabajo borrado definitivamente.");
+    await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
+    await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id));
+    await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id));
+    await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id));
+    await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id));
+    const r=await sb().from("trabajos").delete().eq("id",String(id));
+    if(r.error){alert("Error borrando: "+r.error.message);return}
+    cerrarModal();pintarTrabajos();
+  };
+}
 
 async function marcarMaterial(id,preparado){const previo=await sb().from("trabajos_materiales").select("*").eq("id",String(id)).maybeSingle(); const r=await sb().from("trabajos_materiales").update({preparado:preparado,preparado_at:preparado?new Date().toISOString():null,preparado_por:preparado?(sesion().usuario||""):""}).eq("id",String(id)); if(r.error){alert("Error actualizando material: "+r.error.message);return} if(previo.data) await registrarHistorial(previo.data.trabajo_id,"material",String(previo.data.material||"Material")+" marcado como "+(preparado?"preparado":"pendiente")+"."); pintarTrabajos()}
 function renderMaterialesGestion(lista){if(!lista.length)return`<div class="zx_text">Sin materiales.</div>`; return `<div class="zx_tr_gestion_lista">${lista.map(m=>`<div class="zx_tr_gestion_item"><div><b>${limpiar(m.material||"Material")}</b><span>${limpiar(m.cantidad||"0")} ${limpiar(m.unidad||"")}</span>${m.notas?`<small>${limpiar(m.notas)}</small>`:""}</div><div class="zx_tr_gestion_btns"><button class="zx_azul" data-edit-mat="${limpiar(m.id)}">Editar</button><button class="zx_rojo" data-del-mat="${limpiar(m.id)}">Borrar</button></div></div>`).join("")}</div>`}
@@ -239,9 +319,9 @@ window.ZX_tr_add_file=function(id){abrirArchivo(id)};
 window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
 
 (function estilos(){
-  if(document.getElementById("zx_trabajos_v3121"))return;
-  ["zx_trabajos_v3116","zx_trabajos_v3117","zx_trabajos_v3118","zx_trabajos_v3119","zx_trabajos_v3120"].forEach(id=>{const e=document.getElementById(id); if(e)e.remove()});
-  const s=document.createElement("style"); s.id="zx_trabajos_v3121";
+  if(document.getElementById("zx_trabajos_v3122"))return;
+  ["zx_trabajos_v3116","zx_trabajos_v3117","zx_trabajos_v3118","zx_trabajos_v3119","zx_trabajos_v3120","zx_trabajos_v3121"].forEach(id=>{const e=document.getElementById(id); if(e)e.remove()});
+  const s=document.createElement("style"); s.id="zx_trabajos_v3122";
   s.innerHTML=`
     .zx_tr_top{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_crear{border:0;border-radius:18px;background:#16a34a;color:white;font-size:18px;font-weight:900;padding:15px 20px}.zx_tr_buscar{width:100%;margin:16px 0 8px;padding:16px;border-radius:18px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;font-size:17px;font-weight:850}.zx_tr_filtros{display:flex;gap:8px;overflow-x:auto;padding:8px 0 4px}.zx_tr_filtro{flex:0 0 auto;border:0;border-radius:999px;padding:11px 14px;background:#e5e7eb;color:#0f172a;font-size:15px;font-weight:900}.zx_tr_filtro.on{background:#2563eb;color:white}
     .zx_tr_card{background:white;border:2px solid #d1d5db;border-radius:24px;padding:18px;margin:16px 0;box-shadow:0 8px 24px rgba(15,23,42,.05)}.zx_tr_card.archivado{opacity:.72;border-color:#64748b}.zx_tr_card_head{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_card h3{font-size:30px;margin:0 0 10px;color:#0f172a;font-weight:950;line-height:1.1}.zx_tr_badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.zx_tr_badges span{display:inline-flex;border-radius:999px;color:white;padding:8px 12px;font-size:13px;font-weight:950;text-transform:uppercase}
@@ -256,5 +336,5 @@ window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
   document.head.appendChild(s);
 })();
 
-console.log("ZENTRYX trabajos.js V3121 completo cargado");
+console.log("ZENTRYX trabajos.js V3122 completo cargado");
 })();
