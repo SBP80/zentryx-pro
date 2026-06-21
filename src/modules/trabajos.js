@@ -1,7 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3117 - ARCHIVO ÚNICO
-// Historial + PIN + materiales/archivos editables
+// V3118 - HISTORIAL AUTOMÁTICO REAL + PIN OBLIGATORIO
 // ===============================
 (function(){
 "use strict";
@@ -184,41 +183,48 @@ function estadoAgenda(e){
   return "activo";
 }
 
+/*
+  V3118:
+  El fallo principal de V3117 estaba aquí.
+  Supabase NO lanza excepción cuando una columna no existe; devuelve { error }.
+  V3117 metía "datos" y no comprobaba r.error, por eso no se grababa historial automático.
+*/
 async function registrarHistorial(trabajoId,tipo,notas,datos){
-  if(!trabajoId) return;
+  if(!trabajoId) return false;
 
   const s=sesion();
 
-  try{
-    await sb()
+  const base={
+    trabajo_id:String(trabajoId),
+    usuario_id:String(s.id || ""),
+    usuario:String(s.usuario || "sistema"),
+    fecha:hoy(),
+    hora_inicio:horaAhora(),
+    hora_fin:null,
+    tipo:String(tipo || "sistema"),
+    notas:String(notas || "")
+  };
+
+  let r=await sb()
+    .from("trabajos_historial")
+    .insert([{...base,datos:datos || {}}])
+    .select()
+    .maybeSingle();
+
+  if(r.error){
+    r=await sb()
       .from("trabajos_historial")
-      .insert([{
-        trabajo_id:String(trabajoId),
-        usuario_id:String(s.id || ""),
-        usuario:String(s.usuario || "sistema"),
-        fecha:hoy(),
-        hora_inicio:horaAhora(),
-        hora_fin:null,
-        tipo:String(tipo || "sistema"),
-        notas:String(notas || ""),
-        datos:datos || {}
-      }]);
-  }catch(e){
-    try{
-      await sb()
-        .from("trabajos_historial")
-        .insert([{
-          trabajo_id:String(trabajoId),
-          usuario_id:String(s.id || ""),
-          usuario:String(s.usuario || "sistema"),
-          fecha:hoy(),
-          hora_inicio:horaAhora(),
-          hora_fin:null,
-          tipo:String(tipo || "sistema"),
-          notas:String(notas || "")
-        }]);
-    }catch(e2){}
+      .insert([base])
+      .select()
+      .maybeSingle();
   }
+
+  if(r.error){
+    alert("No se pudo registrar historial automático: "+r.error.message);
+    return false;
+  }
+
+  return true;
 }
 
 async function cargarClientes(){
@@ -934,9 +940,14 @@ async function guardarTrabajo(id,clientes){
     if(anterior && String(anterior.direccion_obra||anterior.direccion||"")!==String(data.direccion_obra||"")) cambios.push("dirección");
     if(firmaPlan(planAnterior)!==firmaPlan(plan)) cambios.push("planificación");
 
-    await registrarHistorial(trabajoId,"edición","Trabajo editado"+(cambios.length ? ": "+cambios.join(", ") : "."),{cambios});
+    await registrarHistorial(
+      trabajoId,
+      "edicion",
+      "Trabajo editado"+(cambios.length ? ": "+cambios.join(", ") : "."),
+      {cambios:cambios}
+    );
   }else{
-    await registrarHistorial(trabajoId,"creación","Trabajo creado.");
+    await registrarHistorial(trabajoId,"creacion","Trabajo creado.");
   }
 
   cerrarModal();
@@ -1032,7 +1043,7 @@ async function aplicarEstado(id,t,nuevo){
     id,
     "estado",
     "Estado cambiado de "+estadoTexto(actual)+" a "+estadoTexto(nuevo)+".",
-    {anterior:actual,nuevo}
+    {anterior:actual,nuevo:nuevo}
   );
 
   cerrarModal();
@@ -1681,10 +1692,13 @@ window.ZX_tr_add_file=function(id){abrirArchivo(id)};
 window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
 
 (function estilos(){
-  if(document.getElementById("zx_trabajos_v3117")) return;
+  if(document.getElementById("zx_trabajos_v3118")) return;
+
+  const viejo=document.getElementById("zx_trabajos_v3117");
+  if(viejo) viejo.remove();
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3117";
+  s.id="zx_trabajos_v3118";
 
   s.innerHTML=`
     .zx_tr_top{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
@@ -1781,6 +1795,6 @@ window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
   document.head.appendChild(s);
 })();
 
-console.log("ZENTRYX trabajos.js V3117 archivo único cargado");
+console.log("ZENTRYX trabajos.js V3118 cargado");
 
 })();
