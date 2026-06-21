@@ -1798,3 +1798,4 @@ window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
 console.log("ZENTRYX trabajos.js V3118 cargado");
 
 })();
+
