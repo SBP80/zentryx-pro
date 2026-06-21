@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA PRO
-// V3095 - AGENDA ↔ TRABAJOS PROTEGIDA
+// V3096 - ABRIR TRABAJO SIN EDITAR
 // ===============================
 (function(){
 "use strict";
@@ -626,11 +626,19 @@ window.ZX_ag_cancelar=function(id){cambiarEstado(id,"cancelado")};
 window.ZX_ag_borrar=function(id){borrarEvento(id)};
 window.ZX_ag_abrirTrabajo=function(id){
   cerrarModalAgenda();
+
+  /*
+    Desde Agenda NO abrimos el formulario de edición.
+    El botón "Abrir trabajo" debe llevar al módulo Trabajos y dejar al usuario
+    en el listado del trabajo, sin modificar nada ni abrir edición.
+  */
+  window.ZX_TRABAJO_ABRIR_ID=String(id || "");
+
   if(window.ZX_trabajos){
     window.ZX_trabajos();
-    setTimeout(function(){if(window.ZX_editarTrabajo) window.ZX_editarTrabajo(id)},500);
     return;
   }
+
   alert("No se ha cargado el módulo Trabajos.");
 };
 window.ZX_ag_mesAnterior=function(){ZX_AGENDA_FECHA.setMonth(ZX_AGENDA_FECHA.getMonth()-1); ZX_agenda()};
