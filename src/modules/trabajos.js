@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3122 - ARCHIVAR/RESTAURAR CON HISTORIAL VERIFICADO
+// V3123 - HISTORIAL MANUAL CORREGIDO
 // Archivo completo + catálogo de materiales
 // ===============================
 (function(){
@@ -303,7 +303,45 @@ async function gestionarArchivos(trabajoId){const archivos=await cargarArchivos(
 async function editarArchivo(trabajoId,archivoId){const r=await sb().from("trabajos_archivos").select("*").eq("id",String(archivoId)).maybeSingle(); if(r.error||!r.data){alert("Archivo no encontrado.");return} const a=r.data; const nombre=prompt("Nombre visible:",a.nombre||""); if(nombre===null)return; const tipo=prompt("Tipo:",a.tipo||"documento"); if(tipo===null)return; const up=await sb().from("trabajos_archivos").update({nombre:String(nombre||"").trim()||a.nombre||"Archivo",tipo:String(tipo||"").trim()||a.tipo||"documento"}).eq("id",String(archivoId)); if(up.error){alert("Error editando archivo: "+up.error.message);return} await registrarHistorial(trabajoId,"archivo","Archivo editado: "+String(nombre||a.nombre||"Archivo")+"."); gestionarArchivos(trabajoId)}
 async function borrarArchivo(trabajoId,archivoId){const r0=await sb().from("trabajos_archivos").select("*").eq("id",String(archivoId)).maybeSingle(); if(r0.error||!r0.data){alert("Archivo no encontrado.");return} if(!confirm("¿Borrar este archivo?"))return; const a=r0.data; if(a.path){try{await sb().storage.from("zentryx-trabajos").remove([a.path])}catch(e){}} const r=await sb().from("trabajos_archivos").delete().eq("id",String(archivoId)); if(r.error){alert("Error borrando archivo: "+r.error.message);return} await registrarHistorial(trabajoId,"archivo","Archivo borrado: "+String(a.nombre||"Archivo")+"."); gestionarArchivos(trabajoId)}
 
-async function abrirHistorial(trabajoId){const usuarios=await cargarUsuarios(); cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Añadir historial</h2><label class="zx_label">Usuario</label><select id="tr_hist_usuario">${opcionesUsuarios(usuarios,sesion().id||"")}</select><label class="zx_label">Fecha</label><input id="tr_hist_fecha" type="date" value="${hoy()}"><div class="zx_tr_grid2"><div><label class="zx_label">Inicio</label><input id="tr_hist_inicio" type="time" value="${horaAhora()}"></div><div><label class="zx_label">Fin</label><input id="tr_hist_fin" type="time"></div></div><label class="zx_label">Tipo</label><select id="tr_hist_tipo"><option value="trabajo">Trabajo</option><option value="pausa">Pausa</option><option value="incidencia">Incidencia</option><option value="desplazamiento">Desplazamiento</option><option value="otro">Otro</option></select><label class="zx_label">Notas</label><textarea id="tr_hist_notas" rows="3"></textarea><button class="zx_btn_big zx_verde" id="tr_hist_guardar">Guardar historial</button><button class="zx_btn_big zx_gris" id="tr_hist_cerrar">Cancelar</button></div></div>`); document.getElementById("tr_hist_cerrar").onclick=cerrarModal; document.getElementById("tr_hist_guardar").onclick=async function(){const sel=document.getElementById("tr_hist_usuario"); const opt=sel.options[sel.selectedIndex]; if(!sel.value){alert("Selecciona usuario.");return} const r=await sb().from("trabajos_historial").insert([{trabajo_id:String(trabajoId),usuario_id:String(sel.value),usuario:opt?opt.dataset.nombre||opt.dataset.usuario||"":"",fecha:document.getElementById("tr_hist_fecha").value,hora_inicio:document.getElementById("tr_hist_inicio").value||null,hora_fin:document.getElementById("tr_hist_fin").value||null,tipo:document.getElementById("tr_hist_tipo").value,notas:document.getElementById("tr_hist_notas").value.trim()}]); if(r.error){alert("Error guardando historial: "+r.error.message);return} cerrarModal();pintarTrabajos()}}
+async function abrirHistorial(trabajoId){
+  const usuarios=await cargarUsuarios();
+  cerrarModal();
+  document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Añadir historial</h2><label class="zx_label">Usuario</label><select id="tr_hist_usuario">${opcionesUsuarios(usuarios,sesion().id||"")}</select><label class="zx_label">Fecha</label><input id="tr_hist_fecha" type="date" value="${hoy()}"><div class="zx_tr_grid2"><div><label class="zx_label">Inicio</label><input id="tr_hist_inicio" type="time" value="${horaAhora()}"></div><div><label class="zx_label">Fin</label><input id="tr_hist_fin" type="time"></div></div><label class="zx_label">Tipo</label><select id="tr_hist_tipo"><option value="trabajo">Trabajo</option><option value="pausa">Pausa</option><option value="incidencia">Incidencia</option><option value="desplazamiento">Desplazamiento</option><option value="otro">Otro</option></select><label class="zx_label">Notas</label><textarea id="tr_hist_notas" rows="3"></textarea><button class="zx_btn_big zx_verde" id="tr_hist_guardar">Guardar historial</button><button class="zx_btn_big zx_gris" id="tr_hist_cerrar">Cancelar</button></div></div>`);
+  document.getElementById("tr_hist_cerrar").onclick=cerrarModal;
+  document.getElementById("tr_hist_guardar").onclick=async function(){
+    const sel=document.getElementById("tr_hist_usuario");
+    const opt=sel.options[sel.selectedIndex];
+    const tipo=document.getElementById("tr_hist_tipo").value || "trabajo";
+    const notas=document.getElementById("tr_hist_notas").value.trim();
+    const fechaManual=normalizarFecha(document.getElementById("tr_hist_fecha").value || hoy());
+    const horaInicio=document.getElementById("tr_hist_inicio").value || horaAhora();
+    const horaFin=document.getElementById("tr_hist_fin").value || null;
+
+    if(!sel.value){alert("Selecciona usuario.");return}
+    if(!notas){alert("Escribe una nota para el historial.");return}
+
+    const usuarioNombre=opt ? opt.dataset.nombre || opt.dataset.usuario || sesion().usuario || "" : (sesion().usuario || "");
+
+    let r=await sb().from("trabajos_historial").insert([{
+      trabajo_id:String(trabajoId),
+      usuario_id:String(sel.value),
+      usuario:String(usuarioNombre || "Usuario"),
+      fecha:fechaManual,
+      hora_inicio:horaInicio,
+      hora_fin:horaFin,
+      tipo:String(tipo),
+      notas:String(notas)
+    }]).select().maybeSingle();
+
+    if(r.error){
+      const ok=await registrarHistorialObligatorio(trabajoId,tipo,notas,{manual:true,usuario_id:String(sel.value),usuario:String(usuarioNombre||""),fecha:fechaManual,hora_inicio:horaInicio,hora_fin:horaFin});
+      if(!ok) return;
+    }
+
+    cerrarModal();
+    await pintarTrabajos();
+  };
+}
 function menuTelefono(tel){const n=telefonoLimpio(tel); if(!n){alert("Sin teléfono.");return} cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Teléfono</h2><div class="zx_tr_aviso">${limpiar(n)}</div><button class="zx_btn_big zx_azul" onclick="location.href='tel:${limpiar(n)}'">Llamar</button><button class="zx_btn_big zx_verde" onclick="location.href='sms:${limpiar(n)}'">SMS</button><button class="zx_btn_big zx_verde" onclick="location.href='https://wa.me/${limpiar(n.replace('+',''))}'">WhatsApp</button><button class="zx_btn_big zx_gris" id="tr_tel_cerrar">Cerrar</button></div></div>`); document.getElementById("tr_tel_cerrar").onclick=cerrarModal}
 function menuMapa(dir){if(!dir){alert("Sin dirección.");return} const q=encodeURIComponent(dir); cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Mapa</h2><div class="zx_tr_aviso">${limpiar(dir)}</div><button class="zx_btn_big zx_azul" onclick="location.href='https://maps.apple.com/?q=${q}'">Apple Maps</button><button class="zx_btn_big zx_verde" onclick="location.href='https://www.google.com/maps/search/?api=1&query=${q}'">Google Maps</button><button class="zx_btn_big zx_naranja" onclick="location.href='https://waze.com/ul?q=${q}'">Waze</button><button class="zx_btn_big zx_gris" id="tr_map_cerrar">Cerrar</button></div></div>`); document.getElementById("tr_map_cerrar").onclick=cerrarModal}
 
@@ -319,9 +357,9 @@ window.ZX_tr_add_file=function(id){abrirArchivo(id)};
 window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
 
 (function estilos(){
-  if(document.getElementById("zx_trabajos_v3122"))return;
-  ["zx_trabajos_v3116","zx_trabajos_v3117","zx_trabajos_v3118","zx_trabajos_v3119","zx_trabajos_v3120","zx_trabajos_v3121"].forEach(id=>{const e=document.getElementById(id); if(e)e.remove()});
-  const s=document.createElement("style"); s.id="zx_trabajos_v3122";
+  if(document.getElementById("zx_trabajos_v3123"))return;
+  ["zx_trabajos_v3116","zx_trabajos_v3117","zx_trabajos_v3118","zx_trabajos_v3119","zx_trabajos_v3120","zx_trabajos_v3121","zx_trabajos_v3122"].forEach(id=>{const e=document.getElementById(id); if(e)e.remove()});
+  const s=document.createElement("style"); s.id="zx_trabajos_v3123";
   s.innerHTML=`
     .zx_tr_top{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_crear{border:0;border-radius:18px;background:#16a34a;color:white;font-size:18px;font-weight:900;padding:15px 20px}.zx_tr_buscar{width:100%;margin:16px 0 8px;padding:16px;border-radius:18px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;font-size:17px;font-weight:850}.zx_tr_filtros{display:flex;gap:8px;overflow-x:auto;padding:8px 0 4px}.zx_tr_filtro{flex:0 0 auto;border:0;border-radius:999px;padding:11px 14px;background:#e5e7eb;color:#0f172a;font-size:15px;font-weight:900}.zx_tr_filtro.on{background:#2563eb;color:white}
     .zx_tr_card{background:white;border:2px solid #d1d5db;border-radius:24px;padding:18px;margin:16px 0;box-shadow:0 8px 24px rgba(15,23,42,.05)}.zx_tr_card.archivado{opacity:.72;border-color:#64748b}.zx_tr_card_head{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_card h3{font-size:30px;margin:0 0 10px;color:#0f172a;font-weight:950;line-height:1.1}.zx_tr_badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.zx_tr_badges span{display:inline-flex;border-radius:999px;color:white;padding:8px 12px;font-size:13px;font-weight:950;text-transform:uppercase}
@@ -336,5 +374,5 @@ window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
   document.head.appendChild(s);
 })();
 
-console.log("ZENTRYX trabajos.js V3122 completo cargado");
+console.log("ZENTRYX trabajos.js V3123 completo cargado");
 })();
