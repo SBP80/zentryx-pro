@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3118 - HISTORIAL AUTOMÁTICO REAL + PIN OBLIGATORIO
+// V3119 - CATÁLOGO INTELIGENTE DE MATERIALES + HISTORIAL + PIN
 // ===============================
 (function(){
 "use strict";
@@ -307,6 +307,203 @@ function resumenMateriales(lista){
   const ok=(lista || []).filter(materialPreparado).length;
   return {total,ok,pendientes:Math.max(0,total-ok)};
 }
+
+
+function claveMaterial(v){
+  return plano(v)
+    .replace(/ø/g,"diametro")
+    .replace(/⌀/g,"diametro")
+    .replace(/\bdiam\b/g,"diametro")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+async function cargarCatalogoMateriales(){
+  const mapa=new Map();
+
+  try{
+    const r=await sb()
+      .from("materiales_catalogo")
+      .select("*")
+      .order("veces_usado",{ascending:false})
+      .order("nombre",{ascending:true})
+      .limit(500);
+
+    if(!r.error && r.data){
+      r.data.forEach(m=>{
+        const k=claveMaterial(m.clave || m.nombre || "");
+        if(k) mapa.set(k,{
+          id:m.id || "",
+          nombre:m.nombre || "",
+          clave:k,
+          unidad:m.unidad || "ud",
+          veces_usado:Number(m.veces_usado || 0)
+        });
+      });
+    }
+  }catch(e){}
+
+  try{
+    const r2=await sb()
+      .from("trabajos_materiales")
+      .select("material,unidad")
+      .order("created_at",{ascending:false})
+      .limit(1000);
+
+    if(!r2.error && r2.data){
+      r2.data.forEach(m=>{
+        const nombre=String(m.material || "").trim();
+        const k=claveMaterial(nombre);
+        if(!k) return;
+
+        if(mapa.has(k)){
+          const actual=mapa.get(k);
+          actual.veces_usado=Number(actual.veces_usado || 0)+1;
+          if(!actual.unidad && m.unidad) actual.unidad=m.unidad;
+          mapa.set(k,actual);
+        }else{
+          mapa.set(k,{
+            id:"",
+            nombre:nombre,
+            clave:k,
+            unidad:m.unidad || "ud",
+            veces_usado:1
+          });
+        }
+      });
+    }
+  }catch(e){}
+
+  return Array.from(mapa.values()).sort((a,b)=>{
+    return Number(b.veces_usado || 0)-Number(a.veces_usado || 0) ||
+           String(a.nombre || "").localeCompare(String(b.nombre || ""));
+  });
+}
+
+async function guardarMaterialCatalogo(nombre,unidad){
+  const n=String(nombre || "").trim();
+  const u=String(unidad || "").trim() || "ud";
+  if(!n) return true;
+
+  const clave=claveMaterial(n);
+  if(!clave) return true;
+
+  try{
+    const buscado=await sb()
+      .from("materiales_catalogo")
+      .select("id,veces_usado")
+      .eq("clave",clave)
+      .limit(1);
+
+    if(buscado.error){
+      console.warn("No se pudo buscar catálogo de materiales:",buscado.error.message);
+      return true;
+    }
+
+    if(buscado.data && buscado.data.length){
+      const actual=buscado.data[0];
+      const r=await sb()
+        .from("materiales_catalogo")
+        .update({
+          nombre:n,
+          unidad:u,
+          veces_usado:Number(actual.veces_usado || 0)+1,
+          updated_at:new Date().toISOString()
+        })
+        .eq("id",actual.id);
+
+      if(r.error) console.warn("No se pudo actualizar catálogo:",r.error.message);
+      return true;
+    }
+
+    const r=await sb()
+      .from("materiales_catalogo")
+      .insert([{
+        nombre:n,
+        clave:clave,
+        unidad:u,
+        veces_usado:1,
+        created_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+      }]);
+
+    if(r.error) console.warn("No se pudo guardar catálogo:",r.error.message);
+    return true;
+  }catch(e){
+    console.warn("Catálogo de materiales no disponible:",e);
+    return true;
+  }
+}
+
+function pintarSugerenciasMateriales(input,unidad,caja,catalogo){
+  if(!input || !caja) return;
+
+  const q=claveMaterial(input.value);
+
+  if(!q){
+    caja.innerHTML="";
+    caja.style.display="none";
+    return;
+  }
+
+  const resultados=(catalogo || [])
+    .filter(m=>{
+      const k=claveMaterial(m.nombre || m.clave || "");
+      if(!k) return false;
+      return k.includes(q) || q.includes(k);
+    })
+    .slice(0,12);
+
+  if(!resultados.length){
+    caja.innerHTML=`<div class="zx_mat_sugerencia_vacia">Sin coincidencias guardadas.</div>`;
+    caja.style.display="grid";
+    return;
+  }
+
+  caja.innerHTML=resultados.map(m=>`
+    <button type="button" class="zx_mat_sugerencia"
+      data-nombre="${limpiar(m.nombre || "")}"
+      data-unidad="${limpiar(m.unidad || "ud")}">
+      <b>${limpiar(m.nombre || "")}</b>
+      <span>${limpiar(m.unidad || "ud")}${m.veces_usado ? " · usado "+limpiar(m.veces_usado)+" vez/veces" : ""}</span>
+    </button>
+  `).join("");
+
+  caja.style.display="grid";
+
+  caja.querySelectorAll(".zx_mat_sugerencia").forEach(btn=>{
+    btn.onclick=function(){
+      input.value=btn.dataset.nombre || "";
+      if(unidad) unidad.value=btn.dataset.unidad || "ud";
+      caja.innerHTML="";
+      caja.style.display="none";
+      input.focus();
+    };
+  });
+}
+
+function activarCatalogoMateriales(inputId,unidadId,cajaId,catalogo){
+  const input=document.getElementById(inputId);
+  const unidad=document.getElementById(unidadId);
+  const caja=document.getElementById(cajaId);
+
+  if(!input || !caja) return;
+
+  input.oninput=function(){
+    pintarSugerenciasMateriales(input,unidad,caja,catalogo);
+  };
+
+  input.onfocus=function(){
+    pintarSugerenciasMateriales(input,unidad,caja,catalogo);
+  };
+
+  input.onblur=function(){
+    setTimeout(function(){
+      caja.style.display="none";
+    },180);
+  };
+}
+
 
 async function cargarTrabajosBase(){
   let q=sb().from("trabajos").select("*");
@@ -1196,9 +1393,10 @@ function renderMaterialesGestion(lista){
 }
 
 async function abrirMateriales(trabajoId){
-  const [t,materiales]=await Promise.all([
+  const [t,materiales,catalogo]=await Promise.all([
     cargarTrabajo(trabajoId),
-    cargarMateriales(trabajoId)
+    cargarMateriales(trabajoId),
+    cargarCatalogoMateriales()
   ]);
 
   if(!t) return;
@@ -1216,7 +1414,10 @@ async function abrirMateriales(trabajoId){
         </div>
 
         <label class="zx_label">Material</label>
-        <input id="tr_mat_nombre" placeholder="Material">
+        <div class="zx_mat_autocomplete_wrap">
+          <input id="tr_mat_nombre" autocomplete="off" placeholder="Material">
+          <div id="tr_mat_sugerencias" class="zx_mat_sugerencias"></div>
+        </div>
 
         <div class="zx_tr_grid2">
           <div>
@@ -1244,6 +1445,8 @@ async function abrirMateriales(trabajoId){
   `);
 
   document.getElementById("tr_mat_cerrar").onclick=()=>{cerrarModal();pintarTrabajos()};
+
+  activarCatalogoMateriales("tr_mat_nombre","tr_mat_unidad","tr_mat_sugerencias",catalogo);
 
   document.getElementById("tr_mat_guardar").onclick=async function(){
     const nombre=document.getElementById("tr_mat_nombre").value.trim();
@@ -1277,6 +1480,7 @@ async function abrirMateriales(trabajoId){
       return;
     }
 
+    await guardarMaterialCatalogo(nombre,unidad);
     await registrarHistorial(trabajoId,"material","Material añadido: "+nombre+" ("+cantidad+" "+unidad+").");
     abrirMateriales(trabajoId);
   };
@@ -1334,6 +1538,7 @@ async function editarMaterial(trabajoId,materialId){
     return;
   }
 
+  await guardarMaterialCatalogo(String(nombre).trim(),String(unidad || "ud").trim() || "ud");
   await registrarHistorial(trabajoId,"material","Material editado: "+String(nombre).trim()+".");
   abrirMateriales(trabajoId);
 }
@@ -1692,13 +1897,13 @@ window.ZX_tr_add_file=function(id){abrirArchivo(id)};
 window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
 
 (function estilos(){
-  if(document.getElementById("zx_trabajos_v3118")) return;
+  if(document.getElementById("zx_trabajos_v3119")) return;
 
   const viejo=document.getElementById("zx_trabajos_v3117");
   if(viejo) viejo.remove();
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_v3118";
+  s.id="zx_trabajos_v3119";
 
   s.innerHTML=`
     .zx_tr_top{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
@@ -1776,6 +1981,14 @@ window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
     .zx_naranja{background:#ea580c!important;color:white!important}
     .zx_gris{background:#64748b!important;color:white!important}
 
+
+    .zx_mat_autocomplete_wrap{position:relative}
+    .zx_mat_sugerencias{display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:999999;background:white;border:2px solid #bfdbfe;border-radius:18px;padding:6px;box-shadow:0 14px 34px rgba(15,23,42,.20);max-height:290px;overflow:auto}
+    .zx_mat_sugerencia{width:100%;border:0;background:#f8fafc;border-radius:14px;padding:12px;margin:4px 0;text-align:left}
+    .zx_mat_sugerencia b{display:block;color:#0f172a;font-size:15px;font-weight:950}
+    .zx_mat_sugerencia span{display:block;color:#64748b;font-size:12px;font-weight:850;margin-top:3px}
+    .zx_mat_sugerencia_vacia{background:#f8fafc;border-radius:14px;padding:12px;color:#64748b;font-size:13px;font-weight:850}
+
     @media(max-width:520px){
       .zx_tr_top,
       .zx_tr_card_head,
@@ -1795,7 +2008,6 @@ window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
   document.head.appendChild(s);
 })();
 
-console.log("ZENTRYX trabajos.js V3118 cargado");
+console.log("ZENTRYX trabajos.js V3119 cargado");
 
 })();
-
