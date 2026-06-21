@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA PRO
-// V3094 - CARGA RÁPIDA SIN ROMPER V3093
+// V3095 - AGENDA ↔ TRABAJOS PROTEGIDA
 // ===============================
 (function(){
 "use strict";
@@ -19,12 +19,6 @@ function sesion(){
   catch(e){return {}}
 }
 
-function esAdmin(){
-  const s=sesion();
-  return String(s.rol||"").toLowerCase()==="administrador" ||
-         String(s.usuario||"").toLowerCase()==="admin";
-}
-
 function limpiar(v){
   return String(v ?? "")
     .replaceAll("&","&amp;")
@@ -40,6 +34,11 @@ function textoPlano(v){
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g,"")
     .trim();
+}
+
+function esAdmin(){
+  const s=sesion();
+  return textoPlano(s.rol)==="administrador" || textoPlano(s.usuario)==="admin";
 }
 
 function coincideTexto(a,b){
@@ -93,6 +92,21 @@ function esEventoTrabajo(e){
          String(e?.origen_id || "");
 }
 
+function esFestivoSistema(e){
+  return String(e?.tipo || "")==="festivo" &&
+         String(e?.origen || "")!=="manual" &&
+         String(e?.origen || "")!=="manual_editado";
+}
+
+function eventoTerminado(e){
+  const estado=String(e?.estado || "").toLowerCase();
+  return estado==="completado" || estado==="terminado";
+}
+
+function eventoCancelado(e){
+  return String(e?.estado || "").toLowerCase()==="cancelado";
+}
+
 function minHora(h){
   if(!h) return null;
   const p=String(h).slice(0,5).split(":");
@@ -110,7 +124,7 @@ function rangosSolapan(aInicio,aFin,bInicio,bFin){
 }
 
 function estadoAprobado(v){
-  const e=String(v || "").toLowerCase().trim();
+  const e=textoPlano(v);
   return ["aprobada","aprobado","aceptada","aceptado","confirmada","confirmado"].includes(e);
 }
 
@@ -124,6 +138,16 @@ function tipoSolicitudAgenda(tipo){
   return t || "permiso";
 }
 
+function textoTipo(tipo){
+  const m={trabajo:"Trabajo",cita:"Cita",vacaciones:"Vacaciones",asuntos_propios:"Asuntos propios",permiso:"Permiso",baja_medica:"Baja médica",recordatorio:"Recordatorio",revision:"Revisión",solicitud:"Solicitud",libranza:"Libranza",festivo:"Festivo"};
+  return m[tipo] || tipo || "Evento";
+}
+
+function textoEstado(e){
+  const m={activo:"Activo",pendiente:"Pendiente",completado:"Terminado",terminado:"Terminado",cancelado:"Cancelado"};
+  return m[e] || e || "Activo";
+}
+
 function tituloSolicitudAgenda(s,tipo){
   const usuario=s.nombre || s.usuario || s.trabajador || "Usuario";
   if(tipo==="vacaciones") return "Vacaciones - "+usuario;
@@ -132,6 +156,38 @@ function tituloSolicitudAgenda(s,tipo){
   if(tipo==="baja_medica") return "Baja médica - "+usuario;
   if(tipo==="libranza") return "Libranza - "+usuario;
   return textoTipo(tipo)+" - "+usuario;
+}
+
+function estadoAgendaDesdeTrabajo(estadoTrabajo){
+  if(estadoTrabajo==="terminado") return "completado";
+  if(estadoTrabajo==="cancelado" || estadoTrabajo==="bloqueado") return "cancelado";
+  return "activo";
+}
+
+function estadoTrabajoDesdeAgenda(estadoAgenda){
+  if(estadoAgenda==="completado") return "terminado";
+  if(estadoAgenda==="cancelado") return "cancelado";
+  return "pendiente";
+}
+
+async function registrarHistorialTrabajo(trabajoId,tipo,notas,datos){
+  if(!trabajoId) return;
+  const s=sesion();
+  const base={
+    trabajo_id:String(trabajoId),
+    usuario_id:String(s.id || ""),
+    usuario:String(s.nombre || s.usuario || "sistema"),
+    fecha:hoy(),
+    hora_inicio:new Date().toTimeString().slice(0,5),
+    hora_fin:null,
+    tipo:String(tipo || "agenda"),
+    notas:String(notas || "")
+  };
+  try{
+    await sb().from("trabajos_historial").insert([{...base,datos:datos || {}}]);
+  }catch(e){
+    try{await sb().from("trabajos_historial").insert([base])}catch(e2){}
+  }
 }
 
 async function cargarConfigEmpresaAgenda(){
@@ -313,9 +369,11 @@ async function cargarClientesAgenda(){
   return r.data || [];
 }
 async function cargarVehiculosAgenda(){
-  const r=await sb().from("vehiculos").select("*").order("matricula",{ascending:true});
-  if(r.error) return [];
-  return r.data || [];
+  try{
+    const r=await sb().from("vehiculos").select("*").order("matricula",{ascending:true});
+    if(r.error) return [];
+    return r.data || [];
+  }catch(e){return []}
 }
 function nombreCliente(c){return c.nombre || c.razon_social || c.cliente || c.empresa || c.nombre_comercial || ""}
 function nombreVehiculo(v){return [v.matricula,v.marca,v.modelo].filter(Boolean).join(" ")}
@@ -345,15 +403,6 @@ function colorTipo(tipo){
   return "zx_ag_tipo_default";
 }
 
-function textoTipo(tipo){
-  const m={trabajo:"Trabajo",cita:"Cita",vacaciones:"Vacaciones",asuntos_propios:"Asuntos propios",permiso:"Permiso",baja_medica:"Baja médica",recordatorio:"Recordatorio",revision:"Revisión",solicitud:"Solicitud",libranza:"Libranza",festivo:"Festivo"};
-  return m[tipo] || tipo || "Evento";
-}
-function textoEstado(e){
-  const m={activo:"Activo",pendiente:"Pendiente",completado:"Terminado",terminado:"Terminado",cancelado:"Cancelado"};
-  return m[e] || e || "Activo";
-}
-
 function eventosDia(fecha){
   const f=normalizarFecha(fecha);
   return ZX_AGENDA_CACHE.filter(e=>{
@@ -378,10 +427,10 @@ async function pedirPinAdminAgenda(){
       const s=sesion();
       const r=await sb().from("usuarios").select("id,usuario,rol,pin_hash").eq("id",s.id).maybeSingle();
       if(r.error || !r.data){alert("No se pudo validar usuario."); return}
-      const rol=String(r.data.rol || "").toLowerCase();
-      const usuario=String(r.data.usuario || "").toLowerCase();
+      const rol=textoPlano(r.data.rol || "");
+      const usuario=textoPlano(r.data.usuario || "");
       if(!(rol==="administrador" || usuario==="admin")){alert("Solo administrador."); return}
-      if(hashPin(pin)!==r.data.pin_hash){alert("PIN incorrecto."); return}
+      if(hashPin(pin)!==String(r.data.pin_hash || "")){alert("PIN incorrecto."); return}
       cerrarModalAgenda(); resolve(true);
     };
   });
@@ -460,13 +509,13 @@ async function abrirModalEvento(e=null,fecha=null){
   cerrarModalAgenda();
   const isEdit=!!e;
   const trabajoVinculado=esEventoTrabajo(e);
-  const soloLecturaSistema=String(e?.tipo || "")==="festivo" && String(e?.origen || "")!=="manual" && String(e?.origen || "")!=="manual_editado";
+  const soloLecturaSistema=esFestivoSistema(e);
   const [usuarios,clientes,vehiculos]=await Promise.all([cargarUsuariosAgenda(),cargarClientesAgenda(),cargarVehiculosAgenda()]);
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_agenda" class="zx_modal_fondo"><div class="zx_modal_caja">
       <h2>${isEdit ? "Editar evento" : "Nuevo evento"}</h2>
       ${trabajoVinculado ? `<div class="zx_ag_aviso_trabajo">Este evento viene de un trabajo. Para modificar fecha, operario u horarios, edita el trabajo original.</div>` : ""}
-      ${soloLecturaSistema ? `<div class="zx_ag_aviso_trabajo">Este festivo viene del calendario laboral configurado. Para cambiarlo, edita la tabla de festivos o la configuración laboral.</div>` : ""}
+      ${soloLecturaSistema ? `<div class="zx_ag_aviso_trabajo">Este festivo viene del calendario laboral configurado. Para cambiarlo, edita la configuración laboral o la tabla de festivos.</div>` : ""}
       ${!trabajoVinculado && !soloLecturaSistema ? `<div class="zx_ag_aviso_trabajo">Los trabajos reales se crean desde el módulo Trabajos. Desde Agenda puedes crear citas, notas, revisiones, vacaciones, asuntos propios, festivos o permisos.</div>` : ""}
       <label class="zx_ag_label">Tipo</label><select id="ag_tipo" ${trabajoVinculado || soloLecturaSistema ? "disabled" : ""}>${trabajoVinculado ? `<option value="trabajo" selected>Trabajo</option>` : ""}<option value="cita" ${e?.tipo==="cita"?"selected":""}>Cita</option><option value="recordatorio" ${e?.tipo==="recordatorio"?"selected":""}>Recordatorio</option><option value="revision" ${e?.tipo==="revision"?"selected":""}>Revisión</option><option value="vacaciones" ${e?.tipo==="vacaciones"?"selected":""}>Vacaciones</option><option value="asuntos_propios" ${e?.tipo==="asuntos_propios"?"selected":""}>Asuntos propios</option><option value="permiso" ${e?.tipo==="permiso"?"selected":""}>Permiso</option><option value="baja_medica" ${e?.tipo==="baja_medica"?"selected":""}>Baja médica</option><option value="libranza" ${e?.tipo==="libranza"?"selected":""}>Libranza</option><option value="festivo" ${e?.tipo==="festivo"?"selected":""}>Festivo</option></select>
       <label class="zx_ag_label">Título</label><input id="ag_titulo" value="${limpiar(e?.titulo || "")}" placeholder="Título" ${trabajoVinculado || soloLecturaSistema ? "readonly" : ""}>
@@ -491,41 +540,78 @@ async function abrirModalEvento(e=null,fecha=null){
 async function cambiarEstado(id,estado){
   const e=ZX_AGENDA_CACHE.find(x=>String(x.id)===String(id));
   if(!e){alert("Evento no encontrado."); return}
-  if(String(e.tipo || "")==="festivo" && String(e.origen || "")!=="manual" && String(e.origen || "")!=="manual_editado"){
-    alert("Los festivos del calendario laboral no se marcan como hechos ni cancelados desde Agenda."); return;
+
+  if(esFestivoSistema(e)){
+    alert("Los festivos del calendario laboral no se marcan como hechos ni cancelados desde Agenda.");
+    return;
   }
-  const nuevoEstadoTrabajo=estado==="completado" ? "terminado" : estado==="cancelado" ? "bloqueado" : "pendiente";
+
+  if(estado==="completado" && eventoTerminado(e)){
+    cerrarModalAgenda();
+    return;
+  }
+  if(estado==="cancelado" && eventoCancelado(e)){
+    cerrarModalAgenda();
+    return;
+  }
+
+  if(estado==="cancelado" && !confirm("¿Cancelar este evento?")) return;
+
   if(esEventoTrabajo(e)){
+    const nuevoEstadoTrabajo=estadoTrabajoDesdeAgenda(estado);
     const rTrabajo=await sb().from("trabajos").update({estado:nuevoEstadoTrabajo}).eq("id",String(e.origen_id));
     if(rTrabajo.error){alert("Error actualizando trabajo: "+rTrabajo.error.message); return}
-    const rAgenda=await sb().from("agenda_eventos").update({estado:estado,updated_at:new Date().toISOString()}).eq("origen","trabajos").eq("origen_id",String(e.origen_id));
+
+    const rAgenda=await sb()
+      .from("agenda_eventos")
+      .update({estado:estado,updated_at:new Date().toISOString()})
+      .eq("origen","trabajos")
+      .eq("origen_id",String(e.origen_id));
+
     if(rAgenda.error){alert("Error actualizando agenda: "+rAgenda.error.message); return}
-    cerrarModalAgenda(); ZX_agenda(); return;
+
+    await registrarHistorialTrabajo(
+      e.origen_id,
+      "agenda",
+      estado==="completado" ? "Marcado como terminado desde Agenda." : "Marcado como cancelado desde Agenda.",
+      {agenda_evento_id:id,estado_agenda:estado,estado_trabajo:nuevoEstadoTrabajo}
+    );
+
+    cerrarModalAgenda();
+    ZX_agenda();
+    return;
   }
+
   const r=await sb().from("agenda_eventos").update({estado:estado,updated_at:new Date().toISOString()}).eq("id",id);
   if(r.error){alert("Error actualizando evento: "+r.error.message); return}
-  cerrarModalAgenda(); ZX_agenda();
+  cerrarModalAgenda();
+  ZX_agenda();
 }
 
 async function borrarEvento(id){
   const e=ZX_AGENDA_CACHE.find(x=>String(x.id)===String(id));
   if(!e){alert("Evento no encontrado."); return}
-  if(String(e.tipo || "")==="festivo" && String(e.origen || "")!=="manual" && String(e.origen || "")!=="manual_editado"){
-    alert("Los festivos del calendario laboral se gestionan desde la tabla de festivos o desde configuración."); return;
+
+  if(esFestivoSistema(e)){
+    alert("Los festivos del calendario laboral se gestionan desde configuración o desde la tabla de festivos.");
+    return;
   }
+
   if(esEventoTrabajo(e)){
     cerrarModalAgenda();
-    document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_agenda" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Evento de trabajo</h2><div class="zx_text">Este evento pertenece a un trabajo.<br><br>No se puede borrar desde Agenda para no romper la sincronización.<br><br>Para modificarlo, archivarlo o borrarlo, abre el trabajo original.</div><button class="zx_btn_big zx_azul" id="ag_borrar_abrir_trabajo">Abrir trabajo</button><button class="zx_btn_big zx_gris" id="ag_borrar_cancelar">Cancelar</button></div></div>`);
+    document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_agenda" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Trabajo vinculado</h2><div class="zx_text">Este evento pertenece a un trabajo.<br><br>No se borra desde Agenda para evitar datos sueltos.<br><br>Abre el trabajo original para gestionarlo.</div><button class="zx_btn_big zx_azul" id="ag_borrar_abrir_trabajo">Abrir trabajo</button><button class="zx_btn_big zx_gris" id="ag_borrar_cancelar">Cerrar</button></div></div>`);
     document.getElementById("ag_borrar_abrir_trabajo").onclick=function(){ZX_ag_abrirTrabajo(e.origen_id)};
     document.getElementById("ag_borrar_cancelar").onclick=cerrarModalAgenda;
     return;
   }
+
   const ok=await pedirPinAdminAgenda();
   if(!ok) return;
   if(!confirm("¿Eliminar evento?")) return;
   const r=await sb().from("agenda_eventos").delete().eq("id",id);
   if(r.error){alert("Error borrando evento: "+r.error.message); return}
-  cerrarModalAgenda(); ZX_agenda();
+  cerrarModalAgenda();
+  ZX_agenda();
 }
 
 window.ZX_ag_nuevo=function(fecha){abrirModalEvento(null,fecha || hoy())};
@@ -554,8 +640,37 @@ window.ZX_ag_filtro=function(tipo){ZX_AGENDA_FILTRO=tipo; ZX_agenda()};
 
 function renderEvento(e){
   const trabajoVinculado=esEventoTrabajo(e);
-  const festivoSistema=String(e.tipo || "")==="festivo" && String(e.origen || "")!=="manual" && String(e.origen || "")!=="manual_editado";
-  return `<div class="zx_ag_evento ${colorTipo(e.tipo)}"><div class="zx_ag_evento_top"><b>${limpiar(e.titulo || "Evento")}</b><span>${limpiar(e.hora_inicio ? String(e.hora_inicio).slice(0,5) : "")}</span></div><div class="zx_ag_evento_txt">${limpiar(textoTipo(e.tipo))} · ${limpiar(textoEstado(e.estado))}${trabajoVinculado ? "<br><b>Vinculado a trabajo</b>" : ""}${e.usuario ? "<br>Operario: "+limpiar(e.usuario) : ""}${e.cliente ? "<br>Cliente: "+limpiar(e.cliente) : ""}${e.vehiculo ? "<br>Vehículo: "+limpiar(e.vehiculo) : ""}${e.descripcion ? "<br>"+limpiar(e.descripcion) : ""}</div><div class="zx_ag_actions">${trabajoVinculado ? `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_abrirTrabajo('${e.origen_id}')">Abrir trabajo</button>` : festivoSistema ? `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Ver</button>` : `<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Editar</button><button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button><button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button><button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Borrar</button>`}${trabajoVinculado ? `<button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button><button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button><button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Borrar</button>` : ""}</div></div>`;
+  const festivoSistema=esFestivoSistema(e);
+  const terminado=eventoTerminado(e);
+  const cancelado=eventoCancelado(e);
+  let acciones="";
+
+  if(trabajoVinculado){
+    acciones+=`<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_abrirTrabajo('${e.origen_id}')">Abrir trabajo</button>`;
+    if(!terminado && !cancelado) acciones+=`<button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button>`;
+    if(!cancelado && !terminado) acciones+=`<button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button>`;
+    acciones+=`<button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Gestionar</button>`;
+  }else if(festivoSistema){
+    acciones+=`<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Ver</button>`;
+  }else{
+    acciones+=`<button class="zx_ag_btn zx_ag_btn_blue" onclick="ZX_ag_editar('${e.id}')">Editar</button>`;
+    if(!terminado && !cancelado) acciones+=`<button class="zx_ag_btn zx_ag_btn_green" onclick="ZX_ag_completar('${e.id}')">Hecho</button>`;
+    if(!cancelado && !terminado) acciones+=`<button class="zx_ag_btn zx_ag_btn_orange" onclick="ZX_ag_cancelar('${e.id}')">Cancelar</button>`;
+    acciones+=`<button class="zx_ag_btn zx_ag_btn_red" onclick="ZX_ag_borrar('${e.id}')">Borrar</button>`;
+  }
+
+  return `<div class="zx_ag_evento ${colorTipo(e.tipo)}">
+    <div class="zx_ag_evento_top"><b>${limpiar(e.titulo || "Evento")}</b><span>${limpiar(e.hora_inicio ? String(e.hora_inicio).slice(0,5) : "")}</span></div>
+    <div class="zx_ag_evento_txt">
+      ${limpiar(textoTipo(e.tipo))} · ${limpiar(textoEstado(e.estado))}
+      ${trabajoVinculado ? "<br><b>Vinculado a trabajo</b>" : ""}
+      ${e.usuario ? "<br>Operario: "+limpiar(e.usuario) : ""}
+      ${e.cliente ? "<br>Cliente: "+limpiar(e.cliente) : ""}
+      ${e.vehiculo ? "<br>Vehículo: "+limpiar(e.vehiculo) : ""}
+      ${e.descripcion ? "<br>"+limpiar(e.descripcion) : ""}
+    </div>
+    <div class="zx_ag_actions">${acciones}</div>
+  </div>`;
 }
 
 function renderCalendario(){
@@ -598,9 +713,9 @@ window.ZX_agenda=async function(){
 };
 
 (function(){
-  if(document.getElementById("zx_agenda_css_v3094")) return;
+  if(document.getElementById("zx_agenda_css_v3095")) return;
   const s=document.createElement("style");
-  s.id="zx_agenda_css_v3094";
+  s.id="zx_agenda_css_v3095";
   s.innerHTML=`
     .zx_ag_head{display:flex;justify-content:space-between;align-items:center;gap:10px}
     .zx_ag_head button{border:0;border-radius:16px;background:#2563eb;color:white;font-size:30px;font-weight:900;width:58px;height:58px}
@@ -620,5 +735,7 @@ window.ZX_agenda=async function(){
   `;
   document.head.appendChild(s);
 })();
+
+console.log("ZENTRYX agenda.js V3095 cargado");
 
 })();
