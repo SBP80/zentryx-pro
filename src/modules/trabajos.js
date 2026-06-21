@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3123 - HISTORIAL MANUAL CORREGIDO
+// V3124 - HISTORIAL ORDENADO POR CREATED_AT + HORA LOCAL
 // Archivo completo + catálogo de materiales
 // ===============================
 (function(){
@@ -22,8 +22,8 @@ function slug(v){return plano(v).replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"
 function esAdmin(){const s=sesion();return plano(s.rol)==="administrador" || plano(s.usuario)==="admin"}
 function puedeEntrar(){return plano(sesion().rol)!=="invitado" && plano(sesion().rol)!==""}
 function puedeGestionar(){return puedeEntrar()}
-function hoy(){return new Date().toISOString().slice(0,10)}
-function horaAhora(){return new Date().toTimeString().slice(0,5)}
+function hoy(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function horaAhora(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")}
 function cerrarModal(){const m=document.getElementById("zx_modal_trabajo"); if(m)m.remove()}
 function hashPin(pin){return btoa(String(pin))}
 
@@ -65,7 +65,17 @@ async function pedirPinAdmin(){
 async function registrarHistorial(trabajoId,tipo,notas,datos){
   if(!trabajoId) return false;
   const s=sesion();
-  const base={trabajo_id:String(trabajoId),usuario_id:String(s.id||""),usuario:String(s.usuario||s.nombre||"sistema"),fecha:hoy(),hora_inicio:horaAhora(),hora_fin:null,tipo:String(tipo||"sistema"),notas:String(notas||"")};
+  const base={
+    trabajo_id:String(trabajoId),
+    usuario_id:String(s.id||""),
+    usuario:String(s.usuario||s.nombre||"sistema"),
+    fecha:hoy(),
+    hora_inicio:horaAhora(),
+    hora_fin:null,
+    tipo:String(tipo||"sistema"),
+    notas:String(notas||""),
+    created_at:new Date().toISOString()
+  };
   let r=await sb().from("trabajos_historial").insert([{...base,datos:datos||{}}]).select().maybeSingle();
   if(r.error) r=await sb().from("trabajos_historial").insert([base]).select().maybeSingle();
   if(r.error){alert("No se pudo registrar historial automático: "+r.error.message);return false}
@@ -75,27 +85,9 @@ async function registrarHistorial(trabajoId,tipo,notas,datos){
 async function registrarHistorialObligatorio(trabajoId,tipo,notas,datos){
   const ok=await registrarHistorial(trabajoId,tipo,notas,datos);
   if(!ok) return false;
-
-  const comprobacion=await sb()
-    .from("trabajos_historial")
-    .select("id")
-    .eq("trabajo_id",String(trabajoId))
-    .eq("tipo",String(tipo||""))
-    .eq("notas",String(notas||""))
-    .order("fecha",{ascending:false})
-    .order("hora_inicio",{ascending:false})
-    .limit(1);
-
-  if(comprobacion.error){
-    alert("Historial guardado, pero no se pudo verificar: "+comprobacion.error.message);
-    return true;
-  }
-
-  if(!comprobacion.data || !comprobacion.data.length){
-    alert("No se encontró el historial recién creado. Revisa la tabla trabajos_historial.");
-    return false;
-  }
-
+  const comprobacion=await sb().from("trabajos_historial").select("id").eq("trabajo_id",String(trabajoId)).eq("tipo",String(tipo||"")).eq("notas",String(notas||"")).order("created_at",{ascending:false}).limit(1);
+  if(comprobacion.error){alert("Historial guardado, pero no se pudo verificar: "+comprobacion.error.message);return true}
+  if(!comprobacion.data || !comprobacion.data.length){alert("No se encontró el historial recién creado. Revisa la tabla trabajos_historial.");return false}
   return true;
 }
 
@@ -104,7 +96,13 @@ async function cargarUsuarios(){const r=await sb().from("usuarios").select("*").
 async function cargarPlanificacion(id){if(!id)return[];const r=await sb().from("trabajos_planificacion").select("*").eq("trabajo_id",String(id)).order("fecha",{ascending:true}).order("hora_inicio",{ascending:true});return r.error?[]:(r.data||[])}
 async function cargarMateriales(id){if(!id)return[];const r=await sb().from("trabajos_materiales").select("*").eq("trabajo_id",String(id)).order("created_at",{ascending:false});return r.error?[]:(r.data||[])}
 async function cargarArchivos(id){if(!id)return[];const r=await sb().from("trabajos_archivos").select("*").eq("trabajo_id",String(id)).order("created_at",{ascending:false});return r.error?[]:(r.data||[])}
-async function cargarHistorial(id){if(!id)return[];const r=await sb().from("trabajos_historial").select("*").eq("trabajo_id",String(id)).order("fecha",{ascending:false}).order("hora_inicio",{ascending:false});return r.error?[]:(r.data||[])}
+async function cargarHistorial(id){
+  if(!id)return[];
+  let r=await sb().from("trabajos_historial").select("*").eq("trabajo_id",String(id)).order("created_at",{ascending:false});
+  if(!r.error)return r.data||[];
+  r=await sb().from("trabajos_historial").select("*").eq("trabajo_id",String(id)).order("fecha",{ascending:false}).order("hora_inicio",{ascending:false});
+  return r.error?[]:(r.data||[]);
+}
 async function cargarTrabajo(id){const r=await sb().from("trabajos").select("*").eq("id",String(id)).maybeSingle(); if(r.error||!r.data){alert("Trabajo no encontrado.");return null} return r.data}
 
 async function cargarCatalogoMateriales(){
@@ -125,16 +123,8 @@ async function guardarEnCatalogoMaterial(nombre,unidad){
     await sb().from("materiales_catalogo").insert([{nombre:n,unidad:u,categoria:"",favorito:false,clave,veces_usado:1,ultima_vez:new Date().toISOString(),created_at:new Date().toISOString(),updated_at:new Date().toISOString()}]);
   }
 }
-function renderDatalistMateriales(){
-  return `<datalist id="tr_materiales_catalogo">${ZX_TR_MATERIALES_CATALOGO.map(m=>`<option value="${limpiar(m.nombre||"")}" data-unidad="${limpiar(m.unidad||"ud")}">${limpiar((m.unidad||"ud")+(m.categoria?" · "+m.categoria:""))}</option>`).join("")}</datalist>`;
-}
-function aplicarSugerenciaMaterial(){
-  const inp=document.getElementById("tr_mat_nombre");
-  const uni=document.getElementById("tr_mat_unidad");
-  if(!inp||!uni) return;
-  const m=ZX_TR_MATERIALES_CATALOGO.find(x=>plano(x.nombre)===plano(inp.value));
-  if(m && m.unidad) uni.value=m.unidad;
-}
+function renderDatalistMateriales(){return `<datalist id="tr_materiales_catalogo">${ZX_TR_MATERIALES_CATALOGO.map(m=>`<option value="${limpiar(m.nombre||"")}" data-unidad="${limpiar(m.unidad||"ud")}">${limpiar((m.unidad||"ud")+(m.categoria?" · "+m.categoria:""))}</option>`).join("")}</datalist>`}
+function aplicarSugerenciaMaterial(){const inp=document.getElementById("tr_mat_nombre");const uni=document.getElementById("tr_mat_unidad");if(!inp||!uni)return;const m=ZX_TR_MATERIALES_CATALOGO.find(x=>plano(x.nombre)===plano(inp.value));if(m&&m.unidad)uni.value=m.unidad}
 
 function materialPreparado(m){return m.preparado===true||m.preparado==="true"||m.preparado===1||m.preparado==="1"}
 function resumenMateriales(lista){const total=(lista||[]).length; const ok=(lista||[]).filter(materialPreparado).length; return {total,ok,pendientes:Math.max(0,total-ok)}}
@@ -150,14 +140,20 @@ async function cargarTrabajosBase(){
   q=q.order("fecha",{ascending:true}).order("hora_inicio",{ascending:true});
   const r=await q;
   if(r.error)return{datos:[],error:r.error.message};
-  ZX_TR_CACHE=r.data||[]; return{datos:filtrarTrabajos(),error:""};
+  ZX_TR_CACHE=r.data||[];
+  return{datos:filtrarTrabajos(),error:""};
 }
 async function cargarTodosTrabajos(){const r=await sb().from("trabajos").select("id,estado,prioridad,archivado");return r.error?[]:(r.data||[])}
 function textoBusqueda(t){return plano([t.titulo,t.cliente,t.usuario,t.persona_contacto,t.telefono_contacto,t.direccion_obra,t.direccion,t.poblacion,t.provincia,t.codigo_postal,t.pais,t.descripcion,t.notas,t.estado,t.prioridad].join(" "))}
 function filtrarTrabajos(){const b=plano(ZX_TR_BUSQUEDA); if(!b)return ZX_TR_CACHE||[]; return (ZX_TR_CACHE||[]).filter(t=>textoBusqueda(t).includes(b))}
 
 function renderResumen(todos){
-  const activos=todos.filter(t=>!t.archivado).length, pendientes=todos.filter(t=>!t.archivado&&t.estado==="pendiente").length, curso=todos.filter(t=>!t.archivado&&t.estado==="en_curso").length, terminados=todos.filter(t=>!t.archivado&&t.estado==="terminado").length, urgentes=todos.filter(t=>!t.archivado&&t.prioridad==="urgente").length, archivados=todos.filter(t=>t.archivado===true).length;
+  const activos=todos.filter(t=>!t.archivado).length;
+  const pendientes=todos.filter(t=>!t.archivado&&t.estado==="pendiente").length;
+  const curso=todos.filter(t=>!t.archivado&&t.estado==="en_curso").length;
+  const terminados=todos.filter(t=>!t.archivado&&t.estado==="terminado").length;
+  const urgentes=todos.filter(t=>!t.archivado&&t.prioridad==="urgente").length;
+  const archivados=todos.filter(t=>t.archivado===true).length;
   return `<div class="zx_card zx_tr_cabecera"><div class="zx_tr_top"><div><h2>Trabajos</h2><div class="zx_text">Activos: <b>${activos}</b> · Pendientes: <b>${pendientes}</b> · En curso: <b>${curso}</b><br>Terminados: <b>${terminados}</b> · Urgentes: <b>${urgentes}</b> · Archivados: <b>${archivados}</b></div></div>${puedeGestionar()?`<button class="zx_tr_crear" id="tr_crear">Crear</button>`:""}</div><input id="tr_buscar" class="zx_tr_buscar" placeholder="Buscar trabajo, cliente, dirección, teléfono..." value="${limpiar(ZX_TR_BUSQUEDA)}"><div class="zx_tr_filtros">${[["activos","Activos"],["todos","Todos"],["pendientes","Pendientes"],["curso","En curso"],["terminados","Terminados"],["urgentes","Urgentes"],["archivados","Archivados"]].map(x=>`<button class="zx_tr_filtro ${ZX_TR_FILTRO===x[0]?"on":""}" data-filtro="${x[0]}">${x[1]}</button>`).join("")}</div></div>`;
 }
 function renderPlanificacion(plan){if(!plan.length)return`<div class="zx_text">Sin planificación.</div>`; return `<div class="zx_tr_plan">${plan.map(p=>`<div class="zx_tr_plan_row"><span>${limpiar(fechaES(p.fecha))}</span><b>${limpiar(String(p.hora_inicio||"").slice(0,5)||"--:--")} - ${limpiar(String(p.hora_fin||"").slice(0,5)||"--:--")}</b><span>${limpiar(p.nombre||p.usuario||"Operario")}</span></div>`).join("")}</div>`}
@@ -167,7 +163,8 @@ function renderHistorial(lista){if(!lista.length)return`<div class="zx_text">Sin
 
 async function renderTrabajo(t){
   const [plan,materiales,archivos,historial]=await Promise.all([cargarPlanificacion(t.id),cargarMateriales(t.id),cargarArchivos(t.id),cargarHistorial(t.id)]);
-  const dir=direccionTrabajo(t); const mat=resumenMateriales(materiales);
+  const dir=direccionTrabajo(t);
+  const mat=resumenMateriales(materiales);
   return `<div class="zx_tr_card ${t.archivado?"archivado":""}"><div class="zx_tr_card_head"><div><h3>${limpiar(t.titulo||"Trabajo")}</h3><div class="zx_tr_badges"><span class="${claseEstado(t.estado)}">${limpiar(estadoTexto(t.estado))}</span><span class="${clasePrioridad(t.prioridad)}">${limpiar(prioridadTexto(t.prioridad))}</span>${t.archivado?`<span class="zx_tr_estado_neutro">Archivado</span>`:""}</div></div><div class="zx_tr_mat_resumen ${mat.pendientes===0&&mat.total?"ok":""}"><b>${mat.ok}/${mat.total}</b><span>Material</span></div></div><div class="zx_tr_datos"><b>Cliente:</b> ${limpiar(t.cliente||"-")}<br><b>Contacto:</b> ${limpiar(t.persona_contacto||"-")}<br><b>Teléfono:</b> ${limpiar(t.telefono_contacto||"-")}<br><b>Dirección:</b> ${dir?`<button class="zx_link" data-map="${limpiar(dir)}">${limpiar(dir)}</button>`:"-"}<br><b>Descripción:</b> ${limpiar(t.descripcion||"-")}<br><b>Notas:</b> ${limpiar(t.notas||"-")}</div><details open class="zx_tr_section"><summary>Planificación</summary>${renderPlanificacion(plan)}</details><details open class="zx_tr_section"><summary>Materiales</summary>${renderMateriales(materiales)}${puedeGestionar()?`<button class="zx_btn_big zx_azul" data-materiales="${limpiar(t.id)}">Añadir / gestionar</button>`:""}</details><details class="zx_tr_section"><summary>Archivos</summary>${renderArchivos(archivos)}${puedeGestionar()?`<button class="zx_btn_big zx_azul" data-add-file="${limpiar(t.id)}">Añadir archivo</button><button class="zx_btn_big zx_gris" data-gest-file="${limpiar(t.id)}">Gestionar archivos</button>`:""}</details><details class="zx_tr_section"><summary>Historial</summary>${renderHistorial(historial)}${puedeGestionar()?`<button class="zx_btn_big zx_azul" data-add-hist="${limpiar(t.id)}">Añadir historial</button>`:""}</details><div class="zx_tr_acciones">${puedeGestionar()?`<button class="zx_btn_big zx_naranja" data-estado="${limpiar(t.id)}">Cambiar estado</button>`:""}${t.telefono_contacto?`<button class="zx_btn_big zx_azul" data-tel="${limpiar(t.telefono_contacto)}">Teléfono</button>`:""}${dir?`<button class="zx_btn_big zx_azul" data-map="${limpiar(dir)}">Mapa</button>`:""}${puedeGestionar()?`<button class="zx_btn_big zx_azul" data-edit="${limpiar(t.id)}">Editar</button><button class="zx_btn_big zx_rojo" data-gestionar="${limpiar(t.id)}">Gestionar</button>`:""}</div></div>`;
 }
 
@@ -177,7 +174,8 @@ async function pintarTrabajos(){
   cont.innerHTML=`<div class="zx_card"><h2>Trabajos</h2><div class="zx_text">Cargando trabajos...</div></div>`;
   const [base,todos]=await Promise.all([cargarTrabajosBase(),cargarTodosTrabajos()]);
   if(base.error){cont.innerHTML=`<div class="zx_card"><h2>Trabajos</h2><div class="zx_text">Error cargando trabajos: ${limpiar(base.error)}</div></div>`;return}
-  const tarjetas=[]; for(const t of base.datos) tarjetas.push(await renderTrabajo(t));
+  const tarjetas=[];
+  for(const t of base.datos) tarjetas.push(await renderTrabajo(t));
   cont.innerHTML=`${renderResumen(todos)}<div class="zx_card"><h2>Listado</h2>${tarjetas.length?tarjetas.join(""):`<div class="zx_text">Sin trabajos.</div>`}</div>`;
   activarEventos();
 }
@@ -204,21 +202,33 @@ function filaPlan(i,usuarios,p){p=p||{};return `<div class="zx_tr_plan_form" dat
 function leerPlan(){return [...document.querySelectorAll("[data-plan-row]")].map(r=>{const sel=r.querySelector(".tr_plan_usuario"); const opt=sel.options[sel.selectedIndex]; return {fecha:normalizarFecha(r.querySelector(".tr_plan_fecha").value),hora_inicio:r.querySelector(".tr_plan_inicio").value||null,hora_fin:r.querySelector(".tr_plan_fin").value||null,usuario_id:sel.value||null,usuario:opt?opt.dataset.usuario||"":"",nombre:opt?opt.dataset.nombre||"":"",notas:r.querySelector(".tr_plan_notas").value.trim()}}).filter(p=>p.fecha&&p.usuario_id)}
 
 async function abrirFormulario(t){
-  t=t||{}; const [clientes,usuarios,plan]=await Promise.all([cargarClientes(),cargarUsuarios(),cargarPlanificacion(t.id)]); cerrarModal();
+  t=t||{};
+  const [clientes,usuarios,plan]=await Promise.all([cargarClientes(),cargarUsuarios(),cargarPlanificacion(t.id)]);
+  cerrarModal();
   document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>${t.id?"Editar trabajo":"Nuevo trabajo"}</h2><label class="zx_label">Título</label><input id="tr_titulo" value="${limpiar(t.titulo||"")}"><label class="zx_label">Prioridad</label><select id="tr_prioridad"><option value="baja" ${t.prioridad==="baja"?"selected":""}>Baja</option><option value="media" ${!t.prioridad||t.prioridad==="media"?"selected":""}>Media</option><option value="alta" ${t.prioridad==="alta"?"selected":""}>Alta</option><option value="urgente" ${t.prioridad==="urgente"?"selected":""}>Urgente</option></select><label class="zx_label">Cliente</label><select id="tr_cliente">${opcionesClientes(clientes,t.cliente_id)}</select><label class="zx_label">Persona contacto obra</label><input id="tr_persona" value="${limpiar(t.persona_contacto||"")}"><label class="zx_label">Teléfono contacto obra</label><input id="tr_tel" type="tel" value="${limpiar(t.telefono_contacto||"")}"><h3>Dirección de obra</h3><label class="zx_label">Dirección</label><input id="tr_dir" value="${limpiar(t.direccion_obra||t.direccion||"")}"><label class="zx_label">Población</label><input id="tr_poblacion" value="${limpiar(t.poblacion||"")}"><label class="zx_label">Provincia</label><input id="tr_provincia" value="${limpiar(t.provincia||"")}"><label class="zx_label">Código postal</label><input id="tr_cp" value="${limpiar(t.codigo_postal||"")}"><label class="zx_label">País</label><input id="tr_pais" value="${limpiar(t.pais||"España")}"><h3>Planificación</h3><div id="tr_plan_lista">${plan.length?plan.map((p,i)=>filaPlan(i,usuarios,p)).join(""):filaPlan(0,usuarios,{})}</div><button class="zx_btn_big zx_azul" id="tr_add_plan">Añadir día / operario</button><label class="zx_label">Descripción</label><textarea id="tr_desc" rows="4">${limpiar(t.descripcion||"")}</textarea><label class="zx_label">Notas internas</label><textarea id="tr_notas" rows="4">${limpiar(t.notas||"")}</textarea><button class="zx_btn_big zx_verde" id="tr_guardar">Guardar trabajo</button><button class="zx_btn_big zx_gris" id="tr_cancelar">Cancelar</button></div></div>`);
-  const selCliente=document.getElementById("tr_cliente"); selCliente.onchange=function(){const c=clientes.find(x=>String(x.id)===String(selCliente.value)); if(!c)return; document.getElementById("tr_persona").value=c.persona_contacto||""; document.getElementById("tr_tel").value=c.telefono||c.telefono1||""; document.getElementById("tr_dir").value=c.direccion||""; document.getElementById("tr_poblacion").value=c.poblacion||""; document.getElementById("tr_provincia").value=c.provincia||""; document.getElementById("tr_cp").value=c.codigo_postal||""; document.getElementById("tr_pais").value=c.pais||"España"};
+  const selCliente=document.getElementById("tr_cliente");
+  selCliente.onchange=function(){const c=clientes.find(x=>String(x.id)===String(selCliente.value)); if(!c)return; document.getElementById("tr_persona").value=c.persona_contacto||""; document.getElementById("tr_tel").value=c.telefono||c.telefono1||""; document.getElementById("tr_dir").value=c.direccion||""; document.getElementById("tr_poblacion").value=c.poblacion||""; document.getElementById("tr_provincia").value=c.provincia||""; document.getElementById("tr_cp").value=c.codigo_postal||""; document.getElementById("tr_pais").value=c.pais||"España"};
   function activarPlan(){document.querySelectorAll(".tr_quitar").forEach(b=>b.onclick=function(){const rows=document.querySelectorAll("[data-plan-row]"); if(rows.length<=1){alert("Debe quedar al menos una línea de planificación.");return} b.closest("[data-plan-row]").remove()}); document.querySelectorAll(".tr_dup").forEach(b=>b.onclick=function(){const r=b.closest("[data-plan-row]"); const sel=r.querySelector(".tr_plan_usuario"); const p={fecha:r.querySelector(".tr_plan_fecha").value,hora_inicio:r.querySelector(".tr_plan_inicio").value,hora_fin:r.querySelector(".tr_plan_fin").value,usuario_id:sel.value,notas:r.querySelector(".tr_plan_notas").value}; document.getElementById("tr_plan_lista").insertAdjacentHTML("beforeend",filaPlan(document.querySelectorAll("[data-plan-row]").length,usuarios,p)); activarPlan()})}
-  activarPlan(); document.getElementById("tr_add_plan").onclick=function(){document.getElementById("tr_plan_lista").insertAdjacentHTML("beforeend",filaPlan(document.querySelectorAll("[data-plan-row]").length,usuarios,{}));activarPlan()}; document.getElementById("tr_cancelar").onclick=cerrarModal; document.getElementById("tr_guardar").onclick=()=>guardarTrabajo(t.id||null,clientes);
+  activarPlan();
+  document.getElementById("tr_add_plan").onclick=function(){document.getElementById("tr_plan_lista").insertAdjacentHTML("beforeend",filaPlan(document.querySelectorAll("[data-plan-row]").length,usuarios,{}));activarPlan()};
+  document.getElementById("tr_cancelar").onclick=cerrarModal;
+  document.getElementById("tr_guardar").onclick=()=>guardarTrabajo(t.id||null,clientes);
 }
 async function editarTrabajo(id){const t=await cargarTrabajo(id); if(t)abrirFormulario(t)}
 function firmaPlan(plan){return plan.map(p=>[p.fecha,p.hora_inicio,p.hora_fin,p.usuario_id,p.nombre,p.notas].join("|")).join(";")}
 async function guardarTrabajo(id,clientes){
   const plan=leerPlan(); if(!plan.length){alert("Añade al menos una línea de planificación.");return}
-  const clienteId=document.getElementById("tr_cliente").value||null; const cliente=clientes.find(c=>String(c.id)===String(clienteId)); const primera=plan[0]; const s=sesion();
+  const clienteId=document.getElementById("tr_cliente").value||null;
+  const cliente=clientes.find(c=>String(c.id)===String(clienteId));
+  const primera=plan[0];
+  const s=sesion();
   const data={titulo:document.getElementById("tr_titulo").value.trim(),prioridad:document.getElementById("tr_prioridad").value||"media",cliente_id:clienteId,cliente:cliente?cliente.nombre||"":"",usuario:plan.map(p=>p.nombre||p.usuario).filter(Boolean).join(", "),fecha:primera.fecha,hora_inicio:primera.hora_inicio,hora_fin:primera.hora_fin,direccion_obra:document.getElementById("tr_dir").value.trim(),direccion:document.getElementById("tr_dir").value.trim(),poblacion:document.getElementById("tr_poblacion").value.trim(),provincia:document.getElementById("tr_provincia").value.trim(),codigo_postal:document.getElementById("tr_cp").value.trim(),pais:document.getElementById("tr_pais").value.trim(),persona_contacto:document.getElementById("tr_persona").value.trim(),telefono_contacto:document.getElementById("tr_tel").value.trim(),descripcion:document.getElementById("tr_desc").value.trim(),notas:document.getElementById("tr_notas").value.trim(),creado_por:s.usuario||""};
   if(!data.titulo){alert("Introduce título.");return}
-  let anterior=null, planAnterior=[]; if(id){anterior=await cargarTrabajo(id); planAnterior=await cargarPlanificacion(id)}
-  let r; if(id) r=await sb().from("trabajos").update(data).eq("id",String(id)).select().maybeSingle(); else{data.estado="pendiente";data.archivado=false;r=await sb().from("trabajos").insert([data]).select().maybeSingle()}
+  let anterior=null, planAnterior=[];
+  if(id){anterior=await cargarTrabajo(id); planAnterior=await cargarPlanificacion(id)}
+  let r;
+  if(id) r=await sb().from("trabajos").update(data).eq("id",String(id)).select().maybeSingle();
+  else{data.estado="pendiente";data.archivado=false;r=await sb().from("trabajos").insert([data]).select().maybeSingle()}
   if(r.error){alert("Error guardando trabajo: "+r.error.message);return}
   const trabajoId=id||r.data.id;
   await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(trabajoId));
@@ -239,51 +249,20 @@ async function gestionarTrabajo(id){
   cerrarModal();
   document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Gestionar trabajo</h2><div class="zx_text"><b>${limpiar(t.titulo||"Trabajo")}</b><br>Cliente: ${limpiar(t.cliente||"-")}<br>Estado: ${limpiar(estadoTexto(t.estado))}</div><div class="zx_tr_aviso">Archivar, restaurar y borrar definitivamente requieren PIN administrador.</div><button class="zx_btn_big ${t.archivado?"zx_verde":"zx_naranja"}" id="tr_archivar">${t.archivado?"Restaurar trabajo":"Archivar trabajo"}</button>${esAdmin()?`<button class="zx_btn_big zx_rojo" id="tr_borrar_def">Borrar definitivamente</button>`:""}<button class="zx_btn_big zx_gris" id="tr_cerrar_gestion">Cancelar</button></div></div>`);
   document.getElementById("tr_cerrar_gestion").onclick=cerrarModal;
-
   document.getElementById("tr_archivar").onclick=async function(){
     const ok=await pedirPinAdmin();
     if(!ok)return;
-
     const trabajoAntes=await cargarTrabajo(id);
     if(!trabajoAntes)return;
-
     const nuevoArchivado=!trabajoAntes.archivado;
     const r=await sb().from("trabajos").update({archivado:nuevoArchivado}).eq("id",String(id));
     if(r.error){alert("Error: "+r.error.message);return}
-
-    if(nuevoArchivado){
-      await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
-      const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo archivado.",{archivado:true});
-      if(!okHist) return;
-      ZX_TR_FILTRO="archivados";
-    }else{
-      const plan=await cargarPlanificacion(id);
-      const actualizado={...trabajoAntes,archivado:false};
-      await sincronizarAgenda(id,actualizado,plan);
-      const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo restaurado.",{archivado:false});
-      if(!okHist) return;
-      ZX_TR_FILTRO="activos";
-    }
-
-    cerrarModal();
-    await pintarTrabajos();
+    if(nuevoArchivado){await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id)); const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo archivado.",{archivado:true}); if(!okHist)return; ZX_TR_FILTRO="archivados"}
+    else{const plan=await cargarPlanificacion(id); const actualizado={...trabajoAntes,archivado:false}; await sincronizarAgenda(id,actualizado,plan); const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo restaurado.",{archivado:false}); if(!okHist)return; ZX_TR_FILTRO="activos"}
+    cerrarModal(); await pintarTrabajos();
   };
-
   const borrar=document.getElementById("tr_borrar_def");
-  if(borrar)borrar.onclick=async function(){
-    const ok=await pedirPinAdmin(); if(!ok)return;
-    const texto=prompt("Para borrar definitivamente escribe: BORRAR");
-    if(String(texto||"").trim().toUpperCase()!=="BORRAR"){alert("Borrado cancelado.");return}
-    await registrarHistorial(id,"borrado","Trabajo borrado definitivamente.");
-    await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
-    await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id));
-    await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id));
-    await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id));
-    await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id));
-    const r=await sb().from("trabajos").delete().eq("id",String(id));
-    if(r.error){alert("Error borrando: "+r.error.message);return}
-    cerrarModal();pintarTrabajos();
-  };
+  if(borrar)borrar.onclick=async function(){const ok=await pedirPinAdmin(); if(!ok)return; const texto=prompt("Para borrar definitivamente escribe: BORRAR"); if(String(texto||"").trim().toUpperCase()!=="BORRAR"){alert("Borrado cancelado.");return} await registrarHistorial(id,"borrado","Trabajo borrado definitivamente."); await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id)); await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id)); const r=await sb().from("trabajos").delete().eq("id",String(id)); if(r.error){alert("Error borrando: "+r.error.message);return} cerrarModal();pintarTrabajos()};
 }
 
 async function marcarMaterial(id,preparado){const previo=await sb().from("trabajos_materiales").select("*").eq("id",String(id)).maybeSingle(); const r=await sb().from("trabajos_materiales").update({preparado:preparado,preparado_at:preparado?new Date().toISOString():null,preparado_por:preparado?(sesion().usuario||""):""}).eq("id",String(id)); if(r.error){alert("Error actualizando material: "+r.error.message);return} if(previo.data) await registrarHistorial(previo.data.trabajo_id,"material",String(previo.data.material||"Material")+" marcado como "+(preparado?"preparado":"pendiente")+"."); pintarTrabajos()}
@@ -311,35 +290,17 @@ async function abrirHistorial(trabajoId){
   document.getElementById("tr_hist_guardar").onclick=async function(){
     const sel=document.getElementById("tr_hist_usuario");
     const opt=sel.options[sel.selectedIndex];
-    const tipo=document.getElementById("tr_hist_tipo").value || "trabajo";
+    const tipo=document.getElementById("tr_hist_tipo").value||"trabajo";
     const notas=document.getElementById("tr_hist_notas").value.trim();
-    const fechaManual=normalizarFecha(document.getElementById("tr_hist_fecha").value || hoy());
-    const horaInicio=document.getElementById("tr_hist_inicio").value || horaAhora();
-    const horaFin=document.getElementById("tr_hist_fin").value || null;
-
+    const fechaManual=normalizarFecha(document.getElementById("tr_hist_fecha").value||hoy());
+    const horaInicio=document.getElementById("tr_hist_inicio").value||horaAhora();
+    const horaFin=document.getElementById("tr_hist_fin").value||null;
     if(!sel.value){alert("Selecciona usuario.");return}
     if(!notas){alert("Escribe una nota para el historial.");return}
-
-    const usuarioNombre=opt ? opt.dataset.nombre || opt.dataset.usuario || sesion().usuario || "" : (sesion().usuario || "");
-
-    let r=await sb().from("trabajos_historial").insert([{
-      trabajo_id:String(trabajoId),
-      usuario_id:String(sel.value),
-      usuario:String(usuarioNombre || "Usuario"),
-      fecha:fechaManual,
-      hora_inicio:horaInicio,
-      hora_fin:horaFin,
-      tipo:String(tipo),
-      notas:String(notas)
-    }]).select().maybeSingle();
-
-    if(r.error){
-      const ok=await registrarHistorialObligatorio(trabajoId,tipo,notas,{manual:true,usuario_id:String(sel.value),usuario:String(usuarioNombre||""),fecha:fechaManual,hora_inicio:horaInicio,hora_fin:horaFin});
-      if(!ok) return;
-    }
-
-    cerrarModal();
-    await pintarTrabajos();
+    const usuarioNombre=opt?opt.dataset.nombre||opt.dataset.usuario||sesion().usuario||"":(sesion().usuario||"");
+    let r=await sb().from("trabajos_historial").insert([{trabajo_id:String(trabajoId),usuario_id:String(sel.value),usuario:String(usuarioNombre||"Usuario"),fecha:fechaManual,hora_inicio:horaInicio,hora_fin:horaFin,tipo:String(tipo),notas:String(notas),created_at:new Date().toISOString()}]).select().maybeSingle();
+    if(r.error){const ok=await registrarHistorialObligatorio(trabajoId,tipo,notas,{manual:true,usuario_id:String(sel.value),usuario:String(usuarioNombre||""),fecha:fechaManual,hora_inicio:horaInicio,hora_fin:horaFin}); if(!ok)return}
+    cerrarModal(); await pintarTrabajos();
   };
 }
 function menuTelefono(tel){const n=telefonoLimpio(tel); if(!n){alert("Sin teléfono.");return} cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Teléfono</h2><div class="zx_tr_aviso">${limpiar(n)}</div><button class="zx_btn_big zx_azul" onclick="location.href='tel:${limpiar(n)}'">Llamar</button><button class="zx_btn_big zx_verde" onclick="location.href='sms:${limpiar(n)}'">SMS</button><button class="zx_btn_big zx_verde" onclick="location.href='https://wa.me/${limpiar(n.replace('+',''))}'">WhatsApp</button><button class="zx_btn_big zx_gris" id="tr_tel_cerrar">Cerrar</button></div></div>`); document.getElementById("tr_tel_cerrar").onclick=cerrarModal}
@@ -357,9 +318,9 @@ window.ZX_tr_add_file=function(id){abrirArchivo(id)};
 window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
 
 (function estilos(){
-  if(document.getElementById("zx_trabajos_v3123"))return;
-  ["zx_trabajos_v3116","zx_trabajos_v3117","zx_trabajos_v3118","zx_trabajos_v3119","zx_trabajos_v3120","zx_trabajos_v3121","zx_trabajos_v3122"].forEach(id=>{const e=document.getElementById(id); if(e)e.remove()});
-  const s=document.createElement("style"); s.id="zx_trabajos_v3123";
+  if(document.getElementById("zx_trabajos_v3124"))return;
+  ["zx_trabajos_v3116","zx_trabajos_v3117","zx_trabajos_v3118","zx_trabajos_v3119","zx_trabajos_v3120","zx_trabajos_v3121","zx_trabajos_v3122","zx_trabajos_v3123"].forEach(id=>{const e=document.getElementById(id); if(e)e.remove()});
+  const s=document.createElement("style"); s.id="zx_trabajos_v3124";
   s.innerHTML=`
     .zx_tr_top{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_crear{border:0;border-radius:18px;background:#16a34a;color:white;font-size:18px;font-weight:900;padding:15px 20px}.zx_tr_buscar{width:100%;margin:16px 0 8px;padding:16px;border-radius:18px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;font-size:17px;font-weight:850}.zx_tr_filtros{display:flex;gap:8px;overflow-x:auto;padding:8px 0 4px}.zx_tr_filtro{flex:0 0 auto;border:0;border-radius:999px;padding:11px 14px;background:#e5e7eb;color:#0f172a;font-size:15px;font-weight:900}.zx_tr_filtro.on{background:#2563eb;color:white}
     .zx_tr_card{background:white;border:2px solid #d1d5db;border-radius:24px;padding:18px;margin:16px 0;box-shadow:0 8px 24px rgba(15,23,42,.05)}.zx_tr_card.archivado{opacity:.72;border-color:#64748b}.zx_tr_card_head{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_card h3{font-size:30px;margin:0 0 10px;color:#0f172a;font-weight:950;line-height:1.1}.zx_tr_badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.zx_tr_badges span{display:inline-flex;border-radius:999px;color:white;padding:8px 12px;font-size:13px;font-weight:950;text-transform:uppercase}
@@ -374,5 +335,5 @@ window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
   document.head.appendChild(s);
 })();
 
-console.log("ZENTRYX trabajos.js V3123 completo cargado");
+console.log("ZENTRYX trabajos.js V3124 completo cargado");
 })();
