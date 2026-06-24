@@ -3,287 +3,50 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V3093</title>
+<title>Zentryx PRO Login V3094</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{
-  box-sizing:border-box;
-  -webkit-tap-highlight-color:transparent;
-}
-
-html,body{
-  margin:0;
-  padding:0;
-  min-height:100%;
-  background:#071330;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-  color:white;
-}
-
-body{
-  min-height:100vh;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:22px;
-  overflow-x:hidden;
-}
-
-.login_wrap{
-  width:100%;
-  max-width:480px;
-}
-
-.brand{
-  text-align:center;
-  margin-bottom:26px;
-}
-
-.logo{
-  width:96px;
-  height:96px;
-  border-radius:28px;
-  margin:0 auto 18px;
-  background:linear-gradient(135deg,#2563eb,#10b981);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:56px;
-  font-weight:900;
-  box-shadow:0 18px 45px rgba(0,0,0,.35);
-}
-
-.brand h1{
-  margin:0;
-  font-size:38px;
-  font-weight:900;
-  letter-spacing:-1px;
-}
-
-.brand p{
-  margin:8px 0 0;
-  color:#cbd5e1;
-  font-size:16px;
-  font-weight:800;
-}
-
-.box{
-  width:100%;
-  background:white;
-  color:#0f172a;
-  border-radius:30px;
-  padding:26px;
-  box-shadow:0 22px 70px rgba(0,0,0,.38);
-}
-
-.box h2{
-  margin:0 0 10px;
-  font-size:32px;
-  font-weight:900;
-}
-
-.sub{
-  color:#64748b;
-  font-size:16px;
-  font-weight:750;
-  line-height:1.4;
-  margin-bottom:18px;
-}
-
-label{
-  display:block;
-  margin:16px 0 7px;
-  color:#334155;
-  font-size:15px;
-  font-weight:900;
-}
-
-input{
-  width:100%;
-  border:1px solid #cbd5e1;
-  border-radius:18px;
-  padding:18px;
-  font-size:20px;
-  font-weight:800;
-  color:#0f172a;
-  background:#f8fafc;
-  outline:none;
-}
-
-input:focus{
-  border-color:#2563eb;
-  box-shadow:0 0 0 4px rgba(37,99,235,.15);
-  background:white;
-}
-
-.pin{
-  text-align:center;
-  font-size:34px;
-  letter-spacing:12px;
-  padding-left:28px;
-}
-
-.btn{
-  width:100%;
-  border:0;
-  border-radius:20px;
-  padding:18px;
-  margin-top:18px;
-  font-size:21px;
-  font-weight:900;
-  color:white;
-  background:#2563eb;
-}
-
-.btn:active{
-  transform:scale(.99);
-}
-
-.btn:disabled{
-  opacity:.55;
-  transform:none;
-}
-
-.btn_sec{
-  background:#64748b;
-}
-
-.msg{
-  display:none;
-  margin-top:16px;
-  padding:14px;
-  border-radius:16px;
-  background:#fee2e2;
-  color:#991b1b;
-  font-size:16px;
-  font-weight:900;
-  line-height:1.35;
-}
-
-.msg.ok{
-  background:#dcfce7;
-  color:#166534;
-}
-
-.msg.info{
-  background:#eff6ff;
-  color:#1d4ed8;
-}
-
-.footer{
-  text-align:center;
-  margin-top:18px;
-  color:#94a3b8;
-  font-size:13px;
-  font-weight:800;
-}
-
-.user_card{
-  display:grid;
-  grid-template-columns:64px 1fr;
-  gap:14px;
-  align-items:center;
-  background:#f8fafc;
-  border:1px solid #e2e8f0;
-  border-radius:20px;
-  padding:12px;
-  margin:14px 0 18px;
-}
-
-.user_photo{
-  width:64px;
-  height:64px;
-  border-radius:18px;
-  background:linear-gradient(135deg,#2563eb,#10b981);
-  color:white;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:28px;
-  font-weight:900;
-  overflow:hidden;
-}
-
-.user_photo img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block;
-}
-
-.user_name{
-  font-size:20px;
-  font-weight:900;
-  color:#0f172a;
-  line-height:1.15;
-}
-
-.user_meta{
-  margin-top:4px;
-  color:#64748b;
-  font-size:14px;
-  font-weight:900;
-  line-height:1.25;
-}
-
-.quick_user{
-  border:0;
-  width:100%;
-  text-align:left;
-  background:#f8fafc;
-  border:1px solid #e2e8f0;
-  border-radius:20px;
-  padding:0;
-  margin:14px 0 18px;
-  overflow:hidden;
-}
-
-.quick_user .user_card{
-  margin:0;
-  border:0;
-  background:transparent;
-}
-
-.row{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:10px;
-}
-
-@media(max-width:430px){
-  body{
-    padding:18px;
-    align-items:flex-start;
-    padding-top:48px;
-  }
-
-  .logo{
-    width:82px;
-    height:82px;
-    font-size:48px;
-    border-radius:24px;
-  }
-
-  .brand h1{
-    font-size:34px;
-  }
-
-  .box{
-    padding:22px;
-    border-radius:26px;
-  }
-
-  .box h2{
-    font-size:30px;
-  }
-}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;min-height:100%;background:#071330;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:white}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px;overflow-x:hidden;background:radial-gradient(circle at 18% 22%,rgba(37,99,235,.34),transparent 28%),radial-gradient(circle at 86% 18%,rgba(16,185,129,.18),transparent 28%),linear-gradient(180deg,#071330,#061026 70%,#040b1b)}
+.login_wrap{width:100%;max-width:480px}
+.brand{text-align:center;margin-bottom:26px}
+.logo{width:96px;height:96px;border-radius:28px;margin:0 auto 18px;background:linear-gradient(135deg,#2563eb,#10b981);display:flex;align-items:center;justify-content:center;font-size:56px;font-weight:900;box-shadow:0 18px 45px rgba(0,0,0,.35)}
+.brand h1{margin:0;font-size:38px;font-weight:900;letter-spacing:-1px}
+.brand p{margin:8px 0 0;color:#cbd5e1;font-size:16px;font-weight:800}
+.box{width:100%;background:white;color:#0f172a;border-radius:30px;padding:26px;box-shadow:0 22px 70px rgba(0,0,0,.38);min-height:210px}
+.box h2{margin:0 0 10px;font-size:32px;font-weight:900;letter-spacing:-.5px}
+.sub{color:#64748b;font-size:16px;font-weight:750;line-height:1.4;margin-bottom:18px}
+label{display:block;margin:16px 0 7px;color:#334155;font-size:15px;font-weight:900}
+input{width:100%;border:1px solid #cbd5e1;border-radius:18px;padding:18px;font-size:20px;font-weight:800;color:#0f172a;background:#f8fafc;outline:none}
+input:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.15);background:white}
+input:disabled{opacity:.65;background:#f1f5f9}
+.pin{text-align:center;font-size:34px;letter-spacing:12px;padding-left:28px}
+.btn{width:100%;border:0;border-radius:20px;padding:18px;margin-top:18px;font-size:21px;font-weight:900;color:white;background:#2563eb;box-shadow:0 10px 24px rgba(37,99,235,.20)}
+.btn:active{transform:scale(.99)}
+.btn:disabled{opacity:.45;box-shadow:none}
+.btn_sec{background:#64748b;box-shadow:none}
+.btn_danger{background:#dc2626;box-shadow:none}
+.msg{display:none;margin-top:16px;padding:14px;border-radius:16px;background:#fee2e2;color:#991b1b;font-size:16px;font-weight:900;line-height:1.35}
+.msg.ok{background:#dcfce7;color:#166534}
+.msg.info{background:#eff6ff;color:#1d4ed8}
+.footer{text-align:center;margin-top:18px;color:#94a3b8;font-size:13px;font-weight:800}
+.user_card{display:grid;grid-template-columns:64px 1fr;gap:12px;align-items:center;background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin:16px 0}
+.user_avatar{width:64px;height:64px;border-radius:17px;object-fit:cover;background:linear-gradient(135deg,#2563eb,#10b981);color:white;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900}
+.user_name{font-size:20px;font-weight:900;color:#0f172a;line-height:1.12;word-break:break-word}
+.user_meta{font-size:14px;font-weight:850;color:#64748b;margin-top:4px;line-height:1.25;word-break:break-word}
+.progress{height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin-top:10px}
+.progress span{display:block;height:100%;width:100%;background:#dc2626;border-radius:999px;transition:width .4s linear}
+.loading{display:flex;align-items:center;gap:12px;color:#64748b;font-weight:900}
+.spinner{width:28px;height:28px;border:4px solid #dbeafe;border-top-color:#2563eb;border-radius:999px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:430px){body{padding:18px;align-items:flex-start;padding-top:48px}.logo{width:82px;height:82px;font-size:48px;border-radius:24px}.brand h1{font-size:34px}.box{padding:22px;border-radius:26px}.box h2{font-size:30px}.user_name{font-size:18px}.user_card{grid-template-columns:58px 1fr}.user_avatar{width:58px;height:58px}}
 </style>
 </head>
 
 <body>
-
 <div class="login_wrap">
   <div class="brand">
     <div class="logo">Z</div>
@@ -293,21 +56,18 @@ input:focus{
 
   <div class="box" id="app"></div>
 
-  <div class="footer">
-    Zentryx PRO · V3093
-  </div>
+  <div class="footer">Zentryx PRO · V3094</div>
 </div>
 
 <script>
-const ZX_VERSION="3093";
+const ZX_VERSION="3094";
 const ZX_APP_VERSION="3093";
-const ZX_LAST_USER_KEY="zentryx_last_user";
+const ZX_LOGIN_LAST_USER="zentryx_last_user";
 
 window.sb=supabase.createClient(
   "https://idtaamivqbiuxtjywuux.supabase.co",
   "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
 );
-
 window.supabaseClient=window.sb;
 </script>
 
@@ -319,53 +79,30 @@ let usuarioActual=null;
 let bloqueoTimer=null;
 const app=document.getElementById("app");
 
-function cliente(){
-  return window.sb || window.supabaseClient || null;
-}
-
-function limpiar(v){
-  return String(v ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
+function cliente(){return window.sb || window.supabaseClient || null}
+function limpiar(v){return String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
+function normalizar(v){return String(v ?? "").trim().toLowerCase()}
+function hashPin(pin){return btoa(String(pin))}
 
 function mostrarMsg(txt,tipo){
   const e=document.getElementById("msg");
-  if(!e){
-    alert(txt);
-    return;
-  }
-
+  if(!e){alert(txt);return}
   e.textContent=txt;
   e.style.display="block";
   e.classList.remove("ok","info");
-
-  if(tipo==="ok") e.classList.add("ok");
-  if(tipo==="info") e.classList.add("info");
+  if(tipo) e.classList.add(tipo);
 }
 
 function limpiarMsg(){
   const e=document.getElementById("msg");
-  if(e){
-    e.textContent="";
-    e.style.display="none";
-    e.classList.remove("ok","info");
-  }
+  if(e){e.textContent="";e.style.display="none";e.classList.remove("ok","info")}
 }
 
-function pararBloqueoTimer(){
-  if(bloqueoTimer){
-    clearInterval(bloqueoTimer);
-    bloqueoTimer=null;
-  }
+function setLoading(txt){
+  app.innerHTML=`<div class="loading"><div class="spinner"></div><div>${limpiar(txt || "Cargando...")}</div></div>`;
 }
 
-function irApp(){
-  location.href="app.html?v="+ZX_APP_VERSION;
-}
+function irApp(){location.href="app.html?v="+ZX_APP_VERSION}
 
 function guardarSesion(){
   if(typeof ZENTRYX_createSession==="function"){
@@ -375,55 +112,50 @@ function guardarSesion(){
       id:usuarioActual.id,
       usuario:usuarioActual.usuario,
       nombre:usuarioActual.nombre || usuarioActual.usuario,
-      rol:usuarioActual.rol || "Usuario"
+      rol:usuarioActual.rol || "Usuario",
+      inicio:new Date().toISOString(),
+      actividad:new Date().toISOString()
     }));
-
     localStorage.setItem("usuario",JSON.stringify(usuarioActual));
   }
 
   guardarUltimoUsuario(usuarioActual);
 }
 
+function borrarSesionActiva(){
+  localStorage.removeItem("zentryx_session");
+  localStorage.removeItem("usuario");
+}
+
 function guardarUltimoUsuario(u){
-  try{
-    localStorage.setItem(ZX_LAST_USER_KEY,JSON.stringify({
-      id:u.id,
-      usuario:u.usuario,
-      nombre:u.nombre || u.usuario,
-      rol:u.rol || "Usuario",
-      foto_url:u.foto_url || ""
-    }));
-  }catch(e){}
+  if(!u || !u.id) return;
+  localStorage.setItem(ZX_LOGIN_LAST_USER,JSON.stringify({
+    id:u.id,
+    usuario:u.usuario || "",
+    nombre:u.nombre || u.usuario || "",
+    rol:u.rol || "",
+    foto_url:u.foto_url || "",
+    guardado_en:new Date().toISOString()
+  }));
 }
 
 function leerUltimoUsuario(){
-  try{
-    const raw=localStorage.getItem(ZX_LAST_USER_KEY);
-    if(!raw) return null;
-
-    const u=JSON.parse(raw);
-    if(u && u.usuario) return u;
-  }catch(e){}
-
-  return null;
+  try{return JSON.parse(localStorage.getItem(ZX_LOGIN_LAST_USER) || "null")}
+  catch(e){return null}
 }
 
-function inicialUsuario(u){
-  return limpiar((u.nombre || u.usuario || "?").charAt(0).toUpperCase());
+function borrarUltimoUsuario(){localStorage.removeItem(ZX_LOGIN_LAST_USER)}
+
+function avatarHtml(u){
+  if(u && u.foto_url){return `<img class="user_avatar" src="${limpiar(u.foto_url)}" alt="Foto">`}
+  const letra=String((u && (u.nombre || u.usuario)) || "Z").charAt(0).toUpperCase();
+  return `<div class="user_avatar">${limpiar(letra)}</div>`;
 }
 
-function renderFotoUsuario(u){
-  if(u && u.foto_url){
-    return `<div class="user_photo"><img src="${limpiar(u.foto_url)}" alt="Foto"></div>`;
-  }
-
-  return `<div class="user_photo">${inicialUsuario(u || {})}</div>`;
-}
-
-function renderTarjetaUsuario(u){
+function tarjetaUsuario(u){
   return `
     <div class="user_card">
-      ${renderFotoUsuario(u)}
+      ${avatarHtml(u)}
       <div>
         <div class="user_name">${limpiar(u.nombre || u.usuario || "Usuario")}</div>
         <div class="user_meta">${limpiar(u.rol || "Usuario")}<br>${limpiar(u.usuario || "")}</div>
@@ -432,398 +164,377 @@ function renderTarjetaUsuario(u){
   `;
 }
 
-function pantallaLogin(){
-  pararBloqueoTimer();
-  usuarioActual=null;
-
-  const ultimo=leerUltimoUsuario();
-
-  if(ultimo){
-    app.innerHTML=`
-      <h2>Entrar</h2>
-      <div class="sub">Último usuario utilizado.</div>
-
-      <button class="quick_user" id="btn_ultimo_usuario" type="button">
-        ${renderTarjetaUsuario(ultimo)}
-      </button>
-
-      <button class="btn" id="btn_continuar_ultimo">Continuar</button>
-      <button class="btn btn_sec" id="btn_otro_usuario">Cambiar usuario</button>
-
-      <div id="msg" class="msg"></div>
-    `;
-
-    document.getElementById("btn_ultimo_usuario").onclick=function(){loginConUsuario(ultimo.usuario)};
-    document.getElementById("btn_continuar_ultimo").onclick=function(){loginConUsuario(ultimo.usuario)};
-    document.getElementById("btn_otro_usuario").onclick=pantallaEscribirUsuario;
-    return;
-  }
-
-  pantallaEscribirUsuario();
+function fechaBloqueoActiva(u){
+  if(!u || !u.pin_bloqueado_hasta) return null;
+  const bloqueo=new Date(u.pin_bloqueado_hasta);
+  if(Number.isNaN(bloqueo.getTime())) return null;
+  if(bloqueo<=new Date()) return null;
+  return bloqueo;
 }
 
-function pantallaEscribirUsuario(){
-  pararBloqueoTimer();
+function segundosRestantes(fecha){return Math.max(0,Math.ceil((fecha.getTime()-Date.now())/1000))}
+function textoTiempo(seg){
+  const m=Math.floor(seg/60);
+  const s=seg%60;
+  if(m<=0) return s+" s";
+  return m+" min "+String(s).padStart(2,"0")+" s";
+}
+
+async function cargarUsuarioPorUsuario(usuario){
+  const sb=cliente();
+  if(!sb) return {error:{message:"Supabase no está conectado."},data:null};
+  return await sb.from("usuarios").select("*").eq("usuario",usuario).maybeSingle();
+}
+
+async function cargarUsuarioPorId(id){
+  const sb=cliente();
+  if(!sb) return {error:{message:"Supabase no está conectado."},data:null};
+  return await sb.from("usuarios").select("*").eq("id",id).maybeSingle();
+}
+
+async function refrescarUsuarioActual(){
+  if(!usuarioActual) return null;
+  let res=null;
+
+  if(usuarioActual.id){
+    res=await cargarUsuarioPorId(usuarioActual.id);
+  }else if(usuarioActual.usuario){
+    res=await cargarUsuarioPorUsuario(usuarioActual.usuario);
+  }
+
+  if(res && !res.error && res.data){
+    usuarioActual=res.data;
+    guardarUltimoUsuario(usuarioActual);
+    return usuarioActual;
+  }
+
+  return null;
+}
+
+async function limpiarBloqueoSiCaducado(u){
+  if(!u || !u.id || !u.pin_bloqueado_hasta) return u;
+  const bloqueo=new Date(u.pin_bloqueado_hasta);
+  if(Number.isNaN(bloqueo.getTime()) || bloqueo>new Date()) return u;
+
+  try{
+    await cliente().from("usuarios").update({
+      pin_intentos:0,
+      pin_bloqueado_hasta:null,
+      updated_at:new Date().toISOString()
+    }).eq("id",u.id);
+
+    u.pin_intentos=0;
+    u.pin_bloqueado_hasta=null;
+  }catch(e){}
+
+  return u;
+}
+
+function pantallaLogin(){
+  clearInterval(bloqueoTimer);
   usuarioActual=null;
 
   app.innerHTML=`
     <h2>Entrar</h2>
     <div class="sub">Introduce tu usuario para continuar.</div>
-
-    <label>Usuario</label>
-    <input id="usuario" placeholder="Usuario" autocomplete="username" autocapitalize="none">
-
+    <label for="usuario">Usuario</label>
+    <input id="usuario" placeholder="Usuario" autocomplete="username" autocapitalize="none" spellcheck="false">
     <button class="btn" id="btn_login">Continuar</button>
-
     <div id="msg" class="msg"></div>
   `;
 
   document.getElementById("btn_login").onclick=login;
+  document.getElementById("usuario").addEventListener("keydown",function(e){if(e.key==="Enter") login()});
+  setTimeout(()=>{const input=document.getElementById("usuario");if(input) input.focus()},250);
+}
 
-  document.getElementById("usuario").addEventListener("keydown",function(e){
-    if(e.key==="Enter") login();
-  });
+function pantallaUltimoUsuario(u){
+  clearInterval(bloqueoTimer);
+  usuarioActual=u;
 
-  setTimeout(function(){
-    const input=document.getElementById("usuario");
-    if(input) input.focus();
-  },250);
+  app.innerHTML=`
+    <h2>Entrar</h2>
+    <div class="sub">Último usuario utilizado.</div>
+    ${tarjetaUsuario(u)}
+    <button class="btn" id="btn_continuar_ultimo">Continuar</button>
+    <button class="btn btn_sec" id="btn_cambiar_usuario">Cambiar usuario</button>
+    <div id="msg" class="msg"></div>
+  `;
+
+  document.getElementById("btn_continuar_ultimo").onclick=continuarUltimoUsuario;
+  document.getElementById("btn_cambiar_usuario").onclick=function(){borrarUltimoUsuario();pantallaLogin()};
+}
+
+async function continuarUltimoUsuario(){
+  limpiarMsg();
+  setLoading("Comprobando acceso...");
+
+  const ultimo=usuarioActual || leerUltimoUsuario();
+  if(!ultimo){pantallaLogin();return}
+
+  let res=null;
+  if(ultimo.id){res=await cargarUsuarioPorId(ultimo.id)}
+  else{res=await cargarUsuarioPorUsuario(ultimo.usuario)}
+
+  if(res.error){pantallaUltimoUsuario(ultimo);mostrarMsg("Error Supabase: "+res.error.message);return}
+  if(!res.data){borrarUltimoUsuario();pantallaLogin();mostrarMsg("Usuario no encontrado.");return}
+
+  usuarioActual=await limpiarBloqueoSiCaducado(res.data);
+  guardarUltimoUsuario(usuarioActual);
+
+  if(usuarioActual.activo===false){pantallaLogin();mostrarMsg("Usuario desactivado.");return}
+
+  const bloqueo=fechaBloqueoActiva(usuarioActual);
+  if(bloqueo){pantallaBloqueado(usuarioActual,bloqueo);return}
+
+  if(usuarioActual.debe_crear_pin || !usuarioActual.pin_hash){pantallaCrearPIN()}
+  else{pantallaPIN()}
 }
 
 async function login(){
+  limpiarMsg();
+  const sb=cliente();
+  if(!sb){mostrarMsg("Supabase no está conectado.");return}
+
   const input=document.getElementById("usuario");
-  const user=input ? input.value.trim() : "";
-  await loginConUsuario(user);
+  const user=normalizar(input ? input.value : "");
+  if(!user){mostrarMsg("Introduce usuario.");return}
+
+  setLoading("Comprobando usuario...");
+  const res=await cargarUsuarioPorUsuario(user);
+
+  if(res.error){pantallaLogin();document.getElementById("usuario").value=user;mostrarMsg("Error Supabase: "+res.error.message);return}
+  if(!res.data){pantallaLogin();document.getElementById("usuario").value=user;mostrarMsg("Usuario no encontrado.");return}
+
+  usuarioActual=await limpiarBloqueoSiCaducado(res.data);
+  guardarUltimoUsuario(usuarioActual);
+
+  if(usuarioActual.activo===false){pantallaLogin();mostrarMsg("Usuario desactivado.");return}
+
+  const bloqueo=fechaBloqueoActiva(usuarioActual);
+  if(bloqueo){pantallaBloqueado(usuarioActual,bloqueo);return}
+
+  if(usuarioActual.debe_crear_pin || !usuarioActual.pin_hash){pantallaCrearPIN()}
+  else{pantallaPIN()}
 }
 
-async function loginConUsuario(user){
-  limpiarMsg();
+function pantallaBloqueado(u,bloqueo){
+  clearInterval(bloqueoTimer);
+  usuarioActual=u;
 
-  const sb=cliente();
+  app.innerHTML=`
+    <h2>Acceso</h2>
+    ${tarjetaUsuario(u)}
+    <label>Introduce PIN</label>
+    <input class="pin" disabled placeholder="----">
+    <button class="btn" disabled>Entrar</button>
+    <button class="btn btn_sec" id="btn_bloqueo_cambiar">Cambiar usuario</button>
+    <div class="msg" id="msg" style="display:block"></div>
+    <div class="progress"><span id="bloqueo_barra"></span></div>
+  `;
 
-  if(!sb){
-    mostrarMsg("Supabase no está conectado.");
-    return;
-  }
+  document.getElementById("btn_bloqueo_cambiar").onclick=function(){pantallaLogin()};
 
-  if(!user){
-    mostrarMsg("Introduce usuario.");
-    return;
-  }
+  const actualizar=function(){
+    const s=segundosRestantes(bloqueo);
+    const msg=document.getElementById("msg");
+    const barra=document.getElementById("bloqueo_barra");
 
-  const res=await sb
-    .from("usuarios")
-    .select("*")
-    .eq("usuario",user)
-    .maybeSingle();
-
-  if(res.error){
-    mostrarMsg("Error Supabase: "+res.error.message);
-    return;
-  }
-
-  if(!res.data){
-    mostrarMsg("Usuario no encontrado.");
-    return;
-  }
-
-  usuarioActual=res.data;
-
-  if(usuarioActual.activo===false){
-    mostrarMsg("Usuario desactivado.");
-    return;
-  }
-
-  if(usuarioActual.pin_bloqueado_hasta){
-    const ahora=new Date();
-    const bloqueo=new Date(usuarioActual.pin_bloqueado_hasta);
-
-    if(bloqueo>ahora){
-      pantallaPIN();
-      iniciarContadorBloqueo(bloqueo);
+    if(s<=0){
+      clearInterval(bloqueoTimer);
+      mensajeFinBloqueo();
       return;
     }
-  }
 
-  if(usuarioActual.debe_crear_pin || !usuarioActual.pin_hash){
-    pantallaCrearPIN();
-  }else{
+    if(msg) msg.textContent="PIN bloqueado. Inténtalo de nuevo en "+textoTiempo(s)+".";
+    if(barra){
+      const total=Math.max(1,Math.ceil((bloqueo.getTime()-new Date(usuarioActual.ultimo_pin_error || Date.now()).getTime())/1000));
+      const pct=Math.max(0,Math.min(100,Math.round((s/300)*100)));
+      barra.style.width=pct+"%";
+    }
+  };
+
+  actualizar();
+  bloqueoTimer=setInterval(actualizar,1000);
+}
+
+async function mensajeFinBloqueo(){
+  await refrescarUsuarioActual();
+  if(usuarioActual){
+    usuarioActual.pin_bloqueado_hasta=null;
+    usuarioActual.pin_intentos=0;
     pantallaPIN();
+    mostrarMsg("Bloqueo finalizado. Puedes intentarlo de nuevo.","info");
+  }else{
+    pantallaLogin();
   }
 }
 
 function pantallaCrearPIN(){
-  pararBloqueoTimer();
-
+  clearInterval(bloqueoTimer);
   app.innerHTML=`
     <h2>Crear PIN</h2>
     <div class="sub">Crea un PIN de 4 números para entrar más rápido.</div>
-
-    ${renderTarjetaUsuario(usuarioActual)}
-
-    <label>PIN</label>
-    <input id="pin1" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
-
-    <label>Repetir PIN</label>
-    <input id="pin2" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
-
+    ${tarjetaUsuario(usuarioActual)}
+    <label for="pin1">PIN</label>
+    <input id="pin1" class="pin" inputmode="numeric" maxlength="4" placeholder="----" autocomplete="new-password">
+    <label for="pin2">Repetir PIN</label>
+    <input id="pin2" class="pin" inputmode="numeric" maxlength="4" placeholder="----" autocomplete="new-password">
     <button class="btn" id="btn_guardar_pin">Guardar PIN</button>
     <button class="btn btn_sec" id="btn_volver">Cambiar usuario</button>
-
     <div id="msg" class="msg"></div>
   `;
 
   document.getElementById("btn_guardar_pin").onclick=guardarPIN;
-  document.getElementById("btn_volver").onclick=function(){
-    localStorage.removeItem(ZX_LAST_USER_KEY);
-    pantallaEscribirUsuario();
-  };
+  document.getElementById("btn_volver").onclick=pantallaLogin;
 
   document.getElementById("pin1").addEventListener("input",function(){
     this.value=this.value.replace(/\D/g,"").slice(0,4);
-    if(this.value.length===4){
-      document.getElementById("pin2").focus();
-    }
+    if(this.value.length===4) document.getElementById("pin2").focus();
   });
 
-  document.getElementById("pin2").addEventListener("input",function(){
-    this.value=this.value.replace(/\D/g,"").slice(0,4);
-  });
-
-  document.getElementById("pin2").addEventListener("keydown",function(e){
-    if(e.key==="Enter") guardarPIN();
-  });
-
-  setTimeout(function(){
-    const pin=document.getElementById("pin1");
-    if(pin) pin.focus();
-  },250);
+  document.getElementById("pin2").addEventListener("input",function(){this.value=this.value.replace(/\D/g,"").slice(0,4)});
+  document.getElementById("pin2").addEventListener("keydown",function(e){if(e.key==="Enter") guardarPIN()});
+  setTimeout(()=>{const p=document.getElementById("pin1");if(p) p.focus()},250);
 }
 
 async function guardarPIN(){
   limpiarMsg();
-
   const sb=cliente();
-
   const p1=document.getElementById("pin1").value.trim();
   const p2=document.getElementById("pin2").value.trim();
 
-  if(!/^[0-9]{4}$/.test(p1) || !/^[0-9]{4}$/.test(p2)){
-    mostrarMsg("El PIN debe tener 4 números.");
-    return;
-  }
+  if(!/^[0-9]{4}$/.test(p1) || !/^[0-9]{4}$/.test(p2)){mostrarMsg("El PIN debe tener 4 números.");return}
+  if(p1!==p2){mostrarMsg("Los PIN no coinciden.");return}
 
-  if(p1!==p2){
-    mostrarMsg("Los PIN no coinciden.");
-    return;
-  }
+  const hash=hashPin(p1);
+  const res=await sb.from("usuarios").update({
+    pin_hash:hash,
+    debe_crear_pin:false,
+    pin_intentos:0,
+    pin_bloqueado_hasta:null,
+    ultimo_login:new Date().toISOString(),
+    updated_at:new Date().toISOString()
+  }).eq("id",usuarioActual.id);
 
-  const hash=btoa(p1);
-
-  const res=await sb
-    .from("usuarios")
-    .update({
-      pin_hash:hash,
-      debe_crear_pin:false,
-      pin_intentos:0,
-      pin_bloqueado_hasta:null,
-      ultimo_login:new Date().toISOString()
-    })
-    .eq("id",usuarioActual.id);
-
-  if(res.error){
-    mostrarMsg("Error guardando PIN: "+res.error.message);
-    return;
-  }
+  if(res.error){mostrarMsg("Error guardando PIN: "+res.error.message);return}
 
   usuarioActual.pin_hash=hash;
   usuarioActual.debe_crear_pin=false;
   usuarioActual.pin_intentos=0;
   usuarioActual.pin_bloqueado_hasta=null;
-
   guardarSesion();
   mostrarMsg("PIN creado correctamente.","ok");
-
   setTimeout(irApp,500);
 }
 
 function pantallaPIN(){
-  pararBloqueoTimer();
-
+  clearInterval(bloqueoTimer);
   app.innerHTML=`
     <h2>Acceso</h2>
-
-    ${renderTarjetaUsuario(usuarioActual)}
-
-    <label>Introduce PIN</label>
-    <input id="pin" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
-
+    ${tarjetaUsuario(usuarioActual)}
+    <label for="pin">Introduce PIN</label>
+    <input id="pin" class="pin" inputmode="numeric" maxlength="4" placeholder="----" autocomplete="current-password">
     <button class="btn" id="btn_pin">Entrar</button>
     <button class="btn btn_sec" id="btn_volver">Cambiar usuario</button>
-
     <div id="msg" class="msg"></div>
   `;
 
   document.getElementById("btn_pin").onclick=entrar;
-  document.getElementById("btn_volver").onclick=function(){
-    localStorage.removeItem(ZX_LAST_USER_KEY);
-    pantallaEscribirUsuario();
-  };
+  document.getElementById("btn_volver").onclick=pantallaLogin;
 
-  document.getElementById("pin").addEventListener("input",function(){
-    this.value=this.value.replace(/\D/g,"").slice(0,4);
-  });
-
-  document.getElementById("pin").addEventListener("keydown",function(e){
-    if(e.key==="Enter") entrar();
-  });
-
-  setTimeout(function(){
-    const pin=document.getElementById("pin");
-    if(pin) pin.focus();
-  },250);
-}
-
-function bloquearFormularioPIN(bloqueado){
-  const pin=document.getElementById("pin");
-  const btn=document.getElementById("btn_pin");
-
-  if(pin) pin.disabled=!!bloqueado;
-  if(btn) btn.disabled=!!bloqueado;
-}
-
-function formatoTiempo(ms){
-  const total=Math.max(0,Math.ceil(ms/1000));
-  const m=Math.floor(total/60);
-  const s=total%60;
-
-  if(m<=0) return s+" s";
-  return m+" min "+String(s).padStart(2,"0")+" s";
-}
-
-function iniciarContadorBloqueo(fechaBloqueo){
-  pararBloqueoTimer();
-  bloquearFormularioPIN(true);
-
-  function pintar(){
-    const restante=fechaBloqueo.getTime()-Date.now();
-
-    if(restante<=0){
-      pararBloqueoTimer();
-      bloquearFormularioPIN(false);
-      mostrarMsg("Ya puedes volver a intentarlo.","ok");
-      return;
-    }
-
-    mostrarMsg("PIN bloqueado. Inténtalo de nuevo en "+formatoTiempo(restante)+".");
-  }
-
-  pintar();
-  bloqueoTimer=setInterval(pintar,1000);
+  document.getElementById("pin").addEventListener("input",function(){this.value=this.value.replace(/\D/g,"").slice(0,4)});
+  document.getElementById("pin").addEventListener("keydown",function(e){if(e.key==="Enter") entrar()});
+  setTimeout(()=>{const pin=document.getElementById("pin");if(pin) pin.focus()},250);
 }
 
 async function entrar(){
   limpiarMsg();
-
   const sb=cliente();
   const pinInput=document.getElementById("pin");
   const pin=pinInput ? pinInput.value.trim() : "";
 
-  if(usuarioActual && usuarioActual.pin_bloqueado_hasta){
-    const bloqueo=new Date(usuarioActual.pin_bloqueado_hasta);
-    if(bloqueo>Date.now()){
-      iniciarContadorBloqueo(bloqueo);
-      return;
-    }
-  }
+  if(!/^[0-9]{4}$/.test(pin)){mostrarMsg("Introduce los 4 números del PIN.");return}
 
-  if(!/^[0-9]{4}$/.test(pin)){
-    mostrarMsg("PIN inválido.");
-    return;
-  }
+  const fresco=await refrescarUsuarioActual();
+  if(!fresco){mostrarMsg("No se pudo comprobar el usuario.");return}
 
-  const hash=btoa(pin);
+  if(usuarioActual.activo===false){pantallaLogin();mostrarMsg("Usuario desactivado.");return}
 
-  if(hash===usuarioActual.pin_hash){
-    const res=await sb
-      .from("usuarios")
-      .update({
-        pin_intentos:0,
-        pin_bloqueado_hasta:null,
-        ultimo_login:new Date().toISOString()
-      })
-      .eq("id",usuarioActual.id);
+  const bloqueo=fechaBloqueoActiva(usuarioActual);
+  if(bloqueo){pantallaBloqueado(usuarioActual,bloqueo);return}
 
-    if(res.error){
-      mostrarMsg("Error actualizando login: "+res.error.message);
-      return;
-    }
+  if(hashPin(pin)===usuarioActual.pin_hash){
+    const res=await sb.from("usuarios").update({
+      pin_intentos:0,
+      pin_bloqueado_hasta:null,
+      ultimo_login:new Date().toISOString(),
+      updated_at:new Date().toISOString()
+    }).eq("id",usuarioActual.id);
+
+    if(res.error){mostrarMsg("Error actualizando login: "+res.error.message);return}
 
     usuarioActual.pin_intentos=0;
     usuarioActual.pin_bloqueado_hasta=null;
-
+    usuarioActual.ultimo_login=new Date().toISOString();
     guardarSesion();
     mostrarMsg("Acceso correcto.","ok");
-
     setTimeout(irApp,350);
     return;
   }
 
-  const intentos=(usuarioActual.pin_intentos || 0)+1;
-  let bloqueo=null;
+  const intentos=Number(usuarioActual.pin_intentos || 0)+1;
+  let bloqueoNuevo=null;
+  const ahora=new Date().toISOString();
 
   if(intentos>=3){
     const fecha=new Date();
     fecha.setMinutes(fecha.getMinutes()+5);
-    bloqueo=fecha.toISOString();
+    bloqueoNuevo=fecha.toISOString();
   }
 
-  const res=await sb
-    .from("usuarios")
-    .update({
-      pin_intentos:intentos,
-      pin_bloqueado_hasta:bloqueo,
-      ultimo_pin_error:new Date().toISOString()
-    })
-    .eq("id",usuarioActual.id);
+  const res=await sb.from("usuarios").update({
+    pin_intentos:intentos,
+    pin_bloqueado_hasta:bloqueoNuevo,
+    ultimo_pin_error:ahora,
+    updated_at:ahora
+  }).eq("id",usuarioActual.id);
 
-  if(res.error){
-    mostrarMsg("Error registrando intento.");
-    return;
-  }
+  if(res.error){mostrarMsg("Error registrando intento.");return}
 
   usuarioActual.pin_intentos=intentos;
-  usuarioActual.pin_bloqueado_hasta=bloqueo;
+  usuarioActual.pin_bloqueado_hasta=bloqueoNuevo;
+  usuarioActual.ultimo_pin_error=ahora;
 
-  if(bloqueo){
-    iniciarContadorBloqueo(new Date(bloqueo));
+  if(bloqueoNuevo){
+    pantallaBloqueado(usuarioActual,new Date(bloqueoNuevo));
   }else{
-    mostrarMsg("PIN incorrecto ("+intentos+"/3).");
-  }
-
-  const p=document.getElementById("pin");
-  if(p){
-    p.value="";
-    if(!bloqueo) p.focus();
+    mostrarMsg("PIN incorrecto ("+intentos+"/3). ");
+    if(pinInput){pinInput.value="";pinInput.focus()}
   }
 }
 
-(function iniciar(){
-  const s=localStorage.getItem("zentryx_session");
+async function iniciar(){
+  clearInterval(bloqueoTimer);
 
-  if(s){
+  const sesion=localStorage.getItem("zentryx_session");
+  if(sesion){
     try{
-      const ses=JSON.parse(s);
-      if(ses && ses.id && ses.usuario){
-        location.href="app.html?v="+ZX_APP_VERSION;
-        return;
-      }
+      const s=JSON.parse(sesion);
+      if(s && s.id && s.usuario){location.href="app.html?v="+ZX_APP_VERSION;return}
     }catch(e){}
   }
 
-  pantallaLogin();
-})();
-</script>
+  const ultimo=leerUltimoUsuario();
+  if(ultimo && (ultimo.id || ultimo.usuario)){
+    pantallaUltimoUsuario(ultimo);
+    return;
+  }
 
+  pantallaLogin();
+}
+
+iniciar();
+</script>
 </body>
 </html>
