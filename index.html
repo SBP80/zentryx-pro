@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V3094</title>
+<title>Zentryx PRO Login V3095</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -28,7 +28,6 @@ input:disabled{opacity:.65;background:#f1f5f9}
 .btn:active{transform:scale(.99)}
 .btn:disabled{opacity:.45;box-shadow:none}
 .btn_sec{background:#64748b;box-shadow:none}
-.btn_danger{background:#dc2626;box-shadow:none}
 .msg{display:none;margin-top:16px;padding:14px;border-radius:16px;background:#fee2e2;color:#991b1b;font-size:16px;font-weight:900;line-height:1.35}
 .msg.ok{background:#dcfce7;color:#166534}
 .msg.info{background:#eff6ff;color:#1d4ed8}
@@ -56,13 +55,14 @@ input:disabled{opacity:.65;background:#f1f5f9}
 
   <div class="box" id="app"></div>
 
-  <div class="footer">Zentryx PRO · V3094</div>
+  <div class="footer">Zentryx PRO · V3095</div>
 </div>
 
 <script>
-const ZX_VERSION="3094";
+const ZX_VERSION="3095";
 const ZX_APP_VERSION="3093";
 const ZX_LOGIN_LAST_USER="zentryx_last_user";
+const ZX_LOGIN_LOCKS="zentryx_login_locks";
 
 window.sb=supabase.createClient(
   "https://idtaamivqbiuxtjywuux.supabase.co",
@@ -146,6 +146,66 @@ function leerUltimoUsuario(){
 
 function borrarUltimoUsuario(){localStorage.removeItem(ZX_LOGIN_LAST_USER)}
 
+function leerBloqueosLocales(){
+  try{return JSON.parse(localStorage.getItem(ZX_LOGIN_LOCKS) || "{}")}
+  catch(e){return {}}
+}
+
+function guardarBloqueosLocales(bloqueos){
+  localStorage.setItem(ZX_LOGIN_LOCKS,JSON.stringify(bloqueos || {}));
+}
+
+function claveUsuario(u){
+  return String((u && (u.id || u.usuario)) || "");
+}
+
+function guardarBloqueoLocal(u,hasta,ultimoError){
+  const k=claveUsuario(u);
+  if(!k || !hasta) return;
+
+  const bloqueos=leerBloqueosLocales();
+  bloqueos[k]={
+    hasta:String(hasta),
+    ultimo_error:String(ultimoError || new Date().toISOString())
+  };
+  guardarBloqueosLocales(bloqueos);
+}
+
+function borrarBloqueoLocal(u){
+  const k=claveUsuario(u);
+  if(!k) return;
+
+  const bloqueos=leerBloqueosLocales();
+  delete bloqueos[k];
+  guardarBloqueosLocales(bloqueos);
+}
+
+function bloqueoLocalActivo(u){
+  const k=claveUsuario(u);
+  if(!k) return null;
+
+  const bloqueos=leerBloqueosLocales();
+  const b=bloqueos[k];
+
+  if(!b || !b.hasta) return null;
+
+  const fecha=new Date(b.hasta);
+
+  if(Number.isNaN(fecha.getTime())){
+    delete bloqueos[k];
+    guardarBloqueosLocales(bloqueos);
+    return null;
+  }
+
+  if(fecha<=new Date()){
+    delete bloqueos[k];
+    guardarBloqueosLocales(bloqueos);
+    return null;
+  }
+
+  return fecha;
+}
+
 function avatarHtml(u){
   if(u && u.foto_url){return `<img class="user_avatar" src="${limpiar(u.foto_url)}" alt="Foto">`}
   const letra=String((u && (u.nombre || u.usuario)) || "Z").charAt(0).toUpperCase();
@@ -164,12 +224,23 @@ function tarjetaUsuario(u){
   `;
 }
 
-function fechaBloqueoActiva(u){
+function fechaBloqueoSupabaseActiva(u){
   if(!u || !u.pin_bloqueado_hasta) return null;
   const bloqueo=new Date(u.pin_bloqueado_hasta);
   if(Number.isNaN(bloqueo.getTime())) return null;
   if(bloqueo<=new Date()) return null;
   return bloqueo;
+}
+
+function fechaBloqueoActiva(u){
+  const a=fechaBloqueoSupabaseActiva(u);
+  const b=bloqueoLocalActivo(u);
+
+  if(a && b){
+    return a.getTime()>=b.getTime() ? a : b;
+  }
+
+  return a || b || null;
 }
 
 function segundosRestantes(fecha){return Math.max(0,Math.ceil((fecha.getTime()-Date.now())/1000))}
@@ -212,20 +283,25 @@ async function refrescarUsuarioActual(){
 }
 
 async function limpiarBloqueoSiCaducado(u){
-  if(!u || !u.id || !u.pin_bloqueado_hasta) return u;
-  const bloqueo=new Date(u.pin_bloqueado_hasta);
-  if(Number.isNaN(bloqueo.getTime()) || bloqueo>new Date()) return u;
+  if(!u || !u.id) return u;
 
-  try{
-    await cliente().from("usuarios").update({
-      pin_intentos:0,
-      pin_bloqueado_hasta:null,
-      updated_at:new Date().toISOString()
-    }).eq("id",u.id);
+  const bloqueoDB=u.pin_bloqueado_hasta ? new Date(u.pin_bloqueado_hasta) : null;
+  const bloqueoLocal=bloqueoLocalActivo(u);
 
-    u.pin_intentos=0;
-    u.pin_bloqueado_hasta=null;
-  }catch(e){}
+  if(bloqueoLocal) return u;
+
+  if(bloqueoDB && !Number.isNaN(bloqueoDB.getTime()) && bloqueoDB<=new Date()){
+    try{
+      await cliente().from("usuarios").update({
+        pin_intentos:0,
+        pin_bloqueado_hasta:null,
+        updated_at:new Date().toISOString()
+      }).eq("id",u.id);
+
+      u.pin_intentos=0;
+      u.pin_bloqueado_hasta=null;
+    }catch(e){}
+  }
 
   return u;
 }
@@ -348,7 +424,6 @@ function pantallaBloqueado(u,bloqueo){
 
     if(msg) msg.textContent="PIN bloqueado. Inténtalo de nuevo en "+textoTiempo(s)+".";
     if(barra){
-      const total=Math.max(1,Math.ceil((bloqueo.getTime()-new Date(usuarioActual.ultimo_pin_error || Date.now()).getTime())/1000));
       const pct=Math.max(0,Math.min(100,Math.round((s/300)*100)));
       barra.style.width=pct+"%";
     }
@@ -361,6 +436,7 @@ function pantallaBloqueado(u,bloqueo){
 async function mensajeFinBloqueo(){
   await refrescarUsuarioActual();
   if(usuarioActual){
+    borrarBloqueoLocal(usuarioActual);
     usuarioActual.pin_bloqueado_hasta=null;
     usuarioActual.pin_intentos=0;
     pantallaPIN();
@@ -419,6 +495,7 @@ async function guardarPIN(){
 
   if(res.error){mostrarMsg("Error guardando PIN: "+res.error.message);return}
 
+  borrarBloqueoLocal(usuarioActual);
   usuarioActual.pin_hash=hash;
   usuarioActual.debe_crear_pin=false;
   usuarioActual.pin_intentos=0;
@@ -450,21 +527,43 @@ function pantallaPIN(){
 
 async function entrar(){
   limpiarMsg();
+
   const sb=cliente();
   const pinInput=document.getElementById("pin");
   const pin=pinInput ? pinInput.value.trim() : "";
 
-  if(!/^[0-9]{4}$/.test(pin)){mostrarMsg("Introduce los 4 números del PIN.");return}
+  if(!/^[0-9]{4}$/.test(pin)){
+    mostrarMsg("Introduce los 4 números del PIN.");
+    return;
+  }
 
   const fresco=await refrescarUsuarioActual();
-  if(!fresco){mostrarMsg("No se pudo comprobar el usuario.");return}
+  if(!fresco){
+    const bloqueoLocal=fechaBloqueoActiva(usuarioActual);
+    if(bloqueoLocal){
+      pantallaBloqueado(usuarioActual,bloqueoLocal);
+      return;
+    }
 
-  if(usuarioActual.activo===false){pantallaLogin();mostrarMsg("Usuario desactivado.");return}
+    mostrarMsg("No se pudo comprobar el usuario.");
+    return;
+  }
+
+  if(usuarioActual.activo===false){
+    pantallaLogin();
+    mostrarMsg("Usuario desactivado.");
+    return;
+  }
 
   const bloqueo=fechaBloqueoActiva(usuarioActual);
-  if(bloqueo){pantallaBloqueado(usuarioActual,bloqueo);return}
+  if(bloqueo){
+    pantallaBloqueado(usuarioActual,bloqueo);
+    return;
+  }
 
   if(hashPin(pin)===usuarioActual.pin_hash){
+    borrarBloqueoLocal(usuarioActual);
+
     const res=await sb.from("usuarios").update({
       pin_intentos:0,
       pin_bloqueado_hasta:null,
@@ -472,7 +571,10 @@ async function entrar(){
       updated_at:new Date().toISOString()
     }).eq("id",usuarioActual.id);
 
-    if(res.error){mostrarMsg("Error actualizando login: "+res.error.message);return}
+    if(res.error){
+      mostrarMsg("Error actualizando login: "+res.error.message);
+      return;
+    }
 
     usuarioActual.pin_intentos=0;
     usuarioActual.pin_bloqueado_hasta=null;
@@ -491,6 +593,7 @@ async function entrar(){
     const fecha=new Date();
     fecha.setMinutes(fecha.getMinutes()+5);
     bloqueoNuevo=fecha.toISOString();
+    guardarBloqueoLocal(usuarioActual,bloqueoNuevo,ahora);
   }
 
   const res=await sb.from("usuarios").update({
@@ -500,7 +603,18 @@ async function entrar(){
     updated_at:ahora
   }).eq("id",usuarioActual.id);
 
-  if(res.error){mostrarMsg("Error registrando intento.");return}
+  if(res.error){
+    if(bloqueoNuevo){
+      usuarioActual.pin_intentos=intentos;
+      usuarioActual.pin_bloqueado_hasta=bloqueoNuevo;
+      usuarioActual.ultimo_pin_error=ahora;
+      pantallaBloqueado(usuarioActual,new Date(bloqueoNuevo));
+      return;
+    }
+
+    mostrarMsg("Error registrando intento.");
+    return;
+  }
 
   usuarioActual.pin_intentos=intentos;
   usuarioActual.pin_bloqueado_hasta=bloqueoNuevo;
@@ -509,7 +623,7 @@ async function entrar(){
   if(bloqueoNuevo){
     pantallaBloqueado(usuarioActual,new Date(bloqueoNuevo));
   }else{
-    mostrarMsg("PIN incorrecto ("+intentos+"/3). ");
+    mostrarMsg("PIN incorrecto ("+intentos+"/3).");
     if(pinInput){pinInput.value="";pinInput.focus()}
   }
 }
