@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V3091</title>
+<title>Zentryx PRO Login V3092</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -29,6 +29,14 @@ body{
   justify-content:center;
   padding:22px;
   overflow-x:hidden;
+  background:
+    radial-gradient(circle at 16% 12%,rgba(37,99,235,.36),transparent 31%),
+    radial-gradient(circle at 88% 18%,rgba(16,185,129,.20),transparent 30%),
+    linear-gradient(160deg,#071330 0%,#0f172a 55%,#020617 100%);
+}
+
+button,input{
+  font-family:inherit;
 }
 
 .login_wrap{
@@ -53,6 +61,7 @@ body{
   font-size:56px;
   font-weight:900;
   box-shadow:0 18px 45px rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.14);
 }
 
 .brand h1{
@@ -76,6 +85,7 @@ body{
   border-radius:30px;
   padding:26px;
   box-shadow:0 22px 70px rgba(0,0,0,.38);
+  border:1px solid rgba(255,255,255,.55);
 }
 
 .box h2{
@@ -141,8 +151,18 @@ input:focus{
   transform:scale(.99);
 }
 
+.btn:disabled{
+  opacity:.62;
+  pointer-events:none;
+}
+
 .btn_sec{
   background:#64748b;
+}
+
+.btn_soft{
+  background:#e2e8f0;
+  color:#0f172a;
 }
 
 .msg{
@@ -176,6 +196,84 @@ input:focus{
   gap:10px;
 }
 
+.user_card{
+  display:grid;
+  grid-template-columns:76px 1fr;
+  gap:14px;
+  align-items:center;
+  margin:4px 0 18px;
+  padding:14px;
+  border-radius:22px;
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+}
+
+.user_avatar{
+  width:76px;
+  height:76px;
+  border-radius:22px;
+  object-fit:cover;
+  background:linear-gradient(135deg,#2563eb,#10b981);
+  color:white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:34px;
+  font-weight:900;
+  overflow:hidden;
+}
+
+.user_avatar img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+
+.user_name{
+  font-size:22px;
+  font-weight:900;
+  color:#0f172a;
+  line-height:1.1;
+  word-break:break-word;
+}
+
+.user_meta{
+  margin-top:6px;
+  color:#64748b;
+  font-size:14px;
+  font-weight:850;
+  line-height:1.3;
+}
+
+.login_hint{
+  margin-top:14px;
+  padding:12px 14px;
+  border-radius:16px;
+  background:#eff6ff;
+  border:1px solid #bfdbfe;
+  color:#1e40af;
+  font-size:14px;
+  font-weight:900;
+  line-height:1.35;
+}
+
+.loader{
+  display:inline-block;
+  width:17px;
+  height:17px;
+  border:3px solid rgba(255,255,255,.45);
+  border-top-color:white;
+  border-radius:50%;
+  animation:zx_spin .75s linear infinite;
+  vertical-align:-3px;
+  margin-right:8px;
+}
+
+@keyframes zx_spin{
+  to{transform:rotate(360deg)}
+}
+
 @media(max-width:430px){
   body{
     padding:18px;
@@ -202,6 +300,17 @@ input:focus{
   .box h2{
     font-size:30px;
   }
+
+  .user_card{
+    grid-template-columns:66px 1fr;
+  }
+
+  .user_avatar{
+    width:66px;
+    height:66px;
+    border-radius:19px;
+    font-size:30px;
+  }
 }
 </style>
 </head>
@@ -218,12 +327,13 @@ input:focus{
   <div class="box" id="app"></div>
 
   <div class="footer">
-    Zentryx PRO · V3091
+    Zentryx PRO · V3092
   </div>
 </div>
 
 <script>
-const ZX_VERSION="3091";
+const ZX_VERSION="3092";
+const ZX_LOGIN_LAST_USER_KEY="zentryx_login_last_user";
 
 window.sb=supabase.createClient(
   "https://idtaamivqbiuxtjywuux.supabase.co",
@@ -238,10 +348,52 @@ window.supabaseClient=window.sb;
 
 <script>
 let usuarioActual=null;
+let loginProcesando=false;
 const app=document.getElementById("app");
 
 function cliente(){
   return window.sb || window.supabaseClient || null;
+}
+
+function limpiar(v){
+  return String(v ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function inicialUsuario(u){
+  return String((u && (u.nombre || u.usuario)) || "?").trim().charAt(0).toUpperCase() || "?";
+}
+
+function nombreUsuario(u){
+  return String((u && (u.nombre || u.usuario)) || "Usuario");
+}
+
+function rolUsuario(u){
+  return String((u && u.rol) || "Usuario");
+}
+
+function avatarUsuario(u){
+  if(u && u.foto_url){
+    return `<div class="user_avatar"><img src="${limpiar(u.foto_url)}" alt="Foto"></div>`;
+  }
+
+  return `<div class="user_avatar">${limpiar(inicialUsuario(u))}</div>`;
+}
+
+function tarjetaUsuario(u){
+  return `
+    <div class="user_card">
+      ${avatarUsuario(u)}
+      <div>
+        <div class="user_name">${limpiar(nombreUsuario(u))}</div>
+        <div class="user_meta">${limpiar(rolUsuario(u))}<br>${limpiar(u.usuario || "")}</div>
+      </div>
+    </div>
+  `;
 }
 
 function mostrarMsg(txt,tipo){
@@ -270,11 +422,63 @@ function limpiarMsg(){
   }
 }
 
+function ponerBotonCargando(id,activo,texto){
+  const b=document.getElementById(id);
+  loginProcesando=!!activo;
+
+  if(!b) return;
+
+  if(activo){
+    b.dataset.textoOriginal=b.innerHTML;
+    b.disabled=true;
+    b.innerHTML=`<span class="loader"></span>${limpiar(texto || "Comprobando...")}`;
+  }else{
+    b.disabled=false;
+    if(b.dataset.textoOriginal){
+      b.innerHTML=b.dataset.textoOriginal;
+    }
+  }
+}
+
 function irApp(){
   location.href="app.html?v="+ZX_VERSION;
 }
 
+function guardarUltimoUsuario(){
+  if(!usuarioActual) return;
+
+  try{
+    localStorage.setItem(ZX_LOGIN_LAST_USER_KEY,JSON.stringify({
+      id:usuarioActual.id || "",
+      usuario:usuarioActual.usuario || "",
+      nombre:usuarioActual.nombre || usuarioActual.usuario || "",
+      rol:usuarioActual.rol || "Usuario",
+      foto_url:usuarioActual.foto_url || ""
+    }));
+  }catch(e){}
+}
+
+function leerUltimoUsuario(){
+  try{
+    const raw=localStorage.getItem(ZX_LOGIN_LAST_USER_KEY);
+    if(!raw) return null;
+    const u=JSON.parse(raw);
+    if(!u || !u.usuario) return null;
+    return u;
+  }catch(e){
+    return null;
+  }
+}
+
+function borrarUltimoUsuario(){
+  try{
+    localStorage.removeItem(ZX_LOGIN_LAST_USER_KEY);
+  }catch(e){}
+}
+
 function guardarSesion(){
+  guardarUltimoUsuario();
+
   if(typeof ZENTRYX_createSession==="function"){
     ZENTRYX_createSession(usuarioActual);
     return;
@@ -291,6 +495,45 @@ function guardarSesion(){
 }
 
 function pantallaLogin(){
+  usuarioActual=null;
+  const ultimo=leerUltimoUsuario();
+
+  if(ultimo){
+    app.innerHTML=`
+      <h2>Entrar</h2>
+      <div class="sub">
+        Último usuario utilizado.
+      </div>
+
+      ${tarjetaUsuario(ultimo)}
+
+      <button class="btn" id="btn_ultimo_usuario">
+        Continuar
+      </button>
+
+      <button class="btn btn_sec" id="btn_otro_usuario">
+        Cambiar usuario
+      </button>
+
+      <div id="msg" class="msg"></div>
+    `;
+
+    document.getElementById("btn_ultimo_usuario").onclick=function(){
+      cargarUsuarioPorNombre(ultimo.usuario,"btn_ultimo_usuario");
+    };
+
+    document.getElementById("btn_otro_usuario").onclick=function(){
+      borrarUltimoUsuario();
+      pantallaLoginManual();
+    };
+
+    return;
+  }
+
+  pantallaLoginManual();
+}
+
+function pantallaLoginManual(){
   usuarioActual=null;
 
   app.innerHTML=`
@@ -322,7 +565,14 @@ function pantallaLogin(){
 }
 
 async function login(){
+  const user=document.getElementById("usuario").value.trim();
+  await cargarUsuarioPorNombre(user,"btn_login");
+}
+
+async function cargarUsuarioPorNombre(user,botonId){
   limpiarMsg();
+
+  if(loginProcesando) return;
 
   const sb=cliente();
 
@@ -331,12 +581,12 @@ async function login(){
     return;
   }
 
-  const user=document.getElementById("usuario").value.trim();
-
   if(!user){
     mostrarMsg("Introduce usuario.");
     return;
   }
+
+  ponerBotonCargando(botonId || "btn_login",true,"Comprobando...");
 
   const res=await sb
     .from("usuarios")
@@ -344,12 +594,15 @@ async function login(){
     .eq("usuario",user)
     .maybeSingle();
 
+  ponerBotonCargando(botonId || "btn_login",false);
+
   if(res.error){
     mostrarMsg("Error Supabase: "+res.error.message);
     return;
   }
 
   if(!res.data){
+    borrarUltimoUsuario();
     mostrarMsg("Usuario no encontrado.");
     return;
   }
@@ -372,6 +625,8 @@ async function login(){
     }
   }
 
+  guardarUltimoUsuario();
+
   if(usuarioActual.debe_crear_pin || !usuarioActual.pin_hash){
     pantallaCrearPIN();
   }else{
@@ -382,15 +637,18 @@ async function login(){
 function pantallaCrearPIN(){
   app.innerHTML=`
     <h2>Crear PIN</h2>
+
+    ${tarjetaUsuario(usuarioActual)}
+
     <div class="sub">
       Crea un PIN de 4 números para entrar más rápido.
     </div>
 
     <label>PIN</label>
-    <input id="pin1" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
+    <input id="pin1" class="pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="----">
 
     <label>Repetir PIN</label>
-    <input id="pin2" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
+    <input id="pin2" class="pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="----">
 
     <button class="btn" id="btn_guardar_pin">
       Guardar PIN
@@ -404,7 +662,11 @@ function pantallaCrearPIN(){
   `;
 
   document.getElementById("btn_guardar_pin").onclick=guardarPIN;
-  document.getElementById("btn_volver").onclick=pantallaLogin;
+
+  document.getElementById("btn_volver").onclick=function(){
+    borrarUltimoUsuario();
+    pantallaLoginManual();
+  };
 
   document.getElementById("pin1").addEventListener("input",function(){
     this.value=this.value.replace(/\D/g,"").slice(0,4);
@@ -420,10 +682,17 @@ function pantallaCrearPIN(){
   document.getElementById("pin2").addEventListener("keydown",function(e){
     if(e.key==="Enter") guardarPIN();
   });
+
+  setTimeout(function(){
+    const pin=document.getElementById("pin1");
+    if(pin) pin.focus();
+  },250);
 }
 
 async function guardarPIN(){
   limpiarMsg();
+
+  if(loginProcesando) return;
 
   const sb=cliente();
 
@@ -440,6 +709,8 @@ async function guardarPIN(){
     return;
   }
 
+  ponerBotonCargando("btn_guardar_pin",true,"Guardando...");
+
   const hash=btoa(p1);
 
   const res=await sb
@@ -452,6 +723,8 @@ async function guardarPIN(){
       ultimo_login:new Date().toISOString()
     })
     .eq("id",usuarioActual.id);
+
+  ponerBotonCargando("btn_guardar_pin",false);
 
   if(res.error){
     mostrarMsg("Error guardando PIN: "+res.error.message);
@@ -470,14 +743,15 @@ async function guardarPIN(){
 }
 
 function pantallaPIN(){
+  guardarUltimoUsuario();
+
   app.innerHTML=`
-    <h2>PIN</h2>
-    <div class="sub">
-      Usuario: <b>${usuarioActual.usuario || ""}</b>
-    </div>
+    <h2>Acceso</h2>
+
+    ${tarjetaUsuario(usuarioActual)}
 
     <label>Introduce PIN</label>
-    <input id="pin" class="pin" inputmode="numeric" maxlength="4" placeholder="----">
+    <input id="pin" class="pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="----">
 
     <button class="btn" id="btn_pin">
       Entrar
@@ -487,11 +761,19 @@ function pantallaPIN(){
       Cambiar usuario
     </button>
 
+    <div class="login_hint">
+      La biometría mediante passkeys queda reservada para la fase comercial.
+    </div>
+
     <div id="msg" class="msg"></div>
   `;
 
   document.getElementById("btn_pin").onclick=entrar;
-  document.getElementById("btn_volver").onclick=pantallaLogin;
+
+  document.getElementById("btn_volver").onclick=function(){
+    borrarUltimoUsuario();
+    pantallaLoginManual();
+  };
 
   document.getElementById("pin").addEventListener("input",function(){
     this.value=this.value.replace(/\D/g,"").slice(0,4);
@@ -513,6 +795,8 @@ function pantallaPIN(){
 async function entrar(){
   limpiarMsg();
 
+  if(loginProcesando) return;
+
   const sb=cliente();
 
   const pin=document.getElementById("pin").value.trim();
@@ -521,6 +805,8 @@ async function entrar(){
     mostrarMsg("PIN inválido.");
     return;
   }
+
+  ponerBotonCargando("btn_pin",true,"Entrando...");
 
   const hash=btoa(pin);
 
@@ -533,6 +819,8 @@ async function entrar(){
         ultimo_login:new Date().toISOString()
       })
       .eq("id",usuarioActual.id);
+
+    ponerBotonCargando("btn_pin",false);
 
     if(res.error){
       mostrarMsg("Error actualizando login: "+res.error.message);
@@ -563,6 +851,8 @@ async function entrar(){
       ultimo_pin_error:new Date().toISOString()
     })
     .eq("id",usuarioActual.id);
+
+  ponerBotonCargando("btn_pin",false);
 
   if(res.error){
     mostrarMsg("Error registrando intento.");
