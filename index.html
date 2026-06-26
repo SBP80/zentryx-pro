@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V3095</title>
+<title>Zentryx PRO Login V3096 DEV1</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -55,11 +55,12 @@ input:disabled{opacity:.65;background:#f1f5f9}
 
   <div class="box" id="app"></div>
 
-  <div class="footer">Zentryx PRO · V3095</div>
+  <div class="footer">Zentryx PRO · V3096 DEV1</div>
 </div>
 
 <script>
-const ZX_VERSION="3095";
+const ZX_VERSION="3096 DEV1";
+const ZX_DEVICE_KEY="zentryx_device_id";
 const ZX_APP_VERSION="3093";
 const ZX_LOGIN_LAST_USER="zentryx_last_user";
 const ZX_LOGIN_LOCKS="zentryx_login_locks";
@@ -83,6 +84,78 @@ function cliente(){return window.sb || window.supabaseClient || null}
 function limpiar(v){return String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
 function normalizar(v){return String(v ?? "").trim().toLowerCase()}
 function hashPin(pin){return btoa(String(pin))}
+
+function crearIdDispositivo(){
+  if(window.crypto && typeof window.crypto.randomUUID==="function") return window.crypto.randomUUID();
+  return "zx_"+Date.now()+"_"+Math.random().toString(16).slice(2);
+}
+
+function obtenerIdDispositivo(){
+  let id=localStorage.getItem(ZX_DEVICE_KEY);
+  if(!id){
+    id=crearIdDispositivo();
+    localStorage.setItem(ZX_DEVICE_KEY,id);
+  }
+  return id;
+}
+
+function detectarDispositivo(){
+  const ua=navigator.userAgent || "";
+  const plataforma=navigator.platform || "";
+  const esIOS=/iPhone|iPad|iPod/i.test(ua) || (plataforma==="MacIntel" && navigator.maxTouchPoints>1);
+  const esAndroid=/Android/i.test(ua);
+  const esMac=/Mac/i.test(plataforma) && !esIOS;
+  const esWindows=/Win/i.test(plataforma);
+
+  let tipo="web";
+  if(esIOS) tipo="ios";
+  else if(esAndroid) tipo="android";
+  else if(esMac) tipo="mac";
+  else if(esWindows) tipo="windows";
+
+  return {
+    dispositivo_id:obtenerIdDispositivo(),
+    tipo:tipo,
+    nombre:navigator.userAgentData && navigator.userAgentData.platform ? navigator.userAgentData.platform : plataforma || tipo,
+    user_agent:ua,
+    webauthn_disponible:!!(window.PublicKeyCredential),
+    idioma:navigator.language || "es-ES",
+    ultimo_acceso:new Date().toISOString(),
+    version_login:ZX_VERSION
+  };
+}
+
+async function registrarDispositivoSeguro(){
+  try{
+    const sb=cliente();
+    if(!sb || !usuarioActual || !usuarioActual.id) return;
+
+    const d=detectarDispositivo();
+    const base={
+      usuario_id:usuarioActual.id,
+      dispositivo_id:d.dispositivo_id,
+      nombre:d.nombre,
+      tipo:d.tipo,
+      user_agent:d.user_agent,
+      webauthn_disponible:d.webauthn_disponible,
+      ultimo_acceso:d.ultimo_acceso,
+      activo:true,
+      updated_at:d.ultimo_acceso
+    };
+
+    const intento1=await sb.from("usuarios_dispositivos").upsert(base,{onConflict:"usuario_id,dispositivo_id"});
+    if(!intento1.error) return;
+
+    const minimo={
+      usuario_id:usuarioActual.id,
+      dispositivo_id:d.dispositivo_id,
+      ultimo_acceso:d.ultimo_acceso
+    };
+    await sb.from("usuarios_dispositivos").upsert(minimo,{onConflict:"usuario_id,dispositivo_id"});
+  }catch(e){
+    console.warn("Zentryx dispositivos: registro omitido",e);
+  }
+}
 
 function mostrarMsg(txt,tipo){
   const e=document.getElementById("msg");
@@ -500,6 +573,7 @@ async function guardarPIN(){
   usuarioActual.debe_crear_pin=false;
   usuarioActual.pin_intentos=0;
   usuarioActual.pin_bloqueado_hasta=null;
+  await registrarDispositivoSeguro();
   guardarSesion();
   mostrarMsg("PIN creado correctamente.","ok");
   setTimeout(irApp,500);
@@ -579,6 +653,7 @@ async function entrar(){
     usuarioActual.pin_intentos=0;
     usuarioActual.pin_bloqueado_hasta=null;
     usuarioActual.ultimo_login=new Date().toISOString();
+    await registrarDispositivoSeguro();
     guardarSesion();
     mostrarMsg("Acceso correcto.","ok");
     setTimeout(irApp,350);
