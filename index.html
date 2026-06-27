@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V3096 DEV2</title>
+<title>Zentryx PRO Login V3096 DEV3</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -55,11 +55,11 @@ input:disabled{opacity:.65;background:#f1f5f9}
 
   <div class="box" id="app"></div>
 
-  <div class="footer">Zentryx PRO · V3096 DEV2</div>
+  <div class="footer">Zentryx PRO · V3096 DEV3</div>
 </div>
 
 <script>
-const ZX_VERSION="3096 DEV2";
+const ZX_VERSION="3096 DEV3";
 const ZX_DEVICE_KEY="zentryx_device_id";
 const ZX_APP_VERSION="3093";
 const ZX_LOGIN_LAST_USER="zentryx_last_user";
@@ -102,32 +102,66 @@ function obtenerIdDispositivo(){
 function detectarDispositivo(){
   const ua=navigator.userAgent || "";
   const plataforma=navigator.platform || "";
-  const esIOS=/iPhone|iPad|iPod/i.test(ua) || (plataforma==="MacIntel" && navigator.maxTouchPoints>1);
+  const maxTouch=Number(navigator.maxTouchPoints || 0);
+  const ancho=Math.max(Number(screen.width || 0), Number(window.innerWidth || 0));
+  const alto=Math.max(Number(screen.height || 0), Number(window.innerHeight || 0));
+  const ladoMayor=Math.max(ancho, alto);
+
+  const esIPad=/iPad/i.test(ua) || (plataforma==="MacIntel" && maxTouch>1);
+  const esIPhone=/iPhone|iPod/i.test(ua);
+  const esIOS=esIPad || esIPhone;
   const esAndroid=/Android/i.test(ua);
+  const esTabletAndroid=esAndroid && !/Mobile/i.test(ua);
   const esMac=/Mac/i.test(plataforma) && !esIOS;
   const esWindows=/Win/i.test(plataforma);
+  const esLinux=/Linux/i.test(plataforma) && !esAndroid;
 
-  let tipo="web";
-  let sistema="Desconocido";
+  let tipo_dispositivo="desktop";
+  if(esIPad || esTabletAndroid) tipo_dispositivo="tablet";
+  else if(esIPhone || (esAndroid && !esTabletAndroid)) tipo_dispositivo="movil";
 
-  if(esIOS){tipo="movil";sistema="iOS / iPadOS"}
-  else if(esAndroid){tipo="movil";sistema="Android"}
-  else if(esMac){tipo="ordenador";sistema="macOS"}
-  else if(esWindows){tipo="ordenador";sistema="Windows"}
+  let sistema_operativo="Desconocido";
+  if(esIPad) sistema_operativo="iPadOS";
+  else if(esIPhone) sistema_operativo="iOS";
+  else if(esAndroid) sistema_operativo="Android";
+  else if(esMac) sistema_operativo="macOS";
+  else if(esWindows){
+    // Desde navegador no se puede distinguir siempre Windows 10/11 con fiabilidad.
+    sistema_operativo="Windows";
+  }else if(esLinux) sistema_operativo="Linux";
 
   let navegador="Navegador";
-  if(/CriOS|Chrome/i.test(ua)) navegador="Chrome";
-  else if(/FxiOS|Firefox/i.test(ua)) navegador="Firefox";
-  else if(/EdgiOS|Edg/i.test(ua)) navegador="Edge";
+  if(/EdgiOS|EdgA|Edg\//i.test(ua)) navegador="Edge";
+  else if(/CriOS/i.test(ua)) navegador="Chrome";
+  else if(/FxiOS/i.test(ua)) navegador="Firefox";
+  else if(/OPiOS|OPR\//i.test(ua)) navegador="Opera";
+  else if(/Chrome|Chromium/i.test(ua) && !/Edg|OPR/i.test(ua)) navegador="Chrome";
+  else if(/Firefox/i.test(ua)) navegador="Firefox";
   else if(/Safari/i.test(ua)) navegador="Safari";
 
+  let nombreBase="Dispositivo";
+  if(esIPad) nombreBase="iPad";
+  else if(esIPhone) nombreBase="iPhone";
+  else if(esTabletAndroid) nombreBase="Tablet Android";
+  else if(esAndroid) nombreBase="Móvil Android";
+  else if(esMac) nombreBase="Mac";
+  else if(esWindows) nombreBase="PC Windows";
+  else if(esLinux) nombreBase="PC Linux";
+
+  const ahoraUTC=new Date().toISOString();
+
   return {
-    nombre_dispositivo:(sistema+" · "+navegador).trim(),
-    tipo_dispositivo:tipo,
-    sistema_operativo:sistema,
+    nombre_dispositivo:(nombreBase+" · "+navegador).trim(),
+    tipo_dispositivo:tipo_dispositivo,
+    sistema_operativo:sistema_operativo,
     navegador:navegador,
     user_agent:ua,
-    ultimo_acceso:new Date().toISOString()
+    ultimo_acceso:ahoraUTC,
+    ultimo_acceso_local:new Intl.DateTimeFormat("es-ES",{
+      day:"2-digit",month:"2-digit",year:"numeric",
+      hour:"2-digit",minute:"2-digit",second:"2-digit",
+      hour12:false
+    }).format(new Date())
   };
 }
 
