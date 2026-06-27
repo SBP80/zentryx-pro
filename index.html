@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V3096 DEV1</title>
+<title>Zentryx PRO Login V3096 DEV2</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -55,11 +55,11 @@ input:disabled{opacity:.65;background:#f1f5f9}
 
   <div class="box" id="app"></div>
 
-  <div class="footer">Zentryx PRO · V3096 DEV1</div>
+  <div class="footer">Zentryx PRO · V3096 DEV2</div>
 </div>
 
 <script>
-const ZX_VERSION="3096 DEV1";
+const ZX_VERSION="3096 DEV2";
 const ZX_DEVICE_KEY="zentryx_device_id";
 const ZX_APP_VERSION="3093";
 const ZX_LOGIN_LAST_USER="zentryx_last_user";
@@ -108,20 +108,26 @@ function detectarDispositivo(){
   const esWindows=/Win/i.test(plataforma);
 
   let tipo="web";
-  if(esIOS) tipo="ios";
-  else if(esAndroid) tipo="android";
-  else if(esMac) tipo="mac";
-  else if(esWindows) tipo="windows";
+  let sistema="Desconocido";
+
+  if(esIOS){tipo="movil";sistema="iOS / iPadOS"}
+  else if(esAndroid){tipo="movil";sistema="Android"}
+  else if(esMac){tipo="ordenador";sistema="macOS"}
+  else if(esWindows){tipo="ordenador";sistema="Windows"}
+
+  let navegador="Navegador";
+  if(/CriOS|Chrome/i.test(ua)) navegador="Chrome";
+  else if(/FxiOS|Firefox/i.test(ua)) navegador="Firefox";
+  else if(/EdgiOS|Edg/i.test(ua)) navegador="Edge";
+  else if(/Safari/i.test(ua)) navegador="Safari";
 
   return {
-    dispositivo_id:obtenerIdDispositivo(),
-    tipo:tipo,
-    nombre:navigator.userAgentData && navigator.userAgentData.platform ? navigator.userAgentData.platform : plataforma || tipo,
+    nombre_dispositivo:(sistema+" · "+navegador).trim(),
+    tipo_dispositivo:tipo,
+    sistema_operativo:sistema,
+    navegador:navegador,
     user_agent:ua,
-    webauthn_disponible:!!(window.PublicKeyCredential),
-    idioma:navigator.language || "es-ES",
-    ultimo_acceso:new Date().toISOString(),
-    version_login:ZX_VERSION
+    ultimo_acceso:new Date().toISOString()
   };
 }
 
@@ -131,27 +137,48 @@ async function registrarDispositivoSeguro(){
     if(!sb || !usuarioActual || !usuarioActual.id) return;
 
     const d=detectarDispositivo();
-    const base={
+    const ahora=d.ultimo_acceso;
+
+    const existente=await sb
+      .from("usuarios_dispositivos")
+      .select("id")
+      .eq("usuario_id",usuarioActual.id)
+      .eq("user_agent",d.user_agent)
+      .order("ultimo_acceso",{ascending:false})
+      .limit(1)
+      .maybeSingle();
+
+    if(existente && !existente.error && existente.data && existente.data.id){
+      const actualizado=await sb.from("usuarios_dispositivos").update({
+        nombre_dispositivo:d.nombre_dispositivo,
+        tipo_dispositivo:d.tipo_dispositivo,
+        sistema_operativo:d.sistema_operativo,
+        navegador:d.navegador,
+        ultimo_acceso:ahora,
+        updated_at:ahora
+      }).eq("id",existente.data.id);
+
+      if(actualizado.error) console.warn("Zentryx dispositivos: update",actualizado.error.message);
+      return;
+    }
+
+    const creado=await sb.from("usuarios_dispositivos").insert({
       usuario_id:usuarioActual.id,
-      dispositivo_id:d.dispositivo_id,
-      nombre:d.nombre,
-      tipo:d.tipo,
+      nombre_dispositivo:d.nombre_dispositivo,
+      tipo_dispositivo:d.tipo_dispositivo,
+      sistema_operativo:d.sistema_operativo,
+      navegador:d.navegador,
       user_agent:d.user_agent,
-      webauthn_disponible:d.webauthn_disponible,
-      ultimo_acceso:d.ultimo_acceso,
-      activo:true,
-      updated_at:d.ultimo_acceso
-    };
+      passkey_activa:false,
+      passkey_counter:0,
+      autorizado:true,
+      revocado:false,
+      ultimo_acceso:ahora,
+      created_at:ahora,
+      updated_at:ahora
+    });
 
-    const intento1=await sb.from("usuarios_dispositivos").upsert(base,{onConflict:"usuario_id,dispositivo_id"});
-    if(!intento1.error) return;
-
-    const minimo={
-      usuario_id:usuarioActual.id,
-      dispositivo_id:d.dispositivo_id,
-      ultimo_acceso:d.ultimo_acceso
-    };
-    await sb.from("usuarios_dispositivos").upsert(minimo,{onConflict:"usuario_id,dispositivo_id"});
+    if(creado.error) console.warn("Zentryx dispositivos: insert",creado.error.message);
   }catch(e){
     console.warn("Zentryx dispositivos: registro omitido",e);
   }
