@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3081 - ZIP COMPLETO / JORNADAS MÚLTIPLES ADMIN / PIN / MOTIVO / AUDITORÍA / AGENDA
+// V3082 - ZIP COMPLETO / MULTIJORNADA REAL / SIN BLOQUEO POR JORNADA CERRADA
 // ===============================
 (function(){
 "use strict";
@@ -745,19 +745,26 @@ async function crearJornada(motivoAdmin){
 
   const cerradas=jornadasDia.filter(j=>j.estado==="cerrada");
 
-  if(cerradas.length && !motivoAdmin){
-    alert("Ya existe una jornada cerrada hoy. Solo administrador puede crear otra con PIN y motivo.");
-    return null;
-  }
-
   const entrada=ahora();
   const laboral=await objetivoDiaPRO(entrada);
 
   let objetivoMin=Math.floor(Number(laboral.objetivoSeg||0)/60);
 
-  // Una jornada extra creada por administrador se considera trabajo extra desde el primer minuto.
-  if(motivoAdmin && cerradas.length){
+  /*
+    Si ya hay una jornada cerrada en el mismo día, la nueva jornada se considera
+    una continuación/extra del día y no debe volver a cargar 8 horas de objetivo.
+    Así evitamos duplicar faltas y permitimos varias entradas/salidas reales.
+  */
+  if(cerradas.length){
     objetivoMin=0;
+  }
+
+  let observacion=laboral.observacion;
+
+  if(cerradas.length && motivoAdmin){
+    observacion="Jornada extra creada por administrador. Motivo: "+motivoAdmin;
+  }else if(cerradas.length){
+    observacion="Jornada adicional del mismo día.";
   }
 
   const datos={
@@ -772,7 +779,7 @@ async function crearJornada(motivoAdmin){
     solicitud_id:laboral.solicitudId,
     tipo_ausencia:laboral.tipoAusencia,
     minutos_justificados:laboral.minutosJustificados,
-    observacion_laboral:motivoAdmin ? "Jornada extra creada por administrador. Motivo: "+motivoAdmin : laboral.observacion,
+    observacion_laboral:observacion,
     minutos_trabajados:0,
     minutos_descanso:0,
     minutos_comida:0,
@@ -790,9 +797,19 @@ async function crearJornada(motivoAdmin){
     return null;
   }
 
-  if(motivoAdmin){
-    await insertarAuditoria("crear_jornada_extra","Jornada extra creada por admin. Motivo: "+motivoAdmin,s.id);
-    await insertarAviso(s.id,"Jornada extra creada","Se ha creado una jornada extra. Motivo: "+motivoAdmin,"fichaje");
+  if(cerradas.length){
+    await insertarAuditoria(
+      motivoAdmin ? "crear_jornada_extra_admin" : "crear_jornada_adicional",
+      motivoAdmin ? "Jornada extra creada por admin. Motivo: "+motivoAdmin : "Jornada adicional creada el mismo día.",
+      s.id
+    );
+
+    await insertarAviso(
+      s.id,
+      motivoAdmin ? "Jornada extra creada" : "Jornada adicional creada",
+      motivoAdmin ? "Se ha creado una jornada extra. Motivo: "+motivoAdmin : "Se ha creado una jornada adicional en el mismo día.",
+      "fichaje"
+    );
   }
 
   return r.data;
@@ -909,7 +926,7 @@ async function recalcularJornada(jornadaId){
 
   let objetivoSeg=Number(laboral.objetivoSeg||0);
 
-  if(String(jornada.observacion_laboral||"").includes("Jornada extra creada por administrador")){
+  if((String(jornada.observacion_laboral||"").includes("Jornada extra creada por administrador") || String(jornada.observacion_laboral||"").includes("Jornada adicional del mismo día"))){
     objetivoSeg=0;
   }
 
@@ -973,14 +990,15 @@ async function registrar(tipo){
     const jornadasDia=await jornadasUsuarioFecha(s.id,fecha);
     const cerradas=jornadasDia.filter(j=>j.estado==="cerrada");
 
-    if(cerradas.length){
-      if(!esAdmin()){
-        alert("Ya tienes una jornada cerrada hoy. No se puede crear otra.");
-        return;
-      }
-
+    /*
+      V3082:
+      Ya no se bloquea una nueva entrada porque exista una jornada cerrada.
+      Solo se bloquea si existe una jornada abierta.
+      Si quien está conectado es administrador y ya hay jornada cerrada, se pide PIN y motivo
+      para dejar trazabilidad; si es operario, se permite como jornada adicional del día.
+    */
+    if(cerradas.length && esAdmin()){
       if(!validarAdminOperacion()) return;
-
       motivoAdmin=pedirMotivo("Motivo para crear otra jornada hoy.");
       if(!motivoAdmin) return;
     }
@@ -1550,7 +1568,7 @@ window.ZX_fichaje_real=async function(){
     resumen=calcularEnVivo(est.eventos,est.estado);
     laboral=await objetivoDiaPRO(resumen.entrada||new Date().toISOString());
 
-    if(String(est.jornada.observacion_laboral||"").includes("Jornada extra creada por administrador")){
+    if((String(est.jornada.observacion_laboral||"").includes("Jornada extra creada por administrador") || String(est.jornada.observacion_laboral||"").includes("Jornada adicional del mismo día"))){
       objetivoSeg=0;
     }else{
       objetivoSeg=laboral.objetivoSeg;
@@ -1650,7 +1668,7 @@ window.ZX_fichaje_real=async function(){
       const cont=document.getElementById("zx_resumen_tiempo");
 
       let obj=lab.objetivoSeg;
-      if(nuevoEst.jornada && String(nuevoEst.jornada.observacion_laboral||"").includes("Jornada extra creada por administrador")){
+      if(nuevoEst.jornada && (String(nuevoEst.jornada.observacion_laboral||"").includes("Jornada extra creada por administrador") || String(nuevoEst.jornada.observacion_laboral||"").includes("Jornada adicional del mismo día"))){
         obj=0;
       }
 
