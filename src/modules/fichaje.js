@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3082 - ZIP COMPLETO / MULTIJORNADA REAL / SIN BLOQUEO POR JORNADA CERRADA
+// V3083 - ZIP COMPLETO / FECHA LOCAL / MULTIJORNADA REAL
 // ===============================
 (function(){
 "use strict";
@@ -51,7 +51,22 @@ function uuidSeguro(){
 // ===============================
 // FECHAS Y HORAS
 // ===============================
-function fechaHoyISO(){return new Date().toISOString().slice(0,10)}
+function fechaHoyISO(){
+  return fechaLocalISO(new Date());
+}
+
+function fechaLocalISO(valor){
+  const d=valor ? new Date(valor) : new Date();
+
+  if(isNaN(d.getTime())){
+    const h=new Date();
+    h.setMinutes(h.getMinutes()-h.getTimezoneOffset());
+    return h.toISOString().slice(0,10);
+  }
+
+  const local=new Date(d.getTime()-d.getTimezoneOffset()*60000);
+  return local.toISOString().slice(0,10);
+}
 
 function formatoFechaES(f){
   if(!f) return "";
@@ -276,7 +291,7 @@ function textoTipoSolicitudFichaje(tipo){
 
 async function solicitudesDelDia(fechaISOtxt){
   const s=sesion();
-  const fecha=String(fechaISOtxt||new Date().toISOString()).slice(0,10);
+  const fecha=fechaLocalISO(fechaISOtxt||new Date());
   try{
     const r=await sb()
       .from("solicitudes_laborales")
@@ -358,7 +373,7 @@ async function contextoLaboralDia(fechaISOtxt){
 // ===============================
 async function esFestivo(fechaTxt){
   const s=sesion();
-  const fecha=String(fechaTxt||new Date().toISOString()).slice(0,10);
+  const fecha=fechaLocalISO(fechaTxt||new Date());
 
   let conf={data:null};
   try{
@@ -411,7 +426,7 @@ async function esFestivo(fechaTxt){
 
 async function objetivoDiaPRO(fechaISOtxt){
   const s=sesion();
-  const fecha=String(fechaISOtxt||new Date().toISOString()).slice(0,10);
+  const fecha=fechaLocalISO(fechaISOtxt||new Date());
 
   let objetivoBaseSeg=480*60;
   const festivo=await esFestivo(fecha);
@@ -735,7 +750,7 @@ function abrirMenu(estado){
 // ===============================
 // CREAR / INSERTAR / RECALCULAR
 // ===============================
-async function crearJornada(motivoAdmin){
+async async function crearJornada(motivoAdmin){
   const s=sesion();
   const fecha=fechaHoyISO();
   const jornadasDia=await jornadasUsuarioFecha(s.id,fecha);
@@ -746,14 +761,13 @@ async function crearJornada(motivoAdmin){
   const cerradas=jornadasDia.filter(j=>j.estado==="cerrada");
 
   const entrada=ahora();
-  const laboral=await objetivoDiaPRO(entrada);
+  const laboral=await objetivoDiaPRO(fecha);
 
   let objetivoMin=Math.floor(Number(laboral.objetivoSeg||0)/60);
 
   /*
-    Si ya hay una jornada cerrada en el mismo día, la nueva jornada se considera
-    una continuación/extra del día y no debe volver a cargar 8 horas de objetivo.
-    Así evitamos duplicar faltas y permitimos varias entradas/salidas reales.
+    Si ya existe una jornada cerrada ese mismo día, la nueva jornada es adicional.
+    No debe volver a cargar el objetivo diario, porque duplicaría faltas.
   */
   if(cerradas.length){
     objetivoMin=0;
@@ -890,7 +904,7 @@ async function sincronizarHorasExtra(jornadaId,c,laboral,extraSeg){
       usuario:s.usuario||"",
       nombre:s.nombre||"",
       jornada_id:String(jornadaId),
-      fecha:(c.entrada||new Date().toISOString()).slice(0,10),
+      fecha:fechaLocalISO(c.entrada||new Date()),
       tipo:laboral.festivo ? "festivo" : "normal",
       minutos,
       horas_decimal:horasDecimal,
@@ -921,7 +935,7 @@ async function recalcularJornada(jornadaId){
   const estadoCalculo=estadoDesdeTipo(ultimo ? ultimo.tipo : null);
 
   const c=calcularEnVivo(eventos,estadoCalculo);
-  const fechaBase=(c.entrada||new Date().toISOString()).slice(0,10);
+  const fechaBase=fechaLocalISO(c.entrada||new Date());
   const laboral=await objetivoDiaPRO(fechaBase);
 
   let objetivoSeg=Number(laboral.objetivoSeg||0);
@@ -959,7 +973,7 @@ async function recalcularJornada(jornadaId){
   }
 }
 
-async function registrar(tipo){
+async async function registrar(tipo){
   const s=sesion();
 
   if(!s.id){
@@ -991,11 +1005,9 @@ async function registrar(tipo){
     const cerradas=jornadasDia.filter(j=>j.estado==="cerrada");
 
     /*
-      V3082:
-      Ya no se bloquea una nueva entrada porque exista una jornada cerrada.
-      Solo se bloquea si existe una jornada abierta.
-      Si quien está conectado es administrador y ya hay jornada cerrada, se pide PIN y motivo
-      para dejar trazabilidad; si es operario, se permite como jornada adicional del día.
+      Solo se bloquea si ya existe una jornada abierta.
+      Una jornada cerrada del mismo día permite abrir otra jornada.
+      Si el usuario conectado es administrador, se pide PIN y motivo.
     */
     if(cerradas.length && esAdmin()){
       if(!validarAdminOperacion()) return;
@@ -1511,7 +1523,7 @@ function iniciarTiempoReal(){
 
   try{
     ZX_RT_CANAL=sb()
-      .channel("zx_fichaje_rt_v3081")
+      .channel("zx_fichaje_rt_v3083")
       .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},()=>ZX_fichaje_real())
@@ -1566,7 +1578,7 @@ window.ZX_fichaje_real=async function(){
 
   if(est.jornada){
     resumen=calcularEnVivo(est.eventos,est.estado);
-    laboral=await objetivoDiaPRO(resumen.entrada||new Date().toISOString());
+    laboral=await objetivoDiaPRO(resumen.entrada||fechaHoyISO());
 
     if((String(est.jornada.observacion_laboral||"").includes("Jornada extra creada por administrador") || String(est.jornada.observacion_laboral||"").includes("Jornada adicional del mismo día"))){
       objetivoSeg=0;
@@ -1578,7 +1590,7 @@ window.ZX_fichaje_real=async function(){
     objetivoSeg=Number(ultima.minutos_objetivo||480)*60;
     laboral=await objetivoDiaPRO(ultima.fecha);
   }else{
-    laboral=await objetivoDiaPRO(new Date().toISOString());
+    laboral=await objetivoDiaPRO(fechaHoyISO());
     objetivoSeg=laboral.objetivoSeg;
   }
 
@@ -1664,7 +1676,7 @@ window.ZX_fichaje_real=async function(){
     ZX_TIMER=setInterval(async function(){
       const nuevoEst=await estadoActual();
       const r=calcularEnVivo(nuevoEst.eventos,nuevoEst.estado);
-      const lab=await objetivoDiaPRO(r.entrada||new Date().toISOString());
+      const lab=await objetivoDiaPRO(r.entrada||fechaHoyISO());
       const cont=document.getElementById("zx_resumen_tiempo");
 
       let obj=lab.objetivoSeg;
