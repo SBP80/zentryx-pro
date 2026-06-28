@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3083 - ZIP COMPLETO / FECHA LOCAL / MULTIJORNADA REAL
+// V3084 - ZIP COMPLETO / FECHA LOCAL / MULTIJORNADA REAL / SINTAXIS OK
 // ===============================
 (function(){
 "use strict";
@@ -750,7 +750,7 @@ function abrirMenu(estado){
 // ===============================
 // CREAR / INSERTAR / RECALCULAR
 // ===============================
-async async function crearJornada(motivoAdmin){
+async function crearJornada(motivoAdmin){
   const s=sesion();
   const fecha=fechaHoyISO();
   const jornadasDia=await jornadasUsuarioFecha(s.id,fecha);
@@ -973,7 +973,7 @@ async function recalcularJornada(jornadaId){
   }
 }
 
-async async function registrar(tipo){
+async function registrar(tipo){
   const s=sesion();
 
   if(!s.id){
