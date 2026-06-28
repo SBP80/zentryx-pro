@@ -1,16 +1,22 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3079 - ADMIN NUEVA JORNADA CON PIN / MOTIVO / AUDITORÍA
+// V3081 - ZIP COMPLETO / JORNADAS MÚLTIPLES ADMIN / PIN / MOTIVO / AUDITORÍA / AGENDA
 // ===============================
 (function(){
 "use strict";
 
+// ===============================
+// VARIABLES
+// ===============================
 let ZX_VER_ULTIMOS=false;
 let ZX_VER_ADMIN=false;
 let ZX_VER_MIS_JORNADAS=false;
 let ZX_TIMER=null;
 let ZX_RT_CANAL=null;
 
+// ===============================
+// BASE
+// ===============================
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
 
@@ -41,6 +47,11 @@ function uuidSeguro(){
   catch(e){}
   return "zx_"+Date.now()+"_"+Math.random().toString(16).slice(2);
 }
+
+// ===============================
+// FECHAS Y HORAS
+// ===============================
+function fechaHoyISO(){return new Date().toISOString().slice(0,10)}
 
 function formatoFechaES(f){
   if(!f) return "";
@@ -140,6 +151,9 @@ function normalizarComunidadDesdeProvincia(provincia){
   return mapa[p] || p;
 }
 
+// ===============================
+// TIPOS Y ESTADOS
+// ===============================
 function textoTipo(t){
   const m={
     entrada:"Entrada",
@@ -177,6 +191,9 @@ function colorEstado(e){
   return "#64748b";
 }
 
+// ===============================
+// AUDITORÍA Y AVISOS
+// ===============================
 async function insertarAuditoria(accion,detalle,usuarioObjetivoId){
   const s=sesion();
   try{
@@ -242,6 +259,9 @@ function validarAdminOperacion(){
   return true;
 }
 
+// ===============================
+// SOLICITUDES Y CONTEXTO LABORAL
+// ===============================
 function textoTipoSolicitudFichaje(tipo){
   const m={
     asuntos_propios:"Asuntos propios",
@@ -253,18 +273,21 @@ function textoTipoSolicitudFichaje(tipo){
   };
   return m[tipo] || tipo || "";
 }
+
 async function solicitudesDelDia(fechaISOtxt){
   const s=sesion();
   const fecha=String(fechaISOtxt||new Date().toISOString()).slice(0,10);
-  const r=await sb()
-    .from("solicitudes_laborales")
-    .select("*")
-    .eq("usuario_id",String(s.id))
-    .eq("estado","aprobada")
-    .lte("fecha_inicio",fecha)
-    .gte("fecha_fin",fecha);
-  if(r.error || !r.data) return [];
-  return r.data||[];
+  try{
+    const r=await sb()
+      .from("solicitudes_laborales")
+      .select("*")
+      .eq("usuario_id",String(s.id))
+      .eq("estado","aprobada")
+      .lte("fecha_inicio",fecha)
+      .gte("fecha_fin",fecha);
+    if(r.error || !r.data) return [];
+    return r.data||[];
+  }catch(e){return []}
 }
 
 function bloqueoHorarioActual(solicitudes){
@@ -330,22 +353,29 @@ async function contextoLaboralDia(fechaISOtxt){
   return {solicitudes,...analisis};
 }
 
+// ===============================
+// FESTIVOS Y OBJETIVO
+// ===============================
 async function esFestivo(fechaTxt){
   const s=sesion();
   const fecha=String(fechaTxt||new Date().toISOString()).slice(0,10);
 
-  const conf=await sb()
-    .from("config_laboral")
-    .select("pais,provincia,localidad")
-    .eq("usuario_id",String(s.id))
-    .maybeSingle();
+  let conf={data:null};
+  try{
+    conf=await sb()
+      .from("config_laboral")
+      .select("pais,provincia,localidad")
+      .eq("usuario_id",String(s.id))
+      .maybeSingle();
+  }catch(e){}
 
   const paisUsuario=normalizarTexto(conf.data?.pais||"España");
   const provinciaUsuario=normalizarTexto(conf.data?.provincia||"");
   const localidadUsuario=normalizarTexto(conf.data?.localidad||"");
   const comunidadUsuario=normalizarComunidadDesdeProvincia(provinciaUsuario);
 
-  const r=await sb().from("festivos").select("*").eq("fecha",fecha);
+  let r=null;
+  try{r=await sb().from("festivos").select("*").eq("fecha",fecha)}catch(e){return {es:false,tipo:null,nombre:null}}
   if(r.error || !r.data || !r.data.length) return {es:false,tipo:null,nombre:null};
 
   for(const f of r.data){
@@ -356,9 +386,7 @@ async function esFestivo(fechaTxt){
     const comunidad=normalizarTexto(f.comunidad||"");
 
     if(tipo==="nacional"){
-      if(!pais || pais==="empty" || pais===paisUsuario){
-        return {es:true,tipo:f.tipo||"nacional",nombre:f.nombre||"Festivo"};
-      }
+      if(!pais || pais==="empty" || pais===paisUsuario) return {es:true,tipo:f.tipo||"nacional",nombre:f.nombre||"Festivo"};
     }
 
     if(tipo==="autonomico"){
@@ -384,25 +412,27 @@ async function esFestivo(fechaTxt){
 async function objetivoDiaPRO(fechaISOtxt){
   const s=sesion();
   const fecha=String(fechaISOtxt||new Date().toISOString()).slice(0,10);
-  let objetivoBaseSeg=480*60;
 
+  let objetivoBaseSeg=480*60;
   const festivo=await esFestivo(fecha);
 
   if(festivo.es){
     objetivoBaseSeg=0;
   }else{
-    const r=await sb()
-      .from("horarios_usuario")
-      .select("*")
-      .eq("usuario_id",String(s.id))
-      .eq("activo",true)
-      .limit(1);
+    try{
+      const r=await sb()
+        .from("horarios_usuario")
+        .select("*")
+        .eq("usuario_id",String(s.id))
+        .eq("activo",true)
+        .limit(1);
 
-    if(!r.error && r.data && r.data.length){
-      const h=r.data[0];
-      const dia=diaSemana(fecha);
-      objetivoBaseSeg=Number(h[dia]||0)*60;
-    }
+      if(!r.error && r.data && r.data.length){
+        const h=r.data[0];
+        const dia=diaSemana(fecha);
+        objetivoBaseSeg=Number(h[dia]||0)*60;
+      }
+    }catch(e){}
   }
 
   const contexto=await contextoLaboralDia(fecha);
@@ -443,6 +473,9 @@ async function objetivoDiaPRO(fechaISOtxt){
   };
 }
 
+// ===============================
+// GEOLOCALIZACIÓN
+// ===============================
 async function obtenerUbicacion(){
   return new Promise(resolve=>{
     if(!navigator.geolocation){
@@ -471,6 +504,9 @@ async function obtenerUbicacion(){
   });
 }
 
+// ===============================
+// JORNADAS Y FICHAJES
+// ===============================
 async function jornadaAbierta(){
   const s=sesion();
   const r=await sb()
@@ -485,17 +521,16 @@ async function jornadaAbierta(){
   return r.data[0];
 }
 
-async function jornadaUsuarioFecha(usuarioId,fecha){
+async function jornadasUsuarioFecha(usuarioId,fecha){
   const r=await sb()
     .from("jornadas")
     .select("*")
     .eq("usuario_id",String(usuarioId))
     .eq("fecha",String(fecha).slice(0,10))
-    .order("created_at",{ascending:false})
-    .limit(1);
+    .order("created_at",{ascending:false});
 
-  if(r.error || !r.data || !r.data.length) return null;
-  return r.data[0];
+  if(r.error || !r.data) return [];
+  return r.data||[];
 }
 
 async function ultimaJornadaUsuario(){
@@ -521,6 +556,7 @@ async function fichajesDeJornada(jornadaId){
   if(r.error) return [];
   return r.data||[];
 }
+
 async function estadoActual(){
   const j=await jornadaAbierta();
   if(!j) return {estado:"fuera",jornada:null,eventos:[]};
@@ -531,6 +567,9 @@ async function estadoActual(){
   return {estado:estadoDesdeTipo(ultimo ? ultimo.tipo : "entrada"),jornada:j,eventos};
 }
 
+// ===============================
+// CÁLCULO
+// ===============================
 function calcularEnVivo(eventos,estado){
   const lista=(eventos||[]).slice().sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
 
@@ -628,6 +667,9 @@ function resumenDesdeJornada(j){
   };
 }
 
+// ===============================
+// OPCIONES Y MODAL
+// ===============================
 function opcionesPermitidas(estado){
   if(estado==="fuera") return [{tipo:"entrada",texto:"Entrada",clase:"zx_verde"}];
 
@@ -690,14 +732,20 @@ function abrirMenu(estado){
   document.getElementById("zx_cancelar_fichaje").onclick=cerrarModal;
 }
 
+// ===============================
+// CREAR / INSERTAR / RECALCULAR
+// ===============================
 async function crearJornada(motivoAdmin){
   const s=sesion();
-  const fechaHoy=new Date().toISOString().slice(0,10);
-  const duplicada=await jornadaUsuarioFecha(s.id,fechaHoy);
+  const fecha=fechaHoyISO();
+  const jornadasDia=await jornadasUsuarioFecha(s.id,fecha);
+  const abierta=jornadasDia.find(j=>j.estado==="abierta");
 
-  if(duplicada && duplicada.estado==="abierta") return duplicada;
+  if(abierta) return abierta;
 
-  if(duplicada && duplicada.estado==="cerrada" && !motivoAdmin){
+  const cerradas=jornadasDia.filter(j=>j.estado==="cerrada");
+
+  if(cerradas.length && !motivoAdmin){
     alert("Ya existe una jornada cerrada hoy. Solo administrador puede crear otra con PIN y motivo.");
     return null;
   }
@@ -705,11 +753,18 @@ async function crearJornada(motivoAdmin){
   const entrada=ahora();
   const laboral=await objetivoDiaPRO(entrada);
 
+  let objetivoMin=Math.floor(Number(laboral.objetivoSeg||0)/60);
+
+  // Una jornada extra creada por administrador se considera trabajo extra desde el primer minuto.
+  if(motivoAdmin && cerradas.length){
+    objetivoMin=0;
+  }
+
   const datos={
     usuario_id:String(s.id),
     usuario:s.usuario||"",
     nombre:s.nombre||"",
-    fecha:fechaHoy,
+    fecha,
     entrada,
     estado:"abierta",
     es_festivo:laboral.festivo,
@@ -721,10 +776,11 @@ async function crearJornada(motivoAdmin){
     minutos_trabajados:0,
     minutos_descanso:0,
     minutos_comida:0,
-    minutos_objetivo:Math.floor(Number(laboral.objetivoSeg||0)/60),
+    minutos_objetivo:objetivoMin,
     minutos_extra:0,
-    minutos_faltantes:Math.floor(Number(laboral.objetivoSeg||0)/60),
-    horas_extra:0
+    minutos_faltantes:objetivoMin,
+    horas_extra:0,
+    created_at:ahora()
   };
 
   const r=await sb().from("jornadas").insert([datos]).select().single();
@@ -735,8 +791,8 @@ async function crearJornada(motivoAdmin){
   }
 
   if(motivoAdmin){
-    await insertarAuditoria("crear_segunda_jornada","Segunda jornada creada por admin. Motivo: "+motivoAdmin,s.id);
-    await insertarAviso(s.id,"Nueva jornada creada","Se ha creado una nueva jornada con motivo: "+motivoAdmin,"fichaje");
+    await insertarAuditoria("crear_jornada_extra","Jornada extra creada por admin. Motivo: "+motivoAdmin,s.id);
+    await insertarAviso(s.id,"Jornada extra creada","Se ha creado una jornada extra. Motivo: "+motivoAdmin,"fichaje");
   }
 
   return r.data;
@@ -831,6 +887,10 @@ async function sincronizarHorasExtra(jornadaId,c,laboral,extraSeg){
 async function recalcularJornada(jornadaId){
   if(!jornadaId) return;
 
+  const rj=await sb().from("jornadas").select("*").eq("id",jornadaId).single();
+  if(rj.error || !rj.data) return;
+  const jornada=rj.data;
+
   const eventos=await fichajesDeJornada(jornadaId);
 
   if(!eventos.length){
@@ -847,7 +907,12 @@ async function recalcularJornada(jornadaId){
   const fechaBase=(c.entrada||new Date().toISOString()).slice(0,10);
   const laboral=await objetivoDiaPRO(fechaBase);
 
-  const objetivoSeg=Number(laboral.objetivoSeg||0);
+  let objetivoSeg=Number(laboral.objetivoSeg||0);
+
+  if(String(jornada.observacion_laboral||"").includes("Jornada extra creada por administrador")){
+    objetivoSeg=0;
+  }
+
   const extraSeg=Math.max(0,c.trabajadoSeg-objetivoSeg);
   const faltanteSeg=Math.max(0,objetivoSeg-c.trabajadoSeg);
 
@@ -876,6 +941,7 @@ async function recalcularJornada(jornadaId){
     alert("Error recalculando jornada: "+r.error.message);
   }
 }
+
 async function registrar(tipo){
   const s=sesion();
 
@@ -884,8 +950,8 @@ async function registrar(tipo){
     return;
   }
 
-  const fechaHoy=new Date().toISOString().slice(0,10);
-  const laboral=await objetivoDiaPRO(fechaHoy);
+  const fecha=fechaHoyISO();
+  const laboral=await objetivoDiaPRO(fecha);
 
   if(laboral.bloquearFichaje && tipo==="entrada"){
     alert("No se puede fichar: existe una baja médica aprobada para hoy.");
@@ -904,9 +970,10 @@ async function registrar(tipo){
   let motivoAdmin=null;
 
   if(tipo==="entrada"){
-    const ya=await jornadaUsuarioFecha(s.id,fechaHoy);
+    const jornadasDia=await jornadasUsuarioFecha(s.id,fecha);
+    const cerradas=jornadasDia.filter(j=>j.estado==="cerrada");
 
-    if(ya && ya.estado==="cerrada"){
+    if(cerradas.length){
       if(!esAdmin()){
         alert("Ya tienes una jornada cerrada hoy. No se puede crear otra.");
         return;
@@ -973,6 +1040,9 @@ async function registrar(tipo){
   ZX_fichaje_real();
 }
 
+// ===============================
+// AGENDA EXTRA AL CERRAR JORNADA
+// ===============================
 async function crearEventoAgendaExtra(jornadaId){
   try{
     const rj=await sb().from("jornadas").select("*").eq("id",jornadaId).single();
@@ -1008,6 +1078,9 @@ async function crearEventoAgendaExtra(jornadaId){
   }catch(e){}
 }
 
+// ===============================
+// CONSULTAS LISTADOS
+// ===============================
 async function ultimosFichajes(){
   const s=sesion();
   const r=await sb()
@@ -1036,7 +1109,7 @@ async function jornadasUsuario(){
 
 async function jornadasAdminHoy(){
   const s=sesion();
-  const hoy=new Date().toISOString().slice(0,10);
+  const hoy=fechaHoyISO();
 
   const r=await sb()
     .from("jornadas")
@@ -1050,6 +1123,9 @@ async function jornadasAdminHoy(){
   return (r.data||[]).filter(j=>String(j.usuario_id)!==String(s.id));
 }
 
+// ===============================
+// BORRAR Y EDITAR
+// ===============================
 async function borrarJornada(id){
   if(!validarAdminOperacion()) return;
 
@@ -1250,6 +1326,9 @@ async function verFichajesJornada(jornadaId){
   });
 }
 
+// ===============================
+// RENDER
+// ===============================
 function resumenHTML(resumen,objetivoSeg,laboral=null){
   const extraSeg=Math.max(0,Number(resumen.trabajadoSeg||0)-Number(objetivoSeg||0));
   const faltaSeg=Math.max(0,Number(objetivoSeg||0)-Number(resumen.trabajadoSeg||0));
@@ -1365,6 +1444,9 @@ function renderAdminResumen(jornadasHoy){
   `;
 }
 
+// ===============================
+// ESTILOS
+// ===============================
 function estilosAdminCompacto(){
   if(document.getElementById("zx_admin_compacto_css")) return;
 
@@ -1403,12 +1485,15 @@ function estilosAdminCompacto(){
   document.head.appendChild(s);
 }
 
+// ===============================
+// TIEMPO REAL
+// ===============================
 function iniciarTiempoReal(){
   if(ZX_RT_CANAL || !sb() || !sb().channel) return;
 
   try{
     ZX_RT_CANAL=sb()
-      .channel("zx_fichaje_rt_v3079")
+      .channel("zx_fichaje_rt_v3081")
       .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},()=>ZX_fichaje_real())
@@ -1416,6 +1501,9 @@ function iniciarTiempoReal(){
   }catch(e){}
 }
 
+// ===============================
+// TOGGLES
+// ===============================
 window.ZX_toggleUltimos=function(){
   ZX_VER_ULTIMOS=!ZX_VER_ULTIMOS;
   ZX_fichaje_real();
@@ -1431,6 +1519,9 @@ window.ZX_toggleMisJornadas=function(){
   ZX_fichaje_real();
 };
 
+// ===============================
+// PANTALLA PRINCIPAL
+// ===============================
 window.ZX_fichaje_real=async function(){
   estilosAdminCompacto();
   iniciarTiempoReal();
@@ -1458,8 +1549,13 @@ window.ZX_fichaje_real=async function(){
   if(est.jornada){
     resumen=calcularEnVivo(est.eventos,est.estado);
     laboral=await objetivoDiaPRO(resumen.entrada||new Date().toISOString());
-    objetivoSeg=laboral.objetivoSeg;
-  }else if(ultima && ultima.estado==="cerrada" && String(ultima.fecha)===new Date().toISOString().slice(0,10)){
+
+    if(String(est.jornada.observacion_laboral||"").includes("Jornada extra creada por administrador")){
+      objetivoSeg=0;
+    }else{
+      objetivoSeg=laboral.objetivoSeg;
+    }
+  }else if(ultima && ultima.estado==="cerrada" && String(ultima.fecha)===fechaHoyISO()){
     resumen=resumenDesdeJornada(ultima);
     objetivoSeg=Number(ultima.minutos_objetivo||480)*60;
     laboral=await objetivoDiaPRO(ultima.fecha);
@@ -1553,13 +1649,24 @@ window.ZX_fichaje_real=async function(){
       const lab=await objetivoDiaPRO(r.entrada||new Date().toISOString());
       const cont=document.getElementById("zx_resumen_tiempo");
 
+      let obj=lab.objetivoSeg;
+      if(nuevoEst.jornada && String(nuevoEst.jornada.observacion_laboral||"").includes("Jornada extra creada por administrador")){
+        obj=0;
+      }
+
       if(cont){
-        cont.innerHTML=resumenHTML(r,lab.objetivoSeg,lab);
+        cont.innerHTML=resumenHTML(r,obj,lab);
       }
     },1000);
   }
 };
 
+// ===============================
+// COMPATIBILIDAD
+// ===============================
 window.ZX_fichaje=window.ZX_fichaje_real;
 
+// ===============================
+// FIN MÓDULO
+// ===============================
 })();
