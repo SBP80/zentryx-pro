@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3078 - CIERRE CORREGIDO / TIEMPOS FIJOS / RESUMEN ÚLTIMA JORNADA
+// V3079 - ADMIN NUEVA JORNADA CON PIN / MOTIVO / AUDITORÍA
 // ===============================
 (function(){
 "use strict";
@@ -253,7 +253,6 @@ function textoTipoSolicitudFichaje(tipo){
   };
   return m[tipo] || tipo || "";
 }
-
 async function solicitudesDelDia(fechaISOtxt){
   const s=sesion();
   const fecha=String(fechaISOtxt||new Date().toISOString()).slice(0,10);
@@ -284,14 +283,7 @@ function bloqueoHorarioActual(solicitudes){
     else dentro=actual>=min1 || actual<=min2;
 
     if(dentro){
-      return {
-        bloqueado:true,
-        inicio:s.hora_inicio,
-        fin:s.hora_fin,
-        tipo:s.tipo,
-        texto:textoTipoSolicitudFichaje(s.tipo),
-        solicitud:s
-      };
+      return {bloqueado:true,inicio:s.hora_inicio,fin:s.hora_fin,tipo:s.tipo,texto:textoTipoSolicitudFichaje(s.tipo),solicitud:s};
     }
   }
 
@@ -529,7 +521,6 @@ async function fichajesDeJornada(jornadaId){
   if(r.error) return [];
   return r.data||[];
 }
-
 async function estadoActual(){
   const j=await jornadaAbierta();
   if(!j) return {estado:"fuera",jornada:null,eventos:[]};
@@ -537,11 +528,7 @@ async function estadoActual(){
   const eventos=await fichajesDeJornada(j.id);
   const ultimo=eventos.length ? eventos[eventos.length-1] : null;
 
-  return {
-    estado:estadoDesdeTipo(ultimo ? ultimo.tipo : "entrada"),
-    jornada:j,
-    eventos
-  };
+  return {estado:estadoDesdeTipo(ultimo ? ultimo.tipo : "entrada"),jornada:j,eventos};
 }
 
 function calcularEnVivo(eventos,estado){
@@ -703,49 +690,53 @@ function abrirMenu(estado){
   document.getElementById("zx_cancelar_fichaje").onclick=cerrarModal;
 }
 
-async function crearJornada(){
+async function crearJornada(motivoAdmin){
   const s=sesion();
   const fechaHoy=new Date().toISOString().slice(0,10);
   const duplicada=await jornadaUsuarioFecha(s.id,fechaHoy);
 
-  if(duplicada){
-    if(duplicada.estado==="abierta") return duplicada;
-    alert("Ya existe una jornada para este usuario en el día de hoy. No se puede crear otra.");
+  if(duplicada && duplicada.estado==="abierta") return duplicada;
+
+  if(duplicada && duplicada.estado==="cerrada" && !motivoAdmin){
+    alert("Ya existe una jornada cerrada hoy. Solo administrador puede crear otra con PIN y motivo.");
     return null;
   }
 
   const entrada=ahora();
   const laboral=await objetivoDiaPRO(entrada);
 
-  const r=await sb()
-    .from("jornadas")
-    .insert([{
-      usuario_id:String(s.id),
-      usuario:s.usuario||"",
-      nombre:s.nombre||"",
-      fecha:fechaHoy,
-      entrada,
-      estado:"abierta",
-      es_festivo:laboral.festivo,
-      tipo_festivo:laboral.tipoFestivo,
-      solicitud_id:laboral.solicitudId,
-      tipo_ausencia:laboral.tipoAusencia,
-      minutos_justificados:laboral.minutosJustificados,
-      observacion_laboral:laboral.observacion,
-      minutos_trabajados:0,
-      minutos_descanso:0,
-      minutos_comida:0,
-      minutos_objetivo:Math.floor(Number(laboral.objetivoSeg||0)/60),
-      minutos_extra:0,
-      minutos_faltantes:Math.floor(Number(laboral.objetivoSeg||0)/60),
-      horas_extra:0
-    }])
-    .select()
-    .single();
+  const datos={
+    usuario_id:String(s.id),
+    usuario:s.usuario||"",
+    nombre:s.nombre||"",
+    fecha:fechaHoy,
+    entrada,
+    estado:"abierta",
+    es_festivo:laboral.festivo,
+    tipo_festivo:laboral.tipoFestivo,
+    solicitud_id:laboral.solicitudId,
+    tipo_ausencia:laboral.tipoAusencia,
+    minutos_justificados:laboral.minutosJustificados,
+    observacion_laboral:motivoAdmin ? "Jornada extra creada por administrador. Motivo: "+motivoAdmin : laboral.observacion,
+    minutos_trabajados:0,
+    minutos_descanso:0,
+    minutos_comida:0,
+    minutos_objetivo:Math.floor(Number(laboral.objetivoSeg||0)/60),
+    minutos_extra:0,
+    minutos_faltantes:Math.floor(Number(laboral.objetivoSeg||0)/60),
+    horas_extra:0
+  };
+
+  const r=await sb().from("jornadas").insert([datos]).select().single();
 
   if(r.error){
     alert("Error creando jornada: "+r.error.message);
     return null;
+  }
+
+  if(motivoAdmin){
+    await insertarAuditoria("crear_segunda_jornada","Segunda jornada creada por admin. Motivo: "+motivoAdmin,s.id);
+    await insertarAviso(s.id,"Nueva jornada creada","Se ha creado una nueva jornada con motivo: "+motivoAdmin,"fichaje");
   }
 
   return r.data;
@@ -876,7 +867,6 @@ async function recalcularJornada(jornadaId){
     solicitud_id:laboral.solicitudId,
     tipo_ausencia:laboral.tipoAusencia,
     minutos_justificados:laboral.minutosJustificados,
-    observacion_laboral:laboral.observacion,
     estado:nuevoEstado
   };
 
@@ -886,7 +876,6 @@ async function recalcularJornada(jornadaId){
     alert("Error recalculando jornada: "+r.error.message);
   }
 }
-
 async function registrar(tipo){
   const s=sesion();
 
@@ -912,12 +901,21 @@ async function registrar(tipo){
 
   const est=await estadoActual();
   let jornada=est.jornada;
+  let motivoAdmin=null;
 
   if(tipo==="entrada"){
     const ya=await jornadaUsuarioFecha(s.id,fechaHoy);
+
     if(ya && ya.estado==="cerrada"){
-      alert("Ya tienes una jornada cerrada hoy. No se puede crear otra.");
-      return;
+      if(!esAdmin()){
+        alert("Ya tienes una jornada cerrada hoy. No se puede crear otra.");
+        return;
+      }
+
+      if(!validarAdminOperacion()) return;
+
+      motivoAdmin=pedirMotivo("Motivo para crear otra jornada hoy.");
+      if(!motivoAdmin) return;
     }
   }
 
@@ -957,7 +955,7 @@ async function registrar(tipo){
   }
 
   if(tipo==="entrada"){
-    jornada=await crearJornada();
+    jornada=await crearJornada(motivoAdmin);
     if(!jornada) return;
   }
 
@@ -1030,7 +1028,7 @@ async function jornadasUsuario(){
     .select("*")
     .eq("usuario_id",String(s.id))
     .order("created_at",{ascending:false})
-    .limit(5);
+    .limit(8);
 
   if(r.error) return [];
   return r.data||[];
@@ -1410,7 +1408,7 @@ function iniciarTiempoReal(){
 
   try{
     ZX_RT_CANAL=sb()
-      .channel("zx_fichaje_rt_v3078")
+      .channel("zx_fichaje_rt_v3079")
       .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},()=>ZX_fichaje_real())
