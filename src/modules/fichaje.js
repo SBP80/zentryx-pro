@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3077 - JORNADA ÚNICA / VALIDACIÓN / AUDITORÍA / AVISOS / TIEMPO REAL
+// V3079 - VARIAS JORNADAS/DÍA + UNA ABIERTA + HORAS EXTRA DIARIAS
 // ===============================
 (function(){
 "use strict";
@@ -453,6 +453,229 @@ async function objetivoDiaPRO(fechaISOtxt){
   };
 }
 
+
+// ===============================
+// OBJETIVO DIARIO POR USUARIO
+// ===============================
+async function solicitudesDelDiaUsuario(usuarioId,fechaISOtxt){
+  const fecha=String(fechaISOtxt || new Date().toISOString()).slice(0,10);
+  const r=await sb()
+    .from("solicitudes_laborales")
+    .select("*")
+    .eq("usuario_id",String(usuarioId))
+    .eq("estado","aprobada")
+    .lte("fecha_inicio",fecha)
+    .gte("fecha_fin",fecha);
+
+  if(r.error || !r.data) return [];
+  return r.data || [];
+}
+
+async function esFestivoUsuario(usuarioId,fechaTxt){
+  const fecha=String(fechaTxt||new Date().toISOString()).slice(0,10);
+
+  const conf=await sb()
+    .from("config_laboral")
+    .select("pais,provincia,localidad")
+    .eq("usuario_id",String(usuarioId))
+    .maybeSingle();
+
+  const paisUsuario=normalizarTexto(conf.data?.pais || "España");
+  const provinciaUsuario=normalizarTexto(conf.data?.provincia || "");
+  const localidadUsuario=normalizarTexto(conf.data?.localidad || "");
+  const comunidadUsuario=normalizarComunidadDesdeProvincia(provinciaUsuario);
+
+  const r=await sb()
+    .from("festivos")
+    .select("*")
+    .eq("fecha",fecha);
+
+  if(r.error || !r.data || !r.data.length) return {es:false,tipo:null,nombre:null};
+
+  for(const f of r.data){
+    const tipo=normalizarTexto(f.tipo || "");
+    const pais=normalizarTexto(f.pais || "");
+    const provincia=normalizarTexto(f.provincia || "");
+    const localidad=normalizarTexto(f.localidad || "");
+    const comunidad=normalizarTexto(f.comunidad || "");
+
+    if(tipo==="nacional" && (!pais || pais==="empty" || pais===paisUsuario)){
+      return {es:true,tipo:f.tipo || "nacional",nombre:f.nombre || "Festivo"};
+    }
+
+    if(tipo==="autonomico" && comunidad && comunidad!=="empty" && (comunidad===comunidadUsuario || comunidad===provinciaUsuario)){
+      return {es:true,tipo:f.tipo || "autonomico",nombre:f.nombre || "Festivo"};
+    }
+
+    if(tipo==="local" && localidad && localidad!=="empty" && localidad===localidadUsuario){
+      return {es:true,tipo:f.tipo || "local",nombre:f.nombre || "Festivo"};
+    }
+
+    if(provincia && provincia!=="empty" && provincia===provinciaUsuario && tipo!=="local"){
+      return {es:true,tipo:f.tipo || "festivo",nombre:f.nombre || "Festivo"};
+    }
+  }
+
+  return {es:false,tipo:null,nombre:null};
+}
+
+async function contextoLaboralDiaUsuario(usuarioId,fechaISOtxt){
+  const solicitudes=await solicitudesDelDiaUsuario(usuarioId,fechaISOtxt);
+  const analisis=analizarSolicitudesDia(solicitudes);
+  return {solicitudes,...analisis};
+}
+
+async function objetivoDiaPROUsuario(usuarioId,fechaISOtxt){
+  const fecha=String(fechaISOtxt||new Date().toISOString()).slice(0,10);
+  let objetivoBaseSeg=480*60;
+  const festivo=await esFestivoUsuario(usuarioId,fecha);
+
+  if(festivo.es){
+    objetivoBaseSeg=0;
+  }else{
+    const r=await sb()
+      .from("horarios_usuario")
+      .select("*")
+      .eq("usuario_id",String(usuarioId))
+      .eq("activo",true)
+      .limit(1);
+
+    if(!r.error && r.data && r.data.length){
+      const h=r.data[0];
+      const dia=diaSemana(fecha);
+      objetivoBaseSeg=Number(h[dia]||0)*60;
+    }
+  }
+
+  const contexto=await contextoLaboralDiaUsuario(usuarioId,fecha);
+
+  let objetivoFinalSeg=objetivoBaseSeg;
+  let minutosJustificados=0;
+  let tipoAusencia=null;
+  let observacion="";
+  let solicitudId=null;
+  let bloquearFichaje=false;
+
+  if(contexto && contexto.tipo){
+    tipoAusencia=contexto.tipo;
+    minutosJustificados=Number(contexto.minutosJustificados||0);
+    observacion=textoTipoSolicitudFichaje(contexto.tipo);
+    solicitudId=contexto.solicitudId || null;
+    bloquearFichaje=!!contexto.bloquearFichaje;
+
+    if(
+      contexto.tipo==="vacaciones" ||
+      contexto.tipo==="baja_medica" ||
+      (minutosJustificados>=24*60 && contexto.tipo!=="asuntos_propios")
+    ){
+      objetivoFinalSeg=0;
+    }else if(minutosJustificados>0){
+      objetivoFinalSeg=Math.max(0,objetivoBaseSeg-(minutosJustificados*60));
+    }
+  }
+
+  return {
+    objetivoSeg:objetivoFinalSeg,
+    objetivoBaseSeg,
+    minutosJustificados,
+    tipoAusencia,
+    observacion,
+    solicitudId,
+    bloquearFichaje,
+    solicitudes:contexto.solicitudes || [],
+    festivo:festivo.es,
+    tipoFestivo:festivo.tipo,
+    nombreFestivo:festivo.nombre
+  };
+}
+
+async function sincronizarHorasExtraDia(usuarioId,fecha){
+  const dia=String(fecha||new Date().toISOString()).slice(0,10);
+  const jornadas=await jornadasUsuarioFecha(usuarioId,dia);
+  if(!jornadas.length) return;
+
+  const primera=jornadas[0] || {};
+  const usuarioInfo=await usuarioBasicoPorId(usuarioId);
+  const nombre=(primera.nombre || usuarioInfo?.nombre || primera.usuario || usuarioInfo?.usuario || "");
+  const usuario=(primera.usuario || usuarioInfo?.usuario || "");
+
+  let totalTrab=0;
+  let totalDesc=0;
+  let totalComida=0;
+
+  jornadas.forEach(j=>{
+    totalTrab+=Number(j.minutos_trabajados || 0);
+    totalDesc+=Number(j.minutos_descanso || 0);
+    totalComida+=Number(j.minutos_comida || 0);
+  });
+
+  const laboral=await objetivoDiaPROUsuario(usuarioId,dia);
+  const objetivoMin=Math.floor(Number(laboral.objetivoSeg||0)/60);
+  const extraMin=Math.max(0,totalTrab-objetivoMin);
+  const faltanteMin=Math.max(0,objetivoMin-totalTrab);
+
+  for(const j of jornadas){
+    await sb()
+      .from("jornadas")
+      .update({
+        minutos_objetivo:objetivoMin,
+        minutos_extra:extraMin,
+        minutos_faltantes:faltanteMin,
+        horas_extra:extraMin,
+        es_festivo:laboral.festivo,
+        tipo_festivo:laboral.tipoFestivo,
+        solicitud_id:laboral.solicitudId,
+        tipo_ausencia:laboral.tipoAusencia,
+        minutos_justificados:laboral.minutosJustificados,
+        observacion_laboral:laboral.observacion
+      })
+      .eq("id",j.id);
+  }
+
+  const jornadaDiaId="dia_"+String(usuarioId)+"_"+dia;
+  const existente=await sb()
+    .from("horas_extra_pro")
+    .select("*")
+    .eq("usuario_id",String(usuarioId))
+    .eq("fecha",dia)
+    .limit(1);
+
+  const reg=existente.data && existente.data.length ? existente.data[0] : null;
+
+  if(extraMin<=0){
+    if(reg && !["pagada","cobrada","cobrada_trabajador","pagada_empresa","bloqueada"].includes(reg.estado)){
+      await sb().from("horas_extra_pro").delete().eq("id",reg.id);
+    }
+    return;
+  }
+
+  const horasDecimal=Number((extraMin/60).toFixed(2));
+  const precioHora=Number(reg?.precio_hora || 15);
+  const importe=Number((horasDecimal*precioHora).toFixed(2));
+  const datos={
+    usuario_id:String(usuarioId),
+    usuario,
+    nombre,
+    jornada_id:jornadaDiaId,
+    fecha:dia,
+    tipo:laboral.festivo ? "festivo" : "normal",
+    minutos:extraMin,
+    horas_decimal:horasDecimal,
+    precio_hora:precioHora,
+    importe,
+    observacion:laboral.observacion || (laboral.objetivoSeg===0 ? "Jornada fuera de horario previsto" : "Exceso sobre jornada diaria"),
+    updated_at:new Date().toISOString()
+  };
+
+  if(reg){
+    if(["pagada","cobrada","cobrada_trabajador","pagada_empresa","bloqueada"].includes(reg.estado)) return;
+    await sb().from("horas_extra_pro").update(datos).eq("id",reg.id);
+  }else{
+    await sb().from("horas_extra_pro").insert([{...datos,estado:"pendiente_trabajador"}]);
+  }
+}
+
+
 // ===============================
 // GEOLOCALIZACIÓN
 // ===============================
@@ -504,6 +727,41 @@ async function jornadaUsuarioFecha(usuarioId,fecha){
     .limit(1);
   if(r.error || !r.data || !r.data.length) return null;
   return r.data[0];
+}
+
+async function jornadaAbiertaUsuario(usuarioId){
+  const r=await sb()
+    .from("jornadas")
+    .select("*")
+    .eq("usuario_id",String(usuarioId))
+    .eq("estado","abierta")
+    .order("created_at",{ascending:false})
+    .limit(1);
+  if(r.error || !r.data || !r.data.length) return null;
+  return r.data[0];
+}
+
+async function jornadasUsuarioFecha(usuarioId,fecha){
+  const r=await sb()
+    .from("jornadas")
+    .select("*")
+    .eq("usuario_id",String(usuarioId))
+    .eq("fecha",String(fecha).slice(0,10))
+    .order("entrada",{ascending:true});
+  if(r.error) return [];
+  return r.data || [];
+}
+
+async function usuarioBasicoPorId(usuarioId){
+  try{
+    const r=await sb()
+      .from("usuarios")
+      .select("id,usuario,nombre,rol")
+      .eq("id",String(usuarioId))
+      .maybeSingle();
+    if(!r.error && r.data) return r.data;
+  }catch(e){}
+  return null;
 }
 
 async function fichajesDeJornada(jornadaId){
@@ -641,14 +899,10 @@ function abrirMenu(estado){
 async function crearJornada(){
   const s=sesion();
   const fechaHoy=new Date().toISOString().slice(0,10);
-  const duplicada=await jornadaUsuarioFecha(s.id,fechaHoy);
+  const abierta=await jornadaAbiertaUsuario(s.id);
 
-  if(duplicada){
-    if(duplicada.estado==="abierta"){
-      return duplicada;
-    }
-    alert("Ya existe una jornada para este usuario en el día de hoy. No se puede crear otra.");
-    return null;
+  if(abierta){
+    return abierta;
   }
 
   const entrada=ahora();
@@ -674,7 +928,7 @@ async function crearJornada(){
 
   if(r.error){
     if(String(r.error.message||"").includes("duplicate") || String(r.error.code||"")==="23505"){
-      alert("Ya existe una jornada para este usuario en el día de hoy.");
+      alert("No se pudo crear la jornada. Revisa si existe una jornada abierta.");
     }else{
       alert("Error creando jornada: "+r.error.message);
     }
@@ -770,43 +1024,55 @@ async function sincronizarHorasExtra(jornadaId,c,laboral,extraSeg){
 // ===============================
 async function recalcularJornada(jornadaId){
   if(!jornadaId) return;
+
   const eventos=await fichajesDeJornada(jornadaId);
 
   if(!eventos.length){
+    const rj0=await sb().from("jornadas").select("*").eq("id",jornadaId).maybeSingle();
+    const j0=rj0.data || null;
+
     await sb().from("jornadas").delete().eq("id",jornadaId);
-    await sb().from("horas_extra_pro").delete().eq("jornada_id",jornadaId);
+
+    if(j0 && j0.usuario_id && j0.fecha){
+      await sincronizarHorasExtraDia(j0.usuario_id,j0.fecha);
+    }
+
     return;
   }
 
   const ultimo=eventos[eventos.length-1];
   const estado=estadoDesdeTipo(ultimo ? ultimo.tipo : null);
   const c=calcularEnVivo(eventos,estado);
-  const laboral=await objetivoDiaPRO(c.entrada || new Date().toISOString());
-  const objetivoSeg=laboral.objetivoSeg;
-  const extraSeg=Math.max(0,c.trabajadoSeg-objetivoSeg);
-  const faltanteSeg=Math.max(0,objetivoSeg-c.trabajadoSeg);
-  await sincronizarHorasExtra(jornadaId,c,laboral,extraSeg);
+
+  const rj=await sb().from("jornadas").select("*").eq("id",jornadaId).maybeSingle();
+  const jornadaActual=rj.data || {};
+  const usuarioId=String(jornadaActual.usuario_id || eventos[0].usuario_id || sesion().id || "");
+  const fechaJornada=String(jornadaActual.fecha || c.entrada || new Date().toISOString()).slice(0,10);
+
+  const laboral=await objetivoDiaPROUsuario(usuarioId,fechaJornada);
   const nuevoEstado=ultimo && ultimo.tipo==="salida" ? "cerrada" : "abierta";
 
   const r=await sb().from("jornadas").update({
+    entrada:c.entrada,
     salida:c.salida,
     minutos_trabajados:Math.floor(c.trabajadoSeg/60),
     minutos_descanso:Math.floor(c.descansoSeg/60),
     minutos_comida:Math.floor(c.comidaSeg/60),
-    minutos_objetivo:Math.floor(objetivoSeg/60),
-    minutos_extra:Math.floor(extraSeg/60),
-    minutos_faltantes:Math.floor(faltanteSeg/60),
-    horas_extra:Math.floor(extraSeg/60),
+    estado:nuevoEstado,
     es_festivo:laboral.festivo,
     tipo_festivo:laboral.tipoFestivo,
     solicitud_id:laboral.solicitudId,
     tipo_ausencia:laboral.tipoAusencia,
     minutos_justificados:laboral.minutosJustificados,
-    observacion_laboral:laboral.observacion,
-    estado:nuevoEstado
+    observacion_laboral:laboral.observacion
   }).eq("id",jornadaId);
 
-  if(r.error) alert("Error recalculando jornada: "+r.error.message);
+  if(r.error){
+    alert("Error recalculando jornada: "+r.error.message);
+    return;
+  }
+
+  await sincronizarHorasExtraDia(usuarioId,fechaJornada);
 }
 
 // ===============================
@@ -837,9 +1103,9 @@ async function registrar(tipo){
   let jornada=est.jornada;
 
   if(tipo==="entrada"){
-    const ya=await jornadaUsuarioFecha(s.id,fechaHoy);
-    if(ya && ya.estado==="cerrada"){
-      alert("Ya tienes una jornada cerrada hoy. No se puede crear otra.");
+    const abierta=await jornadaAbiertaUsuario(s.id);
+    if(abierta){
+      alert("Ya tienes una jornada abierta.");
       return;
     }
   }
@@ -1298,7 +1564,7 @@ function iniciarTiempoReal(){
   if(ZX_RT_CANAL || !sb() || !sb().channel) return;
   try{
     ZX_RT_CANAL=sb()
-      .channel("zx_fichaje_rt_v3077")
+      .channel("zx_fichaje_rt_v3079")
       .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},()=>ZX_fichaje_real())
