@@ -355,3 +355,605 @@ async function crearIncidencia(d,cfg){
     return r.data;
   }catch(e){return null}
 }
+async function actualizarIncidencia(id,estado){
+  const comentario=prompt("Comentario opcional")||"";
+
+  const r=await sb()
+    .from("control_fichajes_incidencias")
+    .update({
+      estado,
+      comentario_admin:comentario,
+      revisado_por:sesion().usuario||"",
+      revisado_en:ahora(),
+      updated_at:ahora()
+    })
+    .eq("id",String(id));
+
+  if(r.error){
+    alert("Error actualizando incidencia: "+r.error.message);
+    return false;
+  }
+
+  await insertarAuditoria("actualizar_incidencia","Incidencia "+id+" -> "+estado,null);
+  return true;
+}
+
+function estadoDesdeEventos(ev){
+  const u=(ev||[]).length ? ev[ev.length-1] : null;
+  return estadoDesdeTipo(u ? u.tipo : null);
+}
+
+function ultimoEvento(ev,tipo){
+  const l=(ev||[]).filter(e=>e.tipo===tipo);
+  return l.length ? l[l.length-1] : null;
+}
+
+async function evaluarUsuario(u){
+  const fecha=fechaHoyISO();
+  const cfg=await configUsuario(u.id);
+
+  const out={
+    usuario:u,
+    cfg,
+    estado:"correcto",
+    incidencias:[]
+  };
+
+  if(!cfg.activo){
+    out.estado="sin_control";
+    return out;
+  }
+
+  const jornadas=await jornadasUsuarioFecha(u.id,fecha);
+  const abierta=jornadas.find(j=>j.estado==="abierta") || await jornadaAbiertaUsuario(u.id);
+
+  const actual=minutosAhora();
+  const entrada=minutosDesdeHora(cfg.hora_entrada);
+  const salida=minutosDesdeHora(cfg.hora_salida);
+  const tieneEntrada=jornadas.some(j=>!!j.entrada);
+
+  if(!tieneEntrada && entrada!==null && actual>=entrada+Number(cfg.margen_entrada_min||0)){
+    const inc=await crearIncidencia({
+      usuario_id:u.id,
+      usuario:u.usuario,
+      nombre:u.nombre,
+      fecha,
+      tipo:"no_entrada",
+      severidad:"alta",
+      titulo:"No ha fichado entrada",
+      detalle:(u.nombre||u.usuario||"Usuario")+" no ha fichado entrada. Prevista: "+cfg.hora_entrada+" + "+cfg.margen_entrada_min+" min."
+    },cfg);
+
+    if(inc)out.incidencias.push(inc);
+    out.estado="incidencia";
+  }
+
+  if(abierta){
+    const ev=await fichajesDeJornada(abierta.id);
+    const estado=estadoDesdeEventos(ev);
+
+    if(salida!==null && actual>=salida+Number(cfg.margen_salida_min||0)){
+      const inc=await crearIncidencia({
+        usuario_id:u.id,
+        usuario:u.usuario,
+        nombre:u.nombre,
+        fecha,
+        tipo:"no_salida",
+        severidad:"media",
+        titulo:"No ha fichado salida",
+        detalle:(u.nombre||u.usuario||"Usuario")+" tiene jornada abierta pasada la salida prevista: "+cfg.hora_salida+".",
+        jornada_id:abierta.id
+      },cfg);
+
+      if(inc)out.incidencias.push(inc);
+      out.estado="incidencia";
+    }
+
+    if(abierta.entrada){
+      const minAbierta=minutosDesdeISO(abierta.entrada);
+      const max=Number(cfg.max_jornada_horas||12)*60;
+
+      if(minAbierta>max){
+        const inc=await crearIncidencia({
+          usuario_id:u.id,
+          usuario:u.usuario,
+          nombre:u.nombre,
+          fecha,
+          tipo:"jornada_abierta_larga",
+          severidad:"alta",
+          titulo:"Jornada abierta demasiado tiempo",
+          detalle:"Jornada abierta desde hace "+minAbierta+" min. Máximo: "+max+" min.",
+          jornada_id:abierta.id,
+          minutos_exceso:minAbierta-max
+        },cfg);
+
+        if(inc)out.incidencias.push(inc);
+        out.estado="incidencia";
+      }
+    }
+
+    if(estado==="descanso"){
+      const ev0=ultimoEvento(ev,"inicio_descanso");
+      const min=minutosDesdeISO(ev0 ? ev0.created_at : null);
+      const max=Number(cfg.max_descanso_min||30);
+
+      if(min>max){
+        const inc=await crearIncidencia({
+          usuario_id:u.id,
+          usuario:u.usuario,
+          nombre:u.nombre,
+          fecha,
+          tipo:"descanso_excesivo",
+          severidad:"media",
+          titulo:"Descanso excesivo",
+          detalle:"Descanso activo desde hace "+min+" min. Máximo: "+max+" min.",
+          jornada_id:abierta.id,
+          fichaje_id:ev0 ? ev0.id : null,
+          minutos_exceso:min-max
+        },cfg);
+
+        if(inc)out.incidencias.push(inc);
+        out.estado="incidencia";
+      }
+    }
+
+    if(estado==="comida"){
+      const ev0=ultimoEvento(ev,"inicio_comida");
+      const min=minutosDesdeISO(ev0 ? ev0.created_at : null);
+      const max=Number(cfg.max_comida_min||60);
+
+      if(min>max){
+        const inc=await crearIncidencia({
+          usuario_id:u.id,
+          usuario:u.usuario,
+          nombre:u.nombre,
+          fecha,
+          tipo:"comida_excesiva",
+          severidad:"media",
+          titulo:"Comida excesiva",
+          detalle:"Comida activa desde hace "+min+" min. Máximo: "+max+" min.",
+          jornada_id:abierta.id,
+          fichaje_id:ev0 ? ev0.id : null,
+          minutos_exceso:min-max
+        },cfg);
+
+        if(inc)out.incidencias.push(inc);
+        out.estado="incidencia";
+      }
+    }
+  }
+
+  return out;
+}
+
+async function evaluarTodos(){
+  const lista=esAdmin() ? await usuariosActivos() : await usuarioActualLista();
+  const out=[];
+
+  for(const u of lista){
+    if(u.id) out.push(await evaluarUsuario(u));
+  }
+
+  return out;
+}
+function renderGeneral(res){
+  const inc=res.filter(r=>r.estado==="incidencia").length;
+  const ok=res.filter(r=>r.estado==="correcto").length;
+  const off=res.filter(r=>r.estado==="sin_control").length;
+
+  const color=inc ? "#dc2626" : "#16a34a";
+  const texto=inc ? inc+" incidencia(s) activa(s)" : "Todo correcto";
+
+  return `
+    <div class="zx_card">
+      <h2>Control de fichajes</h2>
+
+      <div style="font-size:30px;font-weight:900;color:${color};margin-top:8px;">
+        ${texto}
+      </div>
+
+      <div class="zx_text" style="margin-top:10px;">
+        Fecha: <b>${formatoFechaES(fechaHoyISO())}</b><br>
+        Usuarios revisados: <b>${res.length}</b><br>
+        Correctos: <b>${ok}</b><br>
+        Sin control: <b>${off}</b>
+      </div>
+
+      <button class="zx_btn_big zx_azul" id="zx_cf_revisar">
+        Revisar ahora
+      </button>
+    </div>
+  `;
+}
+
+function renderUsuario(r){
+  let color="#16a34a";
+  let estado="Correcto";
+
+  if(r.estado==="incidencia"){
+    color="#dc2626";
+    estado="Incidencia";
+  }
+
+  if(r.estado==="sin_control"){
+    color="#64748b";
+    estado="Sin control";
+  }
+
+  return `
+    <div class="zx_cf_usuario">
+      <div class="zx_cf_usuario_top">
+        <b>${limpiar(r.usuario.nombre||r.usuario.usuario||"-")}</b>
+        <span style="background:${color};">${estado}</span>
+      </div>
+
+      <div class="zx_admin_data">
+        Entrada: ${limpiar(r.cfg.hora_entrada)} + ${limpiar(r.cfg.margen_entrada_min)} min ·
+        Salida: ${limpiar(r.cfg.hora_salida)} + ${limpiar(r.cfg.margen_salida_min)} min<br>
+        Descanso máx.: ${limpiar(r.cfg.max_descanso_min)} min ·
+        Comida máx.: ${limpiar(r.cfg.max_comida_min)} min ·
+        Jornada máx.: ${limpiar(r.cfg.max_jornada_horas)} h
+      </div>
+
+      ${
+        r.incidencias.length
+        ? r.incidencias.map(i=>`
+            <div class="zx_cf_inc_line">
+              <b>${limpiar(textoInc(i.tipo))}</b><br>
+              ${limpiar(i.detalle||"")}
+            </div>
+          `).join("")
+        : `<div class="zx_admin_data">Sin incidencias nuevas.</div>`
+      }
+    </div>
+  `;
+}
+
+function renderIncidencia(i){
+  return `
+    <div class="zx_admin_row">
+      <div class="zx_admin_row_top">
+        <b>${limpiar(i.nombre||i.usuario||"-")}</b>
+        <span>${limpiar(formatoFechaES(i.fecha))}</span>
+      </div>
+
+      <div class="zx_cf_badge" style="background:${colorEstado(i.estado)};">
+        ${limpiar(i.estado||"")}
+      </div>
+
+      <div class="zx_admin_data">
+        <b>${limpiar(textoInc(i.tipo))}</b><br>
+        ${limpiar(i.detalle||"")}<br>
+        Creada: ${limpiar(fechaHoraES(i.created_at))}
+        ${i.minutos_exceso!=null ? `<br>Exceso: ${limpiar(i.minutos_exceso)} min` : ""}
+        ${i.comentario_admin ? `<br>Comentario: ${limpiar(i.comentario_admin)}` : ""}
+      </div>
+
+      ${
+        esAdmin()
+        ? `
+          <div class="zx_edit_grid">
+            <button class="zx_admin_btn zx_admin_editar" data-cf-revisar="${i.id}">
+              Revisada
+            </button>
+
+            <button class="zx_admin_btn zx_admin_borrar" data-cf-cerrar="${i.id}">
+              Cerrar
+            </button>
+          </div>
+        `
+        : ""
+      }
+    </div>
+  `;
+}
+function renderConfig(u,c){
+  return `
+    <div class="zx_admin_row">
+      <div class="zx_admin_row_top">
+        <b>${limpiar(u.nombre||u.usuario||"-")}</b>
+        <span>${limpiar(u.rol||"")}</span>
+      </div>
+
+      <label class="zx_label">Activo</label>
+      <select data-cfg-activo="${u.id}">
+        <option value="true" ${c.activo?"selected":""}>Sí</option>
+        <option value="false" ${!c.activo?"selected":""}>No</option>
+      </select>
+
+      <div class="zx_cf_grid2">
+        <div>
+          <label class="zx_label">Hora entrada</label>
+          <input type="time" data-cfg-entrada="${u.id}" value="${limpiar(c.hora_entrada)}">
+        </div>
+
+        <div>
+          <label class="zx_label">Hora salida</label>
+          <input type="time" data-cfg-salida="${u.id}" value="${limpiar(c.hora_salida)}">
+        </div>
+      </div>
+
+      <div class="zx_cf_grid2">
+        <div>
+          <label class="zx_label">Margen entrada min</label>
+          <input type="number" data-cfg-margen-entrada="${u.id}" value="${limpiar(c.margen_entrada_min)}">
+        </div>
+
+        <div>
+          <label class="zx_label">Margen salida min</label>
+          <input type="number" data-cfg-margen-salida="${u.id}" value="${limpiar(c.margen_salida_min)}">
+        </div>
+      </div>
+
+      <div class="zx_cf_grid2">
+        <div>
+          <label class="zx_label">Descanso máx. min</label>
+          <input type="number" data-cfg-descanso="${u.id}" value="${limpiar(c.max_descanso_min)}">
+        </div>
+
+        <div>
+          <label class="zx_label">Comida máx. min</label>
+          <input type="number" data-cfg-comida="${u.id}" value="${limpiar(c.max_comida_min)}">
+        </div>
+      </div>
+
+      <label class="zx_label">Jornada máxima horas</label>
+      <input type="number" data-cfg-jornada="${u.id}" value="${limpiar(c.max_jornada_horas)}">
+
+      <button class="zx_admin_btn zx_admin_editar" data-cfg-guardar="${u.id}">
+        Guardar configuración
+      </button>
+    </div>
+  `;
+}
+
+function estilos(){
+  if(document.getElementById("zx_control_fichajes_css"))return;
+
+  const s=document.createElement("style");
+  s.id="zx_control_fichajes_css";
+
+  s.innerHTML=`
+    .zx_admin_row,.zx_cf_usuario{
+      background:#f8fafc;
+      border:1px solid #d1d5db;
+      border-radius:18px;
+      padding:14px;
+      margin-top:10px;
+    }
+
+    .zx_admin_row_top,.zx_cf_usuario_top{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      font-size:16px;
+      color:#0f172a;
+      font-weight:900;
+    }
+
+    .zx_admin_row_top span{
+      color:#64748b;
+      font-size:14px;
+      white-space:nowrap;
+    }
+
+    .zx_admin_data{
+      color:#64748b;
+      font-size:15px;
+      line-height:1.45;
+      font-weight:800;
+      word-break:break-word;
+      margin-top:8px;
+    }
+
+    .zx_admin_btn{
+      width:100%;
+      border:0;
+      border-radius:14px;
+      margin-top:10px;
+      padding:12px;
+      color:white;
+      font-size:16px;
+      font-weight:900;
+    }
+
+    .zx_admin_editar{background:#2563eb}
+    .zx_admin_borrar{background:#dc2626}
+
+    .zx_edit_grid,.zx_cf_grid2{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+
+    .zx_label{
+      display:block;
+      margin-top:14px;
+      margin-bottom:6px;
+      color:#64748b;
+      font-weight:900;
+      font-size:15px;
+    }
+
+    .zx_admin_row input,
+    .zx_admin_row select{
+      width:100%;
+      border:1px solid #cbd5e1;
+      border-radius:14px;
+      padding:12px;
+      font-size:16px;
+      font-weight:800;
+      color:#0f172a;
+      background:#f8fafc;
+    }
+
+    .zx_cf_usuario_top span,
+    .zx_cf_badge{
+      display:inline-block;
+      color:white;
+      border-radius:999px;
+      padding:5px 10px;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .zx_cf_inc_line{
+      background:#fee2e2;
+      color:#7f1d1d;
+      border-radius:14px;
+      padding:10px;
+      margin-top:10px;
+      font-weight:800;
+      line-height:1.35;
+    }
+  `;
+
+  document.head.appendChild(s);
+}
+async function guardarConfigPantalla(id){
+  const d={
+    activo:document.querySelector(`[data-cfg-activo="${id}"]`)?.value==="true",
+    hora_entrada:document.querySelector(`[data-cfg-entrada="${id}"]`)?.value||"08:00",
+    hora_salida:document.querySelector(`[data-cfg-salida="${id}"]`)?.value||"17:00",
+    margen_entrada_min:document.querySelector(`[data-cfg-margen-entrada="${id}"]`)?.value||15,
+    margen_salida_min:document.querySelector(`[data-cfg-margen-salida="${id}"]`)?.value||15,
+    max_descanso_min:document.querySelector(`[data-cfg-descanso="${id}"]`)?.value||30,
+    max_comida_min:document.querySelector(`[data-cfg-comida="${id}"]`)?.value||60,
+    max_jornada_horas:document.querySelector(`[data-cfg-jornada="${id}"]`)?.value||12
+  };
+
+  if(await guardarConfigUsuario(id,d)){
+    alert("Configuración guardada.");
+    ZX_control_fichajes();
+  }
+}
+
+function enlazar(){
+  const b=document.getElementById("zx_cf_revisar");
+  if(b)b.onclick=()=>ZX_control_fichajes();
+
+  document.querySelectorAll("[data-cf-revisar]").forEach(b=>{
+    b.onclick=()=>actualizarIncidencia(b.dataset.cfRevisar,"revisada");
+  });
+
+  document.querySelectorAll("[data-cf-cerrar]").forEach(b=>{
+    b.onclick=()=>actualizarIncidencia(b.dataset.cfCerrar,"cerrada");
+  });
+
+  document.querySelectorAll("[data-cfg-guardar]").forEach(b=>{
+    b.onclick=()=>guardarConfigPantalla(b.dataset.cfgGuardar);
+  });
+}
+
+window.ZX_CF_toggleIncidencias=function(){
+  ZX_CF_VER_INCIDENCIAS=!ZX_CF_VER_INCIDENCIAS;
+  ZX_control_fichajes();
+};
+
+window.ZX_CF_toggleConfig=function(){
+  ZX_CF_VER_CONFIG=!ZX_CF_VER_CONFIG;
+  ZX_control_fichajes();
+};
+
+window.ZX_control_fichajes=async function(){
+  estilos();
+
+  if(ZX_CF_TIMER){
+    clearInterval(ZX_CF_TIMER);
+    ZX_CF_TIMER=null;
+  }
+
+  document.querySelectorAll(".zx_nav_btn").forEach(b=>{
+    b.classList.remove("zx_activo");
+    if(b.dataset.modulo==="control_fichajes")b.classList.add("zx_activo");
+  });
+
+  const res=await evaluarTodos();
+  const s=sesion();
+  const incs=await incidenciasControl(esAdmin()?null:s.id);
+
+  let configs=[];
+
+  if(esAdmin()){
+    const us=await usuariosActivos();
+    for(const u of us){
+      configs.push({
+        u,
+        c:await configUsuario(u.id)
+      });
+    }
+  }
+
+  app().innerHTML=`
+    ${renderGeneral(res)}
+
+    <div class="zx_card">
+      <h2>Estado de hoy</h2>
+      ${
+        res.length
+        ? res.map(renderUsuario).join("")
+        : `<div class="zx_text">Sin usuarios para revisar.</div>`
+      }
+    </div>
+
+    <div class="zx_card">
+      <button class="zx_btn_big zx_gris" onclick="ZX_CF_toggleIncidencias()">
+        ${ZX_CF_VER_INCIDENCIAS?"Ocultar incidencias":"Ver incidencias"}
+      </button>
+
+      ${
+        ZX_CF_VER_INCIDENCIAS
+        ? (
+            incs.length
+            ? incs.map(renderIncidencia).join("")
+            : `<div class="zx_text">Sin incidencias.</div>`
+          )
+        : ""
+      }
+    </div>
+
+    ${
+      esAdmin()
+      ? `
+        <div class="zx_card">
+          <button class="zx_btn_big zx_gris" onclick="ZX_CF_toggleConfig()">
+            ${ZX_CF_VER_CONFIG?"Ocultar configuración":"Ver configuración"}
+          </button>
+
+          ${
+            ZX_CF_VER_CONFIG
+            ? (
+                configs.length
+                ? configs.map(x=>renderConfig(x.u,x.c)).join("")
+                : `<div class="zx_text">Sin usuarios.</div>`
+              )
+            : ""
+          }
+        </div>
+      `
+      : ""
+    }
+  `;
+
+  enlazar();
+
+  ZX_CF_TIMER=setInterval(async()=>{
+    const mod=document.querySelector(".zx_nav_btn.zx_activo")?.dataset?.modulo;
+
+    if(mod==="control_fichajes"){
+      const r=await evaluarTodos();
+
+      if(r.some(x=>x.estado==="incidencia")){
+        ZX_control_fichajes();
+      }
+    }
+  },60000);
+};
+
+window.ZX_controlFichajes=window.ZX_control_fichajes;
+
+// ===============================
+// FIN MÓDULO
+// ===============================
+})();
