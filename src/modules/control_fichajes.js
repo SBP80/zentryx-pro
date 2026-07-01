@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - CONTROL DE FICHAJES
-// V1003 - CORRECCIÓN INCIDENCIAS FALSAS / CARGA RÁPIDA
+// V1004 - CONFIGURACIÓN COMPACTA / MÓVIL MEJORADO
 // ===============================
 (function(){
 "use strict";
@@ -8,6 +8,7 @@
 let ZX_CF_VER_INCIDENCIAS=false;
 let ZX_CF_VER_CONFIG=false;
 let ZX_CF_VER_DETALLE_USUARIO={};
+let ZX_CF_VER_DETALLE_CONFIG={};
 let ZX_CF_TIMER=null;
 
 function app(){return document.getElementById("app")}
@@ -277,26 +278,43 @@ function renderIncidencia(i){
 }
 
 function renderConfig(u,c){
+  const uid=String(u.id||"");
+  const abierto=!!ZX_CF_VER_DETALLE_CONFIG[uid];
+
   return `
     <div class="zx_admin_row">
-      <div class="zx_admin_row_top"><b>${limpiar(u.nombre||u.usuario||"-")}</b><span>${limpiar(u.rol||"")}</span></div>
-      <label class="zx_label">Activo</label>
-      <select data-cfg-activo="${u.id}"><option value="true" ${c.activo?"selected":""}>Sí</option><option value="false" ${!c.activo?"selected":""}>No</option></select>
-      <div class="zx_cf_grid2">
-        <div><label class="zx_label">Hora entrada</label><input type="time" data-cfg-entrada="${u.id}" value="${limpiar(c.hora_entrada)}"></div>
-        <div><label class="zx_label">Hora salida</label><input type="time" data-cfg-salida="${u.id}" value="${limpiar(c.hora_salida)}"></div>
-      </div>
-      <div class="zx_cf_grid2">
-        <div><label class="zx_label">Margen entrada min</label><input type="number" data-cfg-margen-entrada="${u.id}" value="${limpiar(c.margen_entrada_min)}"></div>
-        <div><label class="zx_label">Margen salida min</label><input type="number" data-cfg-margen-salida="${u.id}" value="${limpiar(c.margen_salida_min)}"></div>
-      </div>
-      <div class="zx_cf_grid2">
-        <div><label class="zx_label">Descanso máx. min</label><input type="number" data-cfg-descanso="${u.id}" value="${limpiar(c.max_descanso_min)}"></div>
-        <div><label class="zx_label">Comida máx. min</label><input type="number" data-cfg-comida="${u.id}" value="${limpiar(c.max_comida_min)}"></div>
-      </div>
-      <label class="zx_label">Jornada máxima horas</label>
-      <input type="number" data-cfg-jornada="${u.id}" value="${limpiar(c.max_jornada_horas)}">
-      <button class="zx_admin_btn zx_admin_editar" data-cfg-guardar="${u.id}">Guardar configuración</button>
+      <button class="zx_cf_usuario_top" data-cfg-toggle="${limpiar(uid)}" type="button">
+        <span>
+          <b>${limpiar(u.nombre||u.usuario||"-")}</b>
+          <small>${limpiar(u.rol||"")} · ${c.activo?"Activo":"Sin control"}</small>
+        </span>
+        <i style="background:${c.activo?"#16a34a":"#64748b"};">${abierto?"Cerrar":"Editar"}</i>
+      </button>
+
+      ${abierto?`
+        <label class="zx_label">Activo</label>
+        <select data-cfg-activo="${u.id}"><option value="true" ${c.activo?"selected":""}>Sí</option><option value="false" ${!c.activo?"selected":""}>No</option></select>
+
+        <div class="zx_cf_grid2">
+          <div><label class="zx_label">Entrada</label><input type="time" data-cfg-entrada="${u.id}" value="${limpiar(c.hora_entrada)}"></div>
+          <div><label class="zx_label">Salida</label><input type="time" data-cfg-salida="${u.id}" value="${limpiar(c.hora_salida)}"></div>
+        </div>
+
+        <div class="zx_cf_grid2">
+          <div><label class="zx_label">Margen entrada</label><input type="number" data-cfg-margen-entrada="${u.id}" value="${limpiar(c.margen_entrada_min)}"></div>
+          <div><label class="zx_label">Margen salida</label><input type="number" data-cfg-margen-salida="${u.id}" value="${limpiar(c.margen_salida_min)}"></div>
+        </div>
+
+        <div class="zx_cf_grid2">
+          <div><label class="zx_label">Descanso máx.</label><input type="number" data-cfg-descanso="${u.id}" value="${limpiar(c.max_descanso_min)}"></div>
+          <div><label class="zx_label">Comida máx.</label><input type="number" data-cfg-comida="${u.id}" value="${limpiar(c.max_comida_min)}"></div>
+        </div>
+
+        <label class="zx_label">Jornada máxima horas</label>
+        <input type="number" data-cfg-jornada="${u.id}" value="${limpiar(c.max_jornada_horas)}">
+
+        <button class="zx_admin_btn zx_admin_editar" data-cfg-guardar="${u.id}">Guardar configuración</button>
+      `:""}
     </div>
   `;
 }
@@ -324,6 +342,7 @@ function estilos(){
     .zx_edit_grid,.zx_cf_grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
     .zx_label{display:block;margin-top:14px;margin-bottom:6px;color:#64748b;font-weight:900;font-size:15px}
     .zx_admin_row input,.zx_admin_row select{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px;font-weight:800;color:#0f172a;background:#f8fafc}
+    #zx_postit{transform:scale(.82);right:10px!important;bottom:calc(env(safe-area-inset-bottom) + 78px)!important}
     .zx_cf_inc_line{background:#fee2e2;color:#7f1d1d;border-radius:14px;padding:10px;margin-top:10px;font-weight:800;line-height:1.35}
     @media(min-width:700px){.zx_cf_resumen_grid{grid-template-columns:repeat(3,1fr)}}
   `;
@@ -352,6 +371,14 @@ function enlazar(){
     b.onclick=function(){
       const id=String(b.dataset.cfToggleUsuario||"");
       ZX_CF_VER_DETALLE_USUARIO[id]=!ZX_CF_VER_DETALLE_USUARIO[id];
+      ZX_control_fichajes();
+    };
+  });
+
+  document.querySelectorAll("[data-cfg-toggle]").forEach(b=>{
+    b.onclick=function(){
+      const id=String(b.dataset.cfgToggle||"");
+      ZX_CF_VER_DETALLE_CONFIG[id]=!ZX_CF_VER_DETALLE_CONFIG[id];
       ZX_control_fichajes();
     };
   });
