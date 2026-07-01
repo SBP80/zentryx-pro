@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3099 - NAVEGACION ESTABLE
+// V3100 - NAVEGACION ESTABLE + CONTROL FICHAJES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3099";
+const ZX_VERSION="3100";
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
 const ZX_HORAS_FUNC_INICIAL=window.ZX_horas_extra || null;
@@ -232,7 +232,7 @@ window.ZX_abrirAgendaDesdePanel=function(){
 
 function puedeVerModulo(modulo){
   if(esAdmin()) return true;
-  return ["inicio","fichaje","agenda","clientes","trabajos","usuarios","horas_extra"].includes(modulo);
+  return ["inicio","fichaje","agenda","clientes","trabajos","usuarios","horas_extra","control_fichajes"].includes(modulo);
 }
 
 function botonNav(modulo,texto,accion){
@@ -252,6 +252,7 @@ function nav(){
       ${botonNav("trabajos","Trabajos","ZX_abrirTrabajos()")}
       ${botonNav("usuarios","Usuarios","ZX_usuarios()")}
       ${botonNav("horas_extra","Horas","ZX_abrirHorasExtra()")}
+      ${botonNav("control_fichajes","Control","ZX_abrirControlFichajes()")}
       ${botonNav("configuracion","Config.","ZX_configuracion()")}
     </div>
   `;
@@ -405,6 +406,20 @@ window.ZX_abrirHorasExtra=function(){
   });
 };
 
+window.ZX_abrirControlFichajes=function(){
+  abrirModulo("control_fichajes",function(){
+    if(window.ZX_control_fichajes){
+      window.ZX_control_fichajes();
+      return;
+    }
+    if(window.ZX_controlFichajes){
+      window.ZX_controlFichajes();
+      return;
+    }
+    app().innerHTML=`<div class="zx_card"><h2>Control</h2><div class="zx_text">No se ha cargado control_fichajes.js.</div></div>`;
+  });
+};
+
 window.ZX_vehiculos=function(){abrirModulo("vehiculos",function(){app().innerHTML=`<div class="zx_card"><h2>Vehículos</h2><div class="zx_text">Módulo vehículos pendiente.</div></div>`})};
 window.ZX_incidencias=function(){abrirModulo("incidencias",function(){app().innerHTML=`<div class="zx_card"><h2>Incidencias</h2><div class="zx_text">Módulo incidencias pendiente.</div></div>`})};
 window.ZX_informes=function(){abrirModulo("informes",function(){app().innerHTML=`<div class="zx_card"><h2>Informes</h2><div class="zx_text">Módulo informes pendiente.</div></div>`})};
@@ -428,6 +443,6 @@ window.ZENTRYX_UI_LAYOUT={
   }
 };
 
-console.log("ZENTRYX layout.js V3099 cargado");
+console.log("ZENTRYX layout.js V3100 cargado");
 
 })();
