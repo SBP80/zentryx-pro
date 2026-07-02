@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - CONTROL DE FICHAJES
-// V1004 - CONFIGURACIÓN COMPACTA / MÓVIL MEJORADO
+// V1005 - MANTENER POSICIÓN DE PANTALLA / CONFIG COMPACTA
 // ===============================
 (function(){
 "use strict";
@@ -10,6 +10,19 @@ let ZX_CF_VER_CONFIG=false;
 let ZX_CF_VER_DETALLE_USUARIO={};
 let ZX_CF_VER_DETALLE_CONFIG={};
 let ZX_CF_TIMER=null;
+let ZX_CF_SCROLL_RESTAURAR=null;
+
+function guardarScroll(){
+  ZX_CF_SCROLL_RESTAURAR=window.scrollY||document.documentElement.scrollTop||0;
+}
+
+function restaurarScroll(){
+  if(ZX_CF_SCROLL_RESTAURAR===null)return;
+  const y=ZX_CF_SCROLL_RESTAURAR;
+  ZX_CF_SCROLL_RESTAURAR=null;
+  setTimeout(function(){window.scrollTo(0,y)},0);
+  setTimeout(function(){window.scrollTo(0,y)},80);
+}
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
@@ -32,10 +45,18 @@ function estadoDesdeTipo(t){if(!t)return"fuera";return{entrada:"dentro",salida:"
 function textoEstadoTrabajo(e){if(e==="dentro")return"Trabajando";if(e==="descanso")return"Descanso";if(e==="comida")return"Comida";return"Fuera"}
 function colorEstadoTrabajo(e){if(e==="dentro")return"#16a34a";if(e==="descanso")return"#f59e0b";if(e==="comida")return"#ea580c";return"#64748b"}
 
-async function insertarAviso(usuarioId,titulo,mensaje){try{await sb().from("notificaciones").insert([{id:uuidSeguro(),usuario_id:String(usuarioId),titulo,mensaje,tipo:"control_fichajes",leida:false,created_at:ahora()}])}catch(e){}}
-async function insertarAuditoria(accion,detalle,usuarioObjetivoId){const s=sesion();try{await sb().from("auditoria").insert([{id:uuidSeguro(),usuario_id:String(s.id||""),usuario:s.usuario||"",nombre:s.nombre||"",modulo:"control_fichajes",accion,detalle,usuario_objetivo_id:usuarioObjetivoId?String(usuarioObjetivoId):null,created_at:ahora()}])}catch(e){}}
+async function insertarAviso(usuarioId,titulo,mensaje){
+  try{await sb().from("notificaciones").insert([{id:uuidSeguro(),usuario_id:String(usuarioId),titulo,mensaje,tipo:"control_fichajes",leida:false,created_at:ahora()}])}catch(e){}
+}
 
-function configDefecto(usuarioId){return{id:null,usuario_id:String(usuarioId),activo:true,hora_entrada:"08:00",hora_salida:"17:00",margen_entrada_min:15,margen_salida_min:15,max_descanso_min:30,max_comida_min:60,max_jornada_horas:12,avisar_usuario:true,avisar_admin:true,crear_incidencias:true,geolocalizacion_app_abierta:false}}
+async function insertarAuditoria(accion,detalle,usuarioObjetivoId){
+  const s=sesion();
+  try{await sb().from("auditoria").insert([{id:uuidSeguro(),usuario_id:String(s.id||""),usuario:s.usuario||"",nombre:s.nombre||"",modulo:"control_fichajes",accion,detalle,usuario_objetivo_id:usuarioObjetivoId?String(usuarioObjetivoId):null,created_at:ahora()}])}catch(e){}
+}
+
+function configDefecto(usuarioId){
+  return{id:null,usuario_id:String(usuarioId),activo:true,hora_entrada:"08:00",hora_salida:"17:00",margen_entrada_min:15,margen_salida_min:15,max_descanso_min:30,max_comida_min:60,max_jornada_horas:12,avisar_usuario:true,avisar_admin:true,crear_incidencias:true,geolocalizacion_app_abierta:false};
+}
 
 async function usuariosActivos(){
   try{
@@ -48,25 +69,75 @@ async function usuariosActivos(){
   }catch(e){return[]}
 }
 
-async function usuarioActualLista(){const s=sesion();return[{id:String(s.id||""),usuario:s.usuario||"",nombre:s.nombre||s.usuario||"",rol:s.rol||"",estado:"activo",activo:true}]}
+async function usuarioActualLista(){
+  const s=sesion();
+  return[{id:String(s.id||""),usuario:s.usuario||"",nombre:s.nombre||s.usuario||"",rol:s.rol||"",estado:"activo",activo:true}];
+}
 
-async function configsTodos(){try{const r=await sb().from("control_fichajes_config").select("*");return r.error?[]:(r.data||[])}catch(e){return[]}}
-function configUsuarioCache(usuarioId,configs){const def=configDefecto(usuarioId);const c=(configs||[]).find(x=>String(x.usuario_id)===String(usuarioId));return c?{...def,...c}:def}
-async function configUsuario(usuarioId){const def=configDefecto(usuarioId);try{const r=await sb().from("control_fichajes_config").select("*").eq("usuario_id",String(usuarioId)).maybeSingle();if(!r.error&&r.data)return{...def,...r.data}}catch(e){}return def}
+async function configsTodos(){
+  try{const r=await sb().from("control_fichajes_config").select("*");return r.error?[]:(r.data||[])}catch(e){return[]}
+}
+
+function configUsuarioCache(usuarioId,configs){
+  const def=configDefecto(usuarioId);
+  const c=(configs||[]).find(x=>String(x.usuario_id)===String(usuarioId));
+  return c?{...def,...c}:def;
+}
+
+async function configUsuario(usuarioId){
+  const def=configDefecto(usuarioId);
+  try{
+    const r=await sb().from("control_fichajes_config").select("*").eq("usuario_id",String(usuarioId)).maybeSingle();
+    if(!r.error&&r.data)return{...def,...r.data};
+  }catch(e){}
+  return def;
+}
 
 async function guardarConfigUsuario(usuarioId,d){
   const actual=await configUsuario(usuarioId);
-  const reg={id:actual.id||uuidSeguro(),usuario_id:String(usuarioId),activo:!!d.activo,hora_entrada:String(d.hora_entrada||"08:00"),hora_salida:String(d.hora_salida||"17:00"),margen_entrada_min:Number(d.margen_entrada_min||15),margen_salida_min:Number(d.margen_salida_min||15),max_descanso_min:Number(d.max_descanso_min||30),max_comida_min:Number(d.max_comida_min||60),max_jornada_horas:Number(d.max_jornada_horas||12),avisar_usuario:true,avisar_admin:true,crear_incidencias:true,geolocalizacion_app_abierta:false,updated_at:ahora()};
+  const reg={
+    id:actual.id||uuidSeguro(),
+    usuario_id:String(usuarioId),
+    activo:!!d.activo,
+    hora_entrada:String(d.hora_entrada||"08:00"),
+    hora_salida:String(d.hora_salida||"17:00"),
+    margen_entrada_min:Number(d.margen_entrada_min||15),
+    margen_salida_min:Number(d.margen_salida_min||15),
+    max_descanso_min:Number(d.max_descanso_min||30),
+    max_comida_min:Number(d.max_comida_min||60),
+    max_jornada_horas:Number(d.max_jornada_horas||12),
+    avisar_usuario:true,
+    avisar_admin:true,
+    crear_incidencias:true,
+    geolocalizacion_app_abierta:false,
+    updated_at:ahora()
+  };
   const r=await sb().from("control_fichajes_config").upsert([reg],{onConflict:"usuario_id"});
   if(r.error){alert("Error guardando configuración: "+r.error.message);return false}
   await insertarAuditoria("guardar_config","Configuración actualizada.",usuarioId);
   return true;
 }
 
-async function jornadasHoyTodas(fecha){try{const r=await sb().from("jornadas").select("*").eq("fecha",String(fecha).slice(0,10)).order("created_at",{ascending:false});return r.error?[]:(r.data||[])}catch(e){return[]}}
-async function jornadasAbiertasTodas(){try{const r=await sb().from("jornadas").select("*").eq("estado","abierta").order("created_at",{ascending:false});return r.error?[]:(r.data||[])}catch(e){return[]}}
-async function fichajesHoyTodas(fecha){try{const r=await sb().from("fichajes").select("*").gte("created_at",String(fecha).slice(0,10)+"T00:00:00").order("created_at",{ascending:true});return r.error?[]:(r.data||[])}catch(e){return[]}}
-async function incidenciasControl(usuarioId=null){try{let q=sb().from("control_fichajes_incidencias").select("*").order("created_at",{ascending:false}).limit(120);if(usuarioId)q=q.eq("usuario_id",String(usuarioId));const r=await q;return r.error?[]:(r.data||[])}catch(e){return[]}}
+async function jornadasHoyTodas(fecha){
+  try{const r=await sb().from("jornadas").select("*").eq("fecha",String(fecha).slice(0,10)).order("created_at",{ascending:false});return r.error?[]:(r.data||[])}catch(e){return[]}
+}
+
+async function jornadasAbiertasTodas(){
+  try{const r=await sb().from("jornadas").select("*").eq("estado","abierta").order("created_at",{ascending:false});return r.error?[]:(r.data||[])}catch(e){return[]}
+}
+
+async function fichajesHoyTodas(fecha){
+  try{const r=await sb().from("fichajes").select("*").gte("created_at",String(fecha).slice(0,10)+"T00:00:00").order("created_at",{ascending:true});return r.error?[]:(r.data||[])}catch(e){return[]}
+}
+
+async function incidenciasControl(usuarioId=null){
+  try{
+    let q=sb().from("control_fichajes_incidencias").select("*").order("created_at",{ascending:false}).limit(120);
+    if(usuarioId)q=q.eq("usuario_id",String(usuarioId));
+    const r=await q;
+    return r.error?[]:(r.data||[]);
+  }catch(e){return[]}
+}
 
 async function incidenciaExistente(usuarioId,fecha,tipo,jornadaId){
   try{
@@ -96,12 +167,20 @@ async function actualizarIncidencia(id,estado){
   const r=await sb().from("control_fichajes_incidencias").update({estado,comentario_admin:comentario,revisado_por:sesion().usuario||"",revisado_en:ahora(),updated_at:ahora()}).eq("id",String(id));
   if(r.error){alert("Error actualizando incidencia: "+r.error.message);return false}
   await insertarAuditoria("actualizar_incidencia","Incidencia "+id+" -> "+estado,null);
+  guardarScroll();
   ZX_control_fichajes();
   return true;
 }
 
-function estadoDesdeEventos(ev){const u=(ev||[]).length?(ev||[])[(ev||[]).length-1]:null;return estadoDesdeTipo(u?u.tipo:null)}
-function ultimoEvento(ev,tipo){const l=(ev||[]).filter(e=>e.tipo===tipo);return l.length?l[l.length-1]:null}
+function estadoDesdeEventos(ev){
+  const u=(ev||[]).length ? ev[ev.length-1] : null;
+  return estadoDesdeTipo(u?u.tipo:null);
+}
+
+function ultimoEvento(ev,tipo){
+  const l=(ev||[]).filter(e=>e.tipo===tipo);
+  return l.length?l[l.length-1]:null;
+}
 
 async function evaluarUsuarioConCache(u,cfg,jornadasHoy,abiertas,fichajesHoy){
   const fecha=fechaHoyISO();
@@ -125,7 +204,7 @@ async function evaluarUsuarioConCache(u,cfg,jornadasHoy,abiertas,fichajesHoy){
   if(abierta){
     out.minutosAbierta=minutosDesdeISO(abierta.entrada||abierta.created_at);
     const ev=(fichajesHoy||[]).filter(f=>String(f.jornada_id)===String(abierta.id)).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
-    const estado=estadoDesdeEventsSeguro(ev);
+    const estado=estadoDesdeEventos(ev);
     out.estadoTrabajo=estado;
 
     if(salida!==null && actual>=salida+Number(cfg.margen_salida_min||0)){
@@ -166,41 +245,21 @@ async function evaluarUsuarioConCache(u,cfg,jornadasHoy,abiertas,fichajesHoy){
   return out;
 }
 
-function estadoDesdeEventsSeguro(ev){return estadoDesdeEventos(ev)}
-
 async function evaluarTodos(){
   const fecha=fechaHoyISO();
   const lista=esAdmin()?await usuariosActivos():await usuarioActualLista();
-
-  const datos=await Promise.all([
-    configsTodos(),
-    jornadasHoyTodas(fecha),
-    jornadasAbiertasTodas(),
-    fichajesHoyTodas(fecha)
-  ]);
-
+  const datos=await Promise.all([configsTodos(),jornadasHoyTodas(fecha),jornadasAbiertasTodas(),fichajesHoyTodas(fecha)]);
   const configs=datos[0], jornadasHoy=datos[1], abiertas=datos[2], fichajesHoy=datos[3];
   const out=[];
-
   for(const u of lista){
     if(!u.id)continue;
     out.push(await evaluarUsuarioConCache(u,configUsuarioCache(u.id,configs),jornadasHoy,abiertas,fichajesHoy));
   }
-
   return out;
 }
 
 function resumenEstados(res){
-  return {
-    total:res.length,
-    incidencias:res.filter(r=>r.estado==="incidencia").length,
-    correctos:res.filter(r=>r.estado==="correcto").length,
-    sinControl:res.filter(r=>r.estado==="sin_control").length,
-    trabajando:res.filter(r=>r.estadoTrabajo==="dentro").length,
-    descanso:res.filter(r=>r.estadoTrabajo==="descanso").length,
-    comida:res.filter(r=>r.estadoTrabajo==="comida").length,
-    fuera:res.filter(r=>r.estadoTrabajo==="fuera").length
-  };
+  return{total:res.length,incidencias:res.filter(r=>r.estado==="incidencia").length,correctos:res.filter(r=>r.estado==="correcto").length,sinControl:res.filter(r=>r.estado==="sin_control").length,trabajando:res.filter(r=>r.estadoTrabajo==="dentro").length,descanso:res.filter(r=>r.estadoTrabajo==="descanso").length,comida:res.filter(r=>r.estadoTrabajo==="comida").length,fuera:res.filter(r=>r.estadoTrabajo==="fuera").length};
 }
 
 function renderGeneral(res){
@@ -219,11 +278,7 @@ function renderGeneral(res){
         <div><b>${r.fuera}</b><span>Fuera</span></div>
         <div><b>${r.incidencias}</b><span>Incidencias</span></div>
       </div>
-      <div class="zx_text" style="margin-top:10px;">
-        Fecha: <b>${formatoFechaES(fechaHoyISO())}</b><br>
-        Correctos: <b>${r.correctos}</b><br>
-        Sin control: <b>${r.sinControl}</b>
-      </div>
+      <div class="zx_text" style="margin-top:10px;">Fecha: <b>${formatoFechaES(fechaHoyISO())}</b><br>Correctos: <b>${r.correctos}</b><br>Sin control: <b>${r.sinControl}</b></div>
       <button class="zx_btn_big zx_azul" id="zx_cf_revisar">Revisar ahora</button>
     </div>
   `;
@@ -239,20 +294,14 @@ function renderUsuario(r){
   return `
     <div class="zx_cf_usuario">
       <button class="zx_cf_usuario_top" data-cf-toggle-usuario="${limpiar(uid)}" type="button">
-        <span>
-          <b>${limpiar(r.usuario.nombre||r.usuario.usuario||"-")}</b>
-          <small>${limpiar(textoEstadoTrabajo(r.estadoTrabajo))}${r.minutosAbierta?" · "+formatoDuracion(r.minutosAbierta):""}</small>
-        </span>
+        <span><b>${limpiar(r.usuario.nombre||r.usuario.usuario||"-")}</b><small>${limpiar(textoEstadoTrabajo(r.estadoTrabajo))}${r.minutosAbierta?" · "+formatoDuracion(r.minutosAbierta):""}</small></span>
         <i style="background:${color};">${estado}</i>
       </button>
       ${abierto?`
         <div class="zx_admin_data">
           Estado: <b style="color:${colorEstadoTrabajo(r.estadoTrabajo)}">${limpiar(textoEstadoTrabajo(r.estadoTrabajo))}</b><br>
-          Entrada: ${limpiar(r.cfg.hora_entrada)} + ${limpiar(r.cfg.margen_entrada_min)} min ·
-          Salida: ${limpiar(r.cfg.hora_salida)} + ${limpiar(r.cfg.margen_salida_min)} min<br>
-          Descanso máx.: ${limpiar(r.cfg.max_descanso_min)} min ·
-          Comida máx.: ${limpiar(r.cfg.max_comida_min)} min ·
-          Jornada máx.: ${limpiar(r.cfg.max_jornada_horas)} h
+          Entrada: ${limpiar(r.cfg.hora_entrada)} + ${limpiar(r.cfg.margen_entrada_min)} min · Salida: ${limpiar(r.cfg.hora_salida)} + ${limpiar(r.cfg.margen_salida_min)} min<br>
+          Descanso máx.: ${limpiar(r.cfg.max_descanso_min)} min · Comida máx.: ${limpiar(r.cfg.max_comida_min)} min · Jornada máx.: ${limpiar(r.cfg.max_jornada_horas)} h
         </div>
         ${r.incidencias.length?r.incidencias.map(i=>`<div class="zx_cf_inc_line"><b>${limpiar(textoInc(i.tipo))}</b><br>${limpiar(i.detalle||"")}</div>`).join(""):`<div class="zx_admin_data">Sin incidencias nuevas.</div>`}
       `:""}
@@ -265,13 +314,7 @@ function renderIncidencia(i){
     <div class="zx_admin_row">
       <div class="zx_admin_row_top"><b>${limpiar(i.nombre||i.usuario||"-")}</b><span>${limpiar(formatoFechaES(i.fecha))}</span></div>
       <div class="zx_cf_badge" style="background:${colorIncidencia(i.estado)};">${limpiar(i.estado||"")}</div>
-      <div class="zx_admin_data">
-        <b>${limpiar(textoInc(i.tipo))}</b><br>
-        ${limpiar(i.detalle||"")}<br>
-        Creada: ${limpiar(fechaHoraES(i.created_at))}
-        ${i.minutos_exceso!=null?`<br>Exceso: ${limpiar(i.minutos_exceso)} min`:""}
-        ${i.comentario_admin?`<br>Comentario: ${limpiar(i.comentario_admin)}`:""}
-      </div>
+      <div class="zx_admin_data"><b>${limpiar(textoInc(i.tipo))}</b><br>${limpiar(i.detalle||"")}<br>Creada: ${limpiar(fechaHoraES(i.created_at))}${i.minutos_exceso!=null?`<br>Exceso: ${limpiar(i.minutos_exceso)} min`:""}${i.comentario_admin?`<br>Comentario: ${limpiar(i.comentario_admin)}`:""}</div>
       ${esAdmin()?`<div class="zx_edit_grid"><button class="zx_admin_btn zx_admin_editar" data-cf-revisar="${i.id}">Revisada</button><button class="zx_admin_btn zx_admin_borrar" data-cf-cerrar="${i.id}">Cerrar</button></div>`:""}
     </div>
   `;
@@ -280,39 +323,29 @@ function renderIncidencia(i){
 function renderConfig(u,c){
   const uid=String(u.id||"");
   const abierto=!!ZX_CF_VER_DETALLE_CONFIG[uid];
-
   return `
     <div class="zx_admin_row">
       <button class="zx_cf_usuario_top" data-cfg-toggle="${limpiar(uid)}" type="button">
-        <span>
-          <b>${limpiar(u.nombre||u.usuario||"-")}</b>
-          <small>${limpiar(u.rol||"")} · ${c.activo?"Activo":"Sin control"}</small>
-        </span>
+        <span><b>${limpiar(u.nombre||u.usuario||"-")}</b><small>${limpiar(u.rol||"")} · ${c.activo?"Activo":"Sin control"}</small></span>
         <i style="background:${c.activo?"#16a34a":"#64748b"};">${abierto?"Cerrar":"Editar"}</i>
       </button>
-
       ${abierto?`
         <label class="zx_label">Activo</label>
         <select data-cfg-activo="${u.id}"><option value="true" ${c.activo?"selected":""}>Sí</option><option value="false" ${!c.activo?"selected":""}>No</option></select>
-
         <div class="zx_cf_grid2">
           <div><label class="zx_label">Entrada</label><input type="time" data-cfg-entrada="${u.id}" value="${limpiar(c.hora_entrada)}"></div>
           <div><label class="zx_label">Salida</label><input type="time" data-cfg-salida="${u.id}" value="${limpiar(c.hora_salida)}"></div>
         </div>
-
         <div class="zx_cf_grid2">
           <div><label class="zx_label">Margen entrada</label><input type="number" data-cfg-margen-entrada="${u.id}" value="${limpiar(c.margen_entrada_min)}"></div>
           <div><label class="zx_label">Margen salida</label><input type="number" data-cfg-margen-salida="${u.id}" value="${limpiar(c.margen_salida_min)}"></div>
         </div>
-
         <div class="zx_cf_grid2">
           <div><label class="zx_label">Descanso máx.</label><input type="number" data-cfg-descanso="${u.id}" value="${limpiar(c.max_descanso_min)}"></div>
           <div><label class="zx_label">Comida máx.</label><input type="number" data-cfg-comida="${u.id}" value="${limpiar(c.max_comida_min)}"></div>
         </div>
-
         <label class="zx_label">Jornada máxima horas</label>
         <input type="number" data-cfg-jornada="${u.id}" value="${limpiar(c.max_jornada_horas)}">
-
         <button class="zx_admin_btn zx_admin_editar" data-cfg-guardar="${u.id}">Guardar configuración</button>
       `:""}
     </div>
@@ -342,8 +375,8 @@ function estilos(){
     .zx_edit_grid,.zx_cf_grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
     .zx_label{display:block;margin-top:14px;margin-bottom:6px;color:#64748b;font-weight:900;font-size:15px}
     .zx_admin_row input,.zx_admin_row select{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px;font-weight:800;color:#0f172a;background:#f8fafc}
-    #zx_postit{transform:scale(.82);right:10px!important;bottom:calc(env(safe-area-inset-bottom) + 78px)!important}
     .zx_cf_inc_line{background:#fee2e2;color:#7f1d1d;border-radius:14px;padding:10px;margin-top:10px;font-weight:800;line-height:1.35}
+    #zx_postit{transform:scale(.82);right:10px!important;bottom:calc(env(safe-area-inset-bottom) + 78px)!important}
     @media(min-width:700px){.zx_cf_resumen_grid{grid-template-columns:repeat(3,1fr)}}
   `;
   document.head.appendChild(s);
@@ -360,7 +393,11 @@ async function guardarConfigPantalla(id){
     max_comida_min:document.querySelector(`[data-cfg-comida="${id}"]`)?.value||60,
     max_jornada_horas:document.querySelector(`[data-cfg-jornada="${id}"]`)?.value||12
   };
-  if(await guardarConfigUsuario(id,d)){alert("Configuración guardada.");ZX_control_fichajes()}
+  guardarScroll();
+  if(await guardarConfigUsuario(id,d)){
+    ZX_CF_VER_DETALLE_CONFIG[String(id)]=false;
+    ZX_control_fichajes();
+  }
 }
 
 function enlazar(){
@@ -369,6 +406,7 @@ function enlazar(){
 
   document.querySelectorAll("[data-cf-toggle-usuario]").forEach(b=>{
     b.onclick=function(){
+      guardarScroll();
       const id=String(b.dataset.cfToggleUsuario||"");
       ZX_CF_VER_DETALLE_USUARIO[id]=!ZX_CF_VER_DETALLE_USUARIO[id];
       ZX_control_fichajes();
@@ -377,6 +415,7 @@ function enlazar(){
 
   document.querySelectorAll("[data-cfg-toggle]").forEach(b=>{
     b.onclick=function(){
+      guardarScroll();
       const id=String(b.dataset.cfgToggle||"");
       ZX_CF_VER_DETALLE_CONFIG[id]=!ZX_CF_VER_DETALLE_CONFIG[id];
       ZX_control_fichajes();
@@ -388,8 +427,8 @@ function enlazar(){
   document.querySelectorAll("[data-cfg-guardar]").forEach(b=>{b.onclick=()=>guardarConfigPantalla(b.dataset.cfgGuardar)});
 }
 
-window.ZX_CF_toggleIncidencias=function(){ZX_CF_VER_INCIDENCIAS=!ZX_CF_VER_INCIDENCIAS;ZX_control_fichajes()};
-window.ZX_CF_toggleConfig=function(){ZX_CF_VER_CONFIG=!ZX_CF_VER_CONFIG;ZX_control_fichajes()};
+window.ZX_CF_toggleIncidencias=function(){guardarScroll();ZX_CF_VER_INCIDENCIAS=!ZX_CF_VER_INCIDENCIAS;ZX_control_fichajes()};
+window.ZX_CF_toggleConfig=function(){guardarScroll();ZX_CF_VER_CONFIG=!ZX_CF_VER_CONFIG;ZX_control_fichajes()};
 
 window.ZX_control_fichajes=async function(){
   estilos();
@@ -433,6 +472,7 @@ window.ZX_control_fichajes=async function(){
   `;
 
   enlazar();
+  restaurarScroll();
 
   ZX_CF_TIMER=setInterval(async()=>{
     const mod=document.querySelector(".zx_nav_btn.zx_activo")?.dataset?.modulo;
