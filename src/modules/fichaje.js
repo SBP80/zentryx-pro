@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3084 - ZIP COMPLETO / FECHA LOCAL / MULTIJORNADA REAL / SINTAXIS OK
+// V3085 - AUDITORÍA AMPLIADA / TRAZABILIDAD DE FICHAJES
 // ===============================
 (function(){
 "use strict";
@@ -224,6 +224,66 @@ async function insertarAuditoria(accion,detalle,usuarioObjetivoId){
       created_at:ahora()
     }]);
   }catch(e){}
+}
+
+function dispositivoAuditoria(){
+  const s=sesion();
+  return [
+    "Usuario sesión: "+String(s.usuario||""),
+    "Rol: "+String(s.rol||""),
+    "URL: "+String(location.href||""),
+    "Dispositivo: "+String(navigator.userAgent||"")
+  ].join(" | ");
+}
+
+function valorFichajeAuditoria(f){
+  if(!f)return null;
+  return {
+    id:f.id||null,
+    jornada_id:f.jornada_id||null,
+    usuario_id:f.usuario_id||null,
+    usuario:f.usuario||"",
+    nombre:f.nombre||"",
+    tipo:f.tipo||"",
+    fecha_hora:f.created_at||null,
+    fecha_hora_es:fechaCorta(f.created_at),
+    direccion:f.direccion||"",
+    lat:f.lat==null?null:f.lat,
+    lng:f.lng==null?null:f.lng,
+    modificado_por:f.modificado_por||"",
+    modificado_en:f.modificado_en||null,
+    motivo_modificacion:f.motivo_modificacion||""
+  };
+}
+
+function detalleAuditoriaFichaje(accion,motivo,anterior,nuevo){
+  const datos={
+    accion:String(accion||""),
+    motivo:String(motivo||""),
+    realizado_por:sesion().usuario||"",
+    realizado_en:ahora(),
+    dispositivo:dispositivoAuditoria(),
+    anterior:valorFichajeAuditoria(anterior),
+    nuevo:valorFichajeAuditoria(nuevo)
+  };
+
+  try{return JSON.stringify(datos,null,2)}
+  catch(e){return String(accion||"")+". Motivo: "+String(motivo||"")}
+}
+
+function detalleAuditoriaJornada(accion,motivo,jornada,fichajes){
+  const datos={
+    accion:String(accion||""),
+    motivo:String(motivo||""),
+    realizado_por:sesion().usuario||"",
+    realizado_en:ahora(),
+    dispositivo:dispositivoAuditoria(),
+    jornada:jornada||null,
+    fichajes:(fichajes||[]).map(valorFichajeAuditoria)
+  };
+
+  try{return JSON.stringify(datos,null,2)}
+  catch(e){return String(accion||"")+". Motivo: "+String(motivo||"")}
 }
 
 async function insertarAviso(usuarioId,titulo,mensaje,tipo){
@@ -1169,8 +1229,10 @@ async function borrarJornada(id){
     return;
   }
 
-  const ok=confirm("¿Eliminar jornada completa y todos sus fichajes?");
+  const ok=confirm("Vas a eliminar la jornada completa y todos sus fichajes. Esta acción recalculará horas, incidencias y horas extra. ¿Deseas continuar?");
   if(!ok) return;
+
+  const fichajesAntes=await fichajesDeJornada(id);
 
   const f=await sb().from("fichajes").delete().eq("jornada_id",String(id));
 
@@ -1188,7 +1250,7 @@ async function borrarJornada(id){
     return;
   }
 
-  await insertarAuditoria("borrar_jornada","Jornada borrada. Motivo: "+motivo,r0.data.usuario_id);
+  await insertarAuditoria("borrar_jornada",detalleAuditoriaJornada("BORRAR_JORNADA",motivo,r0.data,fichajesAntes),r0.data.usuario_id);
   await insertarAviso(r0.data.usuario_id,"Jornada borrada","Se ha borrado una jornada tuya. Motivo: "+motivo,"fichaje");
 
   cerrarModal();
@@ -1208,7 +1270,7 @@ async function borrarFichaje(id){
     return;
   }
 
-  const ok=confirm("¿Eliminar este fichaje?");
+  const ok=confirm("Vas a eliminar este fichaje. Esta acción puede modificar el tiempo trabajado, recalcular horas extra, incidencias y el estado de la jornada. ¿Deseas continuar?");
   if(!ok) return;
 
   const r=await sb().from("fichajes").delete().eq("id",id);
@@ -1227,7 +1289,7 @@ async function borrarFichaje(id){
     await recalcularJornada(r0.data.jornada_id);
   }
 
-  await insertarAuditoria("borrar_fichaje","Fichaje borrado: "+textoTipo(r0.data.tipo)+". Motivo: "+motivo,r0.data.usuario_id);
+  await insertarAuditoria("borrar_fichaje",detalleAuditoriaFichaje("BORRAR_FICHAJE",motivo,r0.data,null),r0.data.usuario_id);
   await insertarAviso(r0.data.usuario_id,"Fichaje borrado","Se ha borrado un fichaje tuyo. Motivo: "+motivo,"fichaje");
 
   cerrarModal();
@@ -1297,17 +1359,29 @@ async function editarFichaje(id){
       return;
     }
 
+    const nuevoFichaje={
+      ...f,
+      tipo,
+      created_at:fecha,
+      direccion,
+      lat:lat==="" ? null : Number(lat),
+      lng:lng==="" ? null : Number(lng),
+      modificado_por:sesion().usuario||"",
+      motivo_modificacion:motivoInicial,
+      modificado_en:ahora()
+    };
+
     const rr=await sb()
       .from("fichajes")
       .update({
-        tipo,
-        created_at:fecha,
-        direccion,
-        lat:lat==="" ? null : Number(lat),
-        lng:lng==="" ? null : Number(lng),
-        modificado_por:sesion().usuario||"",
-        motivo_modificacion:motivoInicial,
-        modificado_en:ahora()
+        tipo:nuevoFichaje.tipo,
+        created_at:nuevoFichaje.created_at,
+        direccion:nuevoFichaje.direccion,
+        lat:nuevoFichaje.lat,
+        lng:nuevoFichaje.lng,
+        modificado_por:nuevoFichaje.modificado_por,
+        motivo_modificacion:nuevoFichaje.motivo_modificacion,
+        modificado_en:nuevoFichaje.modificado_en
       })
       .eq("id",id);
 
@@ -1319,7 +1393,7 @@ async function editarFichaje(id){
     cerrarModal();
 
     await recalcularJornada(f.jornada_id);
-    await insertarAuditoria("modificar_fichaje","Fichaje modificado. Motivo: "+motivoInicial,f.usuario_id);
+    await insertarAuditoria("modificar_fichaje",detalleAuditoriaFichaje("MODIFICAR_FICHAJE",motivoInicial,f,nuevoFichaje),f.usuario_id);
     await insertarAviso(f.usuario_id,"Fichaje modificado","Se ha modificado un fichaje tuyo. Motivo: "+motivoInicial,"fichaje");
 
     ZX_fichaje_real();
@@ -1394,7 +1468,7 @@ function renderFichajeMini(f){
         ${limpiar(f.direccion||"")}
       </div>
 
-      ${f.motivo_modificacion ? `<div class="zx_admin_data" style="color:#dc2626;">Modificado: ${limpiar(f.motivo_modificacion)}</div>` : ""}
+      ${f.motivo_modificacion ? `<div class="zx_admin_data" style="color:#dc2626;">Modificado por ${limpiar(f.modificado_por||"-")} · ${limpiar(fechaCorta(f.modificado_en||""))}<br>Motivo: ${limpiar(f.motivo_modificacion)}</div>` : ""}
 
       ${esAdmin() ? `
         <div class="zx_edit_grid">
