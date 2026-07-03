@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3091 - MIS JORNADAS EN VIVO / SELECTOR COMPATIBLE IOS
+// V3092 - JORNADAS CERRADAS CALCULADAS DESDE FICHAJES
 // ===============================
 (function(){
 "use strict";
@@ -793,19 +793,19 @@ function objetivoJornadaSeg(j,laboral){
 }
 
 async function resumenVisualJornada(j){
-  if(!j) return {resumen:{trabajadoSeg:0,descansoSeg:0,comidaSeg:0},objetivoSeg:0,laboral:null};
+  if(!j) return {resumen:{trabajadoSeg:0,descansoSeg:0,comidaSeg:0},objetivoSeg:0,laboral:null,eventos:[],estado:"fuera"};
 
   const laboral=await objetivoDiaPRO(j.fecha||fechaHoyISO(),j.usuario_id);
   const obj=objetivoJornadaSeg(j,laboral);
+  const eventos=await fichajesDeJornada(j.id);
 
-  if(j.estado==="abierta"){
-    const eventos=await fichajesDeJornada(j.id);
-    const ultimo=eventos.length ? eventos[eventos.length-1] : null;
-    const estado=estadoDesdeTipo(ultimo ? ultimo.tipo : null);
+  if(eventos.length){
+    const ultimo=eventos[eventos.length-1];
+    const estado=j.estado==="cerrada" ? "fuera" : estadoDesdeTipo(ultimo ? ultimo.tipo : null);
     return {resumen:calcularEnVivo(eventos,estado),objetivoSeg:obj,laboral,eventos,estado};
   }
 
-  return {resumen:resumenDesdeJornada(j),objetivoSeg:obj,laboral,eventos:null,estado:"fuera"};
+  return {resumen:resumenDesdeJornada(j),objetivoSeg:obj,laboral,eventos:[],estado:"fuera"};
 }
 
 // ===============================
@@ -1567,8 +1567,6 @@ function renderFichajeMini(f){
 function renderJornadaMini(j,admin){
   const resumen=j.__resumen || resumenDesdeJornada(j);
   const objetivoSeg=Number(j.__objetivoSeg ?? Number(j.minutos_objetivo||0)*60);
-  const extraSeg=Math.max(0,Number(resumen.trabajadoSeg||0)-Number(objetivoSeg||0));
-  const faltaSeg=Math.max(0,Number(objetivoSeg||0)-Number(resumen.trabajadoSeg||0));
   const abierta=j.estado==="abierta";
 
   return `
@@ -1679,7 +1677,7 @@ function iniciarTiempoReal(){
 
   try{
     ZX_RT_CANAL=sb()
-      .channel("zx_fichaje_rt_v3090")
+      .channel("zx_fichaje_rt_v3092")
       .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},()=>ZX_fichaje_real())
@@ -1788,21 +1786,17 @@ window.ZX_fichaje_real=async function(){
 
   if(ZX_VER_MIS_JORNADAS){
     for(const j of jornadas){
-      if(j.estado==="abierta"){
-        const rv=await resumenVisualJornada(j);
-        j.__resumen=rv.resumen;
-        j.__objetivoSeg=rv.objetivoSeg;
-      }
+      const rv=await resumenVisualJornada(j);
+      j.__resumen=rv.resumen;
+      j.__objetivoSeg=rv.objetivoSeg;
     }
   }
 
   if(ZX_VER_ADMIN){
     for(const j of adminHoy){
-      if(j.estado==="abierta"){
-        const rv=await resumenVisualJornada(j);
-        j.__resumen=rv.resumen;
-        j.__objetivoSeg=rv.objetivoSeg;
-      }
+      const rv=await resumenVisualJornada(j);
+      j.__resumen=rv.resumen;
+      j.__objetivoSeg=rv.objetivoSeg;
     }
   }
 
