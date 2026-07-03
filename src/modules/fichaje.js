@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3093 - SEGUNDOS PERSISTENTES EN JORNADAS
+// V3094 - CORRECCIÓN INTEGER
 // ===============================
 (function(){
 "use strict";
@@ -1086,13 +1086,13 @@ async function recalcularJornada(jornadaId){
     salida:c.salida,
 
     // Compatibilidad: se siguen guardando minutos para estadísticas antiguas.
-    minutos_trabajados:Number((c.trabajadoSeg/60).toFixed(4)),
-    minutos_descanso:Number((c.descansoSeg/60).toFixed(4)),
-    minutos_comida:Number((c.comidaSeg/60).toFixed(4)),
-    minutos_objetivo:Number((objetivoSeg/60).toFixed(4)),
-    minutos_extra:Number((extraSeg/60).toFixed(4)),
-    minutos_faltantes:Number((faltanteSeg/60).toFixed(4)),
-    horas_extra:Number((extraSeg/60).toFixed(4)),
+    minutos_trabajados:Math.floor(c.trabajadoSeg/60),
+    minutos_descanso:Math.floor(c.descansoSeg/60),
+    minutos_comida:Math.floor(c.comidaSeg/60),
+    minutos_objetivo:Math.floor(objetivoSeg/60),
+    minutos_extra:Math.floor(extraSeg/60),
+    minutos_faltantes:Math.floor(faltanteSeg/60),
+    horas_extra:Math.floor(extraSeg/60),
 
     // Precisión real para la vista.
     segundos_trabajados:Math.floor(c.trabajadoSeg),
