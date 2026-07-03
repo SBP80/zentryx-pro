@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3090 - CÁLCULO ÚNICO / SINCRONIZACIÓN VISUAL / AUDITORÍA
+// V3091 - MIS JORNADAS EN VIVO / SELECTOR COMPATIBLE IOS
 // ===============================
 (function(){
 "use strict";
@@ -60,6 +60,16 @@ function restaurarScroll(){
     const y=Number(sessionStorage.getItem("zx_scroll_fichaje")||0);
     if(y>0) requestAnimationFrame(()=>window.scrollTo(0,y));
   }catch(e){}
+}
+
+function seleccionarJornadaLive(id){
+  const out=[];
+  document.querySelectorAll("[data-live-jornada-resumen]").forEach(el=>{
+    if(String(el.getAttribute("data-live-jornada-resumen")||"")===String(id||"")){
+      out.push(el);
+    }
+  });
+  return out;
 }
 
 // ===============================
@@ -1511,15 +1521,17 @@ function resumenHTML(resumen,objetivoSeg,laboral=null){
   `;
 }
 
-function resumenLineaHTML(resumen,objetivoSeg){
+function resumenLineaHTML(resumen,objetivoSeg,j=null){
   const extraSeg=Math.max(0,Number(resumen.trabajadoSeg||0)-Number(objetivoSeg||0));
   const faltaSeg=Math.max(0,Number(objetivoSeg||0)-Number(resumen.trabajadoSeg||0));
 
   return `
     Trab: ${formatoSeg(resumen.trabajadoSeg)} · Obj: ${formatoSeg(objetivoSeg)}<br>
     Desc: ${formatoSeg(resumen.descansoSeg)} · Comida: ${formatoSeg(resumen.comidaSeg)}<br>
-    Extra: ${formatoSeg(extraSeg)}<br>
+    Just: ${formatoMin(j ? (j.minutos_justificados||0) : 0)} · Extra: ${formatoSeg(extraSeg)}<br>
     Falta: ${formatoSeg(faltaSeg)}
+    ${j && j.es_festivo ? `<br><b style="color:#dc2626;">Festivo</b>` : ""}
+    ${j && j.observacion_laboral ? `<br><b style="color:#2563eb;">${limpiar(j.observacion_laboral)}</b>` : ""}
   `;
 }
 
@@ -1571,12 +1583,7 @@ function renderJornadaMini(j,admin){
       </div>
 
       <div class="zx_admin_data" ${abierta ? `data-live-jornada-resumen="${limpiar(j.id)}"` : ""}>
-        Trab: ${formatoSeg(resumen.trabajadoSeg)} · Obj: ${formatoSeg(objetivoSeg)}<br>
-        Desc: ${formatoSeg(resumen.descansoSeg)} · Comida: ${formatoSeg(resumen.comidaSeg)}<br>
-        Just: ${formatoMin(j.minutos_justificados||0)} · Extra: ${formatoSeg(extraSeg)}<br>
-        Falta: ${formatoSeg(faltaSeg)}
-        ${j.es_festivo ? `<br><b style="color:#dc2626;">Festivo</b>` : ""}
-        ${j.observacion_laboral ? `<br><b style="color:#2563eb;">${limpiar(j.observacion_laboral)}</b>` : ""}
+        ${resumenLineaHTML(resumen,objetivoSeg,j)}
       </div>
 
       ${admin ? `
@@ -1704,7 +1711,7 @@ window.ZX_toggleMisJornadas=function(){
 // ===============================
 // ACTUALIZACIÓN EN VIVO SIN REPINTAR TODA LA PANTALLA
 // ===============================
-async function actualizarVivo(jornadaId,objSec,lab){
+async function actualizarVivo(jornadaId,objSec,lab,jornada=null){
   try{
     const eventos=await fichajesDeJornada(jornadaId);
     const ultimo=eventos.length ? eventos[eventos.length-1] : null;
@@ -1728,8 +1735,8 @@ async function actualizarVivo(jornadaId,objSec,lab){
       });
     }
 
-    document.querySelectorAll(`[data-live-jornada-resumen="${CSS.escape(String(jornadaId))}"]`).forEach(el=>{
-      el.innerHTML=resumenLineaHTML(r,objSec);
+    seleccionarJornadaLive(jornadaId).forEach(el=>{
+      el.innerHTML=resumenLineaHTML(r,objSec,jornada);
     });
   }catch(e){}
 }
@@ -1880,8 +1887,10 @@ window.ZX_fichaje_real=async function(){
   if(est.jornada){
     const liveId=est.jornada.id;
     const liveObj=objetivoSeg;
+    const liveJornada=est.jornada;
+    actualizarVivo(liveId,liveObj,laboral,liveJornada);
     ZX_TIMER=setInterval(function(){
-      actualizarVivo(liveId,liveObj,laboral);
+      actualizarVivo(liveId,liveObj,laboral,liveJornada);
     },1000);
   }
 };
