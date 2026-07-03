@@ -1,51 +1,62 @@
 // ===============================
-// ZENTRYX PRO - SESSION PRO
-// V3096 DEV1
+// ZENTRYX PRO - SESSION
+// V3106
 // ===============================
 (function(){
 "use strict";
 
+const ZX_VERSION="3106";
+
 const SESSION_KEY="zentryx_session";
 const USER_KEY="usuario";
-const LOGIN_URL="index.html?v=3096dev1";
-const APP_URL="app.html?v=3096dev1";
 
-const MAX_SESSION_MS=8*60*60*1000;
-const INACTIVITY_MS=30*60*1000;
+const LOGIN_URL="index.html?v="+ZX_VERSION;
+const APP_URL="app.html?v="+ZX_VERSION;
+
+const MAX_SESSION_MS=12*60*60*1000;
+const INACTIVITY_MS=90*60*1000;
 
 function now(){
   return Date.now();
 }
 
-function parseDateValue(v){
+function parseTime(v){
   if(!v) return null;
-  if(typeof v==="number" && isFinite(v)) return v;
+
+  if(typeof v==="number" && isFinite(v)){
+    return v;
+  }
+
   if(typeof v==="string"){
     const t=Date.parse(v);
     return isNaN(t) ? null : t;
   }
+
   return null;
 }
 
-function readSession(){
+function readRaw(key){
   try{
-    const raw=localStorage.getItem(SESSION_KEY);
-    if(!raw) return null;
-    return JSON.parse(raw);
+    const raw=localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
   }catch(e){
     return null;
   }
 }
 
-function saveSession(s){
+function save(key,value){
   try{
-    localStorage.setItem(SESSION_KEY,JSON.stringify(s));
-  }catch(e){}
+    localStorage.setItem(key,JSON.stringify(value));
+    return true;
+  }catch(e){
+    return false;
+  }
 }
 
-function clearSession(){
-  try{localStorage.removeItem(SESSION_KEY)}catch(e){}
-  try{localStorage.removeItem(USER_KEY)}catch(e){}
+function remove(key){
+  try{
+    localStorage.removeItem(key);
+  }catch(e){}
 }
 
 function isLoginPage(){
@@ -58,48 +69,96 @@ function isAppPage(){
 }
 
 function normalizeSession(s){
-  if(!s || typeof s!=="object") return null;
-  if(!s.id || !s.usuario) return null;
+  if(!s || typeof s!=="object"){
+    return null;
+  }
+
+  if(!s.id || !s.usuario){
+    return null;
+  }
 
   const t=now();
-  const created=parseDateValue(s.created_at) || parseDateValue(s.inicio) || t;
-  const last=parseDateValue(s.last_activity) || parseDateValue(s.actividad) || created;
-  const expires=parseDateValue(s.expires_at) || (created+MAX_SESSION_MS);
 
-  const normalized={
-    id:s.id,
-    usuario:s.usuario,
+  const created=parseTime(s.created_at) || parseTime(s.inicio) || t;
+  const last=parseTime(s.last_activity) || parseTime(s.actividad) || created;
+  const expires=parseTime(s.expires_at) || created+MAX_SESSION_MS;
+
+  return {
+    id:String(s.id),
+    usuario:String(s.usuario),
     nombre:s.nombre || s.usuario,
     rol:s.rol || "Usuario",
+    empresa_id:s.empresa_id || "demo",
     created_at:created,
     last_activity:last,
     expires_at:expires,
     inicio:s.inicio || new Date(created).toISOString(),
-    actividad:new Date(last).toISOString()
+    actividad:new Date(last).toISOString(),
+    session_id:s.session_id || "zx_"+created+"_"+Math.random().toString(16).slice(2),
+    dispositivo_id:s.dispositivo_id || getDeviceId()
   };
+}
 
-  if(s.dispositivo_id) normalized.dispositivo_id=s.dispositivo_id;
-  if(s.session_id) normalized.session_id=s.session_id;
+function getDeviceId(){
+  const key="zentryx_device_id";
 
-  return normalized;
+  try{
+    let id=localStorage.getItem(key);
+
+    if(!id){
+      id="dev_"+Date.now()+"_"+Math.random().toString(16).slice(2);
+      localStorage.setItem(key,id);
+    }
+
+    return id;
+
+  }catch(e){
+    return "dev_temp";
+  }
+}
+
+function readSession(){
+  return normalizeSession(readRaw(SESSION_KEY));
+}
+
+function saveSession(s){
+  return save(SESSION_KEY,normalizeSession(s));
+}
+
+function clearSession(){
+  remove(SESSION_KEY);
+  remove(USER_KEY);
 }
 
 function sessionValid(){
-  const s=normalizeSession(readSession());
-  if(!s) return false;
+  const s=readSession();
+
+  if(!s){
+    return false;
+  }
 
   const t=now();
 
-  if(t>s.expires_at) return false;
-  if(t-s.last_activity>INACTIVITY_MS) return false;
+  if(t>s.expires_at){
+    clearSession();
+    return false;
+  }
+
+  if(t-s.last_activity>INACTIVITY_MS){
+    clearSession();
+    return false;
+  }
 
   saveSession(s);
   return true;
 }
 
 function updateActivity(){
-  const s=normalizeSession(readSession());
-  if(!s) return false;
+  const s=readSession();
+
+  if(!s){
+    return false;
+  }
 
   const t=now();
   const maxExpire=s.created_at+MAX_SESSION_MS;
@@ -108,31 +167,33 @@ function updateActivity(){
   s.actividad=new Date(t).toISOString();
   s.expires_at=Math.min(maxExpire,t+MAX_SESSION_MS);
 
-  saveSession(s);
-  return true;
+  return saveSession(s);
 }
 
 function createSession(usuario){
-  if(!usuario || !usuario.id || !usuario.usuario) return false;
+  if(!usuario || !usuario.id || !usuario.usuario){
+    return false;
+  }
 
   const t=now();
+
   const s={
     id:usuario.id,
     usuario:usuario.usuario,
     nombre:usuario.nombre || usuario.usuario,
     rol:usuario.rol || "Usuario",
+    empresa_id:usuario.empresa_id || "demo",
     created_at:t,
     last_activity:t,
     expires_at:t+MAX_SESSION_MS,
     inicio:new Date(t).toISOString(),
-    actividad:new Date(t).toISOString()
+    actividad:new Date(t).toISOString(),
+    session_id:"zx_"+t+"_"+Math.random().toString(16).slice(2),
+    dispositivo_id:getDeviceId()
   };
 
-  saveSession(s);
-
-  try{
-    localStorage.setItem(USER_KEY,JSON.stringify(usuario));
-  }catch(e){}
+  save(SESSION_KEY,s);
+  save(USER_KEY,usuario);
 
   return true;
 }
@@ -148,6 +209,7 @@ function protectApp(){
     location.replace(LOGIN_URL);
     return false;
   }
+
   return true;
 }
 
@@ -157,38 +219,50 @@ function protectLogin(){
     location.replace(APP_URL);
     return true;
   }
+
   return false;
 }
 
 function startActivityControl(){
   ["click","touchstart","keydown","scroll"].forEach(function(ev){
     document.addEventListener(ev,function(){
-      if(sessionValid()) updateActivity();
+      if(sessionValid()){
+        updateActivity();
+      }
     },{passive:true});
   });
 
   document.addEventListener("visibilitychange",function(){
-    if(!document.hidden && sessionValid()) updateActivity();
+    if(!document.hidden && sessionValid()){
+      updateActivity();
+    }
   });
 
   window.addEventListener("pageshow",function(){
-    if(sessionValid()) updateActivity();
+    if(sessionValid()){
+      updateActivity();
+    }
   });
 
   setInterval(function(){
-    if(isAppPage() && !sessionValid()) logout();
+    if(isAppPage() && !sessionValid()){
+      logout();
+    }
   },30000);
 }
 
 window.ZENTRYX_createSession=createSession;
 window.ZENTRYX_logout=logout;
 window.ZENTRYX_sessionValid=sessionValid;
-window.ZENTRYX_readSession=function(){return normalizeSession(readSession())};
+window.ZENTRYX_readSession=readSession;
 window.ZENTRYX_clearSession=clearSession;
 window.ZENTRYX_updateActivity=updateActivity;
+window.ZENTRYX_getDeviceId=getDeviceId;
 
 protectApp();
 protectLogin();
 startActivityControl();
+
+console.log("Zentryx session.js V"+ZX_VERSION+" cargado");
 
 })();
