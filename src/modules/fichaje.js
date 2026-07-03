@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3085 - AUDITORÍA AMPLIADA / TRAZABILIDAD DE FICHAJES
+// V3087 - FINAL FICHAJE / SEGUNDOS / AUDITORÍA / JORNADAS EN VIVO
 // ===============================
 (function(){
 "use strict";
@@ -230,6 +230,7 @@ function dispositivoAuditoria(){
   const s=sesion();
   return [
     "Usuario sesión: "+String(s.usuario||""),
+    "Nombre sesión: "+String(s.nombre||""),
     "Rol: "+String(s.rol||""),
     "URL: "+String(location.href||""),
     "Dispositivo: "+String(navigator.userAgent||"")
@@ -257,10 +258,12 @@ function valorFichajeAuditoria(f){
 }
 
 function detalleAuditoriaFichaje(accion,motivo,anterior,nuevo){
+  const s=sesion();
   const datos={
     accion:String(accion||""),
     motivo:String(motivo||""),
-    realizado_por:sesion().usuario||"",
+    realizado_por_usuario:s.usuario||"",
+    realizado_por_nombre:s.nombre||s.usuario||"",
     realizado_en:ahora(),
     dispositivo:dispositivoAuditoria(),
     anterior:valorFichajeAuditoria(anterior),
@@ -272,10 +275,12 @@ function detalleAuditoriaFichaje(accion,motivo,anterior,nuevo){
 }
 
 function detalleAuditoriaJornada(accion,motivo,jornada,fichajes){
+  const s=sesion();
   const datos={
     accion:String(accion||""),
     motivo:String(motivo||""),
-    realizado_por:sesion().usuario||"",
+    realizado_por_usuario:s.usuario||"",
+    realizado_por_nombre:s.nombre||s.usuario||"",
     realizado_en:ahora(),
     dispositivo:dispositivoAuditoria(),
     jornada:jornada||null,
@@ -742,6 +747,47 @@ function resumenDesdeJornada(j){
   };
 }
 
+function jornadaEsExtra(j){
+  const obs=String(j?.observacion_laboral||"");
+  return obs.includes("Jornada extra creada por administrador") || obs.includes("Jornada adicional del mismo día");
+}
+
+async function prepararJornadaVista(j){
+  const out={...j};
+  try{
+    const eventos=await fichajesDeJornada(j.id);
+    out._fichajesCount=eventos.length;
+    if(j.estado==="abierta"){
+      const ultimo=eventos.length ? eventos[eventos.length-1] : null;
+      const estado=estadoDesdeTipo(ultimo ? ultimo.tipo : null);
+      const c=calcularEnVivo(eventos,estado);
+      const objetivoSeg=jornadaEsExtra(j) ? 0 : Number(j.minutos_objetivo||0)*60;
+      out._trabajadoSeg=c.trabajadoSeg;
+      out._descansoSeg=c.descansoSeg;
+      out._comidaSeg=c.comidaSeg;
+      out._objetivoSeg=objetivoSeg;
+      out._extraSeg=Math.max(0,c.trabajadoSeg-objetivoSeg);
+      out._faltanteSeg=Math.max(0,objetivoSeg-c.trabajadoSeg);
+    }else{
+      out._trabajadoSeg=Number(j.minutos_trabajados||0)*60;
+      out._descansoSeg=Number(j.minutos_descanso||0)*60;
+      out._comidaSeg=Number(j.minutos_comida||0)*60;
+      out._objetivoSeg=Number(j.minutos_objetivo||0)*60;
+      out._extraSeg=Number(j.minutos_extra||j.horas_extra||0)*60;
+      out._faltanteSeg=Number(j.minutos_faltantes||0)*60;
+    }
+  }catch(e){
+    out._fichajesCount=null;
+    out._trabajadoSeg=Number(j.minutos_trabajados||0)*60;
+    out._descansoSeg=Number(j.minutos_descanso||0)*60;
+    out._comidaSeg=Number(j.minutos_comida||0)*60;
+    out._objetivoSeg=Number(j.minutos_objetivo||0)*60;
+    out._extraSeg=Number(j.minutos_extra||j.horas_extra||0)*60;
+    out._faltanteSeg=Number(j.minutos_faltantes||0)*60;
+  }
+  return out;
+}
+
 // ===============================
 // OPCIONES Y MODAL
 // ===============================
@@ -1198,7 +1244,6 @@ async function jornadasUsuario(){
 }
 
 async function jornadasAdminHoy(){
-  const s=sesion();
   const hoy=fechaHoyISO();
 
   const r=await sb()
@@ -1206,11 +1251,10 @@ async function jornadasAdminHoy(){
     .select("*")
     .eq("fecha",hoy)
     .order("created_at",{ascending:false})
-    .limit(80);
+    .limit(120);
 
   if(r.error) return [];
-
-  return (r.data||[]).filter(j=>String(j.usuario_id)!==String(s.id));
+  return r.data||[];
 }
 
 // ===============================
@@ -1367,6 +1411,7 @@ async function editarFichaje(id){
       lat:lat==="" ? null : Number(lat),
       lng:lng==="" ? null : Number(lng),
       modificado_por:sesion().usuario||"",
+      modificado_nombre:sesion().nombre||sesion().usuario||"",
       motivo_modificacion:motivoInicial,
       modificado_en:ahora()
     };
@@ -1468,7 +1513,7 @@ function renderFichajeMini(f){
         ${limpiar(f.direccion||"")}
       </div>
 
-      ${f.motivo_modificacion ? `<div class="zx_admin_data" style="color:#dc2626;">Modificado por ${limpiar(f.modificado_por||"-")} · ${limpiar(fechaCorta(f.modificado_en||""))}<br>Motivo: ${limpiar(f.motivo_modificacion)}</div>` : ""}
+      ${f.motivo_modificacion ? `<div class="zx_admin_data zx_audit_box"><b>Última modificación</b><br>${limpiar(f.modificado_por||"-")} · ${limpiar(fechaCorta(f.modificado_en||""))}<br>Motivo: ${limpiar(f.motivo_modificacion)}</div>` : ""}
 
       ${esAdmin() ? `
         <div class="zx_edit_grid">
@@ -1486,6 +1531,15 @@ function renderFichajeMini(f){
 }
 
 function renderJornadaMini(j,admin){
+  const trabSeg=Number(j._trabajadoSeg ?? (Number(j.minutos_trabajados||0)*60));
+  const descSeg=Number(j._descansoSeg ?? (Number(j.minutos_descanso||0)*60));
+  const comidaSeg=Number(j._comidaSeg ?? (Number(j.minutos_comida||0)*60));
+  const objSeg=Number(j._objetivoSeg ?? (Number(j.minutos_objetivo||0)*60));
+  const extraSeg=Number(j._extraSeg ?? (Number(j.minutos_extra||j.horas_extra||0)*60));
+  const faltaSeg=Number(j._faltanteSeg ?? (Number(j.minutos_faltantes||0)*60));
+  const vacia=(j._fichajesCount===0) || (!trabSeg && !descSeg && !comidaSeg && !extraSeg && !j.salida && j.estado!=="abierta");
+  const extra=jornadaEsExtra(j);
+
   return `
     <div class="zx_admin_row">
       <div class="zx_admin_row_top">
@@ -1497,14 +1551,20 @@ function renderJornadaMini(j,admin){
         ${limpiar(j.estado||"-")}
       </div>
 
-      <div class="zx_admin_data">
-        Trab: ${formatoMin(j.minutos_trabajados||0)} · Obj: ${formatoMin(j.minutos_objetivo||0)}<br>
-        Desc: ${formatoMin(j.minutos_descanso||0)} · Comida: ${formatoMin(j.minutos_comida||0)}<br>
-        Just: ${formatoMin(j.minutos_justificados||0)} · Extra: ${formatoMin(j.minutos_extra||j.horas_extra||0)}<br>
-        Falta: ${formatoMin(j.minutos_faltantes||0)}
-        ${j.es_festivo ? `<br><b style="color:#dc2626;">Festivo</b>` : ""}
-        ${j.observacion_laboral ? `<br><b style="color:#2563eb;">${limpiar(j.observacion_laboral)}</b>` : ""}
-      </div>
+      ${extra ? `<div class="zx_tag_extra">Jornada extraordinaria</div>` : ""}
+
+      ${vacia ? `
+        <div class="zx_admin_data zx_jornada_vacia">Jornada vacía o sin fichajes válidos.</div>
+      ` : `
+        <div class="zx_admin_data">
+          Trab: ${formatoSeg(trabSeg)} · Obj: ${formatoSeg(objSeg)}<br>
+          Desc: ${formatoSeg(descSeg)} · Comida: ${formatoSeg(comidaSeg)}<br>
+          Just: ${formatoMin(j.minutos_justificados||0)} · Extra: ${formatoSeg(extraSeg)}<br>
+          Falta: ${formatoSeg(faltaSeg)}
+          ${j.es_festivo ? `<br><b style="color:#dc2626;">Festivo</b>` : ""}
+          ${j.observacion_laboral ? `<br><b style="color:#2563eb;">${limpiar(j.observacion_laboral)}</b>` : ""}
+        </div>
+      `}
 
       ${admin ? `
         <div class="zx_edit_grid">
@@ -1574,6 +1634,9 @@ function estilosAdminCompacto(){
     .zx_admin_estado.pagada{background:#16a34a}
 
     .zx_admin_data{color:#64748b;font-size:15px;line-height:1.45;font-weight:800;word-break:break-word;}
+    .zx_audit_box{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:10px;color:#9a3412!important;margin-top:10px;}
+    .zx_tag_extra{display:inline-block;margin:8px 0;padding:5px 10px;border-radius:999px;background:#7c3aed;color:white;font-size:13px;font-weight:900;}
+    .zx_jornada_vacia{background:#f1f5f9;border-radius:14px;padding:10px;margin-top:8px;color:#64748b;}
     .zx_admin_btn{width:100%;border:0;border-radius:14px;margin-top:10px;padding:12px;color:white;font-size:16px;font-weight:900;}
     .zx_admin_editar{background:#2563eb}
     .zx_admin_borrar{background:#dc2626}
@@ -1597,7 +1660,7 @@ function iniciarTiempoReal(){
 
   try{
     ZX_RT_CANAL=sb()
-      .channel("zx_fichaje_rt_v3083")
+      .channel("zx_fichaje_rt_v3087")
       .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},()=>ZX_fichaje_real())
@@ -1645,6 +1708,8 @@ window.ZX_fichaje_real=async function(){
   const jornadas=await jornadasUsuario();
   const ultima=await ultimaJornadaUsuario();
   const adminHoy=esAdmin() ? await jornadasAdminHoy() : [];
+  const jornadasVista=await Promise.all((jornadas||[]).map(prepararJornadaVista));
+  const adminHoyVista=await Promise.all((adminHoy||[]).map(prepararJornadaVista));
 
   let resumen={trabajadoSeg:0,descansoSeg:0,comidaSeg:0};
   let objetivoSeg=480*60;
@@ -1700,7 +1765,7 @@ window.ZX_fichaje_real=async function(){
         ${ZX_VER_MIS_JORNADAS ? "Ocultar mis jornadas" : "Ver mis jornadas"}
       </button>
 
-      ${ZX_VER_MIS_JORNADAS ? (jornadas.length ? jornadas.map(j=>renderJornadaMini(j,esAdmin())).join("") : `<div class="zx_text">Sin jornadas.</div>`) : ""}
+      ${ZX_VER_MIS_JORNADAS ? (jornadasVista.length ? jornadasVista.map(j=>renderJornadaMini(j,esAdmin())).join("") : `<div class="zx_text">Sin jornadas.</div>`) : ""}
     </div>
 
     ${esAdmin() ? `
@@ -1710,9 +1775,9 @@ window.ZX_fichaje_real=async function(){
         </button>
 
         ${ZX_VER_ADMIN ? `
-          ${renderAdminResumen(adminHoy)}
+          ${renderAdminResumen(adminHoyVista)}
           <h3 style="font-size:24px;margin:18px 0 8px;">Hoy</h3>
-          ${adminHoy.length ? adminHoy.slice(0,10).map(j=>renderJornadaMini(j,true)).join("") : `<div class="zx_text">Sin jornadas hoy.</div>`}
+          ${adminHoyVista.length ? adminHoyVista.slice(0,10).map(j=>renderJornadaMini(j,true)).join("") : `<div class="zx_text">Sin jornadas hoy.</div>`}
         ` : ""}
       </div>
     ` : ""}
