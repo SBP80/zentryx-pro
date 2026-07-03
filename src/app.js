@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3106
+// V3107 - ARRANQUE RÁPIDO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3106";
+const ZX_VERSION="3107";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -16,7 +16,10 @@ const CONFIG_KEY="zentryx_config";
 const OFFLINE_QUEUE_KEY="zentryx_offline_queue";
 const OFFLINE_CACHE_PREFIX="zentryx_cache_";
 
-function safeJSONParse(raw,fallback){
+let ZX_SERVICIOS_INICIADOS=false;
+let ZX_SYNC_TIMER=null;
+
+function safeJSON(raw,fallback){
   try{
     if(raw===null || raw===undefined || raw==="") return fallback;
     return JSON.parse(raw);
@@ -27,7 +30,7 @@ function safeJSONParse(raw,fallback){
 
 function storageGet(key,fallback){
   try{
-    return safeJSONParse(localStorage.getItem(key),fallback);
+    return safeJSON(localStorage.getItem(key),fallback);
   }catch(e){
     return fallback;
   }
@@ -124,11 +127,11 @@ function getSupabase(){
   if(window.supabaseClient) return window.supabaseClient;
 
   if(!window.supabase || !window.supabase.createClient){
-    console.error("Supabase no está disponible.");
     return null;
   }
 
   const cliente=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
   window.sb=cliente;
   window.supabaseClient=cliente;
 
@@ -162,7 +165,8 @@ function usuarioActual(){
     usuario:s.usuario || u.usuario || "",
     nombre:s.nombre || u.nombre || s.usuario || u.usuario || "",
     rol:s.rol || u.rol || "Usuario",
-    empresa_id:s.empresa_id || u.empresa_id || "demo"
+    empresa_id:s.empresa_id || u.empresa_id || "demo",
+    permisos:s.permisos || u.permisos || {}
   };
 }
 
@@ -207,20 +211,22 @@ function leerConfig(){
   const saved=storageGet(CONFIG_KEY,{});
   const base=configBase();
 
-  const next=Object.assign({},base,saved || {});
-  next.modulos=Object.assign({},base.modulos,(saved && saved.modulos) || {});
+  const cfg=Object.assign({},base,saved || {});
+  cfg.modulos=Object.assign({},base.modulos,(saved && saved.modulos) || {});
 
   if(window.ZENTRYX_STORE && typeof window.ZENTRYX_STORE.getModulos==="function"){
-    next.modulos=Object.assign({},next.modulos,window.ZENTRYX_STORE.getModulos());
+    cfg.modulos=Object.assign({},cfg.modulos,window.ZENTRYX_STORE.getModulos());
   }
 
-  return next;
+  return cfg;
 }
 
 function guardarConfig(config){
   const base=leerConfig();
   const next=Object.assign({},base,config || {});
+
   next.modulos=Object.assign({},base.modulos,(config && config.modulos) || {});
+
   storageSet(CONFIG_KEY,next);
 
   if(window.ZENTRYX){
@@ -249,9 +255,7 @@ function moduloActivo(nombre){
   const cfg=leerConfig();
 
   if(!cfg.modulos) return true;
-  if(cfg.modulos[key]===false) return false;
-
-  return true;
+  return cfg.modulos[key]!==false;
 }
 
 function registrarModulo(nombre,modulo){
@@ -279,12 +283,12 @@ function listarModulos(){
 }
 
 function marcarModuloActivo(nombre){
-  const n=aliasModulo(nombre);
+  const objetivo=aliasModulo(nombre);
 
   document.querySelectorAll(".zx_nav_btn").forEach(function(btn){
     btn.classList.remove("zx_activo");
 
-    if(aliasModulo(btn.dataset.modulo)===n){
+    if(aliasModulo(btn.dataset.modulo)===objetivo){
       btn.classList.add("zx_activo");
     }
   });
@@ -305,9 +309,12 @@ function cacheGuardar(tabla,datos){
 function cacheUpsert(tabla,item,campo){
   campo=campo || "id";
 
-  if(!item || !item[campo]) return false;
+  if(!item || !item[campo]){
+    return false;
+  }
 
   const lista=cacheLeer(tabla);
+
   const idx=lista.findIndex(function(x){
     return String(x[campo])===String(item[campo]);
   });
@@ -346,6 +353,7 @@ function colaPendiente(){
 }
 
 function colaAdd(item){
+  const u=usuarioActual();
   const lista=colaLeer();
 
   lista.push(Object.assign({
@@ -353,22 +361,14 @@ function colaAdd(item){
     estado:"pendiente",
     creado_en:ahoraISO(),
     intentos:0,
-    usuario:usuarioActual().usuario || "",
-    empresa_id:usuarioActual().empresa_id || "demo"
+    usuario:u.usuario || "",
+    empresa_id:u.empresa_id || "demo"
   },item || {}));
 
   colaGuardar(lista);
   actualizarEstadoConexion();
 
   return lista;
-}
-
-function setSyncStatus(tipo){
-  if(typeof window.ZENTRYX_SET_SYNC_STATUS==="function"){
-    window.ZENTRYX_SET_SYNC_STATUS(tipo);
-  }
-
-  renderEstadoConexion(tipo);
 }
 
 function ensureEstadoConexion(){
@@ -387,7 +387,7 @@ function ensureEstadoConexion(){
       #zx_connection_status{
         position:fixed;
         left:12px;
-        bottom:calc(env(safe-area-inset-bottom) + 12px);
+        bottom:calc(env(safe-area-inset-bottom) + 82px);
         z-index:999999;
         border:0;
         border-radius:999px;
@@ -444,7 +444,13 @@ function renderEstadoConexion(tipo){
   el.textContent=tipo==="synced" ? "✅ Sincronizado" : "🟢 Conectado";
 }
 
+function setSyncStatus(tipo){
+  renderEstadoConexion(tipo);
+}
+
 function actualizarEstadoConexion(){
+  if(!document.body) return;
+
   if(!navigator.onLine){
     renderEstadoConexion("offline");
     return;
@@ -520,7 +526,7 @@ async function syncOfflineQueue(){
       item.error="";
       sincronizados++;
 
-      audit(item.tabla,item.operacion,item.valor || "", "Sincronizado sin conexión", item);
+      audit(item.tabla,item.operacion,item.valor || "","Sincronizado sin conexión",item);
 
     }catch(e){
       item.error=e && e.message ? e.message : "Error";
@@ -535,7 +541,7 @@ async function syncOfflineQueue(){
     renderEstadoConexion("syncing");
   }else{
     renderEstadoConexion("synced");
-    setTimeout(actualizarEstadoConexion,1400);
+    setTimeout(actualizarEstadoConexion,1200);
   }
 
   return {
@@ -601,7 +607,7 @@ async function insert(tabla,data,opciones){
   const r=await cliente.from(tabla).insert(payload);
 
   if(!r.error){
-    audit(tabla,"insert",opciones.valor || "", "Registro creado", payload);
+    audit(tabla,"insert",opciones.valor || "","Registro creado",payload);
   }
 
   return r;
@@ -656,7 +662,7 @@ async function upsert(tabla,data){
   const r=await cliente.from(tabla).upsert(payload);
 
   if(!r.error){
-    audit(tabla,"upsert","", "Registro guardado", payload);
+    audit(tabla,"upsert","","Registro guardado",payload);
   }
 
   return r;
@@ -748,23 +754,17 @@ function estadoSistema(){
   };
 }
 
-function bootDOM(){
+function iniciarServiciosLigeros(){
+  if(ZX_SERVICIOS_INICIADOS) return;
+
+  ZX_SERVICIOS_INICIADOS=true;
+
   aplicarTemaGuardado();
-  ensureEstadoConexion();
   actualizarEstadoConexion();
-
-  const obs=new MutationObserver(function(){
-    ensureEstadoConexion();
-    actualizarEstadoConexion();
-  });
-
-  if(document.body){
-    obs.observe(document.body,{childList:true});
-  }
 
   window.addEventListener("online",function(){
     setSyncStatus("syncing");
-    syncOfflineQueue();
+    setTimeout(syncOfflineQueue,600);
   });
 
   window.addEventListener("offline",function(){
@@ -774,19 +774,30 @@ function bootDOM(){
   window.addEventListener("pageshow",function(){
     aplicarTemaGuardado();
     actualizarEstadoConexion();
-
-    if(navigator.onLine){
-      syncOfflineQueue();
-    }
   });
 
-  setInterval(function(){
+  if(ZX_SYNC_TIMER){
+    clearInterval(ZX_SYNC_TIMER);
+  }
+
+  ZX_SYNC_TIMER=setInterval(function(){
     actualizarEstadoConexion();
 
     if(navigator.onLine && colaPendiente().length>0){
       syncOfflineQueue();
     }
-  },30000);
+  },60000);
+
+  if(navigator.onLine && colaPendiente().length>0){
+    setTimeout(syncOfflineQueue,1600);
+  }
+}
+
+function bootDOM(){
+  ensureEstadoConexion();
+  renderEstadoConexion(navigator.onLine ? "online" : "offline");
+
+  setTimeout(iniciarServiciosLigeros,900);
 }
 
 window.ZENTRYX=window.ZENTRYX || {};
@@ -847,11 +858,13 @@ window.ZENTRYX.services.storage={
   set:storageSet,
   remove:storageRemove
 };
+
 window.ZENTRYX.services.offline={
   queue:colaAdd,
   pending:colaPendiente,
   sync:syncOfflineQueue
 };
+
 window.ZENTRYX.services.db={
   selectCache:selectCache,
   insert:insert,
@@ -868,8 +881,7 @@ window.supabaseClient=window.sb;
 registrarModulo("app",{
   nombre:"App",
   activo:true,
-  version:ZX_VERSION,
-  descripcion:"Base general de arranque, estado, módulos, caché local y cola offline"
+  version:ZX_VERSION
 });
 
 if(document.readyState==="loading"){
@@ -878,6 +890,6 @@ if(document.readyState==="loading"){
   bootDOM();
 }
 
-console.log("Zentryx PRO app cargada V"+ZX_VERSION);
+console.log("Zentryx PRO app.js V"+ZX_VERSION+" cargado");
 
 })();
