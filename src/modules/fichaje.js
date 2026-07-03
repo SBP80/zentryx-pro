@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3092 - JORNADAS CERRADAS CALCULADAS DESDE FICHAJES
+// V3093 - SEGUNDOS PERSISTENTES EN JORNADAS
 // ===============================
 (function(){
 "use strict";
@@ -132,7 +132,7 @@ function formatoSeg(seg){
          String(s).padStart(2,"0");
 }
 
-function formatoMin(min){return formatoSeg((min||0)*60)}
+function formatoMin(min){return formatoSeg(Number(min||0)*60)}
 
 function segundosEntre(a,b){
   const da=new Date(a);
@@ -772,12 +772,18 @@ function calcularEnVivo(eventos,estado){
 }
 
 function resumenDesdeJornada(j){
+  const tieneSegundos =
+    j &&
+    (j.segundos_trabajados!==undefined ||
+     j.segundos_descanso!==undefined ||
+     j.segundos_comida!==undefined);
+
   return {
     entrada:j?.entrada||null,
     salida:j?.salida||null,
-    trabajadoSeg:Number(j?.minutos_trabajados||0)*60,
-    descansoSeg:Number(j?.minutos_descanso||0)*60,
-    comidaSeg:Number(j?.minutos_comida||0)*60
+    trabajadoSeg:tieneSegundos ? Number(j?.segundos_trabajados||0) : Math.round(Number(j?.minutos_trabajados||0)*60),
+    descansoSeg:tieneSegundos ? Number(j?.segundos_descanso||0) : Math.round(Number(j?.minutos_descanso||0)*60),
+    comidaSeg:tieneSegundos ? Number(j?.segundos_comida||0) : Math.round(Number(j?.minutos_comida||0)*60)
   };
 }
 
@@ -788,7 +794,12 @@ function jornadaEsAdicional(j){
 
 function objetivoJornadaSeg(j,laboral){
   if(jornadaEsAdicional(j)) return 0;
-  if(j && j.estado==="cerrada") return Number(j.minutos_objetivo||0)*60;
+  if(j && j.estado==="cerrada"){
+    if(j.segundos_objetivo!==undefined && j.segundos_objetivo!==null){
+      return Number(j.segundos_objetivo||0);
+    }
+    return Math.round(Number(j.minutos_objetivo||0)*60);
+  }
   return Number(laboral?.objetivoSeg||0);
 }
 
@@ -1073,13 +1084,24 @@ async function recalcularJornada(jornadaId){
 
   const datos={
     salida:c.salida,
-    minutos_trabajados:Math.floor(c.trabajadoSeg/60),
-    minutos_descanso:Math.floor(c.descansoSeg/60),
-    minutos_comida:Math.floor(c.comidaSeg/60),
-    minutos_objetivo:Math.floor(objetivoSeg/60),
-    minutos_extra:Math.floor(extraSeg/60),
-    minutos_faltantes:Math.floor(faltanteSeg/60),
-    horas_extra:Math.floor(extraSeg/60),
+
+    // Compatibilidad: se siguen guardando minutos para estadísticas antiguas.
+    minutos_trabajados:Number((c.trabajadoSeg/60).toFixed(4)),
+    minutos_descanso:Number((c.descansoSeg/60).toFixed(4)),
+    minutos_comida:Number((c.comidaSeg/60).toFixed(4)),
+    minutos_objetivo:Number((objetivoSeg/60).toFixed(4)),
+    minutos_extra:Number((extraSeg/60).toFixed(4)),
+    minutos_faltantes:Number((faltanteSeg/60).toFixed(4)),
+    horas_extra:Number((extraSeg/60).toFixed(4)),
+
+    // Precisión real para la vista.
+    segundos_trabajados:Math.floor(c.trabajadoSeg),
+    segundos_descanso:Math.floor(c.descansoSeg),
+    segundos_comida:Math.floor(c.comidaSeg),
+    segundos_objetivo:Math.floor(objetivoSeg),
+    segundos_extra:Math.floor(extraSeg),
+    segundos_faltantes:Math.floor(faltanteSeg),
+
     es_festivo:laboral.festivo,
     tipo_festivo:laboral.tipoFestivo,
     solicitud_id:laboral.solicitudId,
@@ -1600,14 +1622,14 @@ function renderJornadaMini(j,admin){
 }
 
 function renderAdminResumen(jornadasHoy){
-  let totalTrab=0,totalExtra=0,totalFalta=0,abiertas=0,cerradas=0,festivas=0,justificadas=0;
+  let totalTrabSeg=0,totalExtraSeg=0,totalFaltaSeg=0,abiertas=0,cerradas=0,festivas=0,justificadas=0;
 
   jornadasHoy.forEach(j=>{
     const resumen=j.__resumen || resumenDesdeJornada(j);
-    const objetivoSeg=Number(j.__objetivoSeg ?? Number(j.minutos_objetivo||0)*60);
-    totalTrab+=Math.floor(Number(resumen.trabajadoSeg||0)/60);
-    totalExtra+=Math.floor(Math.max(0,Number(resumen.trabajadoSeg||0)-objetivoSeg)/60);
-    totalFalta+=Math.floor(Math.max(0,objetivoSeg-Number(resumen.trabajadoSeg||0))/60);
+    const objetivoSeg=Number(j.__objetivoSeg ?? (j.segundos_objetivo!==undefined ? Number(j.segundos_objetivo||0) : Number(j.minutos_objetivo||0)*60));
+    totalTrabSeg+=Math.floor(Number(resumen.trabajadoSeg||0));
+    totalExtraSeg+=Math.floor(Math.max(0,Number(resumen.trabajadoSeg||0)-objetivoSeg));
+    totalFaltaSeg+=Math.floor(Math.max(0,objetivoSeg-Number(resumen.trabajadoSeg||0)));
     if(j.estado==="abierta") abiertas++;
     if(j.estado==="cerrada") cerradas++;
     if(j.es_festivo) festivas++;
@@ -1619,9 +1641,9 @@ function renderAdminResumen(jornadasHoy){
       <div><b>${jornadasHoy.length}</b><span>Jornadas</span></div>
       <div><b>${abiertas}</b><span>Abiertas</span></div>
       <div><b>${cerradas}</b><span>Cerradas</span></div>
-      <div><b>${formatoMin(totalTrab)}</b><span>Trabajado</span></div>
-      <div><b>${formatoMin(totalExtra)}</b><span>Extra</span></div>
-      <div><b>${formatoMin(totalFalta)}</b><span>Falta</span></div>
+      <div><b>${formatoSeg(totalTrabSeg)}</b><span>Trabajado</span></div>
+      <div><b>${formatoSeg(totalExtraSeg)}</b><span>Extra</span></div>
+      <div><b>${formatoSeg(totalFaltaSeg)}</b><span>Falta</span></div>
       <div><b>${festivas}</b><span>Festivas</span></div>
       <div><b>${justificadas}</b><span>Justificadas</span></div>
     </div>
