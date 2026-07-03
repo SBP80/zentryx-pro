@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3104
+// V3105
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3104";
+const ZX_VERSION="3105";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -20,8 +20,7 @@ function zx(){
 
 function sesion(){
   try{
-    const raw=localStorage.getItem("zentryx_session") || "{}";
-    return JSON.parse(raw);
+    return JSON.parse(localStorage.getItem("zentryx_session") || "{}");
   }catch(e){
     return {};
   }
@@ -72,28 +71,6 @@ function formatoFechaES(f){
   return p[2]+"/"+p[1]+"/"+p[0];
 }
 
-function temaActual(){
-  try{
-    return JSON.parse(localStorage.getItem("zentryx_theme") || "{}");
-  }catch(e){
-    return {};
-  }
-}
-
-function aplicarTema(){
-  const t=Object.assign({
-    modo:"modern",
-    color:"#2563eb",
-    radio:"22px",
-    compacto:false
-  },temaActual());
-
-  document.documentElement.style.setProperty("--zx-primary",t.color || "#2563eb");
-  document.documentElement.style.setProperty("--zx-radius",t.radio || "22px");
-
-  document.body.classList.toggle("zx_compacto",!!t.compacto);
-}
-
 function limpiarLayout(){
   ["zx_topbar","zx_reloj","zx_nav","zx_postit","zx_css","zx_actionbar"].forEach(function(id){
     const el=$(id);
@@ -119,7 +96,7 @@ function estilos(){
       --zx-primary:#2563eb;
       --zx-bg:#f4f7fb;
       --zx-card:#ffffff;
-      --zx-text:#0f172a;
+      --zx-text:#071330;
       --zx-muted:#64748b;
       --zx-line:#dbe3ef;
       --zx-soft:#f8fafc;
@@ -127,8 +104,8 @@ function estilos(){
       --zx-red:#dc2626;
       --zx-orange:#f97316;
       --zx-purple:#7c3aed;
+      --zx-cyan:#0891b2;
       --zx-gray:#64748b;
-      --zx-radius:22px;
       --zx-shadow:0 12px 28px rgba(15,23,42,.07);
     }
 
@@ -155,23 +132,10 @@ function estilos(){
       display:none!important;
     }
 
-    button,input,select,textarea{
-      font-family:inherit;
-    }
-
-    button{
-      cursor:pointer;
-      border:0;
-    }
-
-    button:active{
-      transform:scale(.99);
-    }
-
-    button:disabled{
-      opacity:.55;
-      cursor:not-allowed;
-    }
+    button,input,select,textarea{font-family:inherit}
+    button{cursor:pointer;border:0}
+    button:active{transform:scale(.99)}
+    button:disabled{opacity:.55;cursor:not-allowed}
 
     #zx_topbar{
       width:100%;
@@ -207,7 +171,7 @@ function estilos(){
       height:42px;
       min-width:42px;
       border-radius:15px;
-      background:linear-gradient(135deg,var(--zx-primary),#10b981);
+      background:linear-gradient(135deg,#2563eb,#10b981);
       display:flex;
       align-items:center;
       justify-content:center;
@@ -217,9 +181,7 @@ function estilos(){
       box-shadow:0 10px 22px rgba(37,99,235,.25);
     }
 
-    #zx_brand_txt{
-      min-width:0;
-    }
+    #zx_brand_txt{min-width:0}
 
     #zx_brand_txt h1{
       margin:0;
@@ -323,8 +285,8 @@ function estilos(){
 
     .zx_nav_btn{
       width:100%;
-      min-height:62px;
-      border-radius:18px;
+      min-height:70px;
+      border-radius:20px;
       background:white;
       color:#334155;
       padding:8px 6px;
@@ -337,12 +299,19 @@ function estilos(){
       flex-direction:column;
       align-items:center;
       justify-content:center;
-      gap:5px;
+      gap:6px;
     }
 
-    .zx_nav_btn span{
-      font-size:20px;
+    .zx_nav_icon{
+      width:34px;
+      height:34px;
+      border-radius:13px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:22px;
       line-height:1;
+      box-shadow:0 8px 18px rgba(15,23,42,.06);
     }
 
     .zx_nav_btn.zx_activo{
@@ -350,6 +319,11 @@ function estilos(){
       color:white;
       border-color:var(--zx-primary);
       box-shadow:0 12px 24px rgba(37,99,235,.22);
+    }
+
+    .zx_nav_btn.zx_activo .zx_nav_icon{
+      background:rgba(255,255,255,.18)!important;
+      box-shadow:none;
     }
 
     #app{
@@ -364,7 +338,7 @@ function estilos(){
       width:100%;
       background:var(--zx-card);
       border:1px solid var(--zx-line);
-      border-radius:var(--zx-radius);
+      border-radius:26px;
       padding:20px;
       margin-bottom:16px;
       box-shadow:var(--zx-shadow);
@@ -396,8 +370,7 @@ function estilos(){
       font-weight:800;
     }
 
-    .zx_btn_big,
-    .zx_btn{
+    .zx_btn_big,.zx_btn{
       width:100%;
       border-radius:18px;
       padding:16px;
@@ -429,9 +402,7 @@ function estilos(){
       outline:none;
     }
 
-    input:focus,
-    select:focus,
-    textarea:focus{
+    input:focus,select:focus,textarea:focus{
       border-color:var(--zx-primary);
       box-shadow:0 0 0 4px rgba(37,99,235,.12);
     }
@@ -481,18 +452,28 @@ function estilos(){
       padding:9px 5px;
       font-size:11px;
       font-weight:950;
-      min-height:50px;
+      min-height:54px;
       display:flex;
       flex-direction:column;
-      gap:3px;
+      gap:4px;
       align-items:center;
       justify-content:center;
     }
 
     .zx_action_btn span{
-      font-size:18px;
-      line-height:1;
+      width:30px;
+      height:30px;
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:20px;
     }
+
+    .zx_action_fichar span{background:#dcfce7;color:#16a34a}
+    .zx_action_agenda span{background:#f3e8ff;color:#7c3aed}
+    .zx_action_trabajos span{background:#dbeafe;color:#2563eb}
+    .zx_action_nota span{background:#fef3c7;color:#d97706}
 
     .zx_modal_fondo{
       position:fixed;
@@ -557,83 +538,23 @@ function estilos(){
       white-space:pre-wrap;
     }
 
-    .zx_error{
-      background:#fee2e2;
-      color:#991b1b;
-      border:1px solid #fecaca;
-      border-radius:16px;
-      padding:14px;
-      font-size:15px;
-      font-weight:900;
-      margin-top:12px;
-    }
-
-    body.zx_compacto #zx_nav_inner{
-      grid-template-columns:repeat(5,1fr);
-    }
-
-    body.zx_compacto .zx_nav_btn{
-      min-height:52px;
-      border-radius:15px;
-      font-size:11px;
-      gap:3px;
-    }
-
-    body.zx_compacto .zx_nav_btn span{
-      font-size:18px;
-    }
-
-    body.zx_compacto .zx_card{
-      padding:16px;
-      border-radius:18px;
-    }
-
     @media(max-width:390px){
-      #zx_nav_inner{
-        grid-template-columns:repeat(3,1fr);
-      }
-
-      .zx_nav_btn{
-        min-height:58px;
-      }
-
-      #zx_brand_txt h1{
-        font-size:18px;
-      }
-
-      #zx_logo{
-        width:40px;
-        height:40px;
-        min-width:40px;
-      }
-
-      #zx_hora{
-        font-size:20px;
-      }
+      #zx_nav_inner{grid-template-columns:repeat(3,1fr)}
+      .zx_nav_btn{min-height:66px}
+      #zx_brand_txt h1{font-size:18px}
+      #zx_logo{width:40px;height:40px;min-width:40px}
+      #zx_hora{font-size:20px}
     }
 
     @media(min-width:760px){
-      #zx_nav_inner{
-        grid-template-columns:repeat(6,1fr);
-      }
-
-      #app{
-        padding:24px;
-      }
-
-      #zx_actionbar{
-        display:none;
-      }
-
-      body{
-        padding-bottom:40px;
-      }
+      #zx_nav_inner{grid-template-columns:repeat(6,1fr)}
+      #app{padding:24px}
+      #zx_actionbar{display:none}
+      body{padding-bottom:40px}
     }
 
     @media(min-width:1120px){
-      #zx_nav_inner{
-        grid-template-columns:repeat(10,1fr);
-      }
+      #zx_nav_inner{grid-template-columns:repeat(10,1fr)}
     }
   `;
   document.head.appendChild(css);
@@ -750,7 +671,6 @@ async function actualizarContadorAgenda(){
   try{
     const datos=await eventosHoy();
     btn.textContent=datos.length ? "📅 "+datos.length : "📅";
-    btn.title="Agenda de hoy";
   }catch(e){
     btn.textContent="📅";
   }
@@ -775,7 +695,7 @@ function textoTipo(t){
 
 function renderEventoHoy(e){
   const hora=e.hora_inicio ? String(e.hora_inicio).slice(0,5) : "Sin hora";
-  const icono=e.tipo==="recordatorio" ? "📝" : e.tipo==="trabajo" ? "🔧" : "📅";
+  const icono=e.tipo==="recordatorio" ? "📝" : e.tipo==="trabajo" ? "🛠️" : "📅";
 
   return `
     <div class="zx_list_item">
@@ -875,16 +795,16 @@ window.ZX_abrirAgendaDesdePanel=function(){
 };
 
 const MODULOS=[
-  {id:"inicio",texto:"Inicio",icono:"⌂",admin:false,fn:"ZX_inicio"},
-  {id:"fichaje",texto:"Fichaje",icono:"⏱",admin:false,fn:"ZX_abrirFichaje"},
-  {id:"agenda",texto:"Agenda",icono:"□",admin:false,fn:"ZX_abrirAgenda"},
-  {id:"clientes",texto:"Clientes",icono:"◉",admin:false,fn:"ZX_abrirClientes"},
-  {id:"trabajos",texto:"Trabajos",icono:"⚒",admin:false,fn:"ZX_abrirTrabajos"},
-  {id:"usuarios",texto:"Usuarios",icono:"◌",admin:true,fn:"ZX_usuarios"},
-  {id:"horas_extra",texto:"Horas",icono:"＋",admin:true,fn:"ZX_abrirHorasExtra"},
-  {id:"control_fichajes",texto:"Control",icono:"✓",admin:true,fn:"ZX_abrirControlFichajes"},
-  {id:"vehiculos",texto:"Vehículos",icono:"◇",admin:true,fn:"ZX_vehiculos"},
-  {id:"configuracion",texto:"Ajustes",icono:"⚙",admin:true,fn:"ZX_configuracion"}
+  {id:"inicio",texto:"Inicio",icono:"🏠",color:"#2563eb",bg:"#dbeafe",admin:false},
+  {id:"fichaje",texto:"Fichaje",icono:"⏱️",color:"#16a34a",bg:"#dcfce7",admin:false},
+  {id:"agenda",texto:"Agenda",icono:"📅",color:"#7c3aed",bg:"#f3e8ff",admin:false},
+  {id:"clientes",texto:"Clientes",icono:"👥",color:"#f97316",bg:"#ffedd5",admin:false},
+  {id:"trabajos",texto:"Trabajos",icono:"🛠️",color:"#2563eb",bg:"#dbeafe",admin:false},
+  {id:"usuarios",texto:"Usuarios",icono:"👤",color:"#0891b2",bg:"#cffafe",admin:true},
+  {id:"horas_extra",texto:"Horas",icono:"➕",color:"#f59e0b",bg:"#fef3c7",admin:true},
+  {id:"control_fichajes",texto:"Control",icono:"✅",color:"#22c55e",bg:"#dcfce7",admin:true},
+  {id:"vehiculos",texto:"Vehículos",icono:"🚗",color:"#3b82f6",bg:"#dbeafe",admin:true},
+  {id:"configuracion",texto:"Ajustes",icono:"⚙️",color:"#7c3aed",bg:"#f3e8ff",admin:true}
 ];
 
 function moduloActivo(nombre){
@@ -897,11 +817,9 @@ function moduloActivo(nombre){
 
 function puedeVerModulo(modulo){
   const m=MODULOS.find(function(x){return x.id===modulo});
-
   if(!m) return false;
   if(!moduloActivo(modulo)) return false;
   if(!m.admin) return true;
-
   return esAdmin();
 }
 
@@ -914,7 +832,7 @@ function nav(){
       ${MODULOS.filter(function(m){return puedeVerModulo(m.id)}).map(function(m){
         return `
           <button class="zx_nav_btn" data-modulo="${limpiar(m.id)}" type="button">
-            <span>${limpiar(m.icono)}</span>
+            <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${limpiar(m.icono)}</span>
             ${limpiar(m.texto)}
           </button>
         `;
@@ -1178,10 +1096,10 @@ function actionbar(){
   const bar=document.createElement("div");
   bar.id="zx_actionbar";
   bar.innerHTML=`
-    <button class="zx_action_btn" type="button" data-zx-action="fichaje"><span>⏱</span>Fichar</button>
-    <button class="zx_action_btn" type="button" data-zx-action="agenda"><span>□</span>Agenda</button>
-    <button class="zx_action_btn" type="button" data-zx-action="trabajos"><span>⚒</span>Trabajos</button>
-    <button class="zx_action_btn" type="button" data-zx-action="nota"><span>📝</span>Nota</button>
+    <button class="zx_action_btn zx_action_fichar" type="button" data-zx-action="fichaje"><span>⏱️</span>Fichar</button>
+    <button class="zx_action_btn zx_action_agenda" type="button" data-zx-action="agenda"><span>📅</span>Agenda</button>
+    <button class="zx_action_btn zx_action_trabajos" type="button" data-zx-action="trabajos"><span>🛠️</span>Trabajo</button>
+    <button class="zx_action_btn zx_action_nota" type="button" data-zx-action="nota"><span>📝</span>Nota</button>
   `;
 
   document.body.appendChild(bar);
@@ -1212,162 +1130,71 @@ function instalarRutas(){
 
   window.ZX_inicio=function(){
     abrirModulo("inicio",function(){
-      if(typeof modInicio==="function"){
-        modInicio();
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Inicio</h2>
-          <div class="zx_text">No se ha cargado inicio.js.</div>
-        </div>
-      `;
+      if(typeof modInicio==="function"){modInicio();return}
+      app().innerHTML=`<div class="zx_card"><h2>Inicio</h2><div class="zx_text">No se ha cargado inicio.js.</div></div>`;
     });
   };
 
   window.ZX_abrirFichaje=function(){
     abrirModulo("fichaje",function(){
-      if(typeof modFichaje==="function"){
-        modFichaje();
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Fichaje</h2>
-          <div class="zx_text">No se ha cargado fichaje.js.</div>
-        </div>
-      `;
+      if(typeof modFichaje==="function"){modFichaje();return}
+      app().innerHTML=`<div class="zx_card"><h2>Fichaje</h2><div class="zx_text">No se ha cargado fichaje.js.</div></div>`;
     });
   };
 
   window.ZX_abrirAgenda=function(){
     abrirModulo("agenda",function(){
-      if(typeof modAgenda==="function"){
-        modAgenda();
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Agenda</h2>
-          <div class="zx_text">No se ha cargado agenda.js.</div>
-        </div>
-      `;
+      if(typeof modAgenda==="function"){modAgenda();return}
+      app().innerHTML=`<div class="zx_card"><h2>Agenda</h2><div class="zx_text">No se ha cargado agenda.js.</div></div>`;
     });
   };
 
   window.ZX_abrirClientes=function(){
     abrirModulo("clientes",function(){
-      if(typeof modClientes==="function"){
-        modClientes();
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Clientes</h2>
-          <div class="zx_text">No se ha cargado clientes.js.</div>
-        </div>
-      `;
+      if(typeof modClientes==="function"){modClientes();return}
+      app().innerHTML=`<div class="zx_card"><h2>Clientes</h2><div class="zx_text">No se ha cargado clientes.js.</div></div>`;
     });
   };
 
   window.ZX_abrirTrabajos=function(){
     abrirModulo("trabajos",function(){
-      if(typeof modTrabajos==="function"){
-        modTrabajos();
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Trabajos</h2>
-          <div class="zx_text">No se ha cargado trabajos.js.</div>
-        </div>
-      `;
+      if(typeof modTrabajos==="function"){modTrabajos();return}
+      app().innerHTML=`<div class="zx_card"><h2>Trabajos</h2><div class="zx_text">No se ha cargado trabajos.js.</div></div>`;
     });
   };
 
   window.ZX_usuarios=function(){
     abrirModulo("usuarios",function(){
-      if(typeof modUsuarios==="function"){
-        modUsuarios();
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Usuarios</h2>
-          <div class="zx_text">No se ha cargado usuarios.js.</div>
-        </div>
-      `;
+      if(typeof modUsuarios==="function"){modUsuarios();return}
+      app().innerHTML=`<div class="zx_card"><h2>Usuarios</h2><div class="zx_text">No se ha cargado usuarios.js.</div></div>`;
     });
   };
 
   window.ZX_abrirHorasExtra=function(){
     abrirModulo("horas_extra",function(){
-      if(typeof modHoras==="function" && modHoras!==window.ZX_abrirHorasExtra){
-        modHoras();
-        activo("horas_extra");
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Horas</h2>
-          <div class="zx_text">No se ha cargado horas_extra.js.</div>
-        </div>
-      `;
+      if(typeof modHoras==="function" && modHoras!==window.ZX_abrirHorasExtra){modHoras();activo("horas_extra");return}
+      app().innerHTML=`<div class="zx_card"><h2>Horas</h2><div class="zx_text">No se ha cargado horas_extra.js.</div></div>`;
     });
   };
 
   window.ZX_abrirControlFichajes=function(){
     abrirModulo("control_fichajes",function(){
-      if(typeof modControl==="function"){
-        modControl();
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Control</h2>
-          <div class="zx_text">No se ha cargado control_fichajes.js.</div>
-        </div>
-      `;
+      if(typeof modControl==="function"){modControl();return}
+      app().innerHTML=`<div class="zx_card"><h2>Control</h2><div class="zx_text">No se ha cargado control_fichajes.js.</div></div>`;
     });
   };
 
   window.ZX_vehiculos=function(){
     abrirModulo("vehiculos",function(){
-      if(typeof modVehiculos==="function" && modVehiculos!==window.ZX_vehiculos){
-        modVehiculos();
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Vehículos</h2>
-          <div class="zx_text">No se ha cargado vehiculos.js.</div>
-        </div>
-      `;
+      if(typeof modVehiculos==="function" && modVehiculos!==window.ZX_vehiculos){modVehiculos();return}
+      app().innerHTML=`<div class="zx_card"><h2>Vehículos</h2><div class="zx_text">No se ha cargado vehiculos.js.</div></div>`;
     });
   };
 
   window.ZX_configuracion=function(){
     abrirModulo("configuracion",function(){
-      if(typeof modConfig==="function" && modConfig!==window.ZX_configuracion){
-        modConfig();
-        return;
-      }
-
-      app().innerHTML=`
-        <div class="zx_card">
-          <h2>Ajustes</h2>
-          <div class="zx_text">No se ha cargado config_laboral.js.</div>
-        </div>
-      `;
+      if(typeof modConfig==="function" && modConfig!==window.ZX_configuracion){modConfig();return}
+      app().innerHTML=`<div class="zx_card"><h2>Ajustes</h2><div class="zx_text">No se ha cargado config_laboral.js.</div></div>`;
     });
   };
 }
@@ -1375,7 +1202,6 @@ function instalarRutas(){
 window.ZENTRYX_UI_LAYOUT={
   iniciar:function(){
     limpiarLayout();
-    aplicarTema();
     estilos();
     instalarRutas();
     topbar();
