@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3094 - CORRECCIÓN INTEGER
+// V3095 - PIN ADMIN REAL
 // ===============================
 (function(){
 "use strict";
@@ -357,17 +357,61 @@ function pedirMotivo(txt){
   return String(motivo).trim();
 }
 
-function validarAdminOperacion(){
+function hashPin(pin){
+  try{return btoa(String(pin))}
+  catch(e){return String(pin)}
+}
+
+async function validarAdminOperacion(){
+  const s=sesion();
+
   if(!esAdmin()){
     alert("Solo administrador.");
     return false;
   }
+
   const pin=prompt("Introduce PIN de administrador.");
-  if(!pin || String(pin).trim().length<3){
-    alert("PIN obligatorio.");
+  if(!pin || !/^[0-9]{4}$/.test(String(pin).trim())){
+    alert("PIN inválido.");
     return false;
   }
-  return true;
+
+  try{
+    const r=await sb()
+      .from("usuarios")
+      .select("id,usuario,rol,pin_hash,debe_crear_pin")
+      .eq("id",String(s.id||""))
+      .maybeSingle();
+
+    if(r.error || !r.data){
+      alert("No se pudo validar el PIN.");
+      return false;
+    }
+
+    const rol=String(r.data.rol||"").toLowerCase();
+    const usuario=String(r.data.usuario||"").toLowerCase();
+    const admin=rol==="administrador" || usuario==="admin";
+
+    if(!admin){
+      alert("Solo administrador.");
+      return false;
+    }
+
+    if(r.data.debe_crear_pin || !r.data.pin_hash){
+      alert("El administrador no tiene PIN activo. Crea o restablece el PIN desde Usuarios.");
+      return false;
+    }
+
+    if(hashPin(String(pin).trim())!==String(r.data.pin_hash||"")){
+      alert("PIN incorrecto.");
+      return false;
+    }
+
+    return true;
+  }catch(e){
+    alert("No se pudo validar el PIN.");
+    return false;
+  }
 }
 
 // ===============================
@@ -1150,7 +1194,7 @@ async function registrar(tipo){
     const cerradas=jornadasDia.filter(j=>j.estado==="cerrada");
 
     if(cerradas.length && esAdmin()){
-      if(!validarAdminOperacion()) return;
+      if(!(await validarAdminOperacion())) return;
       motivoAdmin=pedirMotivo("Motivo para crear otra jornada hoy.");
       if(!motivoAdmin) return;
     }
@@ -1299,7 +1343,7 @@ async function jornadasAdminHoy(){
 // ===============================
 async function borrarJornada(id){
   guardarScroll();
-  if(!validarAdminOperacion()) return;
+  if(!(await validarAdminOperacion())) return;
 
   const motivo=pedirMotivo("Motivo para borrar la jornada.");
   if(!motivo) return;
@@ -1342,7 +1386,7 @@ async function borrarJornada(id){
 
 async function borrarFichaje(id){
   guardarScroll();
-  if(!validarAdminOperacion()) return;
+  if(!(await validarAdminOperacion())) return;
 
   const motivo=pedirMotivo("Motivo para borrar el fichaje.");
   if(!motivo) return;
@@ -1383,7 +1427,7 @@ async function borrarFichaje(id){
 
 async function editarFichaje(id){
   guardarScroll();
-  if(!validarAdminOperacion()) return;
+  if(!(await validarAdminOperacion())) return;
 
   const motivoInicial=pedirMotivo("Motivo para modificar este fichaje.");
   if(!motivoInicial) return;
@@ -1699,7 +1743,7 @@ function iniciarTiempoReal(){
 
   try{
     ZX_RT_CANAL=sb()
-      .channel("zx_fichaje_rt_v3092")
+      .channel("zx_fichaje_rt_v3095")
       .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},()=>ZX_fichaje_real())
       .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},()=>ZX_fichaje_real())
