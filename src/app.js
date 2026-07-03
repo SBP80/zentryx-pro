@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3101
+// V3106
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3101";
+const ZX_VERSION="3106";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -81,13 +81,16 @@ function fechaISO(){
 }
 
 function uuid(){
-  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  if(window.crypto && crypto.randomUUID){
+    return crypto.randomUUID();
+  }
 
   return "zx_"+Date.now()+"_"+Math.random().toString(16).slice(2);
 }
 
 function formatoFechaES(valor){
   if(!valor) return "";
+
   const s=texto(valor).slice(0,10);
 
   if(!/^\d{4}-\d{2}-\d{2}$/.test(s)){
@@ -102,7 +105,10 @@ function formatoFechaHoraES(valor){
   if(!valor) return "";
 
   const d=new Date(valor);
-  if(isNaN(d.getTime())) return formatoFechaES(valor);
+
+  if(isNaN(d.getTime())){
+    return formatoFechaES(valor);
+  }
 
   return d.toLocaleString("es-ES",{
     day:"2-digit",
@@ -125,16 +131,17 @@ function getSupabase(){
   const cliente=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   window.sb=cliente;
   window.supabaseClient=cliente;
+
   return cliente;
 }
 
 function sesion(){
-  const fromHelper=typeof window.ZENTRYX_readSession==="function"
+  const helper=typeof window.ZENTRYX_readSession==="function"
     ? window.ZENTRYX_readSession()
     : null;
 
-  if(fromHelper && fromHelper.id && fromHelper.usuario){
-    return fromHelper;
+  if(helper && helper.id && helper.usuario){
+    return helper;
   }
 
   const s=storageGet(SESSION_KEY,{});
@@ -171,14 +178,14 @@ function esAdmin(){
   return rol()==="administrador" || usuario()==="admin";
 }
 
-function leerConfig(){
-  const saved=storageGet(CONFIG_KEY,{});
-
-  return Object.assign({
+function configBase(){
+  return {
     empresa_id:"demo",
     producto:"Zentryx PRO",
     modo:"desarrollo",
     comercial:true,
+    offline:true,
+    sincronizacion_automatica:true,
     modulos:{
       inicio:true,
       fichaje:true,
@@ -186,34 +193,71 @@ function leerConfig(){
       clientes:true,
       trabajos:true,
       usuarios:true,
-      horas:true,
-      control:true,
-      config:true,
-      vehiculos:true
+      vehiculos:true,
+      horas_extra:true,
+      control_fichajes:true,
+      configuracion:true,
+      config_laboral:true,
+      solicitudes:true
     }
-  },saved || {});
+  };
+}
+
+function leerConfig(){
+  const saved=storageGet(CONFIG_KEY,{});
+  const base=configBase();
+
+  const next=Object.assign({},base,saved || {});
+  next.modulos=Object.assign({},base.modulos,(saved && saved.modulos) || {});
+
+  if(window.ZENTRYX_STORE && typeof window.ZENTRYX_STORE.getModulos==="function"){
+    next.modulos=Object.assign({},next.modulos,window.ZENTRYX_STORE.getModulos());
+  }
+
+  return next;
 }
 
 function guardarConfig(config){
   const base=leerConfig();
   const next=Object.assign({},base,config || {});
+  next.modulos=Object.assign({},base.modulos,(config && config.modulos) || {});
   storageSet(CONFIG_KEY,next);
-  window.ZENTRYX.config=next;
+
+  if(window.ZENTRYX){
+    window.ZENTRYX.config=next;
+  }
+
   return next;
 }
 
+function aliasModulo(nombre){
+  const k=normalizar(nombre);
+
+  const aliases={
+    horas:"horas_extra",
+    control:"control_fichajes",
+    config:"configuracion",
+    ajustes:"configuracion",
+    configuracion_laboral:"config_laboral"
+  };
+
+  return aliases[k] || k;
+}
+
 function moduloActivo(nombre){
+  const key=aliasModulo(nombre);
   const cfg=leerConfig();
-  const key=normalizar(nombre);
+
   if(!cfg.modulos) return true;
   if(cfg.modulos[key]===false) return false;
+
   return true;
 }
 
 function registrarModulo(nombre,modulo){
   if(!nombre) return false;
 
-  const key=normalizar(nombre);
+  const key=aliasModulo(nombre);
 
   window.ZENTRYX.modulos[key]=Object.assign({
     id:key,
@@ -227,7 +271,7 @@ function registrarModulo(nombre,modulo){
 }
 
 function obtenerModulo(nombre){
-  return window.ZENTRYX.modulos[normalizar(nombre)] || null;
+  return window.ZENTRYX.modulos[aliasModulo(nombre)] || null;
 }
 
 function listarModulos(){
@@ -235,12 +279,12 @@ function listarModulos(){
 }
 
 function marcarModuloActivo(nombre){
-  const n=texto(nombre);
+  const n=aliasModulo(nombre);
 
   document.querySelectorAll(".zx_nav_btn").forEach(function(btn){
     btn.classList.remove("zx_activo");
 
-    if(texto(btn.dataset.modulo)===n){
+    if(aliasModulo(btn.dataset.modulo)===n){
       btn.classList.add("zx_activo");
     }
   });
@@ -258,12 +302,47 @@ function cacheGuardar(tabla,datos){
   return storageSet(cacheKey(tabla),Array.isArray(datos) ? datos : []);
 }
 
+function cacheUpsert(tabla,item,campo){
+  campo=campo || "id";
+
+  if(!item || !item[campo]) return false;
+
+  const lista=cacheLeer(tabla);
+  const idx=lista.findIndex(function(x){
+    return String(x[campo])===String(item[campo]);
+  });
+
+  if(idx>=0){
+    lista[idx]=Object.assign({},lista[idx],item);
+  }else{
+    lista.unshift(item);
+  }
+
+  return cacheGuardar(tabla,lista);
+}
+
+function cacheDelete(tabla,valor,campo){
+  campo=campo || "id";
+
+  const lista=cacheLeer(tabla).filter(function(x){
+    return String(x[campo])!==String(valor);
+  });
+
+  return cacheGuardar(tabla,lista);
+}
+
 function colaLeer(){
   return storageGet(OFFLINE_QUEUE_KEY,[]);
 }
 
 function colaGuardar(lista){
   return storageSet(OFFLINE_QUEUE_KEY,Array.isArray(lista) ? lista : []);
+}
+
+function colaPendiente(){
+  return colaLeer().filter(function(i){
+    return i && i.estado==="pendiente";
+  });
 }
 
 function colaAdd(item){
@@ -273,18 +352,15 @@ function colaAdd(item){
     id:uuid(),
     estado:"pendiente",
     creado_en:ahoraISO(),
-    intentos:0
+    intentos:0,
+    usuario:usuarioActual().usuario || "",
+    empresa_id:usuarioActual().empresa_id || "demo"
   },item || {}));
 
   colaGuardar(lista);
   actualizarEstadoConexion();
-  return lista;
-}
 
-function colaPendiente(){
-  return colaLeer().filter(function(i){
-    return i && i.estado==="pendiente";
-  });
+  return lista;
 }
 
 function setSyncStatus(tipo){
@@ -310,23 +386,30 @@ function ensureEstadoConexion(){
     st.innerHTML=`
       #zx_connection_status{
         position:fixed;
-        right:12px;
+        left:12px;
         bottom:calc(env(safe-area-inset-bottom) + 12px);
         z-index:999999;
         border:0;
         border-radius:999px;
-        padding:9px 13px;
+        padding:8px 12px;
         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
         font-size:12px;
         font-weight:900;
         color:#0f172a;
         background:#dcfce7;
-        box-shadow:0 10px 28px rgba(15,23,42,.22);
+        box-shadow:0 10px 28px rgba(15,23,42,.18);
         pointer-events:none;
       }
       #zx_connection_status.zx_offline{background:#fef3c7;color:#92400e}
       #zx_connection_status.zx_syncing{background:#dbeafe;color:#1d4ed8}
       #zx_connection_status.zx_synced{background:#dcfce7;color:#166534}
+      @media(min-width:760px){
+        #zx_connection_status{
+          right:16px;
+          left:auto;
+          bottom:16px;
+        }
+      }
     `;
     document.head.appendChild(st);
   }
@@ -375,14 +458,23 @@ function actualizarEstadoConexion(){
   renderEstadoConexion("online");
 }
 
+function audit(tabla,accion,registro_id,descripcion,extra){
+  if(window.ZENTRYX_STORE && typeof window.ZENTRYX_STORE.addAudit==="function"){
+    window.ZENTRYX_STORE.addAudit(tabla,accion,registro_id,descripcion,extra || null);
+  }
+}
+
 async function syncOfflineQueue(){
-  if(!navigator.onLine) {
+  if(!navigator.onLine){
     actualizarEstadoConexion();
     return {ok:false,offline:true};
   }
 
-  const sb=getSupabase();
-  if(!sb) return {ok:false,error:"Sin Supabase"};
+  const cliente=getSupabase();
+
+  if(!cliente){
+    return {ok:false,error:"Sin Supabase"};
+  }
 
   const lista=colaLeer();
   const pendientes=lista.filter(function(i){
@@ -391,7 +483,7 @@ async function syncOfflineQueue(){
 
   if(!pendientes.length){
     actualizarEstadoConexion();
-    return {ok:true,sincronizados:0};
+    return {ok:true,sincronizados:0,pendientes:0};
   }
 
   setSyncStatus("syncing");
@@ -406,13 +498,16 @@ async function syncOfflineQueue(){
       let r=null;
 
       if(item.operacion==="insert"){
-        r=await sb.from(item.tabla).insert(item.data);
+        r=await cliente.from(item.tabla).insert(item.data);
       }else if(item.operacion==="update"){
-        r=await sb.from(item.tabla).update(item.data).eq(item.campo || "id",item.valor);
+        r=await cliente.from(item.tabla).update(item.data).eq(item.campo || "id",item.valor);
       }else if(item.operacion==="upsert"){
-        r=await sb.from(item.tabla).upsert(item.data);
+        r=await cliente.from(item.tabla).upsert(item.data);
       }else if(item.operacion==="delete"){
-        r=await sb.from(item.tabla).delete().eq(item.campo || "id",item.valor);
+        r=await cliente.from(item.tabla).delete().eq(item.campo || "id",item.valor);
+      }else{
+        item.error="Operación no soportada";
+        continue;
       }
 
       if(r && r.error){
@@ -424,6 +519,8 @@ async function syncOfflineQueue(){
       item.sincronizado_en=ahoraISO();
       item.error="";
       sincronizados++;
+
+      audit(item.tabla,item.operacion,item.valor || "", "Sincronizado sin conexión", item);
 
     }catch(e){
       item.error=e && e.message ? e.message : "Error";
@@ -441,29 +538,155 @@ async function syncOfflineQueue(){
     setTimeout(actualizarEstadoConexion,1400);
   }
 
-  return {ok:quedan===0,sincronizados:sincronizados,pendientes:quedan};
+  return {
+    ok:quedan===0,
+    sincronizados:sincronizados,
+    pendientes:quedan
+  };
 }
 
 async function selectCache(tabla,consulta){
-  const sb=getSupabase();
+  const cliente=getSupabase();
 
-  if(!navigator.onLine || !sb){
-    return {data:cacheLeer(tabla),error:null,offline:true};
+  if(!navigator.onLine || !cliente){
+    return {
+      data:cacheLeer(tabla),
+      error:null,
+      offline:true
+    };
   }
 
   try{
     const r=typeof consulta==="function"
-      ? await consulta(sb.from(tabla))
-      : await sb.from(tabla).select("*");
+      ? await consulta(cliente.from(tabla))
+      : await cliente.from(tabla).select("*");
 
     if(!r.error && Array.isArray(r.data)){
       cacheGuardar(tabla,r.data);
     }
 
     return r;
+
   }catch(e){
-    return {data:cacheLeer(tabla),error:null,offline:true};
+    return {
+      data:cacheLeer(tabla),
+      error:null,
+      offline:true
+    };
   }
+}
+
+async function insert(tabla,data,opciones){
+  opciones=opciones || {};
+
+  const cliente=getSupabase();
+  const payload=Array.isArray(data) ? data : [data];
+
+  if(!navigator.onLine || !cliente){
+    payload.forEach(function(item){
+      if(item && item.id) cacheUpsert(tabla,item);
+    });
+
+    colaAdd({
+      tabla:tabla,
+      operacion:"insert",
+      data:payload,
+      campo:opciones.campo || "id",
+      valor:opciones.valor || ""
+    });
+
+    return {data:payload,error:null,offline:true};
+  }
+
+  const r=await cliente.from(tabla).insert(payload);
+
+  if(!r.error){
+    audit(tabla,"insert",opciones.valor || "", "Registro creado", payload);
+  }
+
+  return r;
+}
+
+async function update(tabla,data,campo,valor){
+  campo=campo || "id";
+
+  const cliente=getSupabase();
+
+  if(!navigator.onLine || !cliente){
+    cacheUpsert(tabla,Object.assign({},data,{[campo]:valor}),campo);
+
+    colaAdd({
+      tabla:tabla,
+      operacion:"update",
+      data:data,
+      campo:campo,
+      valor:valor
+    });
+
+    return {data:data,error:null,offline:true};
+  }
+
+  const r=await cliente.from(tabla).update(data).eq(campo,valor);
+
+  if(!r.error){
+    audit(tabla,"update",valor,"Registro actualizado",data);
+  }
+
+  return r;
+}
+
+async function upsert(tabla,data){
+  const cliente=getSupabase();
+  const payload=Array.isArray(data) ? data : [data];
+
+  if(!navigator.onLine || !cliente){
+    payload.forEach(function(item){
+      if(item && item.id) cacheUpsert(tabla,item);
+    });
+
+    colaAdd({
+      tabla:tabla,
+      operacion:"upsert",
+      data:payload
+    });
+
+    return {data:payload,error:null,offline:true};
+  }
+
+  const r=await cliente.from(tabla).upsert(payload);
+
+  if(!r.error){
+    audit(tabla,"upsert","", "Registro guardado", payload);
+  }
+
+  return r;
+}
+
+async function remove(tabla,campo,valor){
+  campo=campo || "id";
+
+  const cliente=getSupabase();
+
+  if(!navigator.onLine || !cliente){
+    cacheDelete(tabla,valor,campo);
+
+    colaAdd({
+      tabla:tabla,
+      operacion:"delete",
+      campo:campo,
+      valor:valor
+    });
+
+    return {data:null,error:null,offline:true};
+  }
+
+  const r=await cliente.from(tabla).delete().eq(campo,valor);
+
+  if(!r.error){
+    audit(tabla,"delete",valor,"Registro eliminado",null);
+  }
+
+  return r;
 }
 
 function guardarOffline(tabla,operacion,data,campo,valor){
@@ -474,6 +697,42 @@ function guardarOffline(tabla,operacion,data,campo,valor){
     campo:campo || "id",
     valor:valor || (data && data.id) || ""
   });
+}
+
+function puede(accion,modulo){
+  if(esAdmin()) return true;
+
+  const u=usuarioActual();
+  const permisos=u.permisos || {};
+
+  modulo=aliasModulo(modulo || "");
+  accion=normalizar(accion || "");
+
+  if(permisos[modulo] && permisos[modulo][accion]===true){
+    return true;
+  }
+
+  if(accion==="ver" && moduloActivo(modulo)){
+    return true;
+  }
+
+  return false;
+}
+
+function aplicarTemaGuardado(){
+  if(window.ZENTRYX_STORE && typeof window.ZENTRYX_STORE.getTheme==="function"){
+    const t=window.ZENTRYX_STORE.getTheme();
+
+    if(document.documentElement){
+      document.documentElement.style.setProperty("--zx-primary",t.color || "#2563eb");
+      document.documentElement.style.setProperty("--zx-radius",t.radio || "26px");
+    }
+
+    if(document.body){
+      document.body.classList.toggle("zx_compacto",!!t.compacto);
+      document.body.classList.toggle("zx_alto_contraste",!!t.alto_contraste);
+    }
+  }
 }
 
 function estadoSistema(){
@@ -490,6 +749,7 @@ function estadoSistema(){
 }
 
 function bootDOM(){
+  aplicarTemaGuardado();
   ensureEstadoConexion();
   actualizarEstadoConexion();
 
@@ -512,12 +772,17 @@ function bootDOM(){
   });
 
   window.addEventListener("pageshow",function(){
+    aplicarTemaGuardado();
     actualizarEstadoConexion();
-    if(navigator.onLine) syncOfflineQueue();
+
+    if(navigator.onLine){
+      syncOfflineQueue();
+    }
   });
 
   setInterval(function(){
     actualizarEstadoConexion();
+
     if(navigator.onLine && colaPendiente().length>0){
       syncOfflineQueue();
     }
@@ -537,6 +802,7 @@ window.ZENTRYX.usuarioActual=usuarioActual;
 window.ZENTRYX.usuario=usuario;
 window.ZENTRYX.rol=rol;
 window.ZENTRYX.esAdmin=esAdmin;
+window.ZENTRYX.puede=puede;
 
 window.ZENTRYX.limpiar=limpiar;
 window.ZENTRYX.normalizar=normalizar;
@@ -555,15 +821,44 @@ window.ZENTRYX.marcarModuloActivo=marcarModuloActivo;
 
 window.ZENTRYX.cacheLeer=cacheLeer;
 window.ZENTRYX.cacheGuardar=cacheGuardar;
+window.ZENTRYX.cacheUpsert=cacheUpsert;
+window.ZENTRYX.cacheDelete=cacheDelete;
 window.ZENTRYX.selectCache=selectCache;
+
+window.ZENTRYX.insert=insert;
+window.ZENTRYX.update=update;
+window.ZENTRYX.upsert=upsert;
+window.ZENTRYX.remove=remove;
+
 window.ZENTRYX.guardarOffline=guardarOffline;
 window.ZENTRYX.colaLeer=colaLeer;
 window.ZENTRYX.colaPendiente=colaPendiente;
 window.ZENTRYX.syncOfflineQueue=syncOfflineQueue;
 
+window.ZENTRYX.audit=audit;
 window.ZENTRYX.estadoSistema=estadoSistema;
 window.ZENTRYX.actualizarEstadoConexion=actualizarEstadoConexion;
 window.ZENTRYX.setSyncStatus=setSyncStatus;
+window.ZENTRYX.aplicarTemaGuardado=aplicarTemaGuardado;
+
+window.ZENTRYX.services=window.ZENTRYX.services || {};
+window.ZENTRYX.services.storage={
+  get:storageGet,
+  set:storageSet,
+  remove:storageRemove
+};
+window.ZENTRYX.services.offline={
+  queue:colaAdd,
+  pending:colaPendiente,
+  sync:syncOfflineQueue
+};
+window.ZENTRYX.services.db={
+  selectCache:selectCache,
+  insert:insert,
+  update:update,
+  upsert:upsert,
+  remove:remove
+};
 
 window.ZX=window.ZENTRYX;
 
