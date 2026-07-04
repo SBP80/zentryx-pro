@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3116 - AJUSTES CORREGIDO
+// V3117 - NAVEGACIÓN ESTABLE Y AJUSTES CORREGIDO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3116";
+const ZX_VERSION="3117";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -1126,7 +1126,7 @@ function instalarRutas(){
   const modHoras=window.ZX_horas_extra || window.ZENTRYX_UI_horas_extra;
   const modControl=window.ZX_control_fichajes || window.ZX_controlFichajes;
   const modVehiculos=window.ZX_vehiculos || window.ZENTRYX_UI_abrirVehiculos;
-  const modConfig=window.ZX_configuracion || window.ZX_configuracion_pro || window.ZENTRYX_UI_configuracion || window.ZX_configLaboral || window.ZX_config_laboral;
+  const modConfig=window.ZX_configuracion || window.ZENTRYX_UI_configuracion || window.ZX_configuracion_pro || window.ZX_configLaboral || window.ZX_config_laboral;
 
   window.ZX_inicio=function(){
     abrirModulo("inicio",function(){
