@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3096 - VEHÍCULO EN ENTRADA Y KM SALIDA
+// V3097 - VEHÍCULO EN ENTRADA Y KM SALIDA FIX
 // ===============================
 (function(){
 "use strict";
@@ -24,9 +24,12 @@ function formatoSeg(seg){seg=Math.max(0,Math.floor(seg||0));const h=Math.floor(s
 
 function textoTipo(t){
   return {
-    entrada:"Entrada",salida:"Salida",
-    inicio_descanso:"Inicio descanso",fin_descanso:"Fin descanso",
-    inicio_comida:"Inicio comida",fin_comida:"Fin comida"
+    entrada:"Entrada",
+    salida:"Salida",
+    inicio_descanso:"Inicio descanso",
+    fin_descanso:"Fin descanso",
+    inicio_comida:"Inicio comida",
+    fin_comida:"Fin comida"
   }[t]||t;
 }
 
@@ -37,47 +40,104 @@ function estadoDesdeTipo(tipo){
   return"fuera";
 }
 
-function textoEstado(e){return e==="dentro"?"Trabajando":e==="descanso"?"Descanso":e==="comida"?"Comida":"Fuera"}
-function colorEstado(e){return e==="dentro"?"#16a34a":e==="descanso"?"#f59e0b":e==="comida"?"#ea580c":"#64748b"}
+function textoEstado(e){
+  return e==="dentro"?"Trabajando":e==="descanso"?"Descanso":e==="comida"?"Comida":"Fuera";
+}
+
+function colorEstado(e){
+  return e==="dentro"?"#16a34a":e==="descanso"?"#f59e0b":e==="comida"?"#ea580c":"#64748b";
+}
 
 async function insertarAuditoria(accion,detalle,usuarioObjetivoId){
   const s=sesion();
   try{
     await sb().from("auditoria").insert([{
-      id:uuidSeguro(),usuario_id:String(s.id||""),usuario:s.usuario||"",nombre:s.nombre||"",
-      modulo:"fichaje",accion:String(accion||""),detalle:String(detalle||""),
-      usuario_objetivo_id:usuarioObjetivoId?String(usuarioObjetivoId):null,created_at:ahora()
+      id:uuidSeguro(),
+      usuario_id:String(s.id||""),
+      usuario:s.usuario||"",
+      nombre:s.nombre||"",
+      modulo:"fichaje",
+      accion:String(accion||""),
+      detalle:String(detalle||""),
+      usuario_objetivo_id:usuarioObjetivoId?String(usuarioObjetivoId):null,
+      created_at:ahora()
     }]);
   }catch(e){}
 }
 
-function hashPin(pin){try{return btoa(String(pin))}catch(e){return String(pin)}}
+function hashPin(pin){
+  try{return btoa(String(pin))}
+  catch(e){return String(pin)}
+}
 
 async function validarAdminOperacion(){
   const s=sesion();
-  if(!esAdmin()){alert("Solo administrador.");return false}
+
+  if(!esAdmin()){
+    alert("Solo administrador.");
+    return false;
+  }
+
   const pin=prompt("Introduce PIN de administrador.");
-  if(!pin||!/^[0-9]{4}$/.test(String(pin).trim())){alert("PIN inválido.");return false}
+  if(!pin||!/^[0-9]{4}$/.test(String(pin).trim())){
+    alert("PIN inválido.");
+    return false;
+  }
+
   try{
-    const r=await sb().from("usuarios").select("id,usuario,rol,pin_hash,debe_crear_pin").eq("id",String(s.id||"")).maybeSingle();
-    if(r.error||!r.data){alert("No se pudo validar el PIN.");return false}
-    if(r.data.debe_crear_pin||!r.data.pin_hash){alert("El administrador no tiene PIN activo.");return false}
-    if(hashPin(String(pin).trim())!==String(r.data.pin_hash||"")){alert("PIN incorrecto.");return false}
+    const r=await sb()
+      .from("usuarios")
+      .select("id,usuario,rol,pin_hash,debe_crear_pin")
+      .eq("id",String(s.id||""))
+      .maybeSingle();
+
+    if(r.error||!r.data){
+      alert("No se pudo validar el PIN.");
+      return false;
+    }
+
+    if(r.data.debe_crear_pin||!r.data.pin_hash){
+      alert("El administrador no tiene PIN activo.");
+      return false;
+    }
+
+    if(hashPin(String(pin).trim())!==String(r.data.pin_hash||"")){
+      alert("PIN incorrecto.");
+      return false;
+    }
+
     return true;
-  }catch(e){alert("No se pudo validar el PIN.");return false}
+  }catch(e){
+    alert("No se pudo validar el PIN.");
+    return false;
+  }
 }
 
 async function obtenerUbicacion(){
   return new Promise(resolve=>{
-    if(!navigator.geolocation){resolve({lat:null,lng:null,direccion:null});return}
+    if(!navigator.geolocation){
+      resolve({lat:null,lng:null,direccion:null});
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(async pos=>{
-      const lat=pos.coords.latitude,lng=pos.coords.longitude;
+      const lat=pos.coords.latitude;
+      const lng=pos.coords.longitude;
+
       try{
         const r=await fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng);
         const data=await r.json();
         resolve({lat,lng,direccion:data.display_name||null});
-      }catch(e){resolve({lat,lng,direccion:null})}
-    },()=>resolve({lat:null,lng:null,direccion:null}),{enableHighAccuracy:true,timeout:8000,maximumAge:0});
+      }catch(e){
+        resolve({lat,lng,direccion:null});
+      }
+    },()=>{
+      resolve({lat:null,lng:null,direccion:null});
+    },{
+      enableHighAccuracy:true,
+      timeout:8000,
+      maximumAge:0
+    });
   });
 }
 
@@ -89,23 +149,36 @@ async function vehiculosLibres(){
       .eq("activo",true)
       .eq("en_uso",false)
       .order("matricula",{ascending:true});
+
     if(r.error)return[];
     return r.data||[];
-  }catch(e){return[]}
+  }catch(e){
+    return[];
+  }
 }
 
 async function vehiculoPorId(id){
   if(!id)return null;
+
   try{
-    const r=await sb().from("vehiculos").select("*").eq("id",String(id)).maybeSingle();
+    const r=await sb()
+      .from("vehiculos")
+      .select("*")
+      .eq("id",String(id))
+      .maybeSingle();
+
     if(r.error||!r.data)return null;
     return r.data;
-  }catch(e){return null}
+  }catch(e){
+    return null;
+  }
 }
 
 async function marcarVehiculoEntrada(v,km){
   if(!v||!v.id)return;
+
   const s=sesion();
+
   await sb().from("vehiculos").update({
     en_uso:true,
     usuario_id:String(s.id||""),
@@ -116,6 +189,7 @@ async function marcarVehiculoEntrada(v,km){
 
 async function marcarVehiculoSalida(id,km){
   if(!id)return;
+
   await sb().from("vehiculos").update({
     en_uso:false,
     usuario_id:null,
@@ -126,42 +200,118 @@ async function marcarVehiculoSalida(id,km){
 
 async function jornadaAbierta(){
   const s=sesion();
-  const r=await sb().from("jornadas").select("*").eq("usuario_id",String(s.id)).eq("estado","abierta").order("created_at",{ascending:false}).limit(1);
+
+  const r=await sb()
+    .from("jornadas")
+    .select("*")
+    .eq("usuario_id",String(s.id))
+    .eq("estado","abierta")
+    .order("created_at",{ascending:false})
+    .limit(1);
+
   if(r.error||!r.data||!r.data.length)return null;
   return r.data[0];
 }
 
 async function fichajesDeJornada(jornadaId){
-  const r=await sb().from("fichajes").select("*").eq("jornada_id",String(jornadaId)).order("created_at",{ascending:true});
+  const r=await sb()
+    .from("fichajes")
+    .select("*")
+    .eq("jornada_id",String(jornadaId))
+    .order("created_at",{ascending:true});
+
   if(r.error)return[];
   return r.data||[];
 }
 
 async function estadoActual(){
   const j=await jornadaAbierta();
+
   if(!j)return{estado:"fuera",jornada:null,eventos:[]};
+
   const eventos=await fichajesDeJornada(j.id);
   const ultimo=eventos.length?eventos[eventos.length-1]:null;
-  return{estado:estadoDesdeTipo(ultimo?ultimo.tipo:"entrada"),jornada:j,eventos};
+
+  return{
+    estado:estadoDesdeTipo(ultimo?ultimo.tipo:"entrada"),
+    jornada:j,
+    eventos
+  };
 }
 
 function calcularEnVivo(eventos,estado){
   const lista=(eventos||[]).slice().sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
-  let trabajadoSeg=0,descansoSeg=0,comidaSeg=0,inicioTrabajo=null,inicioDescanso=null,inicioComida=null,entrada=null,salida=null;
+
+  let trabajadoSeg=0;
+  let descansoSeg=0;
+  let comidaSeg=0;
+  let inicioTrabajo=null;
+  let inicioDescanso=null;
+  let inicioComida=null;
+  let entrada=null;
+  let salida=null;
+
   const now=ahora();
 
   lista.forEach(e=>{
     const t=e.created_at;
-    if(e.tipo==="entrada"){entrada=t;inicioTrabajo=t;inicioDescanso=null;inicioComida=null}
-    if(e.tipo==="inicio_descanso"){if(inicioTrabajo){trabajadoSeg+=segundosEntre(inicioTrabajo,t);inicioTrabajo=null}inicioDescanso=t}
-    if(e.tipo==="fin_descanso"){if(inicioDescanso){descansoSeg+=segundosEntre(inicioDescanso,t);inicioDescanso=null}inicioTrabajo=t}
-    if(e.tipo==="inicio_comida"){if(inicioTrabajo){trabajadoSeg+=segundosEntre(inicioTrabajo,t);inicioTrabajo=null}inicioComida=t}
-    if(e.tipo==="fin_comida"){if(inicioComida){comidaSeg+=segundosEntre(inicioComida,t);inicioComida=null}inicioTrabajo=t}
+
+    if(e.tipo==="entrada"){
+      entrada=t;
+      inicioTrabajo=t;
+      inicioDescanso=null;
+      inicioComida=null;
+    }
+
+    if(e.tipo==="inicio_descanso"){
+      if(inicioTrabajo){
+        trabajadoSeg+=segundosEntre(inicioTrabajo,t);
+        inicioTrabajo=null;
+      }
+      inicioDescanso=t;
+    }
+
+    if(e.tipo==="fin_descanso"){
+      if(inicioDescanso){
+        descansoSeg+=segundosEntre(inicioDescanso,t);
+        inicioDescanso=null;
+      }
+      inicioTrabajo=t;
+    }
+
+    if(e.tipo==="inicio_comida"){
+      if(inicioTrabajo){
+        trabajadoSeg+=segundosEntre(inicioTrabajo,t);
+        inicioTrabajo=null;
+      }
+      inicioComida=t;
+    }
+
+    if(e.tipo==="fin_comida"){
+      if(inicioComida){
+        comidaSeg+=segundosEntre(inicioComida,t);
+        inicioComida=null;
+      }
+      inicioTrabajo=t;
+    }
+
     if(e.tipo==="salida"){
       salida=t;
-      if(inicioTrabajo){trabajadoSeg+=segundosEntre(inicioTrabajo,t);inicioTrabajo=null}
-      if(inicioDescanso){descansoSeg+=segundosEntre(inicioDescanso,t);inicioDescanso=null}
-      if(inicioComida){comidaSeg+=segundosEntre(inicioComida,t);inicioComida=null}
+
+      if(inicioTrabajo){
+        trabajadoSeg+=segundosEntre(inicioTrabajo,t);
+        inicioTrabajo=null;
+      }
+
+      if(inicioDescanso){
+        descansoSeg+=segundosEntre(inicioDescanso,t);
+        inicioDescanso=null;
+      }
+
+      if(inicioComida){
+        comidaSeg+=segundosEntre(inicioComida,t);
+        inicioComida=null;
+      }
     }
   });
 
@@ -171,7 +321,13 @@ function calcularEnVivo(eventos,estado){
     if(estado==="comida"&&inicioComida)comidaSeg+=segundosEntre(inicioComida,now);
   }
 
-  return{entrada,salida,trabajadoSeg,descansoSeg,comidaSeg};
+  return{
+    entrada,
+    salida,
+    trabajadoSeg,
+    descansoSeg,
+    comidaSeg
+  };
 }
 
 async function crearJornada(datosVehiculo){
@@ -195,44 +351,66 @@ async function crearJornada(datosVehiculo){
     horas_extra:0,
     vehiculo_id:datosVehiculo&&datosVehiculo.id?String(datosVehiculo.id):null,
     vehiculo_matricula:datosVehiculo&&datosVehiculo.matricula?String(datosVehiculo.matricula):null,
-    km_entrada:datosVehiculo&&datosVehiculo.km?Number(datosVehiculo.km):null,
+    km_entrada:datosVehiculo&&datosVehiculo.km!=null?Number(datosVehiculo.km):null,
     km_salida:null,
     created_at:ahora()
   };
 
-  const r=await sb().from("jornadas").insert([datos]).select().single();
-  if(r.error){alert("Error creando jornada: "+r.error.message);return null}
+  const r=await sb()
+    .from("jornadas")
+    .insert([datos])
+    .select()
+    .single();
+
+  if(r.error){
+    alert("Error creando jornada: "+r.error.message);
+    return null;
+  }
+
   return r.data;
 }
 
 async function insertarFichaje(tipo,jornadaId,geo,veh){
   const s=sesion();
-  const r=await sb().from("fichajes").insert([{
-    usuario_id:String(s.id),
-    usuario:s.usuario||"",
-    nombre:s.nombre||"",
-    jornada_id:String(jornadaId),
-    tipo,
-    lat:geo.lat,
-    lng:geo.lng,
-    direccion:geo.direccion,
-    dispositivo:navigator.userAgent,
-    vehiculo_id:veh&&veh.id?String(veh.id):null,
-    vehiculo_matricula:veh&&veh.matricula?String(veh.matricula):null,
-    km_vehiculo:veh&&veh.km!=null?Number(veh.km):null,
-    created_at:ahora()
-  }]);
 
-  if(r.error){alert("Error al guardar fichaje: "+r.error.message);return false}
+  const r=await sb()
+    .from("fichajes")
+    .insert([{
+      usuario_id:String(s.id),
+      usuario:s.usuario||"",
+      nombre:s.nombre||"",
+      jornada_id:String(jornadaId),
+      tipo,
+      lat:geo.lat,
+      lng:geo.lng,
+      direccion:geo.direccion,
+      dispositivo:navigator.userAgent,
+      vehiculo_id:veh&&veh.id?String(veh.id):null,
+      vehiculo_matricula:veh&&veh.matricula?String(veh.matricula):null,
+      km_vehiculo:veh&&veh.km!=null?Number(veh.km):null,
+      created_at:ahora()
+    }]);
+
+  if(r.error){
+    alert("Error al guardar fichaje: "+r.error.message);
+    return false;
+  }
+
   return true;
 }
 
 async function recalcularJornada(jornadaId){
-  const rj=await sb().from("jornadas").select("*").eq("id",String(jornadaId)).single();
+  const rj=await sb()
+    .from("jornadas")
+    .select("*")
+    .eq("id",String(jornadaId))
+    .single();
+
   if(rj.error||!rj.data)return;
 
   const j=rj.data;
   const eventos=await fichajesDeJornada(jornadaId);
+
   if(!eventos.length)return;
 
   const ultimo=eventos[eventos.length-1];
@@ -260,18 +438,33 @@ async function recalcularJornada(jornadaId){
     segundos_faltantes:Math.floor(faltaSeg)
   };
 
-  await sb().from("jornadas").update(datos).eq("id",String(jornadaId));
+  await sb()
+    .from("jornadas")
+    .update(datos)
+    .eq("id",String(jornadaId));
 }
 
 function opcionesPermitidas(estado){
-  if(estado==="fuera")return[{tipo:"entrada",texto:"Entrada",clase:"zx_verde"}];
-  if(estado==="dentro")return[
-    {tipo:"salida",texto:"Salida",clase:"zx_rojo"},
-    {tipo:"inicio_descanso",texto:"Inicio descanso",clase:"zx_naranja"},
-    {tipo:"inicio_comida",texto:"Inicio comida",clase:"zx_morado"}
-  ];
-  if(estado==="descanso")return[{tipo:"fin_descanso",texto:"Fin descanso",clase:"zx_azul"}];
-  if(estado==="comida")return[{tipo:"fin_comida",texto:"Fin comida",clase:"zx_azul"}];
+  if(estado==="fuera"){
+    return[{tipo:"entrada",texto:"Entrada",clase:"zx_verde"}];
+  }
+
+  if(estado==="dentro"){
+    return[
+      {tipo:"salida",texto:"Salida",clase:"zx_rojo"},
+      {tipo:"inicio_descanso",texto:"Inicio descanso",clase:"zx_naranja"},
+      {tipo:"inicio_comida",texto:"Inicio comida",clase:"zx_morado"}
+    ];
+  }
+
+  if(estado==="descanso"){
+    return[{tipo:"fin_descanso",texto:"Fin descanso",clase:"zx_azul"}];
+  }
+
+  if(estado==="comida"){
+    return[{tipo:"fin_comida",texto:"Fin comida",clase:"zx_azul"}];
+  }
+
   return[];
 }
 
@@ -306,7 +499,7 @@ async function abrirMenu(estado){
           <input id="zx_fichaje_km_entrada" type="number" placeholder="Km actuales del vehículo" inputmode="numeric">
         `:""}
 
-        ${estado!=="fuera"&&estado!=="descanso"&&estado!=="comida"?`
+        ${estado==="dentro"?`
           <label class="zx_label">Km salida</label>
           <input id="zx_fichaje_km_salida" type="number" placeholder="Km de salida" inputmode="numeric">
         `:""}
@@ -324,6 +517,7 @@ async function abrirMenu(estado){
 
   const sel=document.getElementById("zx_fichaje_vehiculo");
   const kmEntrada=document.getElementById("zx_fichaje_km_entrada");
+
   if(sel&&kmEntrada){
     sel.onchange=function(){
       const opt=sel.options[sel.selectedIndex];
@@ -334,72 +528,165 @@ async function abrirMenu(estado){
   document.querySelectorAll("[data-fichaje]").forEach(btn=>{
     btn.onclick=async function(){
       const tipo=this.dataset.fichaje;
+
+      const datosModal={
+        vehiculoId:document.getElementById("zx_fichaje_vehiculo")?.value||"",
+        kmEntrada:document.getElementById("zx_fichaje_km_entrada")?.value||"",
+        kmSalida:document.getElementById("zx_fichaje_km_salida")?.value||""
+      };
+
       const ok=confirm("Confirmar fichaje: "+textoTipo(tipo));
       if(!ok)return;
+
       cerrarModal();
-      await registrar(tipo);
+      await registrar(tipo,datosModal);
     };
   });
 
   document.getElementById("zx_cancelar_fichaje").onclick=cerrarModal;
 }
 
-async function registrar(tipo){
+async function registrar(tipo,datosModal){
+  datosModal=datosModal||{};
+
   const s=sesion();
-  if(!s.id){alert("Sesión no válida.");return}
+
+  if(!s.id){
+    alert("Sesión no válida.");
+    return;
+  }
 
   const est=await estadoActual();
   let jornada=est.jornada;
   let veh=null;
 
   if(tipo==="entrada"){
-    if(est.estado!=="fuera"){alert("Ya tienes una jornada abierta.");return}
+    if(est.estado!=="fuera"){
+      alert("Ya tienes una jornada abierta.");
+      return;
+    }
 
-    const vehiculoId=document.getElementById("zx_fichaje_vehiculo")?.value||"";
-    const kmTxt=document.getElementById("zx_fichaje_km_entrada")?.value||"";
+    const vehiculoId=String(datosModal.vehiculoId||"");
+    const kmTxt=String(datosModal.kmEntrada||"");
 
     if(vehiculoId){
       const v=await vehiculoPorId(vehiculoId);
-      if(!v){alert("Vehículo no encontrado.");return}
+
+      if(!v){
+        alert("Vehículo no encontrado.");
+        return;
+      }
+
+      if(v.activo===false || v.activo==="false"){
+        alert("El vehículo no está activo.");
+        return;
+      }
+
+      if(v.en_uso===true || v.en_uso==="true"){
+        alert("El vehículo ya está en uso.");
+        return;
+      }
+
       const km=Number(kmTxt);
-      if(!Number.isFinite(km)||km<0){alert("Km de entrada inválidos.");return}
+
+      if(!Number.isFinite(km)||km<0){
+        alert("Km de entrada inválidos.");
+        return;
+      }
+
       if(Number(v.km_actual||0)>0&&km<Number(v.km_actual||0)){
         alert("Los km de entrada no pueden ser menores que los km actuales del vehículo.");
         return;
       }
-      veh={id:v.id,matricula:v.matricula,km};
+
+      veh={
+        id:v.id,
+        matricula:v.matricula,
+        km
+      };
+
       await marcarVehiculoEntrada(v,km);
     }
 
     jornada=await crearJornada(veh);
-    if(!jornada)return;
+
+    if(!jornada){
+      if(veh&&veh.id){
+        await marcarVehiculoSalida(veh.id,veh.km);
+      }
+      return;
+    }
   }
 
-  if(tipo!=="entrada"&&!jornada){alert("No hay jornada abierta.");return}
-  if(tipo==="inicio_descanso"&&est.estado!=="dentro"){alert("Solo puedes iniciar descanso trabajando.");return}
-  if(tipo==="fin_descanso"&&est.estado!=="descanso"){alert("No estás en descanso.");return}
-  if(tipo==="inicio_comida"&&est.estado!=="dentro"){alert("Solo puedes iniciar comida trabajando.");return}
-  if(tipo==="fin_comida"&&est.estado!=="comida"){alert("No estás en comida.");return}
-  if(tipo==="salida"&&(est.estado==="descanso"||est.estado==="comida")){alert("Primero termina descanso o comida.");return}
+  if(tipo!=="entrada"&&!jornada){
+    alert("No hay jornada abierta.");
+    return;
+  }
+
+  if(tipo==="inicio_descanso"&&est.estado!=="dentro"){
+    alert("Solo puedes iniciar descanso trabajando.");
+    return;
+  }
+
+  if(tipo==="fin_descanso"&&est.estado!=="descanso"){
+    alert("No estás en descanso.");
+    return;
+  }
+
+  if(tipo==="inicio_comida"&&est.estado!=="dentro"){
+    alert("Solo puedes iniciar comida trabajando.");
+    return;
+  }
+
+  if(tipo==="fin_comida"&&est.estado!=="comida"){
+    alert("No estás en comida.");
+    return;
+  }
+
+  if(tipo==="salida"&&(est.estado==="descanso"||est.estado==="comida")){
+    alert("Primero termina descanso o comida.");
+    return;
+  }
 
   if(tipo==="salida"){
     if(jornada.vehiculo_id){
-      const kmTxt=prompt("Km de salida del vehículo "+(jornada.vehiculo_matricula||"")+":",String(jornada.km_entrada||""));
-      if(kmTxt===null)return;
+      let kmTxt=String(datosModal.kmSalida||"").trim();
+
+      if(!kmTxt){
+        kmTxt=prompt("Km de salida del vehículo "+(jornada.vehiculo_matricula||"")+":",String(jornada.km_entrada||""));
+        if(kmTxt===null)return;
+      }
+
       const km=Number(kmTxt);
-      if(!Number.isFinite(km)||km<0){alert("Km de salida inválidos.");return}
+
+      if(!Number.isFinite(km)||km<0){
+        alert("Km de salida inválidos.");
+        return;
+      }
+
       if(jornada.km_entrada!=null&&km<Number(jornada.km_entrada)){
         alert("Los km de salida no pueden ser menores que los km de entrada.");
         return;
       }
-      veh={id:jornada.vehiculo_id,matricula:jornada.vehiculo_matricula,km};
-      await sb().from("jornadas").update({km_salida:km}).eq("id",String(jornada.id));
+
+      veh={
+        id:jornada.vehiculo_id,
+        matricula:jornada.vehiculo_matricula,
+        km
+      };
+
+      await sb()
+        .from("jornadas")
+        .update({km_salida:km})
+        .eq("id",String(jornada.id));
+
       await marcarVehiculoSalida(jornada.vehiculo_id,km);
     }
   }
 
   const geo=await obtenerUbicacion();
   const ok=await insertarFichaje(tipo,jornada.id,geo,veh);
+
   if(!ok)return;
 
   await insertarAuditoria("fichaje_"+tipo,"Fichaje registrado: "+textoTipo(tipo),s.id);
@@ -409,14 +696,28 @@ async function registrar(tipo){
 
 async function ultimosFichajes(){
   const s=sesion();
-  const r=await sb().from("fichajes").select("*").eq("usuario_id",String(s.id)).order("created_at",{ascending:false}).limit(8);
+
+  const r=await sb()
+    .from("fichajes")
+    .select("*")
+    .eq("usuario_id",String(s.id))
+    .order("created_at",{ascending:false})
+    .limit(8);
+
   if(r.error)return[];
   return r.data||[];
 }
 
 async function jornadasUsuario(){
   const s=sesion();
-  const r=await sb().from("jornadas").select("*").eq("usuario_id",String(s.id)).order("created_at",{ascending:false}).limit(8);
+
+  const r=await sb()
+    .from("jornadas")
+    .select("*")
+    .eq("usuario_id",String(s.id))
+    .order("created_at",{ascending:false})
+    .limit(8);
+
   if(r.error)return[];
   return r.data||[];
 }
@@ -424,6 +725,7 @@ async function jornadasUsuario(){
 function resumenHTML(resumen,objetivoSeg){
   const extra=Math.max(0,Number(resumen.trabajadoSeg||0)-Number(objetivoSeg||0));
   const falta=Math.max(0,Number(objetivoSeg||0)-Number(resumen.trabajadoSeg||0));
+
   return`
     <div class="zx_text">
       Trabajado: <b data-live-campo="trabajado">${formatoSeg(resumen.trabajadoSeg)}</b><br>
@@ -439,7 +741,11 @@ function resumenHTML(resumen,objetivoSeg){
 function renderFichajeMini(f){
   return`
     <div class="zx_admin_row">
-      <div class="zx_admin_row_top"><b>${limpiar(textoTipo(f.tipo))}</b><span>${limpiar(fechaCorta(f.created_at))}</span></div>
+      <div class="zx_admin_row_top">
+        <b>${limpiar(textoTipo(f.tipo))}</b>
+        <span>${limpiar(fechaCorta(f.created_at))}</span>
+      </div>
+
       <div class="zx_admin_data">
         ${f.vehiculo_matricula?`Vehículo: <b>${limpiar(f.vehiculo_matricula)}</b>${f.km_vehiculo!=null?` · ${limpiar(f.km_vehiculo)} km`:""}<br>`:""}
         ${limpiar(f.direccion||"")}
@@ -451,36 +757,62 @@ function renderFichajeMini(f){
 function renderJornadaMini(j){
   return`
     <div class="zx_admin_row">
-      <div class="zx_admin_row_top"><b>${limpiar(j.nombre||j.usuario||"-")}</b><span>${limpiar(formatoFechaES(j.fecha||""))}</span></div>
-      <div class="zx_admin_estado ${limpiar(j.estado||"")}">${limpiar(j.estado||"-")}</div>
+      <div class="zx_admin_row_top">
+        <b>${limpiar(j.nombre||j.usuario||"-")}</b>
+        <span>${limpiar(formatoFechaES(j.fecha||""))}</span>
+      </div>
+
+      <div class="zx_admin_estado ${limpiar(j.estado||"")}">
+        ${limpiar(j.estado||"-")}
+      </div>
+
       <div class="zx_admin_data">
         Trabajado: ${formatoSeg(Number(j.segundos_trabajados||0)||Number(j.minutos_trabajados||0)*60)}<br>
         Extra: ${formatoSeg(Number(j.segundos_extra||0)||Number(j.minutos_extra||0)*60)}<br>
-        ${j.vehiculo_matricula?`Vehículo: <b>${limpiar(j.vehiculo_matricula)}</b><br>Km entrada: ${limpiar(j.km_entrada??"-")} · Km salida: ${limpiar(j.km_salida??"-")}`:"Sin vehículo"}
+        ${j.vehiculo_matricula?`
+          Vehículo: <b>${limpiar(j.vehiculo_matricula)}</b><br>
+          Km entrada: ${limpiar(j.km_entrada??"-")} · Km salida: ${limpiar(j.km_salida??"-")}
+        `:"Sin vehículo"}
       </div>
-      ${esAdmin()?`<button class="zx_admin_btn zx_admin_borrar" data-borrar-jornada="${limpiar(j.id)}">Borrar jornada</button>`:""}
+
+      ${esAdmin()?`
+        <button class="zx_admin_btn zx_admin_borrar" data-borrar-jornada="${limpiar(j.id)}">
+          Borrar jornada
+        </button>
+      `:""}
     </div>
   `;
 }
 
 async function borrarJornada(id){
   if(!(await validarAdminOperacion()))return;
+
   const ok=confirm("Vas a borrar esta jornada y sus fichajes.");
   if(!ok)return;
-  const j=await sb().from("jornadas").select("*").eq("id",String(id)).maybeSingle();
+
+  const j=await sb()
+    .from("jornadas")
+    .select("*")
+    .eq("id",String(id))
+    .maybeSingle();
+
   if(j.data&&j.data.vehiculo_id){
     await marcarVehiculoSalida(j.data.vehiculo_id,j.data.km_salida||j.data.km_entrada||0);
   }
+
   await sb().from("fichajes").delete().eq("jornada_id",String(id));
   await sb().from("jornadas").delete().eq("id",String(id));
+
   await insertarAuditoria("borrar_jornada","Jornada borrada",j.data?.usuario_id);
   await ZX_fichaje_real();
 }
 
 function instalarCSS(){
-  if(document.getElementById("zx_fichaje_css_v3096"))return;
+  if(document.getElementById("zx_fichaje_css_v3097"))return;
+
   const s=document.createElement("style");
-  s.id="zx_fichaje_css_v3096";
+  s.id="zx_fichaje_css_v3097";
+
   s.innerHTML=`
     .zx_modal_fondo{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;justify-content:center;align-items:center;padding:14px;z-index:9999}
     .zx_modal_caja{width:100%;max-width:520px;max-height:90vh;overflow:auto;background:white;border-radius:22px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -490,11 +822,13 @@ function instalarCSS(){
     .zx_admin_row_top{display:flex;justify-content:space-between;gap:8px;font-size:16px;color:#0f172a;font-weight:900}
     .zx_admin_row_top span{color:#64748b;font-size:14px;white-space:nowrap}
     .zx_admin_estado{display:inline-block;margin:8px 0;padding:5px 10px;border-radius:999px;background:#64748b;color:white;font-size:13px;font-weight:900}
-    .zx_admin_estado.abierta{background:#f59e0b}.zx_admin_estado.cerrada{background:#2563eb}
+    .zx_admin_estado.abierta{background:#f59e0b}
+    .zx_admin_estado.cerrada{background:#2563eb}
     .zx_admin_data{color:#64748b;font-size:15px;line-height:1.45;font-weight:800;word-break:break-word}
     .zx_admin_btn{width:100%;border:0;border-radius:14px;margin-top:10px;padding:12px;color:white;font-size:16px;font-weight:900}
     .zx_admin_borrar{background:#dc2626}
   `;
+
   document.head.appendChild(s);
 }
 
@@ -506,6 +840,7 @@ async function actualizarVivo(jornadaId,objSec){
     const r=calcularEnVivo(eventos,estado);
     const extra=Math.max(0,r.trabajadoSeg-objSec);
     const falta=Math.max(0,objSec-r.trabajadoSeg);
+
     document.querySelectorAll("[data-live-campo]").forEach(c=>{
       const k=c.dataset.liveCampo;
       if(k==="trabajado")c.textContent=formatoSeg(r.trabajadoSeg);
@@ -517,13 +852,20 @@ async function actualizarVivo(jornadaId,objSec){
   }catch(e){}
 }
 
-window.ZX_toggleUltimos=function(){ZX_VER_ULTIMOS=!ZX_VER_ULTIMOS;ZX_fichaje_real()};
+window.ZX_toggleUltimos=function(){
+  ZX_VER_ULTIMOS=!ZX_VER_ULTIMOS;
+  ZX_fichaje_real();
+};
 
 window.ZX_fichaje_real=async function(){
   const renderId=++ZX_RENDER_ID;
+
   instalarCSS();
 
-  if(ZX_TIMER){clearInterval(ZX_TIMER);ZX_TIMER=null}
+  if(ZX_TIMER){
+    clearInterval(ZX_TIMER);
+    ZX_TIMER=null;
+  }
 
   document.querySelectorAll(".zx_nav_btn").forEach(b=>{
     b.classList.remove("zx_activo");
@@ -547,15 +889,23 @@ window.ZX_fichaje_real=async function(){
   app().innerHTML=`
     <div class="zx_card">
       <h2>Fichaje</h2>
+
       <div class="zx_text">Estado actual:</div>
-      <div style="font-size:34px;font-weight:900;color:${colorEstado(est.estado)};margin-top:8px">${textoEstado(est.estado)}</div>
+
+      <div style="font-size:34px;font-weight:900;color:${colorEstado(est.estado)};margin-top:8px">
+        ${textoEstado(est.estado)}
+      </div>
+
       ${est.jornada&&est.jornada.vehiculo_matricula?`
         <div class="zx_text" style="margin-top:12px;">
           Vehículo: <b>${limpiar(est.jornada.vehiculo_matricula)}</b><br>
           Km entrada: <b>${limpiar(est.jornada.km_entrada??"-")}</b>
         </div>
       `:""}
-      <button class="zx_btn_big zx_azul" id="zx_btn_fichar">FICHAR</button>
+
+      <button class="zx_btn_big zx_azul" id="zx_btn_fichar">
+        FICHAR
+      </button>
     </div>
 
     <div class="zx_card">
@@ -572,14 +922,19 @@ window.ZX_fichaje_real=async function(){
       <button class="zx_btn_big zx_gris" onclick="ZX_toggleUltimos()">
         ${ZX_VER_ULTIMOS?"Ocultar últimos fichajes":"Ver últimos fichajes"}
       </button>
+
       ${ZX_VER_ULTIMOS?(hist.length?hist.map(renderFichajeMini).join(""):`<div class="zx_text">Sin registros.</div>`):""}
     </div>
   `;
 
-  document.getElementById("zx_btn_fichar").onclick=function(){abrirMenu(est.estado)};
+  document.getElementById("zx_btn_fichar").onclick=function(){
+    abrirMenu(est.estado);
+  };
 
   document.querySelectorAll("[data-borrar-jornada]").forEach(btn=>{
-    btn.onclick=function(){borrarJornada(btn.dataset.borrarJornada)}
+    btn.onclick=function(){
+      borrarJornada(btn.dataset.borrarJornada);
+    };
   });
 
   if(est.jornada){
@@ -588,4 +943,5 @@ window.ZX_fichaje_real=async function(){
 };
 
 window.ZX_fichaje=window.ZX_fichaje_real;
+
 })();
