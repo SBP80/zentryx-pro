@@ -1,276 +1,1350 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3126 - ABRIR SOLO UN TRABAJO DESDE AGENDA
-// Archivo completo + historial + catálogo de materiales
+// V3110 - CARGA RÁPIDA RESPONSIVE
 // ===============================
 (function(){
 "use strict";
 
-let ZX_TR_FILTRO="activos";
-let ZX_TR_BUSQUEDA="";
+const ZX_VERSION="3110";
+const TABLA="trabajos";
+const CACHE_KEY="zentryx_cache_trabajos";
+
 let ZX_TR_CACHE=[];
-let ZX_TR_TIMER=null;
-let ZX_TR_MATERIALES_CATALOGO=[];
-let ZX_TR_ARCHIVO_EN_PROCESO=false;
+let ZX_TR_BUSQUEDA="";
+let ZX_TR_FILTRO="activos";
+let ZX_TR_CARGANDO=false;
 
 function app(){return document.getElementById("app")}
-function sb(){return window.sb || window.supabaseClient}
-function sesion(){try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}catch(e){return {}}}
+function sb(){return window.sb || window.supabaseClient || null}
+function zx(){return window.ZENTRYX || window.ZX || null}
 
-function limpiar(v){return String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
-function plano(v){return String(v ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim()}
-function slug(v){return plano(v).replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"")}
-function esAdmin(){const s=sesion();return plano(s.rol)==="administrador" || plano(s.usuario)==="admin"}
-function puedeEntrar(){return plano(sesion().rol)!=="invitado" && plano(sesion().rol)!==""}
+function sesion(){
+  if(zx() && typeof zx().usuarioActual==="function") return zx().usuarioActual();
+  try{return JSON.parse(localStorage.getItem("zentryx_session") || "{}")}
+  catch(e){return {}}
+}
+
+function limpiar(v){
+  return String(v ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function normalizar(v){
+  return String(v ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .trim();
+}
+
+function hoy(){
+  const d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
+function horaAhora(){
+  const d=new Date();
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+
+function fechaES(f){
+  if(!f) return "";
+  const s=String(f).slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return limpiar(s);
+  const p=s.split("-");
+  return p[2]+"/"+p[1]+"/"+p[0];
+}
+
+function rol(){return normalizar(sesion().rol || "")}
+function usuario(){return normalizar(sesion().usuario || "")}
+function esAdmin(){return rol()==="administrador" || usuario()==="admin"}
+function puedeEntrar(){return rol()!=="invitado" && rol()!==""}
 function puedeGestionar(){return puedeEntrar()}
-function hoy(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
-function horaAhora(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")}
-function cerrarModal(){const m=document.getElementById("zx_modal_trabajo"); if(m)m.remove()}
-function hashPin(pin){return btoa(String(pin))}
+function puedeBorrar(){return esAdmin()}
+
 function idTrabajoUnico(){return String(window.ZX_TRABAJO_ABRIR_ID || "").trim()}
 function modoTrabajoUnico(){return !!idTrabajoUnico()}
 function salirTrabajoUnico(){window.ZX_TRABAJO_ABRIR_ID=""}
 
-function normalizarFecha(f){
-  if(!f) return "";
-  const s=String(f).trim();
-  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const p=s.split("/");return p[2]+"-"+p[1]+"-"+p[0]}
-  return s.slice(0,10);
+function leerCache(){
+  try{return JSON.parse(localStorage.getItem(CACHE_KEY) || "[]")}
+  catch(e){return []}
 }
-function fechaES(f){const x=normalizarFecha(f); if(!x)return ""; const p=x.split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:x}
-function telefonoLimpio(tel){let n=String(tel||"").replace(/[^\d+]/g,""); if(n.startsWith("+"))return n; if(n.length===9)return "+34"+n; return n}
-function direccionTrabajo(t){return [t.direccion_obra||t.direccion,t.poblacion,t.provincia,t.codigo_postal,t.pais].filter(Boolean).join(", ")}
-function estadoTexto(e){return {pendiente:"Pendiente",en_curso:"En curso",terminado:"Terminado",bloqueado:"Bloqueado",cancelado:"Cancelado"}[e]||e||"Pendiente"}
-function prioridadTexto(p){return {baja:"Baja",media:"Media",alta:"Alta",urgente:"Urgente"}[p]||"Media"}
-function claseEstado(e){if(e==="terminado")return "zx_tr_estado_ok"; if(e==="en_curso")return "zx_tr_estado_curso"; if(e==="bloqueado"||e==="cancelado")return "zx_tr_estado_rojo"; return "zx_tr_estado_pendiente"}
-function clasePrioridad(p){if(p==="urgente")return "zx_tr_prio_urgente"; if(p==="alta")return "zx_tr_prio_alta"; if(p==="baja")return "zx_tr_prio_baja"; return "zx_tr_prio_media"}
-function estadoAgenda(e){if(e==="terminado")return "completado"; if(e==="bloqueado"||e==="cancelado")return "cancelado"; return "activo"}
+
+function guardarCache(lista){
+  try{localStorage.setItem(CACHE_KEY,JSON.stringify(lista || []))}
+  catch(e){}
+}
+
+function direccionTrabajo(t){
+  return [
+    t.direccion_obra || t.direccion,
+    t.poblacion,
+    t.provincia,
+    t.codigo_postal,
+    t.pais
+  ].filter(Boolean).join(", ");
+}
+
+function estadoTexto(e){
+  return {
+    pendiente:"Pendiente",
+    en_curso:"En curso",
+    terminado:"Terminado",
+    bloqueado:"Bloqueado",
+    cancelado:"Cancelado"
+  }[e] || e || "Pendiente";
+}
+
+function prioridadTexto(p){
+  return {
+    baja:"Baja",
+    media:"Media",
+    alta:"Alta",
+    urgente:"Urgente"
+  }[p] || "Media";
+}
+
+function claseEstado(e){
+  if(e==="terminado") return "ok";
+  if(e==="en_curso") return "curso";
+  if(e==="cancelado" || e==="bloqueado") return "rojo";
+  return "pendiente";
+}
+
+function clasePrioridad(p){
+  if(p==="urgente") return "urgente";
+  if(p==="alta") return "alta";
+  if(p==="baja") return "baja";
+  return "media";
+}
+
+function telefonoLimpio(tel){
+  let n=String(tel || "").replace(/[^\d+]/g,"");
+  if(n.startsWith("+")) return n;
+  if(n.length===9) return "+34"+n;
+  return n;
+}
+
+function cerrarModal(){
+  const m=document.getElementById("zx_modal_trabajo");
+  if(m) m.remove();
+  document.body.classList.remove("zx_modal_abierto");
+}
+
+function modal(html){
+  cerrarModal();
+  document.body.classList.add("zx_modal_abierto");
+  const d=document.createElement("div");
+  d.id="zx_modal_trabajo";
+  d.className="zx_modal_fondo";
+  d.innerHTML=`<div class="zx_modal_caja">${html}</div>`;
+  document.body.appendChild(d);
+}
 
 async function pedirPinAdmin(){
-  return new Promise(resolve=>{
-    cerrarModal();
-    document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>PIN administrador</h2><div class="zx_text">Introduce el PIN para continuar.</div><input id="tr_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN"><button class="zx_btn_big zx_verde" id="tr_pin_ok">Confirmar</button><button class="zx_btn_big zx_gris" id="tr_pin_cancelar">Cancelar</button></div></div>`);
-    document.getElementById("tr_pin_cancelar").onclick=()=>{cerrarModal();resolve(false)};
-    document.getElementById("tr_pin_ok").onclick=async()=>{
-      const pin=document.getElementById("tr_pin_admin").value.trim();
-      if(!/^[0-9]{4}$/.test(pin)){alert("PIN inválido.");return}
+  return new Promise(function(resolve){
+    modal(`
+      <h2>PIN administrador</h2>
+      <div class="zx_text">Introduce el PIN para continuar.</div>
+      <input id="tr_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
+      <div id="tr_pin_error" class="zx_tr_error"></div>
+      <button class="zx_btn_big zx_verde" id="tr_pin_ok">Confirmar</button>
+      <button class="zx_btn_big zx_gris" id="tr_pin_cancelar">Cancelar</button>
+    `);
+
+    const input=document.getElementById("tr_pin_admin");
+    const error=document.getElementById("tr_pin_error");
+
+    document.getElementById("tr_pin_cancelar").onclick=function(){cerrarModal();resolve(false)};
+
+    document.getElementById("tr_pin_ok").onclick=async function(){
+      const pin=input.value.trim();
+
+      if(!/^[0-9]{4}$/.test(pin)){
+        error.textContent="PIN inválido.";
+        input.value="";
+        input.focus();
+        return;
+      }
+
+      if(!navigator.onLine || !sb()){
+        error.textContent="Necesitas conexión para validar el PIN.";
+        return;
+      }
+
       const s=sesion();
-      const r=await sb().from("usuarios").select("id,usuario,rol,pin_hash").eq("id",s.id).maybeSingle();
-      if(r.error||!r.data){alert("No se pudo validar el usuario.");return}
-      const admin=plano(r.data.rol)==="administrador" || plano(r.data.usuario)==="admin";
-      if(!admin){alert("Solo administrador.");return}
-      if(hashPin(pin)!==String(r.data.pin_hash||"")){alert("PIN incorrecto.");return}
-      cerrarModal();resolve(true);
+      const r=await sb()
+        .from("usuarios")
+        .select("id,usuario,rol,pin_hash")
+        .eq("id",s.id)
+        .maybeSingle();
+
+      if(r.error || !r.data){
+        error.textContent="No se pudo validar el usuario.";
+        return;
+      }
+
+      const admin=normalizar(r.data.rol)==="administrador" || normalizar(r.data.usuario)==="admin";
+
+      if(!admin){
+        error.textContent="Solo un administrador puede continuar.";
+        return;
+      }
+
+      if(btoa(String(pin))!==String(r.data.pin_hash || "")){
+        error.textContent="PIN incorrecto.";
+        input.value="";
+        input.focus();
+        return;
+      }
+
+      cerrarModal();
+      resolve(true);
     };
+
+    setTimeout(function(){input.focus()},100);
   });
 }
 
-async function registrarHistorial(trabajoId,tipo,notas,datos){
-  if(!trabajoId) return false;
-  const s=sesion();
-  const base={trabajo_id:String(trabajoId),usuario_id:String(s.id||""),usuario:String(s.usuario||s.nombre||"sistema"),fecha:hoy(),hora_inicio:horaAhora(),hora_fin:null,tipo:String(tipo||"sistema"),notas:String(notas||""),created_at:new Date().toISOString()};
-  let r=await sb().from("trabajos_historial").insert([{...base,datos:datos||{}}]).select().maybeSingle();
-  if(r.error) r=await sb().from("trabajos_historial").insert([base]).select().maybeSingle();
-  if(r.error){alert("No se pudo registrar historial automático: "+r.error.message);return false}
-  return true;
-}
-async function registrarHistorialObligatorio(trabajoId,tipo,notas,datos){
-  const ok=await registrarHistorial(trabajoId,tipo,notas,datos);
-  if(!ok) return false;
-  const comprobacion=await sb().from("trabajos_historial").select("id").eq("trabajo_id",String(trabajoId)).eq("tipo",String(tipo||"")).eq("notas",String(notas||"")).order("created_at",{ascending:false}).limit(1);
-  if(comprobacion.error){alert("Historial guardado, pero no se pudo verificar: "+comprobacion.error.message);return true}
-  if(!comprobacion.data || !comprobacion.data.length){alert("No se encontró el historial recién creado. Revisa la tabla trabajos_historial.");return false}
-  return true;
-}
+async function cargarClientes(){
+  if(!navigator.onLine || !sb()) return [];
 
-async function cargarClientes(){const r=await sb().from("clientes").select("*").order("nombre",{ascending:true});return r.error?[]:(r.data||[])}
-async function cargarUsuarios(){const r=await sb().from("usuarios").select("*").eq("activo",true).order("nombre",{ascending:true});return r.error?[]:(r.data||[])}
-async function cargarPlanificacion(id){if(!id)return[];const r=await sb().from("trabajos_planificacion").select("*").eq("trabajo_id",String(id)).order("fecha",{ascending:true}).order("hora_inicio",{ascending:true});return r.error?[]:(r.data||[])}
-async function cargarMateriales(id){if(!id)return[];const r=await sb().from("trabajos_materiales").select("*").eq("trabajo_id",String(id)).order("created_at",{ascending:false});return r.error?[]:(r.data||[])}
-async function cargarArchivos(id){if(!id)return[];const r=await sb().from("trabajos_archivos").select("*").eq("trabajo_id",String(id)).order("created_at",{ascending:false});return r.error?[]:(r.data||[])}
-async function cargarHistorial(id){if(!id)return[];let r=await sb().from("trabajos_historial").select("*").eq("trabajo_id",String(id)).order("created_at",{ascending:false});if(!r.error)return r.data||[];r=await sb().from("trabajos_historial").select("*").eq("trabajo_id",String(id)).order("fecha",{ascending:false}).order("hora_inicio",{ascending:false});return r.error?[]:(r.data||[])}
-async function cargarTrabajo(id){const r=await sb().from("trabajos").select("*").eq("id",String(id)).maybeSingle(); if(r.error||!r.data){alert("Trabajo no encontrado.");return null} return r.data}
-async function cargarCatalogoMateriales(){const r=await sb().from("materiales_catalogo").select("*").order("veces_usado",{ascending:false}).order("nombre",{ascending:true}).limit(250);ZX_TR_MATERIALES_CATALOGO=r.error?[]:(r.data||[]);return ZX_TR_MATERIALES_CATALOGO}
-async function guardarEnCatalogoMaterial(nombre,unidad){
-  const n=String(nombre||"").trim(); if(!n) return;
-  const u=String(unidad||"ud").trim()||"ud"; const clave=slug(n);
-  const previo=await sb().from("materiales_catalogo").select("id,veces_usado").eq("clave",clave).maybeSingle(); if(previo.error)return;
-  if(previo.data) await sb().from("materiales_catalogo").update({nombre:n,unidad:u,veces_usado:Number(previo.data.veces_usado||0)+1,ultima_vez:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",previo.data.id);
-  else await sb().from("materiales_catalogo").insert([{nombre:n,unidad:u,categoria:"",favorito:false,clave,veces_usado:1,ultima_vez:new Date().toISOString(),created_at:new Date().toISOString(),updated_at:new Date().toISOString()}]);
-}
-function renderDatalistMateriales(){return `<datalist id="tr_materiales_catalogo">${ZX_TR_MATERIALES_CATALOGO.map(m=>`<option value="${limpiar(m.nombre||"")}" data-unidad="${limpiar(m.unidad||"ud")}">${limpiar((m.unidad||"ud")+(m.categoria?" · "+m.categoria:""))}</option>`).join("")}</datalist>`}
-function aplicarSugerenciaMaterial(){const inp=document.getElementById("tr_mat_nombre");const uni=document.getElementById("tr_mat_unidad");if(!inp||!uni)return;const m=ZX_TR_MATERIALES_CATALOGO.find(x=>plano(x.nombre)===plano(inp.value));if(m&&m.unidad)uni.value=m.unidad}
-function materialPreparado(m){return m.preparado===true||m.preparado==="true"||m.preparado===1||m.preparado==="1"}
-function resumenMateriales(lista){const total=(lista||[]).length; const ok=(lista||[]).filter(materialPreparado).length; return {total,ok,pendientes:Math.max(0,total-ok)}}
+  try{
+    const r=await sb()
+      .from("clientes")
+      .select("*")
+      .order("nombre",{ascending:true});
 
-async function cargarTrabajosBase(){
-  let q=sb().from("trabajos").select("*");
-  const unico=idTrabajoUnico();
-  if(unico){q=q.eq("id",unico)}
-  else{
-    if(ZX_TR_FILTRO==="activos")q=q.eq("archivado",false);
-    if(ZX_TR_FILTRO==="archivados")q=q.eq("archivado",true);
-    if(ZX_TR_FILTRO==="pendientes")q=q.eq("archivado",false).eq("estado","pendiente");
-    if(ZX_TR_FILTRO==="curso")q=q.eq("archivado",false).eq("estado","en_curso");
-    if(ZX_TR_FILTRO==="terminados")q=q.eq("archivado",false).eq("estado","terminado");
-    if(ZX_TR_FILTRO==="urgentes")q=q.eq("archivado",false).eq("prioridad","urgente");
+    return r.error ? [] : (r.data || []);
+  }catch(e){
+    return [];
   }
-  q=q.order("fecha",{ascending:true}).order("hora_inicio",{ascending:true});
-  const r=await q;
-  if(r.error)return{datos:[],error:r.error.message};
-  ZX_TR_CACHE=r.data||[];
-  return{datos:filtrarTrabajos(),error:""};
-}
-async function cargarTodosTrabajos(){const r=await sb().from("trabajos").select("id,estado,prioridad,archivado");return r.error?[]:(r.data||[])}
-function textoBusqueda(t){return plano([t.titulo,t.cliente,t.usuario,t.persona_contacto,t.telefono_contacto,t.direccion_obra,t.direccion,t.poblacion,t.provincia,t.codigo_postal,t.pais,t.descripcion,t.notas,t.estado,t.prioridad].join(" "))}
-function filtrarTrabajos(){const b=plano(ZX_TR_BUSQUEDA); if(!b)return ZX_TR_CACHE||[]; return (ZX_TR_CACHE||[]).filter(t=>textoBusqueda(t).includes(b))}
-
-function renderResumen(todos){
-  const activos=todos.filter(t=>!t.archivado).length, pendientes=todos.filter(t=>!t.archivado&&t.estado==="pendiente").length, curso=todos.filter(t=>!t.archivado&&t.estado==="en_curso").length, terminados=todos.filter(t=>!t.archivado&&t.estado==="terminado").length, urgentes=todos.filter(t=>!t.archivado&&t.prioridad==="urgente").length, archivados=todos.filter(t=>t.archivado===true).length;
-  const unico=modoTrabajoUnico();
-  return `<div class="zx_card zx_tr_cabecera"><div class="zx_tr_top"><div><h2>Trabajos</h2><div class="zx_text">${unico?"Vista desde Agenda: mostrando solo el trabajo seleccionado.<br>":""}Activos: <b>${activos}</b> · Pendientes: <b>${pendientes}</b> · En curso: <b>${curso}</b><br>Terminados: <b>${terminados}</b> · Urgentes: <b>${urgentes}</b> · Archivados: <b>${archivados}</b></div></div><div>${unico?`<button class="zx_tr_crear zx_gris" id="tr_ver_todos">Ver todos</button>`:""}${puedeGestionar()?`<button class="zx_tr_crear" id="tr_crear">Crear</button>`:""}</div></div><input id="tr_buscar" class="zx_tr_buscar" placeholder="Buscar trabajo, cliente, dirección, teléfono..." value="${limpiar(ZX_TR_BUSQUEDA)}" ${unico?"disabled":""}><div class="zx_tr_filtros">${[["activos","Activos"],["todos","Todos"],["pendientes","Pendientes"],["curso","En curso"],["terminados","Terminados"],["urgentes","Urgentes"],["archivados","Archivados"]].map(x=>`<button class="zx_tr_filtro ${ZX_TR_FILTRO===x[0]&&!unico?"on":""}" data-filtro="${x[0]}">${x[1]}</button>`).join("")}</div></div>`;
-}
-function renderPlanificacion(plan){if(!plan.length)return`<div class="zx_text">Sin planificación.</div>`; return `<div class="zx_tr_plan">${plan.map(p=>`<div class="zx_tr_plan_row"><span>${limpiar(fechaES(p.fecha))}</span><b>${limpiar(String(p.hora_inicio||"").slice(0,5)||"--:--")} - ${limpiar(String(p.hora_fin||"").slice(0,5)||"--:--")}</b><span>${limpiar(p.nombre||p.usuario||"Operario")}</span></div>`).join("")}</div>`}
-function renderMateriales(lista){if(!lista.length)return`<div class="zx_text">Sin materiales.</div>`; return `<div class="zx_tr_materiales">${lista.map(m=>`<label class="zx_tr_mat ${materialPreparado(m)?"ok":""}"><input type="checkbox" ${materialPreparado(m)?"checked":""} data-mat-check="${limpiar(m.id)}"><span><b>${limpiar(m.material||"Material")}</b><em>${limpiar(m.cantidad||"0")} ${limpiar(m.unidad||"")}</em><small>${materialPreparado(m)?"Preparado"+(m.preparado_por?" por "+limpiar(m.preparado_por):""):"Pendiente de preparar"}</small></span></label>`).join("")}</div>`}
-function renderArchivos(lista){if(!lista.length)return`<div class="zx_text">Sin archivos visibles.</div>`; return `<div class="zx_tr_archivos">${lista.map(a=>`<div class="zx_tr_file"><div><b>${limpiar(a.nombre||"Archivo")}</b><span>${limpiar(a.tipo||"")}</span></div><button data-open-file="${limpiar(a.url||"")}">Abrir</button></div>`).join("")}</div>`}
-function renderHistorial(lista){if(!lista.length)return`<div class="zx_text">Sin historial.</div>`; return `<div class="zx_tr_historial">${lista.map(h=>`<div class="zx_tr_hist"><b>${limpiar(h.usuario||"Usuario")}</b><br>${limpiar(fechaES(h.fecha||""))}${h.hora_inicio?" · "+limpiar(String(h.hora_inicio).slice(0,5)):""}<br>Tipo: ${limpiar(h.tipo||"-")}${h.notas?"<br>"+limpiar(h.notas):""}</div>`).join("")}</div>`}
-
-async function renderTrabajo(t){
-  const [plan,materiales,archivos,historial]=await Promise.all([cargarPlanificacion(t.id),cargarMateriales(t.id),cargarArchivos(t.id),cargarHistorial(t.id)]);
-  const dir=direccionTrabajo(t); const mat=resumenMateriales(materiales);
-  return `<div class="zx_tr_card ${t.archivado?"archivado":""}"><div class="zx_tr_card_head"><div><h3>${limpiar(t.titulo||"Trabajo")}</h3><div class="zx_tr_badges"><span class="${claseEstado(t.estado)}">${limpiar(estadoTexto(t.estado))}</span><span class="${clasePrioridad(t.prioridad)}">${limpiar(prioridadTexto(t.prioridad))}</span>${t.archivado?`<span class="zx_tr_estado_neutro">Archivado</span>`:""}</div></div><div class="zx_tr_mat_resumen ${mat.pendientes===0&&mat.total?"ok":""}"><b>${mat.ok}/${mat.total}</b><span>Material</span></div></div><div class="zx_tr_datos"><b>Cliente:</b> ${limpiar(t.cliente||"-")}<br><b>Contacto:</b> ${limpiar(t.persona_contacto||"-")}<br><b>Teléfono:</b> ${limpiar(t.telefono_contacto||"-")}<br><b>Dirección:</b> ${dir?`<button class="zx_link" data-map="${limpiar(dir)}">${limpiar(dir)}</button>`:"-"}<br><b>Descripción:</b> ${limpiar(t.descripcion||"-")}<br><b>Notas:</b> ${limpiar(t.notas||"-")}</div><details open class="zx_tr_section"><summary>Planificación</summary>${renderPlanificacion(plan)}</details><details open class="zx_tr_section"><summary>Materiales</summary>${renderMateriales(materiales)}${puedeGestionar()?`<button class="zx_btn_big zx_azul" data-materiales="${limpiar(t.id)}">Añadir / gestionar</button>`:""}</details><details class="zx_tr_section"><summary>Archivos</summary>${renderArchivos(archivos)}${puedeGestionar()?`<button class="zx_btn_big zx_azul" data-add-file="${limpiar(t.id)}">Añadir archivo</button><button class="zx_btn_big zx_gris" data-gest-file="${limpiar(t.id)}">Gestionar archivos</button>`:""}</details><details class="zx_tr_section"><summary>Historial</summary>${renderHistorial(historial)}${puedeGestionar()?`<button class="zx_btn_big zx_azul" data-add-hist="${limpiar(t.id)}">Añadir historial</button>`:""}</details><div class="zx_tr_acciones">${puedeGestionar()?`<button class="zx_btn_big zx_naranja" data-estado="${limpiar(t.id)}">Cambiar estado</button>`:""}${t.telefono_contacto?`<button class="zx_btn_big zx_azul" data-tel="${limpiar(t.telefono_contacto)}">Teléfono</button>`:""}${dir?`<button class="zx_btn_big zx_azul" data-map="${limpiar(dir)}">Mapa</button>`:""}${puedeGestionar()?`<button class="zx_btn_big zx_azul" data-edit="${limpiar(t.id)}">Editar</button><button class="zx_btn_big zx_rojo" data-gestionar="${limpiar(t.id)}">Gestionar</button>`:""}</div></div>`;
 }
 
-async function pintarTrabajos(){
-  const cont=app(); if(!cont)return;
-  if(!puedeEntrar()){cont.innerHTML=`<div class="zx_card"><h2>Trabajos</h2><div class="zx_text">No tienes permiso para acceder a Trabajos.</div></div>`;return}
-  cont.innerHTML=`<div class="zx_card"><h2>Trabajos</h2><div class="zx_text">Cargando trabajos...</div></div>`;
-  const [base,todos]=await Promise.all([cargarTrabajosBase(),cargarTodosTrabajos()]);
-  if(base.error){cont.innerHTML=`<div class="zx_card"><h2>Trabajos</h2><div class="zx_text">Error cargando trabajos: ${limpiar(base.error)}</div></div>`;return}
-  const tarjetas=[]; for(const t of base.datos) tarjetas.push(await renderTrabajo(t));
-  cont.innerHTML=`${renderResumen(todos)}<div class="zx_card"><h2>Listado</h2>${tarjetas.length?tarjetas.join(""):`<div class="zx_text">Sin trabajos.</div>`}</div>`;
-  activarEventos();
-}
-function activarEventos(){
-  const crear=document.getElementById("tr_crear"); if(crear)crear.onclick=()=>{salirTrabajoUnico();abrirFormulario({})};
-  const verTodos=document.getElementById("tr_ver_todos"); if(verTodos)verTodos.onclick=()=>{salirTrabajoUnico();ZX_TR_BUSQUEDA="";ZX_TR_FILTRO="activos";pintarTrabajos()};
-  const buscador=document.getElementById("tr_buscar"); if(buscador){buscador.oninput=function(){ZX_TR_BUSQUEDA=buscador.value||""; clearTimeout(ZX_TR_TIMER); ZX_TR_TIMER=setTimeout(pintarTrabajos,250)}}
-  document.querySelectorAll("[data-filtro]").forEach(b=>b.onclick=()=>{salirTrabajoUnico();ZX_TR_FILTRO=b.dataset.filtro;pintarTrabajos()});
-  document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>editarTrabajo(b.dataset.edit));
-  document.querySelectorAll("[data-estado]").forEach(b=>b.onclick=()=>cambiarEstadoTrabajo(b.dataset.estado));
-  document.querySelectorAll("[data-gestionar]").forEach(b=>b.onclick=()=>gestionarTrabajo(b.dataset.gestionar));
-  document.querySelectorAll("[data-materiales]").forEach(b=>b.onclick=()=>abrirMateriales(b.dataset.materiales));
-  document.querySelectorAll("[data-add-file]").forEach(b=>b.onclick=()=>abrirArchivo(b.dataset.addFile));
-  document.querySelectorAll("[data-gest-file]").forEach(b=>b.onclick=()=>gestionarArchivos(b.dataset.gestFile));
-  document.querySelectorAll("[data-add-hist]").forEach(b=>b.onclick=()=>abrirHistorial(b.dataset.addHist));
-  document.querySelectorAll("[data-tel]").forEach(b=>b.onclick=()=>menuTelefono(b.dataset.tel));
-  document.querySelectorAll("[data-map]").forEach(b=>b.onclick=()=>menuMapa(b.dataset.map));
-  document.querySelectorAll("[data-open-file]").forEach(b=>b.onclick=()=>{if(b.dataset.openFile)window.open(b.dataset.openFile,"_blank")});
-  document.querySelectorAll("[data-mat-check]").forEach(c=>c.onchange=()=>marcarMaterial(c.dataset.matCheck,c.checked));
+async function cargarUsuarios(){
+  if(!navigator.onLine || !sb()) return [];
+
+  try{
+    const r=await sb()
+      .from("usuarios")
+      .select("*")
+      .eq("activo",true)
+      .order("nombre",{ascending:true});
+
+    return r.error ? [] : (r.data || []);
+  }catch(e){
+    return [];
+  }
 }
 
-function opcionesClientes(clientes,valor){return `<option value="">Sin cliente</option>`+clientes.map(c=>`<option value="${limpiar(c.id)}" ${String(valor||"")===String(c.id)?"selected":""}>${limpiar(c.nombre||"")}</option>`).join("")}
-function opcionesUsuarios(usuarios,valor){return `<option value="">Seleccionar operario</option>`+usuarios.map(u=>`<option value="${limpiar(u.id)}" data-usuario="${limpiar(u.usuario||"")}" data-nombre="${limpiar(u.nombre||u.usuario||"")}" ${String(valor||"")===String(u.id)?"selected":""}>${limpiar(u.nombre||u.usuario||"")}</option>`).join("")}
-function filaPlan(i,usuarios,p){p=p||{};return `<div class="zx_tr_plan_form" data-plan-row="${i}"><div class="zx_tr_grid3"><div><label class="zx_label">Fecha</label><input class="tr_plan_fecha" type="date" value="${limpiar(normalizarFecha(p.fecha||hoy()))}"></div><div><label class="zx_label">Inicio</label><input class="tr_plan_inicio" type="time" value="${limpiar(String(p.hora_inicio||"").slice(0,5))}"></div><div><label class="zx_label">Fin</label><input class="tr_plan_fin" type="time" value="${limpiar(String(p.hora_fin||"").slice(0,5))}"></div></div><label class="zx_label">Operario</label><select class="tr_plan_usuario">${opcionesUsuarios(usuarios,p.usuario_id)}</select><label class="zx_label">Notas de esta línea</label><textarea class="tr_plan_notas" rows="2">${limpiar(p.notas||"")}</textarea><div class="zx_tr_grid2"><button class="zx_btn_big zx_azul tr_dup" type="button">Duplicar</button><button class="zx_btn_big zx_rojo tr_quitar" type="button">Quitar</button></div></div>`}
-function leerPlan(){return [...document.querySelectorAll("[data-plan-row]")].map(r=>{const sel=r.querySelector(".tr_plan_usuario"); const opt=sel.options[sel.selectedIndex]; return {fecha:normalizarFecha(r.querySelector(".tr_plan_fecha").value),hora_inicio:r.querySelector(".tr_plan_inicio").value||null,hora_fin:r.querySelector(".tr_plan_fin").value||null,usuario_id:sel.value||null,usuario:opt?opt.dataset.usuario||"":"",nombre:opt?opt.dataset.nombre||"":"",notas:r.querySelector(".tr_plan_notas").value.trim()}}).filter(p=>p.fecha&&p.usuario_id)}
+async function cargarPlanificacion(id){
+  if(!id || !navigator.onLine || !sb()) return [];
+
+  try{
+    const r=await sb()
+      .from("trabajos_planificacion")
+      .select("*")
+      .eq("trabajo_id",String(id))
+      .order("fecha",{ascending:true})
+      .order("hora_inicio",{ascending:true});
+
+    return r.error ? [] : (r.data || []);
+  }catch(e){
+    return [];
+  }
+}
+
+async function cargarMateriales(id){
+  if(!id || !navigator.onLine || !sb()) return [];
+
+  try{
+    const r=await sb()
+      .from("trabajos_materiales")
+      .select("*")
+      .eq("trabajo_id",String(id))
+      .order("created_at",{ascending:false});
+
+    return r.error ? [] : (r.data || []);
+  }catch(e){
+    return [];
+  }
+}
+
+async function cargarArchivos(id){
+  if(!id || !navigator.onLine || !sb()) return [];
+
+  try{
+    const r=await sb()
+      .from("trabajos_archivos")
+      .select("*")
+      .eq("trabajo_id",String(id))
+      .order("created_at",{ascending:false});
+
+    return r.error ? [] : (r.data || []);
+  }catch(e){
+    return [];
+  }
+}
+
+async function cargarHistorial(id){
+  if(!id || !navigator.onLine || !sb()) return [];
+
+  try{
+    const r=await sb()
+      .from("trabajos_historial")
+      .select("*")
+      .eq("trabajo_id",String(id))
+      .order("created_at",{ascending:false});
+
+    return r.error ? [] : (r.data || []);
+  }catch(e){
+    return [];
+  }
+}
+
+async function registrarHistorial(trabajoId,tipo,notas,datos){
+  if(!trabajoId || !navigator.onLine || !sb()) return false;
+
+  const s=sesion();
+
+  try{
+    const data={
+      trabajo_id:String(trabajoId),
+      usuario_id:String(s.id || ""),
+      usuario:String(s.usuario || s.nombre || "sistema"),
+      fecha:hoy(),
+      hora_inicio:horaAhora(),
+      hora_fin:null,
+      tipo:String(tipo || "sistema"),
+      notas:String(notas || ""),
+      datos:datos || {},
+      created_at:new Date().toISOString()
+    };
+
+    let r=await sb().from("trabajos_historial").insert([data]);
+
+    if(r.error){
+      delete data.datos;
+      r=await sb().from("trabajos_historial").insert([data]);
+    }
+
+    return !r.error;
+
+  }catch(e){
+    return false;
+  }
+}
+
+async function cargarTrabajo(id){
+  if(!id) return null;
+
+  const local=ZX_TR_CACHE.find(t=>String(t.id)===String(id));
+
+  if(!navigator.onLine || !sb()){
+    return local || null;
+  }
+
+  try{
+    const r=await sb().from(TABLA).select("*").eq("id",String(id)).maybeSingle();
+    if(r.error || !r.data) return local || null;
+    return r.data;
+  }catch(e){
+    return local || null;
+  }
+}
+
+function textoBusqueda(t){
+  return normalizar([
+    t.titulo,
+    t.cliente,
+    t.usuario,
+    t.estado,
+    t.prioridad,
+    t.descripcion,
+    t.notas,
+    t.persona_contacto,
+    t.telefono_contacto,
+    direccionTrabajo(t)
+  ].join(" "));
+}
+
+function prepararTrabajo(t){
+  t.__zx_dir=direccionTrabajo(t);
+  t.__zx_busqueda=textoBusqueda(t);
+  return t;
+}
+
+function filtrarTrabajos(){
+  let lista=ZX_TR_CACHE || [];
+
+  const unico=idTrabajoUnico();
+
+  if(unico){
+    lista=lista.filter(t=>String(t.id)===String(unico));
+    return lista;
+  }
+
+  if(ZX_TR_FILTRO==="activos"){
+    lista=lista.filter(t=>t.archivado!==true && t.archivado!=="true");
+  }
+
+  if(ZX_TR_FILTRO==="archivados"){
+    lista=lista.filter(t=>t.archivado===true || t.archivado==="true");
+  }
+
+  if(ZX_TR_FILTRO==="pendientes"){
+    lista=lista.filter(t=>t.archivado!==true && String(t.estado || "pendiente")==="pendiente");
+  }
+
+  if(ZX_TR_FILTRO==="curso"){
+    lista=lista.filter(t=>t.archivado!==true && String(t.estado || "")==="en_curso");
+  }
+
+  if(ZX_TR_FILTRO==="terminados"){
+    lista=lista.filter(t=>t.archivado!==true && String(t.estado || "")==="terminado");
+  }
+
+  if(ZX_TR_FILTRO==="urgentes"){
+    lista=lista.filter(t=>t.archivado!==true && String(t.prioridad || "")==="urgente");
+  }
+
+  const q=normalizar(ZX_TR_BUSQUEDA);
+
+  if(q){
+    const palabras=q.split(/\s+/).filter(Boolean);
+
+    lista=lista.filter(function(t){
+      const txt=t.__zx_busqueda || textoBusqueda(t);
+      if(txt.includes(q)) return true;
+      return palabras.length && palabras.every(p=>txt.includes(p));
+    });
+  }
+
+  return lista;
+}
+
+async function cargarTrabajos(){
+  if(!puedeEntrar()) return [];
+
+  if(!navigator.onLine || !sb()){
+    ZX_TR_CACHE=leerCache().map(prepararTrabajo);
+    return filtrarTrabajos();
+  }
+
+  if(ZX_TR_CARGANDO) return filtrarTrabajos();
+  ZX_TR_CARGANDO=true;
+
+  try{
+    const unico=idTrabajoUnico();
+
+    let r;
+
+    if(zx() && typeof zx().selectCache==="function"){
+      r=await zx().selectCache(TABLA,function(q){
+        if(unico) return q.select("*").eq("id",String(unico)).limit(1);
+        return q.select("*").order("fecha",{ascending:false}).limit(300);
+      });
+    }else{
+      let q=sb().from(TABLA).select("*");
+
+      if(unico){
+        q=q.eq("id",String(unico)).limit(1);
+      }else{
+        q=q.order("fecha",{ascending:false}).limit(300);
+      }
+
+      r=await q;
+    }
+
+    if(r.error) throw r.error;
+
+    ZX_TR_CACHE=(r.data || []).map(prepararTrabajo);
+    guardarCache(ZX_TR_CACHE);
+
+  }catch(e){
+    ZX_TR_CACHE=leerCache().map(prepararTrabajo);
+  }
+
+  ZX_TR_CARGANDO=false;
+  return filtrarTrabajos();
+}
+
+function resumen(){
+  const total=ZX_TR_CACHE.length;
+  const activos=ZX_TR_CACHE.filter(t=>t.archivado!==true && t.archivado!=="true").length;
+  const curso=ZX_TR_CACHE.filter(t=>String(t.estado || "")==="en_curso").length;
+  const urgentes=ZX_TR_CACHE.filter(t=>String(t.prioridad || "")==="urgente").length;
+
+  return `
+    <div class="zx_tr_kpis">
+      <div><b>${total}</b><span>Total</span></div>
+      <div><b>${activos}</b><span>Activos</span></div>
+      <div><b>${curso}</b><span>En curso</span></div>
+      <div><b>${urgentes}</b><span>Urgentes</span></div>
+    </div>
+  `;
+}
+
+function toolbar(total){
+  const filtros=[
+    ["activos","Activos"],
+    ["pendientes","Pendientes"],
+    ["curso","En curso"],
+    ["terminados","Terminados"],
+    ["urgentes","Urgentes"],
+    ["archivados","Archivados"]
+  ];
+
+  return `
+    <div class="zx_tr_toolbar">
+      ${modoTrabajoUnico() ? `
+        <button class="zx_tr_back" id="zx_tr_volver_listado">← Ver todos los trabajos</button>
+      ` : ""}
+
+      <div class="zx_tr_search">
+        <input id="zx_buscar_trabajos" type="search" value="${limpiar(ZX_TR_BUSQUEDA)}" placeholder="Buscar trabajo, cliente, dirección, técnico o estado">
+        ${ZX_TR_BUSQUEDA ? `<button id="zx_limpiar_trabajos" type="button">✕</button>` : ""}
+      </div>
+
+      <div class="zx_tr_filters">
+        ${filtros.map(function(f){
+          return `<button class="${ZX_TR_FILTRO===f[0] ? "on" : ""}" data-tr-filter="${limpiar(f[0])}">${limpiar(f[1])}</button>`;
+        }).join("")}
+      </div>
+
+      <div class="zx_tr_resume">${total} resultado(s)</div>
+    </div>
+  `;
+}
+
+function renderTrabajo(t){
+  const dir=t.__zx_dir || direccionTrabajo(t);
+  const tel=t.telefono_contacto || t.telefono || "";
+  const estado=t.estado || "pendiente";
+  const prio=t.prioridad || "media";
+
+  return `
+    <article class="zx_tr_card" data-id="${limpiar(t.id)}">
+      <div class="zx_tr_top">
+        <div class="zx_tr_icon">🛠️</div>
+        <div>
+          <h3>${limpiar(t.titulo || "Trabajo")}</h3>
+          <div class="zx_tr_meta">${limpiar(t.cliente || "Sin cliente")}</div>
+        </div>
+      </div>
+
+      <div class="zx_tr_badges">
+        <span class="estado ${claseEstado(estado)}">${limpiar(estadoTexto(estado))}</span>
+        <span class="prio ${clasePrioridad(prio)}">${limpiar(prioridadTexto(prio))}</span>
+      </div>
+
+      <div class="zx_tr_info">
+        ${t.fecha ? `<p><b>Fecha</b><span>${limpiar(fechaES(t.fecha))}${t.hora_inicio ? " · "+limpiar(String(t.hora_inicio).slice(0,5)) : ""}</span></p>` : ""}
+        ${t.usuario ? `<p><b>Técnico</b><span>${limpiar(t.usuario)}</span></p>` : ""}
+        ${tel ? `<p><b>Teléfono</b><span>${limpiar(tel)}</span></p>` : ""}
+        ${dir ? `<p><b>Dirección</b><span>${limpiar(dir)}</span></p>` : ""}
+        ${t.descripcion ? `<p><b>Descripción</b><span>${limpiar(t.descripcion)}</span></p>` : ""}
+      </div>
+
+      <div class="zx_tr_actions">
+        <button class="blue" data-tr-open="${limpiar(t.id)}">Abrir</button>
+        ${tel ? `<button class="green" data-tr-tel="${limpiar(tel)}">Llamar</button>` : ""}
+        ${dir ? `<button class="purple" data-tr-map="${limpiar(dir)}">Mapa</button>` : ""}
+        ${puedeGestionar() ? `<button class="orange" data-tr-state="${limpiar(t.id)}">Estado</button>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function renderListado(lista){
+  if(!lista.length){
+    return `<div class="zx_tr_empty">No hay trabajos con este filtro.</div>`;
+  }
+
+  return lista.map(renderTrabajo).join("");
+}
+
+function pintarShell(lista){
+  app().innerHTML=`
+    <div class="zx_tr_shell">
+      <section class="zx_tr_panel zx_tr_header">
+        <div>
+          <h2>${modoTrabajoUnico() ? "Trabajo" : "Trabajos"}</h2>
+          <p>Planificación, materiales, fotos, historial y estado del servicio.</p>
+        </div>
+        ${puedeGestionar() && !modoTrabajoUnico() ? `<button class="zx_tr_new" id="btn_nuevo_trabajo">＋ Crear</button>` : ""}
+      </section>
+
+      ${!modoTrabajoUnico() ? `<section class="zx_tr_panel">${resumen()}${toolbar(lista.length)}</section>` : `<section class="zx_tr_panel">${toolbar(lista.length)}</section>`}
+
+      <section class="zx_tr_panel">
+        <div class="zx_tr_list_head">
+          <h3>${modoTrabajoUnico() ? "Ficha" : "Listado"}</h3>
+          <span>${lista.length} trabajo(s)</span>
+        </div>
+        <div id="zx_trabajos_lista" class="zx_tr_list">${renderListado(lista)}</div>
+      </section>
+    </div>
+  `;
+
+  const nuevo=document.getElementById("btn_nuevo_trabajo");
+  if(nuevo) nuevo.onclick=function(){abrirFormulario({})};
+
+  const volver=document.getElementById("zx_tr_volver_listado");
+  if(volver){
+    volver.onclick=function(){
+      salirTrabajoUnico();
+      window.ZX_trabajos();
+    };
+  }
+
+  conectarEventos();
+}
+
+function repintarLista(){
+  const lista=filtrarTrabajos();
+  const box=document.getElementById("zx_trabajos_lista");
+
+  if(box){
+    box.innerHTML=renderListado(lista);
+    conectarEventos();
+  }
+}
+
+function conectarEventos(){
+  const buscar=document.getElementById("zx_buscar_trabajos");
+
+  if(buscar){
+    buscar.oninput=function(){
+      ZX_TR_BUSQUEDA=buscar.value || "";
+      repintarLista();
+    };
+  }
+
+  const limpiarBtn=document.getElementById("zx_limpiar_trabajos");
+  if(limpiarBtn){
+    limpiarBtn.onclick=function(){
+      ZX_TR_BUSQUEDA="";
+      if(buscar) buscar.value="";
+      repintarLista();
+    };
+  }
+
+  document.querySelectorAll("[data-tr-filter]").forEach(function(btn){
+    btn.onclick=function(){
+      ZX_TR_FILTRO=btn.dataset.trFilter || "activos";
+      document.querySelectorAll("[data-tr-filter]").forEach(b=>b.classList.remove("on"));
+      btn.classList.add("on");
+      repintarLista();
+    };
+  });
+
+  document.querySelectorAll("[data-tr-open]").forEach(btn=>{
+    btn.onclick=function(){abrirFicha(btn.dataset.trOpen)};
+  });
+
+  document.querySelectorAll("[data-tr-state]").forEach(btn=>{
+    btn.onclick=function(){abrirCambioEstado(btn.dataset.trState)};
+  });
+
+  document.querySelectorAll("[data-tr-tel]").forEach(btn=>{
+    btn.onclick=function(){location.href="tel:"+telefonoLimpio(btn.dataset.trTel)};
+  });
+
+  document.querySelectorAll("[data-tr-map]").forEach(btn=>{
+    btn.onclick=function(){abrirMapa(btn.dataset.trMap)};
+  });
+}
+
+function abrirMapa(dir){
+  if(!dir){alert("Sin dirección.");return}
+
+  const q=encodeURIComponent(dir);
+
+  modal(`
+    <h2>Ruta</h2>
+    <button class="zx_btn_big zx_azul" id="tr_map_apple">Apple Maps</button>
+    <button class="zx_btn_big zx_verde" id="tr_map_google">Google Maps</button>
+    <button class="zx_btn_big zx_naranja" id="tr_map_waze">Waze</button>
+    <button class="zx_btn_big zx_gris" id="tr_map_cerrar">Cerrar</button>
+  `);
+
+  document.getElementById("tr_map_apple").onclick=function(){location.href="https://maps.apple.com/?q="+q};
+  document.getElementById("tr_map_google").onclick=function(){location.href="https://www.google.com/maps/search/?api=1&query="+q};
+  document.getElementById("tr_map_waze").onclick=function(){location.href="https://waze.com/ul?q="+q};
+  document.getElementById("tr_map_cerrar").onclick=cerrarModal;
+}
+
+function input(id,label,value,type){
+  return `
+    <label class="zx_tr_label" for="${id}">${limpiar(label)}</label>
+    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${limpiar(label)}">
+  `;
+}
+
+function selectEstado(valor){
+  const opts=[
+    ["pendiente","Pendiente"],
+    ["en_curso","En curso"],
+    ["terminado","Terminado"],
+    ["bloqueado","Bloqueado"],
+    ["cancelado","Cancelado"]
+  ];
+
+  return `
+    <label class="zx_tr_label" for="tr_estado">Estado</label>
+    <select id="tr_estado">
+      ${opts.map(o=>`<option value="${o[0]}" ${String(valor || "pendiente")===o[0] ? "selected" : ""}>${o[1]}</option>`).join("")}
+    </select>
+  `;
+}
+
+function selectPrioridad(valor){
+  const opts=[
+    ["baja","Baja"],
+    ["media","Media"],
+    ["alta","Alta"],
+    ["urgente","Urgente"]
+  ];
+
+  return `
+    <label class="zx_tr_label" for="tr_prioridad">Prioridad</label>
+    <select id="tr_prioridad">
+      ${opts.map(o=>`<option value="${o[0]}" ${String(valor || "media")===o[0] ? "selected" : ""}>${o[1]}</option>`).join("")}
+    </select>
+  `;
+}
+
+function nombreCliente(c){
+  return c.nombre || c.razon_social || c.cliente || c.empresa || c.nombre_comercial || "";
+}
+
+function renderClientesOptions(clientes,valor){
+  return `<option value="">Sin cliente</option>`+clientes.map(c=>{
+    const n=nombreCliente(c);
+    return `<option value="${limpiar(c.id)}" data-nombre="${limpiar(n)}" ${String(valor || "")===String(c.id) ? "selected" : ""}>${limpiar(n)}</option>`;
+  }).join("");
+}
+
+function renderUsuariosOptions(usuarios,valor){
+  return `<option value="">Sin técnico</option>`+usuarios.map(u=>{
+    const n=u.nombre || u.usuario || "";
+    return `<option value="${limpiar(u.id)}" data-nombre="${limpiar(n)}" ${String(valor || "")===String(u.id) ? "selected" : ""}>${limpiar(n)}</option>`;
+  }).join("");
+}
 
 async function abrirFormulario(t){
-  t=t||{}; const [clientes,usuarios,plan]=await Promise.all([cargarClientes(),cargarUsuarios(),cargarPlanificacion(t.id)]); cerrarModal();
-  document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>${t.id?"Editar trabajo":"Nuevo trabajo"}</h2><label class="zx_label">Título</label><input id="tr_titulo" value="${limpiar(t.titulo||"")}"><label class="zx_label">Prioridad</label><select id="tr_prioridad"><option value="baja" ${t.prioridad==="baja"?"selected":""}>Baja</option><option value="media" ${!t.prioridad||t.prioridad==="media"?"selected":""}>Media</option><option value="alta" ${t.prioridad==="alta"?"selected":""}>Alta</option><option value="urgente" ${t.prioridad==="urgente"?"selected":""}>Urgente</option></select><label class="zx_label">Cliente</label><select id="tr_cliente">${opcionesClientes(clientes,t.cliente_id)}</select><label class="zx_label">Persona contacto obra</label><input id="tr_persona" value="${limpiar(t.persona_contacto||"")}"><label class="zx_label">Teléfono contacto obra</label><input id="tr_tel" type="tel" value="${limpiar(t.telefono_contacto||"")}"><h3>Dirección de obra</h3><label class="zx_label">Dirección</label><input id="tr_dir" value="${limpiar(t.direccion_obra||t.direccion||"")}"><label class="zx_label">Población</label><input id="tr_poblacion" value="${limpiar(t.poblacion||"")}"><label class="zx_label">Provincia</label><input id="tr_provincia" value="${limpiar(t.provincia||"")}"><label class="zx_label">Código postal</label><input id="tr_cp" value="${limpiar(t.codigo_postal||"")}"><label class="zx_label">País</label><input id="tr_pais" value="${limpiar(t.pais||"España")}"><h3>Planificación</h3><div id="tr_plan_lista">${plan.length?plan.map((p,i)=>filaPlan(i,usuarios,p)).join(""):filaPlan(0,usuarios,{})}</div><button class="zx_btn_big zx_azul" id="tr_add_plan">Añadir día / operario</button><label class="zx_label">Descripción</label><textarea id="tr_desc" rows="4">${limpiar(t.descripcion||"")}</textarea><label class="zx_label">Notas internas</label><textarea id="tr_notas" rows="4">${limpiar(t.notas||"")}</textarea><button class="zx_btn_big zx_verde" id="tr_guardar">Guardar trabajo</button><button class="zx_btn_big zx_gris" id="tr_cancelar">Cancelar</button></div></div>`);
-  const selCliente=document.getElementById("tr_cliente"); selCliente.onchange=function(){const c=clientes.find(x=>String(x.id)===String(selCliente.value)); if(!c)return; document.getElementById("tr_persona").value=c.persona_contacto||""; document.getElementById("tr_tel").value=c.telefono||c.telefono1||""; document.getElementById("tr_dir").value=c.direccion||""; document.getElementById("tr_poblacion").value=c.poblacion||""; document.getElementById("tr_provincia").value=c.provincia||""; document.getElementById("tr_cp").value=c.codigo_postal||""; document.getElementById("tr_pais").value=c.pais||"España"};
-  function activarPlan(){document.querySelectorAll(".tr_quitar").forEach(b=>b.onclick=function(){const rows=document.querySelectorAll("[data-plan-row]"); if(rows.length<=1){alert("Debe quedar al menos una línea de planificación.");return} b.closest("[data-plan-row]").remove()}); document.querySelectorAll(".tr_dup").forEach(b=>b.onclick=function(){const r=b.closest("[data-plan-row]"); const sel=r.querySelector(".tr_plan_usuario"); const p={fecha:r.querySelector(".tr_plan_fecha").value,hora_inicio:r.querySelector(".tr_plan_inicio").value,hora_fin:r.querySelector(".tr_plan_fin").value,usuario_id:sel.value,notas:r.querySelector(".tr_plan_notas").value}; document.getElementById("tr_plan_lista").insertAdjacentHTML("beforeend",filaPlan(document.querySelectorAll("[data-plan-row]").length,usuarios,p)); activarPlan()})}
-  activarPlan(); document.getElementById("tr_add_plan").onclick=function(){document.getElementById("tr_plan_lista").insertAdjacentHTML("beforeend",filaPlan(document.querySelectorAll("[data-plan-row]").length,usuarios,{}));activarPlan()}; document.getElementById("tr_cancelar").onclick=cerrarModal; document.getElementById("tr_guardar").onclick=()=>guardarTrabajo(t.id||null,clientes);
-}
-async function editarTrabajo(id){const t=await cargarTrabajo(id); if(t)abrirFormulario(t)}
-function firmaPlan(plan){return plan.map(p=>[p.fecha,p.hora_inicio,p.hora_fin,p.usuario_id,p.nombre,p.notas].join("|")).join(";")}
-async function guardarTrabajo(id,clientes){
-  const plan=leerPlan(); if(!plan.length){alert("Añade al menos una línea de planificación.");return}
-  const clienteId=document.getElementById("tr_cliente").value||null; const cliente=clientes.find(c=>String(c.id)===String(clienteId)); const primera=plan[0]; const s=sesion();
-  const data={titulo:document.getElementById("tr_titulo").value.trim(),prioridad:document.getElementById("tr_prioridad").value||"media",cliente_id:clienteId,cliente:cliente?cliente.nombre||"":"",usuario:plan.map(p=>p.nombre||p.usuario).filter(Boolean).join(", "),fecha:primera.fecha,hora_inicio:primera.hora_inicio,hora_fin:primera.hora_fin,direccion_obra:document.getElementById("tr_dir").value.trim(),direccion:document.getElementById("tr_dir").value.trim(),poblacion:document.getElementById("tr_poblacion").value.trim(),provincia:document.getElementById("tr_provincia").value.trim(),codigo_postal:document.getElementById("tr_cp").value.trim(),pais:document.getElementById("tr_pais").value.trim(),persona_contacto:document.getElementById("tr_persona").value.trim(),telefono_contacto:document.getElementById("tr_tel").value.trim(),descripcion:document.getElementById("tr_desc").value.trim(),notas:document.getElementById("tr_notas").value.trim(),creado_por:s.usuario||""};
-  if(!data.titulo){alert("Introduce título.");return}
-  let anterior=null, planAnterior=[]; if(id){anterior=await cargarTrabajo(id); planAnterior=await cargarPlanificacion(id)}
-  let r; if(id) r=await sb().from("trabajos").update(data).eq("id",String(id)).select().maybeSingle(); else{data.estado="pendiente";data.archivado=false;r=await sb().from("trabajos").insert([data]).select().maybeSingle()}
-  if(r.error){alert("Error guardando trabajo: "+r.error.message);return}
-  const trabajoId=id||r.data.id;
-  await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(trabajoId));
-  const rp=await sb().from("trabajos_planificacion").insert(plan.map(p=>({trabajo_id:String(trabajoId),fecha:p.fecha,hora_inicio:p.hora_inicio,hora_fin:p.hora_fin,usuario_id:String(p.usuario_id||""),usuario:p.usuario||"",nombre:p.nombre||"",notas:p.notas||""})));
-  if(rp.error){alert("Trabajo guardado, pero falló la planificación: "+rp.error.message);return}
-  await sincronizarAgenda(trabajoId,{...data,id:trabajoId,estado:r.data?.estado||data.estado||"pendiente",archivado:r.data?.archivado||false},plan);
-  if(id){const cambios=[]; if(anterior&&String(anterior.titulo||"")!==String(data.titulo||""))cambios.push("título"); if(anterior&&String(anterior.prioridad||"")!==String(data.prioridad||""))cambios.push("prioridad"); if(anterior&&String(anterior.cliente||"")!==String(data.cliente||""))cambios.push("cliente"); if(anterior&&String(anterior.direccion_obra||anterior.direccion||"")!==String(data.direccion_obra||""))cambios.push("dirección"); if(firmaPlan(planAnterior)!==firmaPlan(plan))cambios.push("planificación"); await registrarHistorial(trabajoId,"edicion","Trabajo editado"+(cambios.length?": "+cambios.join(", "):"."),{cambios})}else await registrarHistorial(trabajoId,"creacion","Trabajo creado.");
-  cerrarModal(); pintarTrabajos();
-}
-async function sincronizarAgenda(trabajoId,data,plan){await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(trabajoId)); if(data.archivado)return; for(const p of plan){await sb().from("agenda_eventos").insert([{tipo:"trabajo",titulo:"Trabajo - "+data.titulo,descripcion:data.descripcion||"",fecha_inicio:p.fecha,fecha_fin:p.fecha,hora_inicio:p.hora_inicio,hora_fin:p.hora_fin,cliente_id:String(data.cliente_id||""),cliente:data.cliente||"",usuario_id:String(p.usuario_id||""),usuario:p.nombre||p.usuario||"",estado:estadoAgenda(data.estado),prioridad:data.prioridad||"media",visible_para:"todos",origen:"trabajos",origen_id:String(trabajoId),creado_por:data.creado_por||""}])}}
+  if(!puedeGestionar()){alert("No tienes permiso.");return}
 
-async function cambiarEstadoTrabajo(id){const t=await cargarTrabajo(id); if(!t)return; cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Cambiar estado</h2><div class="zx_text"><b>${limpiar(t.titulo||"Trabajo")}</b><br>Estado actual: ${limpiar(estadoTexto(t.estado))}</div><button class="zx_btn_big zx_naranja" id="tr_est_pendiente">Pendiente</button><button class="zx_btn_big zx_azul" id="tr_est_curso">En curso</button><button class="zx_btn_big zx_verde" id="tr_est_terminado">Terminado</button><button class="zx_btn_big zx_rojo" id="tr_est_cancelado">Cancelado</button><button class="zx_btn_big zx_gris" id="tr_est_cerrar">Cerrar</button></div></div>`); document.getElementById("tr_est_cerrar").onclick=cerrarModal; document.getElementById("tr_est_pendiente").onclick=()=>aplicarEstado(id,t,"pendiente"); document.getElementById("tr_est_curso").onclick=()=>aplicarEstado(id,t,"en_curso"); document.getElementById("tr_est_terminado").onclick=()=>aplicarEstado(id,t,"terminado"); document.getElementById("tr_est_cancelado").onclick=()=>aplicarEstado(id,t,"cancelado")}
-async function aplicarEstado(id,t,nuevo){const actual=t.estado||"pendiente"; if(actual===nuevo){cerrarModal();return} if(nuevo==="cancelado"&&!confirm("¿Cancelar este trabajo?"))return; const r=await sb().from("trabajos").update({estado:nuevo}).eq("id",String(id)); if(r.error){alert("Error cambiando estado: "+r.error.message);return} await sb().from("agenda_eventos").update({estado:estadoAgenda(nuevo),updated_at:new Date().toISOString()}).eq("origen","trabajos").eq("origen_id",String(id)); await registrarHistorial(id,"estado","Estado cambiado de "+estadoTexto(actual)+" a "+estadoTexto(nuevo)+".",{anterior:actual,nuevo}); cerrarModal(); pintarTrabajos()}
+  t=t || {};
+
+  const [clientes,usuarios]=await Promise.all([cargarClientes(),cargarUsuarios()]);
+
+  modal(`
+    <h2>${t.id ? "Editar trabajo" : "Nuevo trabajo"}</h2>
+
+    <div class="zx_tr_form">
+      <h3>Datos principales</h3>
+      ${input("tr_titulo","Título",t.titulo)}
+      ${selectEstado(t.estado || "pendiente")}
+      ${selectPrioridad(t.prioridad || "media")}
+
+      <label class="zx_tr_label" for="tr_cliente">Cliente</label>
+      <select id="tr_cliente">${renderClientesOptions(clientes,t.cliente_id)}</select>
+
+      <label class="zx_tr_label" for="tr_usuario_id">Técnico principal</label>
+      <select id="tr_usuario_id">${renderUsuariosOptions(usuarios,t.usuario_id)}</select>
+
+      <div class="zx_tr_grid2">
+        <div>${input("tr_fecha","Fecha",t.fecha || hoy(),"date")}</div>
+        <div>${input("tr_hora_inicio","Hora inicio",t.hora_inicio ? String(t.hora_inicio).slice(0,5) : "","time")}</div>
+      </div>
+
+      <div class="zx_tr_grid2">
+        <div>${input("tr_hora_fin","Hora fin",t.hora_fin ? String(t.hora_fin).slice(0,5) : "","time")}</div>
+        <div>${input("tr_tel","Teléfono contacto",t.telefono_contacto,"tel")}</div>
+      </div>
+
+      <h3>Ubicación</h3>
+      ${input("tr_dir","Dirección",t.direccion_obra || t.direccion)}
+      <div class="zx_tr_grid2">
+        <div>${input("tr_poblacion","Población",t.poblacion)}</div>
+        <div>${input("tr_provincia","Provincia",t.provincia)}</div>
+      </div>
+      <div class="zx_tr_grid2">
+        <div>${input("tr_cp","Código postal",t.codigo_postal)}</div>
+        <div>${input("tr_pais","País",t.pais || "España")}</div>
+      </div>
+
+      <h3>Descripción</h3>
+      <label class="zx_tr_label" for="tr_desc">Descripción</label>
+      <textarea id="tr_desc" rows="4">${limpiar(t.descripcion || "")}</textarea>
+
+      <label class="zx_tr_label" for="tr_notas">Notas internas</label>
+      <textarea id="tr_notas" rows="4">${limpiar(t.notas || "")}</textarea>
+    </div>
+
+    <button class="zx_btn_big zx_verde" id="tr_guardar">Guardar</button>
+    <button class="zx_btn_big zx_gris" id="tr_cancelar">Cancelar</button>
+  `);
+
+  const selCliente=document.getElementById("tr_cliente");
+
+  selCliente.onchange=function(){
+    const c=clientes.find(x=>String(x.id)===String(selCliente.value));
+    if(!c) return;
+
+    document.getElementById("tr_tel").value=c.telefono || c.telefono_2 || "";
+    document.getElementById("tr_dir").value=c.direccion || "";
+    document.getElementById("tr_poblacion").value=c.poblacion || "";
+    document.getElementById("tr_provincia").value=c.provincia || "";
+    document.getElementById("tr_cp").value=c.codigo_postal || "";
+    document.getElementById("tr_pais").value=c.pais || "España";
+  };
+
+  document.getElementById("tr_cancelar").onclick=cerrarModal;
+  document.getElementById("tr_guardar").onclick=function(){guardarTrabajo(t.id || null,clientes,usuarios)};
+}
+
+function valor(id){
+  const el=document.getElementById(id);
+  return el ? String(el.value || "").trim() : "";
+}
+
+async function guardarTrabajo(id,clientes,usuarios){
+  const titulo=valor("tr_titulo");
+
+  if(!titulo){
+    alert("Introduce título.");
+    return;
+  }
+
+  const clienteId=valor("tr_cliente");
+  const usuarioId=valor("tr_usuario_id");
+
+  const cliente=clientes.find(c=>String(c.id)===String(clienteId));
+  const user=usuarios.find(u=>String(u.id)===String(usuarioId));
+
+  const s=sesion();
+
+  const data={
+    titulo:titulo,
+    estado:valor("tr_estado") || "pendiente",
+    prioridad:valor("tr_prioridad") || "media",
+    cliente_id:clienteId || null,
+    cliente:cliente ? nombreCliente(cliente) : "",
+    usuario_id:usuarioId || "",
+    usuario:user ? (user.nombre || user.usuario || "") : "",
+    fecha:valor("tr_fecha") || hoy(),
+    hora_inicio:valor("tr_hora_inicio") || null,
+    hora_fin:valor("tr_hora_fin") || null,
+    telefono_contacto:valor("tr_tel"),
+    direccion_obra:valor("tr_dir"),
+    direccion:valor("tr_dir"),
+    poblacion:valor("tr_poblacion"),
+    provincia:valor("tr_provincia"),
+    codigo_postal:valor("tr_cp"),
+    pais:valor("tr_pais"),
+    descripcion:valor("tr_desc"),
+    notas:valor("tr_notas"),
+    creado_por:s.usuario || ""
+  };
+
+  if(!id){
+    data.archivado=false;
+  }
+
+  try{
+    let r;
+
+    if(zx() && typeof zx().update==="function" && typeof zx().insert==="function"){
+      r=id ? await zx().update(TABLA,data,"id",id) : await zx().insert(TABLA,[data]);
+    }else if(id){
+      r=await sb().from(TABLA).update(data).eq("id",String(id));
+    }else{
+      r=await sb().from(TABLA).insert([data]);
+    }
+
+    if(r && r.error) throw r.error;
+
+    if(id){
+      await registrarHistorial(id,"edicion","Trabajo editado.",data);
+      await sincronizarAgenda(id,Object.assign({},data,{id:id}));
+    }else{
+      await registrarHistorial("", "creacion","Trabajo creado.",data);
+    }
+
+    cerrarModal();
+    await window.ZX_trabajos();
+
+  }catch(e){
+    alert("Error guardando trabajo: "+(e.message || "Error"));
+  }
+}
+
+async function sincronizarAgenda(id,t){
+  if(!id || !navigator.onLine || !sb()) return;
+
+  try{
+    await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
+
+    if(t.archivado===true || t.estado==="cancelado") return;
+
+    await sb().from("agenda_eventos").insert([{
+      tipo:"trabajo",
+      titulo:"Trabajo - "+(t.titulo || ""),
+      descripcion:t.descripcion || "",
+      fecha_inicio:t.fecha || hoy(),
+      fecha_fin:t.fecha || hoy(),
+      hora_inicio:t.hora_inicio || null,
+      hora_fin:t.hora_fin || null,
+      cliente_id:String(t.cliente_id || ""),
+      cliente:t.cliente || "",
+      usuario_id:String(t.usuario_id || ""),
+      usuario:t.usuario || "",
+      estado:t.estado==="terminado" ? "completado" : "activo",
+      prioridad:t.prioridad || "media",
+      visible_para:"todos",
+      origen:"trabajos",
+      origen_id:String(id),
+      creado_por:t.creado_por || ""
+    }]);
+  }catch(e){}
+}
+
+async function abrirCambioEstado(id){
+  const t=await cargarTrabajo(id);
+  if(!t){alert("Trabajo no encontrado.");return}
+
+  modal(`
+    <h2>Cambiar estado</h2>
+    <div class="zx_text"><b>${limpiar(t.titulo || "Trabajo")}</b><br>Estado actual: ${limpiar(estadoTexto(t.estado))}</div>
+    <button class="zx_btn_big zx_naranja" id="tr_est_pendiente">Pendiente</button>
+    <button class="zx_btn_big zx_azul" id="tr_est_curso">En curso</button>
+    <button class="zx_btn_big zx_verde" id="tr_est_terminado">Terminado</button>
+    <button class="zx_btn_big zx_rojo" id="tr_est_cancelado">Cancelado</button>
+    <button class="zx_btn_big zx_gris" id="tr_est_cerrar">Cerrar</button>
+  `);
+
+  document.getElementById("tr_est_cerrar").onclick=cerrarModal;
+  document.getElementById("tr_est_pendiente").onclick=function(){aplicarEstado(id,"pendiente")};
+  document.getElementById("tr_est_curso").onclick=function(){aplicarEstado(id,"en_curso")};
+  document.getElementById("tr_est_terminado").onclick=function(){aplicarEstado(id,"terminado")};
+  document.getElementById("tr_est_cancelado").onclick=function(){aplicarEstado(id,"cancelado")};
+}
+
+async function aplicarEstado(id,estado){
+  const t=await cargarTrabajo(id);
+  if(!t) return;
+
+  try{
+    let r;
+
+    if(zx() && typeof zx().update==="function"){
+      r=await zx().update(TABLA,{estado:estado},"id",id);
+    }else{
+      r=await sb().from(TABLA).update({estado:estado}).eq("id",String(id));
+    }
+
+    if(r && r.error) throw r.error;
+
+    await registrarHistorial(id,"estado","Estado cambiado a "+estadoTexto(estado)+".",{estado:estado});
+    await sincronizarAgenda(id,Object.assign({},t,{estado:estado}));
+
+    cerrarModal();
+    await window.ZX_trabajos();
+
+  }catch(e){
+    alert("No se pudo cambiar el estado.");
+  }
+}
+
+async function abrirFicha(id){
+  const t=await cargarTrabajo(id);
+  if(!t){alert("Trabajo no encontrado.");return}
+
+  modal(`
+    <h2>${limpiar(t.titulo || "Trabajo")}</h2>
+    <div id="tr_ficha_contenido">
+      <div class="zx_tr_loading">Cargando ficha...</div>
+    </div>
+    <button class="zx_btn_big zx_gris" id="tr_ficha_cerrar">Cerrar</button>
+  `);
+
+  document.getElementById("tr_ficha_cerrar").onclick=cerrarModal;
+
+  const box=document.getElementById("tr_ficha_contenido");
+
+  const [plan,mat,arch,hist]=await Promise.all([
+    cargarPlanificacion(id),
+    cargarMateriales(id),
+    cargarArchivos(id),
+    cargarHistorial(id)
+  ]);
+
+  box.innerHTML=`
+    <div class="zx_tr_ficha">
+      <div class="zx_tr_badges">
+        <span class="estado ${claseEstado(t.estado)}">${limpiar(estadoTexto(t.estado))}</span>
+        <span class="prio ${clasePrioridad(t.prioridad)}">${limpiar(prioridadTexto(t.prioridad))}</span>
+      </div>
+
+      <div class="zx_tr_info ficha">
+        ${t.cliente ? `<p><b>Cliente</b><span>${limpiar(t.cliente)}</span></p>` : ""}
+        ${t.usuario ? `<p><b>Técnico</b><span>${limpiar(t.usuario)}</span></p>` : ""}
+        ${t.fecha ? `<p><b>Fecha</b><span>${limpiar(fechaES(t.fecha))}</span></p>` : ""}
+        ${t.telefono_contacto ? `<p><b>Teléfono</b><span>${limpiar(t.telefono_contacto)}</span></p>` : ""}
+        ${direccionTrabajo(t) ? `<p><b>Dirección</b><span>${limpiar(direccionTrabajo(t))}</span></p>` : ""}
+        ${t.descripcion ? `<p><b>Descripción</b><span>${limpiar(t.descripcion)}</span></p>` : ""}
+        ${t.notas ? `<p><b>Notas</b><span>${limpiar(t.notas)}</span></p>` : ""}
+      </div>
+
+      <div class="zx_tr_ficha_actions">
+        ${puedeGestionar() ? `<button class="blue" onclick="ZX_tr_editar('${limpiar(id)}')">Editar</button>` : ""}
+        ${puedeGestionar() ? `<button class="orange" onclick="ZX_tr_estado('${limpiar(id)}')">Estado</button>` : ""}
+        ${direccionTrabajo(t) ? `<button class="purple" onclick="ZX_tr_mapa('${limpiar(direccionTrabajo(t))}')">Ruta</button>` : ""}
+        ${t.telefono_contacto ? `<button class="green" onclick="location.href='tel:${limpiar(telefonoLimpio(t.telefono_contacto))}'">Llamar</button>` : ""}
+        ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_material('${limpiar(id)}')">Material</button>` : ""}
+        ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_archivo('${limpiar(id)}')">Archivo</button>` : ""}
+        ${puedeBorrar() ? `<button class="red" onclick="ZX_tr_gestionar('${limpiar(id)}')">Gestionar</button>` : ""}
+      </div>
+
+      ${renderBloque("Planificación",plan.map(p=>`${fechaES(p.fecha)} ${p.hora_inicio ? String(p.hora_inicio).slice(0,5) : ""} ${p.nombre || p.usuario || ""}`))}
+      ${renderBloque("Materiales",mat.map(m=>`${m.cantidad || ""} ${m.unidad || ""} ${m.nombre || m.material || ""}`))}
+      ${renderArchivos(arch)}
+      ${renderBloque("Historial",hist.map(h=>`${fechaES(h.fecha || h.created_at)} · ${h.tipo || ""} · ${h.notas || ""}`))}
+    </div>
+  `;
+}
+
+function renderBloque(titulo,lineas){
+  return `
+    <div class="zx_tr_block">
+      <h3>${limpiar(titulo)}</h3>
+      ${lineas.length ? lineas.map(x=>`<div class="zx_tr_line">${limpiar(x)}</div>`).join("") : `<div class="zx_tr_empty mini">Sin datos.</div>`}
+    </div>
+  `;
+}
+
+function renderArchivos(lista){
+  return `
+    <div class="zx_tr_block">
+      <h3>Archivos</h3>
+      ${
+        lista.length
+        ? lista.map(a=>`<a class="zx_tr_file" href="${limpiar(a.url || a.archivo_url || "")}" target="_blank">${limpiar(a.nombre || a.filename || "Archivo")}</a>`).join("")
+        : `<div class="zx_tr_empty mini">Sin archivos.</div>`
+      }
+    </div>
+  `;
+}
 
 async function gestionarTrabajo(id){
-  const t=await cargarTrabajo(id); if(!t)return; cerrarModal();
-  document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Gestionar trabajo</h2><div class="zx_text"><b>${limpiar(t.titulo||"Trabajo")}</b><br>Cliente: ${limpiar(t.cliente||"-")}<br>Estado: ${limpiar(estadoTexto(t.estado))}</div><div class="zx_tr_aviso">Archivar, restaurar y borrar definitivamente requieren PIN administrador.</div><button class="zx_btn_big ${t.archivado?"zx_verde":"zx_naranja"}" id="tr_archivar">${t.archivado?"Restaurar trabajo":"Archivar trabajo"}</button>${esAdmin()?`<button class="zx_btn_big zx_rojo" id="tr_borrar_def">Borrar definitivamente</button>`:""}<button class="zx_btn_big zx_gris" id="tr_cerrar_gestion">Cancelar</button></div></div>`);
-  document.getElementById("tr_cerrar_gestion").onclick=cerrarModal;
+  const t=await cargarTrabajo(id);
+  if(!t) return;
+
+  modal(`
+    <h2>Gestionar trabajo</h2>
+    <div class="zx_tr_notice danger">Archivar, restaurar o borrar definitivamente requiere PIN administrador.</div>
+    <button class="zx_btn_big ${t.archivado ? "zx_verde" : "zx_naranja"}" id="tr_archivar">${t.archivado ? "Restaurar" : "Archivar"}</button>
+    <button class="zx_btn_big zx_rojo" id="tr_borrar">Borrar definitivamente</button>
+    <button class="zx_btn_big zx_gris" id="tr_gestion_cerrar">Cancelar</button>
+  `);
+
+  document.getElementById("tr_gestion_cerrar").onclick=cerrarModal;
+
   document.getElementById("tr_archivar").onclick=async function(){
-    if(ZX_TR_ARCHIVO_EN_PROCESO) return; ZX_TR_ARCHIVO_EN_PROCESO=true;
-    const btn=document.getElementById("tr_archivar"); const txtOriginal=btn?btn.textContent:""; if(btn){btn.disabled=true;btn.style.opacity=".55";btn.textContent="Procesando..."}
-    try{const ok=await pedirPinAdmin(); if(!ok)return; const trabajoAntes=await cargarTrabajo(id); if(!trabajoAntes)return; const nuevoArchivado=!trabajoAntes.archivado; const r=await sb().from("trabajos").update({archivado:nuevoArchivado}).eq("id",String(id)); if(r.error){alert("Error: "+r.error.message);return}
-      if(nuevoArchivado){await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id)); const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo archivado.",{archivado:true}); if(!okHist)return; ZX_TR_FILTRO="archivados"; salirTrabajoUnico()}
-      else{const plan=await cargarPlanificacion(id); const actualizado={...trabajoAntes,archivado:false}; await sincronizarAgenda(id,actualizado,plan); const okHist=await registrarHistorialObligatorio(id,"archivo","Trabajo restaurado.",{archivado:false}); if(!okHist)return; ZX_TR_FILTRO="activos"; salirTrabajoUnico()}
-      cerrarModal(); await pintarTrabajos();
-    }finally{ZX_TR_ARCHIVO_EN_PROCESO=false; if(btn){btn.disabled=false;btn.style.opacity="";btn.textContent=txtOriginal}}
+    const ok=await pedirPinAdmin();
+    if(!ok) return;
+
+    const nuevo=!(t.archivado===true || t.archivado==="true");
+    await actualizarTrabajo(id,{archivado:nuevo});
+    await registrarHistorial(id,"archivo",nuevo ? "Trabajo archivado." : "Trabajo restaurado.",{archivado:nuevo});
+
+    cerrarModal();
+    await window.ZX_trabajos();
   };
-  const borrar=document.getElementById("tr_borrar_def");
-  if(borrar)borrar.onclick=async function(){const ok=await pedirPinAdmin(); if(!ok)return; const texto=prompt("Para borrar definitivamente escribe: BORRAR"); if(String(texto||"").trim().toUpperCase()!=="BORRAR"){alert("Borrado cancelado.");return} await registrarHistorial(id,"borrado","Trabajo borrado definitivamente."); await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id)); await sb().from("trabajos_planificacion").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_archivos").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_materiales").delete().eq("trabajo_id",String(id)); await sb().from("trabajos_historial").delete().eq("trabajo_id",String(id)); const r=await sb().from("trabajos").delete().eq("id",String(id)); if(r.error){alert("Error borrando: "+r.error.message);return} salirTrabajoUnico(); cerrarModal();pintarTrabajos()};
+
+  document.getElementById("tr_borrar").onclick=async function(){
+    const ok=await pedirPinAdmin();
+    if(!ok) return;
+
+    if(!confirm("¿Borrar definitivamente este trabajo?")) return;
+
+    try{
+      let r;
+
+      if(zx() && typeof zx().remove==="function"){
+        r=await zx().remove(TABLA,"id",id);
+      }else{
+        r=await sb().from(TABLA).delete().eq("id",String(id));
+      }
+
+      if(r && r.error) throw r.error;
+
+      await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
+
+      cerrarModal();
+      salirTrabajoUnico();
+      await window.ZX_trabajos();
+
+    }catch(e){
+      alert("No se pudo borrar.");
+    }
+  };
 }
 
-async function marcarMaterial(id,preparado){const previo=await sb().from("trabajos_materiales").select("*").eq("id",String(id)).maybeSingle(); const r=await sb().from("trabajos_materiales").update({preparado:preparado,preparado_at:preparado?new Date().toISOString():null,preparado_por:preparado?(sesion().usuario||""):""}).eq("id",String(id)); if(r.error){alert("Error actualizando material: "+r.error.message);return} if(previo.data) await registrarHistorial(previo.data.trabajo_id,"material",String(previo.data.material||"Material")+" marcado como "+(preparado?"preparado":"pendiente")+"."); pintarTrabajos()}
-function renderMaterialesGestion(lista){if(!lista.length)return`<div class="zx_text">Sin materiales.</div>`; return `<div class="zx_tr_gestion_lista">${lista.map(m=>`<div class="zx_tr_gestion_item"><div><b>${limpiar(m.material||"Material")}</b><span>${limpiar(m.cantidad||"0")} ${limpiar(m.unidad||"")}</span>${m.notas?`<small>${limpiar(m.notas)}</small>`:""}</div><div class="zx_tr_gestion_btns"><button class="zx_azul" data-edit-mat="${limpiar(m.id)}">Editar</button><button class="zx_rojo" data-del-mat="${limpiar(m.id)}">Borrar</button></div></div>`).join("")}</div>`}
-async function abrirMateriales(trabajoId){
-  const [t,materiales]=await Promise.all([cargarTrabajo(trabajoId),cargarMateriales(trabajoId),cargarCatalogoMateriales()]); if(!t)return; cerrarModal();
-  document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Materiales</h2><div class="zx_text"><b>${limpiar(t.titulo||"Trabajo")}</b><br>${limpiar(t.cliente||"")}</div><label class="zx_label">Material</label><input id="tr_mat_nombre" list="tr_materiales_catalogo" autocomplete="off" placeholder="Empieza a escribir material">${renderDatalistMateriales()}<div class="zx_tr_grid2"><div><label class="zx_label">Cantidad</label><input id="tr_mat_cantidad" type="number" step="0.01" value="1"></div><div><label class="zx_label">Unidad</label><input id="tr_mat_unidad" value="ud"></div></div><label class="zx_label">Notas</label><textarea id="tr_mat_notas" rows="2"></textarea><button class="zx_btn_big zx_verde" id="tr_mat_guardar">Añadir material</button><h3>Lista</h3>${renderMaterialesGestion(materiales)}<button class="zx_btn_big zx_gris" id="tr_mat_cerrar">Cerrar</button></div></div>`);
-  document.getElementById("tr_mat_cerrar").onclick=()=>{cerrarModal();pintarTrabajos()}; document.getElementById("tr_mat_nombre").oninput=aplicarSugerenciaMaterial;
-  document.getElementById("tr_mat_guardar").onclick=async function(){const nombre=document.getElementById("tr_mat_nombre").value.trim(); const cantidad=Number(String(document.getElementById("tr_mat_cantidad").value||0).replace(",",".")); const unidad=document.getElementById("tr_mat_unidad").value.trim()||"ud"; const notas=document.getElementById("tr_mat_notas").value.trim(); if(!nombre){alert("Introduce material.");return} if(!Number.isFinite(cantidad)||cantidad<=0){alert("Cantidad no válida.");return} const r=await sb().from("trabajos_materiales").insert([{trabajo_id:String(trabajoId),material:nombre,cantidad,unidad,notas,created_at:new Date().toISOString()}]); if(r.error){alert("Error guardando material: "+r.error.message);return} await guardarEnCatalogoMaterial(nombre,unidad); await registrarHistorial(trabajoId,"material","Material añadido: "+nombre+" ("+cantidad+" "+unidad+")."); abrirMateriales(trabajoId)};
-  document.querySelectorAll("[data-edit-mat]").forEach(b=>b.onclick=()=>editarMaterial(trabajoId,b.dataset.editMat)); document.querySelectorAll("[data-del-mat]").forEach(b=>b.onclick=()=>borrarMaterial(trabajoId,b.dataset.delMat));
+async function actualizarTrabajo(id,data){
+  if(zx() && typeof zx().update==="function"){
+    return zx().update(TABLA,data,"id",id);
+  }
+  return sb().from(TABLA).update(data).eq("id",String(id));
 }
-async function editarMaterial(trabajoId,materialId){const r=await sb().from("trabajos_materiales").select("*").eq("id",String(materialId)).maybeSingle(); if(r.error||!r.data){alert("Material no encontrado.");return} const m=r.data; const nombre=prompt("Material:",m.material||""); if(nombre===null)return; const cantidadTxt=prompt("Cantidad:",String(m.cantidad||1)); if(cantidadTxt===null)return; const unidad=prompt("Unidad:",m.unidad||"ud"); if(unidad===null)return; const notas=prompt("Notas:",m.notas||""); if(notas===null)return; const cantidad=Number(String(cantidadTxt||0).replace(",",".")); if(!String(nombre).trim()){alert("Material obligatorio.");return} if(!Number.isFinite(cantidad)||cantidad<=0){alert("Cantidad no válida.");return} const up=await sb().from("trabajos_materiales").update({material:String(nombre).trim(),cantidad,unidad:String(unidad||"ud").trim()||"ud",notas:String(notas||"").trim()}).eq("id",String(materialId)); if(up.error){alert("Error editando material: "+up.error.message);return} await guardarEnCatalogoMaterial(nombre,unidad); await registrarHistorial(trabajoId,"material","Material editado: "+String(nombre).trim()+"."); abrirMateriales(trabajoId)}
-async function borrarMaterial(trabajoId,materialId){const r0=await sb().from("trabajos_materiales").select("*").eq("id",String(materialId)).maybeSingle(); if(r0.error||!r0.data){alert("Material no encontrado.");return} if(!confirm("¿Borrar este material?"))return; const r=await sb().from("trabajos_materiales").delete().eq("id",String(materialId)); if(r.error){alert("Error borrando material: "+r.error.message);return} await registrarHistorial(trabajoId,"material","Material borrado: "+String(r0.data.material||"Material")+"."); abrirMateriales(trabajoId)}
 
-async function abrirArchivo(trabajoId){cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Añadir archivo</h2><label class="zx_label">Tipo</label><select id="tr_file_tipo"><option value="plano">Plano</option><option value="foto">Foto</option><option value="video">Vídeo</option><option value="documento">Documento</option><option value="manual">Manual</option><option value="otro">Otro</option></select><label class="zx_label">Archivo</label><input id="tr_file_archivo" type="file"><label class="zx_label">Nombre visible</label><input id="tr_file_nombre"><button class="zx_btn_big zx_verde" id="tr_file_guardar">Guardar archivo</button><button class="zx_btn_big zx_gris" id="tr_file_cerrar">Cancelar</button></div></div>`); document.getElementById("tr_file_cerrar").onclick=cerrarModal; document.getElementById("tr_file_guardar").onclick=async function(){const file=document.getElementById("tr_file_archivo").files[0]; if(!file){alert("Selecciona archivo.");return} const tipo=document.getElementById("tr_file_tipo").value; const limpio=String(file.name||"archivo").replace(/[^a-zA-Z0-9._-]/g,"_"); const path="trabajos/"+trabajoId+"/"+tipo+"/"+Date.now()+"_"+limpio; const up=await sb().storage.from("zentryx-trabajos").upload(path,file,{upsert:true}); if(up.error){alert("Error subiendo archivo: "+up.error.message);return} const url=sb().storage.from("zentryx-trabajos").getPublicUrl(path).data.publicUrl; const nombre=document.getElementById("tr_file_nombre").value.trim()||file.name; const r=await sb().from("trabajos_archivos").insert([{trabajo_id:String(trabajoId),tipo,nombre,url,path}]); if(r.error){alert("Error guardando archivo: "+r.error.message);return} await registrarHistorial(trabajoId,"archivo","Archivo añadido: "+nombre+"."); cerrarModal();pintarTrabajos()}}
-async function gestionarArchivos(trabajoId){const archivos=await cargarArchivos(trabajoId); cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Gestionar archivos</h2>${archivos.length?archivos.map(a=>`<div class="zx_tr_gestion_item"><div><b>${limpiar(a.nombre||"Archivo")}</b><span>${limpiar(a.tipo||"")}</span></div><div class="zx_tr_gestion_btns"><button class="zx_azul" data-open-file="${limpiar(a.url||"")}">Abrir</button><button class="zx_azul" data-edit-file="${limpiar(a.id)}">Editar</button><button class="zx_rojo" data-del-file="${limpiar(a.id)}">Borrar</button></div></div>`).join(""):`<div class="zx_text">Sin archivos.</div>`}<button class="zx_btn_big zx_gris" id="tr_files_cerrar">Cerrar</button></div></div>`); document.getElementById("tr_files_cerrar").onclick=()=>{cerrarModal();pintarTrabajos()}; document.querySelectorAll("[data-open-file]").forEach(b=>b.onclick=()=>{if(b.dataset.openFile)window.open(b.dataset.openFile,"_blank")}); document.querySelectorAll("[data-edit-file]").forEach(b=>b.onclick=()=>editarArchivo(trabajoId,b.dataset.editFile)); document.querySelectorAll("[data-del-file]").forEach(b=>b.onclick=()=>borrarArchivo(trabajoId,b.dataset.delFile))}
-async function editarArchivo(trabajoId,archivoId){const r=await sb().from("trabajos_archivos").select("*").eq("id",String(archivoId)).maybeSingle(); if(r.error||!r.data){alert("Archivo no encontrado.");return} const a=r.data; const nombre=prompt("Nombre visible:",a.nombre||""); if(nombre===null)return; const tipo=prompt("Tipo:",a.tipo||"documento"); if(tipo===null)return; const up=await sb().from("trabajos_archivos").update({nombre:String(nombre||"").trim()||a.nombre||"Archivo",tipo:String(tipo||"").trim()||a.tipo||"documento"}).eq("id",String(archivoId)); if(up.error){alert("Error editando archivo: "+up.error.message);return} await registrarHistorial(trabajoId,"archivo","Archivo editado: "+String(nombre||a.nombre||"Archivo")+"."); gestionarArchivos(trabajoId)}
-async function borrarArchivo(trabajoId,archivoId){const r0=await sb().from("trabajos_archivos").select("*").eq("id",String(archivoId)).maybeSingle(); if(r0.error||!r0.data){alert("Archivo no encontrado.");return} if(!confirm("¿Borrar este archivo?"))return; const a=r0.data; if(a.path){try{await sb().storage.from("zentryx-trabajos").remove([a.path])}catch(e){}} const r=await sb().from("trabajos_archivos").delete().eq("id",String(archivoId)); if(r.error){alert("Error borrando archivo: "+r.error.message);return} await registrarHistorial(trabajoId,"archivo","Archivo borrado: "+String(a.nombre||"Archivo")+"."); gestionarArchivos(trabajoId)}
+async function abrirMaterial(id){
+  modal(`
+    <h2>Material</h2>
+    <label class="zx_tr_label">Material</label>
+    <input id="tr_mat_nombre" placeholder="Material">
+    <div class="zx_tr_grid2">
+      <div>
+        <label class="zx_tr_label">Cantidad</label>
+        <input id="tr_mat_cantidad" type="number" step="0.01" value="1">
+      </div>
+      <div>
+        <label class="zx_tr_label">Unidad</label>
+        <input id="tr_mat_unidad" value="ud">
+      </div>
+    </div>
+    <label class="zx_tr_label">Notas</label>
+    <textarea id="tr_mat_notas" rows="3"></textarea>
+    <button class="zx_btn_big zx_verde" id="tr_mat_guardar">Guardar material</button>
+    <button class="zx_btn_big zx_gris" id="tr_mat_cancelar">Cancelar</button>
+  `);
 
-async function abrirHistorial(trabajoId){const usuarios=await cargarUsuarios(); cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Añadir historial</h2><label class="zx_label">Usuario</label><select id="tr_hist_usuario">${opcionesUsuarios(usuarios,sesion().id||"")}</select><label class="zx_label">Fecha</label><input id="tr_hist_fecha" type="date" value="${hoy()}"><div class="zx_tr_grid2"><div><label class="zx_label">Inicio</label><input id="tr_hist_inicio" type="time" value="${horaAhora()}"></div><div><label class="zx_label">Fin</label><input id="tr_hist_fin" type="time"></div></div><label class="zx_label">Tipo</label><select id="tr_hist_tipo"><option value="trabajo">Trabajo</option><option value="pausa">Pausa</option><option value="incidencia">Incidencia</option><option value="desplazamiento">Desplazamiento</option><option value="otro">Otro</option></select><label class="zx_label">Notas</label><textarea id="tr_hist_notas" rows="3"></textarea><button class="zx_btn_big zx_verde" id="tr_hist_guardar">Guardar historial</button><button class="zx_btn_big zx_gris" id="tr_hist_cerrar">Cancelar</button></div></div>`); document.getElementById("tr_hist_cerrar").onclick=cerrarModal; document.getElementById("tr_hist_guardar").onclick=async function(){const sel=document.getElementById("tr_hist_usuario"); const opt=sel.options[sel.selectedIndex]; const tipo=document.getElementById("tr_hist_tipo").value||"trabajo"; const notas=document.getElementById("tr_hist_notas").value.trim(); const fechaManual=normalizarFecha(document.getElementById("tr_hist_fecha").value||hoy()); const horaInicio=document.getElementById("tr_hist_inicio").value||horaAhora(); const horaFin=document.getElementById("tr_hist_fin").value||null; if(!sel.value){alert("Selecciona usuario.");return} if(!notas){alert("Escribe una nota para el historial.");return} const usuarioNombre=opt?opt.dataset.nombre||opt.dataset.usuario||sesion().usuario||"":(sesion().usuario||""); let r=await sb().from("trabajos_historial").insert([{trabajo_id:String(trabajoId),usuario_id:String(sel.value),usuario:String(usuarioNombre||"Usuario"),fecha:fechaManual,hora_inicio:horaInicio,hora_fin:horaFin,tipo:String(tipo),notas:String(notas),created_at:new Date().toISOString()}]).select().maybeSingle(); if(r.error){const ok=await registrarHistorialObligatorio(trabajoId,tipo,notas,{manual:true,usuario_id:String(sel.value),usuario:String(usuarioNombre||""),fecha:fechaManual,hora_inicio:horaInicio,hora_fin:horaFin}); if(!ok)return} cerrarModal(); await pintarTrabajos()}}
-function menuTelefono(tel){const n=telefonoLimpio(tel); if(!n){alert("Sin teléfono.");return} cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Teléfono</h2><div class="zx_tr_aviso">${limpiar(n)}</div><button class="zx_btn_big zx_azul" onclick="location.href='tel:${limpiar(n)}'">Llamar</button><button class="zx_btn_big zx_verde" onclick="location.href='sms:${limpiar(n)}'">SMS</button><button class="zx_btn_big zx_verde" onclick="location.href='https://wa.me/${limpiar(n.replace('+',''))}'">WhatsApp</button><button class="zx_btn_big zx_gris" id="tr_tel_cerrar">Cerrar</button></div></div>`); document.getElementById("tr_tel_cerrar").onclick=cerrarModal}
-function menuMapa(dir){if(!dir){alert("Sin dirección.");return} const q=encodeURIComponent(dir); cerrarModal(); document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_trabajo" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Mapa</h2><div class="zx_tr_aviso">${limpiar(dir)}</div><button class="zx_btn_big zx_azul" onclick="location.href='https://maps.apple.com/?q=${q}'">Apple Maps</button><button class="zx_btn_big zx_verde" onclick="location.href='https://www.google.com/maps/search/?api=1&query=${q}'">Google Maps</button><button class="zx_btn_big zx_naranja" onclick="location.href='https://waze.com/ul?q=${q}'">Waze</button><button class="zx_btn_big zx_gris" id="tr_map_cerrar">Cerrar</button></div></div>`); document.getElementById("tr_map_cerrar").onclick=cerrarModal}
+  document.getElementById("tr_mat_cancelar").onclick=cerrarModal;
 
-window.ZX_trabajos=function(){document.querySelectorAll(".zx_nav_btn").forEach(b=>{b.classList.remove("zx_activo"); if(b.dataset.modulo==="trabajos")b.classList.add("zx_activo")}); pintarTrabajos()};
-window.ZX_nuevoTrabajo=function(){salirTrabajoUnico();abrirFormulario({})};
-window.ZX_verTrabajo=function(id){window.ZX_TRABAJO_ABRIR_ID=String(id||""); ZX_TR_BUSQUEDA=""; ZX_TR_FILTRO="todos"; window.ZX_trabajos()};
-window.ZX_editarTrabajo=function(id){editarTrabajo(id)};
-window.ZX_borrarTrabajo=function(id){gestionarTrabajo(id)};
-window.ZX_cambiarEstadoTrabajo=function(id){cambiarEstadoTrabajo(id)};
-window.ZX_tr_add_material=function(id){abrirMateriales(id)};
-window.ZX_tr_obra_materiales=function(id){abrirMateriales(id)};
-window.ZX_tr_add_file=function(id){abrirArchivo(id)};
-window.ZX_tr_add_historial=function(id){abrirHistorial(id)};
+  document.getElementById("tr_mat_guardar").onclick=async function(){
+    const nombre=valor("tr_mat_nombre");
+    if(!nombre){alert("Introduce material.");return}
 
-(function estilos(){
-  if(document.getElementById("zx_trabajos_v3126"))return;
-  ["zx_trabajos_v3116","zx_trabajos_v3117","zx_trabajos_v3118","zx_trabajos_v3119","zx_trabajos_v3120","zx_trabajos_v3121","zx_trabajos_v3122","zx_trabajos_v3123","zx_trabajos_v3124","zx_trabajos_v3125"].forEach(id=>{const e=document.getElementById(id); if(e)e.remove()});
-  const s=document.createElement("style"); s.id="zx_trabajos_v3126";
+    const data={
+      trabajo_id:String(id),
+      nombre:nombre,
+      material:nombre,
+      cantidad:Number(valor("tr_mat_cantidad") || 1),
+      unidad:valor("tr_mat_unidad") || "ud",
+      notas:valor("tr_mat_notas"),
+      preparado:false,
+      created_at:new Date().toISOString()
+    };
+
+    try{
+      let r;
+
+      if(zx() && typeof zx().insert==="function"){
+        r=await zx().insert("trabajos_materiales",[data]);
+      }else{
+        r=await sb().from("trabajos_materiales").insert([data]);
+      }
+
+      if(r && r.error) throw r.error;
+
+      await registrarHistorial(id,"material","Material añadido: "+nombre,data);
+      cerrarModal();
+      abrirFicha(id);
+
+    }catch(e){
+      alert("No se pudo guardar material.");
+    }
+  };
+}
+
+async function abrirArchivo(id){
+  modal(`
+    <h2>Archivo</h2>
+    <label class="zx_tr_label">Archivo</label>
+    <input id="tr_file" type="file" accept="image/*,.pdf,.doc,.docx">
+    <label class="zx_tr_label">Nombre</label>
+    <input id="tr_file_nombre" placeholder="Nombre del archivo">
+    <button class="zx_btn_big zx_verde" id="tr_file_guardar">Subir archivo</button>
+    <button class="zx_btn_big zx_gris" id="tr_file_cancelar">Cancelar</button>
+  `);
+
+  document.getElementById("tr_file_cancelar").onclick=cerrarModal;
+
+  document.getElementById("tr_file_guardar").onclick=async function(){
+    const file=(document.getElementById("tr_file").files || [])[0];
+    if(!file){alert("Selecciona un archivo.");return}
+
+    if(!navigator.onLine || !sb()){
+      alert("Para subir archivos necesitas conexión.");
+      return;
+    }
+
+    const nombre=valor("tr_file_nombre") || file.name;
+    const ext=(file.name.split(".").pop() || "dat").toLowerCase();
+    const path="trabajos/"+String(id)+"_"+Date.now()+"."+ext;
+
+    const up=await sb().storage.from("zentryx-trabajos").upload(path,file,{upsert:true});
+
+    if(up.error){
+      alert("Error subiendo archivo: "+up.error.message);
+      return;
+    }
+
+    const url=sb().storage.from("zentryx-trabajos").getPublicUrl(path).data.publicUrl;
+
+    await sb().from("trabajos_archivos").insert([{
+      trabajo_id:String(id),
+      nombre:nombre,
+      url:url,
+      archivo_url:url,
+      tipo:file.type || "",
+      created_at:new Date().toISOString()
+    }]);
+
+    await registrarHistorial(id,"archivo","Archivo añadido: "+nombre,{url:url});
+
+    cerrarModal();
+    abrirFicha(id);
+  };
+}
+
+window.ZX_tr_editar=function(id){cargarTrabajo(id).then(t=>{if(t) abrirFormulario(t)})};
+window.ZX_tr_estado=function(id){abrirCambioEstado(id)};
+window.ZX_tr_mapa=function(dir){abrirMapa(dir)};
+window.ZX_tr_material=function(id){abrirMaterial(id)};
+window.ZX_tr_archivo=function(id){abrirArchivo(id)};
+window.ZX_tr_gestionar=function(id){gestionarTrabajo(id)};
+
+function instalarCSS(){
+  const old=document.getElementById("zx_trabajos_css_v3110");
+  if(old) old.remove();
+
+  const s=document.createElement("style");
+  s.id="zx_trabajos_css_v3110";
   s.innerHTML=`
-    .zx_tr_top{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_crear{border:0;border-radius:18px;background:#16a34a;color:white;font-size:18px;font-weight:900;padding:15px 20px;margin-left:8px}.zx_tr_buscar{width:100%;margin:16px 0 8px;padding:16px;border-radius:18px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;font-size:17px;font-weight:850}.zx_tr_filtros{display:flex;gap:8px;overflow-x:auto;padding:8px 0 4px}.zx_tr_filtro{flex:0 0 auto;border:0;border-radius:999px;padding:11px 14px;background:#e5e7eb;color:#0f172a;font-size:15px;font-weight:900}.zx_tr_filtro.on{background:#2563eb;color:white}
-    .zx_tr_card{background:white;border:2px solid #d1d5db;border-radius:24px;padding:18px;margin:16px 0;box-shadow:0 8px 24px rgba(15,23,42,.05)}.zx_tr_card.archivado{opacity:.72;border-color:#64748b}.zx_tr_card_head{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}.zx_tr_card h3{font-size:30px;margin:0 0 10px;color:#0f172a;font-weight:950;line-height:1.1}.zx_tr_badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.zx_tr_badges span{display:inline-flex;border-radius:999px;color:white;padding:8px 12px;font-size:13px;font-weight:950;text-transform:uppercase}
-    .zx_tr_estado_ok{background:#16a34a!important;color:white!important}.zx_tr_estado_curso{background:#2563eb!important;color:white!important}.zx_tr_estado_rojo{background:#991b1b!important;color:white!important}.zx_tr_estado_pendiente{background:#ea580c!important;color:white!important}.zx_tr_estado_neutro{background:#64748b!important;color:white!important}.zx_tr_prio_urgente{background:#dc2626!important}.zx_tr_prio_alta{background:#ea580c!important}.zx_tr_prio_media{background:#2563eb!important}.zx_tr_prio_baja{background:#64748b!important}
-    .zx_tr_mat_resumen{border:1px solid #fed7aa;background:#fff7ed;border-radius:18px;min-width:78px;padding:10px;text-align:center}.zx_tr_mat_resumen.ok{background:#ecfdf5;border-color:#86efac}.zx_tr_mat_resumen b{display:block;font-size:22px;font-weight:950;color:#0f172a}.zx_tr_mat_resumen span{display:block;font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase;margin-top:4px}
-    .zx_tr_datos{color:#334155;font-size:17px;line-height:1.55;font-weight:750}.zx_link{border:0;background:transparent;color:#2563eb;text-decoration:underline;font-size:17px;font-weight:900;padding:0;text-align:left}.zx_tr_section{background:#f8fafc;border:1px solid #d1d5db;border-radius:18px;padding:14px;margin-top:12px}.zx_tr_section summary{font-size:20px;font-weight:950;cursor:pointer;color:#0f172a}
-    .zx_tr_plan{display:grid;gap:8px;margin-top:10px}.zx_tr_plan_row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:center;background:white;border:1px solid #e5e7eb;border-radius:14px;padding:10px;font-weight:900}.zx_tr_plan_row b{color:#2563eb}.zx_tr_materiales{display:grid;gap:8px;margin-top:10px}.zx_tr_mat{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;background:white;border:1px solid #e5e7eb;border-radius:16px;padding:12px}.zx_tr_mat.ok{background:#ecfdf5;border-color:#86efac}.zx_tr_mat input{width:24px!important;height:24px!important;margin-top:2px!important}.zx_tr_mat b{display:block;color:#0f172a;font-size:16px;font-weight:950}.zx_tr_mat.ok b{text-decoration:line-through;color:#166534}.zx_tr_mat em{display:block;color:#2563eb;font-style:normal;font-size:14px;font-weight:900;margin-top:2px}.zx_tr_mat small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:3px}
-    .zx_tr_file{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:white;border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin-top:8px}.zx_tr_file span{display:block;color:#64748b;font-weight:800;margin-top:3px}.zx_tr_file button{border:0;border-radius:14px;background:#2563eb;color:white;padding:12px 14px;font-weight:900}.zx_tr_hist{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin-top:8px;color:#334155;font-weight:750}
-    .zx_tr_acciones{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.zx_tr_grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.zx_tr_grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.zx_tr_plan_form{background:#f8fafc;border:1px solid #d1d5db;border-radius:20px;padding:14px;margin-top:12px}.zx_label{display:block;margin:12px 0 6px;color:#334155;font-size:15px;font-weight:900}.zx_tr_aviso{background:#fff7ed;border:1px solid #fed7aa;border-radius:18px;color:#9a3412;padding:14px;margin:12px 0;font-size:16px;font-weight:900;line-height:1.35}.zx_tr_gestion_lista{display:grid;gap:10px;margin-top:14px}.zx_tr_gestion_item{background:#f8fafc;border:1px solid #d1d5db;border-radius:18px;padding:12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.zx_tr_gestion_item b{display:block;color:#0f172a;font-weight:950}.zx_tr_gestion_item span,.zx_tr_gestion_item small{display:block;color:#64748b;font-weight:800;margin-top:3px}.zx_tr_gestion_btns{display:grid;gap:7px}.zx_tr_gestion_btns button{border:0;border-radius:12px;padding:10px 12px;color:white;font-weight:900}
-    .zx_azul{background:#2563eb!important;color:white!important}.zx_verde{background:#16a34a!important;color:white!important}.zx_rojo{background:#dc2626!important;color:white!important}.zx_naranja{background:#ea580c!important;color:white!important}.zx_gris{background:#64748b!important;color:white!important}@media(max-width:520px){.zx_tr_top,.zx_tr_card_head,.zx_tr_plan_row,.zx_tr_acciones,.zx_tr_grid2,.zx_tr_grid3,.zx_tr_gestion_item{grid-template-columns:1fr}.zx_tr_card h3{font-size:25px}.zx_tr_datos{font-size:16px}.zx_tr_crear{margin:6px 0 0 0;width:100%}}
+    .zx_tr_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
+    .zx_tr_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
+    .zx_tr_header{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
+    .zx_tr_header h2{margin:0;color:#071330;font-size:30px;line-height:1.05;font-weight:950;letter-spacing:-.5px}
+    .zx_tr_header p{margin:8px 0 0;color:#64748b;font-size:15px;font-weight:850;line-height:1.35}
+    .zx_tr_new{border:0;border-radius:18px;background:#16a34a;color:white;padding:14px 16px;font-size:16px;font-weight:950;white-space:nowrap}
+    .zx_tr_kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+    .zx_tr_kpis div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px;text-align:center}
+    .zx_tr_kpis b{display:block;color:#071330;font-size:27px;font-weight:950;line-height:1}
+    .zx_tr_kpis span{display:block;color:#64748b;font-size:13px;font-weight:900;margin-top:6px}
+    .zx_tr_toolbar{display:grid;grid-template-columns:1fr;gap:12px}
+    .zx_tr_back{border:0;border-radius:18px;background:#dbeafe;color:#1d4ed8;padding:13px;font-size:15px;font-weight:950;text-align:left}
+    .zx_tr_search{position:relative}
+    .zx_tr_search input{width:100%;margin:0!important;padding-right:48px!important;border:1px solid #dbe3ef;border-radius:18px;padding:15px;font-size:16px;font-weight:850;background:#f8fafc;color:#071330}
+    .zx_tr_search button{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:#e2e8f0;width:34px;height:34px;border-radius:12px;font-weight:950;color:#334155}
+    .zx_tr_filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px}
+    .zx_tr_filters button{border:0;border-radius:999px;background:#f1f5f9;color:#334155;padding:10px 13px;font-size:13px;font-weight:950;white-space:nowrap}
+    .zx_tr_filters button.on{background:#2563eb;color:white}
+    .zx_tr_resume{color:#64748b;font-size:13px;font-weight:900}
+    .zx_tr_list_head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .zx_tr_list_head h3{margin:0;color:#071330;font-size:25px;font-weight:950;letter-spacing:-.3px}
+    .zx_tr_list_head span{color:#64748b;font-size:13px;font-weight:950;white-space:nowrap}
+    .zx_tr_list{display:grid;grid-template-columns:1fr;gap:12px}
+    .zx_tr_card{background:#f8fafc;border:1px solid #dbe3ef;border-radius:24px;padding:16px;overflow:hidden}
+    .zx_tr_top{display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:center}
+    .zx_tr_icon{width:52px;height:52px;border-radius:18px;background:#dbeafe;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:950}
+    .zx_tr_top h3{margin:0;color:#071330;font-size:21px;line-height:1.15;font-weight:950}
+    .zx_tr_meta{margin-top:4px;color:#64748b;font-size:13px;font-weight:950}
+    .zx_tr_badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+    .zx_tr_badges span{border-radius:999px;padding:8px 10px;font-size:12px;font-weight:950}
+    .zx_tr_badges .estado.ok{background:#dcfce7;color:#166534}
+    .zx_tr_badges .estado.curso{background:#dbeafe;color:#1d4ed8}
+    .zx_tr_badges .estado.rojo{background:#fee2e2;color:#991b1b}
+    .zx_tr_badges .estado.pendiente{background:#fef3c7;color:#92400e}
+    .zx_tr_badges .prio.urgente{background:#fee2e2;color:#991b1b}
+    .zx_tr_badges .prio.alta{background:#ffedd5;color:#c2410c}
+    .zx_tr_badges .prio.media{background:#e0e7ff;color:#3730a3}
+    .zx_tr_badges .prio.baja{background:#dcfce7;color:#166534}
+    .zx_tr_info{margin-top:13px;display:grid;grid-template-columns:1fr;gap:8px}
+    .zx_tr_info p{margin:0;background:white;border:1px solid #e6edf5;border-radius:16px;padding:11px}
+    .zx_tr_info b{display:block;color:#64748b;font-size:12px;font-weight:950;margin-bottom:4px}
+    .zx_tr_info span{display:block;color:#071330;font-size:15px;font-weight:850;line-height:1.3;word-break:break-word}
+    .zx_tr_actions,.zx_tr_ficha_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+    .zx_tr_actions button,.zx_tr_ficha_actions button{border:0;border-radius:16px;padding:13px 8px;color:white;font-size:14px;font-weight:950;min-height:46px}
+    .zx_tr_actions .green,.zx_tr_ficha_actions .green{background:#16a34a}
+    .zx_tr_actions .blue,.zx_tr_ficha_actions .blue{background:#2563eb}
+    .zx_tr_actions .purple,.zx_tr_ficha_actions .purple{background:#7c3aed}
+    .zx_tr_actions .orange,.zx_tr_ficha_actions .orange{background:#f97316}
+    .zx_tr_actions .gray,.zx_tr_ficha_actions .gray{background:#64748b}
+    .zx_tr_actions .red,.zx_tr_ficha_actions .red{background:#dc2626}
+    .zx_tr_empty{color:#64748b;font-size:16px;font-weight:850;padding:12px 0}
+    .zx_tr_empty.mini{font-size:14px;padding:8px 0}
+    .zx_tr_loading{color:#64748b;font-size:16px;font-weight:850;padding:14px 0}
+    .zx_tr_error{color:#dc2626;font-weight:950;margin-top:10px}
+    .zx_tr_form h3,.zx_tr_block h3{margin:20px 0 8px;color:#071330;font-size:22px;font-weight:950}
+    .zx_tr_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
+    .zx_tr_form input,.zx_tr_form select,.zx_tr_form textarea,#zx_modal_trabajo input,#zx_modal_trabajo select,#zx_modal_trabajo textarea{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}
+    .zx_tr_grid2{display:grid;grid-template-columns:1fr;gap:10px}
+    .zx_tr_block{margin-top:16px;background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px}
+    .zx_tr_line{background:white;border:1px solid #e6edf5;border-radius:14px;padding:10px;margin-top:8px;color:#071330;font-size:14px;font-weight:850}
+    .zx_tr_file{display:block;background:white;border:1px solid #e6edf5;border-radius:14px;padding:11px;margin-top:8px;color:#2563eb;font-size:14px;font-weight:950;text-decoration:none}
+    .zx_tr_notice{background:#f8fafc;border:1px solid #dbe3ef;border-left:7px solid #64748b;border-radius:18px;padding:14px;color:#334155;font-size:15px;font-weight:900;line-height:1.35}
+    .zx_tr_notice.danger{border-left-color:#dc2626;background:#fef2f2;color:#991b1b}
+    @media(max-width:390px){.zx_tr_panel{padding:15px;border-radius:22px}.zx_tr_header h2{font-size:27px}.zx_tr_actions,.zx_tr_ficha_actions{grid-template-columns:1fr}.zx_tr_kpis{grid-template-columns:1fr 1fr}.zx_tr_top h3{font-size:19px}}
+    @media(min-width:700px){.zx_tr_shell{padding-bottom:32px}.zx_tr_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_tr_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(min-width:1100px){.zx_tr_panel{padding:22px}.zx_tr_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
   document.head.appendChild(s);
-})();
+}
 
-console.log("ZENTRYX trabajos.js V3126 completo cargado");
+window.ZX_trabajos=async function(){
+  instalarCSS();
+
+  if(zx() && typeof zx().marcarModuloActivo==="function"){
+    zx().marcarModuloActivo("trabajos");
+  }else{
+    document.querySelectorAll(".zx_nav_btn").forEach(function(b){
+      b.classList.remove("zx_activo");
+      if(b.dataset.modulo==="trabajos") b.classList.add("zx_activo");
+    });
+  }
+
+  if(!puedeEntrar()){
+    app().innerHTML=`
+      <div class="zx_tr_panel">
+        <h2>Trabajos</h2>
+        <div class="zx_text">No tienes permiso para acceder a Trabajos.</div>
+      </div>
+    `;
+    return;
+  }
+
+  ZX_TR_CACHE=leerCache().map(prepararTrabajo);
+  pintarShell(filtrarTrabajos());
+
+  setTimeout(async function(){
+    const lista=await cargarTrabajos();
+    pintarShell(lista);
+
+    if(modoTrabajoUnico() && lista.length===1){
+      setTimeout(function(){abrirFicha(lista[0].id)},120);
+    }
+  },20);
+};
+
+window.ZX_abrirTrabajos=window.ZX_trabajos;
+
+if(zx() && typeof zx().registrarModulo==="function"){
+  zx().registrarModulo("trabajos",{
+    nombre:"Trabajos",
+    activo:true,
+    version:ZX_VERSION
+  });
+}
+
+console.log("ZENTRYX trabajos.js V"+ZX_VERSION+" cargado");
+
 })();
