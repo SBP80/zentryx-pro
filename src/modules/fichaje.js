@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3097 - VEHÍCULO EN ENTRADA Y KM SALIDA FIX
+// V3098 - SALIDA CON KM EN MODAL
 // ===============================
 (function(){
 "use strict";
@@ -476,8 +476,11 @@ function cerrarModal(){
 async function abrirMenu(estado){
   cerrarModal();
 
+  const estActual=await estadoActual();
+  const jornada=estActual.jornada || null;
   const ops=opcionesPermitidas(estado);
   const libres=estado==="fuera"?await vehiculosLibres():[];
+  const hayVehiculoSalida=estado==="dentro" && jornada && jornada.vehiculo_id;
 
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_fichaje" class="zx_modal_fondo">
@@ -499,9 +502,14 @@ async function abrirMenu(estado){
           <input id="zx_fichaje_km_entrada" type="number" placeholder="Km actuales del vehículo" inputmode="numeric">
         `:""}
 
-        ${estado==="dentro"?`
+        ${hayVehiculoSalida?`
+          <div class="zx_text" style="margin:10px 0;font-weight:900;">
+            Vehículo: <b>${limpiar(jornada.vehiculo_matricula||"-")}</b><br>
+            Km entrada: <b>${limpiar(jornada.km_entrada??"-")}</b>
+          </div>
+
           <label class="zx_label">Km salida</label>
-          <input id="zx_fichaje_km_salida" type="number" placeholder="Km de salida" inputmode="numeric">
+          <input id="zx_fichaje_km_salida" type="number" value="${limpiar(jornada.km_entrada??"")}" placeholder="Km de salida" inputmode="numeric">
         `:""}
 
         <div class="zx_text" style="margin:12px 0;color:#dc2626;font-weight:900;">
@@ -650,11 +658,11 @@ async function registrar(tipo,datosModal){
 
   if(tipo==="salida"){
     if(jornada.vehiculo_id){
-      let kmTxt=String(datosModal.kmSalida||"").trim();
+      const kmTxt=String(datosModal.kmSalida||"").trim();
 
       if(!kmTxt){
-        kmTxt=prompt("Km de salida del vehículo "+(jornada.vehiculo_matricula||"")+":",String(jornada.km_entrada||""));
-        if(kmTxt===null)return;
+        alert("Introduce los kilómetros de salida.");
+        return;
       }
 
       const km=Number(kmTxt);
@@ -808,10 +816,10 @@ async function borrarJornada(id){
 }
 
 function instalarCSS(){
-  if(document.getElementById("zx_fichaje_css_v3097"))return;
+  if(document.getElementById("zx_fichaje_css_v3098"))return;
 
   const s=document.createElement("style");
-  s.id="zx_fichaje_css_v3097";
+  s.id="zx_fichaje_css_v3098";
 
   s.innerHTML=`
     .zx_modal_fondo{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;justify-content:center;align-items:center;padding:14px;z-index:9999}
