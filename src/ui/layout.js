@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3105
+// V3116 - AJUSTES CORREGIDO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3105";
+const ZX_VERSION="3116";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -1126,7 +1126,7 @@ function instalarRutas(){
   const modHoras=window.ZX_horas_extra || window.ZENTRYX_UI_horas_extra;
   const modControl=window.ZX_control_fichajes || window.ZX_controlFichajes;
   const modVehiculos=window.ZX_vehiculos || window.ZENTRYX_UI_abrirVehiculos;
-  const modConfig=window.ZX_configLaboral || window.ZX_config_laboral || window.ZX_configuracion;
+  const modConfig=window.ZX_configuracion || window.ZX_configuracion_pro || window.ZENTRYX_UI_configuracion || window.ZX_configLaboral || window.ZX_config_laboral;
 
   window.ZX_inicio=function(){
     abrirModulo("inicio",function(){
@@ -1194,7 +1194,7 @@ function instalarRutas(){
   window.ZX_configuracion=function(){
     abrirModulo("configuracion",function(){
       if(typeof modConfig==="function" && modConfig!==window.ZX_configuracion){modConfig();return}
-      app().innerHTML=`<div class="zx_card"><h2>Ajustes</h2><div class="zx_text">No se ha cargado config_laboral.js.</div></div>`;
+      app().innerHTML=`<div class="zx_card"><h2>Ajustes</h2><div class="zx_text">No se ha cargado configuracion.js.</div></div>`;
     });
   };
 }
