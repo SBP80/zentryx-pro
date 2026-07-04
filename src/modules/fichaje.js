@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3100 - VEHÍCULO ROBUSTO EN ENTRADA Y SALIDA
+// V3101 - VEHÍCULO + EDICIÓN/BORRADO ADMIN RESTAURADO
 // ===============================
 (function(){
 "use strict";
@@ -22,6 +22,9 @@ function formatoFechaES(f){if(!f)return"";const p=String(f).slice(0,10).split("-
 function fechaCorta(f){const d=new Date(f);if(isNaN(d.getTime()))return"-";return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear()+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")}
 function segundosEntre(a,b){const da=new Date(a),db=new Date(b);if(isNaN(da.getTime())||isNaN(db.getTime()))return 0;return Math.max(0,Math.floor((db-da)/1000))}
 function formatoSeg(seg){seg=Math.max(0,Math.floor(seg||0));const h=Math.floor(seg/3600),m=Math.floor((seg%3600)/60),s=seg%60;return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")}
+function toInputFecha(f){if(!f)return"";const d=new Date(f);if(isNaN(d.getTime()))return"";const local=new Date(d.getTime()-d.getTimezoneOffset()*60000);return local.toISOString().slice(0,16)}
+function fromInputFecha(v){if(!v)return null;const d=new Date(v);if(isNaN(d.getTime()))return null;return d.toISOString()}
+function numero(v){const n=Number(String(v??"").replace(",","."));return Number.isFinite(n)?n:null}
 
 function textoTipo(t){return{entrada:"Entrada",salida:"Salida",inicio_descanso:"Inicio descanso",fin_descanso:"Fin descanso",inicio_comida:"Inicio comida",fin_comida:"Fin comida"}[t]||t}
 function estadoDesdeTipo(tipo){if(tipo==="entrada"||tipo==="fin_descanso"||tipo==="fin_comida")return"dentro";if(tipo==="inicio_descanso")return"descanso";if(tipo==="inicio_comida")return"comida";return"fuera"}
@@ -56,6 +59,7 @@ async function validarAdminOperacion(){
     return true;
   }catch(e){alert("No se pudo validar el PIN.");return false}
 }
+function pedirMotivo(txt){const m=prompt(txt||"Indica el motivo.");if(!m||!String(m).trim()){alert("Motivo obligatorio.");return null}return String(m).trim()}
 
 async function obtenerUbicacion(){
   return new Promise(resolve=>{
@@ -78,36 +82,19 @@ async function vehiculosLibres(){
     return r.data||[];
   }catch(e){return[]}
 }
-
 async function vehiculoPorId(id){
   if(!id)return null;
-  try{
-    const r=await sb().from("vehiculos").select("*").eq("id",String(id)).maybeSingle();
-    if(r.error||!r.data)return null;
-    return r.data;
-  }catch(e){return null}
+  try{const r=await sb().from("vehiculos").select("*").eq("id",String(id)).maybeSingle();if(r.error||!r.data)return null;return r.data}catch(e){return null}
 }
-
 async function marcarVehiculoEntrada(v,km){
   if(!v||!v.id)return {error:null};
   const s=sesion();
-  const r=await sb().from("vehiculos").update({
-    en_uso:true,
-    usuario_id:String(s.id||""),
-    usuario_asignado:s.nombre||s.usuario||"",
-    km_actual:Number(km)
-  }).eq("id",String(v.id));
+  const r=await sb().from("vehiculos").update({en_uso:true,usuario_id:String(s.id||""),usuario_asignado:s.nombre||s.usuario||"",km_actual:Number(km)}).eq("id",String(v.id));
   return r||{error:null};
 }
-
 async function marcarVehiculoSalida(id,km){
   if(!id)return {error:null};
-  const r=await sb().from("vehiculos").update({
-    en_uso:false,
-    usuario_id:null,
-    usuario_asignado:"",
-    km_actual:Number(km)
-  }).eq("id",String(id));
+  const r=await sb().from("vehiculos").update({en_uso:false,usuario_id:null,usuario_asignado:"",km_actual:Number(km)}).eq("id",String(id));
   return r||{error:null};
 }
 
@@ -117,13 +104,11 @@ async function jornadaAbierta(){
   if(r.error||!r.data||!r.data.length)return null;
   return r.data[0];
 }
-
 async function fichajesDeJornada(jornadaId){
   const r=await sb().from("fichajes").select("*").eq("jornada_id",String(jornadaId)).order("created_at",{ascending:true});
   if(r.error)return[];
   return r.data||[];
 }
-
 async function estadoActual(){
   const j=await jornadaAbierta();
   if(!j)return{estado:"fuera",jornada:null,eventos:[]};
@@ -131,12 +116,10 @@ async function estadoActual(){
   const ultimo=eventos.length?eventos[eventos.length-1]:null;
   return{estado:estadoDesdeTipo(ultimo?ultimo.tipo:"entrada"),jornada:j,eventos};
 }
-
 function calcularEnVivo(eventos,estado){
   const lista=(eventos||[]).slice().sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
   let trabajadoSeg=0,descansoSeg=0,comidaSeg=0,inicioTrabajo=null,inicioDescanso=null,inicioComida=null,entrada=null,salida=null;
   const now=ahora();
-
   lista.forEach(e=>{
     const t=e.created_at;
     if(e.tipo==="entrada"){entrada=t;inicioTrabajo=t;inicioDescanso=null;inicioComida=null}
@@ -151,7 +134,6 @@ function calcularEnVivo(eventos,estado){
       if(inicioComida){comidaSeg+=segundosEntre(inicioComida,t);inicioComida=null}
     }
   });
-
   if(!salida){
     if(estado==="dentro"&&inicioTrabajo)trabajadoSeg+=segundosEntre(inicioTrabajo,now);
     if(estado==="descanso"&&inicioDescanso)descansoSeg+=segundosEntre(inicioDescanso,now);
@@ -177,7 +159,6 @@ async function crearJornada(datosVehiculo){
   if(r.error){alert("Error creando jornada: "+r.error.message);return null}
   return r.data;
 }
-
 async function insertarFichaje(tipo,jornadaId,geo,veh){
   const s=sesion();
   const r=await sb().from("fichajes").insert([{
@@ -191,7 +172,6 @@ async function insertarFichaje(tipo,jornadaId,geo,veh){
   if(r.error){alert("Error al guardar fichaje: "+r.error.message);return false}
   return true;
 }
-
 async function recalcularJornada(jornadaId){
   const rj=await sb().from("jornadas").select("*").eq("id",String(jornadaId)).single();
   if(rj.error||!rj.data)return;
@@ -216,16 +196,11 @@ async function recalcularJornada(jornadaId){
 
 function opcionesPermitidas(estado){
   if(estado==="fuera")return[{tipo:"entrada",texto:"Entrada",clase:"zx_verde"}];
-  if(estado==="dentro")return[
-    {tipo:"salida",texto:"Salida",clase:"zx_rojo"},
-    {tipo:"inicio_descanso",texto:"Inicio descanso",clase:"zx_naranja"},
-    {tipo:"inicio_comida",texto:"Inicio comida",clase:"zx_morado"}
-  ];
+  if(estado==="dentro")return[{tipo:"salida",texto:"Salida",clase:"zx_rojo"},{tipo:"inicio_descanso",texto:"Inicio descanso",clase:"zx_naranja"},{tipo:"inicio_comida",texto:"Inicio comida",clase:"zx_morado"}];
   if(estado==="descanso")return[{tipo:"fin_descanso",texto:"Fin descanso",clase:"zx_azul"}];
   if(estado==="comida")return[{tipo:"fin_comida",texto:"Fin comida",clase:"zx_azul"}];
   return[];
 }
-
 function cerrarModal(){const m=document.getElementById("zx_modal_fichaje");if(m)m.remove()}
 
 async function abrirMenu(estado,jornadaActual){
@@ -233,27 +208,19 @@ async function abrirMenu(estado,jornadaActual){
   const ops=opcionesPermitidas(estado);
   const libres=estado==="fuera"?await vehiculosLibres():[];
   const tieneVehiculo=!!(jornadaActual&&jornadaActual.vehiculo_id);
-
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_fichaje" class="zx_modal_fondo">
       <div class="zx_modal_caja">
         <h2>Fichar</h2>
-
         ${estado==="fuera"?`
           <label class="zx_label">Vehículo</label>
           <select id="zx_fichaje_vehiculo">
             <option value="">Sin vehículo</option>
-            ${libres.map(v=>`
-              <option value="${limpiar(v.id)}" data-km="${limpiar(v.km_actual??0)}" data-matricula="${limpiar(v.matricula||"")}">
-                ${limpiar(v.matricula||"")} ${limpiar(v.marca||"")} ${limpiar(v.modelo||"")} · ${limpiar(v.km_actual??0)} km
-              </option>
-            `).join("")}
+            ${libres.map(v=>`<option value="${limpiar(v.id)}" data-km="${limpiar(v.km_actual??0)}" data-matricula="${limpiar(v.matricula||"")}">${limpiar(v.matricula||"")} ${limpiar(v.marca||"")} ${limpiar(v.modelo||"")} · ${limpiar(v.km_actual??0)} km</option>`).join("")}
           </select>
-
           <label class="zx_label">Km entrada</label>
           <input id="zx_fichaje_km_entrada" type="number" placeholder="Km actuales del vehículo" inputmode="numeric">
         `:""}
-
         ${estado==="dentro"&&tieneVehiculo?`
           <div class="zx_text" style="margin:10px 0;font-weight:900;">
             Vehículo: <b>${limpiar(jornadaActual.vehiculo_matricula||"")}</b><br>
@@ -262,41 +229,25 @@ async function abrirMenu(estado,jornadaActual){
           <label class="zx_label">Km salida</label>
           <input id="zx_fichaje_km_salida" type="number" value="${limpiar(jornadaActual.km_entrada??"")}" placeholder="Km de salida" inputmode="numeric">
         `:""}
-
-        <div class="zx_text" style="margin:12px 0;color:#dc2626;font-weight:900;">
-          Revisa antes de guardar. Quedará registrado con hora, ubicación y dispositivo.
-        </div>
-
+        <div class="zx_text" style="margin:12px 0;color:#dc2626;font-weight:900;">Revisa antes de guardar. Quedará registrado con hora, ubicación y dispositivo.</div>
         ${ops.map(o=>`<button class="zx_btn_big ${o.clase}" data-fichaje="${o.tipo}">${o.texto}</button>`).join("")}
         <button class="zx_btn_big zx_gris" id="zx_cancelar_fichaje">Cancelar</button>
       </div>
     </div>
   `);
-
   const sel=document.getElementById("zx_fichaje_vehiculo");
   const kmEntrada=document.getElementById("zx_fichaje_km_entrada");
-  if(sel&&kmEntrada){
-    sel.onchange=function(){
-      const opt=sel.options[sel.selectedIndex];
-      kmEntrada.value=opt&&opt.value?String(opt.dataset.km||""):"";
-    };
-  }
-
+  if(sel&&kmEntrada){sel.onchange=function(){const opt=sel.options[sel.selectedIndex];kmEntrada.value=opt&&opt.value?String(opt.dataset.km||""):""}}
   document.querySelectorAll("[data-fichaje]").forEach(btn=>{
     btn.onclick=async function(){
       const tipo=this.dataset.fichaje;
-      const datosModal={
-        vehiculoId:document.getElementById("zx_fichaje_vehiculo")?.value||"",
-        kmEntrada:document.getElementById("zx_fichaje_km_entrada")?.value||"",
-        kmSalida:document.getElementById("zx_fichaje_km_salida")?.value||""
-      };
+      const datosModal={vehiculoId:document.getElementById("zx_fichaje_vehiculo")?.value||"",kmEntrada:document.getElementById("zx_fichaje_km_entrada")?.value||"",kmSalida:document.getElementById("zx_fichaje_km_salida")?.value||""};
       const ok=confirm("Confirmar fichaje: "+textoTipo(tipo));
       if(!ok)return;
       cerrarModal();
       await registrar(tipo,datosModal);
     };
   });
-
   document.getElementById("zx_cancelar_fichaje").onclick=cerrarModal;
 }
 
@@ -308,12 +259,10 @@ async function registrar(tipo,datosModal){
   let jornada=est.jornada;
   let veh=null;
   let vehMarcado=false;
-
   if(tipo==="entrada"){
     if(est.estado!=="fuera"){alert("Ya tienes una jornada abierta.");return}
     const vehiculoId=String(datosModal.vehiculoId||"");
     const kmTxt=String(datosModal.kmEntrada||"");
-
     if(vehiculoId){
       const v=await vehiculoPorId(vehiculoId);
       if(!v){alert("Vehículo no encontrado.");return}
@@ -327,39 +276,24 @@ async function registrar(tipo,datosModal){
       if(mv.error){alert("No se pudo bloquear el vehículo: "+mv.error.message);return}
       vehMarcado=true;
     }
-
     jornada=await crearJornada(veh);
-    if(!jornada){
-      if(vehMarcado&&veh&&veh.id)await marcarVehiculoSalida(veh.id,veh.km);
-      return;
-    }
-
+    if(!jornada){if(vehMarcado&&veh&&veh.id)await marcarVehiculoSalida(veh.id,veh.km);return}
     if(veh&&(!jornada.vehiculo_id||!jornada.vehiculo_matricula)){
       await sb().from("jornadas").update({vehiculo_id:String(veh.id),vehiculo_matricula:String(veh.matricula||""),km_entrada:Number(veh.km)}).eq("id",String(jornada.id));
       const check=await sb().from("jornadas").select("vehiculo_id,vehiculo_matricula,km_entrada").eq("id",String(jornada.id)).maybeSingle();
-      if(!check.data||!check.data.vehiculo_id){
-        await marcarVehiculoSalida(veh.id,veh.km);
-        await sb().from("jornadas").delete().eq("id",String(jornada.id));
-        alert("No se pudo guardar el vehículo en la jornada. No se ha registrado la entrada.");
-        return;
-      }
+      if(!check.data||!check.data.vehiculo_id){await marcarVehiculoSalida(veh.id,veh.km);await sb().from("jornadas").delete().eq("id",String(jornada.id));alert("No se pudo guardar el vehículo en la jornada. No se ha registrado la entrada.");return}
       jornada={...jornada,...check.data};
     }
   }
-
   if(tipo!=="entrada"&&!jornada){alert("No hay jornada abierta.");return}
   if(tipo==="inicio_descanso"&&est.estado!=="dentro"){alert("Solo puedes iniciar descanso trabajando.");return}
   if(tipo==="fin_descanso"&&est.estado!=="descanso"){alert("No estás en descanso.");return}
   if(tipo==="inicio_comida"&&est.estado!=="dentro"){alert("Solo puedes iniciar comida trabajando.");return}
   if(tipo==="fin_comida"&&est.estado!=="comida"){alert("No estás en comida.");return}
   if(tipo==="salida"&&(est.estado==="descanso"||est.estado==="comida")){alert("Primero termina descanso o comida.");return}
-
   if(tipo==="salida"&&jornada.vehiculo_id){
     let kmTxt=String(datosModal.kmSalida||"").trim();
-    if(!kmTxt){
-      alert("Indica los km de salida del vehículo.");
-      return;
-    }
+    if(!kmTxt){alert("Indica los km de salida del vehículo.");return}
     const km=Number(kmTxt);
     if(!Number.isFinite(km)||km<0){alert("Km de salida inválidos.");return}
     if(jornada.km_entrada!=null&&km<Number(jornada.km_entrada)){alert("Los km de salida no pueden ser menores que los km de entrada.");return}
@@ -369,65 +303,126 @@ async function registrar(tipo,datosModal){
     const rv=await marcarVehiculoSalida(jornada.vehiculo_id,km);
     if(rv.error){alert("No se pudo liberar el vehículo: "+rv.error.message);return}
   }
-
   const geo=await obtenerUbicacion();
   const ok=await insertarFichaje(tipo,jornada.id,geo,veh);
-  if(!ok){
-    if(tipo==="entrada"&&vehMarcado&&veh&&veh.id)await marcarVehiculoSalida(veh.id,veh.km);
-    return;
-  }
-
+  if(!ok){if(tipo==="entrada"&&vehMarcado&&veh&&veh.id)await marcarVehiculoSalida(veh.id,veh.km);return}
   await insertarAuditoria("fichaje_"+tipo,"Fichaje registrado: "+textoTipo(tipo),s.id);
   await recalcularJornada(jornada.id);
   await ZX_fichaje_real();
 }
 
-async function ultimosFichajes(){
-  const s=sesion();
-  const r=await sb().from("fichajes").select("*").eq("usuario_id",String(s.id)).order("created_at",{ascending:false}).limit(8);
-  if(r.error)return[];
-  return r.data||[];
-}
-
-async function jornadasUsuario(){
-  const s=sesion();
-  const r=await sb().from("jornadas").select("*").eq("usuario_id",String(s.id)).order("created_at",{ascending:false}).limit(8);
-  if(r.error)return[];
-  return r.data||[];
-}
+async function ultimosFichajes(){const s=sesion();const r=await sb().from("fichajes").select("*").eq("usuario_id",String(s.id)).order("created_at",{ascending:false}).limit(8);if(r.error)return[];return r.data||[]}
+async function jornadasUsuario(){const s=sesion();const r=await sb().from("jornadas").select("*").eq("usuario_id",String(s.id)).order("created_at",{ascending:false}).limit(8);if(r.error)return[];return r.data||[]}
 
 function resumenHTML(resumen,objetivoSeg){
   const extra=Math.max(0,Number(resumen.trabajadoSeg||0)-Number(objetivoSeg||0));
   const falta=Math.max(0,Number(objetivoSeg||0)-Number(resumen.trabajadoSeg||0));
-  return`<div class="zx_text">
-    Trabajado: <b data-live-campo="trabajado">${formatoSeg(resumen.trabajadoSeg)}</b><br>
-    Descanso: <b data-live-campo="descanso">${formatoSeg(resumen.descansoSeg)}</b><br>
-    Comida: <b data-live-campo="comida">${formatoSeg(resumen.comidaSeg)}</b><br>
-    Objetivo: <b>${formatoSeg(objetivoSeg)}</b><br>
-    Extra: <b data-live-campo="extra">${formatoSeg(extra)}</b><br>
-    Falta: <b data-live-campo="falta">${formatoSeg(falta)}</b>
-  </div>`;
+  return`<div class="zx_text">Trabajado: <b data-live-campo="trabajado">${formatoSeg(resumen.trabajadoSeg)}</b><br>Descanso: <b data-live-campo="descanso">${formatoSeg(resumen.descansoSeg)}</b><br>Comida: <b data-live-campo="comida">${formatoSeg(resumen.comidaSeg)}</b><br>Objetivo: <b>${formatoSeg(objetivoSeg)}</b><br>Extra: <b data-live-campo="extra">${formatoSeg(extra)}</b><br>Falta: <b data-live-campo="falta">${formatoSeg(falta)}</b></div>`;
 }
+function renderFichajeMini(f){return`<div class="zx_admin_row"><div class="zx_admin_row_top"><b>${limpiar(textoTipo(f.tipo))}</b><span>${limpiar(fechaCorta(f.created_at))}</span></div><div class="zx_admin_data">${f.vehiculo_matricula?`Vehículo: <b>${limpiar(f.vehiculo_matricula)}</b>${f.km_vehiculo!=null?` · ${limpiar(f.km_vehiculo)} km`:""}<br>`:""}${limpiar(f.direccion||"")}</div>${esAdmin()?`<div class="zx_edit_grid"><button class="zx_admin_btn zx_admin_editar" data-editar-fichaje="${limpiar(f.id)}">Modificar</button><button class="zx_admin_btn zx_admin_borrar" data-borrar-fichaje="${limpiar(f.id)}">Borrar</button></div>`:""}</div>`}
+function renderJornadaMini(j){return`<div class="zx_admin_row"><div class="zx_admin_row_top"><b>${limpiar(j.nombre||j.usuario||"-")}</b><span>${limpiar(formatoFechaES(j.fecha||""))}</span></div><div class="zx_admin_estado ${limpiar(j.estado||"")}">${limpiar(j.estado||"-")}</div><div class="zx_admin_data">Trabajado: ${formatoSeg(Number(j.segundos_trabajados||0)||Number(j.minutos_trabajados||0)*60)}<br>Extra: ${formatoSeg(Number(j.segundos_extra||0)||Number(j.minutos_extra||0)*60)}<br>${j.vehiculo_matricula?`Vehículo: <b>${limpiar(j.vehiculo_matricula)}</b><br>Km entrada: ${limpiar(j.km_entrada??"-")} · Km salida: ${limpiar(j.km_salida??"-")}`:"Sin vehículo"}</div>${esAdmin()?`<div class="zx_edit_grid"><button class="zx_admin_btn zx_admin_editar" data-ver-fichajes-jornada="${limpiar(j.id)}">Fichajes</button><button class="zx_admin_btn zx_admin_borrar" data-borrar-jornada="${limpiar(j.id)}">Borrar jornada</button></div>`:""}</div>`}
 
-function renderFichajeMini(f){return`<div class="zx_admin_row"><div class="zx_admin_row_top"><b>${limpiar(textoTipo(f.tipo))}</b><span>${limpiar(fechaCorta(f.created_at))}</span></div><div class="zx_admin_data">${f.vehiculo_matricula?`Vehículo: <b>${limpiar(f.vehiculo_matricula)}</b>${f.km_vehiculo!=null?` · ${limpiar(f.km_vehiculo)} km`:""}<br>`:""}${limpiar(f.direccion||"")}</div></div>`}
-
-function renderJornadaMini(j){return`<div class="zx_admin_row"><div class="zx_admin_row_top"><b>${limpiar(j.nombre||j.usuario||"-")}</b><span>${limpiar(formatoFechaES(j.fecha||""))}</span></div><div class="zx_admin_estado ${limpiar(j.estado||"")}">${limpiar(j.estado||"-")}</div><div class="zx_admin_data">Trabajado: ${formatoSeg(Number(j.segundos_trabajados||0)||Number(j.minutos_trabajados||0)*60)}<br>Extra: ${formatoSeg(Number(j.segundos_extra||0)||Number(j.minutos_extra||0)*60)}<br>${j.vehiculo_matricula?`Vehículo: <b>${limpiar(j.vehiculo_matricula)}</b><br>Km entrada: ${limpiar(j.km_entrada??"-")} · Km salida: ${limpiar(j.km_salida??"-")}`:"Sin vehículo"}</div>${esAdmin()?`<button class="zx_admin_btn zx_admin_borrar" data-borrar-jornada="${limpiar(j.id)}">Borrar jornada</button>`:""}</div>`}
-
+async function verFichajesJornada(jornadaId){
+  const eventos=await fichajesDeJornada(jornadaId);
+  cerrarModal();
+  document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_fichaje" class="zx_modal_fondo"><div class="zx_modal_caja"><h2>Fichajes jornada</h2>${eventos.length?eventos.map(renderFichajeMini).join(""):`<div class="zx_text">Sin fichajes.</div>`}<button class="zx_btn_big zx_gris" id="zx_cerrar_fichajes_jornada">Cerrar</button></div></div>`);
+  document.getElementById("zx_cerrar_fichajes_jornada").onclick=cerrarModal;
+  conectarBotonesAdmin();
+}
+async function editarFichaje(id){
+  if(!(await validarAdminOperacion()))return;
+  const motivo=pedirMotivo("Motivo para modificar este fichaje.");
+  if(!motivo)return;
+  const r=await sb().from("fichajes").select("*").eq("id",String(id)).single();
+  if(r.error||!r.data){alert("No se pudo cargar el fichaje.");return}
+  const f=r.data;
+  cerrarModal();
+  document.body.insertAdjacentHTML("beforeend",`
+    <div id="zx_modal_fichaje" class="zx_modal_fondo"><div class="zx_modal_caja">
+      <h2>Modificar fichaje</h2>
+      <label class="zx_label">Tipo</label>
+      <select id="zx_edit_tipo">
+        <option value="entrada" ${f.tipo==="entrada"?"selected":""}>Entrada</option>
+        <option value="salida" ${f.tipo==="salida"?"selected":""}>Salida</option>
+        <option value="inicio_descanso" ${f.tipo==="inicio_descanso"?"selected":""}>Inicio descanso</option>
+        <option value="fin_descanso" ${f.tipo==="fin_descanso"?"selected":""}>Fin descanso</option>
+        <option value="inicio_comida" ${f.tipo==="inicio_comida"?"selected":""}>Inicio comida</option>
+        <option value="fin_comida" ${f.tipo==="fin_comida"?"selected":""}>Fin comida</option>
+      </select>
+      <label class="zx_label">Fecha y hora</label><input id="zx_edit_fecha" type="datetime-local" value="${limpiar(toInputFecha(f.created_at))}">
+      <label class="zx_label">Dirección</label><textarea id="zx_edit_direccion" rows="3">${limpiar(f.direccion||"")}</textarea>
+      <label class="zx_label">Vehículo matrícula</label><input id="zx_edit_vehiculo_matricula" type="text" value="${limpiar(f.vehiculo_matricula||"")}">
+      <label class="zx_label">Km vehículo</label><input id="zx_edit_km" type="number" value="${limpiar(f.km_vehiculo??"")}">
+      <button class="zx_btn_big zx_azul" id="zx_guardar_edit_fichaje">Guardar cambios</button>
+      <button class="zx_btn_big zx_gris" id="zx_cancelar_edit_fichaje">Cancelar</button>
+    </div></div>
+  `);
+  document.getElementById("zx_cancelar_edit_fichaje").onclick=cerrarModal;
+  document.getElementById("zx_guardar_edit_fichaje").onclick=async function(){
+    const fecha=fromInputFecha(document.getElementById("zx_edit_fecha").value);
+    if(!fecha){alert("Fecha inválida.");return}
+    const kmVal=String(document.getElementById("zx_edit_km").value||"").trim();
+    const km=kmVal===""?null:numero(kmVal);
+    if(kmVal!==""&&km===null){alert("Km inválidos.");return}
+    const datos={
+      tipo:document.getElementById("zx_edit_tipo").value,
+      created_at:fecha,
+      direccion:document.getElementById("zx_edit_direccion").value.trim(),
+      vehiculo_matricula:document.getElementById("zx_edit_vehiculo_matricula").value.trim()||null,
+      km_vehiculo:km,
+      modificado_por:sesion().usuario||"",
+      motivo_modificacion:motivo,
+      modificado_en:ahora()
+    };
+    const rr=await sb().from("fichajes").update(datos).eq("id",String(id));
+    if(rr.error){alert("Error guardando: "+rr.error.message);return}
+    await insertarAuditoria("modificar_fichaje","Fichaje modificado. Motivo: "+motivo,f.usuario_id);
+    await recalcularJornada(f.jornada_id);
+    cerrarModal();
+    await ZX_fichaje_real();
+  };
+}
+async function borrarFichaje(id){
+  if(!(await validarAdminOperacion()))return;
+  const motivo=pedirMotivo("Motivo para borrar el fichaje.");
+  if(!motivo)return;
+  const r=await sb().from("fichajes").select("*").eq("id",String(id)).single();
+  if(r.error||!r.data){alert("No se pudo cargar el fichaje.");return}
+  const f=r.data;
+  if(!confirm("Vas a eliminar este fichaje. ¿Continuar?"))return;
+  const del=await sb().from("fichajes").delete().eq("id",String(id));
+  if(del.error){alert("Error eliminando fichaje: "+del.error.message);return}
+  const restantes=await fichajesDeJornada(f.jornada_id);
+  if(restantes.length)await recalcularJornada(f.jornada_id);
+  else await sb().from("jornadas").delete().eq("id",String(f.jornada_id));
+  await insertarAuditoria("borrar_fichaje","Fichaje borrado. Motivo: "+motivo,f.usuario_id);
+  cerrarModal();
+  await ZX_fichaje_real();
+}
 async function borrarJornada(id){
   if(!(await validarAdminOperacion()))return;
+  const motivo=pedirMotivo("Motivo para borrar la jornada.");
+  if(!motivo)return;
   const ok=confirm("Vas a borrar esta jornada y sus fichajes.");
   if(!ok)return;
   const j=await sb().from("jornadas").select("*").eq("id",String(id)).maybeSingle();
   if(j.data&&j.data.vehiculo_id)await marcarVehiculoSalida(j.data.vehiculo_id,j.data.km_salida||j.data.km_entrada||0);
   await sb().from("fichajes").delete().eq("jornada_id",String(id));
   await sb().from("jornadas").delete().eq("id",String(id));
-  await insertarAuditoria("borrar_jornada","Jornada borrada",j.data?.usuario_id);
+  await insertarAuditoria("borrar_jornada","Jornada borrada. Motivo: "+motivo,j.data?.usuario_id);
+  cerrarModal();
   await ZX_fichaje_real();
+}
+function conectarBotonesAdmin(){
+  document.querySelectorAll("[data-borrar-jornada]").forEach(btn=>{btn.onclick=function(){borrarJornada(btn.dataset.borrarJornada)}});
+  document.querySelectorAll("[data-ver-fichajes-jornada]").forEach(btn=>{btn.onclick=function(){verFichajesJornada(btn.dataset.verFichajesJornada)}});
+  document.querySelectorAll("[data-editar-fichaje]").forEach(btn=>{btn.onclick=function(){editarFichaje(btn.dataset.editarFichaje)}});
+  document.querySelectorAll("[data-borrar-fichaje]").forEach(btn=>{btn.onclick=function(){borrarFichaje(btn.dataset.borrarFichaje)}});
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_fichaje_css_v3100");if(old)old.remove();
-  const s=document.createElement("style");s.id="zx_fichaje_css_v3100";
+  const old=document.getElementById("zx_fichaje_css_v3101");if(old)old.remove();
+  const s=document.createElement("style");s.id="zx_fichaje_css_v3101";
   s.innerHTML=`
     .zx_modal_fondo{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;justify-content:center;align-items:center;padding:14px;z-index:9999}
     .zx_modal_caja{width:100%;max-width:520px;max-height:90vh;overflow:auto;background:white;border-radius:22px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -436,11 +431,10 @@ function instalarCSS(){
     .zx_admin_row{background:#f8fafc;border:1px solid #d1d5db;border-radius:18px;padding:14px;margin-top:10px}
     .zx_admin_row_top{display:flex;justify-content:space-between;gap:8px;font-size:16px;color:#0f172a;font-weight:900}.zx_admin_row_top span{color:#64748b;font-size:14px;white-space:nowrap}
     .zx_admin_estado{display:inline-block;margin:8px 0;padding:5px 10px;border-radius:999px;background:#64748b;color:white;font-size:13px;font-weight:900}.zx_admin_estado.abierta{background:#f59e0b}.zx_admin_estado.cerrada{background:#2563eb}
-    .zx_admin_data{color:#64748b;font-size:15px;line-height:1.45;font-weight:800;word-break:break-word}.zx_admin_btn{width:100%;border:0;border-radius:14px;margin-top:10px;padding:12px;color:white;font-size:16px;font-weight:900}.zx_admin_borrar{background:#dc2626}
+    .zx_admin_data{color:#64748b;font-size:15px;line-height:1.45;font-weight:800;word-break:break-word}.zx_admin_btn{width:100%;border:0;border-radius:14px;margin-top:10px;padding:12px;color:white;font-size:16px;font-weight:900}.zx_admin_borrar{background:#dc2626}.zx_admin_editar{background:#2563eb}.zx_edit_grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
   `;
   document.head.appendChild(s);
 }
-
 async function actualizarVivo(jornadaId,objSec){
   try{
     const eventos=await fichajesDeJornada(jornadaId);
@@ -451,10 +445,8 @@ async function actualizarVivo(jornadaId,objSec){
     document.querySelectorAll("[data-live-campo]").forEach(c=>{const k=c.dataset.liveCampo;if(k==="trabajado")c.textContent=formatoSeg(r.trabajadoSeg);if(k==="descanso")c.textContent=formatoSeg(r.descansoSeg);if(k==="comida")c.textContent=formatoSeg(r.comidaSeg);if(k==="extra")c.textContent=formatoSeg(extra);if(k==="falta")c.textContent=formatoSeg(falta)});
   }catch(e){}
 }
-
 window.ZX_toggleUltimos=function(){ZX_VER_ULTIMOS=!ZX_VER_ULTIMOS;ZX_fichaje_real()};
 window.ZX_toggleMisJornadas=function(){ZX_VER_MIS_JORNADAS=!ZX_VER_MIS_JORNADAS;ZX_fichaje_real()};
-
 window.ZX_fichaje_real=async function(){
   const renderId=++ZX_RENDER_ID;
   instalarCSS();
@@ -474,9 +466,8 @@ window.ZX_fichaje_real=async function(){
     <div class="zx_card"><button class="zx_btn_big zx_gris" onclick="ZX_toggleUltimos()">${ZX_VER_ULTIMOS?"Ocultar últimos fichajes":"Ver últimos fichajes"}</button>${ZX_VER_ULTIMOS?(hist.length?hist.map(renderFichajeMini).join(""):`<div class="zx_text">Sin registros.</div>`):""}</div>
   `;
   document.getElementById("zx_btn_fichar").onclick=function(){abrirMenu(est.estado,est.jornada)};
-  document.querySelectorAll("[data-borrar-jornada]").forEach(btn=>{btn.onclick=function(){borrarJornada(btn.dataset.borrarJornada)}});
+  conectarBotonesAdmin();
   if(est.jornada)ZX_TIMER=setInterval(()=>actualizarVivo(est.jornada.id,objetivoSeg),1000);
 };
-
 window.ZX_fichaje=window.ZX_fichaje_real;
 })();
