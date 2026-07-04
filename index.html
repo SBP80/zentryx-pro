@@ -3,7 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO Login V3096 DEV3</title>
+<title>Zentryx PRO</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Zentryx PRO">
+
+<script>
+const ZX_VERSION="3119";
+const ZX_APP_VERSION="3119";
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -55,13 +66,11 @@ input:disabled{opacity:.65;background:#f1f5f9}
 
   <div class="box" id="app"></div>
 
-  <div class="footer">Zentryx PRO · V3096 DEV3</div>
+  <div class="footer">Zentryx PRO · V3119</div>
 </div>
 
 <script>
-const ZX_VERSION="3096 DEV3";
 const ZX_DEVICE_KEY="zentryx_device_id";
-const ZX_APP_VERSION="3093";
 const ZX_LOGIN_LAST_USER="zentryx_last_user";
 const ZX_LOGIN_LOCKS="zentryx_login_locks";
 
@@ -72,8 +81,8 @@ window.sb=supabase.createClient(
 window.supabaseClient=window.sb;
 </script>
 
-<script src="src/app.js?v=3014"></script>
-<script src="src/core/session.js?v=3014"></script>
+<script src="src/app.js?v=3107"></script>
+<script src="src/core/session.js?v=3106"></script>
 
 <script>
 let usuarioActual=null;
@@ -103,9 +112,6 @@ function detectarDispositivo(){
   const ua=navigator.userAgent || "";
   const plataforma=navigator.platform || "";
   const maxTouch=Number(navigator.maxTouchPoints || 0);
-  const ancho=Math.max(Number(screen.width || 0), Number(window.innerWidth || 0));
-  const alto=Math.max(Number(screen.height || 0), Number(window.innerHeight || 0));
-  const ladoMayor=Math.max(ancho, alto);
 
   const esIPad=/iPad/i.test(ua) || (plataforma==="MacIntel" && maxTouch>1);
   const esIPhone=/iPhone|iPod/i.test(ua);
@@ -125,10 +131,8 @@ function detectarDispositivo(){
   else if(esIPhone) sistema_operativo="iOS";
   else if(esAndroid) sistema_operativo="Android";
   else if(esMac) sistema_operativo="macOS";
-  else if(esWindows){
-    // Desde navegador no se puede distinguir siempre Windows 10/11 con fiabilidad.
-    sistema_operativo="Windows";
-  }else if(esLinux) sistema_operativo="Linux";
+  else if(esWindows) sistema_operativo="Windows";
+  else if(esLinux) sistema_operativo="Linux";
 
   let navegador="Navegador";
   if(/EdgiOS|EdgA|Edg\//i.test(ua)) navegador="Edge";
@@ -148,15 +152,13 @@ function detectarDispositivo(){
   else if(esWindows) nombreBase="PC Windows";
   else if(esLinux) nombreBase="PC Linux";
 
-  const ahoraUTC=new Date().toISOString();
-
   return {
     nombre_dispositivo:(nombreBase+" · "+navegador).trim(),
     tipo_dispositivo:tipo_dispositivo,
     sistema_operativo:sistema_operativo,
     navegador:navegador,
     user_agent:ua,
-    ultimo_acceso:ahoraUTC,
+    ultimo_acceso:new Date().toISOString(),
     ultimo_acceso_local:new Intl.DateTimeFormat("es-ES",{
       day:"2-digit",month:"2-digit",year:"numeric",
       hour:"2-digit",minute:"2-digit",second:"2-digit",
@@ -169,6 +171,8 @@ async function registrarDispositivoSeguro(){
   try{
     const sb=cliente();
     if(!sb || !usuarioActual || !usuarioActual.id) return;
+
+    obtenerIdDispositivo();
 
     const d=detectarDispositivo();
     const ahora=d.ultimo_acceso;
@@ -183,7 +187,7 @@ async function registrarDispositivoSeguro(){
       .maybeSingle();
 
     if(existente && !existente.error && existente.data && existente.data.id){
-      const actualizado=await sb.from("usuarios_dispositivos").update({
+      await sb.from("usuarios_dispositivos").update({
         nombre_dispositivo:d.nombre_dispositivo,
         tipo_dispositivo:d.tipo_dispositivo,
         sistema_operativo:d.sistema_operativo,
@@ -191,12 +195,10 @@ async function registrarDispositivoSeguro(){
         ultimo_acceso:ahora,
         updated_at:ahora
       }).eq("id",existente.data.id);
-
-      if(actualizado.error) console.warn("Zentryx dispositivos: update",actualizado.error.message);
       return;
     }
 
-    const creado=await sb.from("usuarios_dispositivos").insert({
+    await sb.from("usuarios_dispositivos").insert({
       usuario_id:usuarioActual.id,
       nombre_dispositivo:d.nombre_dispositivo,
       tipo_dispositivo:d.tipo_dispositivo,
@@ -211,10 +213,8 @@ async function registrarDispositivoSeguro(){
       created_at:ahora,
       updated_at:ahora
     });
-
-    if(creado.error) console.warn("Zentryx dispositivos: insert",creado.error.message);
   }catch(e){
-    console.warn("Zentryx dispositivos: registro omitido",e);
+    console.warn("Registro de dispositivo omitido",e);
   }
 }
 
@@ -247,6 +247,7 @@ function guardarSesion(){
       usuario:usuarioActual.usuario,
       nombre:usuarioActual.nombre || usuarioActual.usuario,
       rol:usuarioActual.rol || "Usuario",
+      empresa_id:usuarioActual.empresa_id || "demo",
       inicio:new Date().toISOString(),
       actividad:new Date().toISOString()
     }));
@@ -254,11 +255,6 @@ function guardarSesion(){
   }
 
   guardarUltimoUsuario(usuarioActual);
-}
-
-function borrarSesionActiva(){
-  localStorage.removeItem("zentryx_session");
-  localStorage.removeItem("usuario");
 }
 
 function guardarUltimoUsuario(u){
@@ -296,19 +292,14 @@ function claveUsuario(u){
 function guardarBloqueoLocal(u,hasta,ultimoError){
   const k=claveUsuario(u);
   if(!k || !hasta) return;
-
   const bloqueos=leerBloqueosLocales();
-  bloqueos[k]={
-    hasta:String(hasta),
-    ultimo_error:String(ultimoError || new Date().toISOString())
-  };
+  bloqueos[k]={hasta:String(hasta),ultimo_error:String(ultimoError || new Date().toISOString())};
   guardarBloqueosLocales(bloqueos);
 }
 
 function borrarBloqueoLocal(u){
   const k=claveUsuario(u);
   if(!k) return;
-
   const bloqueos=leerBloqueosLocales();
   delete bloqueos[k];
   guardarBloqueosLocales(bloqueos);
@@ -325,13 +316,7 @@ function bloqueoLocalActivo(u){
 
   const fecha=new Date(b.hasta);
 
-  if(Number.isNaN(fecha.getTime())){
-    delete bloqueos[k];
-    guardarBloqueosLocales(bloqueos);
-    return null;
-  }
-
-  if(fecha<=new Date()){
+  if(Number.isNaN(fecha.getTime()) || fecha<=new Date()){
     delete bloqueos[k];
     guardarBloqueosLocales(bloqueos);
     return null;
@@ -369,11 +354,7 @@ function fechaBloqueoSupabaseActiva(u){
 function fechaBloqueoActiva(u){
   const a=fechaBloqueoSupabaseActiva(u);
   const b=bloqueoLocalActivo(u);
-
-  if(a && b){
-    return a.getTime()>=b.getTime() ? a : b;
-  }
-
+  if(a && b) return a.getTime()>=b.getTime() ? a : b;
   return a || b || null;
 }
 
@@ -399,13 +380,10 @@ async function cargarUsuarioPorId(id){
 
 async function refrescarUsuarioActual(){
   if(!usuarioActual) return null;
-  let res=null;
 
-  if(usuarioActual.id){
-    res=await cargarUsuarioPorId(usuarioActual.id);
-  }else if(usuarioActual.usuario){
-    res=await cargarUsuarioPorUsuario(usuarioActual.usuario);
-  }
+  let res=null;
+  if(usuarioActual.id) res=await cargarUsuarioPorId(usuarioActual.id);
+  else if(usuarioActual.usuario) res=await cargarUsuarioPorUsuario(usuarioActual.usuario);
 
   if(res && !res.error && res.data){
     usuarioActual=res.data;
@@ -483,8 +461,8 @@ async function continuarUltimoUsuario(){
   if(!ultimo){pantallaLogin();return}
 
   let res=null;
-  if(ultimo.id){res=await cargarUsuarioPorId(ultimo.id)}
-  else{res=await cargarUsuarioPorUsuario(ultimo.usuario)}
+  if(ultimo.id) res=await cargarUsuarioPorId(ultimo.id);
+  else res=await cargarUsuarioPorUsuario(ultimo.usuario);
 
   if(res.error){pantallaUltimoUsuario(ultimo);mostrarMsg("Error Supabase: "+res.error.message);return}
   if(!res.data){borrarUltimoUsuario();pantallaLogin();mostrarMsg("Usuario no encontrado.");return}
@@ -497,8 +475,8 @@ async function continuarUltimoUsuario(){
   const bloqueo=fechaBloqueoActiva(usuarioActual);
   if(bloqueo){pantallaBloqueado(usuarioActual,bloqueo);return}
 
-  if(usuarioActual.debe_crear_pin || !usuarioActual.pin_hash){pantallaCrearPIN()}
-  else{pantallaPIN()}
+  if(usuarioActual.debe_crear_pin || !usuarioActual.pin_hash) pantallaCrearPIN();
+  else pantallaPIN();
 }
 
 async function login(){
@@ -524,8 +502,8 @@ async function login(){
   const bloqueo=fechaBloqueoActiva(usuarioActual);
   if(bloqueo){pantallaBloqueado(usuarioActual,bloqueo);return}
 
-  if(usuarioActual.debe_crear_pin || !usuarioActual.pin_hash){pantallaCrearPIN()}
-  else{pantallaPIN()}
+  if(usuarioActual.debe_crear_pin || !usuarioActual.pin_hash) pantallaCrearPIN();
+  else pantallaPIN();
 }
 
 function pantallaBloqueado(u,bloqueo){
@@ -569,6 +547,7 @@ function pantallaBloqueado(u,bloqueo){
 
 async function mensajeFinBloqueo(){
   await refrescarUsuarioActual();
+
   if(usuarioActual){
     borrarBloqueoLocal(usuarioActual);
     usuarioActual.pin_bloqueado_hasta=null;
@@ -610,6 +589,7 @@ function pantallaCrearPIN(){
 
 async function guardarPIN(){
   limpiarMsg();
+
   const sb=cliente();
   const p1=document.getElementById("pin1").value.trim();
   const p2=document.getElementById("pin2").value.trim();
@@ -618,6 +598,7 @@ async function guardarPIN(){
   if(p1!==p2){mostrarMsg("Los PIN no coinciden.");return}
 
   const hash=hashPin(p1);
+
   const res=await sb.from("usuarios").update({
     pin_hash:hash,
     debe_crear_pin:false,
@@ -634,6 +615,7 @@ async function guardarPIN(){
   usuarioActual.debe_crear_pin=false;
   usuarioActual.pin_intentos=0;
   usuarioActual.pin_bloqueado_hasta=null;
+
   await registrarDispositivoSeguro();
   guardarSesion();
   mostrarMsg("PIN creado correctamente.","ok");
@@ -642,6 +624,7 @@ async function guardarPIN(){
 
 function pantallaPIN(){
   clearInterval(bloqueoTimer);
+
   app.innerHTML=`
     <h2>Acceso</h2>
     ${tarjetaUsuario(usuarioActual)}
@@ -673,6 +656,7 @@ async function entrar(){
   }
 
   const fresco=await refrescarUsuarioActual();
+
   if(!fresco){
     const bloqueoLocal=fechaBloqueoActiva(usuarioActual);
     if(bloqueoLocal){
@@ -691,6 +675,7 @@ async function entrar(){
   }
 
   const bloqueo=fechaBloqueoActiva(usuarioActual);
+
   if(bloqueo){
     pantallaBloqueado(usuarioActual,bloqueo);
     return;
@@ -714,6 +699,7 @@ async function entrar(){
     usuarioActual.pin_intentos=0;
     usuarioActual.pin_bloqueado_hasta=null;
     usuarioActual.ultimo_login=new Date().toISOString();
+
     await registrarDispositivoSeguro();
     guardarSesion();
     mostrarMsg("Acceso correcto.","ok");
@@ -768,14 +754,19 @@ async function iniciar(){
   clearInterval(bloqueoTimer);
 
   const sesion=localStorage.getItem("zentryx_session");
+
   if(sesion){
     try{
       const s=JSON.parse(sesion);
-      if(s && s.id && s.usuario){location.href="app.html?v="+ZX_APP_VERSION;return}
+      if(s && s.id && s.usuario){
+        location.href="app.html?v="+ZX_APP_VERSION;
+        return;
+      }
     }catch(e){}
   }
 
   const ultimo=leerUltimoUsuario();
+
   if(ultimo && (ultimo.id || ultimo.usuario)){
     pantallaUltimoUsuario(ultimo);
     return;
