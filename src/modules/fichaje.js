@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3105 - OPTIMIZACIÓN RENDIMIENTO FICHAJE Y TIEMPO REAL
+// V3106 - CORRECCIÓN LISTADOS Y ESTABILIDAD ADMIN
 // ===============================
 (function(){
 "use strict";
@@ -1948,6 +1948,7 @@ function resumenLineaHTML(resumen,objetivoSeg,j=null){
 }
 
 function renderFichajeMini(f){
+  const adminActivo=esAdmin();
   return `
     <div class="zx_admin_row">
       <div class="zx_admin_row_top">
@@ -2238,6 +2239,11 @@ window.ZX_fichaje_real=async function(){
   if(ZX_TIMER){
     clearInterval(ZX_TIMER);
     ZX_TIMER=null;
+  }
+
+  if(ZX_RT_RENDER_TIMER){
+    clearTimeout(ZX_RT_RENDER_TIMER);
+    ZX_RT_RENDER_TIMER=null;
   }
 
   document.querySelectorAll(".zx_nav_btn").forEach(function(b){
