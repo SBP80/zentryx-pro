@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3106 - CORRECCIÓN LISTADOS Y ESTABILIDAD ADMIN
+// V3107 - OPTIMIZACIÓN CONSULTAS PRINCIPALES
 // ===============================
 (function(){
 "use strict";
@@ -782,6 +782,40 @@ async function estadoActual(){
   return {estado:estadoDesdeTipo(ultimo ? ultimo.tipo : "entrada"),jornada:j,eventos};
 }
 
+async function estadoActualOptimizado(){
+  const s=sesion();
+  const r=await sb()
+    .from("jornadas")
+    .select("*")
+    .eq("usuario_id",String(s.id))
+    .order("created_at",{ascending:false})
+    .limit(20);
+
+  const jornadas=(!r.error && r.data) ? (r.data||[]) : [];
+  const abierta=jornadas.find(j=>String(j.estado||"")==="abierta") || null;
+
+  if(!abierta){
+    return {
+      estado:"fuera",
+      jornada:null,
+      eventos:[],
+      ultima:jornadas.length ? jornadas[0] : null,
+      jornadasUsuario:jornadas.slice(0,8)
+    };
+  }
+
+  const eventos=await fichajesDeJornada(abierta.id);
+  const ultimo=eventos.length ? eventos[eventos.length-1] : null;
+
+  return {
+    estado:estadoDesdeTipo(ultimo ? ultimo.tipo : "entrada"),
+    jornada:abierta,
+    eventos,
+    ultima:jornadas.length ? jornadas[0] : abierta,
+    jornadasUsuario:jornadas.slice(0,8)
+  };
+}
+
 // ===============================
 // CÁLCULO ÚNICO
 // ===============================
@@ -1513,12 +1547,13 @@ async function jornadasAdminHoy(){
     .from("jornadas")
     .select("*")
     .eq("fecha",hoy)
+    .neq("usuario_id",String(s.id||""))
     .order("created_at",{ascending:false})
     .limit(80);
 
   if(r.error) return [];
 
-  return (r.data||[]).filter(j=>String(j.usuario_id)!==String(s.id));
+  return r.data||[];
 }
 
 async function jornadasAdminTodas(){
@@ -2251,16 +2286,17 @@ window.ZX_fichaje_real=async function(){
     if(b.dataset.modulo==="fichaje") b.classList.add("zx_activo");
   });
 
-  const est=await estadoActual();
+  const est=await estadoActualOptimizado();
   const adminActivo=esAdmin();
 
-  const [hist,jornadas,adminHoy,adminTodas,ultima]=await Promise.all([
+  const [hist,jornadas,adminHoy,adminTodas]=await Promise.all([
     ZX_VER_ULTIMOS ? ultimosFichajes() : Promise.resolve([]),
-    ZX_VER_MIS_JORNADAS ? jornadasUsuario() : Promise.resolve([]),
+    ZX_VER_MIS_JORNADAS ? Promise.resolve(est.jornadasUsuario||[]) : Promise.resolve([]),
     (adminActivo && ZX_VER_ADMIN) ? jornadasAdminHoy() : Promise.resolve([]),
-    (adminActivo && ZX_VER_TODAS_JORNADAS) ? jornadasAdminTodas() : Promise.resolve([]),
-    est.jornada ? Promise.resolve(null) : ultimaJornadaUsuario()
+    (adminActivo && ZX_VER_TODAS_JORNADAS) ? jornadasAdminTodas() : Promise.resolve([])
   ]);
+
+  const ultima=est.ultima||null;
 
   let resumen={trabajadoSeg:0,descansoSeg:0,comidaSeg:0};
   let objetivoSeg=480*60;
