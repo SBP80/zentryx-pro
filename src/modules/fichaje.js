@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3104 - ADMIN TODAS LAS JORNADAS CON BUSCADOR
+// V3105 - OPTIMIZACIÓN RENDIMIENTO FICHAJE Y TIEMPO REAL
 // ===============================
 (function(){
 "use strict";
@@ -19,6 +19,7 @@ let ZX_FILTRO_TODAS_HASTA="";
 let ZX_TIMER=null;
 let ZX_RT_CANAL=null;
 let ZX_RENDER_ID=0;
+let ZX_RT_RENDER_TIMER=null;
 
 // ===============================
 // BASE
@@ -903,12 +904,12 @@ function objetivoJornadaSeg(j,laboral){
   return Number(laboral?.objetivoSeg||0);
 }
 
-async function resumenVisualJornada(j){
+async function resumenVisualJornada(j,eventosPrecargados=null){
   if(!j) return {resumen:{trabajadoSeg:0,descansoSeg:0,comidaSeg:0},objetivoSeg:0,laboral:null,eventos:[],estado:"fuera"};
 
   const laboral=await objetivoDiaPRO(j.fecha||fechaHoyISO(),j.usuario_id);
   const obj=objetivoJornadaSeg(j,laboral);
-  const eventos=await fichajesDeJornada(j.id);
+  const eventos=Array.isArray(eventosPrecargados) ? eventosPrecargados : await fichajesDeJornada(j.id);
 
   if(eventos.length){
     const ultimo=eventos[eventos.length-1];
@@ -1961,7 +1962,7 @@ function renderFichajeMini(f){
 
       ${f.motivo_modificacion ? `<div class="zx_admin_data" style="color:#dc2626;">Modificado por ${limpiar(f.modificado_por||"-")} · ${limpiar(fechaCorta(f.modificado_en||""))}<br>Motivo: ${limpiar(f.motivo_modificacion)}</div>` : ""}
 
-      ${esAdmin() ? `
+      ${adminActivo ? `
         <div class="zx_edit_grid">
           <button class="zx_admin_btn zx_admin_editar" data-editar-fichaje="${f.id}">
             Modificar
@@ -2124,16 +2125,24 @@ function estilosAdminCompacto(){
 // ===============================
 // TIEMPO REAL
 // ===============================
+function solicitarRenderFichaje(){
+  if(ZX_RT_RENDER_TIMER) clearTimeout(ZX_RT_RENDER_TIMER);
+  ZX_RT_RENDER_TIMER=setTimeout(function(){
+    ZX_RT_RENDER_TIMER=null;
+    if(typeof window.ZX_fichaje_real==="function") window.ZX_fichaje_real();
+  },350);
+}
+
 function iniciarTiempoReal(){
   if(ZX_RT_CANAL || !sb() || !sb().channel) return;
 
   try{
     ZX_RT_CANAL=sb()
-      .channel("zx_fichaje_rt_v3103")
-      .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},()=>ZX_fichaje_real())
-      .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},()=>ZX_fichaje_real())
-      .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},()=>ZX_fichaje_real())
-      .on("postgres_changes",{event:"*",schema:"public",table:"vehiculos"},()=>ZX_fichaje_real())
+      .channel("zx_fichaje_rt_v3105")
+      .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},solicitarRenderFichaje)
+      .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},solicitarRenderFichaje)
+      .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},solicitarRenderFichaje)
+      .on("postgres_changes",{event:"*",schema:"public",table:"vehiculos"},solicitarRenderFichaje)
       .subscribe();
   }catch(e){}
 }
@@ -2188,9 +2197,9 @@ window.ZX_toggleMisJornadas=function(){
 // ===============================
 // ACTUALIZACIÓN EN VIVO SIN REPINTAR TODA LA PANTALLA
 // ===============================
-async function actualizarVivo(jornadaId,objSec,lab,jornada=null){
+async function actualizarVivo(jornadaId,objSec,lab,jornada=null,eventosBase=null){
   try{
-    const eventos=await fichajesDeJornada(jornadaId);
+    const eventos=Array.isArray(eventosBase) ? eventosBase : await fichajesDeJornada(jornadaId);
     const ultimo=eventos.length ? eventos[eventos.length-1] : null;
     const estado=estadoDesdeTipo(ultimo ? ultimo.tipo : null);
     const r=calcularEnVivo(eventos,estado);
@@ -2237,18 +2246,22 @@ window.ZX_fichaje_real=async function(){
   });
 
   const est=await estadoActual();
-  const hist=ZX_VER_ULTIMOS ? await ultimosFichajes() : [];
-  let jornadas=ZX_VER_MIS_JORNADAS ? await jornadasUsuario() : [];
-  const ultima=await ultimaJornadaUsuario();
-  let adminHoy=(esAdmin() && ZX_VER_ADMIN) ? await jornadasAdminHoy() : [];
-  let adminTodas=(esAdmin() && ZX_VER_TODAS_JORNADAS) ? await jornadasAdminTodas() : [];
+  const adminActivo=esAdmin();
+
+  const [hist,jornadas,adminHoy,adminTodas,ultima]=await Promise.all([
+    ZX_VER_ULTIMOS ? ultimosFichajes() : Promise.resolve([]),
+    ZX_VER_MIS_JORNADAS ? jornadasUsuario() : Promise.resolve([]),
+    (adminActivo && ZX_VER_ADMIN) ? jornadasAdminHoy() : Promise.resolve([]),
+    (adminActivo && ZX_VER_TODAS_JORNADAS) ? jornadasAdminTodas() : Promise.resolve([]),
+    est.jornada ? Promise.resolve(null) : ultimaJornadaUsuario()
+  ]);
 
   let resumen={trabajadoSeg:0,descansoSeg:0,comidaSeg:0};
   let objetivoSeg=480*60;
   let laboral=null;
 
   if(est.jornada){
-    const rv=await resumenVisualJornada(est.jornada);
+    const rv=await resumenVisualJornada(est.jornada,est.eventos);
     resumen=rv.resumen;
     objetivoSeg=rv.objetivoSeg;
     laboral=rv.laboral;
@@ -2264,10 +2277,9 @@ window.ZX_fichaje_real=async function(){
 
   if(renderId!==ZX_RENDER_ID) return;
 
-  // Optimización V3103:
-  // No calculamos todas las jornadas una a una al abrir paneles.
-  // Se muestran los datos ya guardados en jornadas y solo se recalcula en acciones reales.
-  // La jornada abierta sigue actualizándose en vivo con actualizarVivo().
+  // Optimización V3105:
+  // No se consulta Supabase cada segundo para el contador en vivo.
+  // El contador usa los fichajes ya cargados y solo se refresca completo con acciones reales o tiempo real agrupado.
 
   const bloqueoActual=bloqueoHorarioActual(laboral ? laboral.solicitudes : []);
 
@@ -2311,7 +2323,7 @@ window.ZX_fichaje_real=async function(){
       ${ZX_VER_MIS_JORNADAS ? (jornadas.length ? jornadas.map(j=>renderJornadaMini(j,esAdmin())).join("") : `<div class="zx_text">Sin jornadas.</div>`) : ""}
     </div>
 
-    ${esAdmin() ? `
+    ${adminActivo ? `
       <div class="zx_card">
         <button class="zx_btn_big zx_gris" onclick="ZX_toggleAdmin()">
           ${ZX_VER_ADMIN ? "Ocultar panel admin" : "Ver panel admin"}
@@ -2369,9 +2381,10 @@ window.ZX_fichaje_real=async function(){
     const liveId=est.jornada.id;
     const liveObj=objetivoSeg;
     const liveJornada=est.jornada;
-    actualizarVivo(liveId,liveObj,laboral,liveJornada);
+    const liveEventos=est.eventos||[];
+    actualizarVivo(liveId,liveObj,laboral,liveJornada,liveEventos);
     ZX_TIMER=setInterval(function(){
-      actualizarVivo(liveId,liveObj,laboral,liveJornada);
+      actualizarVivo(liveId,liveObj,laboral,liveJornada,liveEventos);
     },1000);
   }
 };
