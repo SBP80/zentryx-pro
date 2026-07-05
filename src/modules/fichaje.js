@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3107 - OPTIMIZACIÓN CONSULTAS PRINCIPALES
+// V3108 - REVISIÓN FINAL DE CONSISTENCIA
 // ===============================
 (function(){
 "use strict";
@@ -1457,7 +1457,17 @@ async function registrar(tipo,datosModal=null){
   const geo=await obtenerUbicacion();
   const ok=await insertarFichaje(tipo,jornada.id,geo,veh);
   if(!ok){
-    if(tipo==="entrada" && vehMarcado && veh && veh.id) await marcarVehiculoSalida(veh.id,veh.km);
+    // Si falla el registro del fichaje, dejamos jornada y vehículo en un estado coherente.
+    if(tipo==="entrada"){
+      if(vehMarcado && veh && veh.id) await marcarVehiculoSalida(veh.id,veh.km);
+      await recalcularJornada(jornada.id);
+    }
+
+    if(tipo==="salida" && jornada && jornada.vehiculo_id){
+      await sb().from("jornadas").update({km_salida:null}).eq("id",String(jornada.id));
+      await marcarVehiculoEntrada({id:jornada.vehiculo_id},jornada.km_entrada||0);
+    }
+
     return;
   }
 
