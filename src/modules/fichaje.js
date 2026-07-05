@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3103 - OPTIMIZACIÓN MIS JORNADAS SIN PERDER FUNCIONES
+// V3104 - ADMIN TODAS LAS JORNADAS CON BUSCADOR
 // ===============================
 (function(){
 "use strict";
@@ -11,6 +11,11 @@
 let ZX_VER_ULTIMOS=false;
 let ZX_VER_ADMIN=false;
 let ZX_VER_MIS_JORNADAS=false;
+let ZX_VER_TODAS_JORNADAS=false;
+let ZX_FILTRO_TODAS_Q="";
+let ZX_FILTRO_TODAS_ESTADO="";
+let ZX_FILTRO_TODAS_DESDE="";
+let ZX_FILTRO_TODAS_HASTA="";
 let ZX_TIMER=null;
 let ZX_RT_CANAL=null;
 let ZX_RENDER_ID=0;
@@ -1515,6 +1520,48 @@ async function jornadasAdminHoy(){
   return (r.data||[]).filter(j=>String(j.usuario_id)!==String(s.id));
 }
 
+async function jornadasAdminTodas(){
+  const s=sesion();
+
+  let q=sb()
+    .from("jornadas")
+    .select("*")
+    .neq("usuario_id",String(s.id||""))
+    .order("fecha",{ascending:false})
+    .order("created_at",{ascending:false})
+    .limit(150);
+
+  if(ZX_FILTRO_TODAS_DESDE){
+    q=q.gte("fecha",String(ZX_FILTRO_TODAS_DESDE).slice(0,10));
+  }
+
+  if(ZX_FILTRO_TODAS_HASTA){
+    q=q.lte("fecha",String(ZX_FILTRO_TODAS_HASTA).slice(0,10));
+  }
+
+  if(ZX_FILTRO_TODAS_ESTADO){
+    q=q.eq("estado",String(ZX_FILTRO_TODAS_ESTADO));
+  }
+
+  const r=await q;
+  if(r.error) return [];
+
+  let datos=(r.data||[]).filter(j=>String(j.usuario_id)!==String(s.id));
+  const txt=normalizarTexto(ZX_FILTRO_TODAS_Q);
+
+  if(txt){
+    datos=datos.filter(j=>{
+      const bolsa=[
+        j.nombre,j.usuario,j.fecha,j.estado,j.vehiculo_matricula,
+        j.observacion_laboral,j.tipo_ausencia,j.tipo_festivo
+      ].map(x=>normalizarTexto(x)).join(" ");
+      return bolsa.includes(txt);
+    });
+  }
+
+  return datos;
+}
+
 // ===============================
 // BORRAR Y EDITAR
 // ===============================
@@ -1993,6 +2040,44 @@ function renderAdminResumen(jornadasHoy){
   `;
 }
 
+function renderTodasJornadasAdmin(jornadas){
+  return `
+    <div class="zx_filtro_admin_jornadas">
+      <label class="zx_label">Buscar</label>
+      <input id="zx_admin_todas_q" type="search" value="${limpiar(ZX_FILTRO_TODAS_Q)}" placeholder="Nombre, usuario, matrícula, estado...">
+
+      <label class="zx_label">Estado</label>
+      <select id="zx_admin_todas_estado">
+        <option value="" ${ZX_FILTRO_TODAS_ESTADO===""?"selected":""}>Todos</option>
+        <option value="abierta" ${ZX_FILTRO_TODAS_ESTADO==="abierta"?"selected":""}>Abiertas</option>
+        <option value="cerrada" ${ZX_FILTRO_TODAS_ESTADO==="cerrada"?"selected":""}>Cerradas</option>
+      </select>
+
+      <div class="zx_filtro_fechas">
+        <div>
+          <label class="zx_label">Desde</label>
+          <input id="zx_admin_todas_desde" type="date" value="${limpiar(ZX_FILTRO_TODAS_DESDE)}">
+        </div>
+        <div>
+          <label class="zx_label">Hasta</label>
+          <input id="zx_admin_todas_hasta" type="date" value="${limpiar(ZX_FILTRO_TODAS_HASTA)}">
+        </div>
+      </div>
+
+      <div class="zx_edit_grid">
+        <button class="zx_admin_btn zx_admin_editar" onclick="ZX_aplicarFiltroTodasJornadas()">Buscar</button>
+        <button class="zx_admin_btn zx_admin_borrar" onclick="ZX_limpiarFiltroTodasJornadas()">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="zx_text" style="margin-top:12px;font-weight:900;">
+      Mostrando ${jornadas.length} jornada${jornadas.length===1?"":"s"} de otros usuarios.
+    </div>
+
+    ${jornadas.length ? jornadas.map(j=>renderJornadaMini(j,true)).join("") : `<div class="zx_text">Sin jornadas con estos filtros.</div>`}
+  `;
+}
+
 // ===============================
 // ESTILOS
 // ===============================
@@ -2023,6 +2108,8 @@ function estilosAdminCompacto(){
     .zx_admin_editar{background:#2563eb}
     .zx_admin_borrar{background:#dc2626}
     .zx_edit_grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+    .zx_filtro_admin_jornadas{background:#f8fafc;border:1px solid #d1d5db;border-radius:18px;padding:14px;margin-top:12px;}
+    .zx_filtro_fechas{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 
     .zx_label{display:block;margin-top:14px;margin-bottom:6px;color:#64748b;font-weight:900;font-size:15px;}
 
@@ -2063,6 +2150,32 @@ window.ZX_toggleUltimos=function(){
 window.ZX_toggleAdmin=function(){
   guardarScroll();
   ZX_VER_ADMIN=!ZX_VER_ADMIN;
+  ZX_fichaje_real().then(restaurarScroll);
+};
+
+window.ZX_toggleTodasJornadas=function(){
+  guardarScroll();
+  ZX_VER_TODAS_JORNADAS=!ZX_VER_TODAS_JORNADAS;
+  ZX_fichaje_real().then(restaurarScroll);
+};
+
+window.ZX_aplicarFiltroTodasJornadas=function(){
+  guardarScroll();
+  ZX_FILTRO_TODAS_Q=document.getElementById("zx_admin_todas_q")?.value||"";
+  ZX_FILTRO_TODAS_ESTADO=document.getElementById("zx_admin_todas_estado")?.value||"";
+  ZX_FILTRO_TODAS_DESDE=document.getElementById("zx_admin_todas_desde")?.value||"";
+  ZX_FILTRO_TODAS_HASTA=document.getElementById("zx_admin_todas_hasta")?.value||"";
+  ZX_VER_TODAS_JORNADAS=true;
+  ZX_fichaje_real().then(restaurarScroll);
+};
+
+window.ZX_limpiarFiltroTodasJornadas=function(){
+  guardarScroll();
+  ZX_FILTRO_TODAS_Q="";
+  ZX_FILTRO_TODAS_ESTADO="";
+  ZX_FILTRO_TODAS_DESDE="";
+  ZX_FILTRO_TODAS_HASTA="";
+  ZX_VER_TODAS_JORNADAS=true;
   ZX_fichaje_real().then(restaurarScroll);
 };
 
@@ -2128,6 +2241,7 @@ window.ZX_fichaje_real=async function(){
   let jornadas=ZX_VER_MIS_JORNADAS ? await jornadasUsuario() : [];
   const ultima=await ultimaJornadaUsuario();
   let adminHoy=(esAdmin() && ZX_VER_ADMIN) ? await jornadasAdminHoy() : [];
+  let adminTodas=(esAdmin() && ZX_VER_TODAS_JORNADAS) ? await jornadasAdminTodas() : [];
 
   let resumen={trabajadoSeg:0,descansoSeg:0,comidaSeg:0};
   let objetivoSeg=480*60;
@@ -2207,6 +2321,17 @@ window.ZX_fichaje_real=async function(){
           ${renderAdminResumen(adminHoy)}
           <h3 style="font-size:24px;margin:18px 0 8px;">Hoy</h3>
           ${adminHoy.length ? adminHoy.slice(0,10).map(j=>renderJornadaMini(j,true)).join("") : `<div class="zx_text">Sin jornadas hoy.</div>`}
+        ` : ""}
+      </div>
+
+      <div class="zx_card">
+        <button class="zx_btn_big zx_gris" onclick="ZX_toggleTodasJornadas()">
+          ${ZX_VER_TODAS_JORNADAS ? "Ocultar jornadas de usuarios" : "Ver jornadas de usuarios"}
+        </button>
+
+        ${ZX_VER_TODAS_JORNADAS ? `
+          <h3 style="font-size:24px;margin:18px 0 8px;">Jornadas de usuarios</h3>
+          ${renderTodasJornadasAdmin(adminTodas)}
         ` : ""}
       </div>
     ` : ""}
