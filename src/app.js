@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3107";
+const ZX_VERSION="3108";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -18,6 +18,22 @@ const OFFLINE_CACHE_PREFIX="zentryx_cache_";
 
 let ZX_SERVICIOS_INICIADOS=false;
 let ZX_SYNC_TIMER=null;
+let ZX_NET_TIMER=null;
+let ZX_NET_STATE={
+  online:typeof navigator!=="undefined" ? navigator.onLine : true,
+  calidad:"desconocida",
+  latencia_ms:null,
+  ultimo_test:null,
+  ultimo_error:"",
+  fallos_seguidos:0
+};
+
+const ZX_TIMEOUTS={
+  lectura:8500,
+  escritura:11000,
+  sincronizacion:12000,
+  test:4500
+};
 
 function safeJSON(raw,fallback){
   try{
@@ -89,6 +105,79 @@ function uuid(){
   }
 
   return "zx_"+Date.now()+"_"+Math.random().toString(16).slice(2);
+}
+
+function errorTimeout(ms){
+  const e=new Error("Tiempo de espera agotado ("+ms+" ms)");
+  e.name="ZentryxTimeout";
+  e.codigo="ZX_TIMEOUT";
+  return e;
+}
+
+function conTimeout(promise,ms,etiqueta){
+  let timer=null;
+
+  const timeout=new Promise(function(_,reject){
+    timer=setTimeout(function(){
+      const e=errorTimeout(ms);
+      e.etiqueta=etiqueta || "red";
+      reject(e);
+    },ms);
+  });
+
+  return Promise.race([promise,timeout]).finally(function(){
+    if(timer) clearTimeout(timer);
+  });
+}
+
+function registrarResultadoRed(ok,ms,error){
+  ZX_NET_STATE.online=typeof navigator!=="undefined" ? navigator.onLine : true;
+  ZX_NET_STATE.latencia_ms=typeof ms==="number" ? ms : ZX_NET_STATE.latencia_ms;
+  ZX_NET_STATE.ultimo_test=ahoraISO();
+  ZX_NET_STATE.ultimo_error=error ? texto(error.message || error) : "";
+
+  if(!ZX_NET_STATE.online){
+    ZX_NET_STATE.calidad="offline";
+    ZX_NET_STATE.fallos_seguidos++;
+    return ZX_NET_STATE;
+  }
+
+  if(!ok){
+    ZX_NET_STATE.fallos_seguidos++;
+    ZX_NET_STATE.calidad=ZX_NET_STATE.fallos_seguidos>=2 ? "mala" : "degradada";
+    return ZX_NET_STATE;
+  }
+
+  ZX_NET_STATE.fallos_seguidos=0;
+
+  if(ms===null || ms===undefined){
+    ZX_NET_STATE.calidad="online";
+  }else if(ms>6000){
+    ZX_NET_STATE.calidad="mala";
+  }else if(ms>2500){
+    ZX_NET_STATE.calidad="degradada";
+  }else{
+    ZX_NET_STATE.calidad="buena";
+  }
+
+  return ZX_NET_STATE;
+}
+
+function estadoRed(){
+  ZX_NET_STATE.online=typeof navigator!=="undefined" ? navigator.onLine : true;
+
+  if(!ZX_NET_STATE.online){
+    ZX_NET_STATE.calidad="offline";
+  }
+
+  return Object.assign({},ZX_NET_STATE,{
+    pendiente:colaPendiente().length
+  });
+}
+
+function esErrorRedLenta(e){
+  if(!e) return false;
+  return e.name==="ZentryxTimeout" || e.codigo==="ZX_TIMEOUT" || /timeout|network|fetch|failed/i.test(texto(e.message));
 }
 
 function formatoFechaES(valor){
@@ -401,6 +490,7 @@ function ensureEstadoConexion(){
         pointer-events:none;
       }
       #zx_connection_status.zx_offline{background:#fef3c7;color:#92400e}
+      #zx_connection_status.zx_degraded{background:#ffedd5;color:#9a3412}
       #zx_connection_status.zx_syncing{background:#dbeafe;color:#1d4ed8}
       #zx_connection_status.zx_synced{background:#dcfce7;color:#166534}
       @media(min-width:760px){
@@ -419,6 +509,7 @@ function ensureEstadoConexion(){
 
 function renderEstadoConexion(tipo){
   const el=ensureEstadoConexion();
+  const red=estadoRed();
 
   el.className="";
 
@@ -428,9 +519,15 @@ function renderEstadoConexion(tipo){
     return;
   }
 
-  if(tipo==="offline" || !navigator.onLine){
+  if(tipo==="offline" || !red.online){
     el.classList.add("zx_offline");
     el.textContent="🟡 Sin conexión";
+    return;
+  }
+
+  if(tipo==="degraded" || red.calidad==="mala" || red.calidad==="degradada"){
+    el.classList.add("zx_degraded");
+    el.textContent="🟠 Conexión débil";
     return;
   }
 
@@ -456,6 +553,13 @@ function actualizarEstadoConexion(){
     return;
   }
 
+  const red=estadoRed();
+
+  if(red.calidad==="mala" || red.calidad==="degradada"){
+    renderEstadoConexion("degraded");
+    return;
+  }
+
   if(colaPendiente().length>0){
     renderEstadoConexion("syncing");
     return;
@@ -468,6 +572,40 @@ function audit(tabla,accion,registro_id,descripcion,extra){
   if(window.ZENTRYX_STORE && typeof window.ZENTRYX_STORE.addAudit==="function"){
     window.ZENTRYX_STORE.addAudit(tabla,accion,registro_id,descripcion,extra || null);
   }
+}
+
+async function testConexion(){
+  if(!navigator.onLine){
+    registrarResultadoRed(false,null,"offline");
+    actualizarEstadoConexion();
+    return estadoRed();
+  }
+
+  const cliente=getSupabase();
+
+  if(!cliente){
+    registrarResultadoRed(false,null,"Sin Supabase");
+    actualizarEstadoConexion();
+    return estadoRed();
+  }
+
+  const inicio=Date.now();
+
+  try{
+    await conTimeout(
+      cliente.from("usuarios").select("id").limit(1),
+      ZX_TIMEOUTS.test,
+      "test_conexion"
+    );
+
+    registrarResultadoRed(true,Date.now()-inicio,null);
+
+  }catch(e){
+    registrarResultadoRed(false,Date.now()-inicio,e);
+  }
+
+  actualizarEstadoConexion();
+  return estadoRed();
 }
 
 async function syncOfflineQueue(){
@@ -504,13 +642,13 @@ async function syncOfflineQueue(){
       let r=null;
 
       if(item.operacion==="insert"){
-        r=await cliente.from(item.tabla).insert(item.data);
+        r=await conTimeout(cliente.from(item.tabla).insert(item.data),ZX_TIMEOUTS.sincronizacion,"sync_insert_"+item.tabla);
       }else if(item.operacion==="update"){
-        r=await cliente.from(item.tabla).update(item.data).eq(item.campo || "id",item.valor);
+        r=await conTimeout(cliente.from(item.tabla).update(item.data).eq(item.campo || "id",item.valor),ZX_TIMEOUTS.sincronizacion,"sync_update_"+item.tabla);
       }else if(item.operacion==="upsert"){
-        r=await cliente.from(item.tabla).upsert(item.data);
+        r=await conTimeout(cliente.from(item.tabla).upsert(item.data),ZX_TIMEOUTS.sincronizacion,"sync_upsert_"+item.tabla);
       }else if(item.operacion==="delete"){
-        r=await cliente.from(item.tabla).delete().eq(item.campo || "id",item.valor);
+        r=await conTimeout(cliente.from(item.tabla).delete().eq(item.campo || "id",item.valor),ZX_TIMEOUTS.sincronizacion,"sync_delete_"+item.tabla);
       }else{
         item.error="Operación no soportada";
         continue;
@@ -530,6 +668,10 @@ async function syncOfflineQueue(){
 
     }catch(e){
       item.error=e && e.message ? e.message : "Error";
+      if(esErrorRedLenta(e)){
+        registrarResultadoRed(false,null,e);
+        break;
+      }
     }
   }
 
@@ -563,9 +705,14 @@ async function selectCache(tabla,consulta){
   }
 
   try{
-    const r=typeof consulta==="function"
-      ? await consulta(cliente.from(tabla))
-      : await cliente.from(tabla).select("*");
+    const inicio=Date.now();
+    const query=typeof consulta==="function"
+      ? consulta(cliente.from(tabla))
+      : cliente.from(tabla).select("*");
+
+    const r=await conTimeout(query,ZX_TIMEOUTS.lectura,"select_"+tabla);
+
+    registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
     if(!r.error && Array.isArray(r.data)){
       cacheGuardar(tabla,r.data);
@@ -574,10 +721,13 @@ async function selectCache(tabla,consulta){
     return r;
 
   }catch(e){
+    registrarResultadoRed(false,null,e);
     return {
       data:cacheLeer(tabla),
       error:null,
-      offline:true
+      offline:true,
+      degradada:esErrorRedLenta(e),
+      mensaje:e && e.message ? e.message : "Conexión no disponible"
     };
   }
 }
@@ -604,13 +754,35 @@ async function insert(tabla,data,opciones){
     return {data:payload,error:null,offline:true};
   }
 
-  const r=await cliente.from(tabla).insert(payload);
+  try{
+    const inicio=Date.now();
+    const r=await conTimeout(cliente.from(tabla).insert(payload),ZX_TIMEOUTS.escritura,"insert_"+tabla);
+    registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
-  if(!r.error){
-    audit(tabla,"insert",opciones.valor || "","Registro creado",payload);
+    if(!r.error){
+      audit(tabla,"insert",opciones.valor || "","Registro creado",payload);
+    }
+
+    return r;
+
+  }catch(e){
+    registrarResultadoRed(false,null,e);
+
+    payload.forEach(function(item){
+      if(item && item.id) cacheUpsert(tabla,item);
+    });
+
+    colaAdd({
+      tabla:tabla,
+      operacion:"insert",
+      data:payload,
+      campo:opciones.campo || "id",
+      valor:opciones.valor || "",
+      origen:"timeout"
+    });
+
+    return {data:payload,error:null,offline:true,degradada:true,mensaje:e.message || "Guardado pendiente por conexión débil"};
   }
-
-  return r;
 }
 
 async function update(tabla,data,campo,valor){
@@ -632,13 +804,32 @@ async function update(tabla,data,campo,valor){
     return {data:data,error:null,offline:true};
   }
 
-  const r=await cliente.from(tabla).update(data).eq(campo,valor);
+  try{
+    const inicio=Date.now();
+    const r=await conTimeout(cliente.from(tabla).update(data).eq(campo,valor),ZX_TIMEOUTS.escritura,"update_"+tabla);
+    registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
-  if(!r.error){
-    audit(tabla,"update",valor,"Registro actualizado",data);
+    if(!r.error){
+      audit(tabla,"update",valor,"Registro actualizado",data);
+    }
+
+    return r;
+
+  }catch(e){
+    registrarResultadoRed(false,null,e);
+    cacheUpsert(tabla,Object.assign({},data,{[campo]:valor}),campo);
+
+    colaAdd({
+      tabla:tabla,
+      operacion:"update",
+      data:data,
+      campo:campo,
+      valor:valor,
+      origen:"timeout"
+    });
+
+    return {data:data,error:null,offline:true,degradada:true,mensaje:e.message || "Guardado pendiente por conexión débil"};
   }
-
-  return r;
 }
 
 async function upsert(tabla,data){
@@ -659,13 +850,33 @@ async function upsert(tabla,data){
     return {data:payload,error:null,offline:true};
   }
 
-  const r=await cliente.from(tabla).upsert(payload);
+  try{
+    const inicio=Date.now();
+    const r=await conTimeout(cliente.from(tabla).upsert(payload),ZX_TIMEOUTS.escritura,"upsert_"+tabla);
+    registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
-  if(!r.error){
-    audit(tabla,"upsert","","Registro guardado",payload);
+    if(!r.error){
+      audit(tabla,"upsert","","Registro guardado",payload);
+    }
+
+    return r;
+
+  }catch(e){
+    registrarResultadoRed(false,null,e);
+
+    payload.forEach(function(item){
+      if(item && item.id) cacheUpsert(tabla,item);
+    });
+
+    colaAdd({
+      tabla:tabla,
+      operacion:"upsert",
+      data:payload,
+      origen:"timeout"
+    });
+
+    return {data:payload,error:null,offline:true,degradada:true,mensaje:e.message || "Guardado pendiente por conexión débil"};
   }
-
-  return r;
 }
 
 async function remove(tabla,campo,valor){
@@ -686,13 +897,31 @@ async function remove(tabla,campo,valor){
     return {data:null,error:null,offline:true};
   }
 
-  const r=await cliente.from(tabla).delete().eq(campo,valor);
+  try{
+    const inicio=Date.now();
+    const r=await conTimeout(cliente.from(tabla).delete().eq(campo,valor),ZX_TIMEOUTS.escritura,"delete_"+tabla);
+    registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
-  if(!r.error){
-    audit(tabla,"delete",valor,"Registro eliminado",null);
+    if(!r.error){
+      audit(tabla,"delete",valor,"Registro eliminado",null);
+    }
+
+    return r;
+
+  }catch(e){
+    registrarResultadoRed(false,null,e);
+    cacheDelete(tabla,valor,campo);
+
+    colaAdd({
+      tabla:tabla,
+      operacion:"delete",
+      campo:campo,
+      valor:valor,
+      origen:"timeout"
+    });
+
+    return {data:null,error:null,offline:true,degradada:true,mensaje:e.message || "Borrado pendiente por conexión débil"};
   }
-
-  return r;
 }
 
 function guardarOffline(tabla,operacion,data,campo,valor){
@@ -747,6 +976,7 @@ function estadoSistema(){
     version:ZX_VERSION,
     fecha:ahoraISO(),
     conectado:navigator.onLine,
+    red:estadoRed(),
     cola_pendiente:colaPendiente().length,
     usuario:usuarioActual(),
     config:leerConfig(),
@@ -779,6 +1009,16 @@ function iniciarServiciosLigeros(){
   if(ZX_SYNC_TIMER){
     clearInterval(ZX_SYNC_TIMER);
   }
+
+  if(ZX_NET_TIMER){
+    clearInterval(ZX_NET_TIMER);
+  }
+
+  ZX_NET_TIMER=setInterval(function(){
+    testConexion();
+  },90000);
+
+  setTimeout(testConexion,2500);
 
   ZX_SYNC_TIMER=setInterval(function(){
     actualizarEstadoConexion();
@@ -845,6 +1085,10 @@ window.ZENTRYX.guardarOffline=guardarOffline;
 window.ZENTRYX.colaLeer=colaLeer;
 window.ZENTRYX.colaPendiente=colaPendiente;
 window.ZENTRYX.syncOfflineQueue=syncOfflineQueue;
+window.ZENTRYX.testConexion=testConexion;
+window.ZENTRYX.estadoRed=estadoRed;
+window.ZENTRYX.conTimeout=conTimeout;
+window.ZENTRYX.timeouts=ZX_TIMEOUTS;
 
 window.ZENTRYX.audit=audit;
 window.ZENTRYX.estadoSistema=estadoSistema;
@@ -862,7 +1106,9 @@ window.ZENTRYX.services.storage={
 window.ZENTRYX.services.offline={
   queue:colaAdd,
   pending:colaPendiente,
-  sync:syncOfflineQueue
+  sync:syncOfflineQueue,
+  network:estadoRed,
+  test:testConexion
 };
 
 window.ZENTRYX.services.db={
