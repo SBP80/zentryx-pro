@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3111 - CONEXION DEBIL: FETCH GLOBAL PROTEGIDO
+// V3112 - CONEXION DEBIL: ALERTAS TECNICAS FILTRADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3111";
+const ZX_VERSION="3112";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -16,6 +16,7 @@ const CONFIG_KEY="zentryx_config";
 const OFFLINE_QUEUE_KEY="zentryx_offline_queue";
 const OFFLINE_CACHE_PREFIX="zentryx_cache_";
 const FETCH_WRAPPED_KEY="__zentryx_fetch_protegido_v3111";
+const ALERT_WRAPPED_KEY="__zentryx_alert_protegido_v3112";
 
 let ZX_SERVICIOS_INICIADOS=false;
 let ZX_SYNC_TIMER=null;
@@ -230,6 +231,33 @@ function instalarFetchProtegido(){
       .finally(function(){
         clearTimeout(timer);
       });
+  };
+}
+
+function esMensajeTecnicoConexion(msg){
+  msg=texto(msg);
+  return /ZentryxOffline|ZentryxTimeout|ZX_OFFLINE|ZX_TIMEOUT|Failed to fetch|NetworkError|AbortError|Tiempo de espera agotado|Sin conexión/i.test(msg);
+}
+
+function instalarAlertProtegido(){
+  if(!window.alert || window[ALERT_WRAPPED_KEY]){
+    return;
+  }
+
+  const alertOriginal=window.alert.bind(window);
+  window[ALERT_WRAPPED_KEY]=true;
+  window.__zentryx_alert_original=window.__zentryx_alert_original || alertOriginal;
+
+  window.alert=function(msg){
+    if(esMensajeTecnicoConexion(msg)){
+      try{
+        registrarResultadoRed(false,null,msg);
+        actualizarEstadoConexion();
+      }catch(e){}
+      return;
+    }
+
+    return alertOriginal(msg);
   };
 }
 
@@ -1226,6 +1254,7 @@ function iniciarServiciosLigeros(){
   ZX_SERVICIOS_INICIADOS=true;
 
   instalarFetchProtegido();
+  instalarAlertProtegido();
   aplicarTemaGuardado();
   actualizarEstadoConexion();
 
@@ -1272,6 +1301,7 @@ function iniciarServiciosLigeros(){
 
 function bootDOM(){
   instalarFetchProtegido();
+  instalarAlertProtegido();
   ensureEstadoConexion();
   renderEstadoConexion(navigator.onLine ? "online" : "offline");
 
@@ -1279,6 +1309,7 @@ function bootDOM(){
 }
 
 instalarFetchProtegido();
+instalarAlertProtegido();
 
 window.ZENTRYX=window.ZENTRYX || {};
 window.ZENTRYX.version=ZX_VERSION;
@@ -1330,6 +1361,7 @@ window.ZENTRYX.estadoRed=estadoRed;
 window.ZENTRYX.conTimeout=conTimeout;
 window.ZENTRYX.timeouts=ZX_TIMEOUTS;
 window.ZENTRYX.fetchProtegido=window.fetch;
+window.ZENTRYX.alertProtegido=window.alert;
 
 window.ZENTRYX.audit=audit;
 window.ZENTRYX.estadoSistema=estadoSistema;
