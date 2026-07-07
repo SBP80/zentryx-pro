@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3107 - ARRANQUE RÁPIDO
+// V3109 - CONECTIVIDAD BASE
 // ===============================
 (function(){
 "use strict";
@@ -32,55 +32,8 @@ const ZX_TIMEOUTS={
   lectura:8500,
   escritura:11000,
   sincronizacion:12000,
-  test:4500,
-  lectura_debil:1800,
-  escritura_debil:2200,
-  sincronizacion_debil:2500,
-  test_debil:1800
+  test:4500
 };
-
-function redReciente(maxMs){
-  if(!ZX_NET_STATE.ultimo_test) return false;
-
-  const t=new Date(ZX_NET_STATE.ultimo_test).getTime();
-
-  if(isNaN(t)) return false;
-
-  return Date.now()-t <= (maxMs || 120000);
-}
-
-function conexionDebilReciente(){
-  if(typeof navigator!=="undefined" && !navigator.onLine) return true;
-
-  const c=ZX_NET_STATE.calidad;
-
-  return redReciente(120000) && (c==="mala" || c==="degradada" || ZX_NET_STATE.fallos_seguidos>=2);
-}
-
-function timeoutPara(tipo){
-  const debil=conexionDebilReciente();
-
-  if(tipo==="lectura") return debil ? ZX_TIMEOUTS.lectura_debil : ZX_TIMEOUTS.lectura;
-  if(tipo==="escritura") return debil ? ZX_TIMEOUTS.escritura_debil : ZX_TIMEOUTS.escritura;
-  if(tipo==="sincronizacion") return debil ? ZX_TIMEOUTS.sincronizacion_debil : ZX_TIMEOUTS.sincronizacion;
-  if(tipo==="test") return debil ? ZX_TIMEOUTS.test_debil : ZX_TIMEOUTS.test;
-
-  return debil ? 2200 : 8500;
-}
-
-function debeUsarCacheRapida(){
-  return conexionDebilReciente() || (typeof navigator!=="undefined" && !navigator.onLine);
-}
-
-function avisarConexionDebil(mensaje){
-  try{
-    renderEstadoConexion("degraded");
-
-    if(window.ZENTRYX_UI && typeof window.ZENTRYX_UI.toast==="function"){
-      window.ZENTRYX_UI.toast(mensaje || "Conexión débil. Los cambios se guardarán cuando vuelva la conexión.","warning");
-    }
-  }catch(e){}
-}
 
 function safeJSON(raw,fallback){
   try{
@@ -641,7 +594,7 @@ async function testConexion(){
   try{
     await conTimeout(
       cliente.from("usuarios").select("id").limit(1),
-      timeoutPara("test"),
+      ZX_TIMEOUTS.test,
       "test_conexion"
     );
 
@@ -659,11 +612,6 @@ async function syncOfflineQueue(){
   if(!navigator.onLine){
     actualizarEstadoConexion();
     return {ok:false,offline:true};
-  }
-
-  if(conexionDebilReciente()){
-    actualizarEstadoConexion();
-    return {ok:false,degradada:true,pendientes:colaPendiente().length};
   }
 
   const cliente=getSupabase();
@@ -694,13 +642,13 @@ async function syncOfflineQueue(){
       let r=null;
 
       if(item.operacion==="insert"){
-        r=await conTimeout(cliente.from(item.tabla).insert(item.data),timeoutPara("sincronizacion"),"sync_insert_"+item.tabla);
+        r=await conTimeout(cliente.from(item.tabla).insert(item.data),ZX_TIMEOUTS.sincronizacion,"sync_insert_"+item.tabla);
       }else if(item.operacion==="update"){
-        r=await conTimeout(cliente.from(item.tabla).update(item.data).eq(item.campo || "id",item.valor),timeoutPara("sincronizacion"),"sync_update_"+item.tabla);
+        r=await conTimeout(cliente.from(item.tabla).update(item.data).eq(item.campo || "id",item.valor),ZX_TIMEOUTS.sincronizacion,"sync_update_"+item.tabla);
       }else if(item.operacion==="upsert"){
-        r=await conTimeout(cliente.from(item.tabla).upsert(item.data),timeoutPara("sincronizacion"),"sync_upsert_"+item.tabla);
+        r=await conTimeout(cliente.from(item.tabla).upsert(item.data),ZX_TIMEOUTS.sincronizacion,"sync_upsert_"+item.tabla);
       }else if(item.operacion==="delete"){
-        r=await conTimeout(cliente.from(item.tabla).delete().eq(item.campo || "id",item.valor),timeoutPara("sincronizacion"),"sync_delete_"+item.tabla);
+        r=await conTimeout(cliente.from(item.tabla).delete().eq(item.campo || "id",item.valor),ZX_TIMEOUTS.sincronizacion,"sync_delete_"+item.tabla);
       }else{
         item.error="Operación no soportada";
         continue;
@@ -747,25 +695,12 @@ async function syncOfflineQueue(){
 
 async function selectCache(tabla,consulta){
   const cliente=getSupabase();
-  const cacheActual=cacheLeer(tabla);
 
   if(!navigator.onLine || !cliente){
     return {
-      data:cacheActual,
+      data:cacheLeer(tabla),
       error:null,
-      offline:true,
-      cache:true
-    };
-  }
-
-  if(debeUsarCacheRapida() && cacheActual.length>0){
-    return {
-      data:cacheActual,
-      error:null,
-      offline:false,
-      degradada:true,
-      cache:true,
-      mensaje:"Datos mostrados desde caché por conexión débil"
+      offline:true
     };
   }
 
@@ -775,7 +710,7 @@ async function selectCache(tabla,consulta){
       ? consulta(cliente.from(tabla))
       : cliente.from(tabla).select("*");
 
-    const r=await conTimeout(query,timeoutPara("lectura"),"select_"+tabla);
+    const r=await conTimeout(query,ZX_TIMEOUTS.lectura,"select_"+tabla);
 
     registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
@@ -788,11 +723,10 @@ async function selectCache(tabla,consulta){
   }catch(e){
     registrarResultadoRed(false,null,e);
     return {
-      data:cacheActual,
+      data:cacheLeer(tabla),
       error:null,
       offline:true,
       degradada:esErrorRedLenta(e),
-      cache:true,
       mensaje:e && e.message ? e.message : "Conexión no disponible"
     };
   }
@@ -803,24 +737,6 @@ async function insert(tabla,data,opciones){
 
   const cliente=getSupabase();
   const payload=Array.isArray(data) ? data : [data];
-
-  if(debeUsarCacheRapida()){
-    payload.forEach(function(item){
-      if(item && item.id) cacheUpsert(tabla,item);
-    });
-
-    colaAdd({
-      tabla:tabla,
-      operacion:"insert",
-      data:payload,
-      campo:opciones.campo || "id",
-      valor:opciones.valor || "",
-      origen:"conexion_debil"
-    });
-
-    avisarConexionDebil("Conexión débil. Registro guardado pendiente de sincronizar.");
-    return {data:payload,error:null,offline:true,degradada:true,pendiente:true};
-  }
 
   if(!navigator.onLine || !cliente){
     payload.forEach(function(item){
@@ -840,7 +756,7 @@ async function insert(tabla,data,opciones){
 
   try{
     const inicio=Date.now();
-    const r=await conTimeout(cliente.from(tabla).insert(payload),timeoutPara("escritura"),"insert_"+tabla);
+    const r=await conTimeout(cliente.from(tabla).insert(payload),ZX_TIMEOUTS.escritura,"insert_"+tabla);
     registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
     if(!r.error){
@@ -874,22 +790,6 @@ async function update(tabla,data,campo,valor){
 
   const cliente=getSupabase();
 
-  if(debeUsarCacheRapida()){
-    cacheUpsert(tabla,Object.assign({},data,{[campo]:valor}),campo);
-
-    colaAdd({
-      tabla:tabla,
-      operacion:"update",
-      data:data,
-      campo:campo,
-      valor:valor,
-      origen:"conexion_debil"
-    });
-
-    avisarConexionDebil("Conexión débil. Cambio guardado pendiente de sincronizar.");
-    return {data:data,error:null,offline:true,degradada:true,pendiente:true};
-  }
-
   if(!navigator.onLine || !cliente){
     cacheUpsert(tabla,Object.assign({},data,{[campo]:valor}),campo);
 
@@ -906,7 +806,7 @@ async function update(tabla,data,campo,valor){
 
   try{
     const inicio=Date.now();
-    const r=await conTimeout(cliente.from(tabla).update(data).eq(campo,valor),timeoutPara("escritura"),"update_"+tabla);
+    const r=await conTimeout(cliente.from(tabla).update(data).eq(campo,valor),ZX_TIMEOUTS.escritura,"update_"+tabla);
     registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
     if(!r.error){
@@ -936,22 +836,6 @@ async function upsert(tabla,data){
   const cliente=getSupabase();
   const payload=Array.isArray(data) ? data : [data];
 
-  if(debeUsarCacheRapida()){
-    payload.forEach(function(item){
-      if(item && item.id) cacheUpsert(tabla,item);
-    });
-
-    colaAdd({
-      tabla:tabla,
-      operacion:"upsert",
-      data:payload,
-      origen:"conexion_debil"
-    });
-
-    avisarConexionDebil("Conexión débil. Guardado pendiente de sincronizar.");
-    return {data:payload,error:null,offline:true,degradada:true,pendiente:true};
-  }
-
   if(!navigator.onLine || !cliente){
     payload.forEach(function(item){
       if(item && item.id) cacheUpsert(tabla,item);
@@ -968,7 +852,7 @@ async function upsert(tabla,data){
 
   try{
     const inicio=Date.now();
-    const r=await conTimeout(cliente.from(tabla).upsert(payload),timeoutPara("escritura"),"upsert_"+tabla);
+    const r=await conTimeout(cliente.from(tabla).upsert(payload),ZX_TIMEOUTS.escritura,"upsert_"+tabla);
     registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
     if(!r.error){
@@ -1000,21 +884,6 @@ async function remove(tabla,campo,valor){
 
   const cliente=getSupabase();
 
-  if(debeUsarCacheRapida()){
-    cacheDelete(tabla,valor,campo);
-
-    colaAdd({
-      tabla:tabla,
-      operacion:"delete",
-      campo:campo,
-      valor:valor,
-      origen:"conexion_debil"
-    });
-
-    avisarConexionDebil("Conexión débil. Borrado pendiente de sincronizar.");
-    return {data:null,error:null,offline:true,degradada:true,pendiente:true};
-  }
-
   if(!navigator.onLine || !cliente){
     cacheDelete(tabla,valor,campo);
 
@@ -1030,7 +899,7 @@ async function remove(tabla,campo,valor){
 
   try{
     const inicio=Date.now();
-    const r=await conTimeout(cliente.from(tabla).delete().eq(campo,valor),timeoutPara("escritura"),"delete_"+tabla);
+    const r=await conTimeout(cliente.from(tabla).delete().eq(campo,valor),ZX_TIMEOUTS.escritura,"delete_"+tabla);
     registrarResultadoRed(!r.error,Date.now()-inicio,r.error || null);
 
     if(!r.error){
@@ -1219,9 +1088,6 @@ window.ZENTRYX.syncOfflineQueue=syncOfflineQueue;
 window.ZENTRYX.testConexion=testConexion;
 window.ZENTRYX.estadoRed=estadoRed;
 window.ZENTRYX.conTimeout=conTimeout;
-window.ZENTRYX.timeoutPara=timeoutPara;
-window.ZENTRYX.conexionDebilReciente=conexionDebilReciente;
-window.ZENTRYX.debeUsarCacheRapida=debeUsarCacheRapida;
 window.ZENTRYX.timeouts=ZX_TIMEOUTS;
 
 window.ZENTRYX.audit=audit;
