@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3109 - CONECTIVIDAD BASE
+// V3110 - CONEXION DEBIL: TIMEOUT GLOBAL SUPABASE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3109";
+const ZX_VERSION="3110";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -130,6 +130,136 @@ function conTimeout(promise,ms,etiqueta){
   });
 }
 
+function timeoutPorOperacion(operacion){
+  operacion=normalizar(operacion || "lectura");
+
+  if(operacion==="insert" || operacion==="update" || operacion==="upsert" || operacion==="delete" || operacion==="rpc" || operacion==="write"){
+    return ZX_TIMEOUTS.escritura;
+  }
+
+  if(operacion==="sync" || operacion==="sincronizacion"){
+    return ZX_TIMEOUTS.sincronizacion;
+  }
+
+  if(operacion==="test"){
+    return ZX_TIMEOUTS.test;
+  }
+
+  return ZX_TIMEOUTS.lectura;
+}
+
+function envolverConsultaSupabase(obj,meta){
+  if(!obj || (typeof obj!=="object" && typeof obj!=="function")){
+    return obj;
+  }
+
+  if(obj.__zx_wrapped_query){
+    return obj;
+  }
+
+  meta=Object.assign({
+    tabla:"",
+    operacion:"lectura"
+  },meta || {});
+
+  const escritura={
+    insert:true,
+    update:true,
+    upsert:true,
+    delete:true
+  };
+
+  const lectura={
+    select:true,
+    single:true,
+    maybeSingle:true
+  };
+
+  return new Proxy(obj,{
+    get:function(target,prop,receiver){
+      if(prop==="__zx_wrapped_query") return true;
+
+      if(prop==="then" || prop==="catch" || prop==="finally"){
+        const ms=timeoutPorOperacion(meta.operacion);
+        const etiqueta="supabase_"+(meta.operacion || "query")+(meta.tabla ? "_"+meta.tabla : "");
+
+        return function(){
+          const args=Array.prototype.slice.call(arguments);
+          const inicio=Date.now();
+
+          const p=conTimeout(Promise.resolve(target),ms,etiqueta)
+            .then(function(r){
+              registrarResultadoRed(!(r && r.error),Date.now()-inicio,(r && r.error) || null);
+              return r;
+            })
+            .catch(function(e){
+              registrarResultadoRed(false,Date.now()-inicio,e);
+              throw e;
+            });
+
+          return p[prop].apply(p,args);
+        };
+      }
+
+      const value=Reflect.get(target,prop,receiver);
+
+      if(typeof value!=="function"){
+        return value;
+      }
+
+      return function(){
+        const args=Array.prototype.slice.call(arguments);
+        const nextMeta=Object.assign({},meta);
+
+        if(escritura[prop]){
+          nextMeta.operacion=String(prop);
+        }else if(lectura[prop]){
+          nextMeta.operacion="lectura";
+        }
+
+        const result=value.apply(target,args);
+        return envolverConsultaSupabase(result,nextMeta);
+      };
+    }
+  });
+}
+
+function crearClienteSupabaseProtegido(cliente){
+  if(!cliente || cliente.__zx_wrapped_client){
+    return cliente;
+  }
+
+  return new Proxy(cliente,{
+    get:function(target,prop,receiver){
+      if(prop==="__zx_wrapped_client") return true;
+
+      const value=Reflect.get(target,prop,receiver);
+
+      if(prop==="from" && typeof value==="function"){
+        return function(tabla){
+          const result=value.call(target,tabla);
+          return envolverConsultaSupabase(result,{
+            tabla:tabla,
+            operacion:"lectura"
+          });
+        };
+      }
+
+      if(prop==="rpc" && typeof value==="function"){
+        return function(nombre,params,options){
+          const result=value.call(target,nombre,params,options);
+          return envolverConsultaSupabase(result,{
+            tabla:nombre,
+            operacion:"rpc"
+          });
+        };
+      }
+
+      return value;
+    }
+  });
+}
+
 function registrarResultadoRed(ok,ms,error){
   ZX_NET_STATE.online=typeof navigator!=="undefined" ? navigator.onLine : true;
   ZX_NET_STATE.latencia_ms=typeof ms==="number" ? ms : ZX_NET_STATE.latencia_ms;
@@ -212,19 +342,25 @@ function formatoFechaHoraES(valor){
 }
 
 function getSupabase(){
-  if(window.sb) return window.sb;
-  if(window.supabaseClient) return window.supabaseClient;
+  if(window.sb && window.sb.__zx_wrapped_client) return window.sb;
+  if(window.supabaseClient && window.supabaseClient.__zx_wrapped_client) return window.supabaseClient;
 
-  if(!window.supabase || !window.supabase.createClient){
-    return null;
+  let cliente=window.sb || window.supabaseClient || null;
+
+  if(!cliente){
+    if(!window.supabase || !window.supabase.createClient){
+      return null;
+    }
+
+    cliente=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   }
 
-  const cliente=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const protegido=crearClienteSupabaseProtegido(cliente);
 
-  window.sb=cliente;
-  window.supabaseClient=cliente;
+  window.sb=protegido;
+  window.supabaseClient=protegido;
 
-  return cliente;
+  return protegido;
 }
 
 function sesion(){
