@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
-// V3080 - VALIDAR, PAGAR, COBRAR, IMPRIMIR Y ENVIAR
+// V3081 - SIN ERROR TECNICO EN MODO OFFLINE
 // ===============================
 (function(){
 "use strict";
@@ -41,28 +41,51 @@ function fechaHora(){
   return new Date().toLocaleString("es-ES");
 }
 
-async function precioHoraExtra(usuarioId,tipo){
-  const r=await sb()
-    .from("horarios_usuario")
-    .select("precio_extra,precio_extra_festiva,precio_extra_nocturna")
-    .eq("usuario_id",String(usuarioId))
-    .limit(1);
+function esErrorConexion(e){
+  const msg=String((e && (e.message || e.name)) || e || "");
+  return !navigator.onLine ||
+    (e && (e.name==="ZentryxOffline" || e.name==="ZentryxTimeout")) ||
+    /sin conexión|offline|timeout|failed to fetch|network|abort/i.test(msg);
+}
 
-  if(r.error || !r.data || !r.data.length){
+function avisarConexionSuave(){
+  if(window.ZENTRYX && typeof window.ZENTRYX.actualizarEstadoConexion==="function"){
+    try{window.ZENTRYX.actualizarEstadoConexion();}catch(e){}
+  }
+}
+
+function resultadoVacioOffline(){
+  avisarConexionSuave();
+  return [];
+}
+
+async function precioHoraExtra(usuarioId,tipo){
+  try{
+    const r=await sb()
+      .from("horarios_usuario")
+      .select("precio_extra,precio_extra_festiva,precio_extra_nocturna")
+      .eq("usuario_id",String(usuarioId))
+      .limit(1);
+
+    if(r.error || !r.data || !r.data.length){
+      return 15;
+    }
+
+    const c=r.data[0];
+
+    if(tipo==="festivo"){
+      return Number(c.precio_extra_festiva || c.precio_extra || 15);
+    }
+
+    if(tipo==="nocturna"){
+      return Number(c.precio_extra_nocturna || c.precio_extra || 15);
+    }
+
+    return Number(c.precio_extra || 15);
+  }catch(e){
+    if(esErrorConexion(e)) return 15;
     return 15;
   }
-
-  const c=r.data[0];
-
-  if(tipo==="festivo"){
-    return Number(c.precio_extra_festiva || c.precio_extra || 15);
-  }
-
-  if(tipo==="nocturna"){
-    return Number(c.precio_extra_nocturna || c.precio_extra || 15);
-  }
-
-  return Number(c.precio_extra || 15);
 }
 
 function detectarTipoHoraExtra(j){
@@ -92,56 +115,89 @@ function textoEstado(e){
 async function sincronizarDesdeJornadas(){
   const s=sesion();
 
-  let q=sb()
-    .from("jornadas")
-    .select("*")
-    .gt("minutos_extra",0)
-    .order("created_at",{ascending:false});
-
-  if(!esAdmin()){
-    q=q.eq("usuario_id",String(s.id));
-  }
-
-  const r=await q;
-
-  if(r.error){
-    alert("Error leyendo jornadas: "+r.error.message);
-    return;
-  }
-
-  const jornadas=r.data || [];
-
-  for(const j of jornadas){
-    const minutos=Number(j.minutos_extra || j.horas_extra || 0);
-    if(minutos<=0) continue;
-
-    const jornadaId=String(j.id);
-
-    const existe=await sb()
-      .from("horas_extra_pro")
+  try{
+    let q=sb()
+      .from("jornadas")
       .select("*")
-      .eq("jornada_id",jornadaId)
-      .limit(1);
+      .gt("minutos_extra",0)
+      .order("created_at",{ascending:false});
 
-    if(existe.error){
-      alert("Error comprobando horas extra: "+existe.error.message);
-      continue;
+    if(!esAdmin()){
+      q=q.eq("usuario_id",String(s.id));
     }
 
-    const tipo=detectarTipoHoraExtra(j);
-    const precio=await precioHoraExtra(j.usuario_id,tipo);
-    const horasDecimal=Number((minutos/60).toFixed(2));
-    const importe=Number((horasDecimal*precio).toFixed(2));
-    const reg=existe.data && existe.data.length ? existe.data[0] : null;
+    const r=await q;
 
-    if(reg){
-      if(["pagada","cobrada"].includes(reg.estado)){
+    if(r.error){
+      if(esErrorConexion(r.error)){
+        return resultadoVacioOffline();
+      }
+      alert("No se pudieron actualizar las horas extra.");
+      return;
+    }
+
+    const jornadas=r.data || [];
+
+    for(const j of jornadas){
+      const minutos=Number(j.minutos_extra || j.horas_extra || 0);
+      if(minutos<=0) continue;
+
+      const jornadaId=String(j.id);
+
+      const existe=await sb()
+        .from("horas_extra_pro")
+        .select("*")
+        .eq("jornada_id",jornadaId)
+        .limit(1);
+
+      if(existe.error){
+        if(esErrorConexion(existe.error)){
+          return resultadoVacioOffline();
+        }
         continue;
       }
 
-      const upd=await sb()
+      const tipo=detectarTipoHoraExtra(j);
+      const precio=await precioHoraExtra(j.usuario_id,tipo);
+      const horasDecimal=Number((minutos/60).toFixed(2));
+      const importe=Number((horasDecimal*precio).toFixed(2));
+      const reg=existe.data && existe.data.length ? existe.data[0] : null;
+
+      if(reg){
+        if(["pagada","cobrada"].includes(reg.estado)){
+          continue;
+        }
+
+        const upd=await sb()
+          .from("horas_extra_pro")
+          .update({
+            usuario_id:String(j.usuario_id || ""),
+            usuario:j.usuario || "",
+            nombre:j.nombre || "",
+            jornada_id:jornadaId,
+            fecha:j.fecha,
+            tipo,
+            minutos,
+            horas_decimal:horasDecimal,
+            precio_hora:precio,
+            importe,
+            observacion:j.observacion_laboral || "",
+            updated_at:new Date().toISOString()
+          })
+          .eq("id",reg.id);
+
+        if(upd.error){
+          if(esErrorConexion(upd.error)){
+            return resultadoVacioOffline();
+          }
+        }
+
+        continue;
+      }
+
+      const ins=await sb()
         .from("horas_extra_pro")
-        .update({
+        .insert([{
           usuario_id:String(j.usuario_id || ""),
           usuario:j.usuario || "",
           nombre:j.nombre || "",
@@ -152,38 +208,21 @@ async function sincronizarDesdeJornadas(){
           horas_decimal:horasDecimal,
           precio_hora:precio,
           importe,
-          observacion:j.observacion_laboral || "",
-          updated_at:new Date().toISOString()
-        })
-        .eq("id",reg.id);
+          estado:"pendiente",
+          observacion:j.observacion_laboral || ""
+        }]);
 
-      if(upd.error){
-        alert("Error actualizando horas extra: "+upd.error.message);
+      if(ins.error){
+        if(esErrorConexion(ins.error)){
+          return resultadoVacioOffline();
+        }
       }
-
-      continue;
     }
-
-    const ins=await sb()
-      .from("horas_extra_pro")
-      .insert([{
-        usuario_id:String(j.usuario_id || ""),
-        usuario:j.usuario || "",
-        nombre:j.nombre || "",
-        jornada_id:jornadaId,
-        fecha:j.fecha,
-        tipo,
-        minutos,
-        horas_decimal:horasDecimal,
-        precio_hora:precio,
-        importe,
-        estado:"pendiente",
-        observacion:j.observacion_laboral || ""
-      }]);
-
-    if(ins.error){
-      alert("Error insertando horas extra: "+ins.error.message);
+  }catch(e){
+    if(esErrorConexion(e)){
+      return resultadoVacioOffline();
     }
+    alert("No se pudieron actualizar las horas extra.");
   }
 }
 
@@ -192,25 +231,38 @@ async function cargarHoras(){
 
   const s=sesion();
 
-  let q=sb()
-    .from("horas_extra_pro")
-    .select("*")
-    .order("fecha",{ascending:false})
-    .order("created_at",{ascending:false});
+  try{
+    let q=sb()
+      .from("horas_extra_pro")
+      .select("*")
+      .order("fecha",{ascending:false})
+      .order("created_at",{ascending:false});
 
-  if(!esAdmin()){
-    q=q.eq("usuario_id",String(s.id));
+    if(!esAdmin()){
+      q=q.eq("usuario_id",String(s.id));
+    }
+
+    const r=await q;
+
+    if(r.error){
+      if(esErrorConexion(r.error)){
+        avisarConexionSuave();
+        return ZX_HX_CACHE || [];
+      }
+      alert("No se pudieron cargar las horas extra.");
+      return ZX_HX_CACHE || [];
+    }
+
+    ZX_HX_CACHE=r.data || [];
+    return ZX_HX_CACHE;
+  }catch(e){
+    if(esErrorConexion(e)){
+      avisarConexionSuave();
+      return ZX_HX_CACHE || [];
+    }
+    alert("No se pudieron cargar las horas extra.");
+    return ZX_HX_CACHE || [];
   }
-
-  const r=await q;
-
-  if(r.error){
-    alert("Error cargando horas extra: "+r.error.message);
-    return [];
-  }
-
-  ZX_HX_CACHE=r.data || [];
-  return ZX_HX_CACHE;
 }
 
 async function actualizarEstado(id,estado){
@@ -241,13 +293,28 @@ async function actualizarEstado(id,estado){
     data.cobrada_por=s.usuario || "";
   }
 
-  const r=await sb()
-    .from("horas_extra_pro")
-    .update(data)
-    .eq("id",id);
+  let r=null;
+
+  try{
+    r=await sb()
+      .from("horas_extra_pro")
+      .update(data)
+      .eq("id",id);
+  }catch(e){
+    if(esErrorConexion(e)){
+      alert("Sin conexión. No se puede cambiar el estado ahora.");
+      return;
+    }
+    alert("No se pudo actualizar el estado.");
+    return;
+  }
 
   if(r.error){
-    alert("Error actualizando horas extra: "+r.error.message);
+    if(esErrorConexion(r.error)){
+      alert("Sin conexión. No se puede cambiar el estado ahora.");
+      return;
+    }
+    alert("No se pudo actualizar el estado.");
     return;
   }
 
