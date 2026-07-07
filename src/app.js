@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3110 - CONEXION DEBIL: TIMEOUT GLOBAL SUPABASE
+// V3111 - CONEXION DEBIL: FETCH GLOBAL PROTEGIDO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3110";
+const ZX_VERSION="3111";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -15,6 +15,7 @@ const USER_KEY="usuario";
 const CONFIG_KEY="zentryx_config";
 const OFFLINE_QUEUE_KEY="zentryx_offline_queue";
 const OFFLINE_CACHE_PREFIX="zentryx_cache_";
+const FETCH_WRAPPED_KEY="__zentryx_fetch_protegido_v3111";
 
 let ZX_SERVICIOS_INICIADOS=false;
 let ZX_SYNC_TIMER=null;
@@ -32,7 +33,10 @@ const ZX_TIMEOUTS={
   lectura:8500,
   escritura:11000,
   sincronizacion:12000,
-  test:4500
+  test:4500,
+  fetch_get:8500,
+  fetch_post:12000,
+  fetch_general:10000
 };
 
 function safeJSON(raw,fallback){
@@ -146,6 +150,87 @@ function timeoutPorOperacion(operacion){
   }
 
   return ZX_TIMEOUTS.lectura;
+}
+
+function timeoutPorFetch(input,init){
+  const method=normalizar((init && init.method) || "get");
+  const url=texto(typeof input==="string" ? input : (input && input.url) || "");
+
+  if(method==="get" || method==="head"){
+    return ZX_TIMEOUTS.fetch_get;
+  }
+
+  if(url.indexOf("/rest/v1/")>=0 || url.indexOf(SUPABASE_URL)>=0){
+    return ZX_TIMEOUTS.fetch_post;
+  }
+
+  return ZX_TIMEOUTS.fetch_general;
+}
+
+function crearErrorAbortado(ms,url){
+  const e=errorTimeout(ms);
+  e.etiqueta="fetch";
+  e.url=url || "";
+  return e;
+}
+
+function instalarFetchProtegido(){
+  if(!window.fetch || window[FETCH_WRAPPED_KEY]){
+    return;
+  }
+
+  const fetchOriginal=window.fetch.bind(window);
+
+  window[FETCH_WRAPPED_KEY]=true;
+  window.__zentryx_fetch_original=window.__zentryx_fetch_original || fetchOriginal;
+
+  window.fetch=function(input,init){
+    init=init || {};
+    const ms=timeoutPorFetch(input,init);
+    const url=texto(typeof input==="string" ? input : (input && input.url) || "");
+    const inicio=Date.now();
+
+    if(typeof navigator!=="undefined" && !navigator.onLine){
+      const e=new Error("Sin conexión");
+      e.name="ZentryxOffline";
+      e.codigo="ZX_OFFLINE";
+      registrarResultadoRed(false,null,e);
+      return Promise.reject(e);
+    }
+
+    if(typeof AbortController==="undefined"){
+      return conTimeout(fetchOriginal(input,init),ms,"fetch")
+        .then(function(r){
+          registrarResultadoRed(true,Date.now()-inicio,null);
+          return r;
+        })
+        .catch(function(e){
+          registrarResultadoRed(false,Date.now()-inicio,e);
+          throw e;
+        });
+    }
+
+    const controller=new AbortController();
+    const timer=setTimeout(function(){
+      try{ controller.abort(); }catch(e){}
+    },ms);
+
+    const nextInit=Object.assign({},init,{signal:controller.signal});
+
+    return fetchOriginal(input,nextInit)
+      .then(function(r){
+        registrarResultadoRed(!!r && r.ok!==false,Date.now()-inicio,null);
+        return r;
+      })
+      .catch(function(e){
+        const finalError=(e && e.name==="AbortError") ? crearErrorAbortado(ms,url) : e;
+        registrarResultadoRed(false,Date.now()-inicio,finalError);
+        throw finalError;
+      })
+      .finally(function(){
+        clearTimeout(timer);
+      });
+  };
 }
 
 function envolverConsultaSupabase(obj,meta){
@@ -307,7 +392,7 @@ function estadoRed(){
 
 function esErrorRedLenta(e){
   if(!e) return false;
-  return e.name==="ZentryxTimeout" || e.codigo==="ZX_TIMEOUT" || /timeout|network|fetch|failed/i.test(texto(e.message));
+  return e.name==="ZentryxTimeout" || e.codigo==="ZX_TIMEOUT" || e.name==="ZentryxOffline" || e.codigo==="ZX_OFFLINE" || /timeout|network|fetch|failed|abort|offline|conex/i.test(texto(e.message));
 }
 
 function formatoFechaES(valor){
@@ -342,6 +427,8 @@ function formatoFechaHoraES(valor){
 }
 
 function getSupabase(){
+  instalarFetchProtegido();
+
   if(window.sb && window.sb.__zx_wrapped_client) return window.sb;
   if(window.supabaseClient && window.supabaseClient.__zx_wrapped_client) return window.supabaseClient;
 
@@ -581,14 +668,27 @@ function colaAdd(item){
   const u=usuarioActual();
   const lista=colaLeer();
 
-  lista.push(Object.assign({
+  const nuevo=Object.assign({
     id:uuid(),
     estado:"pendiente",
     creado_en:ahoraISO(),
     intentos:0,
     usuario:u.usuario || "",
     empresa_id:u.empresa_id || "demo"
-  },item || {}));
+  },item || {});
+
+  const existe=lista.some(function(x){
+    return x && x.estado==="pendiente" &&
+      x.tabla===nuevo.tabla &&
+      x.operacion===nuevo.operacion &&
+      String(x.campo || "")===String(nuevo.campo || "") &&
+      String(x.valor || "")===String(nuevo.valor || "") &&
+      JSON.stringify(x.data || null)===JSON.stringify(nuevo.data || null);
+  });
+
+  if(!existe){
+    lista.push(nuevo);
+  }
 
   colaGuardar(lista);
   actualizarEstadoConexion();
@@ -1125,6 +1225,7 @@ function iniciarServiciosLigeros(){
 
   ZX_SERVICIOS_INICIADOS=true;
 
+  instalarFetchProtegido();
   aplicarTemaGuardado();
   actualizarEstadoConexion();
 
@@ -1170,11 +1271,14 @@ function iniciarServiciosLigeros(){
 }
 
 function bootDOM(){
+  instalarFetchProtegido();
   ensureEstadoConexion();
   renderEstadoConexion(navigator.onLine ? "online" : "offline");
 
   setTimeout(iniciarServiciosLigeros,900);
 }
+
+instalarFetchProtegido();
 
 window.ZENTRYX=window.ZENTRYX || {};
 window.ZENTRYX.version=ZX_VERSION;
@@ -1225,6 +1329,7 @@ window.ZENTRYX.testConexion=testConexion;
 window.ZENTRYX.estadoRed=estadoRed;
 window.ZENTRYX.conTimeout=conTimeout;
 window.ZENTRYX.timeouts=ZX_TIMEOUTS;
+window.ZENTRYX.fetchProtegido=window.fetch;
 
 window.ZENTRYX.audit=audit;
 window.ZENTRYX.estadoSistema=estadoSistema;
