@@ -1,11 +1,45 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
-// V3081 - SIN ERROR TECNICO EN MODO OFFLINE
+// V3082 - OFFLINE INSTANTANEO
 // ===============================
 (function(){
 "use strict";
 
 let ZX_HX_CACHE=[];
+
+const ZX_HX_CACHE_KEY="zentryx_cache_horas_extra_pro";
+
+function leerCacheHoras(){
+  try{
+    const raw=localStorage.getItem(ZX_HX_CACHE_KEY);
+    const data=raw ? JSON.parse(raw) : [];
+    return Array.isArray(data) ? data : [];
+  }catch(e){
+    return [];
+  }
+}
+
+function guardarCacheHoras(datos){
+  try{
+    localStorage.setItem(ZX_HX_CACHE_KEY,JSON.stringify(Array.isArray(datos) ? datos : []));
+  }catch(e){}
+}
+
+function esOffline(){
+  return typeof navigator!=="undefined" && navigator.onLine===false;
+}
+
+function esErrorRed(e){
+  const msg=String((e && (e.message || e.name)) || e || "");
+  return esOffline() ||
+    (e && (e.name==="ZentryxOffline" || e.name==="ZentryxTimeout")) ||
+    /offline|sin conexión|timeout|network|fetch|failed/i.test(msg);
+}
+
+function datosOfflineHoras(){
+  ZX_HX_CACHE=leerCacheHoras();
+  return ZX_HX_CACHE;
+}
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient}
@@ -41,25 +75,9 @@ function fechaHora(){
   return new Date().toLocaleString("es-ES");
 }
 
-function esErrorConexion(e){
-  const msg=String((e && (e.message || e.name)) || e || "");
-  return !navigator.onLine ||
-    (e && (e.name==="ZentryxOffline" || e.name==="ZentryxTimeout")) ||
-    /sin conexión|offline|timeout|failed to fetch|network|abort/i.test(msg);
-}
-
-function avisarConexionSuave(){
-  if(window.ZENTRYX && typeof window.ZENTRYX.actualizarEstadoConexion==="function"){
-    try{window.ZENTRYX.actualizarEstadoConexion();}catch(e){}
-  }
-}
-
-function resultadoVacioOffline(){
-  avisarConexionSuave();
-  return [];
-}
-
 async function precioHoraExtra(usuarioId,tipo){
+  if(esOffline()) return 15;
+
   try{
     const r=await sb()
       .from("horarios_usuario")
@@ -83,7 +101,6 @@ async function precioHoraExtra(usuarioId,tipo){
 
     return Number(c.precio_extra || 15);
   }catch(e){
-    if(esErrorConexion(e)) return 15;
     return 15;
   }
 }
@@ -113,6 +130,10 @@ function textoEstado(e){
 }
 
 async function sincronizarDesdeJornadas(){
+  if(esOffline()){
+    return;
+  }
+
   const s=sesion();
 
   try{
@@ -129,16 +150,16 @@ async function sincronizarDesdeJornadas(){
     const r=await q;
 
     if(r.error){
-      if(esErrorConexion(r.error)){
-        return resultadoVacioOffline();
-      }
-      alert("No se pudieron actualizar las horas extra.");
+      if(esErrorRed(r.error)) return;
+      console.warn("Horas extra: error leyendo jornadas",r.error);
       return;
     }
 
     const jornadas=r.data || [];
 
     for(const j of jornadas){
+      if(esOffline()) return;
+
       const minutos=Number(j.minutos_extra || j.horas_extra || 0);
       if(minutos<=0) continue;
 
@@ -151,9 +172,7 @@ async function sincronizarDesdeJornadas(){
         .limit(1);
 
       if(existe.error){
-        if(esErrorConexion(existe.error)){
-          return resultadoVacioOffline();
-        }
+        if(esErrorRed(existe.error)) return;
         continue;
       }
 
@@ -186,12 +205,7 @@ async function sincronizarDesdeJornadas(){
           })
           .eq("id",reg.id);
 
-        if(upd.error){
-          if(esErrorConexion(upd.error)){
-            return resultadoVacioOffline();
-          }
-        }
-
+        if(upd.error && esErrorRed(upd.error)) return;
         continue;
       }
 
@@ -212,21 +226,19 @@ async function sincronizarDesdeJornadas(){
           observacion:j.observacion_laboral || ""
         }]);
 
-      if(ins.error){
-        if(esErrorConexion(ins.error)){
-          return resultadoVacioOffline();
-        }
-      }
+      if(ins.error && esErrorRed(ins.error)) return;
     }
   }catch(e){
-    if(esErrorConexion(e)){
-      return resultadoVacioOffline();
-    }
-    alert("No se pudieron actualizar las horas extra.");
+    if(esErrorRed(e)) return;
+    console.warn("Horas extra: sincronización no completada",e);
   }
 }
 
 async function cargarHoras(){
+  if(esOffline()){
+    return datosOfflineHoras();
+  }
+
   await sincronizarDesdeJornadas();
 
   const s=sesion();
@@ -245,27 +257,31 @@ async function cargarHoras(){
     const r=await q;
 
     if(r.error){
-      if(esErrorConexion(r.error)){
-        avisarConexionSuave();
-        return ZX_HX_CACHE || [];
+      if(esErrorRed(r.error)){
+        return datosOfflineHoras();
       }
-      alert("No se pudieron cargar las horas extra.");
-      return ZX_HX_CACHE || [];
+      console.warn("Horas extra: error cargando",r.error);
+      return datosOfflineHoras();
     }
 
     ZX_HX_CACHE=r.data || [];
+    guardarCacheHoras(ZX_HX_CACHE);
     return ZX_HX_CACHE;
   }catch(e){
-    if(esErrorConexion(e)){
-      avisarConexionSuave();
-      return ZX_HX_CACHE || [];
+    if(esErrorRed(e)){
+      return datosOfflineHoras();
     }
-    alert("No se pudieron cargar las horas extra.");
-    return ZX_HX_CACHE || [];
+    console.warn("Horas extra: carga no completada",e);
+    return datosOfflineHoras();
   }
 }
 
 async function actualizarEstado(id,estado){
+  if(esOffline()){
+    alert("Sin conexión. No se puede cambiar el estado de horas extra ahora.");
+    return;
+  }
+
   const s=sesion();
 
   const data={
@@ -301,20 +317,20 @@ async function actualizarEstado(id,estado){
       .update(data)
       .eq("id",id);
   }catch(e){
-    if(esErrorConexion(e)){
-      alert("Sin conexión. No se puede cambiar el estado ahora.");
+    if(esErrorRed(e)){
+      alert("Sin conexión. No se puede cambiar el estado de horas extra ahora.");
       return;
     }
-    alert("No se pudo actualizar el estado.");
+    alert("No se pudo actualizar horas extra.");
     return;
   }
 
   if(r.error){
-    if(esErrorConexion(r.error)){
-      alert("Sin conexión. No se puede cambiar el estado ahora.");
+    if(esErrorRed(r.error)){
+      alert("Sin conexión. No se puede cambiar el estado de horas extra ahora.");
       return;
     }
-    alert("No se pudo actualizar el estado.");
+    alert("No se pudo actualizar horas extra.");
     return;
   }
 
@@ -563,13 +579,7 @@ window.ZX_enviarHorasExtra=function(){
   window.location.href="mailto:?subject=Horas extra&body="+encodeURIComponent(texto);
 };
 
-window.ZX_horas_extra=async function(){
-  document.querySelectorAll(".zx_nav_btn").forEach(b=>{
-    b.classList.remove("zx_activo");
-  });
-
-  const datos=await cargarHoras();
-
+function renderHoras(datos){
   app().innerHTML=`
     <div class="zx_card">
       <h2>Horas extra</h2>
@@ -586,6 +596,22 @@ window.ZX_horas_extra=async function(){
       : `<div class="zx_card"><div class="zx_text">Sin registros</div></div>`
     }
   `;
+}
+
+window.ZX_horas_extra=async function(){
+  document.querySelectorAll(".zx_nav_btn").forEach(b=>{
+    b.classList.remove("zx_activo");
+  });
+
+  if(esOffline()){
+    renderHoras(datosOfflineHoras());
+    return;
+  }
+
+  renderHoras(ZX_HX_CACHE.length ? ZX_HX_CACHE : leerCacheHoras());
+
+  const datos=await cargarHoras();
+  renderHoras(datos);
 };
 
 })();
