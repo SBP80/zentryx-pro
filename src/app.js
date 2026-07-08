@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3112 - CONEXION DEBIL: ALERTAS TECNICAS FILTRADAS
+// V3113 - ROL DESARROLLADOR Y ACCESO TECNICO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3112";
+const ZX_VERSION="3113";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -15,8 +15,7 @@ const USER_KEY="usuario";
 const CONFIG_KEY="zentryx_config";
 const OFFLINE_QUEUE_KEY="zentryx_offline_queue";
 const OFFLINE_CACHE_PREFIX="zentryx_cache_";
-const FETCH_WRAPPED_KEY="__zentryx_fetch_protegido_v3111";
-const ALERT_WRAPPED_KEY="__zentryx_alert_protegido_v3112";
+const FETCH_WRAPPED_KEY="__zentryx_fetch_protegido_v3113";
 
 let ZX_SERVICIOS_INICIADOS=false;
 let ZX_SYNC_TIMER=null;
@@ -231,33 +230,6 @@ function instalarFetchProtegido(){
       .finally(function(){
         clearTimeout(timer);
       });
-  };
-}
-
-function esMensajeTecnicoConexion(msg){
-  msg=texto(msg);
-  return /ZentryxOffline|ZentryxTimeout|ZX_OFFLINE|ZX_TIMEOUT|Failed to fetch|NetworkError|AbortError|Tiempo de espera agotado|Sin conexión/i.test(msg);
-}
-
-function instalarAlertProtegido(){
-  if(!window.alert || window[ALERT_WRAPPED_KEY]){
-    return;
-  }
-
-  const alertOriginal=window.alert.bind(window);
-  window[ALERT_WRAPPED_KEY]=true;
-  window.__zentryx_alert_original=window.__zentryx_alert_original || alertOriginal;
-
-  window.alert=function(msg){
-    if(esMensajeTecnicoConexion(msg)){
-      try{
-        registrarResultadoRed(false,null,msg);
-        actualizarEstadoConexion();
-      }catch(e){}
-      return;
-    }
-
-    return alertOriginal(msg);
   };
 }
 
@@ -518,8 +490,24 @@ function usuario(){
   return normalizar(usuarioActual().usuario);
 }
 
+function esDesarrollador(){
+  const r=rol();
+  const u=usuario();
+
+  return r==="desarrollador" ||
+         r==="developer" ||
+         r==="dev" ||
+         u==="desarrollador" ||
+         u==="developer" ||
+         u==="dev";
+}
+
 function esAdmin(){
-  return rol()==="administrador" || usuario()==="admin";
+  return esDesarrollador() || rol()==="administrador" || usuario()==="admin";
+}
+
+function esTecnicoSistema(){
+  return esDesarrollador();
 }
 
 function configBase(){
@@ -542,7 +530,8 @@ function configBase(){
       control_fichajes:true,
       configuracion:true,
       config_laboral:true,
-      solicitudes:true
+      solicitudes:true,
+      diagnostico:true
     }
   };
 }
@@ -1199,13 +1188,19 @@ function guardarOffline(tabla,operacion,data,campo,valor){
 }
 
 function puede(accion,modulo){
+  if(esDesarrollador()) return true;
+
+  modulo=aliasModulo(modulo || "");
+  accion=normalizar(accion || "");
+
+  if(["diagnostico","logs","sistema","backend","offline","cache","sync","desarrollo"].includes(modulo)){
+    return esTecnicoSistema();
+  }
+
   if(esAdmin()) return true;
 
   const u=usuarioActual();
   const permisos=u.permisos || {};
-
-  modulo=aliasModulo(modulo || "");
-  accion=normalizar(accion || "");
 
   if(permisos[modulo] && permisos[modulo][accion]===true){
     return true;
@@ -1234,6 +1229,30 @@ function aplicarTemaGuardado(){
   }
 }
 
+function estadoTecnico(){
+  if(!esTecnicoSistema()){
+    return {ok:false,error:"Acceso reservado a desarrollador"};
+  }
+
+  return {
+    ok:true,
+    version:ZX_VERSION,
+    fecha:ahoraISO(),
+    red:estadoRed(),
+    cola:colaLeer(),
+    cola_pendiente:colaPendiente().length,
+    cache_keys:Object.keys(localStorage || {}).filter(function(k){return String(k).indexOf(OFFLINE_CACHE_PREFIX)===0;}),
+    usuario:usuarioActual(),
+    modulos:listarModulos(),
+    backend:{
+      proveedor:"supabase",
+      url:SUPABASE_URL,
+      preparado_servidor_local:true,
+      preparado_nas:true
+    }
+  };
+}
+
 function estadoSistema(){
   return {
     nombre:"Zentryx PRO",
@@ -1254,7 +1273,6 @@ function iniciarServiciosLigeros(){
   ZX_SERVICIOS_INICIADOS=true;
 
   instalarFetchProtegido();
-  instalarAlertProtegido();
   aplicarTemaGuardado();
   actualizarEstadoConexion();
 
@@ -1301,7 +1319,6 @@ function iniciarServiciosLigeros(){
 
 function bootDOM(){
   instalarFetchProtegido();
-  instalarAlertProtegido();
   ensureEstadoConexion();
   renderEstadoConexion(navigator.onLine ? "online" : "offline");
 
@@ -1309,7 +1326,6 @@ function bootDOM(){
 }
 
 instalarFetchProtegido();
-instalarAlertProtegido();
 
 window.ZENTRYX=window.ZENTRYX || {};
 window.ZENTRYX.version=ZX_VERSION;
@@ -1324,6 +1340,8 @@ window.ZENTRYX.usuarioActual=usuarioActual;
 window.ZENTRYX.usuario=usuario;
 window.ZENTRYX.rol=rol;
 window.ZENTRYX.esAdmin=esAdmin;
+window.ZENTRYX.esDesarrollador=esDesarrollador;
+window.ZENTRYX.esTecnicoSistema=esTecnicoSistema;
 window.ZENTRYX.puede=puede;
 
 window.ZENTRYX.limpiar=limpiar;
@@ -1361,9 +1379,9 @@ window.ZENTRYX.estadoRed=estadoRed;
 window.ZENTRYX.conTimeout=conTimeout;
 window.ZENTRYX.timeouts=ZX_TIMEOUTS;
 window.ZENTRYX.fetchProtegido=window.fetch;
-window.ZENTRYX.alertProtegido=window.alert;
 
 window.ZENTRYX.audit=audit;
+window.ZENTRYX.estadoTecnico=estadoTecnico;
 window.ZENTRYX.estadoSistema=estadoSistema;
 window.ZENTRYX.actualizarEstadoConexion=actualizarEstadoConexion;
 window.ZENTRYX.setSyncStatus=setSyncStatus;
