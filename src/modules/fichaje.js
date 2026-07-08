@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3108 - REVISIÓN FINAL DE CONSISTENCIA
+// V3111 - CONSULTAS SEGURAS Y CONEXION DEBIL
 // ===============================
 (function(){
 "use strict";
@@ -25,7 +25,41 @@ let ZX_RT_RENDER_TIMER=null;
 // BASE
 // ===============================
 function app(){return document.getElementById("app")}
-function sb(){return window.sb || window.supabaseClient}
+function sb(){
+  if(window.ZENTRYX && typeof window.ZENTRYX.sb==="function"){
+    const cliente=window.ZENTRYX.sb();
+    if(cliente) return cliente;
+  }
+  return window.sb || window.supabaseClient;
+}
+
+function esErrorConexion(e){
+  const msg=String((e && (e.message || e.name || e.codigo)) || e || "");
+  return !navigator.onLine ||
+    (e && (e.name==="ZentryxOffline" || e.name==="ZentryxTimeout" || e.codigo==="ZX_OFFLINE" || e.codigo==="ZX_TIMEOUT")) ||
+    /sin conexión|sin conexion|offline|timeout|failed to fetch|network|abort|tiempo de espera/i.test(msg);
+}
+
+function actualizarConexionSuave(){
+  try{
+    if(window.ZENTRYX && typeof window.ZENTRYX.actualizarEstadoConexion==="function"){
+      window.ZENTRYX.actualizarEstadoConexion();
+    }
+  }catch(e){}
+}
+
+function avisoConexionAccion(){
+  actualizarConexionSuave();
+  alert("Sin conexión o conexión débil. Esta acción no se ha podido completar ahora.");
+}
+
+function logNoCritico(origen,e){
+  if(esErrorConexion(e)){
+    actualizarConexionSuave();
+    return;
+  }
+  try{console.warn("Zentryx Fichaje",origen,e)}catch(err){}
+}
 
 function sesion(){
   try{return JSON.parse(localStorage.getItem("zentryx_session") || "{}")}
@@ -724,52 +758,72 @@ async function obtenerUbicacion(){
 // ===============================
 async function jornadaAbierta(){
   const s=sesion();
-  const r=await sb()
-    .from("jornadas")
-    .select("*")
-    .eq("usuario_id",String(s.id))
-    .eq("estado","abierta")
-    .order("created_at",{ascending:false})
-    .limit(1);
+  try{
+    const r=await sb()
+      .from("jornadas")
+      .select("*")
+      .eq("usuario_id",String(s.id))
+      .eq("estado","abierta")
+      .order("created_at",{ascending:false})
+      .limit(1);
 
-  if(r.error || !r.data || !r.data.length) return null;
-  return r.data[0];
+    if(r.error || !r.data || !r.data.length) return null;
+    return r.data[0];
+  }catch(e){
+    logNoCritico("jornadaAbierta",e);
+    return null;
+  }
 }
 
 async function jornadasUsuarioFecha(usuarioId,fecha){
-  const r=await sb()
-    .from("jornadas")
-    .select("*")
-    .eq("usuario_id",String(usuarioId))
-    .eq("fecha",String(fecha).slice(0,10))
-    .order("created_at",{ascending:false});
+  try{
+    const r=await sb()
+      .from("jornadas")
+      .select("*")
+      .eq("usuario_id",String(usuarioId))
+      .eq("fecha",String(fecha).slice(0,10))
+      .order("created_at",{ascending:false});
 
-  if(r.error || !r.data) return [];
-  return r.data||[];
+    if(r.error || !r.data) return [];
+    return r.data||[];
+  }catch(e){
+    logNoCritico("jornadasUsuarioFecha",e);
+    return [];
+  }
 }
 
 async function ultimaJornadaUsuario(){
   const s=sesion();
-  const r=await sb()
-    .from("jornadas")
-    .select("*")
-    .eq("usuario_id",String(s.id))
-    .order("created_at",{ascending:false})
-    .limit(1);
+  try{
+    const r=await sb()
+      .from("jornadas")
+      .select("*")
+      .eq("usuario_id",String(s.id))
+      .order("created_at",{ascending:false})
+      .limit(1);
 
-  if(r.error || !r.data || !r.data.length) return null;
-  return r.data[0];
+    if(r.error || !r.data || !r.data.length) return null;
+    return r.data[0];
+  }catch(e){
+    logNoCritico("ultimaJornadaUsuario",e);
+    return null;
+  }
 }
 
 async function fichajesDeJornada(jornadaId){
-  const r=await sb()
-    .from("fichajes")
-    .select("*")
-    .eq("jornada_id",String(jornadaId))
-    .order("created_at",{ascending:true});
+  try{
+    const r=await sb()
+      .from("fichajes")
+      .select("*")
+      .eq("jornada_id",String(jornadaId))
+      .order("created_at",{ascending:true});
 
-  if(r.error) return [];
-  return r.data||[];
+    if(r.error) return [];
+    return r.data||[];
+  }catch(e){
+    logNoCritico("fichajesDeJornada",e);
+    return [];
+  }
 }
 
 async function estadoActual(){
@@ -784,36 +838,41 @@ async function estadoActual(){
 
 async function estadoActualOptimizado(){
   const s=sesion();
-  const r=await sb()
-    .from("jornadas")
-    .select("*")
-    .eq("usuario_id",String(s.id))
-    .order("created_at",{ascending:false})
-    .limit(20);
+  try{
+    const r=await sb()
+      .from("jornadas")
+      .select("*")
+      .eq("usuario_id",String(s.id))
+      .order("created_at",{ascending:false})
+      .limit(20);
 
-  const jornadas=(!r.error && r.data) ? (r.data||[]) : [];
-  const abierta=jornadas.find(j=>String(j.estado||"")==="abierta") || null;
+    const jornadas=(!r.error && r.data) ? (r.data||[]) : [];
+    const abierta=jornadas.find(j=>String(j.estado||"")==="abierta") || null;
 
-  if(!abierta){
+    if(!abierta){
+      return {
+        estado:"fuera",
+        jornada:null,
+        eventos:[],
+        ultima:jornadas.length ? jornadas[0] : null,
+        jornadasUsuario:jornadas.slice(0,8)
+      };
+    }
+
+    const eventos=await fichajesDeJornada(abierta.id);
+    const ultimo=eventos.length ? eventos[eventos.length-1] : null;
+
     return {
-      estado:"fuera",
-      jornada:null,
-      eventos:[],
-      ultima:jornadas.length ? jornadas[0] : null,
+      estado:estadoDesdeTipo(ultimo ? ultimo.tipo : "entrada"),
+      jornada:abierta,
+      eventos,
+      ultima:jornadas.length ? jornadas[0] : abierta,
       jornadasUsuario:jornadas.slice(0,8)
     };
+  }catch(e){
+    logNoCritico("estadoActualOptimizado",e);
+    return {estado:"fuera",jornada:null,eventos:[],ultima:null,jornadasUsuario:[]};
   }
-
-  const eventos=await fichajesDeJornada(abierta.id);
-  const ultimo=eventos.length ? eventos[eventos.length-1] : null;
-
-  return {
-    estado:estadoDesdeTipo(ultimo ? ultimo.tipo : "entrada"),
-    jornada:abierta,
-    eventos,
-    ultima:jornadas.length ? jornadas[0] : abierta,
-    jornadasUsuario:jornadas.slice(0,8)
-  };
 }
 
 // ===============================
@@ -1117,10 +1176,25 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
     created_at:ahora()
   };
 
-  const r=await sb().from("jornadas").insert([datos]).select().single();
+  let r=null;
+
+  try{
+    r=await sb().from("jornadas").insert([datos]).select().single();
+  }catch(e){
+    if(esErrorConexion(e)){
+      avisoConexionAccion();
+      return null;
+    }
+    alert("No se pudo crear la jornada.");
+    return null;
+  }
 
   if(r.error){
-    alert("Error creando jornada: "+r.error.message);
+    if(esErrorConexion(r.error)){
+      avisoConexionAccion();
+      return null;
+    }
+    alert("No se pudo crear la jornada.");
     return null;
   }
 
@@ -1145,30 +1219,45 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
 async function insertarFichaje(tipo,jornadaId,geo,veh=null){
   const s=sesion();
 
-  const r=await sb()
-    .from("fichajes")
-    .insert([{
-      usuario_id:String(s.id),
-      usuario:s.usuario||"",
-      nombre:s.nombre||"",
-      jornada_id:String(jornadaId),
-      tipo,
-      lat:geo.lat,
-      lng:geo.lng,
-      direccion:geo.direccion,
-      dispositivo:navigator.userAgent,
-      vehiculo_id:veh&&veh.id?String(veh.id):null,
-      vehiculo_matricula:veh&&veh.matricula?String(veh.matricula):null,
-      km_vehiculo:veh&&veh.km!=null?Number(veh.km):null,
-      created_at:ahora()
-    }]);
+  const payload={
+    usuario_id:String(s.id),
+    usuario:s.usuario||"",
+    nombre:s.nombre||"",
+    jornada_id:String(jornadaId),
+    tipo,
+    lat:geo.lat,
+    lng:geo.lng,
+    direccion:geo.direccion,
+    dispositivo:navigator.userAgent,
+    vehiculo_id:veh&&veh.id?String(veh.id):null,
+    vehiculo_matricula:veh&&veh.matricula?String(veh.matricula):null,
+    km_vehiculo:veh&&veh.km!=null?Number(veh.km):null,
+    created_at:ahora()
+  };
 
-  if(r.error){
-    alert("Error al guardar fichaje: "+r.error.message);
+  try{
+    const r=await sb()
+      .from("fichajes")
+      .insert([payload]);
+
+    if(r.error){
+      if(esErrorConexion(r.error)){
+        avisoConexionAccion();
+        return false;
+      }
+      alert("No se pudo guardar el fichaje.");
+      return false;
+    }
+
+    return true;
+  }catch(e){
+    if(esErrorConexion(e)){
+      avisoConexionAccion();
+      return false;
+    }
+    alert("No se pudo guardar el fichaje.");
     return false;
   }
-
-  return true;
 }
 
 async function sincronizarHorasExtra(jornadaId,c,laboral,extraSeg,jornada){
@@ -1525,51 +1614,67 @@ async function crearEventoAgendaExtra(jornadaId){
 // ===============================
 async function ultimosFichajes(){
   const s=sesion();
-  const r=await sb()
-    .from("fichajes")
-    .select("*")
-    .eq("usuario_id",String(s.id))
-    .order("created_at",{ascending:false})
-    .limit(8);
+  try{
+    const r=await sb()
+      .from("fichajes")
+      .select("*")
+      .eq("usuario_id",String(s.id))
+      .order("created_at",{ascending:false})
+      .limit(8);
 
-  if(r.error) return [];
-  return r.data||[];
+    if(r.error) return [];
+    return r.data||[];
+  }catch(e){
+    logNoCritico("ultimosFichajes",e);
+    return [];
+  }
 }
 
 async function jornadasUsuario(){
   const s=sesion();
-  const r=await sb()
-    .from("jornadas")
-    .select("*")
-    .eq("usuario_id",String(s.id))
-    .order("created_at",{ascending:false})
-    .limit(8);
+  try{
+    const r=await sb()
+      .from("jornadas")
+      .select("*")
+      .eq("usuario_id",String(s.id))
+      .order("created_at",{ascending:false})
+      .limit(8);
 
-  if(r.error) return [];
-  return r.data||[];
+    if(r.error) return [];
+    return r.data||[];
+  }catch(e){
+    logNoCritico("jornadasUsuario",e);
+    return [];
+  }
 }
 
 async function jornadasAdminHoy(){
   const s=sesion();
   const hoy=fechaHoyISO();
 
-  const r=await sb()
-    .from("jornadas")
-    .select("*")
-    .eq("fecha",hoy)
-    .neq("usuario_id",String(s.id||""))
-    .order("created_at",{ascending:false})
-    .limit(80);
+  try{
+    const r=await sb()
+      .from("jornadas")
+      .select("*")
+      .eq("fecha",hoy)
+      .neq("usuario_id",String(s.id||""))
+      .order("created_at",{ascending:false})
+      .limit(80);
 
-  if(r.error) return [];
+    if(r.error) return [];
 
-  return r.data||[];
+    return r.data||[];
+  }catch(e){
+    logNoCritico("jornadasAdminHoy",e);
+    return [];
+  }
 }
 
 async function jornadasAdminTodas(){
   const s=sesion();
 
-  let q=sb()
+  try{
+    let q=sb()
     .from("jornadas")
     .select("*")
     .neq("usuario_id",String(s.id||""))
@@ -1606,6 +1711,10 @@ async function jornadasAdminTodas(){
   }
 
   return datos;
+  }catch(e){
+    logNoCritico("jornadasAdminTodas",e);
+    return [];
+  }
 }
 
 // ===============================
