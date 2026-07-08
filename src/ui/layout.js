@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3122 - PANEL DESARROLLADOR EN LAYOUT
+// V3123 - RUTA PANEL DESARROLLADOR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3122";
+const ZX_VERSION="3123";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -913,6 +913,7 @@ function abrirModuloPorId(id){
     horas_extra:window.ZX_abrirHorasExtra,
     control_fichajes:window.ZX_abrirControlFichajes,
     vehiculos:window.ZX_vehiculos,
+    desarrollador:window.ZX_abrirDesarrollador,
     configuracion:window.ZX_configuracion
   };
 
@@ -1227,6 +1228,12 @@ window.ZENTRYX_UI_LAYOUT={
     nav();
     botonPostit();
     actionbar();
+
+    if(location.hash && location.hash.replace("#","")==="desarrollador"){
+      setTimeout(function(){
+        abrirModuloPorId("desarrollador");
+      },250);
+    }
 
     if(zx() && typeof zx().actualizarEstadoConexion==="function"){
       zx().actualizarEstadoConexion();
