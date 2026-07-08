@@ -12,8 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-const ZX_VERSION="3119";
-const ZX_APP_VERSION="3119";
+const ZX_VERSION="3122";
+const ZX_APP_VERSION="3122";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -66,13 +66,15 @@ input:disabled{opacity:.65;background:#f1f5f9}
 
   <div class="box" id="app"></div>
 
-  <div class="footer">Zentryx PRO · V3119</div>
+  <div class="footer">Zentryx PRO · V3122</div>
 </div>
 
 <script>
 const ZX_DEVICE_KEY="zentryx_device_id";
 const ZX_LOGIN_LAST_USER="zentryx_last_user";
 const ZX_LOGIN_LOCKS="zentryx_login_locks";
+const ZX_DEV_PIN_KEY="zentryx_dev_pin_hash";
+const ZX_DEV_LAST_KEY="zentryx_dev_last_access";
 
 window.sb=supabase.createClient(
   "https://idtaamivqbiuxtjywuux.supabase.co",
@@ -93,6 +95,59 @@ function cliente(){return window.sb || window.supabaseClient || null}
 function limpiar(v){return String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
 function normalizar(v){return String(v ?? "").trim().toLowerCase()}
 function hashPin(pin){return btoa(String(pin))}
+
+function esUsuarioDesarrollador(v){
+  const u=normalizar(v);
+  return u==="desarrollador" || u==="developer" || u==="dev";
+}
+
+function hashPinDesarrollador(pin){
+  try{return btoa("ZX_DEV::"+String(pin))}
+  catch(e){return String(pin)}
+}
+
+function cuentaDesarrollador(){
+  return {
+    id:"zentryx_developer",
+    usuario:"desarrollador",
+    nombre:"Desarrollador",
+    rol:"Desarrollador",
+    empresa_id:"global",
+    tecnico:true,
+    desarrollador:true,
+    activo:true,
+    foto_url:""
+  };
+}
+
+function guardarSesionDesarrollador(){
+  const u=cuentaDesarrollador();
+  const ahora=new Date().toISOString();
+
+  localStorage.setItem("zentryx_session",JSON.stringify({
+    id:u.id,
+    usuario:u.usuario,
+    nombre:u.nombre,
+    rol:u.rol,
+    empresa_id:u.empresa_id,
+    tecnico:true,
+    desarrollador:true,
+    inicio:ahora,
+    actividad:ahora
+  }));
+
+  localStorage.setItem("usuario",JSON.stringify(u));
+  localStorage.setItem(ZX_DEV_LAST_KEY,ahora);
+  localStorage.setItem(ZX_LOGIN_LAST_USER,JSON.stringify({
+    id:u.id,
+    usuario:u.usuario,
+    nombre:u.nombre,
+    rol:u.rol,
+    foto_url:"",
+    tecnico:true,
+    guardado_en:ahora
+  }));
+}
 
 function crearIdDispositivo(){
   if(window.crypto && typeof window.crypto.randomUUID==="function") return window.crypto.randomUUID();
@@ -170,7 +225,7 @@ function detectarDispositivo(){
 async function registrarDispositivoSeguro(){
   try{
     const sb=cliente();
-    if(!sb || !usuarioActual || !usuarioActual.id) return;
+    if(!sb || !usuarioActual || !usuarioActual.id || usuarioActual.tecnico) return;
 
     obtenerIdDispositivo();
 
@@ -265,6 +320,7 @@ function guardarUltimoUsuario(u){
     nombre:u.nombre || u.usuario || "",
     rol:u.rol || "",
     foto_url:u.foto_url || "",
+    tecnico:!!u.tecnico,
     guardado_en:new Date().toISOString()
   }));
 }
@@ -379,7 +435,7 @@ async function cargarUsuarioPorId(id){
 }
 
 async function refrescarUsuarioActual(){
-  if(!usuarioActual) return null;
+  if(!usuarioActual || usuarioActual.tecnico) return null;
 
   let res=null;
   if(usuarioActual.id) res=await cargarUsuarioPorId(usuarioActual.id);
@@ -395,7 +451,7 @@ async function refrescarUsuarioActual(){
 }
 
 async function limpiarBloqueoSiCaducado(u){
-  if(!u || !u.id) return u;
+  if(!u || !u.id || u.tecnico) return u;
 
   const bloqueoDB=u.pin_bloqueado_hasta ? new Date(u.pin_bloqueado_hasta) : null;
   const bloqueoLocal=bloqueoLocalActivo(u);
@@ -416,6 +472,122 @@ async function limpiarBloqueoSiCaducado(u){
   }
 
   return u;
+}
+
+function pantallaCrearPINDesarrollador(){
+  clearInterval(bloqueoTimer);
+  usuarioActual=cuentaDesarrollador();
+
+  app.innerHTML=`
+    <h2>Crear PIN técnico</h2>
+    <div class="sub">Acceso exclusivo de mantenimiento. Este perfil no es un empleado y no aparecerá en Usuarios.</div>
+    ${tarjetaUsuario(usuarioActual)}
+    <label for="pin1">PIN desarrollador</label>
+    <input id="pin1" class="pin" inputmode="numeric" maxlength="8" placeholder="------" autocomplete="new-password">
+    <label for="pin2">Repetir PIN</label>
+    <input id="pin2" class="pin" inputmode="numeric" maxlength="8" placeholder="------" autocomplete="new-password">
+    <button class="btn" id="btn_guardar_pin_dev">Guardar PIN</button>
+    <button class="btn btn_sec" id="btn_volver_dev">Cambiar usuario</button>
+    <div id="msg" class="msg"></div>
+  `;
+
+  document.getElementById("btn_guardar_pin_dev").onclick=guardarPINDesarrollador;
+  document.getElementById("btn_volver_dev").onclick=pantallaLogin;
+
+  document.getElementById("pin1").addEventListener("input",function(){
+    this.value=this.value.replace(/\D/g,"").slice(0,8);
+    if(this.value.length>=6) document.getElementById("pin2").focus();
+  });
+
+  document.getElementById("pin2").addEventListener("input",function(){
+    this.value=this.value.replace(/\D/g,"").slice(0,8);
+  });
+
+  document.getElementById("pin2").addEventListener("keydown",function(e){
+    if(e.key==="Enter") guardarPINDesarrollador();
+  });
+
+  setTimeout(()=>{const p=document.getElementById("pin1");if(p) p.focus()},250);
+}
+
+function guardarPINDesarrollador(){
+  limpiarMsg();
+
+  const p1=document.getElementById("pin1").value.trim();
+  const p2=document.getElementById("pin2").value.trim();
+
+  if(!/^[0-9]{6,8}$/.test(p1) || !/^[0-9]{6,8}$/.test(p2)){
+    mostrarMsg("El PIN técnico debe tener entre 6 y 8 números.");
+    return;
+  }
+
+  if(p1!==p2){
+    mostrarMsg("Los PIN no coinciden.");
+    return;
+  }
+
+  localStorage.setItem(ZX_DEV_PIN_KEY,hashPinDesarrollador(p1));
+  guardarSesionDesarrollador();
+  mostrarMsg("Acceso desarrollador creado.","ok");
+  setTimeout(irApp,500);
+}
+
+function pantallaPINDesarrollador(){
+  clearInterval(bloqueoTimer);
+  usuarioActual=cuentaDesarrollador();
+
+  app.innerHTML=`
+    <h2>Acceso técnico</h2>
+    <div class="sub">Perfil Desarrollador. Diagnóstico, mantenimiento y soporte.</div>
+    ${tarjetaUsuario(usuarioActual)}
+    <label for="pin">PIN desarrollador</label>
+    <input id="pin" class="pin" inputmode="numeric" maxlength="8" placeholder="------" autocomplete="current-password">
+    <button class="btn" id="btn_pin_dev">Entrar</button>
+    <button class="btn btn_sec" id="btn_volver_dev">Cambiar usuario</button>
+    <div id="msg" class="msg"></div>
+  `;
+
+  document.getElementById("btn_pin_dev").onclick=entrarDesarrollador;
+  document.getElementById("btn_volver_dev").onclick=pantallaLogin;
+
+  document.getElementById("pin").addEventListener("input",function(){
+    this.value=this.value.replace(/\D/g,"").slice(0,8);
+  });
+
+  document.getElementById("pin").addEventListener("keydown",function(e){
+    if(e.key==="Enter") entrarDesarrollador();
+  });
+
+  setTimeout(()=>{const pin=document.getElementById("pin");if(pin) pin.focus()},250);
+}
+
+function entrarDesarrollador(){
+  limpiarMsg();
+
+  const pin=document.getElementById("pin") ? document.getElementById("pin").value.trim() : "";
+  const hash=localStorage.getItem(ZX_DEV_PIN_KEY) || "";
+
+  if(!/^[0-9]{6,8}$/.test(pin)){
+    mostrarMsg("Introduce el PIN técnico.");
+    return;
+  }
+
+  if(hashPinDesarrollador(pin)!==hash){
+    mostrarMsg("PIN técnico incorrecto.");
+    return;
+  }
+
+  guardarSesionDesarrollador();
+  mostrarMsg("Acceso correcto.","ok");
+  setTimeout(irApp,350);
+}
+
+function abrirAccesoDesarrollador(){
+  if(localStorage.getItem(ZX_DEV_PIN_KEY)){
+    pantallaPINDesarrollador();
+  }else{
+    pantallaCrearPINDesarrollador();
+  }
 }
 
 function pantallaLogin(){
@@ -460,6 +632,12 @@ async function continuarUltimoUsuario(){
   const ultimo=usuarioActual || leerUltimoUsuario();
   if(!ultimo){pantallaLogin();return}
 
+  if(ultimo.tecnico || esUsuarioDesarrollador(ultimo.usuario)){
+    usuarioActual=cuentaDesarrollador();
+    abrirAccesoDesarrollador();
+    return;
+  }
+
   let res=null;
   if(ultimo.id) res=await cargarUsuarioPorId(ultimo.id);
   else res=await cargarUsuarioPorUsuario(ultimo.usuario);
@@ -487,6 +665,11 @@ async function login(){
   const input=document.getElementById("usuario");
   const user=normalizar(input ? input.value : "");
   if(!user){mostrarMsg("Introduce usuario.");return}
+
+  if(esUsuarioDesarrollador(user)){
+    abrirAccesoDesarrollador();
+    return;
+  }
 
   setLoading("Comprobando usuario...");
   const res=await cargarUsuarioPorUsuario(user);
