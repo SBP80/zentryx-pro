@@ -1,9 +1,40 @@
 // ===============================
-// ZENTRYX PRO - USUARIOS PRO
+// ZENTRYX PRO - USUARIOS
+// V3111 - OFFLINE INSTANTANEO PRO
 // V3136 - OPERARIO VE SUS PRECIOS SIN EDITAR
 // ===============================
 (function(){
 "use strict";
+
+const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
+
+function zxUsuariosOffline(){
+  return typeof navigator!=="undefined" && navigator.onLine===false;
+}
+
+function zxUsuariosLeerCache(){
+  try{
+    const raw=localStorage.getItem(ZX_USUARIOS_CACHE_KEY);
+    const data=raw ? JSON.parse(raw) : [];
+    return Array.isArray(data) ? data : [];
+  }catch(e){
+    return [];
+  }
+}
+
+function zxUsuariosGuardarCache(datos){
+  try{
+    localStorage.setItem(ZX_USUARIOS_CACHE_KEY,JSON.stringify(Array.isArray(datos) ? datos : []));
+  }catch(e){}
+}
+
+function zxUsuariosEsErrorRed(e){
+  const msg=String((e && (e.message || e.name)) || e || "");
+  return zxUsuariosOffline() ||
+    (e && (e.name==="ZentryxOffline" || e.name==="ZentryxTimeout")) ||
+    /offline|sin conexión|timeout|network|fetch|failed/i.test(msg);
+}
+
 
 const DOC_BUCKET="zentryx-usuarios-docs";
 const FOTO_BUCKET="zentryx-usuarios";
@@ -467,23 +498,6 @@ async function pedirPinConPermiso(accion,callback){
 }
 
 async function cargarUsuarios(){
-  const cliente=sb();
-
-  if(!cliente){
-    app().innerHTML=`
-      <div class="zx_card">
-        <h2>Error</h2>
-        <div class="zx_text">Supabase no conectado.</div>
-      </div>
-    `;
-    return [];
-  }
-
-  let consulta=cliente
-    .from("usuarios")
-    .select("*")
-    .order("nombre",{ascending:true});
-
   if(!puedeEntrarUsuarios()){
     app().innerHTML=`
       <div class="zx_card">
@@ -494,28 +508,62 @@ async function cargarUsuarios(){
     return [];
   }
 
-  if(ZX_FILTRO_USUARIOS==="activos"){
-    consulta=consulta.eq("activo",true);
+  if(zxUsuariosOffline()){
+    ZX_USUARIOS_CACHE=zxUsuariosLeerCache();
+    return filtrarUsuariosEnMemoria();
   }
 
-  if(ZX_FILTRO_USUARIOS==="inactivos"){
-    consulta=consulta.eq("activo",false);
+  const cliente=sb();
+
+  if(!cliente){
+    ZX_USUARIOS_CACHE=zxUsuariosLeerCache();
+    return filtrarUsuariosEnMemoria();
   }
 
-  const res=await consulta;
+  try{
+    let consulta=cliente
+      .from("usuarios")
+      .select("*")
+      .order("nombre",{ascending:true});
 
-  if(res.error){
-    app().innerHTML=`
-      <div class="zx_card">
-        <h2>Error</h2>
-        <div class="zx_text">${limpiar(res.error.message)}</div>
-      </div>
-    `;
-    return [];
+    if(ZX_FILTRO_USUARIOS==="activos"){
+      consulta=consulta.eq("activo",true);
+    }
+
+    if(ZX_FILTRO_USUARIOS==="inactivos"){
+      consulta=consulta.eq("activo",false);
+    }
+
+    const res=await consulta;
+
+    if(res.error){
+      if(zxUsuariosEsErrorRed(res.error)){
+        ZX_USUARIOS_CACHE=zxUsuariosLeerCache();
+        return filtrarUsuariosEnMemoria();
+      }
+
+      app().innerHTML=`
+        <div class="zx_card">
+          <h2>Error</h2>
+          <div class="zx_text">${limpiar(res.error.message)}</div>
+        </div>
+      `;
+      return [];
+    }
+
+    ZX_USUARIOS_CACHE=res.data || [];
+    zxUsuariosGuardarCache(ZX_USUARIOS_CACHE);
+    return filtrarUsuariosEnMemoria();
+  }catch(e){
+    if(zxUsuariosEsErrorRed(e)){
+      ZX_USUARIOS_CACHE=zxUsuariosLeerCache();
+      return filtrarUsuariosEnMemoria();
+    }
+
+    console.warn("Usuarios: error cargando",e);
+    ZX_USUARIOS_CACHE=zxUsuariosLeerCache();
+    return filtrarUsuariosEnMemoria();
   }
-
-  ZX_USUARIOS_CACHE=res.data || [];
-  return filtrarUsuariosEnMemoria();
 }
 
 function filtrarUsuariosEnMemoria(){
@@ -1152,9 +1200,7 @@ async function abrirFichaUsuario(u){
   asignar("f_cerrar",cerrarModal);
 }
 
-window.ZENTRYX_UI_usuarios=async function(){
-  const usuarios=await cargarUsuarios();
-
+function renderUsuariosPantalla(usuarios){
   app().innerHTML=`
     <div class="zx_card zx_usuarios_head">
       <div class="zx_usuarios_head_top">
@@ -1193,6 +1239,19 @@ window.ZENTRYX_UI_usuarios=async function(){
   }
 
   conectarAccionesUsuarios(usuarios);
+}
+
+window.ZENTRYX_UI_usuarios=async function(){
+  if(zxUsuariosOffline()){
+    ZX_USUARIOS_CACHE=zxUsuariosLeerCache();
+    renderUsuariosPantalla(filtrarUsuariosEnMemoria());
+    return;
+  }
+
+  renderUsuariosPantalla(ZX_USUARIOS_CACHE.length ? filtrarUsuariosEnMemoria() : zxUsuariosLeerCache());
+
+  const usuarios=await cargarUsuarios();
+  renderUsuariosPantalla(usuarios);
 };
 
 function conectarAccionesUsuarios(usuarios){
