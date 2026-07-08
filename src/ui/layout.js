@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3117 - NAVEGACIÓN ESTABLE Y AJUSTES CORREGIDO
+// V3122 - PANEL DESARROLLADOR EN LAYOUT
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3117";
+const ZX_VERSION="3122";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -57,6 +57,14 @@ function normalizar(v){
 function esAdmin(){
   const u=usuarioActual();
   return normalizar(u.rol)==="administrador" || normalizar(u.usuario)==="admin";
+}
+
+function esDesarrollador(){
+  const u=usuarioActual();
+  const rol=normalizar(u.rol);
+  const usuario=normalizar(u.usuario);
+  return rol==="desarrollador" || rol==="developer" || rol==="dev" ||
+         usuario==="desarrollador" || usuario==="developer" || usuario==="dev";
 }
 
 function hoyISO(){
@@ -804,6 +812,7 @@ const MODULOS=[
   {id:"horas_extra",texto:"Horas",icono:"➕",color:"#f59e0b",bg:"#fef3c7",admin:true},
   {id:"control_fichajes",texto:"Control",icono:"✅",color:"#22c55e",bg:"#dcfce7",admin:true},
   {id:"vehiculos",texto:"Vehículos",icono:"🚗",color:"#3b82f6",bg:"#dbeafe",admin:true},
+  {id:"desarrollador",texto:"Dev",icono:"🛠️",color:"#0f172a",bg:"#e2e8f0",admin:true,dev:true},
   {id:"configuracion",texto:"Ajustes",icono:"⚙️",color:"#7c3aed",bg:"#f3e8ff",admin:true}
 ];
 
@@ -819,8 +828,9 @@ function puedeVerModulo(modulo){
   const m=MODULOS.find(function(x){return x.id===modulo});
   if(!m) return false;
   if(!moduloActivo(modulo)) return false;
+  if(m.dev) return esDesarrollador();
   if(!m.admin) return true;
-  return esAdmin();
+  return esAdmin() || esDesarrollador();
 }
 
 function nav(){
@@ -1126,6 +1136,7 @@ function instalarRutas(){
   const modHoras=window.ZX_horas_extra || window.ZENTRYX_UI_horas_extra;
   const modControl=window.ZX_control_fichajes || window.ZX_controlFichajes;
   const modVehiculos=window.ZX_vehiculos || window.ZENTRYX_UI_abrirVehiculos;
+  const modDev=window.ZX_desarrollador || (window.ZENTRYX && window.ZENTRYX.desarrollador);
   const modConfig=window.ZX_configuracion || window.ZENTRYX_UI_configuracion || window.ZX_configuracion_pro || window.ZX_configLaboral || window.ZX_config_laboral;
 
   window.ZX_inicio=function(){
@@ -1188,6 +1199,13 @@ function instalarRutas(){
     abrirModulo("vehiculos",function(){
       if(typeof modVehiculos==="function" && modVehiculos!==window.ZX_vehiculos){modVehiculos();return}
       app().innerHTML=`<div class="zx_card"><h2>Vehículos</h2><div class="zx_text">No se ha cargado vehiculos.js.</div></div>`;
+    });
+  };
+
+  window.ZX_abrirDesarrollador=function(){
+    abrirModulo("desarrollador",function(){
+      if(typeof modDev==="function"){modDev();return}
+      app().innerHTML=`<div class="zx_card"><h2>Desarrollador</h2><div class="zx_text">No se ha cargado desarrollador.js.</div></div>`;
     });
   };
 
