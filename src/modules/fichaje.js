@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3112 - OFFLINE INSTANTÁNEO
+// V3113 - MEJORAS VISUALES Y EDICIÓN SEGURA
 // ===============================
 (function(){
 "use strict";
@@ -293,6 +293,64 @@ function colorEstado(e){
   return "#64748b";
 }
 
+function iconoEstado(e){
+  if(e==="dentro") return "🟢";
+  if(e==="descanso") return "⏸️";
+  if(e==="comida") return "🍽️";
+  return "🔴";
+}
+
+function textoBotonFichar(estado){
+  if(estado==="fuera") return "Iniciar jornada";
+  if(estado==="dentro") return "Acciones de jornada";
+  if(estado==="descanso") return "Finalizar descanso";
+  if(estado==="comida") return "Finalizar comida";
+  return "Fichar";
+}
+
+function iconoTipo(tipo){
+  const m={entrada:"🟢",salida:"🔴",inicio_descanso:"⏸️",fin_descanso:"▶️",inicio_comida:"🍽️",fin_comida:"✅"};
+  return m[tipo] || "⏱️";
+}
+
+function claseTipo(tipo){
+  const m={entrada:"tipo_entrada",salida:"tipo_salida",inicio_descanso:"tipo_inicio_descanso",fin_descanso:"tipo_fin_descanso",inicio_comida:"tipo_inicio_comida",fin_comida:"tipo_fin_comida"};
+  return m[tipo] || "tipo_otro";
+}
+
+function colorTipo(tipo){
+  const m={entrada:"#16a34a",salida:"#dc2626",inicio_descanso:"#f59e0b",fin_descanso:"#2563eb",inicio_comida:"#7c3aed",fin_comida:"#0f766e"};
+  return m[tipo] || "#64748b";
+}
+
+function dispositivoCorto(ua){
+  const txt=String(ua||"");
+  if(!txt) return "";
+  if(/iPad/i.test(txt) || (/Macintosh/i.test(txt) && /Mobile/i.test(txt))) return "iPad";
+  if(/iPhone/i.test(txt)) return "iPhone";
+  if(/Android/i.test(txt) && /Mobile/i.test(txt)) return "Android";
+  if(/Android/i.test(txt)) return "Tablet Android";
+  if(/Windows/i.test(txt)) return "PC Windows";
+  if(/Macintosh|Mac OS/i.test(txt)) return "Mac";
+  return "Dispositivo";
+}
+
+function direccionCorta(dir){
+  const d=String(dir||"").trim();
+  if(!d) return "";
+  return d.length>82 ? d.slice(0,82).trim()+"…" : d;
+}
+
+function mapaUrl(lat,lng,direccion){
+  if(lat!==null && lat!==undefined && lng!==null && lng!==undefined && lat!=="" && lng!==""){
+    return "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(String(lat)+","+String(lng));
+  }
+  if(direccion){
+    return "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(String(direccion));
+  }
+  return "";
+}
+
 // ===============================
 // VEHÍCULOS
 // ===============================
@@ -345,12 +403,12 @@ async function marcarVehiculoSalida(id,km){
 
 function textoVehiculoJornada(j){
   if(!j || !j.vehiculo_matricula) return "";
-  return `<br>Vehículo: <b>${limpiar(j.vehiculo_matricula)}</b> · Km: ${limpiar(j.km_entrada??"-")} / ${limpiar(j.km_salida??"-")}`;
+  return `<br>🚗 <b>${limpiar(j.vehiculo_matricula)}</b> · Km ${limpiar(j.km_entrada??"-")} / ${limpiar(j.km_salida??"-")}`;
 }
 
 function textoVehiculoFichaje(f){
   if(!f || !f.vehiculo_matricula) return "";
-  return `Vehículo: <b>${limpiar(f.vehiculo_matricula)}</b>${f.km_vehiculo!=null ? " · "+limpiar(f.km_vehiculo)+" km" : ""}<br>`;
+  return `<div class="zx_fichaje_meta">🚗 <b>${limpiar(f.vehiculo_matricula)}</b>${f.km_vehiculo!=null ? " · "+limpiar(f.km_vehiculo)+" km" : ""}</div>`;
 }
 
 // ===============================
@@ -1085,7 +1143,7 @@ async function abrirMenu(estado,jornadaActual=null){
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_fichaje" class="zx_modal_fondo">
       <div class="zx_modal_caja">
-        <h2>Fichar</h2>
+        <h2>${limpiar(textoBotonFichar(estado))}</h2>
 
         ${estado==="fuera" ? `
           <label class="zx_label">Vehículo</label>
@@ -1112,8 +1170,15 @@ async function abrirMenu(estado,jornadaActual=null){
           <input id="zx_fichaje_km_salida" type="number" value="${limpiar(jornadaActual.km_salida ?? jornadaActual.km_entrada ?? "")}" placeholder="Km de salida" inputmode="numeric">
         ` : ""}
 
+        ${estado!=="fuera" && jornadaActual ? `
+          <div class="zx_modal_contexto">
+            Jornada iniciada: <b>${limpiar(fechaCorta(jornadaActual.entrada||jornadaActual.created_at||""))}</b><br>
+            Estado actual: <b>${limpiar(textoEstado(estado))}</b>
+          </div>
+        ` : ""}
+
         <div class="zx_text" style="margin-bottom:12px;color:#dc2626;font-weight:900;">
-          Revisa bien antes de guardar. Después quedará registrado con hora, ubicación y dispositivo.
+          Revisa bien antes de guardar. Después quedará registrado con hora, ubicación y dispositivo. GPS obligatorio si está activado por la empresa.
         </div>
 
         ${ops.map(o=>`
@@ -1882,14 +1947,9 @@ async function editarFichaje(id){
         <h2>Modificar fichaje</h2>
 
         <label class="zx_label">Tipo</label>
-        <select id="zx_edit_tipo">
-          <option value="entrada" ${f.tipo==="entrada"?"selected":""}>Entrada</option>
-          <option value="salida" ${f.tipo==="salida"?"selected":""}>Salida</option>
-          <option value="inicio_descanso" ${f.tipo==="inicio_descanso"?"selected":""}>Inicio descanso</option>
-          <option value="fin_descanso" ${f.tipo==="fin_descanso"?"selected":""}>Fin descanso</option>
-          <option value="inicio_comida" ${f.tipo==="inicio_comida"?"selected":""}>Inicio comida</option>
-          <option value="fin_comida" ${f.tipo==="fin_comida"?"selected":""}>Fin comida</option>
-        </select>
+        <div class="zx_readonly_box">${iconoTipo(f.tipo)} <b>${limpiar(textoTipo(f.tipo))}</b></div>
+        <input id="zx_edit_tipo" type="hidden" value="${limpiar(f.tipo)}">
+        <div class="zx_help_text">Por seguridad, el tipo de fichaje no se cambia desde esta edición. Si hay una secuencia incorrecta, borra y crea el registro correcto.</div>
 
         <label class="zx_label">Fecha y hora</label>
         <input id="zx_edit_fecha" type="datetime-local" value="${limpiar(toInputFecha(f.created_at))}">
@@ -1911,13 +1971,15 @@ async function editarFichaje(id){
         </div>
 
         <label class="zx_label">Dirección</label>
-        <textarea id="zx_edit_direccion" rows="3">${limpiar(f.direccion||"")}</textarea>
+        <textarea id="zx_edit_direccion" rows="3" readonly>${limpiar(f.direccion||"")}</textarea>
 
         <label class="zx_label">Latitud</label>
-        <input id="zx_edit_lat" type="number" step="any" value="${limpiar(f.lat||"")}">
+        <input id="zx_edit_lat" type="number" step="any" value="${limpiar(f.lat||"")}" readonly>
 
         <label class="zx_label">Longitud</label>
-        <input id="zx_edit_lng" type="number" step="any" value="${limpiar(f.lng||"")}">
+        <input id="zx_edit_lng" type="number" step="any" value="${limpiar(f.lng||"")}" readonly>
+
+        <div class="zx_help_text">La dirección y las coordenadas son datos de geolocalización. No se editan manualmente para conservar la trazabilidad.</div>
 
         <button class="zx_btn_big zx_azul" id="zx_guardar_edit_fichaje">Guardar cambios</button>
         <button class="zx_btn_big zx_gris" id="zx_cancelar_edit_fichaje">Cancelar</button>
@@ -1948,6 +2010,10 @@ async function editarFichaje(id){
 
   document.getElementById("zx_guardar_edit_fichaje").onclick=async function(){
     const tipo=document.getElementById("zx_edit_tipo").value;
+    if(String(tipo)!==String(f.tipo)){
+      alert("No se permite cambiar el tipo de fichaje desde esta edición.");
+      return;
+    }
     const fecha=fromInputFecha(document.getElementById("zx_edit_fecha").value);
     const direccion=document.getElementById("zx_edit_direccion").value.trim();
     const lat=document.getElementById("zx_edit_lat").value;
@@ -2070,19 +2136,30 @@ function resumenHTML(resumen,objetivoSeg,laboral=null){
   const minutosJustificados=laboral ? Number(laboral.minutosJustificados||0) : 0;
   const bloqueo=laboral ? bloqueoHorarioActual(laboral.solicitudes) : {bloqueado:false};
 
+  const tarjetas=[
+    ["Trabajado",formatoSeg(resumen.trabajadoSeg),"trabajado","zx_resumen_ok"],
+    ["Descanso",formatoSeg(resumen.descansoSeg),"descanso","zx_resumen_pause"],
+    ["Comida",formatoSeg(resumen.comidaSeg),"comida","zx_resumen_food"],
+    ["Justificado",formatoMin(minutosJustificados),"justificado","zx_resumen_info"],
+    ["Objetivo",formatoSeg(objetivoSeg),"objetivo","zx_resumen_obj"],
+    ["Extra",formatoSeg(extraSeg),"extra",extraSeg>0?"zx_resumen_extra":"zx_resumen_neutral"],
+    ["Falta",formatoSeg(faltaSeg),"falta",faltaSeg>0?"zx_resumen_warn":"zx_resumen_neutral"]
+  ];
+
   return `
     <div class="zx_text">
       ${laboral && laboral.festivo ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">Día festivo${laboral.nombreFestivo ? ": "+limpiar(laboral.nombreFestivo) : ""}</div>` : ""}
       ${laboral && laboral.tipoAusencia ? `<div style="color:#2563eb;font-weight:900;margin-bottom:8px;">${limpiar(laboral.observacion)}</div>` : ""}
       ${bloqueo.bloqueado ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">Permiso activo: ${limpiar(bloqueo.inicio)} - ${limpiar(bloqueo.fin)}</div>` : ""}
+    </div>
 
-      Trabajado: <b data-live-campo="trabajado">${formatoSeg(resumen.trabajadoSeg)}</b><br>
-      Descanso: <b data-live-campo="descanso">${formatoSeg(resumen.descansoSeg)}</b><br>
-      Comida: <b data-live-campo="comida">${formatoSeg(resumen.comidaSeg)}</b><br>
-      Justificado: <b>${formatoMin(minutosJustificados)}</b><br>
-      Objetivo: <b data-live-campo="objetivo">${formatoSeg(objetivoSeg)}</b><br>
-      Extra: <b data-live-campo="extra">${formatoSeg(extraSeg)}</b><br>
-      Falta: <b data-live-campo="falta">${formatoSeg(faltaSeg)}</b>
+    <div class="zx_resumen_grid">
+      ${tarjetas.map(t=>`
+        <div class="zx_resumen_card ${t[3]}">
+          <span>${limpiar(t[0])}</span>
+          <b data-live-campo="${limpiar(t[2])}">${limpiar(t[1])}</b>
+        </div>
+      `).join("")}
     </div>
   `;
 }
@@ -2092,10 +2169,15 @@ function resumenLineaHTML(resumen,objetivoSeg,j=null){
   const faltaSeg=Math.max(0,Number(objetivoSeg||0)-Number(resumen.trabajadoSeg||0));
 
   return `
-    Trab: ${formatoSeg(resumen.trabajadoSeg)} · Obj: ${formatoSeg(objetivoSeg)}<br>
-    Desc: ${formatoSeg(resumen.descansoSeg)} · Comida: ${formatoSeg(resumen.comidaSeg)}<br>
-    Just: ${formatoMin(j ? (j.minutos_justificados||0) : 0)} · Extra: ${formatoSeg(extraSeg)}<br>
-    Falta: ${formatoSeg(faltaSeg)}
+    <div class="zx_jornada_resumen_grid">
+      <div><span>Trab.</span><b>${formatoSeg(resumen.trabajadoSeg)}</b></div>
+      <div><span>Obj.</span><b>${formatoSeg(objetivoSeg)}</b></div>
+      <div><span>Desc.</span><b>${formatoSeg(resumen.descansoSeg)}</b></div>
+      <div><span>Comida</span><b>${formatoSeg(resumen.comidaSeg)}</b></div>
+      <div><span>Just.</span><b>${formatoMin(j ? (j.minutos_justificados||0) : 0)}</b></div>
+      <div class="${extraSeg>0 ? "zx_extra_destacado" : ""}"><span>Extra</span><b>${formatoSeg(extraSeg)}</b></div>
+      <div class="${faltaSeg>0 ? "zx_falta_destacada" : ""}"><span>Falta</span><b>${formatoSeg(faltaSeg)}</b></div>
+    </div>
     ${textoVehiculoJornada(j)}
     ${j && j.es_festivo ? `<br><b style="color:#dc2626;">Festivo</b>` : ""}
     ${j && j.observacion_laboral ? `<br><b style="color:#2563eb;">${limpiar(j.observacion_laboral)}</b>` : ""}
@@ -2104,29 +2186,41 @@ function resumenLineaHTML(resumen,objetivoSeg,j=null){
 
 function renderFichajeMini(f){
   const adminActivo=esAdmin();
+  const urlMapa=mapaUrl(f.lat,f.lng,f.direccion);
+  const dispositivo=dispositivoCorto(f.dispositivo);
+  const modificado=!!(f.motivo_modificacion || f.modificado_en || f.modificado_por);
+
   return `
-    <div class="zx_admin_row">
-      <div class="zx_admin_row_top">
-        <b>${limpiar(textoTipo(f.tipo))}</b>
-        <span>${limpiar(fechaCorta(f.created_at))}</span>
+    <div class="zx_fichaje_item ${claseTipo(f.tipo)}" style="--zx-tipo-color:${colorTipo(f.tipo)}">
+      <div class="zx_fichaje_head">
+        <div class="zx_fichaje_tipo">
+          <span>${iconoTipo(f.tipo)}</span>
+          <b>${limpiar(textoTipo(f.tipo))}</b>
+        </div>
+        <div class="zx_fichaje_hora">${limpiar(fechaCorta(f.created_at))}</div>
       </div>
 
-      <div class="zx_admin_data">
+      <div class="zx_fichaje_info">
         ${textoVehiculoFichaje(f)}
-        ${limpiar(f.direccion||"")}
+        ${dispositivo ? `<div class="zx_fichaje_meta">📱 ${limpiar(dispositivo)}</div>` : ""}
+        ${f.direccion ? `<div class="zx_fichaje_meta">📍 ${limpiar(direccionCorta(f.direccion))}</div>` : ""}
+        ${(f.lat!=null && f.lng!=null) ? `<div class="zx_fichaje_meta zx_coord">GPS: ${limpiar(f.lat)}, ${limpiar(f.lng)}</div>` : ""}
       </div>
 
-      ${f.motivo_modificacion ? `<div class="zx_admin_data" style="color:#dc2626;">Modificado por ${limpiar(f.modificado_por||"-")} · ${limpiar(fechaCorta(f.modificado_en||""))}<br>Motivo: ${limpiar(f.motivo_modificacion)}</div>` : ""}
+      ${urlMapa ? `<a class="zx_mapa_btn" href="${limpiar(urlMapa)}" target="_blank" rel="noopener">Abrir mapa</a>` : ""}
+
+      ${modificado ? `
+        <div class="zx_modificado_box">
+          ✏️ Modificado por <b>${limpiar(f.modificado_por||"-")}</b><br>
+          ${limpiar(fechaCorta(f.modificado_en||""))}<br>
+          Motivo: ${limpiar(f.motivo_modificacion||"-")}
+        </div>
+      ` : ""}
 
       ${adminActivo ? `
         <div class="zx_edit_grid">
-          <button class="zx_admin_btn zx_admin_editar" data-editar-fichaje="${f.id}">
-            Modificar
-          </button>
-
-          <button class="zx_admin_btn zx_admin_borrar" data-borrar-fichaje="${f.id}">
-            Borrar
-          </button>
+          <button class="zx_admin_btn zx_admin_editar" data-editar-fichaje="${f.id}">Modificar</button>
+          <button class="zx_admin_btn zx_admin_borrar" data-borrar-fichaje="${f.id}">Borrar</button>
         </div>
       ` : ""}
     </div>
@@ -2137,16 +2231,20 @@ function renderJornadaMini(j,admin){
   const resumen=j.__resumen || resumenDesdeJornada(j);
   const objetivoSeg=Number(j.__objetivoSeg ?? Number(j.minutos_objetivo||0)*60);
   const abierta=j.estado==="abierta";
+  const extraSeg=Math.max(0,Number(resumen.trabajadoSeg||0)-Number(objetivoSeg||0));
+  const estadoTxt=String(j.estado||"-");
 
   return `
-    <div class="zx_admin_row" ${abierta ? `data-live-jornada="${limpiar(j.id)}"` : ""}>
+    <div class="zx_admin_row zx_jornada_card" ${abierta ? `data-live-jornada="${limpiar(j.id)}"` : ""}>
       <div class="zx_admin_row_top">
         <b>${limpiar(j.nombre||j.usuario||"-")}</b>
         <span>${limpiar(formatoFechaES(j.fecha||""))}</span>
       </div>
 
-      <div class="zx_admin_estado ${limpiar(j.estado||"")}">
-        ${limpiar(j.estado||"-")}
+      <div class="zx_jornada_chips">
+        <span class="zx_admin_estado ${limpiar(j.estado||"")}">${limpiar(estadoTxt)}</span>
+        ${extraSeg>0 ? `<span class="zx_chip zx_chip_extra">Extra ${formatoSeg(extraSeg)}</span>` : ""}
+        ${j.vehiculo_matricula ? `<span class="zx_chip">🚗 ${limpiar(j.vehiculo_matricula)}</span>` : ""}
       </div>
 
       <div class="zx_admin_data" ${abierta ? `data-live-jornada-resumen="${limpiar(j.id)}"` : ""}>
@@ -2154,14 +2252,9 @@ function renderJornadaMini(j,admin){
       </div>
 
       ${admin ? `
-        <div class="zx_edit_grid">
-          <button class="zx_admin_btn zx_admin_editar" data-ver-fichajes-jornada="${j.id}">
-            Fichajes
-          </button>
-
-          <button class="zx_admin_btn zx_admin_borrar" data-borrar-jornada="${j.id}">
-            Borrar jornada
-          </button>
+        <div class="zx_edit_grid zx_jornada_acciones">
+          <button class="zx_admin_btn zx_admin_editar" data-ver-fichajes-jornada="${j.id}">Fichajes</button>
+          <button class="zx_admin_btn zx_admin_borrar zx_btn_borrar_peq" data-borrar-jornada="${j.id}">Borrar</button>
         </div>
       ` : ""}
     </div>
@@ -2228,7 +2321,7 @@ function renderTodasJornadasAdmin(jornadas){
     </div>
 
     <div class="zx_text" style="margin-top:12px;font-weight:900;">
-      Mostrando ${jornadas.length} jornada${jornadas.length===1?"":"s"} de otros usuarios.
+      Mostrando ${jornadas.length} jornada${jornadas.length===1?"":"s"} de empleados. No incluye tus propias jornadas.
     </div>
 
     ${jornadas.length ? jornadas.map(j=>renderJornadaMini(j,true)).join("") : `<div class="zx_text">Sin jornadas con estos filtros.</div>`}
@@ -2273,6 +2366,55 @@ function estilosAdminCompacto(){
     .zx_modal_fondo{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;justify-content:center;align-items:center;padding:14px;z-index:9999;}
     .zx_modal_caja{width:100%;max-width:520px;max-height:90vh;overflow-y:auto;background:white;border-radius:22px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
     .zx_modal_caja select,.zx_modal_caja input,.zx_modal_caja textarea{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px;font-weight:800;color:#0f172a;background:#f8fafc;}
+    .zx_modal_caja input[readonly],.zx_modal_caja textarea[readonly]{background:#eef2f7;color:#64748b;}
+
+    .zx_estado_actual{display:inline-flex;align-items:center;gap:10px;font-size:31px;font-weight:950;margin-top:10px;border:2px solid;border-radius:20px;padding:10px 14px;background:#f8fafc;}
+    .zx_estado_actual span{font-size:26px}
+
+    .zx_resumen_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;}
+    .zx_resumen_card{border-radius:16px;padding:12px;background:#f8fafc;border:1px solid #e5e7eb;}
+    .zx_resumen_card span{display:block;font-size:12px;color:#64748b;font-weight:950;text-transform:uppercase;letter-spacing:.3px;}
+    .zx_resumen_card b{display:block;margin-top:4px;font-size:20px;color:#0f172a;font-weight:950;}
+    .zx_resumen_ok{border-color:#bbf7d0;background:#f0fdf4}
+    .zx_resumen_pause{border-color:#fde68a;background:#fffbeb}
+    .zx_resumen_food{border-color:#fed7aa;background:#fff7ed}
+    .zx_resumen_info{border-color:#bfdbfe;background:#eff6ff}
+    .zx_resumen_extra{border-color:#bbf7d0;background:#ecfdf5}
+    .zx_resumen_warn{border-color:#fecaca;background:#fef2f2}
+
+    .zx_jornada_resumen_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px;}
+    .zx_jornada_resumen_grid div{background:white;border:1px solid #e5e7eb;border-radius:12px;padding:8px;}
+    .zx_jornada_resumen_grid span{display:block;color:#64748b;font-size:12px;font-weight:950;}
+    .zx_jornada_resumen_grid b{display:block;color:#0f172a;font-size:15px;font-weight:950;}
+    .zx_extra_destacado{border-color:#86efac!important;background:#f0fdf4!important;}
+    .zx_extra_destacado b{color:#16a34a!important;}
+    .zx_falta_destacada{border-color:#fecaca!important;background:#fef2f2!important;}
+    .zx_falta_destacada b{color:#dc2626!important;}
+
+    .zx_jornada_chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}
+    .zx_chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#e2e8f0;color:#334155;padding:5px 10px;font-size:12px;font-weight:950;}
+    .zx_chip_extra{background:#dcfce7;color:#166534;}
+    .zx_jornada_acciones{grid-template-columns:1fr auto;}
+    .zx_btn_borrar_peq{padding-left:14px!important;padding-right:14px!important;}
+
+    .zx_fichaje_item{background:#f8fafc;border:1px solid #d1d5db;border-left:7px solid var(--zx-tipo-color,#64748b);border-radius:18px;padding:14px;margin-top:10px;}
+    .zx_fichaje_head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+    .zx_fichaje_tipo{display:flex;align-items:center;gap:8px;color:#0f172a;font-size:17px;font-weight:950;}
+    .zx_fichaje_hora{font-size:18px;color:#0f172a;font-weight:950;text-align:right;white-space:nowrap;}
+    .zx_fichaje_info{margin-top:10px;}
+    .zx_fichaje_meta{color:#475569;font-size:14px;line-height:1.4;font-weight:850;margin-top:4px;word-break:break-word;}
+    .zx_coord{font-size:12px;color:#64748b;}
+    .zx_mapa_btn{display:inline-block;margin-top:10px;border-radius:999px;padding:9px 12px;background:#dbeafe;color:#1d4ed8;text-decoration:none;font-size:13px;font-weight:950;}
+    .zx_modificado_box{margin-top:10px;border-radius:14px;background:#fff1f2;border:1px solid #fecdd3;color:#9f1239;padding:10px;font-size:13px;font-weight:850;line-height:1.4;}
+    .zx_readonly_box{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px;font-weight:900;color:#0f172a;background:#eef2f7;}
+    .zx_help_text{margin-top:8px;color:#64748b;font-size:13px;font-weight:850;line-height:1.35;}
+    .zx_modal_contexto{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:14px;padding:10px;margin:10px 0 12px;font-size:14px;font-weight:850;line-height:1.35;}
+
+    @media(min-width:700px){
+      .zx_admin_summary{grid-template-columns:repeat(4,1fr);}
+      .zx_resumen_grid{grid-template-columns:repeat(4,minmax(0,1fr));}
+      .zx_jornada_resumen_grid{grid-template-columns:repeat(4,minmax(0,1fr));}
+    }
   `;
 
   document.head.appendChild(s);
@@ -2451,8 +2593,9 @@ window.ZX_fichaje_real=async function(){
 
       <div class="zx_text">Estado actual:</div>
 
-      <div style="font-size:34px;font-weight:900;color:${colorEstado(est.estado)};margin-top:8px">
-        ${textoEstado(est.estado)}
+      <div class="zx_estado_actual" style="color:${colorEstado(est.estado)};border-color:${colorEstado(est.estado)};">
+        <span>${iconoEstado(est.estado)}</span>
+        <b>${textoEstado(est.estado)}</b>
       </div>
 
       ${est.jornada && est.jornada.vehiculo_matricula ? `
@@ -2466,7 +2609,7 @@ window.ZX_fichaje_real=async function(){
       ${bloqueoActual.bloqueado ? `<div class="zx_text" style="color:#dc2626;font-weight:900;margin-top:10px;">Permiso activo: ${limpiar(bloqueoActual.inicio)} - ${limpiar(bloqueoActual.fin)}</div>` : ""}
 
       <button class="zx_btn_big zx_azul" id="zx_btn_fichar">
-        FICHAR
+        ${limpiar(textoBotonFichar(est.estado))}
       </button>
     </div>
 
@@ -2494,7 +2637,7 @@ window.ZX_fichaje_real=async function(){
         ${ZX_VER_ADMIN ? `
           ${renderAdminResumen(adminHoy)}
           <h3 style="font-size:24px;margin:18px 0 8px;">Hoy</h3>
-          ${adminHoy.length ? adminHoy.slice(0,10).map(j=>renderJornadaMini(j,true)).join("") : `<div class="zx_text">Sin jornadas hoy.</div>`}
+          ${adminHoy.length ? adminHoy.slice(0,10).map(j=>renderJornadaMini(j,true)).join("") : `<div class="zx_text">Sin jornadas de empleados hoy. Tus propias jornadas están en "Mis jornadas".</div>`}
         ` : ""}
       </div>
 
