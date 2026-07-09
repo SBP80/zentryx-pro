@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - PANEL DESARROLLADOR
-// V3122 - DIAGNÓSTICO, LOGS Y MANTENIMIENTO
+// V3123 - PANEL DEV AMPLIADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_DEV_VERSION="3122";
+const ZX_DEV_VERSION="3123";
 const LOG_KEY="zentryx_dev_logs";
 const MAX_LOGS=250;
 
@@ -209,6 +209,110 @@ function rendimiento(){
   };
 }
 
+function almacenamiento(){
+  let total=0;
+  let claves=0;
+
+  try{
+    Object.keys(localStorage).forEach(function(k){
+      claves++;
+      total+=String(localStorage.getItem(k) || "").length;
+    });
+  }catch(e){}
+
+  return {
+    claves:claves,
+    caracteres:total,
+    estimado_kb:Math.round(total/1024)+" KB"
+  };
+}
+
+function versionApp(){
+  const out={
+    title:document.title || "",
+    url:location.href,
+    backend:window.ZENTRYX_BACKEND ? (window.ZENTRYX_BACKEND.version || "cargado") : "no cargado",
+    panel_dev:ZX_DEV_VERSION
+  };
+
+  try{
+    const scripts=[...document.querySelectorAll("script[src]")].map(s=>s.getAttribute("src"));
+    out.scripts=scripts.length;
+    out.ultimos_scripts=scripts.slice(-8).join(" | ");
+  }catch(e){}
+
+  return out;
+}
+
+function estadoSesion(){
+  const s=sesion();
+  return {
+    id:s.id || "",
+    usuario:s.usuario || "",
+    nombre:s.nombre || "",
+    rol:s.rol || "",
+    empresa_id:s.empresa_id || "",
+    tecnico:!!s.tecnico,
+    desarrollador:!!s.desarrollador,
+    inicio:s.inicio || "",
+    actividad:s.actividad || ""
+  };
+}
+
+function renderLocalStorage(){
+  let filas=[];
+
+  try{
+    filas=Object.keys(localStorage).sort().map(function(k){
+      return {
+        clave:k,
+        tam:String(localStorage.getItem(k) || "").length
+      };
+    });
+  }catch(e){}
+
+  if(!filas.length){
+    return `<div class="zx_dev_text">Sin datos locales.</div>`;
+  }
+
+  return `
+    <table class="zx_dev_table">
+      ${filas.slice(0,80).map(function(x){
+        return `
+          <tr>
+            <td>${limpiar(x.clave)}</td>
+            <td>${limpiar(x.tam)} car.</td>
+          </tr>
+        `;
+      }).join("")}
+    </table>
+  `;
+}
+
+function renderAccesos(){
+  const accesos=[
+    ["Inicio","ZX_inicio"],
+    ["Fichaje","ZX_abrirFichaje"],
+    ["Agenda","ZX_abrirAgenda"],
+    ["Clientes","ZX_abrirClientes"],
+    ["Trabajos","ZX_abrirTrabajos"],
+    ["Usuarios","ZX_usuarios"],
+    ["Horas","ZX_abrirHorasExtra"],
+    ["Control","ZX_abrirControlFichajes"],
+    ["Vehículos","ZX_vehiculos"],
+    ["Ajustes","ZX_configuracion"]
+  ];
+
+  return `
+    <div class="zx_dev_btns">
+      ${accesos.map(function(a){
+        const ok=typeof window[a[1]]==="function";
+        return `<button class="zx_dev_btn ${ok ? "" : "gray"}" ${ok ? `onclick="${a[1]}()"` : "disabled"}>${limpiar(a[0])}</button>`;
+      }).join("")}
+    </div>
+  `;
+}
+
 function modulos(){
   const nombres=["inicio","fichaje","agenda","clientes","trabajos","usuarios","horas_extra","control_fichajes","vehiculos","configuracion","desarrollador"];
   const funciones={
@@ -355,6 +459,10 @@ function instalarCSS(){
       margin-top:12px;
     }
 
+    .zx_dev_btns.wide{
+      grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+
     .zx_dev_btn{
       border:0;
       border-radius:16px;
@@ -394,6 +502,10 @@ function instalarCSS(){
 
       .zx_dev_kpis{
         grid-template-columns:repeat(4,minmax(0,1fr));
+      }
+
+      .zx_dev_btns.wide{
+        grid-template-columns:repeat(5,minmax(0,1fr));
       }
     }
   `;
@@ -576,6 +688,63 @@ window.ZX_dev_exportar_logs=function(){
   setTimeout(function(){URL.revokeObjectURL(url);},1000);
 };
 
+
+window.ZX_dev_recargar=function(){
+  if(!esDesarrollador()){
+    alert("Solo desarrollador.");
+    return;
+  }
+
+  location.reload();
+};
+
+window.ZX_dev_salir=function(){
+  if(!esDesarrollador()){
+    alert("Solo desarrollador.");
+    return;
+  }
+
+  localStorage.removeItem("zentryx_session");
+  localStorage.removeItem("usuario");
+  location.href="index.html?v="+Date.now();
+};
+
+window.ZX_dev_copiar_informe=function(){
+  if(!esDesarrollador()){
+    alert("Solo desarrollador.");
+    return;
+  }
+
+  const data={
+    fecha:ahora(),
+    sesion:estadoSesion(),
+    version:versionApp(),
+    backend:estadoBackend(),
+    red:estadoRed(),
+    rendimiento:rendimiento(),
+    memoria:memoria(),
+    almacenamiento:almacenamiento(),
+    cola:colaOffline(),
+    cache:contarCache(),
+    modulos:modulos(),
+    dispositivo:dispositivo(),
+    logs:logs().slice(0,80)
+  };
+
+  const texto=JSON.stringify(data,null,2);
+
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(function(){
+      alert("Informe técnico copiado.");
+    }).catch(function(){
+      alert(texto);
+    });
+    return;
+  }
+
+  alert(texto);
+};
+
 window.ZX_desarrollador=function(){
   instalarCSS();
   instalarCapturaErrores();
@@ -601,6 +770,9 @@ window.ZX_desarrollador=function(){
   const d=dispositivo();
   const q=colaOffline();
   const cache=contarCache();
+  const alm=almacenamiento();
+  const ver=versionApp();
+  const ses=estadoSesion();
 
   app().innerHTML=`
     <div class="zx_dev_grid">
@@ -637,6 +809,8 @@ window.ZX_desarrollador=function(){
           <button class="zx_dev_btn red" onclick="ZX_dev_limpiar_cache()">Limpiar caché</button>
           <button class="zx_dev_btn orange" onclick="ZX_dev_exportar_logs()">Exportar logs</button>
           <button class="zx_dev_btn gray" onclick="ZX_dev_limpiar_logs()">Limpiar logs</button>
+          <button class="zx_dev_btn" onclick="ZX_dev_copiar_informe()">Copiar informe</button>
+          <button class="zx_dev_btn gray" onclick="ZX_dev_recargar()">Recargar</button>
         </div>
       </div>
 
@@ -661,6 +835,24 @@ window.ZX_desarrollador=function(){
       </div>
 
       <div class="zx_dev_card">
+        <h3>Almacenamiento</h3>
+        ${tablaObjeto(alm)}
+      </div>
+
+      <div class="zx_dev_card">
+        <h3>Versión</h3>
+        ${tablaObjeto(ver)}
+      </div>
+
+      <div class="zx_dev_card">
+        <h3>Sesión</h3>
+        ${tablaObjeto(ses)}
+        <div class="zx_dev_btns">
+          <button class="zx_dev_btn red" onclick="ZX_dev_salir()">Salir Dev</button>
+        </div>
+      </div>
+
+      <div class="zx_dev_card">
         <h3>Cola offline</h3>
         ${renderCola()}
       </div>
@@ -671,8 +863,18 @@ window.ZX_desarrollador=function(){
       </div>
 
       <div class="zx_dev_card full">
+        <h3>Accesos rápidos</h3>
+        ${renderAccesos()}
+      </div>
+
+      <div class="zx_dev_card full">
         <h3>Módulos cargados</h3>
         ${renderModulos()}
+      </div>
+
+      <div class="zx_dev_card full">
+        <h3>LocalStorage</h3>
+        ${renderLocalStorage()}
       </div>
 
       <div class="zx_dev_card full">
