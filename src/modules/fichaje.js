@@ -302,10 +302,35 @@ function iconoEstado(e){
 
 function textoBotonFichar(estado){
   if(estado==="fuera") return "Iniciar jornada";
-  if(estado==="dentro") return "Acciones de jornada";
+  if(estado==="dentro") return "Elegir acción";
   if(estado==="descanso") return "Finalizar descanso";
   if(estado==="comida") return "Finalizar comida";
   return "Fichar";
+}
+
+function accionDirectaEstado(estado){
+  if(estado==="descanso") return "fin_descanso";
+  if(estado==="comida") return "fin_comida";
+  return null;
+}
+
+function subtituloEstado(est){
+  if(!est || !est.jornada) return "No hay jornada abierta.";
+  const eventos=Array.isArray(est.eventos) ? est.eventos : [];
+  const ultimo=eventos.length ? eventos[eventos.length-1] : null;
+  if(!ultimo) return "Jornada abierta sin fichajes visibles.";
+  const partes=["Último fichaje: "+textoTipo(ultimo.tipo), fechaCorta(ultimo.created_at)];
+  if(ultimo.direccion) partes.push(direccionCorta(ultimo.direccion));
+  return partes.filter(Boolean).join(" · ");
+}
+
+function renderBotonSeccion(titulo,subtitulo,abierto,onclick){
+  return `
+    <button class="zx_section_toggle ${abierto ? "abierto" : ""}" onclick="${onclick}">
+      <span>${limpiar(abierto ? titulo.replace(/^Ver /,"Ocultar ") : titulo)}</span>
+      ${subtitulo ? `<small>${limpiar(subtitulo)}</small>` : ""}
+    </button>
+  `;
 }
 
 function iconoTipo(tipo){
@@ -2370,6 +2395,11 @@ function estilosAdminCompacto(){
 
     .zx_estado_actual{display:inline-flex;align-items:center;gap:10px;font-size:31px;font-weight:950;margin-top:10px;border:2px solid;border-radius:20px;padding:10px 14px;background:#f8fafc;}
     .zx_estado_actual span{font-size:26px}
+    .zx_estado_sub{margin-top:10px;color:#64748b;font-size:14px;font-weight:900;line-height:1.35;}
+    .zx_section_toggle{width:100%;border:0;border-radius:18px;padding:18px;background:#64748b;color:white;text-align:left;font-weight:950;box-shadow:0 8px 22px rgba(15,23,42,.12);}
+    .zx_section_toggle span{display:block;font-size:20px;line-height:1.15;}
+    .zx_section_toggle small{display:block;margin-top:6px;font-size:13px;opacity:.9;font-weight:850;}
+    .zx_section_toggle.abierto{background:#334155;}
 
     .zx_resumen_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;}
     .zx_resumen_card{border-radius:16px;padding:12px;background:#f8fafc;border:1px solid #e5e7eb;}
@@ -2586,6 +2616,11 @@ window.ZX_fichaje_real=async function(){
   // El contador usa los fichajes ya cargados y solo se refresca completo con acciones reales o tiempo real agrupado.
 
   const bloqueoActual=bloqueoHorarioActual(laboral ? laboral.solicitudes : []);
+  const accionDirecta=accionDirectaEstado(est.estado);
+  const misCount=(est.jornadasUsuario||[]).length;
+  const ultimosTxt=ZX_VER_ULTIMOS ? String(hist.length)+" registros" : "Últimos movimientos";
+  const panelTxt=ZX_VER_ADMIN ? String(adminHoy.length)+" jornadas hoy" : "Empleados de hoy";
+  const todasTxt=ZX_VER_TODAS_JORNADAS ? String(adminTodas.length)+" jornadas" : "Histórico de empleados";
 
   app().innerHTML=`
     <div class="zx_card">
@@ -2597,6 +2632,7 @@ window.ZX_fichaje_real=async function(){
         <span>${iconoEstado(est.estado)}</span>
         <b>${textoEstado(est.estado)}</b>
       </div>
+      <div class="zx_estado_sub">${limpiar(subtituloEstado(est))}</div>
 
       ${est.jornada && est.jornada.vehiculo_matricula ? `
         <div class="zx_text" style="margin-top:12px;">
@@ -2621,18 +2657,14 @@ window.ZX_fichaje_real=async function(){
     </div>
 
     <div class="zx_card">
-      <button class="zx_btn_big zx_gris" onclick="ZX_toggleMisJornadas()">
-        ${ZX_VER_MIS_JORNADAS ? "Ocultar mis jornadas" : "Ver mis jornadas"}
-      </button>
+      ${renderBotonSeccion("Ver mis jornadas", misCount ? "Últimas "+misCount+" jornadas" : "Sin jornadas recientes", ZX_VER_MIS_JORNADAS, "ZX_toggleMisJornadas()") }
 
       ${ZX_VER_MIS_JORNADAS ? (jornadas.length ? jornadas.map(j=>renderJornadaMini(j,esAdmin())).join("") : `<div class="zx_text">Sin jornadas.</div>`) : ""}
     </div>
 
     ${adminActivo ? `
       <div class="zx_card">
-        <button class="zx_btn_big zx_gris" onclick="ZX_toggleAdmin()">
-          ${ZX_VER_ADMIN ? "Ocultar panel admin" : "Ver panel admin"}
-        </button>
+        ${renderBotonSeccion("Ver panel admin", panelTxt, ZX_VER_ADMIN, "ZX_toggleAdmin()") }
 
         ${ZX_VER_ADMIN ? `
           ${renderAdminResumen(adminHoy)}
@@ -2642,9 +2674,7 @@ window.ZX_fichaje_real=async function(){
       </div>
 
       <div class="zx_card">
-        <button class="zx_btn_big zx_gris" onclick="ZX_toggleTodasJornadas()">
-          ${ZX_VER_TODAS_JORNADAS ? "Ocultar jornadas de usuarios" : "Ver jornadas de usuarios"}
-        </button>
+        ${renderBotonSeccion("Ver jornadas de usuarios", todasTxt, ZX_VER_TODAS_JORNADAS, "ZX_toggleTodasJornadas()") }
 
         ${ZX_VER_TODAS_JORNADAS ? `
           <h3 style="font-size:24px;margin:18px 0 8px;">Jornadas de usuarios</h3>
@@ -2654,15 +2684,18 @@ window.ZX_fichaje_real=async function(){
     ` : ""}
 
     <div class="zx_card">
-      <button class="zx_btn_big zx_gris" onclick="ZX_toggleUltimos()">
-        ${ZX_VER_ULTIMOS ? "Ocultar últimos fichajes" : "Ver últimos fichajes"}
-      </button>
+      ${renderBotonSeccion("Ver últimos fichajes", ultimosTxt, ZX_VER_ULTIMOS, "ZX_toggleUltimos()") }
 
       ${ZX_VER_ULTIMOS ? (hist.length ? hist.map(h=>renderFichajeMini(h)).join("") : `<div class="zx_text">Sin registros.</div>`) : ""}
     </div>
   `;
 
   document.getElementById("zx_btn_fichar").onclick=function(){
+    if(accionDirecta){
+      const ok=confirm("Confirmar fichaje: "+textoTipo(accionDirecta)+"\n\n¿Seguro que quieres guardar este registro?");
+      if(ok) registrar(accionDirecta,{});
+      return;
+    }
     abrirMenu(est.estado,est.jornada);
   };
 
