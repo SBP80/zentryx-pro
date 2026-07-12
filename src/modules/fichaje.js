@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3113 - MEJORAS VISUALES Y EDICIÓN SEGURA
+// V3115 - CIERRE FINAL FICHAJE
 // ===============================
 (function(){
 "use strict";
@@ -118,6 +118,13 @@ function fechaCortaSeg(f){
          String(d.getHours()).padStart(2,"0")+":"+
          String(d.getMinutes()).padStart(2,"0")+":"+
          String(d.getSeconds()).padStart(2,"0");
+}
+
+function horaCorta(f){
+  if(!f) return "--:--";
+  const d=new Date(f);
+  if(isNaN(d.getTime())) return "--:--";
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
 }
 
 function formatoSeg(seg){
@@ -2155,14 +2162,18 @@ async function verFichajesJornada(jornadaId){
 // ===============================
 // RENDER
 // ===============================
-function resumenHTML(resumen,objetivoSeg,laboral=null){
+function resumenHTML(resumen,objetivoSeg,laboral=null,jornada=null){
   const extraSeg=Math.max(0,Number(resumen.trabajadoSeg||0)-Number(objetivoSeg||0));
   const faltaSeg=Math.max(0,Number(objetivoSeg||0)-Number(resumen.trabajadoSeg||0));
-  const minutosJustificados=laboral ? Number(laboral.minutosJustificados||0) : 0;
+  const ordinarioSeg=Math.min(Number(resumen.trabajadoSeg||0),Number(objetivoSeg||0));
+  const minutosJustificados=laboral ? Number(laboral.minutosJustificados||0) : Number(jornada?.minutos_justificados||0);
   const bloqueo=laboral ? bloqueoHorarioActual(laboral.solicitudes) : {bloqueado:false};
 
   const tarjetas=[
+    ["Entrada",horaCorta(resumen.entrada||jornada?.entrada),"entrada_hora","zx_resumen_info"],
+    ["Salida",horaCorta(resumen.salida||jornada?.salida),"salida_hora","zx_resumen_info"],
     ["Trabajado",formatoSeg(resumen.trabajadoSeg),"trabajado","zx_resumen_ok"],
+    ["Ordinario",formatoSeg(ordinarioSeg),"ordinario","zx_resumen_obj"],
     ["Descanso",formatoSeg(resumen.descansoSeg),"descanso","zx_resumen_pause"],
     ["Comida",formatoSeg(resumen.comidaSeg),"comida","zx_resumen_food"],
     ["Justificado",formatoMin(minutosJustificados),"justificado","zx_resumen_info"],
@@ -2176,6 +2187,7 @@ function resumenHTML(resumen,objetivoSeg,laboral=null){
       ${laboral && laboral.festivo ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">Día festivo${laboral.nombreFestivo ? ": "+limpiar(laboral.nombreFestivo) : ""}</div>` : ""}
       ${laboral && laboral.tipoAusencia ? `<div style="color:#2563eb;font-weight:900;margin-bottom:8px;">${limpiar(laboral.observacion)}</div>` : ""}
       ${bloqueo.bloqueado ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">Permiso activo: ${limpiar(bloqueo.inicio)} - ${limpiar(bloqueo.fin)}</div>` : ""}
+      ${jornada && jornada.vehiculo_matricula ? `<div class="zx_resumen_vehiculo">🚗 <b>${limpiar(jornada.vehiculo_matricula)}</b> · Km ${limpiar(jornada.km_entrada??"-")} / ${limpiar(jornada.km_salida??"-")}</div>` : ""}
     </div>
 
     <div class="zx_resumen_grid">
@@ -2195,11 +2207,11 @@ function resumenLineaHTML(resumen,objetivoSeg,j=null){
 
   return `
     <div class="zx_jornada_resumen_grid">
-      <div><span>Trab.</span><b>${formatoSeg(resumen.trabajadoSeg)}</b></div>
-      <div><span>Obj.</span><b>${formatoSeg(objetivoSeg)}</b></div>
-      <div><span>Desc.</span><b>${formatoSeg(resumen.descansoSeg)}</b></div>
+      <div><span>Trabajado</span><b>${formatoSeg(resumen.trabajadoSeg)}</b></div>
+      <div><span>Objetivo</span><b>${formatoSeg(objetivoSeg)}</b></div>
+      <div><span>Descanso</span><b>${formatoSeg(resumen.descansoSeg)}</b></div>
       <div><span>Comida</span><b>${formatoSeg(resumen.comidaSeg)}</b></div>
-      <div><span>Just.</span><b>${formatoMin(j ? (j.minutos_justificados||0) : 0)}</b></div>
+      <div><span>Justificado</span><b>${formatoMin(j ? (j.minutos_justificados||0) : 0)}</b></div>
       <div class="${extraSeg>0 ? "zx_extra_destacado" : ""}"><span>Extra</span><b>${formatoSeg(extraSeg)}</b></div>
       <div class="${faltaSeg>0 ? "zx_falta_destacada" : ""}"><span>Falta</span><b>${formatoSeg(faltaSeg)}</b></div>
     </div>
@@ -2248,6 +2260,21 @@ function renderFichajeMini(f){
           <button class="zx_admin_btn zx_admin_borrar" data-borrar-fichaje="${f.id}">Borrar</button>
         </div>
       ` : ""}
+    </div>
+  `;
+}
+
+function renderResumenPrincipal(j,resumen,objetivoSeg,laboral,titulo){
+  if(!j){
+    return `<div class="zx_card"><h2>${limpiar(titulo)}</h2><div id="zx_resumen_tiempo">${resumenHTML(resumen,objetivoSeg,laboral,null)}</div></div>`;
+  }
+  return `
+    <div class="zx_card zx_resumen_principal_click" data-abrir-resumen-jornada="${limpiar(j.id)}" role="button" tabindex="0">
+      <div class="zx_resumen_titulo_fila">
+        <h2>${limpiar(titulo)}</h2>
+        <span>Ver fichajes ›</span>
+      </div>
+      <div id="zx_resumen_tiempo">${resumenHTML(resumen,objetivoSeg,laboral,j)}</div>
     </div>
   `;
 }
@@ -2439,6 +2466,12 @@ function estilosAdminCompacto(){
     .zx_readonly_box{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px;font-weight:900;color:#0f172a;background:#eef2f7;}
     .zx_help_text{margin-top:8px;color:#64748b;font-size:13px;font-weight:850;line-height:1.35;}
     .zx_modal_contexto{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:14px;padding:10px;margin:10px 0 12px;font-size:14px;font-weight:850;line-height:1.35;}
+    .zx_resumen_vehiculo{margin:8px 0 2px;padding:10px 12px;border-radius:14px;background:#f1f5f9;color:#334155;font-weight:900;}
+    .zx_resumen_principal_click{cursor:pointer;}
+    .zx_resumen_principal_click:active{transform:scale(.995);}
+    .zx_resumen_titulo_fila{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+    .zx_resumen_titulo_fila h2{margin:0;}
+    .zx_resumen_titulo_fila span{color:#2563eb;font-size:13px;font-weight:950;white-space:nowrap;}
 
     @media(min-width:700px){
       .zx_admin_summary{grid-template-columns:repeat(4,1fr);}
@@ -2544,6 +2577,9 @@ async function actualizarVivo(jornadaId,objSec,lab,jornada=null,eventosBase=null
         if(k==="descanso") c.textContent=formatoSeg(r.descansoSeg);
         if(k==="comida") c.textContent=formatoSeg(r.comidaSeg);
         if(k==="objetivo") c.textContent=formatoSeg(objSec);
+        if(k==="ordinario") c.textContent=formatoSeg(Math.min(Number(r.trabajadoSeg||0),Number(objSec||0)));
+        if(k==="entrada_hora") c.textContent=horaCorta(r.entrada||jornada?.entrada);
+        if(k==="salida_hora") c.textContent=horaCorta(r.salida||jornada?.salida);
         if(k==="extra") c.textContent=formatoSeg(extra);
         if(k==="falta") c.textContent=formatoSeg(falta);
       });
@@ -2590,20 +2626,23 @@ window.ZX_fichaje_real=async function(){
 
   const ultima=est.ultima||null;
 
-  let resumen={trabajadoSeg:0,descansoSeg:0,comidaSeg:0};
+  let resumen={trabajadoSeg:0,descansoSeg:0,comidaSeg:0,entrada:null,salida:null};
   let objetivoSeg=480*60;
   let laboral=null;
+  let jornadaResumen=null;
 
   if(est.jornada){
     const rv=await resumenVisualJornada(est.jornada,est.eventos);
     resumen=rv.resumen;
     objetivoSeg=rv.objetivoSeg;
     laboral=rv.laboral;
-  }else if(ultima && ultima.estado==="cerrada" && String(ultima.fecha)===fechaHoyISO()){
+    jornadaResumen=est.jornada;
+  }else if(ultima){
     const rv=await resumenVisualJornada(ultima);
     resumen=rv.resumen;
     objetivoSeg=rv.objetivoSeg;
     laboral=rv.laboral;
+    jornadaResumen=ultima;
   }else{
     laboral=await objetivoDiaPRO(fechaHoyISO());
     objetivoSeg=laboral.objetivoSeg;
@@ -2649,12 +2688,7 @@ window.ZX_fichaje_real=async function(){
       </button>
     </div>
 
-    <div class="zx_card">
-      <h2>Resumen ${est.jornada ? "en vivo" : "última jornada"}</h2>
-      <div id="zx_resumen_tiempo">
-        ${resumenHTML(resumen,objetivoSeg,laboral)}
-      </div>
-    </div>
+    ${renderResumenPrincipal(jornadaResumen,resumen,objetivoSeg,laboral,est.jornada ? "Resumen en vivo" : "Resumen última jornada")}
 
     <div class="zx_card">
       ${renderBotonSeccion("Ver mis jornadas", misCount ? "Últimas "+misCount+" jornadas" : "Sin jornadas recientes", ZX_VER_MIS_JORNADAS, "ZX_toggleMisJornadas()") }
@@ -2713,6 +2747,12 @@ window.ZX_fichaje_real=async function(){
 
   document.querySelectorAll("[data-ver-fichajes-jornada]").forEach(btn=>{
     btn.onclick=function(){verFichajesJornada(btn.dataset.verFichajesJornada)};
+  });
+
+  document.querySelectorAll("[data-abrir-resumen-jornada]").forEach(el=>{
+    const abrir=function(){verFichajesJornada(el.dataset.abrirResumenJornada)};
+    el.onclick=abrir;
+    el.onkeydown=function(e){if(e.key==="Enter" || e.key===" "){e.preventDefault();abrir();}};
   });
 
   if(est.jornada){
