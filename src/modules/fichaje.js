@@ -1509,16 +1509,21 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
   const configuracionCambio=!!(ultimaCerrada && cambioConfiguracionEntreJornadas(ultimaCerrada,snapshot));
   const esJornadaContinuacion=!!(cerradas.length && !configuracionCambio);
 
-  if(esJornadaContinuacion){
-    const objetivoDiaSeg=Math.max(0,objetivoMin*60);
-    const ordinarioYaRealizadoSeg=cerradas.reduce((total,j)=>total+segundosOrdinariosJornada(j),0);
-    const pendienteSeg=Math.max(0,objetivoDiaSeg-ordinarioYaRealizadoSeg);
-    objetivoMin=Math.floor(pendienteSeg/60);
-  }
+  let objetivoSeg=objetivoMin*60;
 
-  const objetivoSeg=esJornadaContinuacion
-    ? Math.max(0,Math.max(0,Number(snapshot.config_minutos_dia||0))*60-cerradas.reduce((total,j)=>total+segundosOrdinariosJornada(j),0))
-    : objetivoMin*60;
+  if(esJornadaContinuacion && ultimaCerrada){
+    // La continuación parte únicamente del objetivo pendiente de la jornada
+    // cerrada inmediatamente anterior. Así evitamos descontar otra vez jornadas
+    // antiguas del mismo día o registros de prueba y mantenemos una cadena exacta:
+    // objetivo anterior - tiempo ordinario realmente trabajado.
+    const objetivoAnteriorSeg=(ultimaCerrada.segundos_objetivo!==undefined && ultimaCerrada.segundos_objetivo!==null)
+      ? Math.max(0,numeroSeguro(ultimaCerrada.segundos_objetivo,0))
+      : Math.max(0,numeroSeguro(ultimaCerrada.minutos_objetivo,0)*60);
+
+    const ordinarioAnteriorSeg=segundosOrdinariosJornada(ultimaCerrada);
+    objetivoSeg=Math.max(0,objetivoAnteriorSeg-ordinarioAnteriorSeg);
+    objetivoMin=Math.ceil(objetivoSeg/60);
+  }
 
   let observacion=laboral.observacion;
 
