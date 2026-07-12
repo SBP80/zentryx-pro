@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3117 - CONFIGURACIÓN HISTÓRICA POR JORNADA
+// V3119 - OBJETIVO HISTÓRICO CORREGIDO
 // ===============================
 (function(){
 "use strict";
@@ -950,9 +950,20 @@ async function crearSnapshotConfiguracion(fecha,usuarioId,laboral,objetivoSeg){
 }
 
 function laboralDesdeJornada(j){
-  const objetivoSeg=(j?.segundos_objetivo!==undefined && j?.segundos_objetivo!==null)
+  let objetivoSeg=(j?.segundos_objetivo!==undefined && j?.segundos_objetivo!==null)
     ? numeroSeguro(j.segundos_objetivo,0)
     : Math.round(numeroSeguro(j?.minutos_objetivo,0)*60);
+
+  // Si la jornada ya tiene una copia histórica válida, esa copia manda.
+  // Corrige también jornadas creadas con segundos_objetivo=0 por el fallo anterior.
+  if(
+    !jornadaEsAdicional(j) &&
+    jornadaTieneSnapshot(j) &&
+    numeroSeguro(j?.config_minutos_dia,0)>0 &&
+    objetivoSeg<=0
+  ){
+    objetivoSeg=Math.round(numeroSeguro(j.config_minutos_dia,0)*60);
+  }
 
   return {
     objetivoSeg,
@@ -1258,13 +1269,26 @@ function jornadaEsAdicional(j){
 
 function objetivoJornadaSeg(j,laboral){
   if(jornadaEsAdicional(j)) return 0;
+
+  let objetivoSeg=Number(laboral?.objetivoSeg||0);
+
   if(j && j.estado==="cerrada"){
-    if(j.segundos_objetivo!==undefined && j.segundos_objetivo!==null){
-      return Number(j.segundos_objetivo||0);
-    }
-    return Math.round(Number(j.minutos_objetivo||0)*60);
+    const guardadoSeg=(j.segundos_objetivo!==undefined && j.segundos_objetivo!==null)
+      ? Number(j.segundos_objetivo||0)
+      : Math.round(Number(j.minutos_objetivo||0)*60);
+
+    if(guardadoSeg>0) objetivoSeg=guardadoSeg;
   }
-  return Number(laboral?.objetivoSeg||0);
+
+  if(
+    objetivoSeg<=0 &&
+    jornadaTieneSnapshot(j) &&
+    Number(j?.config_minutos_dia||0)>0
+  ){
+    objetivoSeg=Math.round(Number(j.config_minutos_dia||0)*60);
+  }
+
+  return Math.max(0,objetivoSeg);
 }
 
 async function resumenVisualJornada(j,eventosPrecargados=null){
@@ -1415,11 +1439,15 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
   const laboral=await objetivoDiaPRO(fecha,s.id);
   const snapshot=await crearSnapshotConfiguracion(fecha,s.id,laboral,laboral.objetivoSeg);
 
-  let objetivoMin=Math.floor(Number(laboral.objetivoSeg||0)/60);
+  // El objetivo de esta jornada se fija con la copia histórica recién creada.
+  // No se vuelve a interpretar con cambios posteriores de configuración.
+  let objetivoMin=Math.max(0,Math.floor(Number(snapshot.config_minutos_dia||0)));
 
   if(cerradas.length){
     objetivoMin=0;
   }
+
+  const objetivoSeg=objetivoMin*60;
 
   let observacion=laboral.observacion;
 
@@ -1449,6 +1477,12 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
     minutos_extra:0,
     minutos_faltantes:objetivoMin,
     horas_extra:0,
+    segundos_trabajados:0,
+    segundos_descanso:0,
+    segundos_comida:0,
+    segundos_objetivo:objetivoSeg,
+    segundos_extra:0,
+    segundos_faltantes:objetivoSeg,
     vehiculo_id:datosVehiculo&&datosVehiculo.id?String(datosVehiculo.id):null,
     vehiculo_matricula:datosVehiculo&&datosVehiculo.matricula?String(datosVehiculo.matricula):null,
     km_entrada:datosVehiculo&&datosVehiculo.km!=null?Number(datosVehiculo.km):null,
