@@ -912,6 +912,46 @@ function jornadaTieneSnapshot(j){
   return !!(j && (j.config_copiada_en || j.config_origen==="snapshot_jornada_v1"));
 }
 
+function valorSnapshotComparable(v){
+  if(v===null || v===undefined || v==="") return null;
+  if(typeof v==="boolean") return v;
+  const n=Number(v);
+  if(Number.isFinite(n) && String(v).trim()!=="") return n;
+  return String(v).trim();
+}
+
+function cambioConfiguracionEntreJornadas(anterior,snapshotActual){
+  if(!anterior || !snapshotActual || !jornadaTieneSnapshot(anterior)) return false;
+
+  const campos=[
+    "config_dia_semana",
+    "config_minutos_dia",
+    "config_horas_semana",
+    "config_hora_entrada",
+    "config_hora_salida",
+    "config_margen_entrada",
+    "config_margen_salida",
+    "config_descanso_max",
+    "config_comida_max",
+    "config_jornada_max_horas",
+    "config_es_dia_laborable",
+    "config_vacaciones_anuales",
+    "config_asuntos_propios_horas",
+    "config_precio_extra",
+    "config_precio_extra_nocturna",
+    "config_precio_extra_festiva",
+    "config_pais",
+    "config_comunidad",
+    "config_provincia",
+    "config_localidad",
+    "config_convenio"
+  ];
+
+  return campos.some(campo=>{
+    return valorSnapshotComparable(anterior[campo])!==valorSnapshotComparable(snapshotActual[campo]);
+  });
+}
+
 async function crearSnapshotConfiguracion(fecha,usuarioId,laboral,objetivoSeg){
   const [h,control]=await Promise.all([
     horarioUsuarioActivo(usuarioId),
@@ -1440,10 +1480,20 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
   const snapshot=await crearSnapshotConfiguracion(fecha,s.id,laboral,laboral.objetivoSeg);
 
   // El objetivo de esta jornada se fija con la copia histórica recién creada.
-  // No se vuelve a interpretar con cambios posteriores de configuración.
+  // Los cambios posteriores nunca alteran jornadas ya creadas.
   let objetivoMin=Math.max(0,Math.floor(Number(snapshot.config_minutos_dia||0)));
 
-  if(cerradas.length){
+  const ultimaCerrada=cerradas.length
+    ? [...cerradas].sort((a,b)=>new Date(b.created_at||b.entrada||0)-new Date(a.created_at||a.entrada||0))[0]
+    : null;
+
+  // Una segunda jornada del mismo día solo se considera adicional cuando sigue
+  // usando exactamente la misma configuración. Si la configuración cambió desde
+  // la jornada anterior, la nueva jornada recibe el nuevo objetivo completo.
+  const configuracionCambio=!!(ultimaCerrada && cambioConfiguracionEntreJornadas(ultimaCerrada,snapshot));
+  const esJornadaAdicional=!!(cerradas.length && !configuracionCambio);
+
+  if(esJornadaAdicional){
     objetivoMin=0;
   }
 
@@ -1451,10 +1501,12 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
 
   let observacion=laboral.observacion;
 
-  if(cerradas.length && motivoAdmin){
+  if(esJornadaAdicional && motivoAdmin){
     observacion="Jornada extra creada por administrador. Motivo: "+motivoAdmin;
-  }else if(cerradas.length){
+  }else if(esJornadaAdicional){
     observacion="Jornada adicional del mismo día.";
+  }else if(configuracionCambio){
+    observacion=[observacion,"Nueva jornada iniciada tras un cambio de configuración laboral."].filter(Boolean).join(" ");
   }
 
   const datos={
@@ -1498,7 +1550,7 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
     return null;
   }
 
-  if(cerradas.length){
+  if(esJornadaAdicional){
     await insertarAuditoria(
       motivoAdmin ? "crear_jornada_extra_admin" : "crear_jornada_adicional",
       motivoAdmin ? "Jornada extra creada por admin. Motivo: "+motivoAdmin : "Jornada adicional creada el mismo día.",
@@ -1510,6 +1562,12 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
       motivoAdmin ? "Jornada extra creada" : "Jornada adicional creada",
       motivoAdmin ? "Se ha creado una jornada extra. Motivo: "+motivoAdmin : "Se ha creado una jornada adicional en el mismo día.",
       "fichaje"
+    );
+  }else if(configuracionCambio){
+    await insertarAuditoria(
+      "crear_jornada_nueva_configuracion",
+      "Nueva jornada creada con la configuración laboral vigente, sin modificar jornadas anteriores.",
+      s.id
     );
   }
 
