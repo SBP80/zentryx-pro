@@ -1011,7 +1011,6 @@ function laboralDesdeJornada(j){
   // Si la jornada ya tiene una copia histórica válida, esa copia manda.
   // Corrige también jornadas creadas con segundos_objetivo=0 por el fallo anterior.
   if(
-    !jornadaEsAdicional(j) &&
     jornadaTieneSnapshot(j) &&
     numeroSeguro(j?.config_minutos_dia,0)>0 &&
     objetivoSeg<=0
@@ -1322,8 +1321,9 @@ function jornadaEsAdicional(j){
 }
 
 function objetivoJornadaSeg(j,laboral){
-  if(jornadaEsAdicional(j)) return 0;
-
+  // El objetivo guardado en la jornada manda siempre.
+  // Una jornada adicional solo tendrá objetivo 0 cuando así se guardó al crearla,
+  // nunca por el texto de su observación.
   let objetivoSeg=Number(laboral?.objetivoSeg||0);
 
   if(j && j.estado==="cerrada"){
@@ -1727,8 +1727,6 @@ async function recalcularJornada(jornadaId){
   // se aplicarán únicamente a jornadas nuevas.
   const laboral=laboralDesdeJornada(jornada);
   let objetivoSeg=objetivoJornadaSeg(jornada,laboral);
-
-  if(jornadaEsAdicional(jornada)) objetivoSeg=0;
 
   const extraSeg=Math.max(0,c.trabajadoSeg-objetivoSeg);
   const faltanteSeg=Math.max(0,objetivoSeg-c.trabajadoSeg);
