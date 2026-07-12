@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3120 - OBJETIVO RESTANTE EN JORNADAS DEL MISMO DÍA
+// V3127 - OBJETIVO VISUAL FIJO Y FALTA RESTANTE
 // ===============================
 (function(){
 "use strict";
@@ -2431,12 +2431,28 @@ async function verFichajesJornada(jornadaId){
 // ===============================
 // RENDER
 // ===============================
+function objetivoVisualSeg(jornada,objetivoCalculoSeg){
+  // El objetivo mostrado debe ser la jornada configurada para ese día.
+  // El cálculo de falta y extra mantiene el objetivo pendiente de la jornada
+  // para conservar correctamente las continuaciones del mismo día.
+  const minutosConfig=Number(jornada?.config_minutos_dia||0);
+  if(minutosConfig>0) return Math.max(0,Math.round(minutosConfig*60));
+
+  const segundosGuardados=Number(jornada?.segundos_objetivo||0);
+  const minutosGuardados=Number(jornada?.minutos_objetivo||0);
+  if(segundosGuardados>0) return Math.max(0,Math.round(segundosGuardados));
+  if(minutosGuardados>0) return Math.max(0,Math.round(minutosGuardados*60));
+
+  return Math.max(0,Number(objetivoCalculoSeg||0));
+}
+
 function resumenHTML(resumen,objetivoSeg,laboral=null,jornada=null){
   const extraSeg=Math.max(0,Number(resumen.trabajadoSeg||0)-Number(objetivoSeg||0));
   const faltaSeg=Math.max(0,Number(objetivoSeg||0)-Number(resumen.trabajadoSeg||0));
   const ordinarioSeg=Math.min(Number(resumen.trabajadoSeg||0),Number(objetivoSeg||0));
   const minutosJustificados=laboral ? Number(laboral.minutosJustificados||0) : Number(jornada?.minutos_justificados||0);
   const bloqueo=laboral ? bloqueoHorarioActual(laboral.solicitudes) : {bloqueado:false};
+  const objetivoMostradoSeg=objetivoVisualSeg(jornada,objetivoSeg);
 
   const tarjetas=[
     ["Entrada",horaCorta(resumen.entrada||jornada?.entrada),"entrada_hora","zx_resumen_info"],
@@ -2446,7 +2462,7 @@ function resumenHTML(resumen,objetivoSeg,laboral=null,jornada=null){
     ["Descanso",formatoSeg(resumen.descansoSeg),"descanso","zx_resumen_pause"],
     ["Comida",formatoSeg(resumen.comidaSeg),"comida","zx_resumen_food"],
     ["Justificado",formatoMin(minutosJustificados),"justificado","zx_resumen_info"],
-    ["Objetivo",formatoSeg(objetivoSeg),"objetivo","zx_resumen_obj"],
+    ["Objetivo",formatoSeg(objetivoMostradoSeg),"objetivo","zx_resumen_obj"],
     ["Extra",formatoSeg(extraSeg),"extra",extraSeg>0?"zx_resumen_extra":"zx_resumen_neutral"],
     ["Falta",formatoSeg(faltaSeg),"falta",faltaSeg>0?"zx_resumen_warn":"zx_resumen_neutral"]
   ];
@@ -2473,11 +2489,12 @@ function resumenHTML(resumen,objetivoSeg,laboral=null,jornada=null){
 function resumenLineaHTML(resumen,objetivoSeg,j=null){
   const extraSeg=Math.max(0,Number(resumen.trabajadoSeg||0)-Number(objetivoSeg||0));
   const faltaSeg=Math.max(0,Number(objetivoSeg||0)-Number(resumen.trabajadoSeg||0));
+  const objetivoMostradoSeg=objetivoVisualSeg(j,objetivoSeg);
 
   return `
     <div class="zx_jornada_resumen_grid">
       <div><span>Trabajado</span><b>${formatoSeg(resumen.trabajadoSeg)}</b></div>
-      <div><span>Objetivo</span><b>${formatoSeg(objetivoSeg)}</b></div>
+      <div><span>Objetivo</span><b>${formatoSeg(objetivoMostradoSeg)}</b></div>
       <div><span>Descanso</span><b>${formatoSeg(resumen.descansoSeg)}</b></div>
       <div><span>Comida</span><b>${formatoSeg(resumen.comidaSeg)}</b></div>
       <div><span>Justificado</span><b>${formatoMin(j ? (j.minutos_justificados||0) : 0)}</b></div>
@@ -2986,6 +3003,7 @@ async function actualizarVivo(jornadaId,objSec,lab,jornada=null,eventosBase=null
 
     const extra=Math.max(0,Number(r.trabajadoSeg||0)-Number(objSec||0));
     const falta=Math.max(0,Number(objSec||0)-Number(r.trabajadoSeg||0));
+    const objetivoMostradoSeg=objetivoVisualSeg(jornada,objSec);
 
     const resumenCont=document.getElementById("zx_resumen_tiempo");
     if(resumenCont){
@@ -2995,7 +3013,7 @@ async function actualizarVivo(jornadaId,objSec,lab,jornada=null,eventosBase=null
         if(k==="trabajado") c.textContent=formatoSeg(r.trabajadoSeg);
         if(k==="descanso") c.textContent=formatoSeg(r.descansoSeg);
         if(k==="comida") c.textContent=formatoSeg(r.comidaSeg);
-        if(k==="objetivo") c.textContent=formatoSeg(objSec);
+        if(k==="objetivo") c.textContent=formatoSeg(objetivoMostradoSeg);
         if(k==="ordinario") c.textContent=formatoSeg(Math.min(Number(r.trabajadoSeg||0),Number(objSec||0)));
         if(k==="entrada_hora") c.textContent=horaCorta(r.entrada||jornada?.entrada);
         if(k==="salida_hora") c.textContent=horaCorta(r.salida||jornada?.salida);
