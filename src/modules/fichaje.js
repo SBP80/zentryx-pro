@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3116 - SINCRONIZACIÓN MULTIDISPOSITIVO
+// V3117 - CONFIGURACIÓN HISTÓRICA POR JORNADA
 // ===============================
 (function(){
 "use strict";
@@ -844,6 +844,143 @@ async function objetivoDiaPRO(fechaISOtxt,usuarioIdOpcional){
   };
 }
 
+
+// ===============================
+// CONFIGURACIÓN HISTÓRICA DE JORNADA
+// ===============================
+function numeroSeguro(v,def=0){
+  const n=Number(v);
+  return Number.isFinite(n) ? n : Number(def||0);
+}
+
+function horaSQL(v){
+  if(v===null || v===undefined || v==="") return null;
+  const txt=String(v).trim();
+  if(!txt) return null;
+  return txt.length>=8 ? txt.slice(0,8) : txt.slice(0,5);
+}
+
+async function horarioUsuarioActivo(usuarioId){
+  if(zxOffline()) return null;
+  try{
+    const r=await sb()
+      .from("horarios_usuario")
+      .select("*")
+      .eq("usuario_id",String(usuarioId))
+      .eq("activo",true)
+      .order("actualizado_en",{ascending:false})
+      .limit(1);
+    if(!r.error && r.data && r.data.length) return r.data[0];
+  }catch(e){}
+
+  try{
+    const r=await sb()
+      .from("horarios_usuario")
+      .select("*")
+      .eq("usuario_id",String(usuarioId))
+      .eq("activo",true)
+      .limit(1);
+    if(!r.error && r.data && r.data.length) return r.data[0];
+  }catch(e){}
+
+  return null;
+}
+
+async function configControlUsuario(usuarioId){
+  if(zxOffline()) return null;
+
+  for(const campo of ["user_id","usuario_id"]){
+    try{
+      const r=await sb()
+        .from("config_control_fichaje")
+        .select("*")
+        .eq(campo,String(usuarioId))
+        .limit(1);
+      if(!r.error && r.data && r.data.length) return r.data[0];
+    }catch(e){}
+  }
+
+  return null;
+}
+
+function valorDiaHorario(h,dia){
+  if(!h) return 0;
+  return Math.max(0,numeroSeguro(h[dia],0));
+}
+
+function jornadaTieneSnapshot(j){
+  return !!(j && (j.config_copiada_en || j.config_origen==="snapshot_jornada_v1"));
+}
+
+async function crearSnapshotConfiguracion(fecha,usuarioId,laboral,objetivoSeg){
+  const [h,control]=await Promise.all([
+    horarioUsuarioActivo(usuarioId),
+    configControlUsuario(usuarioId)
+  ]);
+
+  const dia=diaSemana(fecha);
+  const minutosDia=h ? valorDiaHorario(h,dia) : Math.floor(numeroSeguro(objetivoSeg,0)/60);
+  const esLaborable=minutosDia>0;
+
+  return {
+    config_copiada_en:ahora(),
+    config_dia_semana:dia,
+    config_minutos_dia:minutosDia,
+    config_horas_semana:numeroSeguro(h?.horas_semana,0),
+    config_hora_entrada:horaSQL(control?.entrada ?? control?.hora_entrada ?? h?.entrada ?? h?.hora_entrada),
+    config_hora_salida:horaSQL(control?.salida ?? control?.hora_salida ?? h?.salida ?? h?.hora_salida),
+    config_margen_entrada:Math.max(0,numeroSeguro(control?.margen_entrada,0)),
+    config_margen_salida:Math.max(0,numeroSeguro(control?.margen_salida,0)),
+    config_descanso_max:Math.max(0,numeroSeguro(control?.descanso_max ?? control?.descanso_min ?? h?.descanso_min ?? h?.minutos_descanso,0)),
+    config_comida_max:Math.max(0,numeroSeguro(control?.comida_max,0)),
+    config_jornada_max_horas:Math.max(0,numeroSeguro(control?.jornada_max_horas,0)),
+    config_es_dia_laborable:esLaborable,
+    config_vacaciones_anuales:Math.max(0,numeroSeguro(h?.vacaciones,0)),
+    config_asuntos_propios_horas:Math.max(0,numeroSeguro(h?.asuntos_horas ?? h?.asuntos,0)),
+    config_precio_extra:Math.max(0,numeroSeguro(h?.precio_extra ?? h?.precio_hora ?? h?.precio_hora_extra,0)),
+    config_precio_extra_nocturna:Math.max(0,numeroSeguro(h?.precio_extra_nocturna ?? h?.precio_hora_extra_nocturna,0)),
+    config_precio_extra_festiva:Math.max(0,numeroSeguro(h?.precio_extra_festiva ?? h?.precio_hora_extra_festiva,0)),
+    config_pais:String(h?.pais ?? laboral?.pais ?? ""),
+    config_comunidad:String(h?.comunidad ?? ""),
+    config_provincia:String(h?.provincia ?? ""),
+    config_localidad:String(h?.localidad ?? ""),
+    config_convenio:String(h?.convenio ?? ""),
+    config_origen:"snapshot_jornada_v1"
+  };
+}
+
+function laboralDesdeJornada(j){
+  const objetivoSeg=(j?.segundos_objetivo!==undefined && j?.segundos_objetivo!==null)
+    ? numeroSeguro(j.segundos_objetivo,0)
+    : Math.round(numeroSeguro(j?.minutos_objetivo,0)*60);
+
+  return {
+    objetivoSeg,
+    objetivoBaseSeg:jornadaTieneSnapshot(j)
+      ? Math.max(0,numeroSeguro(j?.config_minutos_dia,0)*60)
+      : objetivoSeg,
+    minutosJustificados:numeroSeguro(j?.minutos_justificados,0),
+    tipoAusencia:j?.tipo_ausencia||null,
+    observacion:j?.observacion_laboral||"",
+    solicitudId:j?.solicitud_id||null,
+    bloquearFichaje:false,
+    solicitudes:[],
+    festivo:!!j?.es_festivo,
+    tipoFestivo:j?.tipo_festivo||null,
+    nombreFestivo:null,
+    snapshot:jornadaTieneSnapshot(j)
+  };
+}
+
+function precioExtraJornada(j,laboral){
+  if(!j) return 0;
+  if(laboral?.festivo || j.es_festivo){
+    const festiva=numeroSeguro(j.config_precio_extra_festiva,0);
+    if(festiva>0) return festiva;
+  }
+  return Math.max(0,numeroSeguro(j.config_precio_extra,0));
+}
+
 // ===============================
 // GEOLOCALIZACIÓN
 // ===============================
@@ -1133,7 +1270,9 @@ function objetivoJornadaSeg(j,laboral){
 async function resumenVisualJornada(j,eventosPrecargados=null){
   if(!j) return {resumen:{trabajadoSeg:0,descansoSeg:0,comidaSeg:0},objetivoSeg:0,laboral:null,eventos:[],estado:"fuera"};
 
-  const laboral=await objetivoDiaPRO(j.fecha||fechaHoyISO(),j.usuario_id);
+  // La jornada siempre se muestra con la configuración que quedó guardada al crearla.
+  // Nunca se vuelve a leer el horario actual para reinterpretar una jornada anterior.
+  const laboral=laboralDesdeJornada(j);
   const obj=objetivoJornadaSeg(j,laboral);
   const eventos=Array.isArray(eventosPrecargados) ? eventosPrecargados : await fichajesDeJornada(j.id);
 
@@ -1274,6 +1413,7 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
 
   const entrada=ahora();
   const laboral=await objetivoDiaPRO(fecha,s.id);
+  const snapshot=await crearSnapshotConfiguracion(fecha,s.id,laboral,laboral.objetivoSeg);
 
   let objetivoMin=Math.floor(Number(laboral.objetivoSeg||0)/60);
 
@@ -1313,7 +1453,8 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
     vehiculo_matricula:datosVehiculo&&datosVehiculo.matricula?String(datosVehiculo.matricula):null,
     km_entrada:datosVehiculo&&datosVehiculo.km!=null?Number(datosVehiculo.km):null,
     km_salida:null,
-    created_at:ahora()
+    created_at:ahora(),
+    ...snapshot
   };
 
   const r=await sb().from("jornadas").insert([datos]).select().single();
@@ -1390,7 +1531,9 @@ async function sincronizarHorasExtra(jornadaId,c,laboral,extraSeg,jornada){
   }
 
   const horasDecimal=Number((minutos/60).toFixed(2));
-  const precioHora=15;
+  // El precio también pertenece a la configuración histórica de esta jornada.
+  // No se usa el precio vigente del usuario para modificar horas ya registradas.
+  const precioHora=precioExtraJornada(jornada,laboral);
   const importe=Number((horasDecimal*precioHora).toFixed(2));
 
   if(reg){
@@ -1453,14 +1596,14 @@ async function recalcularJornada(jornadaId){
   const estadoCalculo=estadoDesdeTipo(ultimo ? ultimo.tipo : null);
 
   const c=calcularEnVivo(eventos,estadoCalculo);
-  const fechaBase=fechaLocalISO(c.entrada||jornada.fecha||new Date());
-  const laboral=await objetivoDiaPRO(fechaBase,jornada.usuario_id);
 
-  let objetivoSeg=Number(laboral.objetivoSeg||0);
+  // Regla histórica: una vez creada la jornada, su objetivo y sus condiciones
+  // salen solo de la propia fila de jornadas. Los cambios posteriores del usuario
+  // se aplicarán únicamente a jornadas nuevas.
+  const laboral=laboralDesdeJornada(jornada);
+  let objetivoSeg=objetivoJornadaSeg(jornada,laboral);
 
-  if(jornadaEsAdicional(jornada)){
-    objetivoSeg=0;
-  }
+  if(jornadaEsAdicional(jornada)) objetivoSeg=0;
 
   const extraSeg=Math.max(0,c.trabajadoSeg-objetivoSeg);
   const faltanteSeg=Math.max(0,objetivoSeg-c.trabajadoSeg);
@@ -1485,11 +1628,8 @@ async function recalcularJornada(jornadaId){
     segundos_extra:Math.floor(extraSeg),
     segundos_faltantes:Math.floor(faltanteSeg),
 
-    es_festivo:laboral.festivo,
-    tipo_festivo:laboral.tipoFestivo,
-    solicitud_id:laboral.solicitudId,
-    tipo_ausencia:laboral.tipoAusencia,
-    minutos_justificados:laboral.minutosJustificados,
+    // No se sobrescriben festivo, ausencia, solicitud ni snapshot de configuración.
+    // Esos datos quedaron fijados al abrir la jornada.
     estado:nuevoEstado
   };
 
