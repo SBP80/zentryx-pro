@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3119 - OBJETIVO HISTÓRICO CORREGIDO
+// V3120 - OBJETIVO RESTANTE EN JORNADAS DEL MISMO DÍA
 // ===============================
 (function(){
 "use strict";
@@ -920,6 +920,20 @@ function valorSnapshotComparable(v){
   return String(v).trim();
 }
 
+function segundosOrdinariosJornada(j){
+  if(!j) return 0;
+
+  const trabajados=(j.segundos_trabajados!==undefined && j.segundos_trabajados!==null)
+    ? Math.max(0,numeroSeguro(j.segundos_trabajados,0))
+    : Math.max(0,numeroSeguro(j.minutos_trabajados,0)*60);
+
+  const objetivo=(j.segundos_objetivo!==undefined && j.segundos_objetivo!==null)
+    ? Math.max(0,numeroSeguro(j.segundos_objetivo,0))
+    : Math.max(0,numeroSeguro(j.minutos_objetivo,0)*60);
+
+  return Math.min(trabajados,objetivo);
+}
+
 function cambioConfiguracionEntreJornadas(anterior,snapshotActual){
   if(!anterior || !snapshotActual || !jornadaTieneSnapshot(anterior)) return false;
 
@@ -1487,24 +1501,33 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
     ? [...cerradas].sort((a,b)=>new Date(b.created_at||b.entrada||0)-new Date(a.created_at||a.entrada||0))[0]
     : null;
 
-  // Una segunda jornada del mismo día solo se considera adicional cuando sigue
-  // usando exactamente la misma configuración. Si la configuración cambió desde
-  // la jornada anterior, la nueva jornada recibe el nuevo objetivo completo.
+  // Cuando hay varias jornadas el mismo día con la misma configuración,
+  // la nueva jornada recibe únicamente el objetivo pendiente del día.
+  // Así, el tiempo ya trabajado no se convierte por error en horas extra.
+  // Si la configuración cambió, la nueva jornada conserva el objetivo completo
+  // de la nueva configuración y las jornadas anteriores no se modifican.
   const configuracionCambio=!!(ultimaCerrada && cambioConfiguracionEntreJornadas(ultimaCerrada,snapshot));
-  const esJornadaAdicional=!!(cerradas.length && !configuracionCambio);
+  const esJornadaContinuacion=!!(cerradas.length && !configuracionCambio);
 
-  if(esJornadaAdicional){
-    objetivoMin=0;
+  if(esJornadaContinuacion){
+    const objetivoDiaSeg=Math.max(0,objetivoMin*60);
+    const ordinarioYaRealizadoSeg=cerradas.reduce((total,j)=>total+segundosOrdinariosJornada(j),0);
+    const pendienteSeg=Math.max(0,objetivoDiaSeg-ordinarioYaRealizadoSeg);
+    objetivoMin=Math.floor(pendienteSeg/60);
   }
 
-  const objetivoSeg=objetivoMin*60;
+  const objetivoSeg=esJornadaContinuacion
+    ? Math.max(0,Math.max(0,Number(snapshot.config_minutos_dia||0))*60-cerradas.reduce((total,j)=>total+segundosOrdinariosJornada(j),0))
+    : objetivoMin*60;
 
   let observacion=laboral.observacion;
 
-  if(esJornadaAdicional && motivoAdmin){
+  if(esJornadaContinuacion && objetivoSeg<=0 && motivoAdmin){
     observacion="Jornada extra creada por administrador. Motivo: "+motivoAdmin;
-  }else if(esJornadaAdicional){
-    observacion="Jornada adicional del mismo día.";
+  }else if(esJornadaContinuacion && objetivoSeg<=0){
+    observacion="Jornada adicional del mismo día, con el objetivo diario ya completado.";
+  }else if(esJornadaContinuacion){
+    observacion="Continuación de la jornada del mismo día. Objetivo pendiente conservado.";
   }else if(configuracionCambio){
     observacion=[observacion,"Nueva jornada iniciada tras un cambio de configuración laboral."].filter(Boolean).join(" ");
   }
@@ -1550,17 +1573,22 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
     return null;
   }
 
-  if(esJornadaAdicional){
+  if(esJornadaContinuacion){
+    const objetivoCompletado=objetivoSeg<=0;
     await insertarAuditoria(
-      motivoAdmin ? "crear_jornada_extra_admin" : "crear_jornada_adicional",
-      motivoAdmin ? "Jornada extra creada por admin. Motivo: "+motivoAdmin : "Jornada adicional creada el mismo día.",
+      objetivoCompletado && motivoAdmin ? "crear_jornada_extra_admin" : (objetivoCompletado ? "crear_jornada_adicional" : "continuar_jornada_mismo_dia"),
+      objetivoCompletado
+        ? (motivoAdmin ? "Jornada extra creada por admin. Motivo: "+motivoAdmin : "Jornada adicional creada con el objetivo diario ya completado.")
+        : "Nueva jornada del mismo día creada con el objetivo pendiente, sin recalcular las jornadas anteriores.",
       s.id
     );
 
     await insertarAviso(
       s.id,
-      motivoAdmin ? "Jornada extra creada" : "Jornada adicional creada",
-      motivoAdmin ? "Se ha creado una jornada extra. Motivo: "+motivoAdmin : "Se ha creado una jornada adicional en el mismo día.",
+      objetivoCompletado && motivoAdmin ? "Jornada extra creada" : (objetivoCompletado ? "Jornada adicional creada" : "Jornada continuada"),
+      objetivoCompletado
+        ? (motivoAdmin ? "Se ha creado una jornada extra. Motivo: "+motivoAdmin : "Se ha creado una jornada adicional porque el objetivo diario ya estaba completado.")
+        : "Se ha creado una nueva jornada con el tiempo pendiente del objetivo diario.",
       "fichaje"
     );
   }else if(configuracionCambio){
