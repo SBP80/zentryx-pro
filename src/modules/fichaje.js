@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3115 - CIERRE FINAL FICHAJE
+// V3116 - SINCRONIZACIÓN MULTIDISPOSITIVO
 // ===============================
 (function(){
 "use strict";
@@ -20,6 +20,12 @@ let ZX_TIMER=null;
 let ZX_RT_CANAL=null;
 let ZX_RENDER_ID=0;
 let ZX_RT_RENDER_TIMER=null;
+let ZX_SYNC_TIMER=null;
+let ZX_SYNC_BUSY=false;
+let ZX_SYNC_FIRMA="";
+let ZX_SYNC_LISTENERS=false;
+let ZX_RT_ESTADO="desconectado";
+let ZX_ULTIMO_RENDER_REMOTO=0;
 
 // ===============================
 // BASE
@@ -2484,28 +2490,178 @@ function estilosAdminCompacto(){
 }
 
 // ===============================
-// TIEMPO REAL
+// SINCRONIZACIÓN MULTIDISPOSITIVO
 // ===============================
 function solicitarRenderFichaje(){
   if(ZX_RT_RENDER_TIMER) clearTimeout(ZX_RT_RENDER_TIMER);
-  ZX_RT_RENDER_TIMER=setTimeout(function(){
+
+  ZX_RT_RENDER_TIMER=setTimeout(async function(){
     ZX_RT_RENDER_TIMER=null;
-    if(typeof window.ZX_fichaje_real==="function") window.ZX_fichaje_real();
-  },350);
+
+    if(document.hidden) return;
+    if(document.getElementById("zx_modal_fichaje")) return;
+
+    const t=Date.now();
+    if(t-ZX_ULTIMO_RENDER_REMOTO<700) return;
+    ZX_ULTIMO_RENDER_REMOTO=t;
+
+    if(typeof window.ZX_fichaje_real==="function"){
+      await window.ZX_fichaje_real();
+    }
+  },220);
+}
+
+function detenerTiempoReal(){
+  if(!ZX_RT_CANAL) return;
+
+  try{
+    const cliente=sb();
+    if(cliente && typeof cliente.removeChannel==="function"){
+      cliente.removeChannel(ZX_RT_CANAL);
+    }
+  }catch(e){}
+
+  ZX_RT_CANAL=null;
+  ZX_RT_ESTADO="desconectado";
 }
 
 function iniciarTiempoReal(){
-  if(ZX_RT_CANAL || !sb() || !sb().channel) return;
+  const cliente=sb();
+  if(!cliente || typeof cliente.channel!=="function") return;
+  if(ZX_RT_CANAL && ZX_RT_ESTADO==="conectado") return;
+
+  detenerTiempoReal();
 
   try{
-    ZX_RT_CANAL=sb()
-      .channel("zx_fichaje_rt_v3105")
+    const s=sesion();
+    const canalNombre="zx_fichaje_rt_"+String(s.id||"usuario")+"_"+Math.random().toString(36).slice(2,9);
+
+    ZX_RT_CANAL=cliente
+      .channel(canalNombre)
       .on("postgres_changes",{event:"*",schema:"public",table:"jornadas"},solicitarRenderFichaje)
       .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},solicitarRenderFichaje)
       .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},solicitarRenderFichaje)
       .on("postgres_changes",{event:"*",schema:"public",table:"vehiculos"},solicitarRenderFichaje)
-      .subscribe();
-  }catch(e){}
+      .subscribe(function(status){
+        const st=String(status||"");
+
+        if(st==="SUBSCRIBED"){
+          ZX_RT_ESTADO="conectado";
+          return;
+        }
+
+        if(st==="CHANNEL_ERROR" || st==="TIMED_OUT" || st==="CLOSED"){
+          ZX_RT_ESTADO="error";
+          setTimeout(function(){
+            detenerTiempoReal();
+            iniciarTiempoReal();
+          },2500);
+        }
+      });
+  }catch(e){
+    ZX_RT_CANAL=null;
+    ZX_RT_ESTADO="error";
+  }
+}
+
+async function firmaSincronizacion(){
+  if(zxOffline()) return "offline";
+
+  const cliente=sb();
+  const s=sesion();
+  if(!cliente || !s.id) return "sin_sesion";
+
+  try{
+    const consultas=[
+      cliente
+        .from("jornadas")
+        .select("id,usuario_id,estado,entrada,salida,segundos_trabajados,segundos_descanso,segundos_comida,segundos_objetivo,segundos_extra,segundos_faltantes,minutos_trabajados,minutos_descanso,minutos_comida,minutos_objetivo,minutos_extra,minutos_faltantes,km_entrada,km_salida,vehiculo_id,created_at")
+        .eq("usuario_id",String(s.id))
+        .order("created_at",{ascending:false})
+        .limit(4),
+      cliente
+        .from("fichajes")
+        .select("id,jornada_id,usuario_id,tipo,created_at,modificado_en")
+        .eq("usuario_id",String(s.id))
+        .order("created_at",{ascending:false})
+        .limit(8)
+    ];
+
+    if(esAdmin() && (ZX_VER_ADMIN || ZX_VER_TODAS_JORNADAS)){
+      consultas.push(
+        cliente
+          .from("jornadas")
+          .select("id,usuario_id,estado,entrada,salida,segundos_trabajados,segundos_descanso,segundos_comida,segundos_objetivo,segundos_extra,segundos_faltantes,minutos_trabajados,minutos_descanso,minutos_comida,minutos_objetivo,minutos_extra,minutos_faltantes,created_at")
+          .neq("usuario_id",String(s.id))
+          .order("created_at",{ascending:false})
+          .limit(20)
+      );
+    }
+
+    const resultados=await Promise.all(consultas);
+    const datos=resultados.map(r=>r && !r.error ? (r.data||[]) : []);
+    return JSON.stringify(datos);
+  }catch(e){
+    return "error";
+  }
+}
+
+async function comprobarCambiosRemotos(forzarRender=false){
+  if(ZX_SYNC_BUSY || document.hidden || zxOffline()) return;
+  if(document.getElementById("zx_modal_fichaje")) return;
+
+  ZX_SYNC_BUSY=true;
+  try{
+    const nuevaFirma=await firmaSincronizacion();
+
+    if(!ZX_SYNC_FIRMA){
+      ZX_SYNC_FIRMA=nuevaFirma;
+      if(forzarRender) solicitarRenderFichaje();
+      return;
+    }
+
+    if(forzarRender || nuevaFirma!==ZX_SYNC_FIRMA){
+      ZX_SYNC_FIRMA=nuevaFirma;
+      solicitarRenderFichaje();
+    }
+  }finally{
+    ZX_SYNC_BUSY=false;
+  }
+}
+
+function iniciarSincronizacionRespaldo(){
+  if(!ZX_SYNC_TIMER){
+    ZX_SYNC_TIMER=setInterval(function(){
+      comprobarCambiosRemotos(false);
+    },2500);
+  }
+
+  if(ZX_SYNC_LISTENERS) return;
+  ZX_SYNC_LISTENERS=true;
+
+  document.addEventListener("visibilitychange",function(){
+    if(!document.hidden){
+      ZX_SYNC_FIRMA="";
+      iniciarTiempoReal();
+      comprobarCambiosRemotos(true);
+    }
+  });
+
+  window.addEventListener("focus",function(){
+    ZX_SYNC_FIRMA="";
+    comprobarCambiosRemotos(true);
+  });
+
+  window.addEventListener("online",function(){
+    ZX_SYNC_FIRMA="";
+    detenerTiempoReal();
+    iniciarTiempoReal();
+    comprobarCambiosRemotos(true);
+  });
+
+  window.addEventListener("offline",function(){
+    ZX_SYNC_FIRMA="offline";
+  });
 }
 
 // ===============================
@@ -2598,6 +2754,7 @@ window.ZX_fichaje_real=async function(){
   const renderId=++ZX_RENDER_ID;
   estilosAdminCompacto();
   iniciarTiempoReal();
+  iniciarSincronizacionRespaldo();
 
   if(ZX_TIMER){
     clearInterval(ZX_TIMER);
@@ -2754,6 +2911,10 @@ window.ZX_fichaje_real=async function(){
     el.onclick=abrir;
     el.onkeydown=function(e){if(e.key==="Enter" || e.key===" "){e.preventDefault();abrir();}};
   });
+
+  firmaSincronizacion().then(function(f){
+    if(f && f!=="error") ZX_SYNC_FIRMA=f;
+  }).catch(function(){});
 
   if(est.jornada){
     const liveId=est.jornada.id;
