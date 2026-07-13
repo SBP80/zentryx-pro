@@ -1,18 +1,20 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3128 - USOS INDEPENDIENTES, CAMBIO DE RESPONSABLE Y DEVOLUCIÓN
+// V3129 - HISTORIAL, AVISOS, RECUPERACIÓN Y RUTAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3128";
+const ZX_VERSION="3129";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3128";
+const CACHE_KEY="zentryx_cache_vehiculos_v3129";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
 let ZX_VEH_FILTRO="activos";
 let ZX_VEH_CARGANDO=false;
+let ZX_USOS_ACTUALES={};
+let ZX_RECUPERACIONES={};
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -140,6 +142,109 @@ function uuid(){
 
 function ahoraISO(){return new Date().toISOString()}
 
+
+function fechaHoraES(v){
+  if(!v) return "-";
+  const d=new Date(v);
+  if(isNaN(d.getTime())) return "-";
+  return String(d.getDate()).padStart(2,"0")+"/"+
+    String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear()+" "+
+    String(d.getHours()).padStart(2,"0")+":"+
+    String(d.getMinutes()).padStart(2,"0")+":"+
+    String(d.getSeconds()).padStart(2,"0");
+}
+
+function duracionDesde(v){
+  if(!v) return "-";
+  const d=new Date(v);
+  if(isNaN(d.getTime())) return "-";
+  let seg=Math.max(0,Math.floor((Date.now()-d.getTime())/1000));
+  const h=Math.floor(seg/3600); seg%=3600;
+  const m=Math.floor(seg/60); const ss=seg%60;
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(ss).padStart(2,"0");
+}
+
+async function insertarNotificacion(usuarioId,titulo,mensaje){
+  if(!usuarioId) return;
+  try{
+    const r=await zxInsert("notificaciones",{
+      id:uuid(),
+      usuario_id:String(usuarioId),
+      titulo:String(titulo||"Vehículo"),
+      mensaje:String(mensaje||""),
+      tipo:"vehiculo",
+      leida:false,
+      created_at:ahoraISO()
+    });
+    if(r && r.error) throw r.error;
+  }catch(e){
+    try{
+      await zxInsert("avisos",{
+        id:uuid(), usuario_id:String(usuarioId), titulo:String(titulo||"Vehículo"),
+        mensaje:String(mensaje||""), tipo:"vehiculo", leida:false, created_at:ahoraISO()
+      });
+    }catch(e2){}
+  }
+}
+
+async function cargarUsosYRecuperaciones(){
+  ZX_USOS_ACTUALES={};
+  ZX_RECUPERACIONES={};
+  if(!navigator.onLine || !sb()) return;
+  const u=identidadActual();
+  try{
+    const r=await sb().from("usos_vehiculos").select("*")
+      .in("estado",["en_uso","pendiente_devolucion"])
+      .order("inicio_at",{ascending:false});
+    if(!r.error){
+      (r.data||[]).forEach(x=>{ if(!ZX_USOS_ACTUALES[String(x.vehiculo_id)]) ZX_USOS_ACTUALES[String(x.vehiculo_id)]=x; });
+    }
+  }catch(e){}
+  if(!u.id) return;
+  try{
+    const r=await sb().from("transferencias_vehiculos").select("*")
+      .eq("usuario_anterior_id",u.id)
+      .eq("aviso_liberacion_enviado",true)
+      .eq("respuesta_usuario_anterior","pendiente")
+      .order("created_at",{ascending:false});
+    if(!r.error){
+      (r.data||[]).forEach(x=>{ if(!ZX_RECUPERACIONES[String(x.vehiculo_id)]) ZX_RECUPERACIONES[String(x.vehiculo_id)]=x; });
+    }
+  }catch(e){}
+}
+
+async function cargarDetalleVehiculo(id){
+  const out={usos:[],transferencias:[],puntos:[]};
+  if(!navigator.onLine || !sb()) return out;
+  try{
+    const r=await sb().from("usos_vehiculos").select("*").eq("vehiculo_id",String(id)).order("inicio_at",{ascending:false}).limit(30);
+    if(!r.error) out.usos=r.data||[];
+  }catch(e){}
+  try{
+    const r=await sb().from("transferencias_vehiculos").select("*").eq("vehiculo_id",String(id)).order("created_at",{ascending:false}).limit(30);
+    if(!r.error) out.transferencias=r.data||[];
+  }catch(e){}
+  try{
+    const r=await sb().from("rutas_vehiculos_puntos").select("*").eq("vehiculo_id",String(id)).order("registrado_at",{ascending:true}).limit(500);
+    if(!r.error) out.puntos=r.data||[];
+  }catch(e){}
+  return out;
+}
+
+function urlRutaGoogle(puntos){
+  const pts=(puntos||[]).filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)));
+  if(pts.length<2) return "";
+  const reducidos=[];
+  const paso=Math.max(1,Math.floor(pts.length/18));
+  for(let i=0;i<pts.length;i+=paso) reducidos.push(pts[i]);
+  if(reducidos[reducidos.length-1]!==pts[pts.length-1]) reducidos.push(pts[pts.length-1]);
+  const origen=reducidos[0], destino=reducidos[reducidos.length-1];
+  const medios=reducidos.slice(1,-1).map(p=>p.lat+","+p.lng).join("|");
+  let url="https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origen.lat+","+origen.lng)+"&destination="+encodeURIComponent(destino.lat+","+destino.lng);
+  if(medios) url+="&waypoints="+encodeURIComponent(medios);
+  return url;
+}
+
 function obtenerPosicion(){
   return new Promise(function(resolve){
     if(!navigator.geolocation){resolve({lat:null,lng:null});return}
@@ -207,6 +312,7 @@ async function cargarVehiculos(){
   ZX_VEH_CARGANDO=true;
 
   try{
+    await cargarUsosYRecuperaciones();
     let r;
 
     if(zx() && typeof zx().selectCache==="function"){
@@ -219,7 +325,11 @@ async function cargarVehiculos(){
 
     if(r.error) throw r.error;
 
-    ZX_VEH_CACHE=(r.data || []).map(prepararVehiculo);
+    ZX_VEH_CACHE=(r.data || []).map(function(v){
+      v.__uso_actual=ZX_USOS_ACTUALES[String(v.id)] || null;
+      v.__recuperacion=ZX_RECUPERACIONES[String(v.id)] || null;
+      return prepararVehiculo(v);
+    });
     guardarCache(ZX_VEH_CACHE);
   }catch(e){
     ZX_VEH_CACHE=leerCache().map(prepararVehiculo);
@@ -327,6 +437,9 @@ function renderVehiculo(v){
       <div class="zx_veh_info">
         <p><b>Kilómetros</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
         <p><b>Responsable actual</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
+        ${v.__uso_actual ? `<p><b>Inicio del uso</b><span>${limpiar(fechaHoraES(v.__uso_actual.inicio_at))}</span></p>` : ""}
+        ${v.__uso_actual ? `<p><b>Tiempo de uso</b><span>${limpiar(duracionDesde(v.__uso_actual.inicio_at))}</span></p>` : ""}
+        ${v.__uso_actual && v.__uso_actual.km_inicio!=null ? `<p><b>Km al recoger</b><span>${limpiar(v.__uso_actual.km_inicio)}</span></p>` : ""}
         ${v.itv_fecha ? `<p><b>ITV</b><span>${fechaES(v.itv_fecha)}</span></p>` : ""}
         ${v.seguro_fecha ? `<p><b>Seguro</b><span>${fechaES(v.seguro_fecha)}</span></p>` : ""}
         ${v.proxima_revision_fecha ? `<p><b>Próxima revisión</b><span>${fechaES(v.proxima_revision_fecha)}</span></p>` : ""}
@@ -335,7 +448,8 @@ function renderVehiculo(v){
 
       <div class="zx_veh_actions">
         <button class="blue" data-veh-open="${limpiar(v.id)}">Ficha</button>
-        ${estadoVehiculo(v)!=="inactivo" && !esResponsableActual(v) && !["averia","taller","fuera_servicio"].includes(estadoVehiculo(v)) ? `<button class="green" data-veh-tomar="${limpiar(v.id)}">Utilizar</button>` : ""}
+        ${v.__recuperacion && estadoVehiculo(v)==="libre" ? `<button class="purple" data-veh-recuperar="${limpiar(v.id)}">Volver a utilizar</button>` : ""}
+        ${estadoVehiculo(v)!=="inactivo" && !esResponsableActual(v) && !["averia","taller","fuera_servicio"].includes(estadoVehiculo(v)) ? `<button class="green" data-veh-tomar="${limpiar(v.id)}">${estadoVehiculo(v)==="uso" ? "Asumir uso" : "Utilizar"}</button>` : ""}
         ${esResponsableActual(v) ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">Devolver</button>` : ""}
         ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">Editar</button>` : ""}
         ${estadoVehiculo(v)!=="inactivo" && puedeGestionar() ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">Desactivar</button>` : ""}
@@ -421,6 +535,7 @@ function conectarEventos(){
   document.querySelectorAll("[data-veh-open]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehOpen)}});
   document.querySelectorAll("[data-veh-edit]").forEach(btn=>{btn.onclick=function(){editarVehiculo(btn.dataset.vehEdit)}});
   document.querySelectorAll("[data-veh-tomar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehTomar)}});
+  document.querySelectorAll("[data-veh-recuperar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehRecuperar)}});
   document.querySelectorAll("[data-veh-devolver]").forEach(btn=>{btn.onclick=function(){devolverVehiculo(btn.dataset.vehDevolver)}});
   document.querySelectorAll("[data-veh-activar]").forEach(btn=>{btn.onclick=function(){actualizarVehiculo(btn.dataset.vehActivar,{activo:true,estado_flota:"libre"})}});
   document.querySelectorAll("[data-veh-desactivar]").forEach(btn=>{btn.onclick=function(){desactivarVehiculo(btn.dataset.vehDesactivar)}});
@@ -710,6 +825,11 @@ async function tomarVehiculo(id){
           confirmado_at:now
         });
         if(rTransfer && rTransfer.error) throw rTransfer.error;
+        await insertarNotificacion(
+          responsableId(v),
+          "Vehículo asumido por otro usuario",
+          u.nombre+" está utilizando el vehículo "+(v.matricula||"")+". Te avisaremos cuando quede libre."
+        );
       }
 
       const rVeh=await zxUpdate(TABLA,{
@@ -723,6 +843,10 @@ async function tomarVehiculo(id){
         usuario_asignado:u.nombre
       },"id",id);
       if(rVeh && rVeh.error) throw rVeh.error;
+
+      if(v.__recuperacion && v.__recuperacion.id){
+        try{await zxUpdate("transferencias_vehiculos",{respuesta_usuario_anterior:"volver_a_usar"},"id",v.__recuperacion.id)}catch(e){}
+      }
 
       cerrarModal();
       await window.ZX_vehiculos();
@@ -795,6 +919,25 @@ async function devolverVehiculo(id){
       },"id",id);
       if(rVeh && rVeh.error) throw rVeh.error;
 
+      try{
+        const tr=await sb().from("transferencias_vehiculos").select("*")
+          .eq("uso_nuevo_id",String(v.uso_actual_id||""))
+          .eq("avisar_al_liberar",true)
+          .order("created_at",{ascending:false}).limit(1);
+        const t=tr.data&&tr.data[0] ? tr.data[0] : null;
+        if(t && t.usuario_anterior_id){
+          await zxUpdate("transferencias_vehiculos",{
+            aviso_liberacion_enviado:true,
+            mensaje_usuario_anterior:(u.nombre||responsableNombre(v)||"El usuario")+" ya ha liberado el vehículo "+(v.matricula||"")
+          },"id",t.id);
+          await insertarNotificacion(
+            t.usuario_anterior_id,
+            "Vehículo libre",
+            (u.nombre||responsableNombre(v)||"El usuario")+" ha liberado el vehículo "+(v.matricula||"")+". Puedes volver a utilizarlo desde Vehículos."
+          );
+        }
+      }catch(e){}
+
       cerrarModal();
       await window.ZX_vehiculos();
     }catch(e){
@@ -815,25 +958,68 @@ async function desactivarVehiculo(id){
   await actualizarVehiculo(id,{activo:false,estado_flota:"libre",en_uso:false,usuario_asignado:""});
 }
 
-function abrirFicha(id){
+async function abrirFicha(id){
   const v=vehiculoPorId(id);
   if(!v){alert("Vehículo no encontrado.");return}
+
+  modal(`
+    <h2>${limpiar(nombreVehiculo(v))}</h2>
+    <div class="zx_veh_loading">Cargando historial...</div>
+    <button class="zx_btn_big zx_gris" id="veh_ficha_cerrar">Cerrar</button>
+  `);
+  document.getElementById("veh_ficha_cerrar").onclick=cerrarModal;
+
+  const detalle=await cargarDetalleVehiculo(id);
+  const usos=detalle.usos||[];
+  const transferencias=detalle.transferencias||[];
+  const puntos=detalle.puntos||[];
+  const rutaUrl=urlRutaGoogle(puntos);
+
+  const usoHtml=usos.length ? usos.map(function(u){
+    const kmTxt=(u.km_inicio!=null ? u.km_inicio : "-")+" → "+(u.km_fin!=null ? u.km_fin : "-");
+    return `<div class="zx_veh_hist_item"><b>${limpiar(u.nombre_usuario||u.usuario||"Usuario")}</b><span>${limpiar(fechaHoraES(u.inicio_at))} · ${limpiar(u.estado||"")}</span><small>Km ${limpiar(kmTxt)}${u.km_recorridos!=null ? " · "+limpiar(u.km_recorridos)+" km" : ""}</small></div>`;
+  }).join("") : `<div class="zx_veh_empty">Todavía no hay usos registrados.</div>`;
+
+  const transHtml=transferencias.length ? transferencias.map(function(t){
+    return `<div class="zx_veh_hist_item"><b>${limpiar(t.nombre_anterior||"Sin responsable")} → ${limpiar(t.nombre_nuevo||"Usuario")}</b><span>${limpiar(fechaHoraES(t.created_at))}</span><small>${limpiar(t.motivo||"Cambio de responsable")}</small></div>`;
+  }).join("") : `<div class="zx_veh_empty">No hay transferencias registradas.</div>`;
 
   modal(`
     <h2>${limpiar(nombreVehiculo(v))}</h2>
     <div class="zx_veh_badges">${badge(v)}</div>
     ${renderAvisos(v)}
 
-    <div class="zx_veh_info ficha">
-      <p><b>Matrícula</b><span>${limpiar(v.matricula || "-")}</span></p>
-      <p><b>Marca / modelo</b><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ") || "-")}</span></p>
-      <p><b>Km actuales</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
-      <p><b>Responsable actual</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
-      <p><b>ITV</b><span>${limpiar(fechaES(v.itv_fecha) || "-")}</span></p>
-      <p><b>Seguro</b><span>${limpiar(fechaES(v.seguro_fecha) || "-")}</span></p>
-      <p><b>Revisión</b><span>${limpiar(fechaES(v.proxima_revision_fecha) || "-")}</span></p>
-      <p><b>Km revisión</b><span>${limpiar(v.proxima_revision_km || "-")}</span></p>
-      ${v.notas ? `<p><b>Notas</b><span>${limpiar(v.notas)}</span></p>` : ""}
+    <div class="zx_veh_tabs">
+      <button class="on" data-veh-tab="datos">Datos</button>
+      <button data-veh-tab="historial">Historial (${usos.length})</button>
+      <button data-veh-tab="transferencias">Cambios (${transferencias.length})</button>
+      <button data-veh-tab="ruta">Ruta (${puntos.length})</button>
+    </div>
+
+    <div class="zx_veh_tab on" data-veh-panel="datos">
+      <div class="zx_veh_info ficha">
+        <p><b>Matrícula</b><span>${limpiar(v.matricula || "-")}</span></p>
+        <p><b>Marca / modelo</b><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ") || "-")}</span></p>
+        <p><b>Km actuales</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
+        <p><b>Responsable actual</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
+        <p><b>Inicio del uso</b><span>${limpiar(fechaHoraES(v.uso_iniciado_at))}</span></p>
+        <p><b>Tiempo de uso</b><span>${limpiar(duracionDesde(v.uso_iniciado_at))}</span></p>
+        <p><b>ITV</b><span>${limpiar(fechaES(v.itv_fecha) || "-")}</span></p>
+        <p><b>Seguro</b><span>${limpiar(fechaES(v.seguro_fecha) || "-")}</span></p>
+        <p><b>Revisión</b><span>${limpiar(fechaES(v.proxima_revision_fecha) || "-")}</span></p>
+        <p><b>Km revisión</b><span>${limpiar(v.proxima_revision_km || "-")}</span></p>
+        ${v.notas ? `<p><b>Notas</b><span>${limpiar(v.notas)}</span></p>` : ""}
+      </div>
+    </div>
+
+    <div class="zx_veh_tab" data-veh-panel="historial"><div class="zx_veh_hist">${usoHtml}</div></div>
+    <div class="zx_veh_tab" data-veh-panel="transferencias"><div class="zx_veh_hist">${transHtml}</div></div>
+    <div class="zx_veh_tab" data-veh-panel="ruta">
+      <div class="zx_veh_route_box">
+        <b>${puntos.length} puntos GPS registrados</b>
+        <span>${puntos.length ? "Ruta disponible para este vehículo." : "Aún no hay puntos GPS guardados."}</span>
+        ${rutaUrl ? `<a href="${limpiar(rutaUrl)}" target="_blank" rel="noopener">Abrir recorrido en Google Maps</a>` : ""}
+      </div>
     </div>
 
     <div class="zx_veh_actions ficha_actions">
@@ -843,6 +1029,13 @@ function abrirFicha(id){
     </div>
   `);
 
+  document.querySelectorAll("[data-veh-tab]").forEach(function(btn){
+    btn.onclick=function(){
+      const tab=btn.dataset.vehTab;
+      document.querySelectorAll("[data-veh-tab]").forEach(x=>x.classList.toggle("on",x===btn));
+      document.querySelectorAll("[data-veh-panel]").forEach(x=>x.classList.toggle("on",x.dataset.vehPanel===tab));
+    };
+  });
   const editar=document.getElementById("veh_ficha_editar");
   if(editar) editar.onclick=function(){editarVehiculo(id)};
   const doc=document.getElementById("veh_ficha_doc");
@@ -851,11 +1044,11 @@ function abrirFicha(id){
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_vehiculos_css_v3128");
+  const old=document.getElementById("zx_vehiculos_css_v3129");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_vehiculos_css_v3128";
+  s.id="zx_vehiculos_css_v3129";
   s.innerHTML=`
     .zx_veh_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_veh_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
@@ -903,6 +1096,14 @@ function instalarCSS(){
     .zx_veh_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
     .zx_veh_form input,.zx_veh_form select,.zx_veh_form textarea,#zx_modal_vehiculo input,#zx_modal_vehiculo select,#zx_modal_vehiculo textarea{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}
     .zx_veh_grid2{display:grid;grid-template-columns:1fr;gap:10px}
+    .zx_veh_loading{padding:20px 0;color:#64748b;font-weight:900;text-align:center}
+    .zx_veh_tabs{display:flex;gap:8px;overflow-x:auto;margin:14px 0 12px;padding-bottom:4px}
+    .zx_veh_tabs button{border:0;border-radius:999px;background:#e2e8f0;color:#334155;padding:10px 12px;font-size:13px;font-weight:950;white-space:nowrap}
+    .zx_veh_tabs button.on{background:#2563eb;color:white}
+    .zx_veh_tab{display:none}.zx_veh_tab.on{display:block}
+    .zx_veh_hist{display:grid;gap:9px}.zx_veh_hist_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px}
+    .zx_veh_hist_item b,.zx_veh_hist_item span,.zx_veh_hist_item small{display:block}.zx_veh_hist_item b{color:#071330;font-size:15px}.zx_veh_hist_item span{color:#475569;font-size:13px;font-weight:850;margin-top:4px}.zx_veh_hist_item small{color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
+    .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border-radius:14px;padding:11px 13px;font-weight:950}
     @media(max-width:390px){.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_top h3{font-size:19px}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
