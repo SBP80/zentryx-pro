@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3112 - MÓDULO COMPLETO RESPONSIVE
+// V3128 - USOS INDEPENDIENTES, CAMBIO DE RESPONSABLE Y DEVOLUCIÓN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3112";
+const ZX_VERSION="3128";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3112";
+const CACHE_KEY="zentryx_cache_vehiculos_v3128";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -98,15 +98,65 @@ function modal(html){
 
 function estadoVehiculo(v){
   if(v.activo===false || v.activo==="false") return "inactivo";
+  const ef=normalizar(v.estado_flota || "");
+  if(["en_uso","pendiente_devolucion"].includes(ef)) return "uso";
+  if(["averia","taller","fuera_servicio","reservado"].includes(ef)) return ef;
   if(v.en_uso===true || v.en_uso==="true") return "uso";
   return "libre";
 }
 
 function estadoTexto(v){
   const e=estadoVehiculo(v);
-  if(e==="uso") return "En uso";
+  if(e==="uso") return normalizar(v.estado_flota)==="pendiente_devolucion" ? "Pendiente de devolución" : "En uso";
+  if(e==="reservado") return "Reservado";
+  if(e==="averia") return "Avería";
+  if(e==="taller") return "Taller";
+  if(e==="fuera_servicio") return "Fuera de servicio";
   if(e==="inactivo") return "Inactivo";
   return "Libre";
+}
+
+function identidadActual(){
+  const s=sesion() || {};
+  return {
+    id:String(s.id || s.user_id || s.usuario_id || ""),
+    usuario:String(s.usuario || s.username || ""),
+    nombre:String(s.nombre_completo || s.nombre || s.usuario || "Usuario"),
+    empresa_id:String(s.empresa_id || "")
+  };
+}
+
+function responsableId(v){return String(v.usuario_actual_id || "")}
+function responsableNombre(v){return String(v.usuario_actual_nombre || v.usuario_asignado || "")}
+function esResponsableActual(v){
+  const u=identidadActual();
+  return !!u.id && responsableId(v)===u.id;
+}
+
+function uuid(){
+  try{if(window.crypto && crypto.randomUUID) return crypto.randomUUID()}catch(e){}
+  return "zx_"+Date.now()+"_"+Math.random().toString(16).slice(2);
+}
+
+function ahoraISO(){return new Date().toISOString()}
+
+function obtenerPosicion(){
+  return new Promise(function(resolve){
+    if(!navigator.geolocation){resolve({lat:null,lng:null});return}
+    navigator.geolocation.getCurrentPosition(function(p){
+      resolve({lat:p.coords.latitude,lng:p.coords.longitude});
+    },function(){resolve({lat:null,lng:null})},{enableHighAccuracy:true,timeout:8000,maximumAge:60000});
+  });
+}
+
+async function zxInsert(tabla,data){
+  if(zx() && typeof zx().insert==="function") return zx().insert(tabla,[data]);
+  return sb().from(tabla).insert([data]);
+}
+
+async function zxUpdate(tabla,data,campo,valor){
+  if(zx() && typeof zx().update==="function") return zx().update(tabla,data,campo,valor);
+  return sb().from(tabla).update(data).eq(campo,String(valor));
 }
 
 function nombreVehiculo(v){
@@ -115,7 +165,7 @@ function nombreVehiculo(v){
 
 function textoBusqueda(v){
   return normalizar([
-    v.matricula,v.marca,v.modelo,v.usuario_asignado,v.km_actual,
+    v.matricula,v.marca,v.modelo,v.usuario_actual_nombre,v.usuario_asignado,v.km_actual,
     v.estado,v.notas,v.itv_fecha,v.seguro_fecha,v.proxima_revision_fecha
   ].join(" "));
 }
@@ -225,7 +275,9 @@ function toolbar(total){
 function badge(v){
   const e=estadoVehiculo(v);
   if(e==="inactivo") return `<span class="off">Inactivo</span>`;
-  if(e==="uso") return `<span class="uso">En uso</span>`;
+  if(e==="uso") return `<span class="uso">${limpiar(estadoTexto(v))}</span>`;
+  if(["averia","taller","fuera_servicio"].includes(e)) return `<span class="off">${limpiar(estadoTexto(v))}</span>`;
+  if(e==="reservado") return `<span class="orange">Reservado</span>`;
   return `<span class="libre">Libre</span>`;
 }
 
@@ -274,7 +326,7 @@ function renderVehiculo(v){
 
       <div class="zx_veh_info">
         <p><b>Kilómetros</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
-        <p><b>Usuario</b><span>${limpiar(v.usuario_asignado || "-")}</span></p>
+        <p><b>Responsable actual</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
         ${v.itv_fecha ? `<p><b>ITV</b><span>${fechaES(v.itv_fecha)}</span></p>` : ""}
         ${v.seguro_fecha ? `<p><b>Seguro</b><span>${fechaES(v.seguro_fecha)}</span></p>` : ""}
         ${v.proxima_revision_fecha ? `<p><b>Próxima revisión</b><span>${fechaES(v.proxima_revision_fecha)}</span></p>` : ""}
@@ -283,8 +335,9 @@ function renderVehiculo(v){
 
       <div class="zx_veh_actions">
         <button class="blue" data-veh-open="${limpiar(v.id)}">Ficha</button>
+        ${estadoVehiculo(v)!=="inactivo" && !esResponsableActual(v) && !["averia","taller","fuera_servicio"].includes(estadoVehiculo(v)) ? `<button class="green" data-veh-tomar="${limpiar(v.id)}">Utilizar</button>` : ""}
+        ${esResponsableActual(v) ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">Devolver</button>` : ""}
         ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">Editar</button>` : ""}
-        ${estadoVehiculo(v)==="uso" && puedeGestionar() ? `<button class="orange" data-veh-liberar="${limpiar(v.id)}">Liberar</button>` : ""}
         ${estadoVehiculo(v)!=="inactivo" && puedeGestionar() ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">Desactivar</button>` : ""}
         ${estadoVehiculo(v)==="inactivo" && puedeGestionar() ? `<button class="green" data-veh-activar="${limpiar(v.id)}">Activar</button>` : ""}
       </div>
@@ -303,7 +356,7 @@ function pintarShell(lista){
       <section class="zx_veh_panel zx_veh_header">
         <div>
           <h2>Vehículos</h2>
-          <p>Flota, disponibilidad, documentación, ITV, seguro y revisiones.</p>
+          <p>Uso real, responsables, kilómetros, documentación, ITV, seguro y revisiones.</p>
         </div>
         ${puedeGestionar() ? `<button class="zx_veh_new" id="btn_nuevo_vehiculo">＋ Crear</button>` : ""}
       </section>
@@ -367,8 +420,9 @@ function conectarEventos(){
 
   document.querySelectorAll("[data-veh-open]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehOpen)}});
   document.querySelectorAll("[data-veh-edit]").forEach(btn=>{btn.onclick=function(){editarVehiculo(btn.dataset.vehEdit)}});
-  document.querySelectorAll("[data-veh-liberar]").forEach(btn=>{btn.onclick=function(){liberarVehiculo(btn.dataset.vehLiberar)}});
-  document.querySelectorAll("[data-veh-activar]").forEach(btn=>{btn.onclick=function(){actualizarVehiculo(btn.dataset.vehActivar,{activo:true})}});
+  document.querySelectorAll("[data-veh-tomar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehTomar)}});
+  document.querySelectorAll("[data-veh-devolver]").forEach(btn=>{btn.onclick=function(){devolverVehiculo(btn.dataset.vehDevolver)}});
+  document.querySelectorAll("[data-veh-activar]").forEach(btn=>{btn.onclick=function(){actualizarVehiculo(btn.dataset.vehActivar,{activo:true,estado_flota:"libre"})}});
   document.querySelectorAll("[data-veh-desactivar]").forEach(btn=>{btn.onclick=function(){desactivarVehiculo(btn.dataset.vehDesactivar)}});
 }
 
@@ -404,15 +458,14 @@ function abrirFormulario(v){
           </select>
         </div>
         <div>
-          <label class="zx_veh_label" for="veh_en_uso">Uso</label>
-          <select id="veh_en_uso">
-            <option value="false" ${v.en_uso!==true && v.en_uso!=="true" ? "selected" : ""}>Libre</option>
-            <option value="true" ${v.en_uso===true || v.en_uso==="true" ? "selected" : ""}>En uso</option>
+          <label class="zx_veh_label" for="veh_gps">Seguimiento GPS</label>
+          <select id="veh_gps">
+            <option value="false" ${v.seguimiento_gps_habilitado!==true && v.seguimiento_gps_habilitado!=="true" ? "selected" : ""}>Desactivado</option>
+            <option value="true" ${v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true" ? "selected" : ""}>Activado</option>
           </select>
         </div>
       </div>
-
-      ${input("veh_usuario","Usuario asignado",v.usuario_asignado)}
+      <div class="zx_veh_nota_form">La asignación se gestiona con los botones Utilizar y Devolver. No se cambia manualmente.</div>
 
       <h3>Revisiones y documentación</h3>
       <div class="zx_veh_grid2">
@@ -499,10 +552,6 @@ async function guardarVehiculo(id,docActual,nombreDocActual){
   const km=numero(valor("veh_km"));
   if(km<0){alert("Los km no pueden ser negativos.");return}
 
-  const enUso=valor("veh_en_uso")==="true";
-  let usuarioAsignado=valor("veh_usuario");
-  if(!enUso) usuarioAsignado="";
-
   const file=(document.getElementById("veh_doc")?.files || [])[0] || null;
   const docUrl=await subirDocumento(file,matricula);
 
@@ -512,8 +561,7 @@ async function guardarVehiculo(id,docActual,nombreDocActual){
     modelo:valor("veh_modelo"),
     km_actual:km,
     activo:valor("veh_activo")==="true",
-    en_uso:enUso,
-    usuario_asignado:usuarioAsignado,
+    seguimiento_gps_habilitado:valor("veh_gps")==="true",
     itv_fecha:valor("veh_itv") || null,
     seguro_fecha:valor("veh_seguro") || null,
     proxima_revision_fecha:valor("veh_revision") || null,
@@ -557,28 +605,214 @@ async function actualizarVehiculo(id,data){
   }
 }
 
-async function liberarVehiculo(id){
+async function tomarVehiculo(id){
+  const v=vehiculoPorId(id);
+  if(!v){alert("Vehículo no encontrado.");return}
+  if(estadoVehiculo(v)==="inactivo"){alert("Este vehículo está inactivo.");return}
+
+  const actual=responsableNombre(v);
+  const ocupado=estadoVehiculo(v)==="uso" && !esResponsableActual(v);
+
   modal(`
-    <h2>Liberar vehículo</h2>
-    <label class="zx_veh_label" for="veh_km_salida">Km actuales</label>
-    <input id="veh_km_salida" type="number" placeholder="Km actuales">
-    <button class="zx_btn_big zx_verde" id="veh_liberar_ok">Liberar</button>
-    <button class="zx_btn_big zx_gris" id="veh_liberar_cancelar">Cancelar</button>
+    <h2>${ocupado ? "Cambiar responsable" : "Utilizar vehículo"}</h2>
+    ${ocupado ? `<div class="zx_veh_aviso">Este vehículo está asignado ahora mismo a <b>${limpiar(actual || "otro usuario")}</b>. ¿Quieres utilizarlo?</div>` : ""}
+    <div class="zx_veh_info ficha">
+      <p><b>Vehículo</b><span>${limpiar(nombreVehiculo(v))}</span></p>
+      <p><b>Km registrados</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
+    </div>
+    <label class="zx_veh_label" for="veh_km_inicio_uso">Kilómetros al recogerlo</label>
+    <input id="veh_km_inicio_uso" type="number" inputmode="decimal" value="${limpiar(v.km_actual ?? 0)}">
+    <label class="zx_veh_label" for="veh_motivo_uso">Observación opcional</label>
+    <textarea id="veh_motivo_uso" rows="3" placeholder="Solo si necesitas indicar algo"></textarea>
+    <button class="zx_btn_big zx_verde" id="veh_tomar_ok">${ocupado ? "Sí, utilizarlo" : "Confirmar uso"}</button>
+    <button class="zx_btn_big zx_gris" id="veh_tomar_cancelar">Cancelar</button>
   `);
 
-  document.getElementById("veh_liberar_cancelar").onclick=cerrarModal;
-  document.getElementById("veh_liberar_ok").onclick=async function(){
+  document.getElementById("veh_tomar_cancelar").onclick=cerrarModal;
+  document.getElementById("veh_tomar_ok").onclick=async function(){
+    const km=numero(valor("veh_km_inicio_uso"));
+    if(km<numero(v.km_actual)){alert("Los kilómetros no pueden ser inferiores a los registrados.");return}
+
+    const btn=document.getElementById("veh_tomar_ok");
+    btn.disabled=true;
+    btn.textContent="Guardando...";
+
+    try{
+      const u=identidadActual();
+      if(!u.id) throw new Error("No se ha podido identificar al usuario.");
+      const pos=await obtenerPosicion();
+      const nuevoUsoId=uuid();
+      const now=ahoraISO();
+      const usoAnteriorId=v.uso_actual_id || null;
+
+      if(ocupado && usoAnteriorId){
+        const rCerrar=await zxUpdate("usos_vehiculos",{
+          estado:"transferido",
+          fin_at:now,
+          km_fin:km,
+          lat_fin:pos.lat,
+          lng_fin:pos.lng,
+          motivo_fin:"Transferido a "+u.nombre,
+          actualizado_por:u.id
+        },"id",usoAnteriorId);
+        if(rCerrar && rCerrar.error) throw rCerrar.error;
+      }
+
+      const nuevoUso={
+        id:nuevoUsoId,
+        empresa_id:u.empresa_id || null,
+        vehiculo_id:String(v.id),
+        vehiculo_matricula:v.matricula || null,
+        usuario_id:u.id,
+        usuario:u.usuario || null,
+        nombre_usuario:u.nombre,
+        estado:"en_uso",
+        inicio_at:now,
+        km_inicio:km,
+        lat_inicio:pos.lat,
+        lng_inicio:pos.lng,
+        motivo_inicio:valor("veh_motivo_uso") || (ocupado ? "Cambio de responsable" : "Uso directo"),
+        dispositivo_inicio:navigator.userAgent || "",
+        uso_anterior_id:usoAnteriorId,
+        usuario_anterior_id:ocupado ? responsableId(v) || null : null,
+        usuario_anterior_nombre:ocupado ? actual || null : null,
+        tomado_sin_liberacion:ocupado,
+        seguimiento_gps_activo:v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true",
+        creado_por:u.id
+      };
+
+      const rUso=await zxInsert("usos_vehiculos",nuevoUso);
+      if(rUso && rUso.error) throw rUso.error;
+
+      if(ocupado){
+        const rTransfer=await zxInsert("transferencias_vehiculos",{
+          id:uuid(),
+          empresa_id:u.empresa_id || null,
+          vehiculo_id:String(v.id),
+          vehiculo_matricula:v.matricula || null,
+          uso_anterior_id:usoAnteriorId,
+          uso_nuevo_id:nuevoUsoId,
+          usuario_anterior_id:responsableId(v) || null,
+          nombre_anterior:actual || null,
+          usuario_nuevo_id:u.id,
+          usuario_nuevo:u.usuario || null,
+          nombre_nuevo:u.nombre,
+          estado:"confirmada",
+          km_transferencia:km,
+          lat:pos.lat,
+          lng:pos.lng,
+          mensaje_usuario_anterior:u.nombre+" está utilizando el vehículo "+(v.matricula || ""),
+          avisar_al_liberar:true,
+          respuesta_usuario_anterior:"pendiente",
+          motivo:"Cambio de responsable confirmado",
+          dispositivo:navigator.userAgent || "",
+          confirmado_por:u.id,
+          confirmado_at:now
+        });
+        if(rTransfer && rTransfer.error) throw rTransfer.error;
+      }
+
+      const rVeh=await zxUpdate(TABLA,{
+        uso_actual_id:nuevoUsoId,
+        usuario_actual_id:u.id,
+        usuario_actual_nombre:u.nombre,
+        uso_iniciado_at:now,
+        estado_flota:"en_uso",
+        km_actual:km,
+        en_uso:true,
+        usuario_asignado:u.nombre
+      },"id",id);
+      if(rVeh && rVeh.error) throw rVeh.error;
+
+      cerrarModal();
+      await window.ZX_vehiculos();
+    }catch(e){
+      btn.disabled=false;
+      btn.textContent=ocupado ? "Sí, utilizarlo" : "Confirmar uso";
+      alert("No se pudo asignar el vehículo: "+(e.message || "Error"));
+    }
+  };
+}
+
+async function devolverVehiculo(id){
+  const v=vehiculoPorId(id);
+  if(!v){alert("Vehículo no encontrado.");return}
+  if(!esResponsableActual(v) && !puedeGestionar()){
+    alert("Solo el responsable actual o un administrador puede devolverlo.");
+    return;
+  }
+
+  modal(`
+    <h2>Devolver vehículo</h2>
+    <div class="zx_veh_info ficha">
+      <p><b>Vehículo</b><span>${limpiar(nombreVehiculo(v))}</span></p>
+      <p><b>Responsable</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
+    </div>
+    <label class="zx_veh_label" for="veh_km_salida">Kilómetros finales</label>
+    <input id="veh_km_salida" type="number" inputmode="decimal" value="${limpiar(v.km_actual ?? 0)}">
+    <label class="zx_veh_label" for="veh_observacion_salida">Incidencia u observación</label>
+    <textarea id="veh_observacion_salida" rows="3" placeholder="Déjalo vacío si todo está correcto"></textarea>
+    <button class="zx_btn_big zx_verde" id="veh_devolver_ok">Confirmar devolución</button>
+    <button class="zx_btn_big zx_gris" id="veh_devolver_cancelar">Cancelar</button>
+  `);
+
+  document.getElementById("veh_devolver_cancelar").onclick=cerrarModal;
+  document.getElementById("veh_devolver_ok").onclick=async function(){
     const km=numero(valor("veh_km_salida"));
-    const data={en_uso:false,usuario_asignado:""};
-    if(km>0) data.km_actual=km;
-    cerrarModal();
-    await actualizarVehiculo(id,data);
+    if(km<numero(v.km_actual)){alert("Los kilómetros finales no pueden ser inferiores a los actuales.");return}
+    const btn=document.getElementById("veh_devolver_ok");
+    btn.disabled=true;
+    btn.textContent="Guardando...";
+
+    try{
+      const u=identidadActual();
+      const pos=await obtenerPosicion();
+      const now=ahoraISO();
+
+      if(v.uso_actual_id){
+        const rUso=await zxUpdate("usos_vehiculos",{
+          estado:"devuelto",
+          fin_at:now,
+          km_fin:km,
+          lat_fin:pos.lat,
+          lng_fin:pos.lng,
+          motivo_fin:valor("veh_observacion_salida") || "Devolución normal",
+          dispositivo_fin:navigator.userAgent || "",
+          actualizado_por:u.id || null
+        },"id",v.uso_actual_id);
+        if(rUso && rUso.error) throw rUso.error;
+      }
+
+      const rVeh=await zxUpdate(TABLA,{
+        uso_actual_id:null,
+        usuario_actual_id:null,
+        usuario_actual_nombre:null,
+        uso_iniciado_at:null,
+        estado_flota:"libre",
+        km_actual:km,
+        en_uso:false,
+        usuario_asignado:""
+      },"id",id);
+      if(rVeh && rVeh.error) throw rVeh.error;
+
+      cerrarModal();
+      await window.ZX_vehiculos();
+    }catch(e){
+      btn.disabled=false;
+      btn.textContent="Confirmar devolución";
+      alert("No se pudo devolver el vehículo: "+(e.message || "Error"));
+    }
   };
 }
 
 async function desactivarVehiculo(id){
   if(!confirm("¿Desactivar este vehículo?")) return;
-  await actualizarVehiculo(id,{activo:false,en_uso:false,usuario_asignado:""});
+  const v=vehiculoPorId(id);
+  if(v && estadoVehiculo(v)==="uso"){
+    alert("Primero debe devolverse el vehículo.");
+    return;
+  }
+  await actualizarVehiculo(id,{activo:false,estado_flota:"libre",en_uso:false,usuario_asignado:""});
 }
 
 function abrirFicha(id){
@@ -594,7 +828,7 @@ function abrirFicha(id){
       <p><b>Matrícula</b><span>${limpiar(v.matricula || "-")}</span></p>
       <p><b>Marca / modelo</b><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ") || "-")}</span></p>
       <p><b>Km actuales</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
-      <p><b>Usuario asignado</b><span>${limpiar(v.usuario_asignado || "-")}</span></p>
+      <p><b>Responsable actual</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
       <p><b>ITV</b><span>${limpiar(fechaES(v.itv_fecha) || "-")}</span></p>
       <p><b>Seguro</b><span>${limpiar(fechaES(v.seguro_fecha) || "-")}</span></p>
       <p><b>Revisión</b><span>${limpiar(fechaES(v.proxima_revision_fecha) || "-")}</span></p>
@@ -617,11 +851,11 @@ function abrirFicha(id){
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_vehiculos_css_v3112");
+  const old=document.getElementById("zx_vehiculos_css_v3128");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_vehiculos_css_v3112";
+  s.id="zx_vehiculos_css_v3128";
   s.innerHTML=`
     .zx_veh_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_veh_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
@@ -654,7 +888,7 @@ function instalarCSS(){
     .zx_veh_badges span{border-radius:999px;padding:8px 10px;font-size:12px;font-weight:950}
     .zx_veh_badges .libre{background:#dcfce7;color:#166534}
     .zx_veh_badges .uso{background:#dbeafe;color:#1d4ed8}
-    .zx_veh_badges .off{background:#fee2e2;color:#991b1b}
+    .zx_veh_badges .off{background:#fee2e2;color:#991b1b}.zx_veh_badges .orange{background:#ffedd5;color:#9a3412}
     .zx_veh_alertas{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
     .zx_veh_alertas span{background:#fef3c7;color:#92400e;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:950}
     .zx_veh_info{margin-top:13px;display:grid;grid-template-columns:1fr;gap:8px}
@@ -664,7 +898,7 @@ function instalarCSS(){
     .zx_veh_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
     .zx_veh_actions button{border:0;border-radius:16px;padding:13px 8px;color:white;font-size:14px;font-weight:950;min-height:46px}
     .zx_veh_actions .green{background:#16a34a}.zx_veh_actions .blue{background:#2563eb}.zx_veh_actions .purple{background:#7c3aed}.zx_veh_actions .orange{background:#f97316}.zx_veh_actions .gray{background:#64748b}.zx_veh_actions .red{background:#dc2626}
-    .zx_veh_empty{color:#64748b;font-size:16px;font-weight:850;padding:12px 0}
+    .zx_veh_aviso{margin:12px 0;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:16px;padding:13px;font-weight:850;line-height:1.35}.zx_veh_nota_form{margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:14px;padding:11px;font-size:13px;font-weight:800}.zx_veh_empty{color:#64748b;font-size:16px;font-weight:850;padding:12px 0}
     .zx_veh_form h3{margin:20px 0 8px;color:#071330;font-size:22px;font-weight:950}
     .zx_veh_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
     .zx_veh_form input,.zx_veh_form select,.zx_veh_form textarea,#zx_modal_vehiculo input,#zx_modal_vehiculo select,#zx_modal_vehiculo textarea{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}
