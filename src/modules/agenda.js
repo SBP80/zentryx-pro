@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3133 - CACHÉ PREVENTIVA DE TRABAJOS
+// V3134 - TRABAJOS DIRECTOS, SIN DUPLICAR EN AGENDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3133";
+const ZX_VERSION="3134";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos";
 
@@ -415,6 +415,125 @@ function rangoMes(){
   };
 }
 
+
+function eventoDesdeTrabajo(t,p){
+  const plan=p || {};
+  const fecha=normalizarFecha(plan.fecha || t.fecha || hoy());
+  const horaInicio=plan.hora_inicio || t.hora_inicio || null;
+  const horaFin=plan.hora_fin || t.hora_fin || null;
+  const usuarioId=String(plan.usuario_id || t.usuario_id || "");
+  const usuario=plan.usuario || t.usuario || "";
+  const planId=String(plan.id || "base");
+
+  return {
+    id:`trabajo:${String(t.id)}:${planId}`,
+    tipo:"trabajo",
+    titulo:t.titulo || "Trabajo",
+    descripcion:t.descripcion || t.notas || "",
+    fecha_inicio:fecha,
+    fecha_fin:fecha,
+    hora_inicio:horaInicio,
+    hora_fin:horaFin,
+    cliente_id:String(t.cliente_id || ""),
+    cliente:t.cliente || "",
+    usuario_id:usuarioId,
+    usuario:usuario,
+    estado:t.estado==="terminado" ? "completado" : (t.estado || "pendiente"),
+    prioridad:t.prioridad || "media",
+    visible_para:"todos",
+    origen:"trabajos",
+    origen_id:String(t.id),
+    fuente_directa:true,
+    direccion:t.direccion_obra || t.direccion || "",
+    telefono:t.telefono_contacto || "",
+    created_at:t.created_at || null,
+    updated_at:t.updated_at || null
+  };
+}
+
+function esVisibleTrabajoParaUsuario(t,p,s){
+  if(esAdmin()) return true;
+  const uid=String((p && p.usuario_id) || t.usuario_id || "");
+  return uid && uid===String(s.id || "");
+}
+
+async function cargarTrabajosDirectos(desde,hasta){
+  if(!navigator.onLine || !sb()) return [];
+
+  try{
+    const s=sesion();
+
+    const [rt,rp]=await Promise.all([
+      sb().from("trabajos").select("*")
+        .eq("archivado",false),
+      sb().from("trabajos_planificacion").select("*")
+        .gte("fecha",desde)
+        .lte("fecha",hasta)
+        .order("fecha",{ascending:true})
+        .order("hora_inicio",{ascending:true})
+    ]);
+
+    if(rt.error) throw rt.error;
+    if(rp.error) throw rp.error;
+
+    const trabajos=(rt.data || []).filter(function(t){
+      return normalizar(t.estado)!=="cancelado";
+    });
+    const planes=rp.data || [];
+    const porTrabajo=new Map();
+
+    planes.forEach(function(p){
+      const id=String(p.trabajo_id || "");
+      if(!id) return;
+      if(!porTrabajo.has(id)) porTrabajo.set(id,[]);
+      porTrabajo.get(id).push(p);
+    });
+
+    const eventos=[];
+
+    trabajos.forEach(function(t){
+      const id=String(t.id || "");
+      const lista=porTrabajo.get(id) || [];
+
+      if(lista.length){
+        lista.forEach(function(p){
+          if(!esVisibleTrabajoParaUsuario(t,p,s)) return;
+          eventos.push(eventoDesdeTrabajo(t,p));
+        });
+        return;
+      }
+
+      const fecha=normalizarFecha(t.fecha);
+      if(!fecha || fecha<desde || fecha>hasta) return;
+      if(!esVisibleTrabajoParaUsuario(t,null,s)) return;
+      eventos.push(eventoDesdeTrabajo(t,null));
+    });
+
+    return eventos;
+  }catch(e){
+    console.error("Trabajos directos en Agenda:",e);
+    return [];
+  }
+}
+
+function combinarEventosAgenda(eventosAgenda,eventosTrabajo){
+  const manuales=(eventosAgenda || []).filter(function(e){
+    return !(String(e.origen || "")==="trabajos" && String(e.origen_id || ""));
+  });
+
+  const mapa=new Map();
+  manuales.concat(eventosTrabajo || []).forEach(function(e){
+    const clave=String(e.id || `${e.tipo}:${e.fecha_inicio}:${e.hora_inicio}:${e.titulo}`);
+    mapa.set(clave,e);
+  });
+
+  return Array.from(mapa.values()).sort(function(a,b){
+    const fa=String(a.fecha_inicio || "")+" "+String(a.hora_inicio || "");
+    const fb=String(b.fecha_inicio || "")+" "+String(b.hora_inicio || "");
+    return fa.localeCompare(fb);
+  });
+}
+
 async function cargarEventos(){
   if(ZX_AGENDA_CARGANDO) return ZX_AGENDA_CACHE;
   ZX_AGENDA_CARGANDO=true;
@@ -452,14 +571,17 @@ async function cargarEventos(){
 
     if(res.error) throw res.error;
 
-    let datos=res.data || [];
+    let eventosAgenda=res.data || [];
 
     if(!esAdmin()){
-      datos=datos.filter(function(e){
+      eventosAgenda=eventosAgenda.filter(function(e){
         return String(e.visible_para || "todos")==="todos" ||
                String(e.usuario_id || "")===String(s.id || "");
       });
     }
+
+    const trabajosDirectos=await cargarTrabajosDirectos(r.desde,r.hasta);
+    const datos=combinarEventosAgenda(eventosAgenda,trabajosDirectos);
 
     ZX_AGENDA_CACHE=datos;
     guardarCache(datos);
@@ -604,17 +726,20 @@ function renderEvento(e){
   let acciones="";
 
   if(trabajo){
-    acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">Abrir trabajo</button>`;
+    acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">🛠️ Abrir trabajo</button>`;
+    if(e.direccion){
+      acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(e.direccion)}')">📍 Mapa</button>`;
+    }
   }else{
     acciones+=`<button class="blue" onclick="ZX_ag_editar('${limpiar(e.id)}')">Editar</button>`;
-  }
 
-  if(!done && !canc){
-    acciones+=`<button class="green" onclick="ZX_ag_completar('${limpiar(e.id)}')">Hecho</button>`;
-    acciones+=`<button class="orange" onclick="ZX_ag_cancelar('${limpiar(e.id)}')">Cancelar</button>`;
-  }
+    if(!done && !canc){
+      acciones+=`<button class="green" onclick="ZX_ag_completar('${limpiar(e.id)}')">Hecho</button>`;
+      acciones+=`<button class="orange" onclick="ZX_ag_cancelar('${limpiar(e.id)}')">Cancelar</button>`;
+    }
 
-  acciones+=`<button class="red" onclick="ZX_ag_borrar('${limpiar(e.id)}')">${trabajo ? "Gestionar" : "Borrar"}</button>`;
+    acciones+=`<button class="red" onclick="ZX_ag_borrar('${limpiar(e.id)}')">Borrar</button>`;
+  }
 
   return `
     <article class="zx_ag_event ${colorTipo(e.tipo)}">
@@ -988,6 +1113,12 @@ window.ZX_ag_cancelar=function(id){
 
 window.ZX_ag_borrar=function(id){
   borrarEvento(id);
+};
+
+window.ZX_ag_mapa=function(direccion){
+  const d=String(direccion || "").trim();
+  if(!d) return;
+  window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(d),"_blank");
 };
 
 window.ZX_ag_abrirTrabajo=function(id){
