@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3129 - HISTORIAL, AVISOS, RECUPERACIÓN Y RUTAS
+// V3130 - OFFLINE REAL, CACHÉ ÚNICA Y OPERACIONES SEGURAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3129";
+const ZX_VERSION="3130";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3129";
+const CACHE_KEY="zentryx_cache_vehiculos_v3130";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -19,6 +19,10 @@ let ZX_RECUPERACIONES={};
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
 function zx(){return window.ZENTRYX || window.ZX || null}
+function backend(){
+  const z=zx();
+  return window.ZENTRYX_BACKEND || z?.Backend || z?.backend || null;
+}
 
 function sesion(){
   if(zx() && typeof zx().usuarioActual==="function") return zx().usuarioActual();
@@ -190,44 +194,79 @@ async function insertarNotificacion(usuarioId,titulo,mensaje){
 async function cargarUsosYRecuperaciones(){
   ZX_USOS_ACTUALES={};
   ZX_RECUPERACIONES={};
-  if(!navigator.onLine || !sb()) return;
   const u=identidadActual();
+
   try{
-    const r=await sb().from("usos_vehiculos").select("*")
-      .in("estado",["en_uso","pendiente_devolucion"])
-      .order("inicio_at",{ascending:false});
-    if(!r.error){
-      (r.data||[]).forEach(x=>{ if(!ZX_USOS_ACTUALES[String(x.vehiculo_id)]) ZX_USOS_ACTUALES[String(x.vehiculo_id)]=x; });
-    }
-  }catch(e){}
+    const r=await zxGet("usos_vehiculos",{
+      query:function(q){
+        return q.in("estado",["en_uso","pendiente_devolucion"]).order("inicio_at",{ascending:false});
+      }
+    });
+    (r.data||[])
+      .filter(x=>["en_uso","pendiente_devolucion"].includes(String(x.estado||"")))
+      .sort((a,b)=>new Date(b.inicio_at||0)-new Date(a.inicio_at||0))
+      .forEach(x=>{
+        const key=String(x.vehiculo_id||"");
+        if(key && !ZX_USOS_ACTUALES[key]) ZX_USOS_ACTUALES[key]=x;
+      });
+  }catch(e){
+    cacheBackend("usos_vehiculos")
+      .filter(x=>["en_uso","pendiente_devolucion"].includes(String(x.estado||"")))
+      .forEach(x=>{
+        const key=String(x.vehiculo_id||"");
+        if(key && !ZX_USOS_ACTUALES[key]) ZX_USOS_ACTUALES[key]=x;
+      });
+  }
+
   if(!u.id) return;
+
   try{
-    const r=await sb().from("transferencias_vehiculos").select("*")
-      .eq("usuario_anterior_id",u.id)
-      .eq("aviso_liberacion_enviado",true)
-      .eq("respuesta_usuario_anterior","pendiente")
-      .order("created_at",{ascending:false});
-    if(!r.error){
-      (r.data||[]).forEach(x=>{ if(!ZX_RECUPERACIONES[String(x.vehiculo_id)]) ZX_RECUPERACIONES[String(x.vehiculo_id)]=x; });
-    }
+    const r=await zxGet("transferencias_vehiculos",{
+      query:function(q){
+        return q.eq("usuario_anterior_id",u.id)
+          .eq("aviso_liberacion_enviado",true)
+          .eq("respuesta_usuario_anterior","pendiente")
+          .order("created_at",{ascending:false});
+      }
+    });
+    (r.data||[])
+      .filter(x=>String(x.usuario_anterior_id||"")===u.id && x.aviso_liberacion_enviado===true && String(x.respuesta_usuario_anterior||"")==="pendiente")
+      .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))
+      .forEach(x=>{
+        const key=String(x.vehiculo_id||"");
+        if(key && !ZX_RECUPERACIONES[key]) ZX_RECUPERACIONES[key]=x;
+      });
   }catch(e){}
 }
 
 async function cargarDetalleVehiculo(id){
   const out={usos:[],transferencias:[],puntos:[]};
-  if(!navigator.onLine || !sb()) return out;
+  const vehId=String(id);
+
   try{
-    const r=await sb().from("usos_vehiculos").select("*").eq("vehiculo_id",String(id)).order("inicio_at",{ascending:false}).limit(30);
-    if(!r.error) out.usos=r.data||[];
+    const r=await zxGet("usos_vehiculos",{
+      query:q=>q.eq("vehiculo_id",vehId).order("inicio_at",{ascending:false}).limit(30)
+    });
+    out.usos=(r.data||[]).filter(x=>String(x.vehiculo_id||"")===vehId)
+      .sort((a,b)=>new Date(b.inicio_at||0)-new Date(a.inicio_at||0)).slice(0,30);
   }catch(e){}
+
   try{
-    const r=await sb().from("transferencias_vehiculos").select("*").eq("vehiculo_id",String(id)).order("created_at",{ascending:false}).limit(30);
-    if(!r.error) out.transferencias=r.data||[];
+    const r=await zxGet("transferencias_vehiculos",{
+      query:q=>q.eq("vehiculo_id",vehId).order("created_at",{ascending:false}).limit(30)
+    });
+    out.transferencias=(r.data||[]).filter(x=>String(x.vehiculo_id||"")===vehId)
+      .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,30);
   }catch(e){}
+
   try{
-    const r=await sb().from("rutas_vehiculos_puntos").select("*").eq("vehiculo_id",String(id)).order("registrado_at",{ascending:true}).limit(500);
-    if(!r.error) out.puntos=r.data||[];
+    const r=await zxGet("rutas_vehiculos_puntos",{
+      query:q=>q.eq("vehiculo_id",vehId).order("registrado_at",{ascending:true}).limit(500)
+    });
+    out.puntos=(r.data||[]).filter(x=>String(x.vehiculo_id||"")===vehId)
+      .sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0)).slice(0,500);
   }catch(e){}
+
   return out;
 }
 
@@ -255,13 +294,41 @@ function obtenerPosicion(){
 }
 
 async function zxInsert(tabla,data){
-  if(zx() && typeof zx().insert==="function") return zx().insert(tabla,[data]);
+  const b=backend();
+  if(b && typeof b.insert==="function") return b.insert(tabla,data);
+  if(!sb()) return {data:null,error:new Error("Backend no disponible")};
   return sb().from(tabla).insert([data]);
 }
 
 async function zxUpdate(tabla,data,campo,valor){
-  if(zx() && typeof zx().update==="function") return zx().update(tabla,data,campo,valor);
+  const b=backend();
+  if(b && typeof b.update==="function"){
+    return b.update(tabla,data,{field:campo,value:String(valor)});
+  }
+  if(!sb()) return {data:null,error:new Error("Backend no disponible")};
   return sb().from(tabla).update(data).eq(campo,String(valor));
+}
+
+async function zxGet(tabla,options){
+  const b=backend();
+  if(b && typeof b.get==="function") return b.get(tabla,options||{});
+  if(!sb()) return {data:[],error:null,offline:true,source:"cache"};
+  try{
+    let q=sb().from(tabla).select(options?.select||"*");
+    if(options && typeof options.query==="function") q=options.query(q);
+    const r=await q;
+    return r || {data:[],error:null};
+  }catch(e){
+    return {data:[],error:e};
+  }
+}
+
+function cacheBackend(tabla){
+  const b=backend();
+  try{
+    if(b && b.cache && typeof b.cache.get==="function") return b.cache.get(tabla)||[];
+  }catch(e){}
+  return [];
 }
 
 function nombreVehiculo(v){
@@ -302,40 +369,43 @@ function filtrarVehiculos(){
 
 async function cargarVehiculos(){
   if(!puedeEntrar()) return [];
-
-  if(!navigator.onLine || !sb()){
-    ZX_VEH_CACHE=leerCache().map(prepararVehiculo);
-    return filtrarVehiculos();
-  }
-
   if(ZX_VEH_CARGANDO) return filtrarVehiculos();
   ZX_VEH_CARGANDO=true;
 
   try{
     await cargarUsosYRecuperaciones();
-    let r;
+    const r=await zxGet(TABLA,{
+      query:function(q){return q.order("matricula",{ascending:true});}
+    });
+    if(r.error && !(r.data||[]).length) throw r.error;
 
-    if(zx() && typeof zx().selectCache==="function"){
-      r=await zx().selectCache(TABLA,function(q){
-        return q.select("*").order("matricula",{ascending:true});
-      });
-    }else{
-      r=await sb().from(TABLA).select("*").order("matricula",{ascending:true});
+    let datos=Array.isArray(r.data) ? r.data : [];
+    if(!datos.length){
+      datos=cacheBackend(TABLA);
+    }
+    if(!datos.length){
+      datos=leerCache();
     }
 
-    if(r.error) throw r.error;
-
-    ZX_VEH_CACHE=(r.data || []).map(function(v){
-      v.__uso_actual=ZX_USOS_ACTUALES[String(v.id)] || null;
-      v.__recuperacion=ZX_RECUPERACIONES[String(v.id)] || null;
-      return prepararVehiculo(v);
+    ZX_VEH_CACHE=datos.map(function(v){
+      const copia=Object.assign({},v);
+      copia.__uso_actual=ZX_USOS_ACTUALES[String(copia.id)] || null;
+      copia.__recuperacion=ZX_RECUPERACIONES[String(copia.id)] || null;
+      return prepararVehiculo(copia);
     });
     guardarCache(ZX_VEH_CACHE);
   }catch(e){
-    ZX_VEH_CACHE=leerCache().map(prepararVehiculo);
+    const datos=cacheBackend(TABLA);
+    ZX_VEH_CACHE=(datos.length ? datos : leerCache()).map(function(v){
+      const copia=Object.assign({},v);
+      copia.__uso_actual=ZX_USOS_ACTUALES[String(copia.id)] || null;
+      copia.__recuperacion=ZX_RECUPERACIONES[String(copia.id)] || null;
+      return prepararVehiculo(copia);
+    });
+  }finally{
+    ZX_VEH_CARGANDO=false;
   }
 
-  ZX_VEH_CARGANDO=false;
   return filtrarVehiculos();
 }
 
@@ -471,6 +541,7 @@ function pintarShell(lista){
         <div>
           <h2>Vehículos</h2>
           <p>Uso real, responsables, kilómetros, documentación, ITV, seguro y revisiones.</p>
+          ${navigator.onLine ? "" : `<div class="zx_veh_offline">🟡 Sin conexión · los cambios se guardarán pendientes</div>`}
         </div>
         ${puedeGestionar() ? `<button class="zx_veh_new" id="btn_nuevo_vehiculo">＋ Crear</button>` : ""}
       </section>
