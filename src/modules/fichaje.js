@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3131 - VEHÍCULO RÁPIDO E INTUITIVO DENTRO DE FICHAJE
+// V3132 - VEHÍCULO RÁPIDO E INTUITIVO DENTRO DE FICHAJE
 // ===============================
 (function(){
 "use strict";
@@ -451,7 +451,7 @@ function textoVehiculoFichaje(f){
 
 
 // ===============================
-// VEHÍCULO RÁPIDO DENTRO DE FICHAJE V3131
+// VEHÍCULO RÁPIDO DENTRO DE FICHAJE V3132
 // ===============================
 function identidadVehiculoRapido(){
   const s=sesion();
