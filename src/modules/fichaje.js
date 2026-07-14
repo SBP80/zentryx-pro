@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3132 - VEHÍCULO RÁPIDO E INTUITIVO DENTRO DE FICHAJE
+// V3133 - SEPARACIÓN SEGURA JORNADA / VEHÍCULO
 // ===============================
 (function(){
 "use strict";
@@ -451,7 +451,7 @@ function textoVehiculoFichaje(f){
 
 
 // ===============================
-// VEHÍCULO RÁPIDO DENTRO DE FICHAJE V3132
+// VEHÍCULO RÁPIDO DENTRO DE FICHAJE V3133
 // ===============================
 function identidadVehiculoRapido(){
   const s=sesion();
@@ -496,20 +496,37 @@ function duracionUsoRapido(fecha){
 
 async function cargarEstadoVehiculoRapido(){
   const u=identidadVehiculoRapido();
-  if(!u.id || zxOffline()) return {actual:null,recomendado:null,vehiculos:[]};
+  const cache=zxCacheValor("vehiculoRapido",null);
+
+  if(!u.id){
+    return {actual:null,recomendado:null,vehiculos:[],offline:false};
+  }
+
+  if(zxOffline()){
+    return cache ? {...cache,offline:true} : {actual:null,recomendado:null,vehiculos:[],offline:true};
+  }
+
   try{
     const [rv,ru]=await Promise.all([
       sb().from("vehiculos").select("*").eq("activo",true).order("matricula",{ascending:true}),
       sb().from("usos_vehiculos").select("vehiculo_id,inicio_at").eq("usuario_id",u.id).order("inicio_at",{ascending:false}).limit(1)
     ]);
-    const vehiculos=rv.error ? [] : (rv.data||[]);
+
+    if(rv.error) throw rv.error;
+
+    const vehiculos=rv.data||[];
     const actual=vehiculos.find(v=>esResponsableVehiculoRapido(v) && ["en_uso","pendiente_devolucion"].includes(estadoFlotaRapido(v))) || null;
     const ultimoId=ru && !ru.error && ru.data && ru.data[0] ? String(ru.data[0].vehiculo_id||"") : "";
     let recomendado=vehiculos.find(v=>String(v.id)===ultimoId && estadoFlotaRapido(v)==="libre") || null;
     if(!recomendado) recomendado=vehiculos.find(v=>estadoFlotaRapido(v)==="libre") || null;
     if(!recomendado) recomendado=vehiculos.find(v=>!esResponsableVehiculoRapido(v) && estadoFlotaRapido(v)==="en_uso") || null;
-    return {actual,recomendado,vehiculos};
-  }catch(e){return {actual:null,recomendado:null,vehiculos:[]};}
+
+    const info={actual,recomendado,vehiculos,offline:false};
+    zxGuardarCache({vehiculoRapido:info});
+    return info;
+  }catch(e){
+    return cache ? {...cache,offline:false,desactualizado:true} : {actual:null,recomendado:null,vehiculos:[],offline:false,error:true};
+  }
 }
 
 function renderVehiculoRapido(info,estadoJornada){
@@ -1988,9 +2005,8 @@ async function recalcularJornada(jornadaId){
   const eventos=await fichajesDeJornada(jornadaId);
 
   if(!eventos.length){
-    if(jornada.vehiculo_id){
-      await marcarVehiculoSalida(jornada.vehiculo_id,jornada.km_salida||jornada.km_entrada||0);
-    }
+    // El vehículo actual se gestiona desde usos_vehiculos. Borrar una jornada
+    // histórica nunca debe liberar ni reasignar un vehículo de la flota.
     await sb().from("horas_extra_pro").delete().eq("jornada_id",String(jornadaId));
     await sb().from("jornadas").delete().eq("id",jornadaId);
     return;
@@ -2301,15 +2317,13 @@ async function borrarJornada(id){
     return;
   }
 
-  const ok=confirm("Vas a eliminar la jornada completa y todos sus fichajes. Esta acción recalculará horas, incidencias, vehículo y horas extra. ¿Deseas continuar?");
+  const ok=confirm("Vas a eliminar la jornada completa y todos sus fichajes. Esta acción recalculará horas y horas extra, pero no modificará el uso actual de ningún vehículo. ¿Deseas continuar?");
   if(!ok) return;
 
   const fichajesAntes=await fichajesDeJornada(id);
 
-  if(r0.data.vehiculo_id){
-    await marcarVehiculoSalida(r0.data.vehiculo_id,r0.data.km_salida||r0.data.km_entrada||0);
-  }
-
+  // Los datos de vehículo que pueda contener una jornada antigua son históricos.
+  // Su borrado no modifica la asignación actual de la flota.
   const f=await sb().from("fichajes").delete().eq("jornada_id",String(id));
 
   if(f.error){
@@ -2348,7 +2362,7 @@ async function borrarFichaje(id){
     return;
   }
 
-  const ok=confirm("Vas a eliminar este fichaje. Esta acción puede modificar el tiempo trabajado, vehículo, horas extra, incidencias y el estado de la jornada. ¿Deseas continuar?");
+  const ok=confirm("Vas a eliminar este fichaje. Esta acción puede modificar el tiempo trabajado, las horas extra y el estado de la jornada, pero no modificará el uso actual de ningún vehículo. ¿Deseas continuar?");
   if(!ok) return;
 
   const r=await sb().from("fichajes").delete().eq("id",id);
@@ -2362,9 +2376,8 @@ async function borrarFichaje(id){
 
   if(!restantes.length){
     const j0=await sb().from("jornadas").select("*").eq("id",r0.data.jornada_id).maybeSingle();
-    if(j0.data && j0.data.vehiculo_id){
-      await marcarVehiculoSalida(j0.data.vehiculo_id,j0.data.km_salida||j0.data.km_entrada||0);
-    }
+    // El vehículo actual se controla mediante usos_vehiculos, no mediante
+    // el fichaje histórico que se está eliminando.
     await sb().from("horas_extra_pro").delete().eq("jornada_id",String(r0.data.jornada_id));
     await sb().from("jornadas").delete().eq("id",r0.data.jornada_id);
   }else{
@@ -2382,39 +2395,31 @@ async function borrarFichaje(id){
 async function actualizarVehiculoPorEdicion(fichajeAnterior,nuevoFichaje){
   const tipo=String(nuevoFichaje.tipo||"");
   const jornadaId=String(nuevoFichaje.jornada_id||"");
-  const jornadaRes=await sb().from("jornadas").select("*").eq("id",jornadaId).maybeSingle();
+  const jornadaRes=await sb().from("jornadas").select("vehiculo_id,vehiculo_matricula").eq("id",jornadaId).maybeSingle();
   const jornada=jornadaRes.data||null;
 
   const vehId=nuevoFichaje.vehiculo_id||jornada?.vehiculo_id||null;
   const matricula=nuevoFichaje.vehiculo_matricula||jornada?.vehiculo_matricula||null;
   const km=nuevoFichaje.km_vehiculo==="" || nuevoFichaje.km_vehiculo==null ? null : Number(nuevoFichaje.km_vehiculo);
 
+  // Compatibilidad con jornadas antiguas: solo se actualiza su información
+  // histórica. Nunca se cambia el responsable actual del vehículo, porque esa
+  // responsabilidad pertenece a usos_vehiculos.
   if(tipo==="entrada"){
-    const data={
+    await sb().from("jornadas").update({
       vehiculo_id:vehId?String(vehId):null,
       vehiculo_matricula:matricula?String(matricula):null,
       km_entrada:km==null?null:Number(km)
-    };
-    await sb().from("jornadas").update(data).eq("id",jornadaId);
-
-    if(vehId && km!=null){
-      await marcarVehiculoEntrada({id:vehId},km);
-    }
+    }).eq("id",jornadaId);
   }
 
   if(tipo==="salida"){
-    const data={
-      km_salida:km==null?null:Number(km)
-    };
+    const data={km_salida:km==null?null:Number(km)};
     if(vehId && !jornada?.vehiculo_id){
       data.vehiculo_id=String(vehId);
       data.vehiculo_matricula=matricula?String(matricula):null;
     }
     await sb().from("jornadas").update(data).eq("id",jornadaId);
-
-    if(vehId && km!=null){
-      await marcarVehiculoSalida(vehId,km);
-    }
   }
 }
 
@@ -3045,6 +3050,8 @@ function iniciarTiempoReal(){
       .on("postgres_changes",{event:"*",schema:"public",table:"fichajes"},solicitarRenderFichaje)
       .on("postgres_changes",{event:"*",schema:"public",table:"horas_extra_pro"},solicitarRenderFichaje)
       .on("postgres_changes",{event:"*",schema:"public",table:"vehiculos"},solicitarRenderFichaje)
+      .on("postgres_changes",{event:"*",schema:"public",table:"usos_vehiculos"},solicitarRenderFichaje)
+      .on("postgres_changes",{event:"*",schema:"public",table:"transferencias_vehiculos"},solicitarRenderFichaje)
       .subscribe(function(status){
         const st=String(status||"");
 
