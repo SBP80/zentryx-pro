@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3108 - CARGA RÁPIDA
+// V3133 - CACHÉ PREVENTIVA DE TRABAJOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3108";
+const ZX_VERSION="3133";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos";
 
@@ -93,6 +93,241 @@ function guardarCache(lista){
   try{localStorage.setItem(CACHE_KEY,JSON.stringify(lista || []))}
   catch(e){}
 }
+
+
+// ===============================
+// CACHÉ PREVENTIVA DE TRABAJOS
+// Descarga hoy y mañana con detalle completo y conserva
+// una ficha básica para los próximos siete días.
+// ===============================
+const ZX_PREFETCH_DB="zentryx_offline_trabajos_v1";
+const ZX_PREFETCH_STORE="paquetes";
+const ZX_PREFETCH_FILES_CACHE="zentryx-trabajos-archivos-v1";
+const ZX_PREFETCH_RETENCION_DIAS=2;
+let ZX_PREFETCH_EN_CURSO=false;
+
+function abrirDBPrefetch(){
+  return new Promise(function(resolve,reject){
+    if(!window.indexedDB){reject(new Error("IndexedDB no disponible"));return;}
+    const req=indexedDB.open(ZX_PREFETCH_DB,1);
+    req.onupgradeneeded=function(){
+      const db=req.result;
+      if(!db.objectStoreNames.contains(ZX_PREFETCH_STORE)){
+        const st=db.createObjectStore(ZX_PREFETCH_STORE,{keyPath:"trabajo_id"});
+        st.createIndex("fecha_fin","fecha_fin",{unique:false});
+        st.createIndex("usuario_id","usuario_id",{unique:false});
+      }
+    };
+    req.onsuccess=function(){resolve(req.result)};
+    req.onerror=function(){reject(req.error || new Error("No se pudo abrir la caché"));};
+  });
+}
+
+async function guardarPaqueteOffline(paquete){
+  const db=await abrirDBPrefetch();
+  return new Promise(function(resolve,reject){
+    const tx=db.transaction(ZX_PREFETCH_STORE,"readwrite");
+    tx.objectStore(ZX_PREFETCH_STORE).put(paquete);
+    tx.oncomplete=function(){db.close();resolve(true)};
+    tx.onerror=function(){db.close();reject(tx.error)};
+  });
+}
+
+async function leerPaqueteOffline(trabajoId){
+  try{
+    const db=await abrirDBPrefetch();
+    return await new Promise(function(resolve){
+      const tx=db.transaction(ZX_PREFETCH_STORE,"readonly");
+      const req=tx.objectStore(ZX_PREFETCH_STORE).get(String(trabajoId));
+      req.onsuccess=function(){db.close();resolve(req.result || null)};
+      req.onerror=function(){db.close();resolve(null)};
+    });
+  }catch(e){return null;}
+}
+
+async function borrarPaqueteOffline(trabajoId){
+  try{
+    const anterior=await leerPaqueteOffline(trabajoId);
+    const db=await abrirDBPrefetch();
+    await new Promise(function(resolve){
+      const tx=db.transaction(ZX_PREFETCH_STORE,"readwrite");
+      tx.objectStore(ZX_PREFETCH_STORE).delete(String(trabajoId));
+      tx.oncomplete=function(){db.close();resolve()};
+      tx.onerror=function(){db.close();resolve()};
+    });
+    if(anterior && Array.isArray(anterior.archivos)){
+      const cache=await caches.open(ZX_PREFETCH_FILES_CACHE);
+      for(const a of anterior.archivos){
+        const url=String(a.url || a.public_url || a.archivo_url || "").trim();
+        if(url) await cache.delete(url).catch(function(){});
+      }
+    }
+  }catch(e){}
+}
+
+async function listarPaquetesOffline(){
+  try{
+    const db=await abrirDBPrefetch();
+    return await new Promise(function(resolve){
+      const tx=db.transaction(ZX_PREFETCH_STORE,"readonly");
+      const req=tx.objectStore(ZX_PREFETCH_STORE).getAll();
+      req.onsuccess=function(){db.close();resolve(req.result || [])};
+      req.onerror=function(){db.close();resolve([])};
+    });
+  }catch(e){return [];}
+}
+
+async function consultaLista(tabla,columna,id,ordenCampo="created_at",asc=false){
+  try{
+    const r=await sb().from(tabla).select("*").eq(columna,String(id)).order(ordenCampo,{ascending:asc});
+    return r.error ? [] : (r.data || []);
+  }catch(e){return [];}
+}
+
+function urlArchivoTrabajo(a){
+  return String(a?.url || a?.public_url || a?.archivo_url || a?.ruta_publica || "").trim();
+}
+
+async function cachearArchivosTrabajo(archivos){
+  if(!navigator.onLine || !window.caches || !Array.isArray(archivos)) return;
+  let estimate=null;
+  try{estimate=await navigator.storage?.estimate?.()}catch(e){}
+  const disponible=estimate && estimate.quota ? Number(estimate.quota)-Number(estimate.usage||0) : null;
+  if(disponible!==null && disponible<25*1024*1024) return;
+
+  const cache=await caches.open(ZX_PREFETCH_FILES_CACHE);
+  for(const a of archivos){
+    const url=urlArchivoTrabajo(a);
+    if(!url) continue;
+    try{
+      const ya=await cache.match(url);
+      if(ya) continue;
+      const res=await fetch(url,{cache:"no-store"});
+      if(res.ok) await cache.put(url,res.clone());
+    }catch(e){}
+  }
+}
+
+async function construirPaqueteTrabajo(evento,completo){
+  const trabajoId=String(evento.origen_id || "");
+  if(!trabajoId) return null;
+
+  const rt=await sb().from("trabajos").select("*").eq("id",trabajoId).maybeSingle();
+  if(rt.error || !rt.data) return null;
+  const trabajo=rt.data;
+
+  let cliente=null;
+  const clienteId=trabajo.cliente_id || evento.cliente_id || null;
+  if(clienteId){
+    try{
+      const rc=await sb().from("clientes").select("*").eq("id",String(clienteId)).maybeSingle();
+      if(!rc.error) cliente=rc.data || null;
+    }catch(e){}
+  }
+
+  let planificacion=[],materiales=[],archivos=[],historial=[];
+  if(completo){
+    [planificacion,materiales,archivos,historial]=await Promise.all([
+      consultaLista("trabajos_planificacion","trabajo_id",trabajoId,"fecha",true),
+      consultaLista("trabajos_materiales","trabajo_id",trabajoId),
+      consultaLista("trabajos_archivos","trabajo_id",trabajoId),
+      consultaLista("trabajos_historial","trabajo_id",trabajoId)
+    ]);
+    await cachearArchivosTrabajo(archivos);
+  }
+
+  return {
+    trabajo_id:trabajoId,
+    usuario_id:String(sesion().id || ""),
+    fecha_inicio:normalizarFecha(evento.fecha_inicio),
+    fecha_fin:normalizarFecha(evento.fecha_fin || evento.fecha_inicio),
+    nivel:completo ? "completo" : "basico",
+    evento,
+    trabajo,
+    cliente,
+    planificacion,
+    materiales,
+    archivos,
+    historial,
+    descargado_en:new Date().toISOString(),
+    sincronizado:true
+  };
+}
+
+async function limpiarCachePreventiva(eventosVigentes){
+  const vigentes=new Set((eventosVigentes || []).map(function(e){return String(e.origen_id || "")}));
+  const paquetes=await listarPaquetesOffline();
+  const limite=new Date();
+  limite.setDate(limite.getDate()-ZX_PREFETCH_RETENCION_DIAS);
+  const limiteISO=isoFecha(limite);
+
+  for(const p of paquetes){
+    const terminadoEvento=normalizar(p?.evento?.estado)==="terminado" || normalizar(p?.evento?.estado)==="completado" || normalizar(p?.evento?.estado)==="cancelado";
+    const antiguo=String(p.fecha_fin || "")<limiteISO;
+    if(terminadoEvento || (antiguo && !vigentes.has(String(p.trabajo_id)))){
+      await borrarPaqueteOffline(p.trabajo_id);
+    }
+  }
+}
+
+async function prepararTrabajosOffline(eventos){
+  if(ZX_PREFETCH_EN_CURSO || !navigator.onLine || !sb()) return;
+  ZX_PREFETCH_EN_CURSO=true;
+  try{
+    const s=sesion();
+    const fHoy=hoy();
+    const fManana=sumarDias(fHoy,1);
+    const fSiete=sumarDias(fHoy,7);
+
+    const asignados=(eventos || []).filter(function(e){
+      if(!esTrabajo(e) || terminado(e) || cancelado(e)) return false;
+      const f=normalizarFecha(e.fecha_inicio);
+      const visible=String(e.visible_para || "todos")==="todos" || String(e.usuario_id || "")===String(s.id || "");
+      return visible && f>=fHoy && f<=fSiete;
+    });
+
+    const unicos=[];
+    const ids=new Set();
+    for(const e of asignados){
+      const id=String(e.origen_id || "");
+      if(!id || ids.has(id)) continue;
+      ids.add(id);
+      unicos.push(e);
+    }
+
+    for(const e of unicos){
+      const fecha=normalizarFecha(e.fecha_inicio);
+      const completo=fecha<=fManana;
+      const anterior=await leerPaqueteOffline(e.origen_id);
+      const yaCompleto=anterior && anterior.nivel==="completo";
+      const reciente=anterior && segundosEntreFechas(anterior.descargado_en,new Date().toISOString())<6*3600;
+      if((completo ? yaCompleto : !!anterior) && reciente) continue;
+
+      const paquete=await construirPaqueteTrabajo(e,completo);
+      if(paquete) await guardarPaqueteOffline(paquete);
+    }
+
+    await limpiarCachePreventiva(unicos);
+    localStorage.setItem("zentryx_prefetch_ultimo",new Date().toISOString());
+  }catch(e){
+    console.error("Caché preventiva:",e);
+  }finally{
+    ZX_PREFETCH_EN_CURSO=false;
+  }
+}
+
+function segundosEntreFechas(a,b){
+  const da=new Date(a),db=new Date(b);
+  if(isNaN(da.getTime()) || isNaN(db.getTime())) return Infinity;
+  return Math.max(0,Math.floor((db-da)/1000));
+}
+
+window.ZX_TRABAJO_OFFLINE={
+  leer:leerPaqueteOffline,
+  listar:listarPaquetesOffline,
+  refrescar:function(){return prepararTrabajosOffline(ZX_AGENDA_CACHE)},
+  borrar:borrarPaqueteOffline
+};
 
 function setEstado(tipo){
   if(zx() && typeof zx().setSyncStatus==="function") zx().setSyncStatus(tipo);
@@ -228,6 +463,7 @@ async function cargarEventos(){
 
     ZX_AGENDA_CACHE=datos;
     guardarCache(datos);
+    prepararTrabajosOffline(datos);
 
   }catch(e){
     console.error(e);
@@ -1197,6 +1433,10 @@ window.ZX_agenda=async function(){
     repintarDatos();
   },20);
 };
+
+window.addEventListener("online",function(){
+  setTimeout(function(){prepararTrabajosOffline(ZX_AGENDA_CACHE)},1200);
+});
 
 window.ZX_abrirAgenda=window.ZX_agenda;
 
