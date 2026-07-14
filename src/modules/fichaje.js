@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3130 - JORNADA Y VEHÍCULO INDEPENDIENTES
+// V3131 - VEHÍCULO RÁPIDO E INTUITIVO DENTRO DE FICHAJE
 // ===============================
 (function(){
 "use strict";
@@ -447,6 +447,245 @@ function textoVehiculoJornada(j){
 function textoVehiculoFichaje(f){
   if(!f || !f.vehiculo_matricula) return "";
   return `<div class="zx_fichaje_meta">🚗 <b>${limpiar(f.vehiculo_matricula)}</b>${f.km_vehiculo!=null ? " · "+limpiar(f.km_vehiculo)+" km" : ""}</div>`;
+}
+
+
+// ===============================
+// VEHÍCULO RÁPIDO DENTRO DE FICHAJE V3131
+// ===============================
+function identidadVehiculoRapido(){
+  const s=sesion();
+  return {
+    id:String(s.id||s.usuario_id||""),
+    usuario:String(s.usuario||""),
+    nombre:String(s.nombre||s.usuario||"Usuario"),
+    empresa_id:s.empresa_id ? String(s.empresa_id) : null
+  };
+}
+
+function estadoFlotaRapido(v){
+  const e=String(v?.estado_flota||"").toLowerCase();
+  if(e) return e;
+  return v?.en_uso ? "en_uso" : "libre";
+}
+
+function nombreVehiculoRapido(v){
+  return [v?.matricula,v?.marca,v?.modelo].filter(Boolean).join(" · ") || "Vehículo";
+}
+
+function responsableVehiculoRapido(v){
+  return String(v?.usuario_actual_nombre||v?.usuario_asignado||"").trim();
+}
+
+function esResponsableVehiculoRapido(v){
+  const u=identidadVehiculoRapido();
+  if(!v || !u.id) return false;
+  if(String(v.usuario_actual_id||"")===u.id) return true;
+  return responsableVehiculoRapido(v).toLowerCase()===u.nombre.toLowerCase();
+}
+
+function duracionUsoRapido(fecha){
+  if(!fecha) return "";
+  const ms=Math.max(0,Date.now()-new Date(fecha).getTime());
+  if(!Number.isFinite(ms)) return "";
+  const min=Math.floor(ms/60000);
+  const h=Math.floor(min/60);
+  const m=min%60;
+  return h>0 ? `${h} h ${m} min` : `${Math.max(1,m)} min`;
+}
+
+async function cargarEstadoVehiculoRapido(){
+  const u=identidadVehiculoRapido();
+  if(!u.id || zxOffline()) return {actual:null,recomendado:null,vehiculos:[]};
+  try{
+    const [rv,ru]=await Promise.all([
+      sb().from("vehiculos").select("*").eq("activo",true).order("matricula",{ascending:true}),
+      sb().from("usos_vehiculos").select("vehiculo_id,inicio_at").eq("usuario_id",u.id).order("inicio_at",{ascending:false}).limit(1)
+    ]);
+    const vehiculos=rv.error ? [] : (rv.data||[]);
+    const actual=vehiculos.find(v=>esResponsableVehiculoRapido(v) && ["en_uso","pendiente_devolucion"].includes(estadoFlotaRapido(v))) || null;
+    const ultimoId=ru && !ru.error && ru.data && ru.data[0] ? String(ru.data[0].vehiculo_id||"") : "";
+    let recomendado=vehiculos.find(v=>String(v.id)===ultimoId && estadoFlotaRapido(v)==="libre") || null;
+    if(!recomendado) recomendado=vehiculos.find(v=>estadoFlotaRapido(v)==="libre") || null;
+    if(!recomendado) recomendado=vehiculos.find(v=>!esResponsableVehiculoRapido(v) && estadoFlotaRapido(v)==="en_uso") || null;
+    return {actual,recomendado,vehiculos};
+  }catch(e){return {actual:null,recomendado:null,vehiculos:[]};}
+}
+
+function renderVehiculoRapido(info){
+  const actual=info?.actual||null;
+  const rec=info?.recomendado||null;
+  if(actual){
+    return `
+      <div class="zx_vehicle_quick zx_vehicle_has">
+        <div class="zx_vehicle_quick_head">
+          <div class="zx_vehicle_icon">🚗</div>
+          <div>
+            <small>Vehículo actual</small>
+            <b>${limpiar(actual.matricula||"Vehículo")}</b>
+            <span>${limpiar(actual.marca||"")} ${limpiar(actual.modelo||"")}</span>
+          </div>
+          <div class="zx_vehicle_status">En uso</div>
+        </div>
+        <div class="zx_vehicle_quick_meta">
+          <span>🕒 ${limpiar(duracionUsoRapido(actual.uso_iniciado_at)||"Ahora")}</span>
+          <span>🧭 ${limpiar(actual.km_actual??"-")} km</span>
+        </div>
+        <div class="zx_vehicle_quick_actions">
+          <button class="zx_vehicle_btn blue" id="zx_vehicle_change">🔄 <span>Cambiar</span></button>
+          <button class="zx_vehicle_btn orange" id="zx_vehicle_return">📤 <span>Devolver</span></button>
+          <button class="zx_vehicle_btn gray" id="zx_vehicle_file">📄 <span>Ficha</span></button>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="zx_vehicle_quick zx_vehicle_none">
+      <div class="zx_vehicle_quick_head">
+        <div class="zx_vehicle_icon">🚗</div>
+        <div>
+          <small>Vehículo</small>
+          <b>Sin vehículo</b>
+          <span>${rec ? "Recomendado: "+limpiar(rec.matricula||"vehículo disponible") : "No hay vehículos disponibles"}</span>
+        </div>
+      </div>
+      ${rec ? `<button class="zx_vehicle_primary" id="zx_vehicle_recommended" data-veh-id="${limpiar(rec.id)}">🚗 Usar ${limpiar(rec.matricula||"vehículo")}</button>` : ""}
+      <button class="zx_vehicle_secondary" id="zx_vehicle_choose">➕ Elegir vehículo</button>
+    </div>`;
+}
+
+function cerrarModalVehiculoRapido(){
+  const m=document.getElementById("zx_modal_vehiculo_rapido");
+  if(m) m.remove();
+}
+
+function insertarModalVehiculoRapido(html){
+  cerrarModalVehiculoRapido();
+  document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_vehiculo_rapido" class="zx_modal_fondo"><div class="zx_modal_caja zx_vehicle_modal">${html}</div></div>`);
+}
+
+async function posicionVehiculoRapido(){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation){resolve({lat:null,lng:null});return;}
+    navigator.geolocation.getCurrentPosition(
+      p=>resolve({lat:p.coords.latitude,lng:p.coords.longitude}),
+      ()=>resolve({lat:null,lng:null}),
+      {enableHighAccuracy:true,timeout:7000,maximumAge:60000}
+    );
+  });
+}
+
+async function usarVehiculoRapido(id,info){
+  const v=(info?.vehiculos||[]).find(x=>String(x.id)===String(id));
+  if(!v){alert("Vehículo no encontrado.");return;}
+  const ocupado=estadoFlotaRapido(v)==="en_uso" && !esResponsableVehiculoRapido(v);
+  if(ocupado){
+    const ok=confirm(`Este vehículo está asignado ahora mismo a ${responsableVehiculoRapido(v)||"otro usuario"}.\n\n¿Quieres utilizarlo?`);
+    if(!ok) return;
+  }
+  const kmBase=Number(v.km_actual||0);
+  insertarModalVehiculoRapido(`
+    <h2>🚗 ${ocupado ? "Asumir vehículo" : "Utilizar vehículo"}</h2>
+    <div class="zx_vehicle_modal_card">
+      <b>${limpiar(nombreVehiculoRapido(v))}</b>
+      <span>${ocupado ? "Ahora lo usa "+limpiar(responsableVehiculoRapido(v)||"otro usuario") : "Disponible"}</span>
+    </div>
+    <label class="zx_label">Kilómetros actuales</label>
+    <input id="zx_vehicle_km_start" type="number" inputmode="decimal" value="${limpiar(kmBase)}">
+    <button class="zx_btn_big zx_verde" id="zx_vehicle_use_ok">✅ Usar vehículo</button>
+    <button class="zx_btn_big zx_gris" id="zx_vehicle_use_cancel">Cancelar</button>
+  `);
+  document.getElementById("zx_vehicle_use_cancel").onclick=cerrarModalVehiculoRapido;
+  document.getElementById("zx_vehicle_use_ok").onclick=async function(){
+    const km=Number(document.getElementById("zx_vehicle_km_start").value||0);
+    if(km<kmBase){alert("Los kilómetros no pueden ser inferiores a los registrados.");return;}
+    const btn=this; btn.disabled=true; btn.textContent="Guardando...";
+    try{
+      const u=identidadVehiculoRapido();
+      const pos=await posicionVehiculoRapido();
+      const now=ahora();
+      const nuevoId=uuidSeguro();
+      const anterior=v.uso_actual_id||null;
+      if(ocupado && anterior){
+        const rc=await sb().from("usos_vehiculos").update({estado:"transferido",fin_at:now,km_fin:km,lat_fin:pos.lat,lng_fin:pos.lng,motivo_fin:"Transferido a "+u.nombre,actualizado_por:u.id}).eq("id",String(anterior));
+        if(rc.error) throw rc.error;
+      }
+      const uso={id:nuevoId,empresa_id:u.empresa_id,vehiculo_id:String(v.id),vehiculo_matricula:v.matricula||null,usuario_id:u.id,usuario:u.usuario,nombre_usuario:u.nombre,estado:"en_uso",inicio_at:now,km_inicio:km,lat_inicio:pos.lat,lng_inicio:pos.lng,motivo_inicio:ocupado?"Cambio de responsable desde Fichaje":"Uso rápido desde Fichaje",dispositivo_inicio:navigator.userAgent||"",uso_anterior_id:anterior,usuario_anterior_id:ocupado?String(v.usuario_actual_id||"")||null:null,usuario_anterior_nombre:ocupado?responsableVehiculoRapido(v)||null:null,tomado_sin_liberacion:ocupado,seguimiento_gps_activo:v.seguimiento_gps_habilitado===true,creado_por:u.id};
+      const ri=await sb().from("usos_vehiculos").insert([uso]);
+      if(ri.error) throw ri.error;
+      if(ocupado){
+        const rt=await sb().from("transferencias_vehiculos").insert([{id:uuidSeguro(),empresa_id:u.empresa_id,vehiculo_id:String(v.id),vehiculo_matricula:v.matricula||null,uso_anterior_id:anterior,uso_nuevo_id:nuevoId,usuario_anterior_id:v.usuario_actual_id||null,nombre_anterior:responsableVehiculoRapido(v)||null,usuario_nuevo_id:u.id,usuario_nuevo:u.usuario,nombre_nuevo:u.nombre,estado:"confirmada",km_transferencia:km,lat:pos.lat,lng:pos.lng,mensaje_usuario_anterior:u.nombre+" está utilizando el vehículo "+(v.matricula||""),avisar_al_liberar:true,respuesta_usuario_anterior:"pendiente",motivo:"Cambio confirmado desde Fichaje",dispositivo:navigator.userAgent||"",confirmado_por:u.id,confirmado_at:now}]);
+        if(rt.error) throw rt.error;
+      }
+      const rv=await sb().from("vehiculos").update({uso_actual_id:nuevoId,usuario_actual_id:u.id,usuario_actual_nombre:u.nombre,uso_iniciado_at:now,estado_flota:"en_uso",km_actual:km,en_uso:true,usuario_asignado:u.nombre}).eq("id",String(v.id));
+      if(rv.error) throw rv.error;
+      cerrarModalVehiculoRapido();
+      await window.ZX_fichaje_real();
+    }catch(e){btn.disabled=false;btn.textContent="✅ Usar vehículo";alert("No se pudo asignar el vehículo: "+(e.message||"Error"));}
+  };
+}
+
+async function abrirSelectorVehiculoRapido(info){
+  const items=(info?.vehiculos||[]).filter(v=>String(v.activo)!=="false");
+  insertarModalVehiculoRapido(`
+    <h2>🚗 Elegir vehículo</h2>
+    <div class="zx_vehicle_picker">
+      ${items.length ? items.map(v=>{
+        const libre=estadoFlotaRapido(v)==="libre";
+        const propio=esResponsableVehiculoRapido(v);
+        return `<button class="zx_vehicle_pick" data-quick-veh="${limpiar(v.id)}">
+          <span class="ico">🚗</span>
+          <span class="txt"><b>${limpiar(v.matricula||"Vehículo")}</b><small>${limpiar(v.marca||"")} ${limpiar(v.modelo||"")}</small></span>
+          <span class="state ${libre?"free":propio?"mine":"busy"}">${libre?"Libre":propio?"Tu vehículo":"Lo usa "+limpiar(responsableVehiculoRapido(v)||"otro")}</span>
+        </button>`;
+      }).join("") : `<div class="zx_text">No hay vehículos activos.</div>`}
+    </div>
+    <button class="zx_btn_big zx_gris" id="zx_vehicle_picker_close">Cerrar</button>
+  `);
+  document.getElementById("zx_vehicle_picker_close").onclick=cerrarModalVehiculoRapido;
+  document.querySelectorAll("[data-quick-veh]").forEach(b=>b.onclick=function(){const id=this.dataset.quickVeh;cerrarModalVehiculoRapido();usarVehiculoRapido(id,info);});
+}
+
+async function devolverVehiculoRapido(info){
+  const v=info?.actual;
+  if(!v) return;
+  const kmBase=Number(v.km_actual||0);
+  insertarModalVehiculoRapido(`
+    <h2>📤 Devolver vehículo</h2>
+    <div class="zx_vehicle_modal_card"><b>${limpiar(nombreVehiculoRapido(v))}</b><span>Uso actual</span></div>
+    <label class="zx_label">Kilómetros finales</label>
+    <input id="zx_vehicle_km_end" type="number" inputmode="decimal" value="${limpiar(kmBase)}">
+    <button class="zx_btn_big zx_verde" id="zx_vehicle_return_ok">✅ Confirmar devolución</button>
+    <button class="zx_btn_big zx_gris" id="zx_vehicle_return_cancel">Cancelar</button>
+  `);
+  document.getElementById("zx_vehicle_return_cancel").onclick=cerrarModalVehiculoRapido;
+  document.getElementById("zx_vehicle_return_ok").onclick=async function(){
+    const km=Number(document.getElementById("zx_vehicle_km_end").value||0);
+    if(km<kmBase){alert("Los kilómetros finales no pueden ser inferiores a los actuales.");return;}
+    const btn=this;btn.disabled=true;btn.textContent="Guardando...";
+    try{
+      const u=identidadVehiculoRapido(); const pos=await posicionVehiculoRapido(); const now=ahora();
+      if(v.uso_actual_id){
+        const ru=await sb().from("usos_vehiculos").update({estado:"devuelto",fin_at:now,km_fin:km,lat_fin:pos.lat,lng_fin:pos.lng,motivo_fin:"Devolución rápida desde Fichaje",dispositivo_fin:navigator.userAgent||"",actualizado_por:u.id}).eq("id",String(v.uso_actual_id));
+        if(ru.error) throw ru.error;
+      }
+      const rv=await sb().from("vehiculos").update({uso_actual_id:null,usuario_actual_id:null,usuario_actual_nombre:null,uso_iniciado_at:null,estado_flota:"libre",km_actual:km,en_uso:false,usuario_asignado:""}).eq("id",String(v.id));
+      if(rv.error) throw rv.error;
+      cerrarModalVehiculoRapido(); await window.ZX_fichaje_real();
+    }catch(e){btn.disabled=false;btn.textContent="✅ Confirmar devolución";alert("No se pudo devolver el vehículo: "+(e.message||"Error"));}
+  };
+}
+
+function enlazarVehiculoRapido(info){
+  const rec=document.getElementById("zx_vehicle_recommended");
+  if(rec) rec.onclick=()=>usarVehiculoRapido(rec.dataset.vehId,info);
+  const choose=document.getElementById("zx_vehicle_choose");
+  if(choose) choose.onclick=()=>abrirSelectorVehiculoRapido(info);
+  const change=document.getElementById("zx_vehicle_change");
+  if(change) change.onclick=()=>abrirSelectorVehiculoRapido(info);
+  const ret=document.getElementById("zx_vehicle_return");
+  if(ret) ret.onclick=()=>devolverVehiculoRapido(info);
+  const file=document.getElementById("zx_vehicle_file");
+  if(file) file.onclick=()=>{guardarScroll(); if(typeof window.ZX_vehiculos==="function") window.ZX_vehiculos();};
 }
 
 // ===============================
@@ -2643,6 +2882,30 @@ function estilosAdminCompacto(){
     .zx_resumen_titulo_fila h2{margin:0;}
     .zx_resumen_titulo_fila span{color:#2563eb;font-size:13px;font-weight:950;white-space:nowrap;}
 
+    .zx_vehicle_quick{margin-top:14px;border:1px solid #dbe3ef;border-radius:22px;padding:14px;background:#f8fafc}
+    .zx_vehicle_quick_head{display:grid;grid-template-columns:48px 1fr auto;gap:11px;align-items:center}
+    .zx_vehicle_icon{width:48px;height:48px;border-radius:16px;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:24px}
+    .zx_vehicle_quick_head small,.zx_vehicle_quick_head b,.zx_vehicle_quick_head span{display:block}
+    .zx_vehicle_quick_head small{color:#64748b;font-size:12px;font-weight:950;text-transform:uppercase}
+    .zx_vehicle_quick_head b{color:#071330;font-size:20px;line-height:1.1;font-weight:950;margin-top:2px}
+    .zx_vehicle_quick_head span{color:#64748b;font-size:13px;font-weight:850;margin-top:3px}
+    .zx_vehicle_status{border-radius:999px;background:#dbeafe;color:#1d4ed8;padding:8px 10px;font-size:12px;font-weight:950;white-space:nowrap}
+    .zx_vehicle_quick_meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+    .zx_vehicle_quick_meta span{background:white;border:1px solid #e2e8f0;border-radius:999px;padding:7px 10px;color:#475569;font-size:12px;font-weight:900}
+    .zx_vehicle_quick_actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+    .zx_vehicle_btn{border:0;border-radius:15px;padding:12px 7px;color:white;font-size:14px;font-weight:950;min-height:48px}
+    .zx_vehicle_btn.blue{background:#2563eb}.zx_vehicle_btn.orange{background:#f97316}.zx_vehicle_btn.gray{background:#64748b}
+    .zx_vehicle_primary,.zx_vehicle_secondary{width:100%;border:0;border-radius:16px;padding:14px;margin-top:12px;font-size:16px;font-weight:950}
+    .zx_vehicle_primary{background:#16a34a;color:white}.zx_vehicle_secondary{background:#e2e8f0;color:#334155}
+    .zx_vehicle_modal h2{margin-top:0}.zx_vehicle_modal_card{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:14px;margin-bottom:12px}
+    .zx_vehicle_modal_card b,.zx_vehicle_modal_card span{display:block}.zx_vehicle_modal_card b{font-size:19px;color:#071330}.zx_vehicle_modal_card span{margin-top:4px;color:#64748b;font-weight:850}
+    .zx_vehicle_picker{display:grid;gap:9px;max-height:55vh;overflow:auto;margin:12px 0}
+    .zx_vehicle_pick{display:grid;grid-template-columns:42px 1fr auto;gap:10px;align-items:center;width:100%;border:1px solid #dbe3ef;border-radius:17px;background:#f8fafc;padding:11px;text-align:left}
+    .zx_vehicle_pick .ico{font-size:23px}.zx_vehicle_pick .txt b,.zx_vehicle_pick .txt small{display:block}.zx_vehicle_pick .txt b{color:#071330;font-size:16px}.zx_vehicle_pick .txt small{color:#64748b;font-size:12px;font-weight:850;margin-top:3px}
+    .zx_vehicle_pick .state{border-radius:999px;padding:7px 9px;font-size:11px;font-weight:950;white-space:nowrap}.zx_vehicle_pick .state.free{background:#dcfce7;color:#166534}.zx_vehicle_pick .state.mine{background:#dbeafe;color:#1d4ed8}.zx_vehicle_pick .state.busy{background:#ffedd5;color:#9a3412}
+
+    @media(max-width:390px){.zx_vehicle_quick_actions{grid-template-columns:1fr 1fr}.zx_vehicle_btn.gray{grid-column:1/-1}.zx_vehicle_quick_head{grid-template-columns:44px 1fr}.zx_vehicle_status{grid-column:1/-1;justify-self:start}.zx_vehicle_pick{grid-template-columns:38px 1fr}.zx_vehicle_pick .state{grid-column:2;justify-self:start}}
+
     @media(min-width:700px){
       .zx_admin_summary{grid-template-columns:repeat(4,1fr);}
       .zx_resumen_grid{grid-template-columns:repeat(4,minmax(0,1fr));}
@@ -2977,6 +3240,8 @@ window.ZX_fichaje_real=async function(){
   // El contador usa los fichajes ya cargados y solo se refresca completo con acciones reales o tiempo real agrupado.
 
   const bloqueoActual=bloqueoHorarioActual(laboral ? laboral.solicitudes : []);
+  const vehiculoRapido=await cargarEstadoVehiculoRapido();
+  if(renderId!==ZX_RENDER_ID) return;
   const accionDirecta=accionDirectaEstado(est.estado);
   const misCount=(est.jornadasUsuario||[]).length;
   const ultimosTxt=ZX_VER_ULTIMOS ? String(hist.length)+" registros" : "Últimos movimientos";
@@ -2995,12 +3260,7 @@ window.ZX_fichaje_real=async function(){
       </div>
       <div class="zx_estado_sub">${limpiar(subtituloEstado(est))}</div>
 
-      ${est.jornada && est.jornada.vehiculo_matricula ? `
-        <div class="zx_text" style="margin-top:12px;">
-          Vehículo: <b>${limpiar(est.jornada.vehiculo_matricula)}</b><br>
-          Km entrada: <b>${limpiar(est.jornada.km_entrada??"-")}</b>
-        </div>
-      ` : ""}
+      ${renderVehiculoRapido(vehiculoRapido)}
 
       ${laboral && laboral.bloquearFichaje ? `<div class="zx_text" style="color:#dc2626;font-weight:900;margin-top:10px;">Fichaje bloqueado por baja médica aprobada.</div>` : ""}
       ${bloqueoActual.bloqueado ? `<div class="zx_text" style="color:#dc2626;font-weight:900;margin-top:10px;">Permiso activo: ${limpiar(bloqueoActual.inicio)} - ${limpiar(bloqueoActual.fin)}</div>` : ""}
@@ -3045,6 +3305,8 @@ window.ZX_fichaje_real=async function(){
       ${ZX_VER_ULTIMOS ? (hist.length ? hist.map(h=>renderFichajeMini(h)).join("") : `<div class="zx_text">Sin registros.</div>`) : ""}
     </div>
   `;
+
+  enlazarVehiculoRapido(vehiculoRapido);
 
   document.getElementById("zx_btn_fichar").onclick=function(){
     if(accionDirecta){
