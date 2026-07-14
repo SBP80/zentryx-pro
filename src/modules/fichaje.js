@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3127 - OBJETIVO VISUAL FIJO Y FALTA RESTANTE
+// V3130 - JORNADA Y VEHÍCULO INDEPENDIENTES
 // ===============================
 (function(){
 "use strict";
@@ -1392,38 +1392,11 @@ async function abrirMenu(estado,jornadaActual=null){
   cerrarModal();
 
   const ops=opcionesPermitidas(estado);
-  const libres=estado==="fuera" ? await vehiculosLibres() : [];
-  const tieneVehiculo=!!(jornadaActual && jornadaActual.vehiculo_id);
 
   document.body.insertAdjacentHTML("beforeend",`
     <div id="zx_modal_fichaje" class="zx_modal_fondo">
       <div class="zx_modal_caja">
         <h2>${limpiar(textoBotonFichar(estado))}</h2>
-
-        ${estado==="fuera" ? `
-          <label class="zx_label">Vehículo</label>
-          <select id="zx_fichaje_vehiculo">
-            <option value="">Sin vehículo</option>
-            ${libres.map(v=>`
-              <option value="${limpiar(v.id)}" data-km="${limpiar(v.km_actual??0)}">
-                ${limpiar(v.matricula||"")} ${limpiar(v.marca||"")} ${limpiar(v.modelo||"")} · ${limpiar(v.km_actual??0)} km
-              </option>
-            `).join("")}
-          </select>
-
-          <label class="zx_label">Km entrada</label>
-          <input id="zx_fichaje_km_entrada" type="number" placeholder="Km actuales del vehículo" inputmode="numeric">
-        ` : ""}
-
-        ${estado==="dentro" && tieneVehiculo ? `
-          <div class="zx_text" style="font-weight:900;margin:10px 0;">
-            Vehículo: <b>${limpiar(jornadaActual.vehiculo_matricula||"")}</b><br>
-            Km entrada: <b>${limpiar(jornadaActual.km_entrada??"-")}</b>
-          </div>
-
-          <label class="zx_label">Km salida</label>
-          <input id="zx_fichaje_km_salida" type="number" value="${limpiar(jornadaActual.km_salida ?? jornadaActual.km_entrada ?? "")}" placeholder="Km de salida" inputmode="numeric">
-        ` : ""}
 
         ${estado!=="fuera" && jornadaActual ? `
           <div class="zx_modal_contexto">
@@ -1431,6 +1404,11 @@ async function abrirMenu(estado,jornadaActual=null){
             Estado actual: <b>${limpiar(textoEstado(estado))}</b>
           </div>
         ` : ""}
+
+        <div class="zx_modal_contexto" style="margin-bottom:12px;">
+          El uso de vehículos se gestiona de forma independiente desde el módulo <b>Vehículos</b>.
+          Puedes iniciar o finalizar la jornada sin coger ni devolver ningún vehículo.
+        </div>
 
         <div class="zx_text" style="margin-bottom:12px;color:#dc2626;font-weight:900;">
           Revisa bien antes de guardar. Después quedará registrado con hora, ubicación y dispositivo. GPS obligatorio si está activado por la empresa.
@@ -1449,27 +1427,13 @@ async function abrirMenu(estado,jornadaActual=null){
     </div>
   `);
 
-  const sel=document.getElementById("zx_fichaje_vehiculo");
-  const kmEntrada=document.getElementById("zx_fichaje_km_entrada");
-  if(sel && kmEntrada){
-    sel.onchange=function(){
-      const opt=sel.options[sel.selectedIndex];
-      kmEntrada.value=opt && opt.value ? String(opt.dataset.km||"") : "";
-    };
-  }
-
   document.querySelectorAll("[data-fichaje]").forEach(btn=>{
     btn.onclick=function(){
       const tipo=this.dataset.fichaje;
-      const datosModal={
-        vehiculoId:document.getElementById("zx_fichaje_vehiculo")?.value||"",
-        kmEntrada:document.getElementById("zx_fichaje_km_entrada")?.value||"",
-        kmSalida:document.getElementById("zx_fichaje_km_salida")?.value||""
-      };
       const ok=confirm("Confirmar fichaje: "+textoTipo(tipo)+"\n\n¿Seguro que quieres guardar este registro?");
       if(!ok) return;
       cerrarModal();
-      registrar(tipo,datosModal);
+      registrar(tipo);
     };
   });
 
@@ -1763,7 +1727,7 @@ async function recalcularJornada(jornadaId){
   }
 }
 
-async function registrar(tipo,datosModal=null){
+async function registrar(tipo){
   guardarScroll();
   const s=sesion();
 
@@ -1790,17 +1754,17 @@ async function registrar(tipo,datosModal=null){
   const est=await estadoActual();
   let jornada=est.jornada;
   let motivoAdmin=null;
-  let veh=null;
-  let vehMarcado=false;
 
   if(tipo==="entrada"){
     const jornadasDia=await jornadasUsuarioFecha(s.id,fecha);
     const cerradas=jornadasDia.filter(j=>j.estado==="cerrada");
 
-    if(cerradas.length && esAdmin()){
-      if(!(await validarAdminOperacion())) return;
-      motivoAdmin=pedirMotivo("Motivo para crear otra jornada hoy.");
-      if(!motivoAdmin) return;
+    if(cerradas.length){
+      const continuar=confirm(
+        "Ya existe una jornada cerrada hoy.\n\n"+
+        "¿Quieres iniciar una nueva jornada?"
+      );
+      if(!continuar) return;
     }
   }
 
@@ -1840,96 +1804,16 @@ async function registrar(tipo,datosModal=null){
   }
 
   if(tipo==="entrada"){
-    const vehiculoId=String(datosModal?.vehiculoId||"");
-    const kmTxt=String(datosModal?.kmEntrada||"");
-
-    if(vehiculoId){
-      const v=await vehiculoPorId(vehiculoId);
-      if(!v){
-        alert("Vehículo no encontrado.");
-        return;
-      }
-      if(v.activo===false || v.activo==="false"){
-        alert("El vehículo no está activo.");
-        return;
-      }
-      if(v.en_uso===true || v.en_uso==="true"){
-        alert("El vehículo ya está en uso.");
-        return;
-      }
-
-      const km=Number(kmTxt);
-      if(!Number.isFinite(km) || km<0){
-        alert("Km de entrada inválidos.");
-        return;
-      }
-      if(Number(v.km_actual||0)>0 && km<Number(v.km_actual||0)){
-        alert("Los km de entrada no pueden ser menores que los km actuales del vehículo.");
-        return;
-      }
-
-      veh={id:v.id,matricula:v.matricula,km};
-      const mv=await marcarVehiculoEntrada(v,km);
-      if(mv.error){
-        alert("No se pudo marcar el vehículo en uso: "+mv.error.message);
-        return;
-      }
-      vehMarcado=true;
-    }
-
-    jornada=await crearJornada(motivoAdmin,veh);
-    if(!jornada){
-      if(vehMarcado && veh && veh.id) await marcarVehiculoSalida(veh.id,veh.km);
-      return;
-    }
-  }
-
-  if(tipo==="salida" && jornada && jornada.vehiculo_id){
-    const kmTxt=String(datosModal?.kmSalida||"").trim();
-    if(!kmTxt){
-      alert("Indica los km de salida del vehículo.");
-      return;
-    }
-
-    const km=Number(kmTxt);
-    if(!Number.isFinite(km) || km<0){
-      alert("Km de salida inválidos.");
-      return;
-    }
-    if(jornada.km_entrada!=null && km<Number(jornada.km_entrada)){
-      alert("Los km de salida no pueden ser menores que los km de entrada.");
-      return;
-    }
-
-    veh={id:jornada.vehiculo_id,matricula:jornada.vehiculo_matricula,km};
-
-    const rj=await sb().from("jornadas").update({km_salida:km}).eq("id",String(jornada.id));
-    if(rj.error){
-      alert("No se pudieron guardar los km de salida: "+rj.error.message);
-      return;
-    }
-
-    const rv=await marcarVehiculoSalida(jornada.vehiculo_id,km);
-    if(rv.error){
-      alert("No se pudo liberar el vehículo: "+rv.error.message);
-      return;
-    }
+    jornada=await crearJornada(motivoAdmin,null);
+    if(!jornada) return;
   }
 
   const geo=await obtenerUbicacion();
-  const ok=await insertarFichaje(tipo,jornada.id,geo,veh);
+  const ok=await insertarFichaje(tipo,jornada.id,geo,null);
   if(!ok){
-    // Si falla el registro del fichaje, dejamos jornada y vehículo en un estado coherente.
     if(tipo==="entrada"){
-      if(vehMarcado && veh && veh.id) await marcarVehiculoSalida(veh.id,veh.km);
       await recalcularJornada(jornada.id);
     }
-
-    if(tipo==="salida" && jornada && jornada.vehiculo_id){
-      await sb().from("jornadas").update({km_salida:null}).eq("id",String(jornada.id));
-      await marcarVehiculoEntrada({id:jornada.vehiculo_id},jornada.km_entrada||0);
-    }
-
     return;
   }
 
