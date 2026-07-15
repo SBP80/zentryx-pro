@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3134 - SEGUIMIENTO GPS DE RUTA EN USO
+// V3137 - APERTURA DE RUTA EN GOOGLE MAPS, MAPAS DE APPLE Y WAZE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3136";
+const ZX_VERSION="3137";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3136";
+const CACHE_KEY="zentryx_cache_vehiculos_v3137";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -357,18 +357,26 @@ async function cargarDetalleVehiculo(id){
   return out;
 }
 
-function urlRutaGoogle(puntos){
+function urlsRutaMapas(puntos){
   const pts=(puntos||[]).filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)));
-  if(pts.length<2) return "";
+  if(pts.length<2) return {google:"",apple:"",waze:""};
+
   const reducidos=[];
   const paso=Math.max(1,Math.floor(pts.length/18));
   for(let i=0;i<pts.length;i+=paso) reducidos.push(pts[i]);
   if(reducidos[reducidos.length-1]!==pts[pts.length-1]) reducidos.push(pts[pts.length-1]);
-  const origen=reducidos[0], destino=reducidos[reducidos.length-1];
+
+  const origen=reducidos[0];
+  const destino=reducidos[reducidos.length-1];
   const medios=reducidos.slice(1,-1).map(p=>p.lat+","+p.lng).join("|");
-  let url="https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origen.lat+","+origen.lng)+"&destination="+encodeURIComponent(destino.lat+","+destino.lng);
-  if(medios) url+="&waypoints="+encodeURIComponent(medios);
-  return url;
+
+  let google="https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origen.lat+","+origen.lng)+"&destination="+encodeURIComponent(destino.lat+","+destino.lng);
+  if(medios) google+="&waypoints="+encodeURIComponent(medios);
+
+  const apple="https://maps.apple.com/?saddr="+encodeURIComponent(origen.lat+","+origen.lng)+"&daddr="+encodeURIComponent(destino.lat+","+destino.lng)+"&dirflg=d";
+  const waze="https://waze.com/ul?ll="+encodeURIComponent(destino.lat+","+destino.lng)+"&navigate=yes";
+
+  return {google,apple,waze};
 }
 
 function obtenerPosicion(){
@@ -1170,7 +1178,7 @@ async function abrirFicha(id,tabInicial){
   const usos=detalle.usos||[];
   const transferencias=detalle.transferencias||[];
   const puntos=detalle.puntos||[];
-  const rutaUrl=urlRutaGoogle(puntos);
+  const rutasMapa=urlsRutaMapas(puntos);
 
   const usoHtml=usos.length ? usos.map(function(u){
     const kmTxt=(u.km_inicio!=null ? u.km_inicio : "-")+" → "+(u.km_fin!=null ? u.km_fin : "-");
@@ -1215,7 +1223,14 @@ async function abrirFicha(id,tabInicial){
       <div class="zx_veh_route_box">
         <b>${puntos.length} puntos GPS registrados</b>
         <span>${puntos.length ? "Ruta disponible para este vehículo." : "Aún no hay puntos GPS guardados. Activa el seguimiento en Editar, utiliza el vehículo y mantén Zentryx abierto durante el trayecto."}</span>
-        ${rutaUrl ? `<a href="${limpiar(rutaUrl)}" target="_blank" rel="noopener">Abrir recorrido en Google Maps</a>` : ""}
+        ${rutasMapa.google ? `
+          <div class="zx_veh_map_choices">
+            <a href="${limpiar(rutasMapa.google)}" target="_blank" rel="noopener">🗺️ Google Maps · recorrido completo</a>
+            <a href="${limpiar(rutasMapa.apple)}" target="_blank" rel="noopener"> Mapas · inicio a fin</a>
+            <a href="${limpiar(rutasMapa.waze)}" target="_blank" rel="noopener">🚙 Waze · ir al punto final</a>
+          </div>
+          <small class="zx_veh_route_note">Google Maps conserva los puntos intermedios. Mapas de Apple y Waze abren la ruta entre el inicio y el final.</small>
+        ` : ""}
       </div>
     </div>
 
@@ -1318,6 +1333,12 @@ function instalarCSS(){
     .zx_veh_hist{display:grid;gap:9px}.zx_veh_hist_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px}
     .zx_veh_hist_item b,.zx_veh_hist_item span,.zx_veh_hist_item small{display:block}.zx_veh_hist_item b{color:#071330;font-size:15px}.zx_veh_hist_item span{color:#475569;font-size:13px;font-weight:850;margin-top:4px}.zx_veh_hist_item small{color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
     .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border-radius:14px;padding:11px 13px;font-weight:950}
+.zx_veh_map_choices{display:grid;gap:10px;margin-top:14px}
+.zx_veh_map_choices a{display:block;text-align:center;text-decoration:none;border-radius:18px;padding:14px 16px;font-weight:900;background:#2563eb;color:#fff}
+.zx_veh_map_choices a:nth-child(2){background:#111827}
+.zx_veh_map_choices a:nth-child(3){background:#22c55e}
+.zx_veh_route_note{display:block;margin-top:12px;line-height:1.35;color:#64748b;font-weight:700}
+
     @media(max-width:390px){.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
