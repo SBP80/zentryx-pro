@@ -1,12 +1,12 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3136 - TRABAJOS VISIBLES PARA TODO EL EQUIPO ASIGNADO
+// V3137 - SELECTOR DE NAVEGACIÓN EN MI DÍA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3136";
-const CACHE_KEY="zentryx_mi_dia_v3136";
+const ZX_VERSION="3137";
+const CACHE_KEY="zentryx_mi_dia_v3137";
 const CACHE_MAX_MS=72*60*60*1000;
 let ZX_MI_DIA_RENDER=0;
 
@@ -323,9 +323,102 @@ function abrirTrabajo(id){
   if(typeof window.ZX_trabajos==="function") window.ZX_trabajos();
 }
 
+function cerrarSelectorMapas(){
+  const modal=document.getElementById("zx_md_map_modal");
+  if(modal) modal.remove();
+}
+
+function abrirNavegador(tipo,dir){
+  const destino=String(dir || "").trim();
+  if(!destino) return;
+
+  const encoded=encodeURIComponent(destino);
+
+  if(tipo==="google"){
+    window.open(
+      "https://www.google.com/maps/dir/?api=1&destination="+encoded,
+      "_blank",
+      "noopener"
+    );
+    return;
+  }
+
+  if(tipo==="apple"){
+    window.location.href="maps://?daddr="+encoded+"&dirflg=d";
+    return;
+  }
+
+  if(tipo==="waze"){
+    const appUrl="waze://?q="+encoded+"&navigate=yes";
+    const webUrl="https://www.waze.com/ul?q="+encoded+"&navigate=yes";
+    let abierta=false;
+
+    const detectar=function(){
+      if(document.hidden) abierta=true;
+    };
+
+    document.addEventListener("visibilitychange",detectar,{once:true});
+    window.location.href=appUrl;
+
+    setTimeout(function(){
+      if(!abierta && !document.hidden){
+        window.open(webUrl,"_blank","noopener");
+      }
+    },1300);
+  }
+}
+
 function abrirMapa(dir){
-  if(!dir) return;
-  window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(dir),"_blank","noopener");
+  const destino=String(dir || "").trim();
+
+  if(!destino){
+    alert("Este trabajo no tiene una dirección válida.");
+    return;
+  }
+
+  cerrarSelectorMapas();
+
+  const modal=document.createElement("div");
+  modal.id="zx_md_map_modal";
+  modal.className="zx_md_map_modal";
+  modal.innerHTML=`
+    <div class="zx_md_map_backdrop" data-map-close="1"></div>
+    <div class="zx_md_map_sheet" role="dialog" aria-modal="true" aria-label="Elegir aplicación de navegación">
+      <div class="zx_md_map_handle"></div>
+      <h2>¿Con qué mapa quieres ir?</h2>
+      <p>${limpiar(destino)}</p>
+
+      <button type="button" class="zx_md_map_btn google" data-map-app="google">
+        🗺️ Google Maps
+      </button>
+
+      <button type="button" class="zx_md_map_btn apple" data-map-app="apple">
+         Mapas
+      </button>
+
+      <button type="button" class="zx_md_map_btn waze" data-map-app="waze">
+        🚙 Waze
+      </button>
+
+      <button type="button" class="zx_md_map_cancel" data-map-close="1">
+        Cancelar
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.querySelectorAll("[data-map-close]").forEach(function(btn){
+    btn.onclick=cerrarSelectorMapas;
+  });
+
+  modal.querySelectorAll("[data-map-app]").forEach(function(btn){
+    btn.onclick=function(){
+      const tipo=String(btn.dataset.mapApp || "");
+      cerrarSelectorMapas();
+      abrirNavegador(tipo,destino);
+    };
+  });
 }
 
 function llamar(tel){
@@ -480,6 +573,17 @@ function estilos(){
     .zx_md_card_head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.zx_md_card_head small{color:#64748b;font-size:13px;font-weight:950}.zx_md_card h3{margin:4px 0 14px;color:#071330;font-size:24px;line-height:1.12;font-weight:950}.zx_md_badge{border-radius:999px;padding:7px 9px;font-size:11px;font-weight:950;text-transform:capitalize}.zx_md_badge.pending{background:#fef3c7;color:#92400e}.zx_md_badge.course{background:#dcfce7;color:#166534}
     .zx_md_detail{color:#334155;font-size:15px;font-weight:850;line-height:1.35;margin-top:9px}.zx_md_description{margin:13px 0;background:#f8fafc;border-radius:16px;padding:12px;color:#475569;font-size:14px;font-weight:800;line-height:1.4}.zx_md_work{margin-top:16px;background:#16a34a;box-shadow:0 9px 20px rgba(22,163,74,.2)}
     .zx_md_quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:9px}.zx_md_quick button{border:0;border-radius:14px;padding:12px 7px;background:#f1f5f9;color:#334155;font-size:13px;font-weight:950}
+    .zx_md_map_modal{position:fixed;inset:0;z-index:99999;display:flex;align-items:flex-end;justify-content:center}
+    .zx_md_map_backdrop{position:absolute;inset:0;background:rgba(15,23,42,.58);backdrop-filter:blur(4px)}
+    .zx_md_map_sheet{position:relative;width:min(680px,100%);background:#fff;border-radius:28px 28px 0 0;padding:18px 20px calc(22px + env(safe-area-inset-bottom));box-shadow:0 -18px 45px rgba(15,23,42,.24);display:grid;gap:12px}
+    .zx_md_map_handle{width:54px;height:5px;border-radius:999px;background:#cbd5e1;margin:0 auto 3px}
+    .zx_md_map_sheet h2{margin:0;color:#071330;font-size:24px;font-weight:950}
+    .zx_md_map_sheet p{margin:0 0 4px;color:#64748b;font-size:14px;font-weight:800;line-height:1.4}
+    .zx_md_map_btn,.zx_md_map_cancel{width:100%;border:0;border-radius:18px;padding:16px;font-size:17px;font-weight:950}
+    .zx_md_map_btn.google{background:#2563eb;color:#fff}
+    .zx_md_map_btn.apple{background:#111827;color:#fff}
+    .zx_md_map_btn.waze{background:#16a34a;color:#fff}
+    .zx_md_map_cancel{background:#e2e8f0;color:#334155}
     .zx_md_empty{text-align:center}.zx_md_empty_icon{font-size:42px}.zx_md_empty h3{margin:8px 0}.zx_md_empty p{color:#64748b;font-weight:800}.zx_md_empty button{border:0;border-radius:16px;background:#7c3aed;color:#fff;padding:13px 18px;font-weight:950}
     .zx_md_later h3,.zx_md_alerts h3{font-size:20px;margin:0 0 10px}.zx_md_later_row{width:100%;border:0;border-top:1px solid #edf2f7;background:transparent;padding:12px 0;display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:9px;text-align:left;align-items:center}.zx_md_later_row>span{color:#2563eb;font-size:12px;font-weight:950}.zx_md_later_row b{display:block;color:#071330;font-size:14px;font-weight:950}.zx_md_later_row small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:2px}.zx_md_later_row i{font-style:normal;color:#94a3b8;font-size:22px}
     .zx_md_alert{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 0;border-top:1px solid #edf2f7}.zx_md_alert b{display:block;color:#071330;font-size:14px;font-weight:950}.zx_md_alert small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:3px;line-height:1.35}
