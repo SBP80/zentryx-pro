@@ -5,9 +5,9 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3135";
+const ZX_VERSION="3136";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3135";
+const CACHE_KEY="zentryx_cache_vehiculos_v3136";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -628,10 +628,11 @@ function renderVehiculo(v){
 
       ${principal}
 
+      <button class="zx_veh_route_quick" type="button" data-veh-route="${limpiar(v.id)}">🛰️ Ver ruta GPS</button>
+
       <button class="zx_veh_more" type="button" data-veh-more="${limpiar(v.id)}">••• Más opciones</button>
       <div class="zx_veh_more_panel" data-veh-more-panel="${limpiar(v.id)}" hidden>
         <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha</button>
-        <button class="purple" data-veh-route="${limpiar(v.id)}">🛰️ Ruta GPS</button>
         ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar</button>` : ""}
         ${estado!=="inactivo" && puedeGestionar() ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar</button>` : ""}
         ${estado==="inactivo" && puedeGestionar() ? `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar</button>` : ""}
@@ -650,7 +651,7 @@ function pintarShell(lista){
     <div class="zx_veh_shell">
       <section class="zx_veh_panel zx_veh_header">
         <div>
-          <h2>Vehículos</h2>
+          <div class="zx_veh_titleline"><h2>Vehículos</h2><span class="zx_veh_version">V${ZX_VERSION}</span></div>
           <p>Uso real, responsables, kilómetros, documentación, ITV, seguro y revisiones.</p>
           ${navigator.onLine ? "" : `<div class="zx_veh_offline">🟡 Sin conexión · los cambios se guardarán pendientes</div>`}
         </div>
@@ -1297,6 +1298,8 @@ function instalarCSS(){
     .zx_veh_main_action{width:100%;border:0;border-radius:18px;padding:15px 12px;color:white;font-size:16px;font-weight:950;min-height:52px;margin-top:13px}
     .zx_veh_main_action.green{background:#16a34a}.zx_veh_main_action.purple{background:#7c3aed}.zx_veh_main_action.orange{background:#f97316}
     .zx_veh_more{width:100%;border:0;background:transparent;color:#334155;padding:12px 8px 4px;font-size:14px;font-weight:950}
+    .zx_veh_titleline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.zx_veh_version{font-size:11px;font-weight:950;color:#64748b;background:#eef2f7;border:1px solid #dbe3ed;border-radius:999px;padding:4px 8px}
+    .zx_veh_route_quick{width:100%;border:2px solid #c4b5fd;background:#f5f3ff;color:#5b21b6;border-radius:18px;padding:13px 12px;font-size:15px;font-weight:950;margin-top:10px;min-height:48px}
     .zx_veh_more_panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
     .zx_veh_more_panel[hidden]{display:none!important}
     .zx_veh_more_panel button,.zx_veh_actions button{border:0;border-radius:16px;padding:13px 8px;color:white;font-size:14px;font-weight:950;min-height:46px}
