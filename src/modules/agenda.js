@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3134 - TRABAJOS DIRECTOS, SIN DUPLICAR EN AGENDA
+// V3135 - SELECTOR DE NAVEGACIÓN GOOGLE, APPLE Y WAZE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3134";
+const ZX_VERSION="3135";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos";
 
@@ -1115,10 +1115,92 @@ window.ZX_ag_borrar=function(id){
   borrarEvento(id);
 };
 
-window.ZX_ag_mapa=function(direccion){
+function abrirNavegadorAgenda(tipo,direccion){
   const d=String(direccion || "").trim();
   if(!d) return;
-  window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(d),"_blank");
+
+  const encoded=encodeURIComponent(d);
+
+  if(tipo==="google"){
+    window.open("https://www.google.com/maps/dir/?api=1&destination="+encoded,"_blank");
+    return;
+  }
+
+  if(tipo==="apple"){
+    window.location.href="maps://?daddr="+encoded+"&dirflg=d";
+    return;
+  }
+
+  if(tipo==="waze"){
+    const appUrl="waze://?q="+encoded+"&navigate=yes";
+    const webUrl="https://www.waze.com/ul?q="+encoded+"&navigate=yes";
+    let cambio=false;
+
+    const detectar=function(){
+      if(document.hidden) cambio=true;
+    };
+
+    document.addEventListener("visibilitychange",detectar,{once:true});
+    window.location.href=appUrl;
+
+    setTimeout(function(){
+      if(!cambio && !document.hidden){
+        window.open(webUrl,"_blank");
+      }
+    },1300);
+  }
+}
+
+window.ZX_ag_mapa=function(direccion){
+  const d=String(direccion || "").trim();
+  if(!d){
+    alert("Este trabajo no tiene una dirección válida.");
+    return;
+  }
+
+  modalBase(`
+    <div style="display:grid;gap:14px">
+      <div>
+        <h2 style="margin:0 0 6px">¿Con qué mapa quieres ir?</h2>
+        <p style="margin:0;color:#64748b;font-weight:800;line-height:1.35">${limpiar(d)}</p>
+      </div>
+
+      <button type="button" id="zx_ag_nav_google" class="blue" style="width:100%;padding:16px;border-radius:18px;font-size:17px;font-weight:950">
+        🗺️ Google Maps
+      </button>
+
+      <button type="button" id="zx_ag_nav_apple" style="width:100%;padding:16px;border:0;border-radius:18px;background:#111827;color:white;font-size:17px;font-weight:950">
+         Mapas
+      </button>
+
+      <button type="button" id="zx_ag_nav_waze" class="green" style="width:100%;padding:16px;border-radius:18px;font-size:17px;font-weight:950">
+        🚙 Waze
+      </button>
+
+      <button type="button" id="zx_ag_nav_cancelar" class="gray" style="width:100%;padding:15px;border-radius:18px;font-size:16px;font-weight:950">
+        Cancelar
+      </button>
+    </div>
+  `);
+
+  const google=document.getElementById("zx_ag_nav_google");
+  const apple=document.getElementById("zx_ag_nav_apple");
+  const waze=document.getElementById("zx_ag_nav_waze");
+  const cancelar=document.getElementById("zx_ag_nav_cancelar");
+
+  if(google) google.onclick=function(){
+    cerrarModal();
+    abrirNavegadorAgenda("google",d);
+  };
+  if(apple) apple.onclick=function(){
+    cerrarModal();
+    abrirNavegadorAgenda("apple",d);
+  };
+  if(waze) waze.onclick=function(){
+    cerrarModal();
+    abrirNavegadorAgenda("waze",d);
+  };
+  if(cancelar) cancelar.onclick=cerrarModal;
 };
 
 window.ZX_ag_abrirTrabajo=function(id){
