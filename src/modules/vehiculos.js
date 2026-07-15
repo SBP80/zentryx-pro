@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3140 - MAPA GPS EXACTO CON SELECTOR DE RECORRIDOS
+// V3141 - SEGUIMIENTO GPS GLOBAL EN TODA LA APLICACIÓN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3140";
+const ZX_VERSION="3141";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3140";
+const CACHE_KEY="zentryx_cache_vehiculos_v3141";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -19,6 +19,10 @@ let ZX_GPS_WATCH_ID=null;
 let ZX_GPS_USO_ID="";
 let ZX_GPS_ULTIMO_PUNTO=null;
 let ZX_GPS_ULTIMO_ENVIO=0;
+let ZX_GPS_REFRESH_TIMER=null;
+let ZX_GPS_REFRESHING=false;
+let ZX_GPS_ULTIMO_ERROR="";
+let ZX_GPS_ULTIMO_REGISTRO="";
 let ZX_RUTA_MAPA=null;
 let ZX_RUTA_LINEA=null;
 let ZX_RUTA_MARCADORES=[];
@@ -240,7 +244,14 @@ async function guardarPuntoGPS(v,uso,pos){
   const ahora=Date.now();
   const punto={lat:Number(pos.coords.latitude),lng:Number(pos.coords.longitude)};
   const distancia=distanciaMetros(ZX_GPS_ULTIMO_PUNTO,punto);
-  if(ZX_GPS_ULTIMO_ENVIO && ahora-ZX_GPS_ULTIMO_ENVIO<30000 && distancia<50) return;
+  const transcurrido=ZX_GPS_ULTIMO_ENVIO ? ahora-ZX_GPS_ULTIMO_ENVIO : Infinity;
+
+  // En movimiento: guarda cada 15 s o cada 20 m.
+  // Detenido: conserva un punto cada 90 s para confirmar la posición.
+  if(ZX_GPS_ULTIMO_ENVIO){
+    if(distancia>=20 && transcurrido<15000) return;
+    if(distancia<20 && transcurrido<90000) return;
+  }
 
   const u=identidadActual();
   const data={
@@ -263,21 +274,151 @@ async function guardarPuntoGPS(v,uso,pos){
   if(r&&r.error) throw r.error;
   ZX_GPS_ULTIMO_PUNTO=punto;
   ZX_GPS_ULTIMO_ENVIO=ahora;
+  ZX_GPS_ULTIMO_REGISTRO=data.registrado_at;
+  ZX_GPS_ULTIMO_ERROR="";
+  try{
+    localStorage.setItem("zentryx_gps_ultimo_estado",JSON.stringify({
+      uso_id:String(uso.id),
+      vehiculo_id:String(v.id),
+      registrado_at:data.registrado_at,
+      lat:data.lat,
+      lng:data.lng
+    }));
+  }catch(e){}
+}
+
+function iniciarWatchGPS(v,uso){
+  if(!navigator.geolocation || !v || !uso || !uso.id) return;
+
+  const usoId=String(uso.id);
+  if(ZX_GPS_WATCH_ID!=null && ZX_GPS_USO_ID===usoId) return;
+
+  detenerSeguimientoGPS();
+  ZX_GPS_USO_ID=usoId;
+
+  ZX_GPS_WATCH_ID=navigator.geolocation.watchPosition(
+    function(pos){
+      guardarPuntoGPS(v,uso,pos).catch(function(e){
+        ZX_GPS_ULTIMO_ERROR=String(e&&e.message||e||"No se pudo guardar la posición");
+      });
+    },
+    function(err){
+      ZX_GPS_ULTIMO_ERROR=String(err&&err.message||"No se pudo obtener la ubicación");
+    },
+    {enableHighAccuracy:true,maximumAge:5000,timeout:25000}
+  );
 }
 
 function iniciarSeguimientoGPSActual(){
-  detenerSeguimientoGPS();
   if(!navigator.geolocation) return;
-  const v=(ZX_VEH_CACHE||[]).find(x=>esResponsableActual(x)&&estadoVehiculo(x)==="uso"&&(x.seguimiento_gps_habilitado===true||x.seguimiento_gps_habilitado==="true"));
-  if(!v) return;
+  const v=(ZX_VEH_CACHE||[]).find(function(x){
+    return esResponsableActual(x)
+      && estadoVehiculo(x)==="uso"
+      && (x.seguimiento_gps_habilitado===true||x.seguimiento_gps_habilitado==="true");
+  });
+  if(!v){
+    detenerSeguimientoGPS();
+    return;
+  }
   const uso=v.__uso_actual||null;
-  if(!uso||!uso.id) return;
-  ZX_GPS_USO_ID=String(uso.id);
-  ZX_GPS_WATCH_ID=navigator.geolocation.watchPosition(
-    pos=>guardarPuntoGPS(v,uso,pos).catch(()=>{}),
-    ()=>{},
-    {enableHighAccuracy:true,maximumAge:15000,timeout:20000}
-  );
+  if(!uso||!uso.id){
+    detenerSeguimientoGPS();
+    return;
+  }
+  iniciarWatchGPS(v,uso);
+}
+
+async function buscarUsoGPSActual(){
+  const u=identidadActual();
+  if(!u.id) return null;
+
+  const usos=await zxGet("usos_vehiculos",{
+    query:function(q){
+      return q.eq("usuario_id",String(u.id))
+        .in("estado",["en_uso","pendiente_devolucion"])
+        .order("inicio_at",{ascending:false})
+        .limit(5);
+    }
+  });
+
+  const uso=(usos.data||[]).find(function(x){
+    return String(x.usuario_id||"")===String(u.id)
+      && ["en_uso","pendiente_devolucion"].includes(String(x.estado||""));
+  })||null;
+
+  if(!uso) return null;
+
+  const vehiculos=await zxGet(TABLA,{
+    query:function(q){return q.eq("id",String(uso.vehiculo_id)).limit(1);}
+  });
+  const v=(vehiculos.data||[]).find(function(x){
+    return String(x.id||"")===String(uso.vehiculo_id||"");
+  }) || cacheBackend(TABLA).find(function(x){
+    return String(x.id||"")===String(uso.vehiculo_id||"");
+  }) || null;
+
+  if(!v) return null;
+  v.__uso_actual=uso;
+  return {vehiculo:v,uso:uso};
+}
+
+async function refrescarSeguimientoGPSGlobal(){
+  if(ZX_GPS_REFRESHING) return;
+  ZX_GPS_REFRESHING=true;
+  try{
+    if(!navigator.geolocation){
+      detenerSeguimientoGPS();
+      return;
+    }
+
+    const actual=await buscarUsoGPSActual();
+    if(!actual){
+      detenerSeguimientoGPS();
+      return;
+    }
+
+    const v=actual.vehiculo;
+    const activo=v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true";
+    if(!activo){
+      detenerSeguimientoGPS();
+      return;
+    }
+
+    iniciarWatchGPS(v,actual.uso);
+  }catch(e){
+    ZX_GPS_ULTIMO_ERROR=String(e&&e.message||e||"No se pudo iniciar el seguimiento");
+  }finally{
+    ZX_GPS_REFRESHING=false;
+  }
+}
+
+function instalarSeguimientoGPSGlobal(){
+  if(window.ZX_GPS_GLOBAL_VEHICULOS_INSTALADO) return;
+  window.ZX_GPS_GLOBAL_VEHICULOS_INSTALADO=true;
+
+  const refrescar=function(){
+    refrescarSeguimientoGPSGlobal().catch(function(){});
+  };
+
+  setTimeout(refrescar,1200);
+
+  if(ZX_GPS_REFRESH_TIMER) clearInterval(ZX_GPS_REFRESH_TIMER);
+  ZX_GPS_REFRESH_TIMER=setInterval(refrescar,45000);
+
+  window.addEventListener("online",refrescar);
+  window.addEventListener("focus",refrescar);
+  document.addEventListener("visibilitychange",function(){
+    if(!document.hidden) refrescar();
+  });
+
+  [
+    "zentryx:vehiculo:cambio",
+    "zentryx:vehiculo:asignado",
+    "zentryx:vehiculo:devuelto",
+    "zentryx:sync:complete"
+  ].forEach(function(nombre){
+    window.addEventListener(nombre,refrescar);
+  });
 }
 
 async function insertarNotificacion(usuarioId,titulo,mensaje){
@@ -821,7 +962,7 @@ function renderVehiculo(v){
         <div><span>🧭</span><strong>${limpiar(v.km_actual ?? 0)} km</strong></div>
         ${enUso && inicio ? `<div><span>🕒</span><strong data-veh-duration-start="${limpiar(inicio)}">${limpiar(duracionDesde(inicio))}</strong><small>Desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
         ${ubicacion ? `<div><span>📍</span><strong>${limpiar(ubicacion)}</strong></div>` : ""}
-        ${enUso && (v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true") ? `<div><span>🛰️</span><strong>Ruta activa</strong><small>Se guarda mientras Zentryx está abierto</small></div>` : ""}
+        ${enUso && (v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true") ? `<div><span>🛰️</span><strong>Ruta activa</strong><small>${ZX_GPS_USO_ID===String((v.__uso_actual||{}).id||"") ? (ZX_GPS_ULTIMO_REGISTRO ? "Último punto "+limpiar(fechaHoraES(ZX_GPS_ULTIMO_REGISTRO)) : "Esperando primera posición") : "Preparando seguimiento"}</small></div>` : ""}
       </div>
 
       ${principal}
@@ -1622,6 +1763,8 @@ if(zx() && typeof zx().registrarModulo==="function"){
     version:ZX_VERSION
   });
 }
+
+instalarSeguimientoGPSGlobal();
 
 console.log("ZENTRYX vehiculos.js V"+ZX_VERSION+" cargado");
 
