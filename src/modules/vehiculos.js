@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3142 - MAPA EN DIRECTO DE TODA LA FLOTA
+// V3143 - CENTRO DE AVISOS DE FLOTA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3142";
+const ZX_VERSION="3143";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3142";
+const CACHE_KEY="zentryx_cache_vehiculos_v3143";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -1046,6 +1046,64 @@ function prepararVehiculo(v){
   return v;
 }
 
+function diasHasta(fecha){
+  if(!fecha) return null;
+  const f=new Date(String(fecha).slice(0,10)+"T12:00:00");
+  if(isNaN(f.getTime())) return null;
+  const ahora=new Date(hoy()+"T12:00:00");
+  return Math.ceil((f.getTime()-ahora.getTime())/86400000);
+}
+
+function avisosVehiculo(v){
+  const avisos=[];
+  const itv=diasHasta(v.itv_fecha);
+  const seguro=diasHasta(v.seguro_fecha);
+  const revision=diasHasta(v.proxima_revision_fecha);
+  const kmActual=numero(v.km_actual);
+  const kmRevision=numero(v.proxima_revision_km);
+
+  if(itv!==null){
+    if(itv<0) avisos.push({nivel:"critico",texto:"ITV caducada",detalle:Math.abs(itv)+" día(s)"});
+    else if(itv<=45) avisos.push({nivel:"aviso",texto:"ITV próxima",detalle:itv+" día(s)"});
+  }
+  if(seguro!==null){
+    if(seguro<0) avisos.push({nivel:"critico",texto:"Seguro caducado",detalle:Math.abs(seguro)+" día(s)"});
+    else if(seguro<=45) avisos.push({nivel:"aviso",texto:"Seguro próximo",detalle:seguro+" día(s)"});
+  }
+  if(revision!==null){
+    if(revision<0) avisos.push({nivel:"critico",texto:"Revisión vencida",detalle:Math.abs(revision)+" día(s)"});
+    else if(revision<=30) avisos.push({nivel:"aviso",texto:"Revisión próxima",detalle:revision+" día(s)"});
+  }
+  if(kmRevision>0){
+    const restantes=kmRevision-kmActual;
+    if(restantes<=0) avisos.push({nivel:"critico",texto:"Revisión por km vencida",detalle:Math.abs(restantes)+" km"});
+    else if(restantes<=1000) avisos.push({nivel:"aviso",texto:"Revisión por km próxima",detalle:restantes+" km"});
+  }
+
+  const estado=estadoVehiculo(v);
+  if(["averia","taller","fuera_servicio"].includes(estado)){
+    avisos.push({nivel:"critico",texto:estadoTexto(v),detalle:"No disponible"});
+  }
+  return avisos;
+}
+
+function tieneAvisos(v){
+  return avisosVehiculo(v).length>0;
+}
+
+function resumenAvisos(){
+  const todos=(ZX_VEH_CACHE||[]).flatMap(function(v){
+    return avisosVehiculo(v).map(function(a){
+      return Object.assign({vehiculo:v},a);
+    });
+  });
+  return {
+    todos:todos,
+    criticos:todos.filter(function(a){return a.nivel==="critico"}).length,
+    proximos:todos.filter(function(a){return a.nivel==="aviso"}).length
+  };
+}
+
 function filtrarVehiculos(){
   let lista=ZX_VEH_CACHE || [];
 
@@ -1053,6 +1111,7 @@ function filtrarVehiculos(){
   if(ZX_VEH_FILTRO==="libres") lista=lista.filter(v=>estadoVehiculo(v)==="libre");
   if(ZX_VEH_FILTRO==="uso") lista=lista.filter(v=>estadoVehiculo(v)==="uso");
   if(ZX_VEH_FILTRO==="inactivos") lista=lista.filter(v=>estadoVehiculo(v)==="inactivo");
+  if(ZX_VEH_FILTRO==="avisos") lista=lista.filter(tieneAvisos);
 
   const q=normalizar(ZX_VEH_BUSQUEDA);
   if(q){
@@ -1113,6 +1172,7 @@ function resumen(){
   const activos=ZX_VEH_CACHE.filter(v=>estadoVehiculo(v)!=="inactivo").length;
   const libres=ZX_VEH_CACHE.filter(v=>estadoVehiculo(v)==="libre").length;
   const uso=ZX_VEH_CACHE.filter(v=>estadoVehiculo(v)==="uso").length;
+  const avisos=resumenAvisos();
 
   return `
     <div class="zx_veh_kpis">
@@ -1120,6 +1180,11 @@ function resumen(){
       <div><b>${activos}</b><span>Activos</span></div>
       <div><b>${libres}</b><span>Libres</span></div>
       <div><b>${uso}</b><span>En uso</span></div>
+      <button type="button" class="zx_veh_kpi_alert ${avisos.criticos ? "has-critical" : avisos.proximos ? "has-warning" : ""}" id="zx_veh_kpi_avisos">
+        <b>${avisos.criticos+avisos.proximos}</b>
+        <span>Avisos</span>
+        <small>${avisos.criticos ? avisos.criticos+" urgente(s)" : avisos.proximos ? avisos.proximos+" próximo(s)" : "Todo al día"}</small>
+      </button>
     </div>
   `;
 }
@@ -1130,6 +1195,7 @@ function toolbar(total){
     ["libres","Libres"],
     ["uso","En uso"],
     ["inactivos","Inactivos"],
+    ["avisos","Avisos"],
     ["todos","Todos"]
   ];
 
@@ -1172,21 +1238,11 @@ function alertaFecha(fecha,diasAviso){
 }
 
 function renderAvisos(v){
-  const avisos=[];
-  const itv=alertaFecha(v.itv_fecha,45);
-  const seguro=alertaFecha(v.seguro_fecha,45);
-  const revision=alertaFecha(v.proxima_revision_fecha,30);
-
-  if(itv==="caducado") avisos.push("ITV caducada");
-  if(itv==="pronto") avisos.push("ITV próxima");
-  if(seguro==="caducado") avisos.push("Seguro caducado");
-  if(seguro==="pronto") avisos.push("Seguro próximo");
-  if(revision==="caducado") avisos.push("Revisión vencida");
-  if(revision==="pronto") avisos.push("Revisión próxima");
-
+  const avisos=avisosVehiculo(v);
   if(!avisos.length) return "";
-
-  return `<div class="zx_veh_alertas">${avisos.map(a=>`<span>${limpiar(a)}</span>`).join("")}</div>`;
+  return `<div class="zx_veh_alertas">${avisos.map(function(a){
+    return `<span class="${a.nivel==="critico" ? "critical" : "warning"}"><b>${limpiar(a.texto)}</b>${a.detalle ? `<small>${limpiar(a.detalle)}</small>` : ""}</span>`;
+  }).join("")}</div>`;
 }
 
 function fotoVehiculo(v){
@@ -1293,6 +1349,17 @@ function pintarShell(lista){
 
   const mapaFlota=document.getElementById("btn_mapa_flota");
   if(mapaFlota) mapaFlota.onclick=function(){abrirMapaFlota()};
+
+  const kpiAvisos=document.getElementById("zx_veh_kpi_avisos");
+  if(kpiAvisos) kpiAvisos.onclick=function(){
+    const resumenActual=resumenAvisos();
+    if(!resumenActual.todos.length){
+      alert("No hay avisos pendientes en la flota.");
+      return;
+    }
+    ZX_VEH_FILTRO="avisos";
+    repintarLista();
+  };
 
   conectarEventos();
 }
@@ -1939,6 +2006,13 @@ function instalarCSS(){
     .zx_flota_marker_label{position:absolute;left:50%;top:36px;transform:translateX(-50%);background:#071330;color:white;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:950;white-space:nowrap;box-shadow:0 2px 7px rgba(15,23,42,.25)}
     .zx_flota_popup{display:grid;gap:4px;min-width:170px}.zx_flota_popup b{font-size:15px;color:#071330}.zx_flota_popup span{font-size:12px;color:#475569;font-weight:800}
     .zx_veh_kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+    .zx_veh_kpi_alert{border:1px solid #dbe3ef;background:#f8fafc;border-radius:20px;padding:14px;text-align:center;grid-column:1/-1}
+    .zx_veh_kpi_alert b{display:block;color:#071330;font-size:27px;font-weight:950;line-height:1}
+    .zx_veh_kpi_alert span{display:block;color:#64748b;font-size:13px;font-weight:900;margin-top:6px}
+    .zx_veh_kpi_alert small{display:block;color:#64748b;font-size:10px;font-weight:900;margin-top:3px}
+    .zx_veh_kpi_alert.has-warning{background:#fff7ed;border-color:#fdba74}
+    .zx_veh_kpi_alert.has-critical{background:#fef2f2;border-color:#fca5a5}
+    .zx_veh_kpi_alert.has-critical b,.zx_veh_kpi_alert.has-critical span{color:#b91c1c}
     .zx_veh_kpis div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px;text-align:center}
     .zx_veh_kpis b{display:block;color:#071330;font-size:27px;font-weight:950;line-height:1}
     .zx_veh_kpis span{display:block;color:#64748b;font-size:13px;font-weight:900;margin-top:6px}
@@ -1971,7 +2045,10 @@ function instalarCSS(){
     .zx_veh_badges .uso{background:#dbeafe;color:#1d4ed8}
     .zx_veh_badges .off{background:#fee2e2;color:#991b1b}.zx_veh_badges .orange{background:#ffedd5;color:#9a3412}
     .zx_veh_alertas{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-    .zx_veh_alertas span{background:#fef3c7;color:#92400e;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:950}
+    .zx_veh_alertas span{display:grid;gap:1px;border-radius:12px;padding:7px 10px;font-size:12px;font-weight:950}
+    .zx_veh_alertas span.warning{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
+    .zx_veh_alertas span.critical{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+    .zx_veh_alertas small{font-size:9px;font-weight:850;opacity:.8}
     .zx_veh_fastline{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:11px}.zx_veh_fastline>div{min-width:0;display:grid;grid-template-columns:23px minmax(0,1fr);align-items:center;background:white;border:1px solid #e6edf5;border-radius:14px;padding:9px 10px}.zx_veh_fastline span{font-size:16px}.zx_veh_fastline strong{color:#071330;font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_veh_fastline small{grid-column:2;color:#64748b;font-size:10px;font-weight:850;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .zx_veh_info{margin-top:13px;display:grid;grid-template-columns:1fr;gap:8px}
     .zx_veh_info p{margin:0;background:white;border:1px solid #e6edf5;border-radius:16px;padding:11px}
@@ -2011,7 +2088,7 @@ function instalarCSS(){
 .zx_veh_route_note{display:block;margin-top:12px;line-height:1.35;color:#64748b;font-weight:700}.zx_veh_route_select{display:block;margin:12px 0}.zx_veh_route_select span{display:block;margin-bottom:6px;color:#475569;font-weight:900}.zx_veh_route_select select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:14px;background:white;color:#071330;font-weight:850;font-size:14px}
 
     @media(max-width:390px){.zx_veh_header{grid-template-columns:1fr}.zx_veh_header_actions{grid-template-columns:1fr 1fr}.zx_flota_head{display:grid}.zx_flota_stats{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
-    @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(5,minmax(0,1fr))}.zx_veh_kpi_alert{grid-column:auto}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
   document.head.appendChild(s);
