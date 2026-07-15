@@ -1,12 +1,12 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3135 - CENTRO DE TRABAJO DEL OPERARIO
+// V3136 - TRABAJOS VISIBLES PARA TODO EL EQUIPO ASIGNADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3135";
-const CACHE_KEY="zentryx_mi_dia_v3135";
+const ZX_VERSION="3136";
+const CACHE_KEY="zentryx_mi_dia_v3136";
 const CACHE_MAX_MS=72*60*60*1000;
 let ZX_MI_DIA_RENDER=0;
 
@@ -131,20 +131,25 @@ function horaTrabajo(t){
 
 function usuarioCoincide(t,s){
   if(esAdmin()) return true;
+
   const sid=String(s.id || "");
   const su=normalizar(s.usuario || "");
   const sn=normalizar(s.nombre || "");
 
   const ids=[
     t.usuario_id,t.tecnico_id,t.asignado_a,t.responsable_id,
-    t.__plan_usuario_id,t.__plan_tecnico_id
-  ].filter(v=>v!==null && v!==undefined && v!=="").map(String);
+    t.__plan_usuario_id,t.__plan_tecnico_id,
+    ...(Array.isArray(t.__equipo_ids) ? t.__equipo_ids : [])
+  ].filter(function(v){
+    return v!==null && v!==undefined && v!=="";
+  }).map(String);
 
-  if(ids.length && ids.includes(sid)) return true;
+  if(sid && ids.includes(sid)) return true;
 
   const nombres=[
     t.usuario,t.tecnico,t.tecnico_nombre,t.responsable,t.asignado_nombre,
-    t.__plan_usuario,t.__plan_tecnico
+    t.__plan_usuario,t.__plan_tecnico,
+    ...(Array.isArray(t.__equipo_nombres) ? t.__equipo_nombres : [])
   ].map(normalizar).filter(Boolean);
 
   if(su && nombres.includes(su)) return true;
@@ -165,33 +170,78 @@ async function cargarTrabajosDia(){
 
   const [trabajos,planes]=await Promise.all([
     consulta(c=>c.from("trabajos").select("*").gte("fecha",fHoy).lte("fecha",fManana).limit(250),[]),
-    consulta(c=>c.from("trabajos_planificacion").select("*").gte("fecha",fHoy).lte("fecha",fManana).limit(250),[])
+    consulta(c=>c.from("trabajos_planificacion").select("*").gte("fecha",fHoy).lte("fecha",fManana).limit(500),[])
   ]);
 
   const mapa=new Map();
-  (trabajos || []).forEach(t=>mapa.set(String(t.id),{...t}));
 
-  (planes || []).forEach(p=>{
-    const id=String(p.trabajo_id || p.id_trabajo || "");
-    if(!id) return;
-    const base=mapa.get(id) || {id:id};
-    mapa.set(id,{
-      ...base,
-      __plan_fecha:p.fecha || p.fecha_inicio || base.fecha,
-      __plan_hora:p.hora_inicio || p.hora || base.hora_inicio,
-      __plan_hora_fin:p.hora_fin || base.hora_fin,
-      __plan_usuario_id:p.usuario_id || p.tecnico_id || base.usuario_id,
-      __plan_tecnico_id:p.tecnico_id || p.usuario_id || base.tecnico_id,
-      __plan_usuario:p.usuario || p.tecnico || base.usuario,
-      __plan_tecnico:p.tecnico || p.usuario || base.tecnico
+  (trabajos || []).forEach(function(t){
+    mapa.set(String(t.id),{
+      ...t,
+      __equipo_ids:[],
+      __equipo_nombres:[]
     });
   });
 
+  (planes || []).forEach(function(p){
+    const id=String(p.trabajo_id || p.id_trabajo || "");
+    if(!id) return;
+
+    const base=mapa.get(id) || {
+      id:id,
+      __equipo_ids:[],
+      __equipo_nombres:[]
+    };
+
+    const equipoIds=Array.isArray(base.__equipo_ids) ? [...base.__equipo_ids] : [];
+    const equipoNombres=Array.isArray(base.__equipo_nombres) ? [...base.__equipo_nombres] : [];
+
+    const usuarioId=String(p.usuario_id || p.tecnico_id || "");
+    const usuarioNombre=String(p.usuario || p.tecnico || p.usuario_nombre || p.tecnico_nombre || "").trim();
+
+    if(usuarioId && !equipoIds.includes(usuarioId)) equipoIds.push(usuarioId);
+    if(usuarioNombre && !equipoNombres.some(function(n){return normalizar(n)===normalizar(usuarioNombre)})){
+      equipoNombres.push(usuarioNombre);
+    }
+
+    mapa.set(id,{
+      ...base,
+      __plan_fecha:base.__plan_fecha || p.fecha || p.fecha_inicio || base.fecha,
+      __plan_hora:base.__plan_hora || p.hora_inicio || p.hora || base.hora_inicio,
+      __plan_hora_fin:base.__plan_hora_fin || p.hora_fin || base.hora_fin,
+      __equipo_ids:equipoIds,
+      __equipo_nombres:equipoNombres
+    });
+  });
+
+  const idsFaltantes=Array.from(mapa.values())
+    .filter(function(t){return !t.titulo && t.id})
+    .map(function(t){return String(t.id)});
+
+  if(idsFaltantes.length && navigator.onLine && sb()){
+    const faltantes=await consulta(
+      c=>c.from("trabajos").select("*").in("id",idsFaltantes).limit(250),
+      []
+    );
+
+    (faltantes || []).forEach(function(t){
+      const previo=mapa.get(String(t.id)) || {};
+      mapa.set(String(t.id),{
+        ...t,
+        __plan_fecha:previo.__plan_fecha,
+        __plan_hora:previo.__plan_hora,
+        __plan_hora_fin:previo.__plan_hora_fin,
+        __equipo_ids:previo.__equipo_ids || [],
+        __equipo_nombres:previo.__equipo_nombres || []
+      });
+    });
+  }
+
   return Array.from(mapa.values())
     .filter(estadoActivoTrabajo)
-    .filter(t=>usuarioCoincide(t,s))
-    .filter(t=>[fHoy,fManana].includes(fechaTrabajo(t)))
-    .sort((a,b)=>{
+    .filter(function(t){return usuarioCoincide(t,s)})
+    .filter(function(t){return [fHoy,fManana].includes(fechaTrabajo(t))})
+    .sort(function(a,b){
       const ak=fechaTrabajo(a)+" "+horaTrabajo(a);
       const bk=fechaTrabajo(b)+" "+horaTrabajo(b);
       return ak.localeCompare(bk);
@@ -360,6 +410,7 @@ function renderTrabajo(t){
       </div>
 
       ${t.cliente ? `<div class="zx_md_detail">👤 <b>${limpiar(t.cliente)}</b></div>` : ""}
+      ${Array.isArray(t.__equipo_nombres) && t.__equipo_nombres.length ? `<div class="zx_md_detail">👥 ${limpiar(t.__equipo_nombres.join(", "))}</div>` : ""}
       ${dir ? `<div class="zx_md_detail">📍 ${limpiar(dir)}</div>` : ""}
       ${t.descripcion ? `<div class="zx_md_description">${limpiar(t.descripcion)}</div>` : ""}
 
@@ -492,9 +543,16 @@ window.ZX_inicio=function(){
   if(window.ZENTRYX_UI_inicio) window.ZENTRYX_UI_inicio();
 };
 
-window.addEventListener("online",function(){
-  if(document.querySelector(".zx_md") && typeof window.ZX_inicio==="function") window.ZX_inicio();
-});
+function refrescarMiDiaVisible(){
+  if(document.querySelector(".zx_md") && typeof window.ZX_inicio==="function"){
+    window.ZX_inicio();
+  }
+}
+
+window.addEventListener("online",refrescarMiDiaVisible);
+window.addEventListener("zentryx:trabajo:equipo_actualizado",refrescarMiDiaVisible);
+window.addEventListener("zentryx:trabajo:actualizado",refrescarMiDiaVisible);
+window.addEventListener("zentryx:sync:complete",refrescarMiDiaVisible);
 
 if(zx() && typeof zx().registrarModulo==="function"){
   zx().registrarModulo("inicio",{nombre:"Mi día",activo:true,version:ZX_VERSION});
