@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3132 - TARJETAS COMPACTAS, FOTO Y LECTURA RÁPIDA
+// V3133 - CONTADOR DE USO EN TIEMPO REAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3132";
+const ZX_VERSION="3133";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3132";
+const CACHE_KEY="zentryx_cache_vehiculos_v3133";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -166,6 +166,21 @@ function duracionDesde(v){
   const h=Math.floor(seg/3600); seg%=3600;
   const m=Math.floor(seg/60); const ss=seg%60;
   return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(ss).padStart(2,"0");
+}
+
+function actualizarDuracionesVisibles(){
+  document.querySelectorAll("[data-veh-duration-start]").forEach(function(el){
+    const inicio=el.getAttribute("data-veh-duration-start");
+    if(inicio) el.textContent=duracionDesde(inicio);
+  });
+}
+
+function iniciarRelojDuraciones(){
+  if(window.ZX_VEH_DURACION_TIMER){
+    clearInterval(window.ZX_VEH_DURACION_TIMER);
+  }
+  actualizarDuracionesVisibles();
+  window.ZX_VEH_DURACION_TIMER=setInterval(actualizarDuracionesVisibles,1000);
 }
 
 async function insertarNotificacion(usuarioId,titulo,mensaje){
@@ -534,7 +549,7 @@ function renderVehiculo(v){
       <div class="zx_veh_fastline">
         <div><span>👤</span><strong>${limpiar(responsable)}</strong></div>
         <div><span>🧭</span><strong>${limpiar(v.km_actual ?? 0)} km</strong></div>
-        ${enUso && inicio ? `<div><span>🕒</span><strong>${limpiar(duracionDesde(inicio))}</strong><small>Desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
+        ${enUso && inicio ? `<div><span>🕒</span><strong data-veh-duration-start="${limpiar(inicio)}">${limpiar(duracionDesde(inicio))}</strong><small>Desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
         ${ubicacion ? `<div><span>📍</span><strong>${limpiar(ubicacion)}</strong></div>` : ""}
       </div>
 
@@ -1254,10 +1269,12 @@ window.ZX_vehiculos=async function(){
 
   ZX_VEH_CACHE=leerCache().map(prepararVehiculo);
   pintarShell(filtrarVehiculos());
+  iniciarRelojDuraciones();
 
   setTimeout(async function(){
     const lista=await cargarVehiculos();
     pintarShell(lista);
+    iniciarRelojDuraciones();
   },20);
 };
 
