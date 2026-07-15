@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3138 - APERTURA NATIVA Y ESTABLE EN GOOGLE MAPS, MAPAS DE APPLE Y WAZE
+// V3139 - MAPA INTERNO CON RECORRIDO GPS EXACTO Y SEGUIMIENTO EN DIRECTO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3138";
+const ZX_VERSION="3139";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3138";
+const CACHE_KEY="zentryx_cache_vehiculos_v3139";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -19,6 +19,15 @@ let ZX_GPS_WATCH_ID=null;
 let ZX_GPS_USO_ID="";
 let ZX_GPS_ULTIMO_PUNTO=null;
 let ZX_GPS_ULTIMO_ENVIO=0;
+let ZX_RUTA_MAPA=null;
+let ZX_RUTA_LINEA=null;
+let ZX_RUTA_MARCADORES=[];
+let ZX_RUTA_CANAL=null;
+let ZX_RUTA_POLL_TIMER=null;
+let ZX_RUTA_VEHICULO_ID="";
+let ZX_RUTA_USO_ID="";
+let ZX_RUTA_PUNTOS=[];
+let ZX_LEAFLET_PROMISE=null;
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -90,7 +99,23 @@ function valor(id){
   return el ? String(el.value || "").trim() : "";
 }
 
+function limpiarMapaRuta(){
+  if(ZX_RUTA_POLL_TIMER){clearInterval(ZX_RUTA_POLL_TIMER);ZX_RUTA_POLL_TIMER=null;}
+  if(ZX_RUTA_CANAL && sb() && typeof sb().removeChannel==="function"){
+    try{sb().removeChannel(ZX_RUTA_CANAL)}catch(e){}
+  }
+  ZX_RUTA_CANAL=null;
+  if(ZX_RUTA_MAPA){try{ZX_RUTA_MAPA.remove()}catch(e){}}
+  ZX_RUTA_MAPA=null;
+  ZX_RUTA_LINEA=null;
+  ZX_RUTA_MARCADORES=[];
+  ZX_RUTA_VEHICULO_ID="";
+  ZX_RUTA_USO_ID="";
+  ZX_RUTA_PUNTOS=[];
+}
+
 function cerrarModal(){
+  limpiarMapaRuta();
   const m=document.getElementById("zx_modal_vehiculo");
   if(m) m.remove();
   document.body.classList.remove("zx_modal_abierto");
@@ -357,47 +382,168 @@ async function cargarDetalleVehiculo(id){
   return out;
 }
 
-function urlsRutaMapas(puntos){
-  const pts=(puntos||[]).filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)));
-  if(pts.length<2) return {google:"",apple:"",waze:""};
-
-  const reducidos=[];
-  const paso=Math.max(1,Math.floor(pts.length/18));
-  for(let i=0;i<pts.length;i+=paso) reducidos.push(pts[i]);
-  if(reducidos[reducidos.length-1]!==pts[pts.length-1]) reducidos.push(pts[pts.length-1]);
-
-  const origen=reducidos[0];
-  const destino=reducidos[reducidos.length-1];
-  const medios=reducidos.slice(1,-1).map(p=>p.lat+","+p.lng).join("|");
-
-  let google="https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origen.lat+","+origen.lng)+"&destination="+encodeURIComponent(destino.lat+","+destino.lng);
-  if(medios) google+="&waypoints="+encodeURIComponent(medios);
-
-  const appleWeb="https://maps.apple.com/?saddr="+encodeURIComponent(origen.lat+","+origen.lng)+"&daddr="+encodeURIComponent(destino.lat+","+destino.lng)+"&dirflg=d";
-  const appleApp="maps://?saddr="+encodeURIComponent(origen.lat+","+origen.lng)+"&daddr="+encodeURIComponent(destino.lat+","+destino.lng)+"&dirflg=d";
-  const wazeWeb="https://waze.com/ul?ll="+encodeURIComponent(destino.lat+","+destino.lng)+"&navigate=yes";
-  const wazeApp="waze://?ll="+encodeURIComponent(destino.lat+","+destino.lng)+"&navigate=yes";
-
-  return {google,appleWeb,appleApp,wazeWeb,wazeApp};
+function cargarLeaflet(){
+  if(window.L) return Promise.resolve(window.L);
+  if(ZX_LEAFLET_PROMISE) return ZX_LEAFLET_PROMISE;
+  ZX_LEAFLET_PROMISE=new Promise(function(resolve,reject){
+    if(!document.getElementById("zx_leaflet_css")){
+      const link=document.createElement("link");
+      link.id="zx_leaflet_css";
+      link.rel="stylesheet";
+      link.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      link.crossOrigin="";
+      document.head.appendChild(link);
+    }
+    const existente=document.getElementById("zx_leaflet_js");
+    if(existente){
+      const esperar=setInterval(function(){
+        if(window.L){clearInterval(esperar);resolve(window.L)}
+      },50);
+      setTimeout(function(){clearInterval(esperar);if(!window.L)reject(new Error("No se pudo cargar el mapa"))},10000);
+      return;
+    }
+    const script=document.createElement("script");
+    script.id="zx_leaflet_js";
+    script.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.crossOrigin="";
+    script.onload=function(){window.L?resolve(window.L):reject(new Error("Leaflet no disponible"))};
+    script.onerror=function(){reject(new Error("No se pudo cargar el mapa"))};
+    document.head.appendChild(script);
+  });
+  return ZX_LEAFLET_PROMISE;
 }
 
-function abrirAppMapa(tipo,urls){
-  if(!urls) return;
-  if(tipo==="google"){
-    window.location.href=urls.google;
-    return;
+function puntoValido(p){
+  return p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng));
+}
+
+function ordenarPuntos(puntos){
+  const vistos=new Set();
+  return (puntos||[]).filter(puntoValido).sort(function(a,b){
+    return new Date(a.registrado_at||0)-new Date(b.registrado_at||0);
+  }).filter(function(p){
+    const k=String(p.id||"")+"|"+Number(p.lat).toFixed(7)+"|"+Number(p.lng).toFixed(7)+"|"+String(p.registrado_at||"");
+    if(vistos.has(k)) return false;
+    vistos.add(k);return true;
+  });
+}
+
+function distanciaRuta(puntos){
+  let total=0;
+  for(let i=1;i<puntos.length;i++) total+=distanciaMetros(puntos[i-1],puntos[i]);
+  return total;
+}
+
+function textoDistancia(metros){
+  if(!Number.isFinite(metros)) return "0 m";
+  return metros>=1000 ? (metros/1000).toFixed(metros>=10000?1:2)+" km" : Math.round(metros)+" m";
+}
+
+function crearIconoRuta(tipo){
+  const L=window.L;
+  const color=tipo==="inicio"?"#16a34a":tipo==="actual"?"#2563eb":"#dc2626";
+  const simbolo=tipo==="inicio"?"▶":tipo==="actual"?"●":"■";
+  return L.divIcon({
+    className:"zx_ruta_marker_wrap",
+    html:'<div class="zx_ruta_marker" style="background:'+color+'">'+simbolo+'</div>',
+    iconSize:[28,28],iconAnchor:[14,14]
+  });
+}
+
+function actualizarResumenRuta(){
+  const p=ordenarPuntos(ZX_RUTA_PUNTOS);
+  const n=document.getElementById("zx_ruta_num_puntos");
+  const d=document.getElementById("zx_ruta_distancia");
+  const h=document.getElementById("zx_ruta_ultima_hora");
+  if(n) n.textContent=String(p.length);
+  if(d) d.textContent=textoDistancia(distanciaRuta(p));
+  if(h) h.textContent=p.length?fechaHoraES(p[p.length-1].registrado_at):"-";
+}
+
+function dibujarRutaExacta(ajustar){
+  if(!ZX_RUTA_MAPA || !window.L) return;
+  const L=window.L;
+  const puntos=ordenarPuntos(ZX_RUTA_PUNTOS);
+  ZX_RUTA_PUNTOS=puntos;
+  if(ZX_RUTA_LINEA){try{ZX_RUTA_MAPA.removeLayer(ZX_RUTA_LINEA)}catch(e){}}
+  ZX_RUTA_MARCADORES.forEach(function(m){try{ZX_RUTA_MAPA.removeLayer(m)}catch(e){}});
+  ZX_RUTA_MARCADORES=[];
+  if(!puntos.length){actualizarResumenRuta();return;}
+  const latlngs=puntos.map(p=>[Number(p.lat),Number(p.lng)]);
+  ZX_RUTA_LINEA=L.polyline(latlngs,{color:"#2563eb",weight:6,opacity:.9,lineJoin:"round"}).addTo(ZX_RUTA_MAPA);
+  const inicio=L.marker(latlngs[0],{icon:crearIconoRuta("inicio")}).addTo(ZX_RUTA_MAPA).bindPopup("Inicio · "+fechaHoraES(puntos[0].registrado_at));
+  const finTipo=ZX_RUTA_USO_ID && estadoVehiculo(vehiculoPorId(ZX_RUTA_VEHICULO_ID)||{})==="uso"?"actual":"fin";
+  const fin=L.marker(latlngs[latlngs.length-1],{icon:crearIconoRuta(finTipo)}).addTo(ZX_RUTA_MAPA).bindPopup((finTipo==="actual"?"Posición más reciente · ":"Fin · ")+fechaHoraES(puntos[puntos.length-1].registrado_at));
+  ZX_RUTA_MARCADORES=[inicio,fin];
+  if(ajustar){
+    if(latlngs.length===1) ZX_RUTA_MAPA.setView(latlngs[0],16);
+    else ZX_RUTA_MAPA.fitBounds(ZX_RUTA_LINEA.getBounds(),{padding:[24,24]});
   }
-  if(tipo==="apple"){
-    window.location.href=urls.appleApp || urls.appleWeb;
-    return;
+  actualizarResumenRuta();
+}
+
+async function crearMapaRutaExacta(contenedorId,puntos,vehiculoId,usoId,enDirecto){
+  limpiarMapaRuta();
+  ZX_RUTA_VEHICULO_ID=String(vehiculoId||"");
+  ZX_RUTA_USO_ID=String(usoId||"");
+  ZX_RUTA_PUNTOS=ordenarPuntos(puntos);
+  const cont=document.getElementById(contenedorId);
+  if(!cont) return;
+  try{
+    const L=await cargarLeaflet();
+    if(!document.getElementById(contenedorId)) return;
+    ZX_RUTA_MAPA=L.map(contenedorId,{zoomControl:true,attributionControl:true});
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      maxZoom:19,
+      attribution:'&copy; OpenStreetMap'
+    }).addTo(ZX_RUTA_MAPA);
+    dibujarRutaExacta(true);
+    setTimeout(function(){if(ZX_RUTA_MAPA)ZX_RUTA_MAPA.invalidateSize()},150);
+    if(enDirecto && esAdmin()) iniciarRutaEnDirecto();
+  }catch(e){
+    cont.innerHTML='<div class="zx_veh_map_error">No se pudo cargar el mapa. Comprueba la conexión.</div>';
   }
-  if(tipo==="waze"){
-    const inicio=Date.now();
-    window.location.href=urls.wazeApp;
-    setTimeout(function(){
-      if(Date.now()-inicio<1800 && document.visibilityState==="visible") window.location.href=urls.wazeWeb;
-    },1200);
+}
+
+function agregarPuntoRuta(p){
+  if(!puntoValido(p)) return;
+  if(ZX_RUTA_USO_ID && String(p.uso_vehiculo_id||"")!==ZX_RUTA_USO_ID) return;
+  ZX_RUTA_PUNTOS.push(p);
+  dibujarRutaExacta(false);
+  const pts=ordenarPuntos(ZX_RUTA_PUNTOS);
+  if(ZX_RUTA_MAPA && pts.length) ZX_RUTA_MAPA.panTo([Number(pts[pts.length-1].lat),Number(pts[pts.length-1].lng)],{animate:true});
+}
+
+async function refrescarRutaEnDirecto(){
+  if(!ZX_RUTA_VEHICULO_ID) return;
+  try{
+    const r=await zxGet("rutas_vehiculos_puntos",{
+      query:q=>{
+        let qq=q.eq("vehiculo_id",ZX_RUTA_VEHICULO_ID).order("registrado_at",{ascending:true}).limit(1000);
+        if(ZX_RUTA_USO_ID) qq=qq.eq("uso_vehiculo_id",ZX_RUTA_USO_ID);
+        return qq;
+      }
+    });
+    if(r&&Array.isArray(r.data)){
+      ZX_RUTA_PUNTOS=ordenarPuntos(r.data);
+      dibujarRutaExacta(false);
+    }
+  }catch(e){}
+}
+
+function iniciarRutaEnDirecto(){
+  const cliente=sb();
+  if(cliente && typeof cliente.channel==="function"){
+    try{
+      ZX_RUTA_CANAL=cliente.channel("zx_ruta_vehiculo_"+ZX_RUTA_VEHICULO_ID+"_"+Date.now())
+        .on("postgres_changes",{
+          event:"INSERT",schema:"public",table:"rutas_vehiculos_puntos",
+          filter:"vehiculo_id=eq."+ZX_RUTA_VEHICULO_ID
+        },function(payload){agregarPuntoRuta(payload.new||{})})
+        .subscribe();
+    }catch(e){}
   }
+  ZX_RUTA_POLL_TIMER=setInterval(refrescarRutaEnDirecto,15000);
 }
 
 
@@ -1199,8 +1345,15 @@ async function abrirFicha(id,tabInicial){
   const detalle=await cargarDetalleVehiculo(id);
   const usos=detalle.usos||[];
   const transferencias=detalle.transferencias||[];
-  const puntos=detalle.puntos||[];
-  const rutasMapa=urlsRutaMapas(puntos);
+  const todosPuntos=detalle.puntos||[];
+  const usoActual=v.__uso_actual||null;
+  let usoRutaId=usoActual&&usoActual.id?String(usoActual.id):"";
+  if(!usoRutaId && todosPuntos.length){
+    const ultimo=todosPuntos[todosPuntos.length-1];
+    usoRutaId=String(ultimo.uso_vehiculo_id||"");
+  }
+  const puntos=ordenarPuntos(usoRutaId ? todosPuntos.filter(p=>String(p.uso_vehiculo_id||"")===usoRutaId) : todosPuntos);
+  const rutaEnDirecto=!!(usoActual&&usoRutaId&&estadoVehiculo(v)==="uso");
 
   const usoHtml=usos.length ? usos.map(function(u){
     const kmTxt=(u.km_inicio!=null ? u.km_inicio : "-")+" → "+(u.km_fin!=null ? u.km_fin : "-");
@@ -1243,16 +1396,17 @@ async function abrirFicha(id,tabInicial){
     <div class="zx_veh_tab ${tabInicial==="transferencias" ? "on" : ""}" data-veh-panel="transferencias"><div class="zx_veh_hist">${transHtml}</div></div>
     <div class="zx_veh_tab ${tabInicial==="ruta" ? "on" : ""}" data-veh-panel="ruta">
       <div class="zx_veh_route_box">
-        <b>${puntos.length} puntos GPS registrados</b>
-        <span>${puntos.length ? "Ruta disponible para este vehículo." : "Aún no hay puntos GPS guardados. Activa el seguimiento en Editar, utiliza el vehículo y mantén Zentryx abierto durante el trayecto."}</span>
-        ${rutasMapa.google ? `
-          <div class="zx_veh_map_choices">
-            <button type="button" data-map-route="google">🗺️ Google Maps · recorrido completo</button>
-            <button type="button" data-map-route="apple"> Mapas · inicio a fin</button>
-            <button type="button" data-map-route="waze">🚙 Waze · ir al punto final</button>
-          </div>
-          <small class="zx_veh_route_note">Google Maps conserva los puntos intermedios. Mapas de Apple y Waze abren la ruta entre el inicio y el final.</small>
-        ` : ""}
+        <div class="zx_veh_route_head">
+          <div><b>Recorrido GPS exacto</b><span>${puntos.length ? "Línea trazada con los puntos registrados por Zentryx." : "Todavía no hay posiciones para este uso."}</span></div>
+          ${rutaEnDirecto&&esAdmin()?`<em>● EN DIRECTO</em>`:""}
+        </div>
+        <div class="zx_veh_route_stats">
+          <div><strong id="zx_ruta_num_puntos">${puntos.length}</strong><small>Puntos</small></div>
+          <div><strong id="zx_ruta_distancia">${textoDistancia(distanciaRuta(puntos))}</strong><small>Recorrido</small></div>
+          <div><strong id="zx_ruta_ultima_hora">${puntos.length?limpiar(fechaHoraES(puntos[puntos.length-1].registrado_at)):"-"}</strong><small>Última posición</small></div>
+        </div>
+        <div id="zx_veh_mapa_ruta" class="zx_veh_mapa_ruta"></div>
+        ${!puntos.length?`<small class="zx_veh_route_note">Activa el seguimiento GPS, utiliza el vehículo y mantén Zentryx abierto durante el desplazamiento.</small>`:""}
       </div>
     </div>
 
@@ -1263,17 +1417,21 @@ async function abrirFicha(id,tabInicial){
     </div>
   `);
 
-  document.querySelectorAll("[data-map-route]").forEach(function(btn){
-    btn.onclick=function(){abrirAppMapa(btn.getAttribute("data-map-route"),rutasMapa)};
-  });
-
+  let mapaIniciado=false;
+  async function asegurarMapa(){
+    if(mapaIniciado) return;
+    mapaIniciado=true;
+    await crearMapaRutaExacta("zx_veh_mapa_ruta",puntos,id,usoRutaId,rutaEnDirecto);
+  }
   document.querySelectorAll("[data-veh-tab]").forEach(function(btn){
     btn.onclick=function(){
       const tab=btn.dataset.vehTab;
       document.querySelectorAll("[data-veh-tab]").forEach(x=>x.classList.toggle("on",x===btn));
       document.querySelectorAll("[data-veh-panel]").forEach(x=>x.classList.toggle("on",x.dataset.vehPanel===tab));
+      if(tab==="ruta") setTimeout(asegurarMapa,30);
     };
   });
+  if(tabInicial==="ruta") setTimeout(asegurarMapa,40);
   const editar=document.getElementById("veh_ficha_editar");
   if(editar) editar.onclick=function(){editarVehiculo(id)};
   const doc=document.getElementById("veh_ficha_doc");
@@ -1282,11 +1440,11 @@ async function abrirFicha(id,tabInicial){
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_vehiculos_css_v3135");
+  const old=document.getElementById("zx_vehiculos_css_v3139");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_vehiculos_css_v3135";
+  s.id="zx_vehiculos_css_v3139";
   s.innerHTML=`
     .zx_veh_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_veh_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
@@ -1359,6 +1517,7 @@ function instalarCSS(){
     .zx_veh_hist{display:grid;gap:9px}.zx_veh_hist_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px}
     .zx_veh_hist_item b,.zx_veh_hist_item span,.zx_veh_hist_item small{display:block}.zx_veh_hist_item b{color:#071330;font-size:15px}.zx_veh_hist_item span{color:#475569;font-size:13px;font-weight:850;margin-top:4px}.zx_veh_hist_item small{color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
     .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a,.zx_veh_route_box button{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border:0;border-radius:14px;padding:11px 13px;font-weight:950;font:inherit;cursor:pointer}
+    .zx_veh_route_head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.zx_veh_route_head em{font-style:normal;background:#fee2e2;color:#b91c1c;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:950;white-space:nowrap;animation:zxRutaPulso 1.5s infinite}.zx_veh_route_stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:13px 0}.zx_veh_route_stats>div{background:white;border:1px solid #dbe3ef;border-radius:14px;padding:9px;text-align:center;min-width:0}.zx_veh_route_stats strong{display:block;color:#071330;font-size:14px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_veh_route_stats small{display:block;color:#64748b;font-size:10px;font-weight:900;margin-top:3px}.zx_veh_mapa_ruta{width:100%;height:390px;border-radius:18px;border:1px solid #cbd5e1;overflow:hidden;background:#e2e8f0;margin-top:10px}.zx_veh_map_error{height:100%;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;color:#64748b;font-weight:900}.zx_ruta_marker_wrap{background:transparent!important;border:0!important}.zx_ruta_marker{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;border:3px solid white;box-shadow:0 3px 9px rgba(15,23,42,.35);font-size:11px;font-weight:950}@keyframes zxRutaPulso{0%,100%{opacity:1}50%{opacity:.55}}
 .zx_veh_map_choices{display:grid;gap:10px;margin-top:14px}
 .zx_veh_map_choices a{display:block;text-align:center;text-decoration:none;border-radius:18px;padding:14px 16px;font-weight:900;background:#2563eb;color:#fff}
 .zx_veh_map_choices a:nth-child(2){background:#111827}
