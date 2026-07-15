@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3111 - RESPONSABLE PRINCIPAL Y EQUIPO ASIGNADO
+// V3112 - CORRECCIÓN DE GUARDADO DEL EQUIPO ASIGNADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3111";
+const ZX_VERSION="3112";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -831,13 +831,30 @@ async function guardarEquipoTrabajo(trabajoId,equipo,datos){
     };
   });
 
-  const core=zx();
+  const backend=window.ZENTRYX_BACKEND || (zx() && (zx().Backend || zx().backend)) || null;
 
-  if(core && typeof core.remove==="function" && typeof core.insert==="function"){
-    const borrado=await core.remove("trabajos_planificacion",{
+  if(backend && typeof backend.remove==="function" && typeof backend.insert==="function"){
+    const borrado=await backend.remove("trabajos_planificacion",{
       field:"trabajo_id",
       value:String(trabajoId)
     });
+    if(borrado && borrado.error) throw borrado.error;
+
+    if(filas.length){
+      const insertado=await backend.insert("trabajos_planificacion",filas);
+      if(insertado && insertado.error) throw insertado.error;
+    }
+    return;
+  }
+
+  const core=zx();
+
+  if(core && typeof core.remove==="function" && typeof core.insert==="function"){
+    const borrado=await core.remove(
+      "trabajos_planificacion",
+      "trabajo_id",
+      String(trabajoId)
+    );
     if(borrado && borrado.error) throw borrado.error;
 
     if(filas.length){
