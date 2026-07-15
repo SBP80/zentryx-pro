@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3110 - CARGA RÁPIDA RESPONSIVE
+// V3111 - RESPONSABLE PRINCIPAL Y EQUIPO ASIGNADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3110";
+const ZX_VERSION="3111";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -738,12 +738,147 @@ function renderUsuariosOptions(usuarios,valor){
   }).join("");
 }
 
+function nombreUsuario(u){
+  return String(u && (u.nombre || u.usuario) || "").trim();
+}
+
+function renderEquipoUsuarios(usuarios,seleccionados,principalId){
+  const elegidos=new Set((seleccionados || []).map(String));
+
+  if(!usuarios.length){
+    return `<div class="zx_tr_team_empty">No hay usuarios activos disponibles.</div>`;
+  }
+
+  return `
+    <div class="zx_tr_team_help">
+      Selecciona a todas las personas que acudirán al trabajo. El técnico principal se añade automáticamente.
+    </div>
+    <div class="zx_tr_team_list" id="tr_equipo_lista">
+      ${usuarios.map(function(u){
+        const id=String(u.id || "");
+        const nombre=nombreUsuario(u) || "Usuario";
+        const principal=id===String(principalId || "");
+        return `
+          <label class="zx_tr_team_item ${principal ? "is-main" : ""}" data-team-user="${limpiar(id)}">
+            <input
+              type="checkbox"
+              class="tr_equipo_usuario"
+              value="${limpiar(id)}"
+              data-nombre="${limpiar(nombre)}"
+              ${elegidos.has(id) ? "checked" : ""}
+              ${principal ? "checked disabled" : ""}
+            >
+            <span class="zx_tr_team_avatar">👤</span>
+            <span class="zx_tr_team_name">${limpiar(nombre)}</span>
+            <small>${principal ? "Responsable principal" : "Miembro del equipo"}</small>
+          </label>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function actualizarEquipoPrincipal(){
+  const principal=document.getElementById("tr_usuario_id");
+  const lista=document.getElementById("tr_equipo_lista");
+  if(!principal || !lista) return;
+
+  const principalId=String(principal.value || "");
+
+  lista.querySelectorAll(".tr_equipo_usuario").forEach(function(cb){
+    const item=cb.closest(".zx_tr_team_item");
+    const esPrincipal=String(cb.value || "")===principalId;
+
+    cb.disabled=esPrincipal;
+    if(esPrincipal) cb.checked=true;
+
+    if(item){
+      item.classList.toggle("is-main",esPrincipal);
+      const small=item.querySelector("small");
+      if(small) small.textContent=esPrincipal ? "Responsable principal" : "Miembro del equipo";
+    }
+  });
+}
+
+function equipoSeleccionado(){
+  return Array.from(document.querySelectorAll(".tr_equipo_usuario:checked")).map(function(cb){
+    return {
+      id:String(cb.value || ""),
+      nombre:String(cb.dataset.nombre || "")
+    };
+  }).filter(function(x){return x.id});
+}
+
+function idLocal(){
+  if(window.crypto && typeof window.crypto.randomUUID==="function"){
+    return window.crypto.randomUUID();
+  }
+  return "zx-"+Date.now()+"-"+Math.random().toString(16).slice(2);
+}
+
+async function guardarEquipoTrabajo(trabajoId,equipo,datos){
+  if(!trabajoId) return;
+
+  const filas=(equipo || []).map(function(u){
+    return {
+      id:idLocal(),
+      trabajo_id:String(trabajoId),
+      usuario_id:String(u.id),
+      usuario:String(u.nombre || ""),
+      fecha:datos.fecha || hoy(),
+      hora_inicio:datos.hora_inicio || null,
+      hora_fin:datos.hora_fin || null
+    };
+  });
+
+  const core=zx();
+
+  if(core && typeof core.remove==="function" && typeof core.insert==="function"){
+    const borrado=await core.remove("trabajos_planificacion",{
+      field:"trabajo_id",
+      value:String(trabajoId)
+    });
+    if(borrado && borrado.error) throw borrado.error;
+
+    if(filas.length){
+      const insertado=await core.insert("trabajos_planificacion",filas);
+      if(insertado && insertado.error) throw insertado.error;
+    }
+    return;
+  }
+
+  if(!sb()) throw new Error("No hay conexión con la base de datos.");
+
+  const borrado=await sb()
+    .from("trabajos_planificacion")
+    .delete()
+    .eq("trabajo_id",String(trabajoId));
+
+  if(borrado.error) throw borrado.error;
+
+  if(filas.length){
+    const insertado=await sb()
+      .from("trabajos_planificacion")
+      .insert(filas);
+
+    if(insertado.error) throw insertado.error;
+  }
+}
+
 async function abrirFormulario(t){
   if(!puedeGestionar()){alert("No tienes permiso.");return}
 
   t=t || {};
 
-  const [clientes,usuarios]=await Promise.all([cargarClientes(),cargarUsuarios()]);
+  const [clientes,usuarios,planificacion]=await Promise.all([
+    cargarClientes(),
+    cargarUsuarios(),
+    t.id ? cargarPlanificacion(t.id) : Promise.resolve([])
+  ]);
+
+  const participantesActuales=planificacion
+    .map(function(p){return String(p.usuario_id || "")})
+    .filter(Boolean);
 
   modal(`
     <h2>${t.id ? "Editar trabajo" : "Nuevo trabajo"}</h2>
@@ -757,8 +892,15 @@ async function abrirFormulario(t){
       <label class="zx_tr_label" for="tr_cliente">Cliente</label>
       <select id="tr_cliente">${renderClientesOptions(clientes,t.cliente_id)}</select>
 
-      <label class="zx_tr_label" for="tr_usuario_id">Técnico principal</label>
+      <label class="zx_tr_label" for="tr_usuario_id">Responsable principal</label>
       <select id="tr_usuario_id">${renderUsuariosOptions(usuarios,t.usuario_id)}</select>
+
+      <label class="zx_tr_label">Usuarios que acudirán al trabajo</label>
+      ${renderEquipoUsuarios(
+        usuarios,
+        participantesActuales.length ? participantesActuales : (t.usuario_id ? [String(t.usuario_id)] : []),
+        t.usuario_id
+      )}
 
       <div class="zx_tr_grid2">
         <div>${input("tr_fecha","Fecha",t.fecha || hoy(),"date")}</div>
@@ -794,6 +936,12 @@ async function abrirFormulario(t){
   `);
 
   const selCliente=document.getElementById("tr_cliente");
+  const selPrincipal=document.getElementById("tr_usuario_id");
+
+  if(selPrincipal){
+    selPrincipal.onchange=actualizarEquipoPrincipal;
+    actualizarEquipoPrincipal();
+  }
 
   selCliente.onchange=function(){
     const c=clientes.find(x=>String(x.id)===String(selCliente.value));
@@ -827,10 +975,20 @@ async function guardarTrabajo(id,clientes,usuarios){
   const clienteId=valor("tr_cliente");
   const usuarioId=valor("tr_usuario_id");
 
+  if(!usuarioId){
+    alert("Selecciona un responsable principal.");
+    return;
+  }
+
+  actualizarEquipoPrincipal();
+  const equipo=equipoSeleccionado();
+
   const cliente=clientes.find(c=>String(c.id)===String(clienteId));
   const user=usuarios.find(u=>String(u.id)===String(usuarioId));
 
   const s=sesion();
+
+  const trabajoId=id || idLocal();
 
   const data={
     titulo:titulo,
@@ -856,6 +1014,7 @@ async function guardarTrabajo(id,clientes,usuarios){
   };
 
   if(!id){
+    data.id=trabajoId;
     data.archivado=false;
   }
 
@@ -872,12 +1031,30 @@ async function guardarTrabajo(id,clientes,usuarios){
 
     if(r && r.error) throw r.error;
 
+    await guardarEquipoTrabajo(trabajoId,equipo,data);
+
     if(id){
-      await registrarHistorial(id,"edicion","Trabajo editado.",data);
-      await sincronizarAgenda(id,Object.assign({},data,{id:id}));
+      await registrarHistorial(
+        trabajoId,
+        "edicion",
+        "Trabajo editado y equipo actualizado.",
+        Object.assign({},data,{equipo:equipo})
+      );
+      await sincronizarAgenda(trabajoId,Object.assign({},data,{id:trabajoId}));
     }else{
-      await registrarHistorial("", "creacion","Trabajo creado.",data);
+      await registrarHistorial(
+        trabajoId,
+        "creacion",
+        "Trabajo creado con equipo asignado.",
+        Object.assign({},data,{equipo:equipo})
+      );
     }
+
+    try{
+      window.dispatchEvent(new CustomEvent("zentryx:trabajo:equipo_actualizado",{
+        detail:{trabajo_id:String(trabajoId),usuarios:equipo.map(function(x){return x.id})}
+      }));
+    }catch(e){}
 
     cerrarModal();
     await window.ZX_trabajos();
@@ -1287,6 +1464,16 @@ function instalarCSS(){
     .zx_tr_form h3,.zx_tr_block h3{margin:20px 0 8px;color:#071330;font-size:22px;font-weight:950}
     .zx_tr_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
     .zx_tr_form input,.zx_tr_form select,.zx_tr_form textarea,#zx_modal_trabajo input,#zx_modal_trabajo select,#zx_modal_trabajo textarea{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}
+    .zx_tr_team_help{margin:0 0 10px;color:#64748b;font-size:13px;font-weight:800;line-height:1.4}
+    .zx_tr_team_list{display:grid;gap:9px;max-height:290px;overflow:auto;padding:2px}
+    .zx_tr_team_item{display:grid;grid-template-columns:auto auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:10px;align-items:center;border:1px solid #dbe3ef;border-radius:16px;background:#f8fafc;padding:11px 12px;cursor:pointer}
+    .zx_tr_team_item input{grid-row:1/3;width:22px!important;height:22px;margin:0;accent-color:#2563eb}
+    .zx_tr_team_avatar{grid-row:1/3;font-size:24px}
+    .zx_tr_team_name{color:#071330;font-size:15px;font-weight:950;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .zx_tr_team_item small{color:#64748b;font-size:11px;font-weight:850}
+    .zx_tr_team_item.is-main{background:#eff6ff;border-color:#93c5fd}
+    .zx_tr_team_item.is-main small{color:#1d4ed8}
+    .zx_tr_team_empty{border:1px dashed #cbd5e1;border-radius:16px;padding:16px;color:#64748b;font-weight:850;text-align:center}
     .zx_tr_grid2{display:grid;grid-template-columns:1fr;gap:10px}
     .zx_tr_block{margin-top:16px;background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px}
     .zx_tr_line{background:white;border:1px solid #e6edf5;border-radius:14px;padding:10px;margin-top:8px;color:#071330;font-size:14px;font-weight:850}
