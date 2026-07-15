@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3131 - INTERFAZ COMPACTA, ACCIÓN PRINCIPAL Y OPCIONES SECUNDARIAS
+// V3132 - TARJETAS COMPACTAS, FOTO Y LECTURA RÁPIDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3131";
+const ZX_VERSION="3132";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3131";
+const CACHE_KEY="zentryx_cache_vehiculos_v3132";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -490,12 +490,22 @@ function renderAvisos(v){
   return `<div class="zx_veh_alertas">${avisos.map(a=>`<span>${limpiar(a)}</span>`).join("")}</div>`;
 }
 
+function fotoVehiculo(v){
+  return v.foto_url || v.imagen_url || v.image_url || v.foto || "";
+}
+
+function ubicacionVehiculo(v){
+  return v.trabajo_actual_nombre || v.trabajo_actual || v.ubicacion_actual || v.ultima_direccion || "";
+}
+
 function renderVehiculo(v){
   const estado=estadoVehiculo(v);
   const uso=v.__uso_actual || null;
   const responsable=responsableNombre(v) || "Sin responsable";
   const enUso=estado==="uso";
   const inicio=uso?.inicio_at || v.uso_iniciado_at || null;
+  const foto=fotoVehiculo(v);
+  const ubicacion=ubicacionVehiculo(v);
   const principal = esResponsableActual(v)
     ? `<button class="orange zx_veh_main_action" data-veh-devolver="${limpiar(v.id)}">📤 Devolver vehículo</button>`
     : (v.__recuperacion && estado==="libre")
@@ -506,21 +516,26 @@ function renderVehiculo(v){
 
   return `
     <article class="zx_veh_card" data-id="${limpiar(v.id)}">
-      <div class="zx_veh_top">
-        <div class="zx_veh_icon">🚗</div>
-        <div>
+      <div class="zx_veh_card_head">
+        <div class="zx_veh_media ${foto ? "has-photo" : ""}">
+          ${foto
+            ? `<img src="${limpiar(foto)}" alt="${limpiar(v.matricula || "Vehículo")}" loading="lazy" onerror="this.parentElement.classList.remove('has-photo');this.remove()">`
+            : `<span>🚗</span>`}
+        </div>
+        <div class="zx_veh_identity">
           <div class="zx_veh_modelo">${limpiar([v.marca,v.modelo].filter(Boolean).join(" ") || "Vehículo")}</div>
           <h3>${limpiar(v.matricula || "Sin matrícula")}</h3>
         </div>
+        <div class="zx_veh_status_inline">${badge(v)}</div>
       </div>
 
-      <div class="zx_veh_badges">${badge(v)}</div>
       ${renderAvisos(v)}
 
-      <div class="zx_veh_quick">
-        <div><span>👤</span><b>${limpiar(responsable)}</b></div>
-        <div><span>🧭</span><b>${limpiar(v.km_actual ?? 0)} km</b></div>
-        ${enUso && inicio ? `<div><span>🕒</span><b>${limpiar(duracionDesde(inicio))}</b><small>desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
+      <div class="zx_veh_fastline">
+        <div><span>👤</span><strong>${limpiar(responsable)}</strong></div>
+        <div><span>🧭</span><strong>${limpiar(v.km_actual ?? 0)} km</strong></div>
+        ${enUso && inicio ? `<div><span>🕒</span><strong>${limpiar(duracionDesde(inicio))}</strong><small>Desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
+        ${ubicacion ? `<div><span>📍</span><strong>${limpiar(ubicacion)}</strong></div>` : ""}
       </div>
 
       ${principal}
@@ -1133,11 +1148,11 @@ async function abrirFicha(id){
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_vehiculos_css_v3129");
+  const old=document.getElementById("zx_vehiculos_css_v3132");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_vehiculos_css_v3129";
+  s.id="zx_vehiculos_css_v3132";
   s.innerHTML=`
     .zx_veh_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_veh_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
@@ -1161,7 +1176,12 @@ function instalarCSS(){
     .zx_veh_list_head h3{margin:0;color:#071330;font-size:25px;font-weight:950;letter-spacing:-.3px}
     .zx_veh_list_head span{color:#64748b;font-size:13px;font-weight:950;white-space:nowrap}
     .zx_veh_list{display:grid;grid-template-columns:1fr;gap:12px}
-    .zx_veh_card{background:#f8fafc;border:1px solid #dbe3ef;border-radius:24px;padding:16px;overflow:hidden}
+    .zx_veh_card{background:#f8fafc;border:1px solid #dbe3ef;border-radius:22px;padding:14px;overflow:hidden}
+    .zx_veh_card_head{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:11px;align-items:center}
+    .zx_veh_media{width:58px;height:58px;border-radius:18px;background:#dbeafe;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .zx_veh_media span{font-size:26px}.zx_veh_media img{width:100%;height:100%;object-fit:cover;display:block}
+    .zx_veh_identity{min-width:0}.zx_veh_identity h3{margin:2px 0 0;color:#071330;font-size:21px;line-height:1.05;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .zx_veh_status_inline{align-self:start}.zx_veh_status_inline>span{display:inline-block;border-radius:999px;padding:7px 9px;font-size:11px;font-weight:950;white-space:nowrap}.zx_veh_status_inline .libre{background:#dcfce7;color:#166534}.zx_veh_status_inline .uso{background:#dbeafe;color:#1d4ed8}.zx_veh_status_inline .off{background:#fee2e2;color:#991b1b}.zx_veh_status_inline .orange{background:#ffedd5;color:#9a3412}
     .zx_veh_top{display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:center}
     .zx_veh_icon{width:52px;height:52px;border-radius:18px;background:#dbeafe;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:950}
     .zx_veh_top h3{margin:2px 0 0;color:#071330;font-size:21px;line-height:1.15;font-weight:950}
@@ -1174,6 +1194,7 @@ function instalarCSS(){
     .zx_veh_badges .off{background:#fee2e2;color:#991b1b}.zx_veh_badges .orange{background:#ffedd5;color:#9a3412}
     .zx_veh_alertas{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
     .zx_veh_alertas span{background:#fef3c7;color:#92400e;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:950}
+    .zx_veh_fastline{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:11px}.zx_veh_fastline>div{min-width:0;display:grid;grid-template-columns:23px minmax(0,1fr);align-items:center;background:white;border:1px solid #e6edf5;border-radius:14px;padding:9px 10px}.zx_veh_fastline span{font-size:16px}.zx_veh_fastline strong{color:#071330;font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_veh_fastline small{grid-column:2;color:#64748b;font-size:10px;font-weight:850;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .zx_veh_info{margin-top:13px;display:grid;grid-template-columns:1fr;gap:8px}
     .zx_veh_info p{margin:0;background:white;border:1px solid #e6edf5;border-radius:16px;padding:11px}
     .zx_veh_info b{display:block;color:#64748b;font-size:12px;font-weight:950;margin-bottom:4px}
@@ -1202,7 +1223,7 @@ function instalarCSS(){
     .zx_veh_hist{display:grid;gap:9px}.zx_veh_hist_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px}
     .zx_veh_hist_item b,.zx_veh_hist_item span,.zx_veh_hist_item small{display:block}.zx_veh_hist_item b{color:#071330;font-size:15px}.zx_veh_hist_item span{color:#475569;font-size:13px;font-weight:850;margin-top:4px}.zx_veh_hist_item small{color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
     .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border-radius:14px;padding:11px 13px;font-weight:950}
-    @media(max-width:390px){.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_top h3{font-size:19px}}
+    @media(max-width:390px){.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
