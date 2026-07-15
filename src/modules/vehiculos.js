@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3141 - SEGUIMIENTO GPS GLOBAL EN TODA LA APLICACIÓN
+// V3142 - MAPA EN DIRECTO DE TODA LA FLOTA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3141";
+const ZX_VERSION="3142";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3141";
+const CACHE_KEY="zentryx_cache_vehiculos_v3142";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -32,6 +32,12 @@ let ZX_RUTA_VEHICULO_ID="";
 let ZX_RUTA_USO_ID="";
 let ZX_RUTA_PUNTOS=[];
 let ZX_LEAFLET_PROMISE=null;
+let ZX_FLOTA_MAPA=null;
+let ZX_FLOTA_MARCADORES={};
+let ZX_FLOTA_CANAL=null;
+let ZX_FLOTA_TIMER=null;
+let ZX_FLOTA_ACTUALIZANDO=false;
+let ZX_FLOTA_ULTIMAS_POSICIONES={};
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -103,7 +109,20 @@ function valor(id){
   return el ? String(el.value || "").trim() : "";
 }
 
+function limpiarMapaFlota(){
+  if(ZX_FLOTA_TIMER){clearInterval(ZX_FLOTA_TIMER);ZX_FLOTA_TIMER=null;}
+  if(ZX_FLOTA_CANAL && sb() && typeof sb().removeChannel==="function"){
+    try{sb().removeChannel(ZX_FLOTA_CANAL)}catch(e){}
+  }
+  ZX_FLOTA_CANAL=null;
+  if(ZX_FLOTA_MAPA){try{ZX_FLOTA_MAPA.remove()}catch(e){}}
+  ZX_FLOTA_MAPA=null;
+  ZX_FLOTA_MARCADORES={};
+  ZX_FLOTA_ULTIMAS_POSICIONES={};
+}
+
 function limpiarMapaRuta(){
+  limpiarMapaFlota();
   if(ZX_RUTA_POLL_TIMER){clearInterval(ZX_RUTA_POLL_TIMER);ZX_RUTA_POLL_TIMER=null;}
   if(ZX_RUTA_CANAL && sb() && typeof sb().removeChannel==="function"){
     try{sb().removeChannel(ZX_RUTA_CANAL)}catch(e){}
@@ -710,6 +729,260 @@ function iniciarRutaEnDirecto(){
 }
 
 
+
+function tiempoDesde(v){
+  if(!v) return "Sin datos";
+  const d=new Date(v);
+  if(isNaN(d.getTime())) return "Sin datos";
+  const s=Math.max(0,Math.floor((Date.now()-d.getTime())/1000));
+  if(s<60) return "Hace "+s+" s";
+  if(s<3600) return "Hace "+Math.floor(s/60)+" min";
+  if(s<86400) return "Hace "+Math.floor(s/3600)+" h";
+  return "Hace "+Math.floor(s/86400)+" días";
+}
+
+function colorPosicionFlota(p){
+  if(!p || !p.registrado_at) return "#64748b";
+  const ms=Date.now()-new Date(p.registrado_at).getTime();
+  if(ms<=120000) return "#16a34a";
+  if(ms<=600000) return "#f59e0b";
+  return "#dc2626";
+}
+
+function crearIconoFlota(v,p){
+  const L=window.L;
+  const color=colorPosicionFlota(p);
+  const matricula=limpiar(v.matricula||"Vehículo");
+  return L.divIcon({
+    className:"zx_flota_marker_wrap",
+    html:'<div class="zx_flota_marker" style="background:'+color+'">🚗</div><div class="zx_flota_marker_label">'+matricula+'</div>',
+    iconSize:[74,54],
+    iconAnchor:[37,27]
+  });
+}
+
+function ultimoPuntoPorVehiculo(puntos){
+  const out={};
+  (puntos||[]).filter(puntoValido).forEach(function(p){
+    const id=String(p.vehiculo_id||"");
+    if(!id) return;
+    const anterior=out[id];
+    if(!anterior || new Date(p.registrado_at||0)>new Date(anterior.registrado_at||0)) out[id]=p;
+  });
+  return out;
+}
+
+async function cargarPosicionesFlota(){
+  const usos=await zxGet("usos_vehiculos",{
+    query:function(q){
+      return q.in("estado",["en_uso","pendiente_devolucion"]).order("inicio_at",{ascending:false}).limit(500);
+    }
+  });
+
+  const activos=[];
+  const vistos=new Set();
+  (usos.data||[]).forEach(function(u){
+    const vehId=String(u.vehiculo_id||"");
+    if(!vehId || vistos.has(vehId)) return;
+    vistos.add(vehId);
+    activos.push(u);
+  });
+
+  if(!activos.length) return [];
+
+  const ids=activos.map(function(u){return String(u.vehiculo_id)});
+  const puntos=await zxGet("rutas_vehiculos_puntos",{
+    query:function(q){
+      return q.in("vehiculo_id",ids).order("registrado_at",{ascending:false}).limit(Math.max(200,ids.length*30));
+    }
+  });
+
+  const ultimos=ultimoPuntoPorVehiculo(puntos.data||[]);
+  return activos.map(function(uso){
+    const vehiculo=ZX_VEH_CACHE.find(function(v){return String(v.id)===String(uso.vehiculo_id)}) || {
+      id:String(uso.vehiculo_id||""),
+      matricula:uso.vehiculo_matricula||"Vehículo",
+      marca:"",
+      modelo:"",
+      usuario_actual_nombre:uso.usuario_nombre||""
+    };
+    return {
+      uso:uso,
+      vehiculo:vehiculo,
+      punto:ultimos[String(uso.vehiculo_id||"")]||null
+    };
+  });
+}
+
+function actualizarResumenFlota(items){
+  const total=document.getElementById("zx_flota_total");
+  const visibles=document.getElementById("zx_flota_visibles");
+  const ultima=document.getElementById("zx_flota_ultima");
+  const conPos=(items||[]).filter(function(x){return x.punto}).length;
+  const ultimaFecha=(items||[]).map(function(x){return x.punto&&x.punto.registrado_at}).filter(Boolean).sort().pop();
+  if(total) total.textContent=String((items||[]).length);
+  if(visibles) visibles.textContent=String(conPos);
+  if(ultima) ultima.textContent=ultimaFecha ? tiempoDesde(ultimaFecha) : "Sin posiciones";
+}
+
+function popupVehiculoFlota(item){
+  const v=item.vehiculo||{};
+  const u=item.uso||{};
+  const p=item.punto||{};
+  return '<div class="zx_flota_popup">'
+    +'<b>'+limpiar(v.matricula||"Vehículo")+'</b>'
+    +'<span>'+limpiar([v.marca,v.modelo].filter(Boolean).join(" ")||"")+'</span>'
+    +'<span>👤 '+limpiar(u.usuario_nombre||u.usuario_actual_nombre||v.usuario_actual_nombre||"Sin responsable")+'</span>'
+    +(p.registrado_at?'<span>🕒 '+limpiar(fechaHoraES(p.registrado_at))+'</span>':'<span>⚠️ Sin posición GPS</span>')
+    +(Number.isFinite(Number(p.velocidad_kmh))?'<span>🚗 '+Math.round(Number(p.velocidad_kmh))+' km/h</span>':'')
+    +'</div>';
+}
+
+function dibujarFlota(items,ajustar){
+  if(!ZX_FLOTA_MAPA || !window.L) return;
+  const L=window.L;
+  const posiciones=[];
+
+  Object.keys(ZX_FLOTA_MARCADORES).forEach(function(id){
+    const existe=(items||[]).some(function(x){return String(x.vehiculo.id)===String(id)&&x.punto});
+    if(!existe){
+      try{ZX_FLOTA_MAPA.removeLayer(ZX_FLOTA_MARCADORES[id])}catch(e){}
+      delete ZX_FLOTA_MARCADORES[id];
+    }
+  });
+
+  (items||[]).forEach(function(item){
+    const v=item.vehiculo||{};
+    const p=item.punto;
+    if(!puntoValido(p)) return;
+    const id=String(v.id||item.uso?.vehiculo_id||"");
+    const ll=[Number(p.lat),Number(p.lng)];
+    posiciones.push(ll);
+
+    let marker=ZX_FLOTA_MARCADORES[id];
+    if(!marker){
+      marker=L.marker(ll,{icon:crearIconoFlota(v,p)}).addTo(ZX_FLOTA_MAPA);
+      ZX_FLOTA_MARCADORES[id]=marker;
+    }else{
+      marker.setLatLng(ll);
+      marker.setIcon(crearIconoFlota(v,p));
+    }
+    marker.bindPopup(popupVehiculoFlota(item));
+  });
+
+  actualizarResumenFlota(items);
+
+  const lista=document.getElementById("zx_flota_lista");
+  if(lista){
+    lista.innerHTML=(items||[]).map(function(item){
+      const v=item.vehiculo||{};
+      const u=item.uso||{};
+      const p=item.punto||{};
+      return '<button type="button" class="zx_flota_item" data-flota-focus="'+limpiar(v.id||u.vehiculo_id||"")+'">'
+        +'<span class="zx_flota_dot" style="background:'+colorPosicionFlota(p)+'"></span>'
+        +'<strong>'+limpiar(v.matricula||"Vehículo")+'</strong>'
+        +'<small>'+limpiar(u.usuario_nombre||v.usuario_actual_nombre||"Sin responsable")+'</small>'
+        +'<em>'+limpiar(p.registrado_at?tiempoDesde(p.registrado_at):"Sin posición")+'</em>'
+        +'</button>';
+    }).join("") || '<div class="zx_veh_empty">No hay vehículos en uso.</div>';
+
+    lista.querySelectorAll("[data-flota-focus]").forEach(function(btn){
+      btn.onclick=function(){
+        const m=ZX_FLOTA_MARCADORES[String(btn.dataset.flotaFocus||"")];
+        if(m && ZX_FLOTA_MAPA){
+          ZX_FLOTA_MAPA.setView(m.getLatLng(),16,{animate:true});
+          m.openPopup();
+        }
+      };
+    });
+  }
+
+  if(ajustar && posiciones.length){
+    if(posiciones.length===1) ZX_FLOTA_MAPA.setView(posiciones[0],16);
+    else ZX_FLOTA_MAPA.fitBounds(L.latLngBounds(posiciones),{padding:[30,30]});
+  }
+}
+
+async function refrescarMapaFlota(ajustar){
+  if(ZX_FLOTA_ACTUALIZANDO) return;
+  ZX_FLOTA_ACTUALIZANDO=true;
+  try{
+    const items=await cargarPosicionesFlota();
+    ZX_FLOTA_ULTIMAS_POSICIONES={};
+    items.forEach(function(x){
+      if(x.punto) ZX_FLOTA_ULTIMAS_POSICIONES[String(x.vehiculo.id||x.uso.vehiculo_id||"")]=x.punto;
+    });
+    dibujarFlota(items,!!ajustar);
+  }finally{
+    ZX_FLOTA_ACTUALIZANDO=false;
+  }
+}
+
+function iniciarFlotaEnDirecto(){
+  const cliente=sb();
+  if(cliente && typeof cliente.channel==="function"){
+    try{
+      ZX_FLOTA_CANAL=cliente.channel("zx_flota_directo_"+Date.now())
+        .on("postgres_changes",{
+          event:"INSERT",schema:"public",table:"rutas_vehiculos_puntos"
+        },function(){refrescarMapaFlota(false).catch(function(){})})
+        .on("postgres_changes",{
+          event:"*",schema:"public",table:"usos_vehiculos"
+        },function(){refrescarMapaFlota(false).catch(function(){})})
+        .subscribe();
+    }catch(e){}
+  }
+  ZX_FLOTA_TIMER=setInterval(function(){
+    refrescarMapaFlota(false).catch(function(){});
+  },15000);
+}
+
+async function abrirMapaFlota(){
+  if(!esAdmin() && !["gerente","supervisor","encargado"].includes(rol())){
+    alert("No tienes permiso para ver la ubicación de toda la flota.");
+    return;
+  }
+
+  modal(`
+    <div class="zx_flota_head">
+      <div>
+        <h2>Flota en directo</h2>
+        <p>Última posición recibida de cada vehículo en uso.</p>
+      </div>
+      <span class="zx_flota_live">● EN DIRECTO</span>
+    </div>
+
+    <div class="zx_flota_stats">
+      <div><strong id="zx_flota_total">0</strong><small>En uso</small></div>
+      <div><strong id="zx_flota_visibles">0</strong><small>Con GPS</small></div>
+      <div><strong id="zx_flota_ultima">-</strong><small>Última señal</small></div>
+    </div>
+
+    <div id="zx_flota_mapa" class="zx_flota_mapa"></div>
+    <div id="zx_flota_lista" class="zx_flota_lista"></div>
+
+    <button class="zx_btn_big zx_gris" id="zx_flota_cerrar">Cerrar</button>
+  `);
+
+  document.getElementById("zx_flota_cerrar").onclick=cerrarModal;
+
+  const cont=document.getElementById("zx_flota_mapa");
+  try{
+    const L=await cargarLeaflet();
+    if(!document.getElementById("zx_flota_mapa")) return;
+    ZX_FLOTA_MAPA=L.map("zx_flota_mapa",{zoomControl:true,attributionControl:true});
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      maxZoom:19,
+      attribution:"&copy; OpenStreetMap"
+    }).addTo(ZX_FLOTA_MAPA);
+    await refrescarMapaFlota(true);
+    setTimeout(function(){if(ZX_FLOTA_MAPA)ZX_FLOTA_MAPA.invalidateSize()},180);
+    iniciarFlotaEnDirecto();
+  }catch(e){
+    if(cont) cont.innerHTML='<div class="zx_veh_map_error">No se pudo cargar el mapa de flota.</div>';
+  }
+}
+
 function obtenerPosicion(){
   return new Promise(function(resolve){
     if(!navigator.geolocation){resolve({lat:null,lng:null});return}
@@ -994,7 +1267,10 @@ function pintarShell(lista){
           <p>Uso real, responsables, kilómetros, documentación, ITV, seguro y revisiones.</p>
           ${navigator.onLine ? "" : `<div class="zx_veh_offline">🟡 Sin conexión · los cambios se guardarán pendientes</div>`}
         </div>
-        ${puedeGestionar() ? `<button class="zx_veh_new" id="btn_nuevo_vehiculo">＋ Crear</button>` : ""}
+        <div class="zx_veh_header_actions">
+          ${(esAdmin() || ["gerente","supervisor","encargado"].includes(rol())) ? `<button class="zx_veh_live_btn" id="btn_mapa_flota">📍 Flota en directo</button>` : ""}
+          ${puedeGestionar() ? `<button class="zx_veh_new" id="btn_nuevo_vehiculo">＋ Crear</button>` : ""}
+        </div>
       </section>
 
       <section class="zx_veh_panel">
@@ -1014,6 +1290,9 @@ function pintarShell(lista){
 
   const nuevo=document.getElementById("btn_nuevo_vehiculo");
   if(nuevo) nuevo.onclick=function(){abrirFormulario({})};
+
+  const mapaFlota=document.getElementById("btn_mapa_flota");
+  if(mapaFlota) mapaFlota.onclick=function(){abrirMapaFlota()};
 
   conectarEventos();
 }
@@ -1640,6 +1919,25 @@ function instalarCSS(){
     .zx_veh_header h2{margin:0;color:#071330;font-size:30px;line-height:1.05;font-weight:950;letter-spacing:-.5px}
     .zx_veh_header p{margin:8px 0 0;color:#64748b;font-size:15px;font-weight:850;line-height:1.35}
     .zx_veh_new{border:0;border-radius:18px;background:#16a34a;color:white;padding:14px 16px;font-size:16px;font-weight:950;white-space:nowrap}
+    .zx_veh_header_actions{display:grid;gap:8px;justify-items:stretch}
+    .zx_veh_live_btn{border:0;border-radius:18px;background:#7c3aed;color:white;padding:13px 14px;font-size:14px;font-weight:950;white-space:nowrap}
+    .zx_flota_head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .zx_flota_head h2{margin:0}.zx_flota_head p{margin:6px 0 0;color:#64748b;font-weight:800;line-height:1.35}
+    .zx_flota_live{background:#fee2e2;color:#b91c1c;border-radius:999px;padding:8px 10px;font-size:11px;font-weight:950;white-space:nowrap;animation:zxRutaPulso 1.5s infinite}
+    .zx_flota_stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0}
+    .zx_flota_stats>div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:15px;padding:10px;text-align:center;min-width:0}
+    .zx_flota_stats strong{display:block;color:#071330;font-size:15px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .zx_flota_stats small{display:block;color:#64748b;font-size:10px;font-weight:900;margin-top:3px}
+    .zx_flota_mapa{height:430px;border-radius:18px;border:1px solid #cbd5e1;overflow:hidden;background:#e2e8f0}
+    .zx_flota_lista{display:grid;gap:8px;margin-top:12px;max-height:230px;overflow:auto}
+    .zx_flota_item{width:100%;display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:7px;align-items:center;border:1px solid #dbe3ef;background:#f8fafc;border-radius:14px;padding:10px 12px;text-align:left}
+    .zx_flota_item strong{color:#071330;font-size:14px;font-weight:950}.zx_flota_item small{grid-column:2;color:#64748b;font-size:12px;font-weight:850}
+    .zx_flota_item em{grid-column:3;grid-row:1/3;font-style:normal;color:#64748b;font-size:11px;font-weight:900;white-space:nowrap}
+    .zx_flota_dot{width:10px;height:10px;border-radius:50%;grid-row:1/3}
+    .zx_flota_marker_wrap{background:transparent!important;border:0!important}
+    .zx_flota_marker{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 3px 10px rgba(15,23,42,.4);font-size:17px}
+    .zx_flota_marker_label{position:absolute;left:50%;top:36px;transform:translateX(-50%);background:#071330;color:white;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:950;white-space:nowrap;box-shadow:0 2px 7px rgba(15,23,42,.25)}
+    .zx_flota_popup{display:grid;gap:4px;min-width:170px}.zx_flota_popup b{font-size:15px;color:#071330}.zx_flota_popup span{font-size:12px;color:#475569;font-weight:800}
     .zx_veh_kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
     .zx_veh_kpis div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px;text-align:center}
     .zx_veh_kpis b{display:block;color:#071330;font-size:27px;font-weight:950;line-height:1}
@@ -1712,7 +2010,7 @@ function instalarCSS(){
 .zx_veh_map_choices a:nth-child(3){background:#22c55e}
 .zx_veh_route_note{display:block;margin-top:12px;line-height:1.35;color:#64748b;font-weight:700}.zx_veh_route_select{display:block;margin:12px 0}.zx_veh_route_select span{display:block;margin-bottom:6px;color:#475569;font-weight:900}.zx_veh_route_select select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:14px;background:white;color:#071330;font-weight:850;font-size:14px}
 
-    @media(max-width:390px){.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
+    @media(max-width:390px){.zx_veh_header{grid-template-columns:1fr}.zx_veh_header_actions{grid-template-columns:1fr 1fr}.zx_flota_head{display:grid}.zx_flota_stats{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
