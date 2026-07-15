@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3139 - MAPA INTERNO CON RECORRIDO GPS EXACTO Y SEGUIMIENTO EN DIRECTO
+// V3140 - MAPA GPS EXACTO CON SELECTOR DE RECORRIDOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3139";
+const ZX_VERSION="3140";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3139";
+const CACHE_KEY="zentryx_cache_vehiculos_v3140";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -434,6 +434,16 @@ function distanciaRuta(puntos){
   return total;
 }
 
+function puntosCoordenadasUnicas(puntos){
+  const vistos=new Set();
+  return ordenarPuntos(puntos).filter(function(p){
+    const k=Number(p.lat).toFixed(5)+"|"+Number(p.lng).toFixed(5);
+    if(vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+}
+
 function textoDistancia(metros){
   if(!Number.isFinite(metros)) return "0 m";
   return metros>=1000 ? (metros/1000).toFixed(metros>=10000?1:2)+" km" : Math.round(metros)+" m";
@@ -470,14 +480,26 @@ function dibujarRutaExacta(ajustar){
   ZX_RUTA_MARCADORES=[];
   if(!puntos.length){actualizarResumenRuta();return;}
   const latlngs=puntos.map(p=>[Number(p.lat),Number(p.lng)]);
-  ZX_RUTA_LINEA=L.polyline(latlngs,{color:"#2563eb",weight:6,opacity:.9,lineJoin:"round"}).addTo(ZX_RUTA_MAPA);
+  const unicos=puntosCoordenadasUnicas(puntos);
+  const latlngsUnicos=unicos.map(p=>[Number(p.lat),Number(p.lng)]);
+  if(latlngsUnicos.length>1){
+    ZX_RUTA_LINEA=L.polyline(latlngs,{color:"#2563eb",weight:6,opacity:.9,lineJoin:"round"}).addTo(ZX_RUTA_MAPA);
+  }else{
+    ZX_RUTA_LINEA=null;
+  }
+  puntos.forEach(function(p){
+    const c=L.circleMarker([Number(p.lat),Number(p.lng)],{radius:3,color:"#1d4ed8",weight:1,fillColor:"#60a5fa",fillOpacity:.65}).addTo(ZX_RUTA_MAPA);
+    ZX_RUTA_MARCADORES.push(c);
+  });
   const inicio=L.marker(latlngs[0],{icon:crearIconoRuta("inicio")}).addTo(ZX_RUTA_MAPA).bindPopup("Inicio · "+fechaHoraES(puntos[0].registrado_at));
   const finTipo=ZX_RUTA_USO_ID && estadoVehiculo(vehiculoPorId(ZX_RUTA_VEHICULO_ID)||{})==="uso"?"actual":"fin";
   const fin=L.marker(latlngs[latlngs.length-1],{icon:crearIconoRuta(finTipo)}).addTo(ZX_RUTA_MAPA).bindPopup((finTipo==="actual"?"Posición más reciente · ":"Fin · ")+fechaHoraES(puntos[puntos.length-1].registrado_at));
-  ZX_RUTA_MARCADORES=[inicio,fin];
+  ZX_RUTA_MARCADORES.push(inicio,fin);
+  const estado=document.getElementById("zx_ruta_estado");
+  if(estado) estado.textContent=latlngsUnicos.length>1 ? "Recorrido dibujado con los puntos GPS de esta sesión." : "Esta sesión contiene posiciones en el mismo lugar; no existe desplazamiento que dibujar.";
   if(ajustar){
-    if(latlngs.length===1) ZX_RUTA_MAPA.setView(latlngs[0],16);
-    else ZX_RUTA_MAPA.fitBounds(ZX_RUTA_LINEA.getBounds(),{padding:[24,24]});
+    if(latlngsUnicos.length<=1) ZX_RUTA_MAPA.setView(latlngs[0],17);
+    else ZX_RUTA_MAPA.fitBounds(L.latLngBounds(latlngsUnicos),{padding:[24,24]});
   }
   actualizarResumenRuta();
 }
@@ -1352,7 +1374,17 @@ async function abrirFicha(id,tabInicial){
     const ultimo=todosPuntos[todosPuntos.length-1];
     usoRutaId=String(ultimo.uso_vehiculo_id||"");
   }
-  const puntos=ordenarPuntos(usoRutaId ? todosPuntos.filter(p=>String(p.uso_vehiculo_id||"")===usoRutaId) : todosPuntos);
+  let puntos=ordenarPuntos(usoRutaId ? todosPuntos.filter(p=>String(p.uso_vehiculo_id||"")===usoRutaId) : todosPuntos);
+  const gruposRuta={};
+  todosPuntos.forEach(function(p){
+    const k=String(p.uso_vehiculo_id||"sin_uso");
+    (gruposRuta[k]||(gruposRuta[k]=[])).push(p);
+  });
+  const rutasDisponibles=Object.keys(gruposRuta).map(function(k){
+    const pts=ordenarPuntos(gruposRuta[k]);
+    const uso=usos.find(u=>String(u.id||"")===k)||null;
+    return {id:k,puntos:pts,uso:uso,ultima:pts.length?pts[pts.length-1].registrado_at:null};
+  }).sort((a,b)=>new Date(b.ultima||0)-new Date(a.ultima||0));
   const rutaEnDirecto=!!(usoActual&&usoRutaId&&estadoVehiculo(v)==="uso");
 
   const usoHtml=usos.length ? usos.map(function(u){
@@ -1400,11 +1432,13 @@ async function abrirFicha(id,tabInicial){
           <div><b>Recorrido GPS exacto</b><span>${puntos.length ? "Línea trazada con los puntos registrados por Zentryx." : "Todavía no hay posiciones para este uso."}</span></div>
           ${rutaEnDirecto&&esAdmin()?`<em>● EN DIRECTO</em>`:""}
         </div>
+        ${rutasDisponibles.length>1?`<label class="zx_veh_route_select"><span>Recorrido</span><select id="zx_ruta_selector">${rutasDisponibles.map(function(r,i){const nombre=r.uso?(r.uso.nombre_usuario||r.uso.usuario||"Usuario"):"Sesión";return `<option value="${limpiar(r.id)}" ${r.id===usoRutaId?"selected":""}>${limpiar(fechaHoraES(r.ultima))} · ${limpiar(nombre)} · ${r.puntos.length} puntos</option>`}).join("")}</select></label>`:""}
         <div class="zx_veh_route_stats">
           <div><strong id="zx_ruta_num_puntos">${puntos.length}</strong><small>Puntos</small></div>
           <div><strong id="zx_ruta_distancia">${textoDistancia(distanciaRuta(puntos))}</strong><small>Recorrido</small></div>
           <div><strong id="zx_ruta_ultima_hora">${puntos.length?limpiar(fechaHoraES(puntos[puntos.length-1].registrado_at)):"-"}</strong><small>Última posición</small></div>
         </div>
+        <small id="zx_ruta_estado" class="zx_veh_route_note"></small>
         <div id="zx_veh_mapa_ruta" class="zx_veh_mapa_ruta"></div>
         ${!puntos.length?`<small class="zx_veh_route_note">Activa el seguimiento GPS, utiliza el vehículo y mantén Zentryx abierto durante el desplazamiento.</small>`:""}
       </div>
@@ -1432,6 +1466,19 @@ async function abrirFicha(id,tabInicial){
     };
   });
   if(tabInicial==="ruta") setTimeout(asegurarMapa,40);
+  const selectorRuta=document.getElementById("zx_ruta_selector");
+  if(selectorRuta){
+    selectorRuta.onchange=function(){
+      const elegida=rutasDisponibles.find(r=>r.id===selectorRuta.value);
+      if(!elegida) return;
+      usoRutaId=elegida.id;
+      puntos=elegida.puntos;
+      ZX_RUTA_USO_ID=usoRutaId;
+      ZX_RUTA_PUNTOS=ordenarPuntos(puntos);
+      actualizarResumenRuta();
+      dibujarRutaExacta(true);
+    };
+  }
   const editar=document.getElementById("veh_ficha_editar");
   if(editar) editar.onclick=function(){editarVehiculo(id)};
   const doc=document.getElementById("veh_ficha_doc");
@@ -1522,7 +1569,7 @@ function instalarCSS(){
 .zx_veh_map_choices a{display:block;text-align:center;text-decoration:none;border-radius:18px;padding:14px 16px;font-weight:900;background:#2563eb;color:#fff}
 .zx_veh_map_choices a:nth-child(2){background:#111827}
 .zx_veh_map_choices a:nth-child(3){background:#22c55e}
-.zx_veh_route_note{display:block;margin-top:12px;line-height:1.35;color:#64748b;font-weight:700}
+.zx_veh_route_note{display:block;margin-top:12px;line-height:1.35;color:#64748b;font-weight:700}.zx_veh_route_select{display:block;margin:12px 0}.zx_veh_route_select span{display:block;margin-bottom:6px;color:#475569;font-weight:900}.zx_veh_route_select select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:14px;background:white;color:#071330;font-weight:850;font-size:14px}
 
     @media(max-width:390px){.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
