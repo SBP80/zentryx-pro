@@ -5,9 +5,9 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3134";
+const ZX_VERSION="3135";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3134";
+const CACHE_KEY="zentryx_cache_vehiculos_v3135";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -631,6 +631,7 @@ function renderVehiculo(v){
       <button class="zx_veh_more" type="button" data-veh-more="${limpiar(v.id)}">••• Más opciones</button>
       <div class="zx_veh_more_panel" data-veh-more-panel="${limpiar(v.id)}" hidden>
         <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha</button>
+        <button class="purple" data-veh-route="${limpiar(v.id)}">🛰️ Ruta GPS</button>
         ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar</button>` : ""}
         ${estado!=="inactivo" && puedeGestionar() ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar</button>` : ""}
         ${estado==="inactivo" && puedeGestionar() ? `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar</button>` : ""}
@@ -713,7 +714,8 @@ function conectarEventos(){
     };
   });
 
-  document.querySelectorAll("[data-veh-open]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehOpen)}});
+  document.querySelectorAll("[data-veh-open]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehOpen,"datos")}});
+  document.querySelectorAll("[data-veh-route]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehRoute,"ruta")}});
   document.querySelectorAll("[data-veh-edit]").forEach(btn=>{btn.onclick=function(){editarVehiculo(btn.dataset.vehEdit)}});
   document.querySelectorAll("[data-veh-tomar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehTomar)}});
   document.querySelectorAll("[data-veh-recuperar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehRecuperar)}});
@@ -1151,7 +1153,8 @@ async function desactivarVehiculo(id){
   await actualizarVehiculo(id,{activo:false,estado_flota:"libre",en_uso:false,usuario_asignado:""});
 }
 
-async function abrirFicha(id){
+async function abrirFicha(id,tabInicial){
+  tabInicial=tabInicial || "datos";
   const v=vehiculoPorId(id);
   if(!v){alert("Vehículo no encontrado.");return}
 
@@ -1183,13 +1186,13 @@ async function abrirFicha(id){
     ${renderAvisos(v)}
 
     <div class="zx_veh_tabs">
-      <button class="on" data-veh-tab="datos">Datos</button>
-      <button data-veh-tab="historial">Historial (${usos.length})</button>
-      <button data-veh-tab="transferencias">Cambios (${transferencias.length})</button>
-      <button data-veh-tab="ruta">Ruta (${puntos.length})</button>
+      <button class="${tabInicial==="datos" ? "on" : ""}" data-veh-tab="datos">Datos</button>
+      <button class="${tabInicial==="historial" ? "on" : ""}" data-veh-tab="historial">Historial (${usos.length})</button>
+      <button class="${tabInicial==="transferencias" ? "on" : ""}" data-veh-tab="transferencias">Cambios (${transferencias.length})</button>
+      <button class="${tabInicial==="ruta" ? "on" : ""}" data-veh-tab="ruta">Ruta (${puntos.length})</button>
     </div>
 
-    <div class="zx_veh_tab on" data-veh-panel="datos">
+    <div class="zx_veh_tab ${tabInicial==="datos" ? "on" : ""}" data-veh-panel="datos">
       <div class="zx_veh_info ficha">
         <p><b>Matrícula</b><span>${limpiar(v.matricula || "-")}</span></p>
         <p><b>Marca / modelo</b><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ") || "-")}</span></p>
@@ -1205,12 +1208,12 @@ async function abrirFicha(id){
       </div>
     </div>
 
-    <div class="zx_veh_tab" data-veh-panel="historial"><div class="zx_veh_hist">${usoHtml}</div></div>
-    <div class="zx_veh_tab" data-veh-panel="transferencias"><div class="zx_veh_hist">${transHtml}</div></div>
-    <div class="zx_veh_tab" data-veh-panel="ruta">
+    <div class="zx_veh_tab ${tabInicial==="historial" ? "on" : ""}" data-veh-panel="historial"><div class="zx_veh_hist">${usoHtml}</div></div>
+    <div class="zx_veh_tab ${tabInicial==="transferencias" ? "on" : ""}" data-veh-panel="transferencias"><div class="zx_veh_hist">${transHtml}</div></div>
+    <div class="zx_veh_tab ${tabInicial==="ruta" ? "on" : ""}" data-veh-panel="ruta">
       <div class="zx_veh_route_box">
         <b>${puntos.length} puntos GPS registrados</b>
-        <span>${puntos.length ? "Ruta disponible para este vehículo." : "Aún no hay puntos GPS guardados."}</span>
+        <span>${puntos.length ? "Ruta disponible para este vehículo." : "Aún no hay puntos GPS guardados. Activa el seguimiento en Editar, utiliza el vehículo y mantén Zentryx abierto durante el trayecto."}</span>
         ${rutaUrl ? `<a href="${limpiar(rutaUrl)}" target="_blank" rel="noopener">Abrir recorrido en Google Maps</a>` : ""}
       </div>
     </div>
@@ -1237,11 +1240,11 @@ async function abrirFicha(id){
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_vehiculos_css_v3134");
+  const old=document.getElementById("zx_vehiculos_css_v3135");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_vehiculos_css_v3134";
+  s.id="zx_vehiculos_css_v3135";
   s.innerHTML=`
     .zx_veh_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_veh_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
