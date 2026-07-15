@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3137 - APERTURA DE RUTA EN GOOGLE MAPS, MAPAS DE APPLE Y WAZE
+// V3138 - APERTURA NATIVA Y ESTABLE EN GOOGLE MAPS, MAPAS DE APPLE Y WAZE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3137";
+const ZX_VERSION="3138";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3137";
+const CACHE_KEY="zentryx_cache_vehiculos_v3138";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -373,11 +373,33 @@ function urlsRutaMapas(puntos){
   let google="https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origen.lat+","+origen.lng)+"&destination="+encodeURIComponent(destino.lat+","+destino.lng);
   if(medios) google+="&waypoints="+encodeURIComponent(medios);
 
-  const apple="https://maps.apple.com/?saddr="+encodeURIComponent(origen.lat+","+origen.lng)+"&daddr="+encodeURIComponent(destino.lat+","+destino.lng)+"&dirflg=d";
-  const waze="https://waze.com/ul?ll="+encodeURIComponent(destino.lat+","+destino.lng)+"&navigate=yes";
+  const appleWeb="https://maps.apple.com/?saddr="+encodeURIComponent(origen.lat+","+origen.lng)+"&daddr="+encodeURIComponent(destino.lat+","+destino.lng)+"&dirflg=d";
+  const appleApp="maps://?saddr="+encodeURIComponent(origen.lat+","+origen.lng)+"&daddr="+encodeURIComponent(destino.lat+","+destino.lng)+"&dirflg=d";
+  const wazeWeb="https://waze.com/ul?ll="+encodeURIComponent(destino.lat+","+destino.lng)+"&navigate=yes";
+  const wazeApp="waze://?ll="+encodeURIComponent(destino.lat+","+destino.lng)+"&navigate=yes";
 
-  return {google,apple,waze};
+  return {google,appleWeb,appleApp,wazeWeb,wazeApp};
 }
+
+function abrirAppMapa(tipo,urls){
+  if(!urls) return;
+  if(tipo==="google"){
+    window.location.href=urls.google;
+    return;
+  }
+  if(tipo==="apple"){
+    window.location.href=urls.appleApp || urls.appleWeb;
+    return;
+  }
+  if(tipo==="waze"){
+    const inicio=Date.now();
+    window.location.href=urls.wazeApp;
+    setTimeout(function(){
+      if(Date.now()-inicio<1800 && document.visibilityState==="visible") window.location.href=urls.wazeWeb;
+    },1200);
+  }
+}
+
 
 function obtenerPosicion(){
   return new Promise(function(resolve){
@@ -1225,9 +1247,9 @@ async function abrirFicha(id,tabInicial){
         <span>${puntos.length ? "Ruta disponible para este vehículo." : "Aún no hay puntos GPS guardados. Activa el seguimiento en Editar, utiliza el vehículo y mantén Zentryx abierto durante el trayecto."}</span>
         ${rutasMapa.google ? `
           <div class="zx_veh_map_choices">
-            <a href="${limpiar(rutasMapa.google)}" target="_blank" rel="noopener">🗺️ Google Maps · recorrido completo</a>
-            <a href="${limpiar(rutasMapa.apple)}" target="_blank" rel="noopener"> Mapas · inicio a fin</a>
-            <a href="${limpiar(rutasMapa.waze)}" target="_blank" rel="noopener">🚙 Waze · ir al punto final</a>
+            <button type="button" data-map-route="google">🗺️ Google Maps · recorrido completo</button>
+            <button type="button" data-map-route="apple"> Mapas · inicio a fin</button>
+            <button type="button" data-map-route="waze">🚙 Waze · ir al punto final</button>
           </div>
           <small class="zx_veh_route_note">Google Maps conserva los puntos intermedios. Mapas de Apple y Waze abren la ruta entre el inicio y el final.</small>
         ` : ""}
@@ -1240,6 +1262,10 @@ async function abrirFicha(id,tabInicial){
       <button class="gray" id="veh_ficha_cerrar">Cerrar</button>
     </div>
   `);
+
+  document.querySelectorAll("[data-map-route]").forEach(function(btn){
+    btn.onclick=function(){abrirAppMapa(btn.getAttribute("data-map-route"),rutasMapa)};
+  });
 
   document.querySelectorAll("[data-veh-tab]").forEach(function(btn){
     btn.onclick=function(){
@@ -1332,7 +1358,7 @@ function instalarCSS(){
     .zx_veh_tab{display:none}.zx_veh_tab.on{display:block}
     .zx_veh_hist{display:grid;gap:9px}.zx_veh_hist_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px}
     .zx_veh_hist_item b,.zx_veh_hist_item span,.zx_veh_hist_item small{display:block}.zx_veh_hist_item b{color:#071330;font-size:15px}.zx_veh_hist_item span{color:#475569;font-size:13px;font-weight:850;margin-top:4px}.zx_veh_hist_item small{color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
-    .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border-radius:14px;padding:11px 13px;font-weight:950}
+    .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a,.zx_veh_route_box button{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border:0;border-radius:14px;padding:11px 13px;font-weight:950;font:inherit;cursor:pointer}
 .zx_veh_map_choices{display:grid;gap:10px;margin-top:14px}
 .zx_veh_map_choices a{display:block;text-align:center;text-decoration:none;border-radius:18px;padding:14px 16px;font-weight:900;background:#2563eb;color:#fff}
 .zx_veh_map_choices a:nth-child(2){background:#111827}
