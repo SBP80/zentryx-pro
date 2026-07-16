@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3143 - CENTRO DE AVISOS DE FLOTA
+// V3144 - GPS DE ALTA PRECISIÓN EN PRIMER PLANO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3143";
+const ZX_VERSION="3144";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3143";
+const CACHE_KEY="zentryx_cache_vehiculos_v3144";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -23,6 +23,9 @@ let ZX_GPS_REFRESH_TIMER=null;
 let ZX_GPS_REFRESHING=false;
 let ZX_GPS_ULTIMO_ERROR="";
 let ZX_GPS_ULTIMO_REGISTRO="";
+let ZX_GPS_POLL_TIMER=null;
+let ZX_GPS_GUARDANDO=false;
+let ZX_GPS_ULTIMA_PRECISION=null;
 let ZX_RUTA_MAPA=null;
 let ZX_RUTA_LINEA=null;
 let ZX_RUTA_MARCADORES=[];
@@ -252,24 +255,71 @@ function detenerSeguimientoGPS(){
   if(ZX_GPS_WATCH_ID!=null && navigator.geolocation){
     try{navigator.geolocation.clearWatch(ZX_GPS_WATCH_ID)}catch(e){}
   }
+  if(ZX_GPS_POLL_TIMER){
+    clearInterval(ZX_GPS_POLL_TIMER);
+    ZX_GPS_POLL_TIMER=null;
+  }
   ZX_GPS_WATCH_ID=null;
   ZX_GPS_USO_ID="";
   ZX_GPS_ULTIMO_PUNTO=null;
   ZX_GPS_ULTIMO_ENVIO=0;
+  ZX_GPS_ULTIMA_PRECISION=null;
+  ZX_GPS_GUARDANDO=false;
 }
 
 async function guardarPuntoGPS(v,uso,pos){
-  if(!v||!uso||!pos||!pos.coords) return;
+  if(!v || !uso || !pos || !pos.coords || ZX_GPS_GUARDANDO) return;
+
+  const lat=Number(pos.coords.latitude);
+  const lng=Number(pos.coords.longitude);
+  const precision=Number(pos.coords.accuracy);
   const ahora=Date.now();
-  const punto={lat:Number(pos.coords.latitude),lng:Number(pos.coords.longitude)};
+
+  if(!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+  // Se descartan lecturas muy pobres porque crean saltos y líneas irreales.
+  // Con precisión media se aceptan únicamente cuando no existe una lectura mejor reciente.
+  if(Number.isFinite(precision) && precision>120) return;
+
+  const punto={lat:lat,lng:lng};
   const distancia=distanciaMetros(ZX_GPS_ULTIMO_PUNTO,punto);
   const transcurrido=ZX_GPS_ULTIMO_ENVIO ? ahora-ZX_GPS_ULTIMO_ENVIO : Infinity;
+  const velocidadGps=Number.isFinite(Number(pos.coords.speed))
+    ? Math.max(0,Number(pos.coords.speed)*3.6)
+    : null;
 
-  // En movimiento: guarda cada 15 s o cada 20 m.
-  // Detenido: conserva un punto cada 90 s para confirmar la posición.
+  // Descarta saltos imposibles causados por una posición defectuosa.
+  if(ZX_GPS_ULTIMO_PUNTO && Number.isFinite(distancia) && transcurrido>0){
+    const velocidadCalculada=(distancia/(transcurrido/1000))*3.6;
+    const limite=(velocidadGps!==null && velocidadGps>5)
+      ? Math.max(190,velocidadGps+90)
+      : 190;
+
+    if(velocidadCalculada>limite && (!Number.isFinite(precision) || precision>20)){
+      return;
+    }
+  }
+
   if(ZX_GPS_ULTIMO_ENVIO){
-    if(distancia>=20 && transcurrido<15000) return;
-    if(distancia<20 && transcurrido<90000) return;
+    const buena=Number.isFinite(precision) ? precision<=35 : true;
+
+    // En marcha guarda aproximadamente cada 5 s o cada 5 m.
+    // Detenido guarda una confirmación cada 45 s.
+    if(distancia>=5){
+      if(transcurrido<5000 && !buena) return;
+    }else{
+      if(transcurrido<45000) return;
+    }
+
+    // No sustituye una lectura reciente buena por otra claramente peor.
+    if(
+      transcurrido<12000 &&
+      Number.isFinite(precision) &&
+      Number.isFinite(ZX_GPS_ULTIMA_PRECISION) &&
+      precision>ZX_GPS_ULTIMA_PRECISION*2.5
+    ){
+      return;
+    }
   }
 
   const u=identidadActual();
@@ -281,29 +331,60 @@ async function guardarPuntoGPS(v,uso,pos){
     registrado_at:new Date(pos.timestamp||ahora).toISOString(),
     lat:punto.lat,
     lng:punto.lng,
-    precision_metros:Number.isFinite(Number(pos.coords.accuracy))?Number(pos.coords.accuracy):null,
-    velocidad_kmh:Number.isFinite(Number(pos.coords.speed))?Math.max(0,Number(pos.coords.speed)*3.6):null,
+    precision_metros:Number.isFinite(precision)?precision:null,
+    velocidad_kmh:velocidadGps,
     rumbo_grados:Number.isFinite(Number(pos.coords.heading))?Number(pos.coords.heading):null,
     altitud_metros:Number.isFinite(Number(pos.coords.altitude))?Number(pos.coords.altitude):null,
-    origen:navigator.onLine?"gps":"cache_offline",
+    origen:navigator.onLine?"gps_alta_precision":"cache_offline",
     sincronizado:!!navigator.onLine,
     dispositivo:navigator.userAgent||""
   };
-  const r=await zxInsert("rutas_vehiculos_puntos",data);
-  if(r&&r.error) throw r.error;
-  ZX_GPS_ULTIMO_PUNTO=punto;
-  ZX_GPS_ULTIMO_ENVIO=ahora;
-  ZX_GPS_ULTIMO_REGISTRO=data.registrado_at;
-  ZX_GPS_ULTIMO_ERROR="";
+
+  ZX_GPS_GUARDANDO=true;
+
   try{
-    localStorage.setItem("zentryx_gps_ultimo_estado",JSON.stringify({
-      uso_id:String(uso.id),
-      vehiculo_id:String(v.id),
-      registrado_at:data.registrado_at,
-      lat:data.lat,
-      lng:data.lng
-    }));
-  }catch(e){}
+    const r=await zxInsert("rutas_vehiculos_puntos",data);
+    if(r&&r.error) throw r.error;
+
+    ZX_GPS_ULTIMO_PUNTO=punto;
+    ZX_GPS_ULTIMO_ENVIO=ahora;
+    ZX_GPS_ULTIMO_REGISTRO=data.registrado_at;
+    ZX_GPS_ULTIMA_PRECISION=Number.isFinite(precision)?precision:null;
+    ZX_GPS_ULTIMO_ERROR="";
+
+    try{
+      localStorage.setItem("zentryx_gps_ultimo_estado",JSON.stringify({
+        uso_id:String(uso.id),
+        vehiculo_id:String(v.id),
+        registrado_at:data.registrado_at,
+        lat:data.lat,
+        lng:data.lng,
+        precision_metros:data.precision_metros
+      }));
+    }catch(e){}
+  }finally{
+    ZX_GPS_GUARDANDO=false;
+  }
+}
+
+function solicitarPosicionPrecisa(v,uso){
+  if(!navigator.geolocation || document.hidden) return;
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      guardarPuntoGPS(v,uso,pos).catch(function(e){
+        ZX_GPS_ULTIMO_ERROR=String(e&&e.message||e||"No se pudo guardar la posición");
+      });
+    },
+    function(err){
+      ZX_GPS_ULTIMO_ERROR=String(err&&err.message||"No se pudo obtener la ubicación");
+    },
+    {
+      enableHighAccuracy:true,
+      maximumAge:0,
+      timeout:12000
+    }
+  );
 }
 
 function iniciarWatchGPS(v,uso){
@@ -324,8 +405,20 @@ function iniciarWatchGPS(v,uso){
     function(err){
       ZX_GPS_ULTIMO_ERROR=String(err&&err.message||"No se pudo obtener la ubicación");
     },
-    {enableHighAccuracy:true,maximumAge:5000,timeout:25000}
+    {
+      enableHighAccuracy:true,
+      maximumAge:0,
+      timeout:15000
+    }
   );
+
+  // Safari puede entregar pocos eventos del watchPosition.
+  // Este sondeo pide una lectura nueva mientras Zentryx está visible.
+  solicitarPosicionPrecisa(v,uso);
+
+  ZX_GPS_POLL_TIMER=setInterval(function(){
+    solicitarPosicionPrecisa(v,uso);
+  },7000);
 }
 
 function iniciarSeguimientoGPSActual(){
@@ -1291,7 +1384,7 @@ function renderVehiculo(v){
         <div><span>🧭</span><strong>${limpiar(v.km_actual ?? 0)} km</strong></div>
         ${enUso && inicio ? `<div><span>🕒</span><strong data-veh-duration-start="${limpiar(inicio)}">${limpiar(duracionDesde(inicio))}</strong><small>Desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
         ${ubicacion ? `<div><span>📍</span><strong>${limpiar(ubicacion)}</strong></div>` : ""}
-        ${enUso && (v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true") ? `<div><span>🛰️</span><strong>Ruta activa</strong><small>${ZX_GPS_USO_ID===String((v.__uso_actual||{}).id||"") ? (ZX_GPS_ULTIMO_REGISTRO ? "Último punto "+limpiar(fechaHoraES(ZX_GPS_ULTIMO_REGISTRO)) : "Esperando primera posición") : "Preparando seguimiento"}</small></div>` : ""}
+        ${enUso && (v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true") ? `<div><span>🛰️</span><strong>Ruta activa</strong><small>${ZX_GPS_USO_ID===String((v.__uso_actual||{}).id||"") ? (ZX_GPS_ULTIMO_REGISTRO ? "Último punto "+limpiar(fechaHoraES(ZX_GPS_ULTIMO_REGISTRO))+(Number.isFinite(ZX_GPS_ULTIMA_PRECISION) ? " · ±"+Math.round(ZX_GPS_ULTIMA_PRECISION)+" m" : "") : "Esperando primera posición") : "Preparando seguimiento"}</small></div>` : ""}
       </div>
 
       ${principal}
