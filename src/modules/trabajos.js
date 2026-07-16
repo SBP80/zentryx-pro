@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3113 - PANEL OPERATIVO DEL TRABAJO
+// V3114 - GUARDADO DE MATERIALES COMPATIBLE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3113";
+const ZX_VERSION="3114";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1541,6 +1541,68 @@ async function actualizarTrabajo(id,data){
   return sb().from(TABLA).update(data).eq("id",String(id));
 }
 
+function mensajeError(error){
+  if(!error) return "";
+  return String(error.message || error.details || error.hint || error.code || error);
+}
+
+function errorColumnaNoExiste(error){
+  const m=mensajeError(error);
+  const patrones=[
+    /Could not find the ['\"]([^'\"]+)['\"] column/i,
+    /column ['\"]?([^'\"\\s]+)['\"]? does not exist/i,
+    /schema cache.*['\"]([^'\"]+)['\"]/i
+  ];
+  for(const patron of patrones){
+    const r=m.match(patron);
+    if(r && r[1]) return String(r[1]);
+  }
+  return "";
+}
+
+async function insertarMaterialCompatible(data){
+  const backend=window.ZENTRYX_BACKEND || (zx() && (zx().Backend || zx().backend)) || null;
+  const core=zx();
+
+  const insertar=async function(payload){
+    if(backend && typeof backend.insert==="function") return backend.insert("trabajos_materiales",[payload]);
+    if(core && typeof core.insert==="function") return core.insert("trabajos_materiales",[payload]);
+    if(!sb()) return {data:null,error:new Error("No hay conexión con la base de datos.")};
+    return sb().from("trabajos_materiales").insert([payload]);
+  };
+
+  let payload={...data};
+  let ultimoError=null;
+  for(let intento=0;intento<8;intento++){
+    const r=await insertar(payload);
+    if(!r || !r.error) return r || {data:[payload],error:null};
+    ultimoError=r.error;
+    const columna=errorColumnaNoExiste(r.error);
+    if(columna && Object.prototype.hasOwnProperty.call(payload,columna)){
+      delete payload[columna];
+      continue;
+    }
+    break;
+  }
+
+  const variantes=[
+    {id:data.id,trabajo_id:data.trabajo_id,material:data.material||data.nombre,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas,created_at:data.created_at},
+    {id:data.id,trabajo_id:data.trabajo_id,nombre:data.nombre||data.material,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas,created_at:data.created_at},
+    {id:data.id,trabajo_id:data.trabajo_id,material:data.material||data.nombre,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas},
+    {id:data.id,trabajo_id:data.trabajo_id,nombre:data.nombre||data.material,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas}
+  ];
+
+  for(const variante of variantes){
+    const limpia=Object.fromEntries(Object.entries(variante).filter(function(entry){
+      return entry[1]!==undefined && entry[1]!==null;
+    }));
+    const r=await insertar(limpia);
+    if(!r || !r.error) return r || {data:[limpia],error:null};
+    ultimoError=r.error;
+  }
+  return {data:null,error:ultimoError || new Error("No se pudo guardar el material.")};
+}
+
 async function abrirMaterial(id){
   modal(`
     <h2>Material</h2>
@@ -1569,6 +1631,7 @@ async function abrirMaterial(id){
     if(!nombre){alert("Introduce material.");return}
 
     const data={
+      id:idLocal(),
       trabajo_id:String(id),
       nombre:nombre,
       material:nombre,
@@ -1579,23 +1642,23 @@ async function abrirMaterial(id){
       created_at:new Date().toISOString()
     };
 
+    const boton=document.getElementById("tr_mat_guardar");
+    if(boton){boton.disabled=true;boton.textContent="Guardando...";}
+
     try{
-      let r;
-
-      if(zx() && typeof zx().insert==="function"){
-        r=await zx().insert("trabajos_materiales",[data]);
-      }else{
-        r=await sb().from("trabajos_materiales").insert([data]);
-      }
-
+      const r=await insertarMaterialCompatible(data);
       if(r && r.error) throw r.error;
 
-      await registrarHistorial(id,"material","Material añadido: "+nombre,data);
+      await registrarHistorial(id,"material","Material añadido: "+nombre,{
+        material:nombre,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas
+      });
       cerrarModal();
       abrirFicha(id);
 
     }catch(e){
-      alert("No se pudo guardar material.");
+      const detalle=mensajeError(e);
+      alert("No se pudo guardar el material."+(detalle ? "\n\n"+detalle : ""));
+      if(boton){boton.disabled=false;boton.textContent="Guardar material";}
     }
   };
 }
@@ -1660,11 +1723,11 @@ window.ZX_tr_gestionar=function(id){gestionarTrabajo(id)};
 window.ZX_tr_nota=function(id){registrarNotaRapida(id)};
 
 function instalarCSS(){
-  const old=document.getElementById("zx_trabajos_css_v3113");
+  const old=document.getElementById("zx_trabajos_css_v3114");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_css_v3113";
+  s.id="zx_trabajos_css_v3114";
   s.innerHTML=`
     .zx_tr_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_tr_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
