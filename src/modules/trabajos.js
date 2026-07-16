@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3112 - CORRECCIÓN DE GUARDADO DEL EQUIPO ASIGNADO
+// V3113 - PANEL OPERATIVO DEL TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3112";
+const ZX_VERSION="3113";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1158,6 +1158,179 @@ async function aplicarEstado(id,estado){
   }
 }
 
+function equipoPlanificacion(plan,t){
+  const nombres=[];
+  const ids=new Set();
+
+  (plan || []).forEach(function(p){
+    const id=String(p.usuario_id || p.tecnico_id || "");
+    const nombre=String(
+      p.usuario ||
+      p.tecnico ||
+      p.usuario_nombre ||
+      p.tecnico_nombre ||
+      ""
+    ).trim();
+
+    if(id && ids.has(id)) return;
+    if(id) ids.add(id);
+
+    if(nombre && !nombres.some(function(n){
+      return normalizar(n)===normalizar(nombre);
+    })){
+      nombres.push(nombre);
+    }
+  });
+
+  if(t && t.usuario){
+    const principal=String(t.usuario).trim();
+    if(principal && !nombres.some(function(n){
+      return normalizar(n)===normalizar(principal);
+    })){
+      nombres.unshift(principal);
+    }
+  }
+
+  return nombres;
+}
+
+function accionPrincipalTrabajo(t){
+  const estado=String(t.estado || "pendiente");
+
+  if(estado==="en_curso"){
+    return {clase:"zx_tr_finish",icono:"✅",texto:"Finalizar trabajo",accion:"terminar"};
+  }
+  if(estado==="terminado"){
+    return {clase:"zx_tr_done",icono:"✓",texto:"Trabajo finalizado",accion:"ninguna"};
+  }
+  if(estado==="cancelado"){
+    return {clase:"zx_tr_cancelled",icono:"⛔",texto:"Trabajo cancelado",accion:"ninguna"};
+  }
+  return {clase:"zx_tr_start",icono:"▶",texto:"Iniciar trabajo",accion:"iniciar"};
+}
+
+function tiempoPlanificado(t){
+  const inicio=t.hora_inicio ? String(t.hora_inicio).slice(0,5) : "";
+  const fin=t.hora_fin ? String(t.hora_fin).slice(0,5) : "";
+  if(inicio && fin) return inicio+"–"+fin;
+  return inicio || fin || "";
+}
+
+function whatsappTrabajo(tel){
+  const numero=telefonoLimpio(tel).replace("+","");
+  if(!numero) return;
+  window.open("https://wa.me/"+numero,"_blank","noopener");
+}
+
+async function registrarNotaRapida(id){
+  modal(`
+    <h2>Nota rápida</h2>
+    <div class="zx_text">Añade una observación breve al historial del trabajo.</div>
+    <textarea id="tr_nota_rapida" rows="5" placeholder="Escribe o dicta la nota..."></textarea>
+    <button class="zx_btn_big zx_verde" id="tr_nota_guardar">Guardar nota</button>
+    <button class="zx_btn_big zx_gris" id="tr_nota_cancelar">Cancelar</button>
+  `);
+
+  document.getElementById("tr_nota_cancelar").onclick=cerrarModal;
+  document.getElementById("tr_nota_guardar").onclick=async function(){
+    const nota=valor("tr_nota_rapida");
+
+    if(!nota){
+      alert("Escribe una nota.");
+      return;
+    }
+
+    const ok=await registrarHistorial(id,"nota",nota,{nota:nota});
+
+    if(!ok){
+      alert("No se pudo guardar la nota.");
+      return;
+    }
+
+    cerrarModal();
+    abrirFicha(id);
+  };
+}
+
+async function finalizarTrabajoRapido(id){
+  const t=await cargarTrabajo(id);
+  if(!t) return;
+
+  modal(`
+    <h2>Finalizar trabajo</h2>
+    <div class="zx_text">
+      <b>${limpiar(t.titulo || "Trabajo")}</b><br>
+      Puedes añadir un registro breve de lo realizado. Es opcional.
+    </div>
+    <textarea id="tr_fin_resumen" rows="5" placeholder="Trabajo realizado, observaciones o material pendiente..."></textarea>
+    <button class="zx_btn_big zx_verde" id="tr_fin_confirmar">✅ Finalizar</button>
+    <button class="zx_btn_big zx_gris" id="tr_fin_cancelar">Cancelar</button>
+  `);
+
+  document.getElementById("tr_fin_cancelar").onclick=cerrarModal;
+
+  document.getElementById("tr_fin_confirmar").onclick=async function(){
+    const resumen=valor("tr_fin_resumen");
+
+    try{
+      const r=await actualizarTrabajo(id,{estado:"terminado"});
+      if(r && r.error) throw r.error;
+
+      await registrarHistorial(
+        id,
+        "finalizacion",
+        resumen || "Trabajo finalizado.",
+        {
+          estado:"terminado",
+          resumen:resumen,
+          finalizado_at:new Date().toISOString()
+        }
+      );
+
+      await sincronizarAgenda(id,Object.assign({},t,{estado:"terminado"}));
+
+      cerrarModal();
+      await window.ZX_trabajos();
+    }catch(e){
+      alert("No se pudo finalizar el trabajo.");
+    }
+  };
+}
+
+async function ejecutarAccionPrincipal(id,accion){
+  if(accion==="iniciar"){
+    const t=await cargarTrabajo(id);
+    if(!t) return;
+
+    try{
+      const r=await actualizarTrabajo(id,{estado:"en_curso"});
+      if(r && r.error) throw r.error;
+
+      await registrarHistorial(
+        id,
+        "inicio",
+        "Trabajo iniciado.",
+        {
+          estado:"en_curso",
+          iniciado_at:new Date().toISOString()
+        }
+      );
+
+      await sincronizarAgenda(id,Object.assign({},t,{estado:"en_curso"}));
+
+      cerrarModal();
+      await window.ZX_trabajos();
+    }catch(e){
+      alert("No se pudo iniciar el trabajo.");
+    }
+    return;
+  }
+
+  if(accion==="terminar"){
+    finalizarTrabajoRapido(id);
+  }
+}
+
 async function abrirFicha(id){
   const t=await cargarTrabajo(id);
   if(!t){alert("Trabajo no encontrado.");return}
@@ -1181,39 +1354,107 @@ async function abrirFicha(id){
     cargarHistorial(id)
   ]);
 
+  const equipo=equipoPlanificacion(plan,t);
+  const dir=direccionTrabajo(t);
+  const tel=t.telefono_contacto || t.telefono || "";
+  const principal=accionPrincipalTrabajo(t);
+  const horario=tiempoPlanificado(t);
+
   box.innerHTML=`
-    <div class="zx_tr_ficha">
-      <div class="zx_tr_badges">
-        <span class="estado ${claseEstado(t.estado)}">${limpiar(estadoTexto(t.estado))}</span>
-        <span class="prio ${clasePrioridad(t.prioridad)}">${limpiar(prioridadTexto(t.prioridad))}</span>
+    <div class="zx_tr_operativo">
+      <section class="zx_tr_status_card">
+        <div class="zx_tr_status_top">
+          <div>
+            <span class="zx_tr_status_label">Estado actual</span>
+            <strong>${limpiar(estadoTexto(t.estado))}</strong>
+          </div>
+          <div class="zx_tr_badges">
+            <span class="estado ${claseEstado(t.estado)}">${limpiar(estadoTexto(t.estado))}</span>
+            <span class="prio ${clasePrioridad(t.prioridad)}">${limpiar(prioridadTexto(t.prioridad))}</span>
+          </div>
+        </div>
+
+        <div class="zx_tr_status_grid">
+          ${t.fecha ? `<div><span>📅</span><small>Fecha</small><b>${limpiar(fechaES(t.fecha))}</b></div>` : ""}
+          ${horario ? `<div><span>🕒</span><small>Horario</small><b>${limpiar(horario)}</b></div>` : ""}
+          <div><span>👥</span><small>Equipo</small><b>${equipo.length || 1}</b></div>
+          <div><span>📦</span><small>Materiales</small><b>${mat.length}</b></div>
+        </div>
+      </section>
+
+      ${principal.accion!=="ninguna" ? `
+        <button
+          type="button"
+          class="zx_tr_main_action ${principal.clase}"
+          id="tr_accion_principal"
+          data-action="${limpiar(principal.accion)}"
+        >
+          <span>${principal.icono}</span>
+          ${limpiar(principal.texto)}
+        </button>
+      ` : `
+        <div class="zx_tr_main_action ${principal.clase}">
+          <span>${principal.icono}</span>
+          ${limpiar(principal.texto)}
+        </div>
+      `}
+
+      <section class="zx_tr_contact_card">
+        ${t.cliente ? `<div class="zx_tr_contact_title">👤 ${limpiar(t.cliente)}</div>` : ""}
+        ${equipo.length ? `<div class="zx_tr_contact_line"><b>Equipo</b><span>${limpiar(equipo.join(", "))}</span></div>` : ""}
+        ${dir ? `<div class="zx_tr_contact_line"><b>Dirección</b><span>${limpiar(dir)}</span></div>` : ""}
+        ${t.descripcion ? `<div class="zx_tr_description">${limpiar(t.descripcion)}</div>` : ""}
+      </section>
+
+      <div class="zx_tr_quick_actions">
+        ${dir ? `<button class="purple" id="tr_quick_route">🧭 Ruta</button>` : ""}
+        ${tel ? `<button class="green" id="tr_quick_call">📞 Llamar</button>` : ""}
+        ${tel ? `<button class="zx_tr_whatsapp" id="tr_quick_whatsapp">💬 WhatsApp</button>` : ""}
+        <button class="gray" id="tr_quick_note">📝 Nota</button>
       </div>
 
-      <div class="zx_tr_info ficha">
-        ${t.cliente ? `<p><b>Cliente</b><span>${limpiar(t.cliente)}</span></p>` : ""}
-        ${t.usuario ? `<p><b>Técnico</b><span>${limpiar(t.usuario)}</span></p>` : ""}
-        ${t.fecha ? `<p><b>Fecha</b><span>${limpiar(fechaES(t.fecha))}</span></p>` : ""}
-        ${t.telefono_contacto ? `<p><b>Teléfono</b><span>${limpiar(t.telefono_contacto)}</span></p>` : ""}
-        ${direccionTrabajo(t) ? `<p><b>Dirección</b><span>${limpiar(direccionTrabajo(t))}</span></p>` : ""}
-        ${t.descripcion ? `<p><b>Descripción</b><span>${limpiar(t.descripcion)}</span></p>` : ""}
-        ${t.notas ? `<p><b>Notas</b><span>${limpiar(t.notas)}</span></p>` : ""}
-      </div>
+      <details class="zx_tr_more">
+        <summary>Más opciones</summary>
+        <div class="zx_tr_more_grid">
+          ${puedeGestionar() ? `<button class="blue" onclick="ZX_tr_editar('${limpiar(id)}')">✏️ Editar</button>` : ""}
+          ${puedeGestionar() ? `<button class="orange" onclick="ZX_tr_estado('${limpiar(id)}')">🔄 Estado</button>` : ""}
+          ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_material('${limpiar(id)}')">📦 Material</button>` : ""}
+          ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_archivo('${limpiar(id)}')">📎 Archivo</button>` : ""}
+          ${puedeBorrar() ? `<button class="red" onclick="ZX_tr_gestionar('${limpiar(id)}')">⚙️ Gestionar</button>` : ""}
+        </div>
+      </details>
 
-      <div class="zx_tr_ficha_actions">
-        ${puedeGestionar() ? `<button class="blue" onclick="ZX_tr_editar('${limpiar(id)}')">Editar</button>` : ""}
-        ${puedeGestionar() ? `<button class="orange" onclick="ZX_tr_estado('${limpiar(id)}')">Estado</button>` : ""}
-        ${direccionTrabajo(t) ? `<button class="purple" onclick="ZX_tr_mapa('${limpiar(direccionTrabajo(t))}')">Ruta</button>` : ""}
-        ${t.telefono_contacto ? `<button class="green" onclick="location.href='tel:${limpiar(telefonoLimpio(t.telefono_contacto))}'">Llamar</button>` : ""}
-        ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_material('${limpiar(id)}')">Material</button>` : ""}
-        ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_archivo('${limpiar(id)}')">Archivo</button>` : ""}
-        ${puedeBorrar() ? `<button class="red" onclick="ZX_tr_gestionar('${limpiar(id)}')">Gestionar</button>` : ""}
-      </div>
-
-      ${renderBloque("Planificación",plan.map(p=>`${fechaES(p.fecha)} ${p.hora_inicio ? String(p.hora_inicio).slice(0,5) : ""} ${p.nombre || p.usuario || ""}`))}
-      ${renderBloque("Materiales",mat.map(m=>`${m.cantidad || ""} ${m.unidad || ""} ${m.nombre || m.material || ""}`))}
+      ${renderBloque("Planificación",plan.map(function(p){
+        return `${fechaES(p.fecha)} ${p.hora_inicio ? String(p.hora_inicio).slice(0,5) : ""} ${p.nombre || p.usuario || p.tecnico || ""}`;
+      }))}
+      ${renderBloque("Materiales",mat.map(function(m){
+        return `${m.cantidad || ""} ${m.unidad || ""} ${m.nombre || m.material || ""}`;
+      }))}
       ${renderArchivos(arch)}
-      ${renderBloque("Historial",hist.map(h=>`${fechaES(h.fecha || h.created_at)} · ${h.tipo || ""} · ${h.notas || ""}`))}
+      ${renderBloque("Historial",hist.map(function(h){
+        return `${fechaES(h.fecha || h.created_at)} · ${h.tipo || ""} · ${h.notas || ""}`;
+      }))}
     </div>
   `;
+
+  const accion=document.getElementById("tr_accion_principal");
+  if(accion){
+    accion.onclick=function(){
+      ejecutarAccionPrincipal(id,String(accion.dataset.action || ""));
+    };
+  }
+
+  const route=document.getElementById("tr_quick_route");
+  if(route) route.onclick=function(){abrirMapa(dir)};
+
+  const call=document.getElementById("tr_quick_call");
+  if(call) call.onclick=function(){location.href="tel:"+telefonoLimpio(tel)};
+
+  const whatsapp=document.getElementById("tr_quick_whatsapp");
+  if(whatsapp) whatsapp.onclick=function(){whatsappTrabajo(tel)};
+
+  const note=document.getElementById("tr_quick_note");
+  if(note) note.onclick=function(){registrarNotaRapida(id)};
 }
 
 function renderBloque(titulo,lineas){
@@ -1416,13 +1657,14 @@ window.ZX_tr_mapa=function(dir){abrirMapa(dir)};
 window.ZX_tr_material=function(id){abrirMaterial(id)};
 window.ZX_tr_archivo=function(id){abrirArchivo(id)};
 window.ZX_tr_gestionar=function(id){gestionarTrabajo(id)};
+window.ZX_tr_nota=function(id){registrarNotaRapida(id)};
 
 function instalarCSS(){
-  const old=document.getElementById("zx_trabajos_css_v3110");
+  const old=document.getElementById("zx_trabajos_css_v3113");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_trabajos_css_v3110";
+  s.id="zx_trabajos_css_v3113";
   s.innerHTML=`
     .zx_tr_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_tr_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
@@ -1467,6 +1709,31 @@ function instalarCSS(){
     .zx_tr_info b{display:block;color:#64748b;font-size:12px;font-weight:950;margin-bottom:4px}
     .zx_tr_info span{display:block;color:#071330;font-size:15px;font-weight:850;line-height:1.3;word-break:break-word}
     .zx_tr_actions,.zx_tr_ficha_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+    .zx_tr_operativo{display:grid;gap:12px}
+    .zx_tr_status_card{background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px}
+    .zx_tr_status_top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+    .zx_tr_status_label{display:block;color:#64748b;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.5px}
+    .zx_tr_status_top strong{display:block;color:#071330;font-size:23px;font-weight:950;margin-top:3px}
+    .zx_tr_status_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+    .zx_tr_status_grid>div{display:grid;grid-template-columns:auto 1fr;column-gap:8px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:10px}
+    .zx_tr_status_grid>div>span{grid-row:1/3;font-size:20px}
+    .zx_tr_status_grid small{color:#64748b;font-size:10px;font-weight:850}
+    .zx_tr_status_grid b{color:#071330;font-size:14px;font-weight:950;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .zx_tr_main_action{width:100%;border:0;border-radius:20px;padding:18px 16px;color:white;font-size:19px;font-weight:950;display:flex;align-items:center;justify-content:center;gap:10px;text-align:center}
+    .zx_tr_main_action span{font-size:22px}
+    .zx_tr_start{background:#16a34a}.zx_tr_finish{background:#ea580c}.zx_tr_done{background:#166534}.zx_tr_cancelled{background:#991b1b}
+    .zx_tr_contact_card{background:#fff;border:1px solid #dbe3ef;border-radius:20px;padding:14px;display:grid;gap:9px}
+    .zx_tr_contact_title{color:#071330;font-size:19px;font-weight:950}
+    .zx_tr_contact_line{display:grid;gap:3px}
+    .zx_tr_contact_line b{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+    .zx_tr_contact_line span{color:#071330;font-size:14px;font-weight:850;line-height:1.35}
+    .zx_tr_description{background:#f8fafc;border-radius:14px;padding:12px;color:#475569;font-size:14px;font-weight:800;line-height:1.4}
+    .zx_tr_quick_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .zx_tr_quick_actions button,.zx_tr_more_grid button{border:0;border-radius:15px;padding:13px 8px;color:white;font-size:14px;font-weight:950}
+    .zx_tr_whatsapp{background:#22c55e}
+    .zx_tr_more{border:1px solid #dbe3ef;border-radius:18px;background:#f8fafc;overflow:hidden}
+    .zx_tr_more summary{padding:14px;color:#334155;font-size:14px;font-weight:950;text-align:center;cursor:pointer}
+    .zx_tr_more_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 12px 12px}
     .zx_tr_actions button,.zx_tr_ficha_actions button{border:0;border-radius:16px;padding:13px 8px;color:white;font-size:14px;font-weight:950;min-height:46px}
     .zx_tr_actions .green,.zx_tr_ficha_actions .green{background:#16a34a}
     .zx_tr_actions .blue,.zx_tr_ficha_actions .blue{background:#2563eb}
