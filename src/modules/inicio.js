@@ -1,13 +1,14 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3137 - SELECTOR DE NAVEGACIÓN EN MI DÍA
+// V3154 - DATOS FIABLES, CACHÉ POR USUARIO Y PLANIFICACIÓN MÚLTIPLE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3137";
-const CACHE_KEY="zentryx_mi_dia_v3137";
+const ZX_VERSION="3154";
+const CACHE_PREFIX="zentryx_mi_dia_v3154";
 const CACHE_MAX_MS=72*60*60*1000;
+const QUERY_TIMEOUT_MS=8500;
 let ZX_MI_DIA_RENDER=0;
 
 function app(){return document.getElementById("app")}
@@ -84,9 +85,16 @@ function duracionDesde(v){
   return h+" h"+(m ? " "+m+" min" : "");
 }
 
+function cacheKey(){
+  const s=sesion();
+  const empresa=String(s.empresa_id || s.empresa || s.organizacion_id || "sin_empresa").replace(/[^a-zA-Z0-9_-]/g,"_");
+  const usuario=String(s.id || s.usuario || "sin_usuario").replace(/[^a-zA-Z0-9_-]/g,"_");
+  return CACHE_PREFIX+":"+empresa+":"+usuario;
+}
+
 function leerCache(){
   try{
-    const c=JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    const c=JSON.parse(localStorage.getItem(cacheKey()) || "null");
     if(!c || !c.guardado_en) return null;
     return c;
   }catch(e){return null}
@@ -94,7 +102,7 @@ function leerCache(){
 
 function guardarCache(data){
   try{
-    localStorage.setItem(CACHE_KEY,JSON.stringify({
+    localStorage.setItem(cacheKey(),JSON.stringify({
       ...data,
       guardado_en:Date.now(),
       actualizado_en:ahoraISO()
@@ -102,13 +110,28 @@ function guardarCache(data){
   }catch(e){}
 }
 
+function conTimeout(promesa,ms){
+  return Promise.race([
+    Promise.resolve(promesa),
+    new Promise(function(_,reject){
+      setTimeout(function(){reject(new Error("timeout"))},ms || QUERY_TIMEOUT_MS);
+    })
+  ]);
+}
+
 async function consulta(fn,fallback){
-  if(!navigator.onLine || !sb()) return fallback;
+  if(!navigator.onLine || !sb()){
+    return {ok:false,data:fallback,error:"offline"};
+  }
   try{
-    const r=await fn(sb());
-    if(!r || r.error) return fallback;
-    return r.data ?? fallback;
-  }catch(e){return fallback}
+    const r=await conTimeout(fn(sb()),QUERY_TIMEOUT_MS);
+    if(!r || r.error){
+      return {ok:false,data:fallback,error:r?.error?.message || "consulta"};
+    }
+    return {ok:true,data:r.data ?? fallback,error:""};
+  }catch(e){
+    return {ok:false,data:fallback,error:e?.message || "consulta"};
+  }
 }
 
 function direccionTrabajo(t){
@@ -155,7 +178,7 @@ function usuarioCoincide(t,s){
   if(su && nombres.includes(su)) return true;
   if(sn && nombres.includes(sn)) return true;
 
-  return ids.length===0 && nombres.length===0;
+  return false;
 }
 
 function estadoActivoTrabajo(t){
@@ -168,132 +191,133 @@ async function cargarTrabajosDia(){
   const fHoy=hoy();
   const fManana=manana();
 
-  const [trabajos,planes]=await Promise.all([
+  const [rt,rp]=await Promise.all([
     consulta(c=>c.from("trabajos").select("*").gte("fecha",fHoy).lte("fecha",fManana).limit(250),[]),
     consulta(c=>c.from("trabajos_planificacion").select("*").gte("fecha",fHoy).lte("fecha",fManana).limit(500),[])
   ]);
 
-  const mapa=new Map();
+  if(!rt.ok && !rp.ok) return {ok:false,data:[],error:"trabajos"};
 
-  (trabajos || []).forEach(function(t){
-    mapa.set(String(t.id),{
-      ...t,
-      __equipo_ids:[],
-      __equipo_nombres:[]
-    });
-  });
+  const trabajos=rt.data || [];
+  const planes=rp.data || [];
+  const basePorId=new Map();
+  trabajos.forEach(function(t){basePorId.set(String(t.id),t)});
 
-  (planes || []).forEach(function(p){
+  const idsFaltantes=[...new Set(planes.map(function(p){
+    return String(p.trabajo_id || p.id_trabajo || "");
+  }).filter(function(id){return id && !basePorId.has(id)}))];
+
+  if(idsFaltantes.length){
+    const rf=await consulta(c=>c.from("trabajos").select("*").in("id",idsFaltantes).limit(250),[]);
+    if(rf.ok){
+      (rf.data || []).forEach(function(t){basePorId.set(String(t.id),t)});
+    }
+  }
+
+  const visitas=new Map();
+  planes.forEach(function(p,index){
     const id=String(p.trabajo_id || p.id_trabajo || "");
     if(!id) return;
-
-    const base=mapa.get(id) || {
-      id:id,
+    const fecha=String(p.fecha || p.fecha_inicio || "").slice(0,10);
+    const inicio=String(p.hora_inicio || p.hora || "");
+    const fin=String(p.hora_fin || "");
+    const grupo=id+"|"+fecha+"|"+inicio+"|"+fin;
+    const base=basePorId.get(id) || {id:id};
+    const previo=visitas.get(grupo) || {
+      ...base,
+      __visita_id:grupo,
+      __plan_fecha:fecha || base.fecha,
+      __plan_hora:inicio || base.hora_inicio,
+      __plan_hora_fin:fin || base.hora_fin,
       __equipo_ids:[],
       __equipo_nombres:[]
     };
 
-    const equipoIds=Array.isArray(base.__equipo_ids) ? [...base.__equipo_ids] : [];
-    const equipoNombres=Array.isArray(base.__equipo_nombres) ? [...base.__equipo_nombres] : [];
-
-    const usuarioId=String(p.usuario_id || p.tecnico_id || "");
-    const usuarioNombre=String(p.usuario || p.tecnico || p.usuario_nombre || p.tecnico_nombre || "").trim();
-
-    if(usuarioId && !equipoIds.includes(usuarioId)) equipoIds.push(usuarioId);
-    if(usuarioNombre && !equipoNombres.some(function(n){return normalizar(n)===normalizar(usuarioNombre)})){
-      equipoNombres.push(usuarioNombre);
+    const uid=String(p.usuario_id || p.tecnico_id || p.responsable_id || "");
+    const unombre=String(p.usuario || p.tecnico || p.usuario_nombre || p.tecnico_nombre || p.responsable || "").trim();
+    if(uid && !previo.__equipo_ids.includes(uid)) previo.__equipo_ids.push(uid);
+    if(unombre && !previo.__equipo_nombres.some(function(n){return normalizar(n)===normalizar(unombre)})){
+      previo.__equipo_nombres.push(unombre);
     }
-
-    mapa.set(id,{
-      ...base,
-      __plan_fecha:base.__plan_fecha || p.fecha || p.fecha_inicio || base.fecha,
-      __plan_hora:base.__plan_hora || p.hora_inicio || p.hora || base.hora_inicio,
-      __plan_hora_fin:base.__plan_hora_fin || p.hora_fin || base.hora_fin,
-      __equipo_ids:equipoIds,
-      __equipo_nombres:equipoNombres
-    });
+    previo.__plan_usuario_id=previo.__plan_usuario_id || p.usuario_id || p.responsable_id || "";
+    previo.__plan_tecnico_id=previo.__plan_tecnico_id || p.tecnico_id || "";
+    previo.__plan_usuario=previo.__plan_usuario || p.usuario || p.usuario_nombre || p.responsable || "";
+    previo.__plan_tecnico=previo.__plan_tecnico || p.tecnico || p.tecnico_nombre || "";
+    visitas.set(grupo,previo);
   });
 
-  const idsFaltantes=Array.from(mapa.values())
-    .filter(function(t){return !t.titulo && t.id})
-    .map(function(t){return String(t.id)});
+  const idsConPlan=new Set(planes.map(function(p){return String(p.trabajo_id || p.id_trabajo || "")}));
+  trabajos.forEach(function(t){
+    const id=String(t.id || "");
+    if(idsConPlan.has(id)) return;
+    const fecha=fechaTrabajo(t);
+    const clave=id+"|"+fecha+"|"+horaTrabajo(t)+"|directo";
+    visitas.set(clave,{...t,__visita_id:clave,__equipo_ids:[],__equipo_nombres:[]});
+  });
 
-  if(idsFaltantes.length && navigator.onLine && sb()){
-    const faltantes=await consulta(
-      c=>c.from("trabajos").select("*").in("id",idsFaltantes).limit(250),
-      []
-    );
-
-    (faltantes || []).forEach(function(t){
-      const previo=mapa.get(String(t.id)) || {};
-      mapa.set(String(t.id),{
-        ...t,
-        __plan_fecha:previo.__plan_fecha,
-        __plan_hora:previo.__plan_hora,
-        __plan_hora_fin:previo.__plan_hora_fin,
-        __equipo_ids:previo.__equipo_ids || [],
-        __equipo_nombres:previo.__equipo_nombres || []
-      });
-    });
-  }
-
-  return Array.from(mapa.values())
+  const lista=Array.from(visitas.values())
     .filter(estadoActivoTrabajo)
     .filter(function(t){return usuarioCoincide(t,s)})
     .filter(function(t){return [fHoy,fManana].includes(fechaTrabajo(t))})
     .sort(function(a,b){
-      const ak=fechaTrabajo(a)+" "+horaTrabajo(a);
-      const bk=fechaTrabajo(b)+" "+horaTrabajo(b);
+      const ak=fechaTrabajo(a)+" "+(horaTrabajo(a) || "23:59");
+      const bk=fechaTrabajo(b)+" "+(horaTrabajo(b) || "23:59");
       return ak.localeCompare(bk);
     });
+
+  return {ok:true,data:lista,error:""};
 }
 
 async function cargarJornada(){
   const s=sesion();
-  const lista=await consulta(c=>c
+  const r=await consulta(c=>c
     .from("jornadas")
     .select("*")
     .eq("usuario_id",String(s.id || ""))
     .eq("estado","abierta")
     .order("created_at",{ascending:false})
     .limit(1),[]);
-  return lista && lista[0] ? lista[0] : null;
+  return {ok:r.ok,data:r.data && r.data[0] ? r.data[0] : null,error:r.error};
 }
 
 async function cargarUsoVehiculo(){
   const s=sesion();
-  const lista=await consulta(c=>c
+  const r=await consulta(c=>c
     .from("usos_vehiculos")
     .select("*")
     .eq("usuario_id",String(s.id || ""))
     .in("estado",["en_uso","pendiente_devolucion"])
     .order("inicio_at",{ascending:false})
     .limit(1),[]);
-  return lista && lista[0] ? lista[0] : null;
+  return {ok:r.ok,data:r.data && r.data[0] ? r.data[0] : null,error:r.error};
 }
 
 async function cargarAvisos(){
   const s=sesion();
-  const lista=await consulta(c=>c
+  const r=await consulta(c=>c
     .from("notificaciones")
     .select("*")
     .eq("usuario_id",String(s.id || ""))
     .eq("leida",false)
     .order("created_at",{ascending:false})
     .limit(5),[]);
-  return lista || [];
+  return {ok:r.ok,data:r.data || [],error:r.error};
 }
 
 async function cargarMiDia(){
   const cache=leerCache();
+  const base={
+    trabajos:cache?.trabajos || [],
+    jornada:cache?.jornada || null,
+    vehiculo:cache?.vehiculo || null,
+    avisos:cache?.avisos || []
+  };
 
   if(!navigator.onLine || !sb()){
     return {
-      trabajos:cache?.trabajos || [],
-      jornada:cache?.jornada || null,
-      vehiculo:cache?.vehiculo || null,
-      avisos:cache?.avisos || [],
+      ...base,
       offline:true,
+      parcial:false,
       cache_antigua:cache ? (Date.now()-Number(cache.guardado_en || 0)>CACHE_MAX_MS) : true,
       actualizado_en:cache?.actualizado_en || null
     };
@@ -306,16 +330,39 @@ async function cargarMiDia(){
     cargarAvisos()
   ]);
 
-  const data={trabajos,jornada,vehiculo,avisos,offline:false,cache_antigua:false};
-  guardarCache(data);
+  const data={
+    trabajos:trabajos.ok ? trabajos.data : base.trabajos,
+    jornada:jornada.ok ? jornada.data : base.jornada,
+    vehiculo:vehiculo.ok ? vehiculo.data : base.vehiculo,
+    avisos:avisos.ok ? avisos.data : base.avisos,
+    offline:false,
+    parcial:![trabajos.ok,jornada.ok,vehiculo.ok,avisos.ok].every(Boolean),
+    cache_antigua:false,
+    actualizado_en:ahoraISO()
+  };
+
+  if(trabajos.ok || jornada.ok || vehiculo.ok || avisos.ok) guardarCache(data);
   return data;
 }
 
+function fechaHoraTrabajo(t){
+  const f=fechaTrabajo(t);
+  const h=horaTrabajo(t) || "23:59";
+  const d=new Date(f+"T"+String(h).slice(0,5)+":00");
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function proximoTrabajo(lista){
-  const hoyLista=(lista || []).filter(t=>fechaTrabajo(t)===hoy());
+  const hoyLista=(lista || []).filter(function(t){return fechaTrabajo(t)===hoy()});
   if(!hoyLista.length) return null;
-  const curso=hoyLista.find(t=>normalizar(t.estado)==="en_curso");
-  return curso || hoyLista[0];
+  const curso=hoyLista.find(function(t){return normalizar(t.estado)==="en_curso"});
+  if(curso) return curso;
+  const ahora=Date.now();
+  const futuro=hoyLista.find(function(t){
+    const d=fechaHoraTrabajo(t);
+    return d && d.getTime()>=ahora-15*60*1000;
+  });
+  return futuro || hoyLista[hoyLista.length-1];
 }
 
 function abrirTrabajo(id){
@@ -427,6 +474,7 @@ function llamar(tel){
 }
 
 function renderConexion(data){
+  if(data.parcial) return `<span class="zx_md_sync warn">⚠ Datos parciales</span>`;
   if(!data.offline) return `<span class="zx_md_sync ok">✓ Sincronizado</span>`;
   if(data.cache_antigua) return `<span class="zx_md_sync warn">⚠ Sin conexión · datos antiguos</span>`;
   return `<span class="zx_md_sync pending">↻ Sin conexión · disponible</span>`;
@@ -519,7 +567,10 @@ function renderTrabajo(t){
 }
 
 function renderSiguientes(lista,actual){
-  const otros=(lista || []).filter(t=>!actual || String(t.id)!==String(actual.id)).slice(0,3);
+  const actualKey=actual ? String(actual.__visita_id || actual.id || "") : "";
+  const otros=(lista || []).filter(function(t){
+    return !actualKey || String(t.__visita_id || t.id || "")!==actualKey;
+  }).slice(0,3);
   if(!otros.length) return "";
 
   return `
@@ -627,7 +678,7 @@ window.ZENTRYX_UI_inicio=async function(){
     <div class="zx_md">
       <section class="zx_md_hero">
         <div class="zx_md_hero_top">
-          <div><h2>${esAdmin() ? "Panel de hoy" : "Hola, "+limpiar(nombre)+" 👋"}</h2><p>${esAdmin() ? "Resumen operativo de la empresa." : (hoyCount ? "Tienes "+hoyCount+" trabajo"+(hoyCount===1?"":"s")+" hoy." : "Tu día está preparado.")}</p></div>
+          <div><h2>${"Hola, "+limpiar(nombre)+" 👋"}</h2><p>${hoyCount ? "Tienes "+hoyCount+" trabajo"+(hoyCount===1?"":"s")+" hoy." : "Tu día está preparado."}</p></div>
           ${renderConexion(data)}
         </div>
         <div class="zx_md_day">
@@ -653,10 +704,19 @@ function refrescarMiDiaVisible(){
   }
 }
 
-window.addEventListener("online",refrescarMiDiaVisible);
-window.addEventListener("zentryx:trabajo:equipo_actualizado",refrescarMiDiaVisible);
-window.addEventListener("zentryx:trabajo:actualizado",refrescarMiDiaVisible);
-window.addEventListener("zentryx:sync:complete",refrescarMiDiaVisible);
+[
+  "online",
+  "zentryx:trabajo:equipo_actualizado",
+  "zentryx:trabajo:actualizado",
+  "zentryx:trabajo:creado",
+  "zentryx:trabajo:estado_actualizado",
+  "zentryx:fichaje:actualizado",
+  "zentryx:jornada:actualizada",
+  "zentryx:vehiculo:actualizado",
+  "zentryx:vehiculo:uso_actualizado",
+  "zentryx:notificacion:actualizada",
+  "zentryx:sync:complete"
+].forEach(function(nombre){window.addEventListener(nombre,refrescarMiDiaVisible)});
 
 if(zx() && typeof zx().registrarModulo==="function"){
   zx().registrarModulo("inicio",{nombre:"Mi día",activo:true,version:ZX_VERSION});
