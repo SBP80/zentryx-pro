@@ -1,9 +1,12 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3136 - MOTOR CENTRAL DE JORNADA + BLOQUEO ANTIDUPLICADOS
+// V3137 - REFRESCO INSTANTÁNEO + EVENTO OPTIMISTA SEGURO
 // ===============================
 (function(){
 "use strict";
+
+// Fichajes recién guardados que deben verse de inmediato aunque la lectura remota tarde unos instantes.
+const ZX_FICHAJES_OPTIMISTAS=new Map();
 
 // ===============================
 // VARIABLES
@@ -331,7 +334,10 @@ function subtituloEstado(est){
   if(!est || !est.jornada) return "No hay jornada abierta.";
   const eventos=Array.isArray(est.eventos) ? est.eventos : [];
   const ultimo=eventos.length ? eventos[eventos.length-1] : null;
-  if(!ultimo) return "Jornada abierta sin fichajes visibles.";
+  if(!ultimo){
+    const entrada=est.jornada?.entrada||est.jornada?.created_at||null;
+    return entrada ? "Entrada registrada: "+horaCorta(entrada)+" · Actualizando fichajes…" : "Jornada abierta · Actualizando fichajes…";
+  }
   const partes=["Último fichaje: "+textoTipo(ultimo.tipo), fechaCorta(ultimo.created_at)];
   if(ultimo.direccion) partes.push(direccionCorta(ultimo.direccion));
   return partes.filter(Boolean).join(" · ");
@@ -1489,20 +1495,47 @@ async function ultimaJornadaUsuario(){
 }
 
 async function fichajesDeJornada(jornadaId){
-  if(zxOffline()) return zxCacheLista("fichajes").filter(f=>String(f.jornada_id)===String(jornadaId));
+  const jid=String(jornadaId||"");
+  const optimistas=Array.from(ZX_FICHAJES_OPTIMISTAS.values()).filter(f=>String(f.jornada_id)===jid);
+
+  if(zxOffline()){
+    const base=zxCacheLista("fichajes").filter(f=>String(f.jornada_id)===jid);
+    return fusionarFichajes(base,optimistas);
+  }
+
   try{
     const r=await sb()
       .from("fichajes")
       .select("*")
-      .eq("jornada_id",String(jornadaId))
+      .eq("jornada_id",jid)
       .order("created_at",{ascending:true});
 
-    if(r.error) return [];
+    if(r.error) return fusionarFichajes(zxCacheLista("fichajes").filter(f=>String(f.jornada_id)===jid),optimistas);
+
+    const remotos=r.data||[];
+    const idsRemotos=new Set(remotos.map(f=>String(f.id||"")));
+    optimistas.forEach(f=>{
+      if(f.id && idsRemotos.has(String(f.id))) ZX_FICHAJES_OPTIMISTAS.delete(String(f.id));
+    });
+
     const cache=zxLeerCache();
-    const otros=(Array.isArray(cache.fichajes)?cache.fichajes:[]).filter(f=>String(f.jornada_id)!==String(jornadaId));
-    zxGuardarCache({fichajes:otros.concat(r.data||[])});
-    return r.data||[];
-  }catch(e){return zxCacheLista("fichajes").filter(f=>String(f.jornada_id)===String(jornadaId));}
+    const otros=(Array.isArray(cache.fichajes)?cache.fichajes:[]).filter(f=>String(f.jornada_id)!==jid);
+    const unidos=fusionarFichajes(remotos,Array.from(ZX_FICHAJES_OPTIMISTAS.values()).filter(f=>String(f.jornada_id)===jid));
+    zxGuardarCache({fichajes:otros.concat(unidos)});
+    return unidos;
+  }catch(e){
+    return fusionarFichajes(zxCacheLista("fichajes").filter(f=>String(f.jornada_id)===jid),optimistas);
+  }
+}
+
+function fusionarFichajes(base,extra){
+  const mapa=new Map();
+  [...(base||[]),...(extra||[])].forEach(f=>{
+    if(!f) return;
+    const clave=String(f.id||f.__zx_operacion_id||[f.jornada_id,f.tipo,f.created_at].join("|"));
+    mapa.set(clave,f);
+  });
+  return Array.from(mapa.values()).sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
 }
 
 async function estadoActual(){
@@ -1929,33 +1962,39 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
   return r.data;
 }
 
-async function insertarFichaje(tipo,jornadaId,geo,veh=null){
+async function insertarFichaje(tipo,jornadaId,geo,veh=null,operacionId=null){
   const s=sesion();
+  const payload={
+    usuario_id:String(s.id),
+    usuario:s.usuario||"",
+    nombre:s.nombre||"",
+    jornada_id:String(jornadaId),
+    tipo,
+    lat:geo.lat,
+    lng:geo.lng,
+    direccion:geo.direccion,
+    dispositivo:navigator.userAgent,
+    vehiculo_id:veh&&veh.id?String(veh.id):null,
+    vehiculo_matricula:veh&&veh.matricula?String(veh.matricula):null,
+    km_vehiculo:veh&&veh.km!=null?Number(veh.km):null,
+    created_at:ahora()
+  };
 
-  const r=await sb()
-    .from("fichajes")
-    .insert([{
-      usuario_id:String(s.id),
-      usuario:s.usuario||"",
-      nombre:s.nombre||"",
-      jornada_id:String(jornadaId),
-      tipo,
-      lat:geo.lat,
-      lng:geo.lng,
-      direccion:geo.direccion,
-      dispositivo:navigator.userAgent,
-      vehiculo_id:veh&&veh.id?String(veh.id):null,
-      vehiculo_matricula:veh&&veh.matricula?String(veh.matricula):null,
-      km_vehiculo:veh&&veh.km!=null?Number(veh.km):null,
-      created_at:ahora()
-    }]);
+  const r=await sb().from("fichajes").insert([payload]).select("*").single();
 
   if(r.error){
     alert("Error al guardar fichaje: "+r.error.message);
-    return false;
+    return null;
   }
 
-  return true;
+  const guardado={...(r.data||payload),__zx_operacion_id:operacionId||null,__zx_optimista:true};
+  const clave=String(guardado.id||operacionId||[guardado.jornada_id,guardado.tipo,guardado.created_at].join("|"));
+  ZX_FICHAJES_OPTIMISTAS.set(clave,guardado);
+
+  const cache=zxLeerCache();
+  const lista=Array.isArray(cache.fichajes)?cache.fichajes:[];
+  zxGuardarCache({fichajes:fusionarFichajes(lista,[guardado])});
+  return guardado;
 }
 
 async function sincronizarHorasExtra(jornadaId,c,laboral,extraSeg,jornada){
@@ -2137,6 +2176,23 @@ function notificarCambioFichaje(tipo,jornadaId){
   });
 }
 
+
+async function refrescarDiaActual(tipo,jornadaId,fichajeGuardado=null){
+  notificarCambioFichaje(tipo,jornadaId);
+
+  // Primer render inmediato con el evento ya confirmado por Supabase.
+  await window.ZX_fichaje_real();
+
+  // Segunda lectura corta para sustituir el evento optimista por el registro remoto definitivo.
+  // No bloquea la interfaz y corrige posibles retrasos de lectura o caché.
+  setTimeout(async()=>{
+    try{
+      await fichajesDeJornada(jornadaId);
+      if(typeof window.ZX_fichaje_real==="function") await window.ZX_fichaje_real();
+    }catch(e){}
+  },350);
+}
+
 let ZX_MOTOR_JORNADA_EN_CURSO=false;
 let ZX_MOTOR_JORNADA_ULTIMA_OPERACION=null;
 
@@ -2251,8 +2307,8 @@ async function ejecutarMotorJornada(tipo,opciones={}){
   }
 
   const geo=await obtenerUbicacion();
-  const ok=await insertarFichaje(tipo,jornada.id,geo,vehiculoEvento);
-  if(!ok){
+  const fichajeGuardado=await insertarFichaje(tipo,jornada.id,geo,vehiculoEvento,operacionId);
+  if(!fichajeGuardado){
     if(tipo==="entrada"){
       await recalcularJornada(jornada.id);
     }
@@ -2271,8 +2327,7 @@ async function ejecutarMotorJornada(tipo,opciones={}){
     s.id
   );
 
-  notificarCambioFichaje(tipo,jornada.id);
-  await ZX_fichaje_real();
+  await refrescarDiaActual(tipo,jornada.id,fichajeGuardado);
   restaurarScroll();
   return true;
   }catch(error){
