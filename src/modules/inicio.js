@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3155 - ESTADO ÚNICO, VEHÍCULO COHERENTE Y DISEÑO COMPACTO
+// V3156 - VEHÍCULO ASIGNADO Y TARJETA DE AGENDA CORREGIDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3155";
+const ZX_VERSION="3156";
 const CACHE_PREFIX="zentryx_mi_dia_v3155";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
@@ -513,14 +513,14 @@ function renderVehiculo(v,jornada){
     `;
   }
 
-  const pendiente=!jornada;
+  const pendiente=normalizar(v.estado)==="pendiente_devolucion";
   return `
     <div class="zx_md_inline vehicle${pendiente ? " pending-return" : ""}">
       <span>${pendiente ? "⚠️" : "🚐"}</span>
       <div>
-        <small>${pendiente ? "Vehículo pendiente de devolución" : "Vehículo actual"}</small>
+        <small>${pendiente ? "Vehículo pendiente de devolución" : "Vehículo asignado"}</small>
         <b>${limpiar(v.vehiculo_matricula || "Vehículo")}</b>
-        <em>${limpiar(duracionDesde(v.inicio_at))}${v.km_inicio!=null ? " · "+limpiar(v.km_inicio)+" km" : ""}</em>
+        <em>${pendiente ? "Revisa y cierra el uso anterior" : (jornada ? "Disponible durante tu jornada" : "Disponible para comenzar tu jornada")}${v.km_inicio!=null ? " · "+limpiar(v.km_inicio)+" km" : ""}</em>
       </div>
       <button onclick="ZX_abrirVehiculos()">${pendiente ? "Devolver" : "Gestionar"}</button>
     </div>
@@ -532,8 +532,10 @@ function renderTrabajo(t){
     return `
       <section class="zx_md_card zx_md_empty">
         <div class="zx_md_empty_icon">📭</div>
-        <h3>No tienes trabajos para hoy</h3>
-        <p>Puedes consultar los próximos días en Agenda.</p>
+        <div class="zx_md_empty_text">
+          <h3>No tienes trabajos para hoy</h3>
+          <p>Consulta los próximos días en Agenda.</p>
+        </div>
         <button onclick="ZX_abrirAgenda()">📅 Ver agenda</button>
       </section>
     `;
@@ -639,7 +641,7 @@ function estilos(){
     .zx_md_map_btn.apple{background:#111827;color:#fff}
     .zx_md_map_btn.waze{background:#16a34a;color:#fff}
     .zx_md_map_cancel{background:#e2e8f0;color:#334155}
-    .zx_md_empty{text-align:left;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:15px 17px}.zx_md_empty_icon{font-size:30px}.zx_md_empty h3{margin:0 0 3px;font-size:18px}.zx_md_empty p{margin:0;color:#64748b;font-size:13px;font-weight:800}.zx_md_empty button{border:0;border-radius:14px;background:#7c3aed;color:#fff;padding:11px 13px;font-size:13px;font-weight:950;white-space:nowrap}
+    .zx_md_empty{text-align:left;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:15px 17px}.zx_md_empty_icon{font-size:30px}.zx_md_empty_text{min-width:0}.zx_md_empty h3{margin:0 0 3px;font-size:18px}.zx_md_empty p{margin:0;color:#64748b;font-size:13px;font-weight:800}.zx_md_empty button{border:0;border-radius:14px;background:#7c3aed;color:#fff;padding:11px 13px;font-size:13px;font-weight:950;white-space:nowrap}
     .zx_md_later h3,.zx_md_alerts h3{font-size:20px;margin:0 0 10px}.zx_md_later_row{width:100%;border:0;border-top:1px solid #edf2f7;background:transparent;padding:12px 0;display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:9px;text-align:left;align-items:center}.zx_md_later_row>span{color:#2563eb;font-size:12px;font-weight:950}.zx_md_later_row b{display:block;color:#071330;font-size:14px;font-weight:950}.zx_md_later_row small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:2px}.zx_md_later_row i{font-style:normal;color:#94a3b8;font-size:22px}
     .zx_md_alert{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 0;border-top:1px solid #edf2f7}.zx_md_alert b{display:block;color:#071330;font-size:14px;font-weight:950}.zx_md_alert small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:3px;line-height:1.35}
     @media(min-width:700px){#app{padding-bottom:32px}.zx_md_day{grid-template-columns:1fr 1fr}.zx_md_primary{grid-column:1/-1}.zx_md_quick{grid-template-columns:repeat(3,1fr)}}
