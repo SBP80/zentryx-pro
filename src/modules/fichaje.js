@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3133 - SEPARACIÓN SEGURA JORNADA / VEHÍCULO
+// V3134 - VEHÍCULO ASIGNADO HABITUAL + JORNADA AUTOMÁTICA
 // ===============================
 (function(){
 "use strict";
@@ -469,6 +469,26 @@ function estadoFlotaRapido(v){
   return v?.en_uso ? "en_uso" : "libre";
 }
 
+function tipoAsignacionVehiculoRapido(v){
+  const t=String(v?.tipo_asignacion||v?.asignacion_tipo||v?.tipo_uso||"").trim().toLowerCase();
+  if(["habitual","permanente","fijo","asignado"].includes(t)) return "habitual";
+  if(["temporal","reserva","reservado"].includes(t)) return t;
+  // Compatibilidad con la estructura actual: si el vehículo tiene responsable y no
+  // existe una fecha/estado de devolución, se considera asignación habitual.
+  if((v?.usuario_actual_id||v?.usuario_asignado||v?.usuario_actual_nombre) &&
+     !["pendiente_devolucion","reservado"].includes(estadoFlotaRapido(v))) return "habitual";
+  return t||"temporal";
+}
+
+function esAsignacionHabitualRapido(v){
+  return !!v && tipoAsignacionVehiculoRapido(v)==="habitual";
+}
+
+function vehiculoSnapshotRapido(v){
+  if(!v) return null;
+  return {id:String(v.id||""),matricula:v.matricula||null,km:Number(v.km_actual||0)};
+}
+
 function nombreVehiculoRapido(v){
   return [v?.matricula,v?.marca,v?.modelo].filter(Boolean).join(" · ") || "Vehículo";
 }
@@ -515,7 +535,7 @@ async function cargarEstadoVehiculoRapido(){
     if(rv.error) throw rv.error;
 
     const vehiculos=rv.data||[];
-    const actual=vehiculos.find(v=>esResponsableVehiculoRapido(v) && ["en_uso","pendiente_devolucion"].includes(estadoFlotaRapido(v))) || null;
+    const actual=vehiculos.find(v=>esResponsableVehiculoRapido(v) && ["asignado","en_uso","pendiente_devolucion"].includes(estadoFlotaRapido(v))) || null;
     const ultimoId=ru && !ru.error && ru.data && ru.data[0] ? String(ru.data[0].vehiculo_id||"") : "";
     let recomendado=vehiculos.find(v=>String(v.id)===ultimoId && estadoFlotaRapido(v)==="libre") || null;
     if(!recomendado) recomendado=vehiculos.find(v=>estadoFlotaRapido(v)==="libre") || null;
@@ -534,15 +554,17 @@ function renderVehiculoRapido(info,estadoJornada){
   const trabajando=String(estadoJornada||"")!=="fuera";
 
   if(actual){
+    const habitual=esAsignacionHabitualRapido(actual);
+    const pendiente=estadoFlotaRapido(actual)==="pendiente_devolucion";
     return `
       <button class="zx_vehicle_strip zx_vehicle_strip_active" id="zx_vehicle_manage" type="button">
         <span class="zx_vehicle_strip_icon">🚗</span>
         <span class="zx_vehicle_strip_text">
-          <small>Vehículo actual</small>
+          <small>${pendiente?"Pendiente de devolución":habitual?"Vehículo asignado":"Vehículo actual"}</small>
           <b>${limpiar(actual.matricula||"Vehículo")}</b>
-          <em>${limpiar(duracionUsoRapido(actual.uso_iniciado_at)||"Ahora")} · ${limpiar(actual.km_actual??"-")} km</em>
+          <em>${habitual&&!pendiente?"Asignación habitual · ":limpiar(duracionUsoRapido(actual.uso_iniciado_at)||"Ahora")+" · "}${limpiar(actual.km_actual??"-")} km</em>
         </span>
-        <span class="zx_vehicle_strip_action">Gestionar ›</span>
+        <span class="zx_vehicle_strip_action">Ver vehículo ›</span>
       </button>`;
   }
 
@@ -719,20 +741,23 @@ async function devolverVehiculoRapido(info){
 function abrirGestionVehiculoRapido(info){
   const v=info?.actual;
   if(!v) return;
+  const habitual=esAsignacionHabitualRapido(v);
+  const pendiente=estadoFlotaRapido(v)==="pendiente_devolucion";
   insertarModalVehiculoRapido(`
     <h2>🚗 ${limpiar(v.matricula||"Vehículo")}</h2>
     <div class="zx_vehicle_modal_card">
       <b>${limpiar(nombreVehiculoRapido(v))}</b>
-      <span>${limpiar(duracionUsoRapido(v.uso_iniciado_at)||"Ahora")} · ${limpiar(v.km_actual??"-")} km</span>
+      <span>${habitual&&!pendiente?"Asignación habitual":"Uso temporal"} · ${limpiar(v.km_actual??"-")} km</span>
     </div>
-    <button class="zx_btn_big zx_azul" id="zx_vehicle_manage_change">🔄 Cambiar vehículo</button>
-    <button class="zx_btn_big zx_naranja" id="zx_vehicle_manage_return">📤 Devolver vehículo</button>
-    <button class="zx_btn_big zx_gris" id="zx_vehicle_manage_file">📄 Ver ficha</button>
+    <button class="zx_btn_big zx_azul" id="zx_vehicle_manage_file">📄 Ver vehículo</button>
+    <button class="zx_btn_big zx_gris" id="zx_vehicle_manage_change">🔄 Cambiar vehículo</button>
+    ${(!habitual||pendiente)?`<button class="zx_btn_big zx_naranja" id="zx_vehicle_manage_return">📤 Devolver vehículo</button>`:""}
     <button class="zx_btn_big zx_blanco" id="zx_vehicle_manage_close">Cerrar</button>
   `);
   document.getElementById("zx_vehicle_manage_close").onclick=cerrarModalVehiculoRapido;
   document.getElementById("zx_vehicle_manage_change").onclick=()=>{cerrarModalVehiculoRapido();abrirSelectorVehiculoRapido(info);};
-  document.getElementById("zx_vehicle_manage_return").onclick=()=>{cerrarModalVehiculoRapido();devolverVehiculoRapido(info);};
+  const ret=document.getElementById("zx_vehicle_manage_return");
+  if(ret) ret.onclick=()=>{cerrarModalVehiculoRapido();devolverVehiculoRapido(info);};
   document.getElementById("zx_vehicle_manage_file").onclick=()=>{cerrarModalVehiculoRapido();guardarScroll();if(typeof window.ZX_vehiculos==="function") window.ZX_vehiculos();};
 }
 
@@ -768,7 +793,7 @@ function abrirInicioJornadaSimple(info){
       const km=Number(document.getElementById("zx_start_vehicle_km").value||0);
       await asignarVehiculoRapido(rec,info,km,false,"Vehículo elegido al iniciar jornada");
       cerrarModalVehiculoRapido();
-      await registrar("entrada",{});
+      await registrar("entrada",{vehiculo:{id:String(rec.id),matricula:rec.matricula||null,km}});
     }catch(e){btn.disabled=false;btn.textContent="🚗 Empezar con "+String(rec.matricula||"vehículo");alert("No se pudo iniciar: "+(e.message||"Error"));}
   };
   const other=document.getElementById("zx_start_other_vehicle");
@@ -2059,7 +2084,7 @@ async function recalcularJornada(jornadaId){
   }
 }
 
-async function registrar(tipo){
+async function registrar(tipo,opciones={}){
   guardarScroll();
   const s=sesion();
 
@@ -2135,13 +2160,15 @@ async function registrar(tipo){
     return;
   }
 
+  const vehiculoEvento=opciones&&opciones.vehiculo ? opciones.vehiculo : null;
+
   if(tipo==="entrada"){
-    jornada=await crearJornada(motivoAdmin,null);
+    jornada=await crearJornada(motivoAdmin,vehiculoEvento);
     if(!jornada) return;
   }
 
   const geo=await obtenerUbicacion();
-  const ok=await insertarFichaje(tipo,jornada.id,geo,null);
+  const ok=await insertarFichaje(tipo,jornada.id,geo,vehiculoEvento);
   if(!ok){
     if(tipo==="entrada"){
       await recalcularJornada(jornada.id);
@@ -3398,7 +3425,12 @@ window.ZX_fichaje_real=async function(){
     }
     if(accionDirecta){
       const ok=confirm("Confirmar fichaje: "+textoTipo(accionDirecta)+"\n\n¿Seguro que quieres guardar este registro?");
-      if(ok) registrar(accionDirecta,{});
+      if(ok){
+        const veh=accionDirecta==="entrada" && vehiculoRapido.actual
+          ? vehiculoSnapshotRapido(vehiculoRapido.actual)
+          : null;
+        registrar(accionDirecta,{vehiculo:veh});
+      }
       return;
     }
     abrirMenu(est.estado,est.jornada);
