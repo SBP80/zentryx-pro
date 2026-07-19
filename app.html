@@ -3,113 +3,126 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V3121</title>
+<title>Zentryx PRO V3153</title>
 
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json?v=3153">
 <meta name="theme-color" content="#2563eb">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-const ZX_VERSION="3121";
-
-function checkLogin(){
-  const raw=localStorage.getItem("zentryx_session");
-
-  if(!raw){
-    location.replace("index.html?v="+ZX_VERSION);
-    return false;
-  }
-
-  try{
-    const ses=JSON.parse(raw);
-
-    if(!ses || !ses.id || !ses.usuario){
-      throw new Error("Sesión inválida");
-    }
-
-    return true;
-
-  }catch(e){
-    localStorage.removeItem("zentryx_session");
-    localStorage.removeItem("usuario");
-    location.replace("index.html?v="+ZX_VERSION);
-    return false;
-  }
-}
-
-checkLogin();
+window.ZX_VERSION="3153";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-window.sb=supabase.createClient(
+(function(){
+"use strict";
+
+if(!window.supabase || typeof window.supabase.createClient!=="function"){
+  document.documentElement.setAttribute("data-zx-startup-error","supabase");
+  return;
+}
+
+window.sb=window.supabase.createClient(
   "https://idtaamivqbiuxtjywuux.supabase.co",
   "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
 );
 
 window.supabaseClient=window.sb;
+})();
 </script>
-
 </head>
 
 <body>
 
 <div id="app"></div>
 
-<script src="src/core/session.js?v=3106"></script>
-<script src="src/core/store.js?v=3106"></script>
-<script src="src/core/backend.js?v=3120"></script>
-<script src="src/app.js?v=3107"></script>
+<script src="src/core/security.js?v=3153"></script>
+<script src="src/core/session.js?v=3153"></script>
+<script src="src/core/store.js?v=3153"></script>
+<script src="src/core/backend.js?v=3153"></script>
+<script src="src/app.js?v=3153"></script>
 
-<script src="src/ui/layout.js?v=3123"></script>
+<script src="src/ui/layout.js?v=3153"></script>
 
-<script src="src/modules/inicio.js?v=3137"></script>
-<script src="src/modules/usuarios.js?v=3106"></script>
-<script src="src/modules/config_laboral.js?v=3106"></script>
-<script src="src/modules/configuracion.js?v=3114"></script>
-<script src="src/modules/solicitudes.js?v=3106"></script>
-<script src="src/modules/solicitudes_patch.js?v=3106"></script>
-<script src="src/modules/fichaje.js?v=3132"></script>
-<script src="src/modules/horas_extra.js?v=3106"></script>
-<script src="src/modules/desarrollador.js?v=3123"></script>
-<script src="src/modules/agenda.js?v=3135"></script>
-<script src="src/modules/clientes.js?v=3106"></script>
-<script src="src/modules/trabajos.js?v=3114"></script>
-<!-- control_fichajes.js desactivado: el archivo actual es una copia antigua de fichaje.js y sobrescribe ZX_fichaje_real. -->
-<script src="src/modules/vehiculos.js?v=3144"></script>
+<script src="src/modules/inicio.js?v=3153"></script>
+<script src="src/modules/usuarios.js?v=3153"></script>
+<script src="src/modules/config_laboral.js?v=3153"></script>
+<script src="src/modules/configuracion.js?v=3153"></script>
+<script src="src/modules/solicitudes.js?v=3153"></script>
+<script src="src/modules/solicitudes_patch.js?v=3153"></script>
+<script src="src/modules/fichaje.js?v=3153"></script>
+<script src="src/modules/horas_extra.js?v=3153"></script>
+<script src="src/modules/desarrollador.js?v=3153"></script>
+<script src="src/modules/agenda.js?v=3153"></script>
+<script src="src/modules/clientes.js?v=3153"></script>
+<script src="src/modules/trabajos.js?v=3153"></script>
+<!-- control_fichajes.js permanece desactivado: es una copia antigua de fichaje.js y sobrescribe ZX_fichaje_real. -->
+<script src="src/modules/vehiculos.js?v=3153"></script>
 
 <script>
 (function(){
 "use strict";
 
-function iniciar(){
-  if(!checkLogin()) return;
+let iniciado=false;
 
-  if(window.ZENTRYX_UI_LAYOUT){
-    window.ZENTRYX_UI_LAYOUT.iniciar();
+function mostrarErrorArranque(){
+  const app=document.getElementById("app");
+  if(!app) return;
+
+  app.innerHTML=""+
+    "<main style='min-height:100vh;display:grid;place-items:center;padding:24px;font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;color:#0f172a'>"+
+      "<section style='width:min(430px,100%);padding:24px;border:1px solid #e2e8f0;border-radius:18px;background:white;box-shadow:0 12px 35px rgba(15,23,42,.08);text-align:center'>"+
+        "<h1 style='font-size:20px;margin:0 0 10px'>No se ha podido iniciar Zentryx PRO</h1>"+
+        "<p style='margin:0 0 18px;line-height:1.5;color:#475569'>Comprueba la conexión y vuelve a intentarlo.</p>"+
+        "<button type='button' onclick='location.reload()' style='border:0;border-radius:12px;padding:12px 18px;background:#2563eb;color:white;font-weight:700'>Reintentar</button>"+
+      "</section>"+
+    "</main>";
+}
+
+function iniciar(){
+  if(iniciado) return;
+
+  if(typeof window.ZENTRYX_sessionValid!=="function" || !window.ZENTRYX_sessionValid()){
+    if(typeof window.ZENTRYX_logout==="function"){
+      window.ZENTRYX_logout();
+    }else{
+      location.replace("index.html?v="+window.ZX_VERSION);
+    }
+    return;
   }
 
-  if(window.ZX_inicio){
+  if(!window.sb || !window.ZENTRYX_UI_LAYOUT || typeof window.ZENTRYX_UI_LAYOUT.iniciar!=="function"){
+    mostrarErrorArranque();
+    return;
+  }
+
+  iniciado=true;
+  window.ZENTRYX_UI_LAYOUT.iniciar();
+
+  if(typeof window.ZX_inicio==="function"){
     window.ZX_inicio();
   }
 
   if(window.ZENTRYX && typeof window.ZENTRYX.actualizarEstadoConexion==="function"){
     window.ZENTRYX.actualizarEstadoConexion();
   }
+
+  if(typeof window.ZENTRYX_updateActivity==="function"){
+    window.ZENTRYX_updateActivity(true);
+  }
 }
 
 if(document.readyState==="loading"){
-  document.addEventListener("DOMContentLoaded",iniciar);
+  document.addEventListener("DOMContentLoaded",iniciar,{once:true});
 }else{
   iniciar();
 }
-
 })();
 </script>
 
 </body>
 </html>
-
