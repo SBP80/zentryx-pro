@@ -12,8 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-const ZX_VERSION="3122";
-const ZX_APP_VERSION="3122";
+const ZX_VERSION="3150";
+const ZX_APP_VERSION="3150";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -83,8 +83,9 @@ window.sb=supabase.createClient(
 window.supabaseClient=window.sb;
 </script>
 
-<script src="src/app.js?v=3107"></script>
-<script src="src/core/session.js?v=3106"></script>
+<script src="src/app.js?v=3150"></script>
+<script src="src/core/security.js?v=3150"></script>
+<script src="src/core/session.js?v=3150"></script>
 
 <script>
 let usuarioActual=null;
@@ -94,17 +95,12 @@ const app=document.getElementById("app");
 function cliente(){return window.sb || window.supabaseClient || null}
 function limpiar(v){return String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
 function normalizar(v){return String(v ?? "").trim().toLowerCase()}
-function hashPin(pin){return btoa(String(pin))}
 
 function esUsuarioDesarrollador(v){
   const u=normalizar(v);
   return u==="desarrollador" || u==="developer" || u==="dev";
 }
 
-function hashPinDesarrollador(pin){
-  try{return btoa("ZX_DEV::"+String(pin))}
-  catch(e){return String(pin)}
-}
 
 function cuentaDesarrollador(){
   return {
@@ -510,7 +506,7 @@ function pantallaCrearPINDesarrollador(){
   setTimeout(()=>{const p=document.getElementById("pin1");if(p) p.focus()},250);
 }
 
-function guardarPINDesarrollador(){
+async function guardarPINDesarrollador(){
   limpiarMsg();
 
   const p1=document.getElementById("pin1").value.trim();
@@ -526,7 +522,7 @@ function guardarPINDesarrollador(){
     return;
   }
 
-  localStorage.setItem(ZX_DEV_PIN_KEY,hashPinDesarrollador(p1));
+  localStorage.setItem(ZX_DEV_PIN_KEY,await ZENTRYX_SECURITY.hashPin("ZX_DEV::"+p1));
   guardarSesionDesarrollador();
   mostrarMsg("Acceso desarrollador creado.","ok");
   setTimeout(irApp,500);
@@ -561,7 +557,7 @@ function pantallaPINDesarrollador(){
   setTimeout(()=>{const pin=document.getElementById("pin");if(pin) pin.focus()},250);
 }
 
-function entrarDesarrollador(){
+async function entrarDesarrollador(){
   limpiarMsg();
 
   const pin=document.getElementById("pin") ? document.getElementById("pin").value.trim() : "";
@@ -572,11 +568,15 @@ function entrarDesarrollador(){
     return;
   }
 
-  if(hashPinDesarrollador(pin)!==hash){
+  const verificacionDev=await ZENTRYX_SECURITY.verifyPin("ZX_DEV::"+pin,hash);
+  if(!verificacionDev.ok){
     mostrarMsg("PIN técnico incorrecto.");
     return;
   }
 
+  if(verificacionDev.needsUpgrade){
+    localStorage.setItem(ZX_DEV_PIN_KEY,await ZENTRYX_SECURITY.hashPin("ZX_DEV::"+pin));
+  }
   guardarSesionDesarrollador();
   mostrarMsg("Acceso correcto.","ok");
   setTimeout(irApp,350);
@@ -642,7 +642,7 @@ async function continuarUltimoUsuario(){
   if(ultimo.id) res=await cargarUsuarioPorId(ultimo.id);
   else res=await cargarUsuarioPorUsuario(ultimo.usuario);
 
-  if(res.error){pantallaUltimoUsuario(ultimo);mostrarMsg("Error Supabase: "+res.error.message);return}
+  if(res.error){pantallaUltimoUsuario(ultimo);mostrarMsg("No se pudo conectar. Comprueba la cobertura e inténtalo de nuevo.");return}
   if(!res.data){borrarUltimoUsuario();pantallaLogin();mostrarMsg("Usuario no encontrado.");return}
 
   usuarioActual=await limpiarBloqueoSiCaducado(res.data);
@@ -660,7 +660,7 @@ async function continuarUltimoUsuario(){
 async function login(){
   limpiarMsg();
   const sb=cliente();
-  if(!sb){mostrarMsg("Supabase no está conectado.");return}
+  if(!sb){mostrarMsg("No hay conexión disponible.");return}
 
   const input=document.getElementById("usuario");
   const user=normalizar(input ? input.value : "");
@@ -674,7 +674,7 @@ async function login(){
   setLoading("Comprobando usuario...");
   const res=await cargarUsuarioPorUsuario(user);
 
-  if(res.error){pantallaLogin();document.getElementById("usuario").value=user;mostrarMsg("Error Supabase: "+res.error.message);return}
+  if(res.error){pantallaLogin();document.getElementById("usuario").value=user;mostrarMsg("No se pudo conectar. Comprueba la cobertura e inténtalo de nuevo.");return}
   if(!res.data){pantallaLogin();document.getElementById("usuario").value=user;mostrarMsg("Usuario no encontrado.");return}
 
   usuarioActual=await limpiarBloqueoSiCaducado(res.data);
@@ -780,7 +780,7 @@ async function guardarPIN(){
   if(!/^[0-9]{4}$/.test(p1) || !/^[0-9]{4}$/.test(p2)){mostrarMsg("El PIN debe tener 4 números.");return}
   if(p1!==p2){mostrarMsg("Los PIN no coinciden.");return}
 
-  const hash=hashPin(p1);
+  const hash=await ZENTRYX_SECURITY.hashPin(p1);
 
   const res=await sb.from("usuarios").update({
     pin_hash:hash,
@@ -791,7 +791,7 @@ async function guardarPIN(){
     updated_at:new Date().toISOString()
   }).eq("id",usuarioActual.id);
 
-  if(res.error){mostrarMsg("Error guardando PIN: "+res.error.message);return}
+  if(res.error){mostrarMsg("No se pudo guardar el PIN. Comprueba la conexión e inténtalo de nuevo.");return}
 
   borrarBloqueoLocal(usuarioActual);
   usuarioActual.pin_hash=hash;
@@ -864,10 +864,15 @@ async function entrar(){
     return;
   }
 
-  if(hashPin(pin)===usuarioActual.pin_hash){
+  const verificacion=await ZENTRYX_SECURITY.verifyPin(pin,usuarioActual.pin_hash);
+
+  if(verificacion.ok){
     borrarBloqueoLocal(usuarioActual);
 
+    const nuevoHash=verificacion.needsUpgrade ? await ZENTRYX_SECURITY.hashPin(pin) : usuarioActual.pin_hash;
+
     const res=await sb.from("usuarios").update({
+      pin_hash:nuevoHash,
       pin_intentos:0,
       pin_bloqueado_hasta:null,
       ultimo_login:new Date().toISOString(),
@@ -875,10 +880,11 @@ async function entrar(){
     }).eq("id",usuarioActual.id);
 
     if(res.error){
-      mostrarMsg("Error actualizando login: "+res.error.message);
+      mostrarMsg("No se pudo completar el acceso. Comprueba la conexión e inténtalo de nuevo.");
       return;
     }
 
+    usuarioActual.pin_hash=nuevoHash;
     usuarioActual.pin_intentos=0;
     usuarioActual.pin_bloqueado_hasta=null;
     usuarioActual.ultimo_login=new Date().toISOString();
@@ -936,16 +942,9 @@ async function entrar(){
 async function iniciar(){
   clearInterval(bloqueoTimer);
 
-  const sesion=localStorage.getItem("zentryx_session");
-
-  if(sesion){
-    try{
-      const s=JSON.parse(sesion);
-      if(s && s.id && s.usuario){
-        location.href="app.html?v="+ZX_APP_VERSION;
-        return;
-      }
-    }catch(e){}
+  if(typeof window.ZENTRYX_sessionValid==="function" && window.ZENTRYX_sessionValid()){
+    location.href="app.html?v="+ZX_APP_VERSION;
+    return;
   }
 
   const ultimo=leerUltimoUsuario();
