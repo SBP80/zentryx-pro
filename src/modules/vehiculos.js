@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3146";
+const ZX_VERSION="3147";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3145";
 
@@ -170,6 +170,27 @@ function esAsignacionHabitual(v){
   if(estadoVehiculo(v)!=="uso") return false;
   if(normalizar(v.estado_flota)==="pendiente_devolucion") return false;
   return !!(responsableId(v) || responsableNombre(v));
+}
+
+function tipoAsignacion(v){
+  const t=normalizar(v.tipo_asignacion || v.asignacion_tipo || v.modalidad_asignacion || "");
+  if(["temporal","reserva","reservado","compartido"].includes(t)) return t==="reservado" ? "reserva" : t;
+  if(["habitual","permanente","fija","fijo"].includes(t)) return "habitual";
+  return esAsignacionHabitual(v) ? "habitual" : "";
+}
+
+function tipoAsignacionTexto(v){
+  const t=tipoAsignacion(v);
+  if(t==="temporal") return "Temporal";
+  if(t==="reserva") return "Reserva";
+  if(t==="compartido") return "Compartido";
+  if(t==="habitual") return "Habitual";
+  return "Sin asignación";
+}
+
+function permiteUsoPersonal(v){
+  return v.uso_personal_permitido===true || v.uso_personal_permitido==="true" ||
+    normalizar(v.uso_permitido)==="laboral_personal" || normalizar(v.tipo_uso_permitido)==="laboral_personal";
 }
 
 function estadoTexto(v){
@@ -1400,7 +1421,7 @@ function renderVehiculo(v){
       ${renderAvisos(v)}
 
       <div class="zx_veh_fastline">
-        <div><span>👤</span><strong>${limpiar(responsable)}</strong><small>${asignado ? "Asignado a" : "Responsable actual"}</small></div>
+        <div><span>👤</span><strong>${limpiar(responsable)}</strong><small>${asignado ? "Asignado a · "+tipoAsignacionTexto(v) : "Responsable actual"}</small></div>
         <div><span>🧭</span><strong>${limpiar(v.km_actual ?? 0)} km</strong><small>Kilometraje total</small></div>
         ${!asignado && enUso && inicio ? `<div><span>🕒</span><strong data-veh-duration-start="${limpiar(inicio)}">${limpiar(duracionDesde(inicio))}</strong><small>Desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
         ${ubicacion ? `<div><span>📍</span><strong>${limpiar(ubicacion)}</strong></div>` : ""}
@@ -1417,10 +1438,9 @@ function renderVehiculo(v){
         <button class="purple" data-veh-history="${limpiar(v.id)}">🧾 Historial de uso</button>
         <button class="gray" data-veh-changes="${limpiar(v.id)}">🔄 Cambios de responsable</button>
         ${gpsHabilitado ? `<button class="gray" data-veh-route="${limpiar(v.id)}">🛰️ Historial GPS</button>` : ""}
-        ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar vehículo</button>` : ""}
+        ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar ficha</button>` : ""}
         ${asignado && puedeGestionar() ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar asignación</button>` : ""}
-        ${estado!=="inactivo" && puedeGestionar() ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar</button>` : ""}
-        ${estado==="inactivo" && puedeGestionar() ? `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar</button>` : ""}
+        ${puedeGestionar() ? `<details class="zx_veh_admin_actions"><summary>🔐 Administración</summary>${estado!=="inactivo" ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar vehículo</button>` : `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar vehículo</button>`}</details>` : ""}
       </div>
     </article>
   `;
@@ -1552,7 +1572,7 @@ function abrirFormulario(v){
   if(!puedeGestionar()){alert("No tienes permiso.");return}
 
   modal(`
-    <h2>${v.id ? "Editar vehículo" : "Nuevo vehículo"}</h2>
+    <h2>${v.id ? "Editar ficha del vehículo" : "Nuevo vehículo"}</h2>
 
     <div class="zx_veh_form">
       <h3>Datos principales</h3>
@@ -1579,7 +1599,7 @@ function abrirFormulario(v){
           </select>
         </div>
       </div>
-      <div class="zx_veh_nota_form">La asignación se gestiona con los botones Utilizar y Devolver. No se cambia manualmente.</div>
+      <div class="zx_veh_nota_form">La asignación y el uso son conceptos separados. La ficha no modifica quién utiliza el vehículo.</div>
 
       <h3>Revisiones y documentación</h3>
       <div class="zx_veh_grid2">
@@ -2020,7 +2040,7 @@ async function abrirFicha(id,tabInicial){
         <p><b>Marca / modelo</b><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ") || "-")}</span></p>
         <p><b>Km actuales</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
         <p><b>${esAsignacionHabitual(v) ? "Asignado a" : "Responsable actual"}</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
-        ${esAsignacionHabitual(v) ? `<p><b>Tipo de asignación</b><span>Habitual</span></p>` : `<p><b>Inicio del uso</b><span>${limpiar(fechaHoraES(v.uso_iniciado_at))}</span></p><p><b>Tiempo de uso</b><span>${limpiar(duracionDesde(v.uso_iniciado_at))}</span></p>`}
+        ${esAsignacionHabitual(v) ? `<p><b>Tipo de asignación</b><span>${limpiar(tipoAsignacionTexto(v))}</span></p><p><b>Uso personal</b><span>${permiteUsoPersonal(v) ? "Permitido" : "No configurado"}</span></p>` : `<p><b>Inicio del uso</b><span>${limpiar(fechaHoraES(v.uso_iniciado_at))}</span></p><p><b>Tiempo de uso</b><span>${limpiar(duracionDesde(v.uso_iniciado_at))}</span></p>`}
         <p><b>ITV</b><span>${limpiar(fechaES(v.itv_fecha) || "-")}</span></p>
         <p><b>Seguro</b><span>${limpiar(fechaES(v.seguro_fecha) || "-")}</span></p>
         <p><b>Revisión</b><span>${limpiar(fechaES(v.proxima_revision_fecha) || "-")}</span></p>
@@ -2182,6 +2202,10 @@ function instalarCSS(){
     .zx_veh_route_quick{width:100%;border:2px solid #c4b5fd;background:#f5f3ff;color:#5b21b6;border-radius:18px;padding:13px 12px;font-size:15px;font-weight:950;margin-top:10px;min-height:48px}
     .zx_veh_more_panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
     .zx_veh_more_panel[hidden]{display:none!important}
+    .zx_veh_admin_actions{grid-column:1/-1;border:1px solid #dce4ef;border-radius:16px;padding:8px;background:#f7f9fc}
+    .zx_veh_admin_actions summary{cursor:pointer;font-weight:950;color:#52627a;text-align:center;padding:9px;list-style:none}
+    .zx_veh_admin_actions summary::-webkit-details-marker{display:none}
+    .zx_veh_admin_actions button{width:100%;margin-top:8px}
     .zx_veh_more_panel button,.zx_veh_actions button{border:0;border-radius:16px;padding:13px 8px;color:white;font-size:14px;font-weight:950;min-height:46px}
     .zx_veh_more_panel .green,.zx_veh_actions .green{background:#16a34a}.zx_veh_more_panel .blue,.zx_veh_actions .blue{background:#2563eb}.zx_veh_more_panel .purple,.zx_veh_actions .purple{background:#7c3aed}.zx_veh_more_panel .orange,.zx_veh_actions .orange{background:#f97316}.zx_veh_more_panel .gray,.zx_veh_actions .gray{background:#64748b}.zx_veh_more_panel .red,.zx_veh_actions .red{background:#dc2626}
     .zx_veh_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
