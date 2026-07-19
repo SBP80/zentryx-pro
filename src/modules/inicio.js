@@ -1,12 +1,12 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3154 - DATOS FIABLES, CACHÉ POR USUARIO Y PLANIFICACIÓN MÚLTIPLE
+// V3155 - ESTADO ÚNICO, VEHÍCULO COHERENTE Y DISEÑO COMPACTO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3154";
-const CACHE_PREFIX="zentryx_mi_dia_v3154";
+const ZX_VERSION="3155";
+const CACHE_PREFIX="zentryx_mi_dia_v3155";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
 let ZX_MI_DIA_RENDER=0;
@@ -474,10 +474,12 @@ function llamar(tel){
 }
 
 function renderConexion(data){
-  if(data.parcial) return `<span class="zx_md_sync warn">⚠ Datos parciales</span>`;
-  if(!data.offline) return `<span class="zx_md_sync ok">✓ Sincronizado</span>`;
-  if(data.cache_antigua) return `<span class="zx_md_sync warn">⚠ Sin conexión · datos antiguos</span>`;
-  return `<span class="zx_md_sync pending">↻ Sin conexión · disponible</span>`;
+  // El estado general de red ya lo muestra layout.js. Inicio no debe duplicarlo.
+  // Solo avisamos aquí si los datos guardados son demasiado antiguos.
+  if(data.offline && data.cache_antigua){
+    return `<span class="zx_md_sync warn">Datos guardados antiguos</span>`;
+  }
+  return "";
 }
 
 function renderEstadoJornada(j){
@@ -500,26 +502,27 @@ function renderEstadoJornada(j){
   `;
 }
 
-function renderVehiculo(v){
+function renderVehiculo(v,jornada){
   if(!v){
     return `
       <div class="zx_md_inline">
         <span>🚗</span>
-        <div><small>Vehículo</small><b>Sin vehículo</b></div>
-        <button onclick="ZX_abrirVehiculos()">Coger</button>
+        <div><small>Vehículo</small><b>Sin vehículo asignado</b></div>
+        <button onclick="ZX_abrirVehiculos()">Gestionar</button>
       </div>
     `;
   }
 
+  const pendiente=!jornada;
   return `
-    <div class="zx_md_inline vehicle">
-      <span>🚐</span>
+    <div class="zx_md_inline vehicle${pendiente ? " pending-return" : ""}">
+      <span>${pendiente ? "⚠️" : "🚐"}</span>
       <div>
-        <small>Vehículo actual</small>
+        <small>${pendiente ? "Vehículo pendiente de devolución" : "Vehículo actual"}</small>
         <b>${limpiar(v.vehiculo_matricula || "Vehículo")}</b>
         <em>${limpiar(duracionDesde(v.inicio_at))}${v.km_inicio!=null ? " · "+limpiar(v.km_inicio)+" km" : ""}</em>
       </div>
-      <button onclick="ZX_abrirVehiculos()">Gestionar</button>
+      <button onclick="ZX_abrirVehiculos()">${pendiente ? "Devolver" : "Gestionar"}</button>
     </div>
   `;
 }
@@ -609,6 +612,7 @@ function estilos(){
   s.id="zx_mi_dia_css";
   s.textContent=`
     #app{padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
+    body:has(.zx_md) #zx_postit{display:none!important}
     .zx_md{display:grid;gap:14px;max-width:920px;margin:0 auto}
     .zx_md_hero{background:linear-gradient(135deg,#fff,#f3f7ff);border:1px solid #dbe3ef;border-radius:26px;padding:20px;box-shadow:0 12px 28px rgba(15,23,42,.06)}
     .zx_md_hero_top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
@@ -618,7 +622,7 @@ function estilos(){
     .zx_md_day{display:grid;grid-template-columns:1fr;gap:12px;margin-top:18px}
     .zx_md_status,.zx_md_inline{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center;border:1px solid #dbe3ef;border-radius:20px;padding:13px;background:#fff}
     .zx_md_status{grid-template-columns:auto 1fr}.zx_md_status_icon,.zx_md_inline>span{font-size:25px}.zx_md_status small,.zx_md_inline small{display:block;color:#64748b;font-size:12px;font-weight:950;text-transform:uppercase}.zx_md_status b,.zx_md_inline b{display:block;color:#071330;font-size:18px;font-weight:950;margin-top:2px}.zx_md_inline em{display:block;color:#64748b;font-size:12px;font-style:normal;font-weight:850;margin-top:3px}
-    .zx_md_inline button{border:0;border-radius:13px;background:#e0e7ff;color:#3730a3;padding:10px 11px;font-size:13px;font-weight:950}.zx_md_inline.vehicle button{background:#dbeafe;color:#1d4ed8}
+    .zx_md_inline button{border:0;border-radius:13px;background:#e0e7ff;color:#3730a3;padding:10px 11px;font-size:13px;font-weight:950}.zx_md_inline.vehicle button{background:#dbeafe;color:#1d4ed8}.zx_md_inline.pending-return{border-color:#f59e0b;background:#fffbeb}.zx_md_inline.pending-return small,.zx_md_inline.pending-return em{color:#92400e}.zx_md_inline.pending-return button{background:#f59e0b;color:#fff}
     .zx_md_primary,.zx_md_work{width:100%;border:0;border-radius:18px;padding:16px;background:#2563eb;color:#fff;font-size:18px;font-weight:950;box-shadow:0 9px 20px rgba(37,99,235,.22)}
     .zx_md_card{background:#fff;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06)}
     .zx_md_card_head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.zx_md_card_head small{color:#64748b;font-size:13px;font-weight:950}.zx_md_card h3{margin:4px 0 14px;color:#071330;font-size:24px;line-height:1.12;font-weight:950}.zx_md_badge{border-radius:999px;padding:7px 9px;font-size:11px;font-weight:950;text-transform:capitalize}.zx_md_badge.pending{background:#fef3c7;color:#92400e}.zx_md_badge.course{background:#dcfce7;color:#166534}
@@ -635,10 +639,11 @@ function estilos(){
     .zx_md_map_btn.apple{background:#111827;color:#fff}
     .zx_md_map_btn.waze{background:#16a34a;color:#fff}
     .zx_md_map_cancel{background:#e2e8f0;color:#334155}
-    .zx_md_empty{text-align:center}.zx_md_empty_icon{font-size:42px}.zx_md_empty h3{margin:8px 0}.zx_md_empty p{color:#64748b;font-weight:800}.zx_md_empty button{border:0;border-radius:16px;background:#7c3aed;color:#fff;padding:13px 18px;font-weight:950}
+    .zx_md_empty{text-align:left;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:15px 17px}.zx_md_empty_icon{font-size:30px}.zx_md_empty h3{margin:0 0 3px;font-size:18px}.zx_md_empty p{margin:0;color:#64748b;font-size:13px;font-weight:800}.zx_md_empty button{border:0;border-radius:14px;background:#7c3aed;color:#fff;padding:11px 13px;font-size:13px;font-weight:950;white-space:nowrap}
     .zx_md_later h3,.zx_md_alerts h3{font-size:20px;margin:0 0 10px}.zx_md_later_row{width:100%;border:0;border-top:1px solid #edf2f7;background:transparent;padding:12px 0;display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:9px;text-align:left;align-items:center}.zx_md_later_row>span{color:#2563eb;font-size:12px;font-weight:950}.zx_md_later_row b{display:block;color:#071330;font-size:14px;font-weight:950}.zx_md_later_row small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:2px}.zx_md_later_row i{font-style:normal;color:#94a3b8;font-size:22px}
     .zx_md_alert{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 0;border-top:1px solid #edf2f7}.zx_md_alert b{display:block;color:#071330;font-size:14px;font-weight:950}.zx_md_alert small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:3px;line-height:1.35}
     @media(min-width:700px){#app{padding-bottom:32px}.zx_md_day{grid-template-columns:1fr 1fr}.zx_md_primary{grid-column:1/-1}.zx_md_quick{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:560px){.zx_md_empty{grid-template-columns:auto 1fr}.zx_md_empty button{grid-column:1/-1;width:100%}}
     @media(max-width:390px){.zx_md_hero{padding:16px}.zx_md_hero h2{font-size:25px}.zx_md_card{padding:15px}.zx_md_card h3{font-size:21px}.zx_md_quick button{font-size:12px}}
   `;
   document.head.appendChild(s);
@@ -663,7 +668,7 @@ window.ZENTRYX_UI_inicio=async function(){
   app().innerHTML=`
     <div class="zx_md">
       <section class="zx_md_hero">
-        <div class="zx_md_hero_top"><div><h2>Hola, ${limpiar(nombre)} 👋</h2><p>Preparando tu día...</p></div><span class="zx_md_sync pending">↻ Cargando</span></div>
+        <div class="zx_md_hero_top"><div><h2>Hola, ${limpiar(nombre)} 👋</h2><p>Preparando tu día...</p></div></div>
       </section>
     </div>
   `;
@@ -683,7 +688,7 @@ window.ZENTRYX_UI_inicio=async function(){
         </div>
         <div class="zx_md_day">
           ${renderEstadoJornada(data.jornada)}
-          ${renderVehiculo(data.vehiculo)}
+          ${renderVehiculo(data.vehiculo,data.jornada)}
         </div>
       </section>
 
