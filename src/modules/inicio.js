@@ -6,7 +6,7 @@
 "use strict";
 
 const ZX_VERSION="3156";
-const CACHE_PREFIX="zentryx_mi_dia_v3155";
+const CACHE_PREFIX="zentryx_mi_dia_v3156";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
 let ZX_MI_DIA_RENDER=0;
