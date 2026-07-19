@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3145";
+const ZX_VERSION="3146";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3145";
 
@@ -1400,7 +1400,7 @@ function renderVehiculo(v){
       ${renderAvisos(v)}
 
       <div class="zx_veh_fastline">
-        <div><span>👤</span><strong>${limpiar(responsable)}</strong><small>${asignado ? "Responsable habitual" : "Responsable actual"}</small></div>
+        <div><span>👤</span><strong>${limpiar(responsable)}</strong><small>${asignado ? "Asignado a" : "Responsable actual"}</small></div>
         <div><span>🧭</span><strong>${limpiar(v.km_actual ?? 0)} km</strong><small>Kilometraje total</small></div>
         ${!asignado && enUso && inicio ? `<div><span>🕒</span><strong data-veh-duration-start="${limpiar(inicio)}">${limpiar(duracionDesde(inicio))}</strong><small>Desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
         ${ubicacion ? `<div><span>📍</span><strong>${limpiar(ubicacion)}</strong></div>` : ""}
@@ -1409,12 +1409,15 @@ function renderVehiculo(v){
 
       ${principal}
 
-      <button class="zx_veh_route_quick" type="button" data-veh-route="${limpiar(v.id)}">🛰️ Ver ruta GPS</button>
+      ${gpsActivo ? `<button class="zx_veh_route_quick" type="button" data-veh-route="${limpiar(v.id)}">🛰️ Ver ruta GPS</button>` : ""}
 
       <button class="zx_veh_more" type="button" data-veh-more="${limpiar(v.id)}">••• Más opciones</button>
       <div class="zx_veh_more_panel" data-veh-more-panel="${limpiar(v.id)}" hidden>
-        <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha</button>
-        ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar</button>` : ""}
+        <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha completa</button>
+        <button class="purple" data-veh-history="${limpiar(v.id)}">🧾 Historial de uso</button>
+        <button class="gray" data-veh-changes="${limpiar(v.id)}">🔄 Cambios de responsable</button>
+        ${gpsHabilitado ? `<button class="gray" data-veh-route="${limpiar(v.id)}">🛰️ Historial GPS</button>` : ""}
+        ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar vehículo</button>` : ""}
         ${asignado && puedeGestionar() ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar asignación</button>` : ""}
         ${estado!=="inactivo" && puedeGestionar() ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar</button>` : ""}
         ${estado==="inactivo" && puedeGestionar() ? `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar</button>` : ""}
@@ -1516,6 +1519,8 @@ function conectarEventos(){
 
   document.querySelectorAll("[data-veh-open]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehOpen,"datos")}});
   document.querySelectorAll("[data-veh-route]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehRoute,"ruta")}});
+  document.querySelectorAll("[data-veh-history]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehHistory,"historial")}});
+  document.querySelectorAll("[data-veh-changes]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehChanges,"transferencias")}});
   document.querySelectorAll("[data-veh-edit]").forEach(btn=>{btn.onclick=function(){editarVehiculo(btn.dataset.vehEdit)}});
   document.querySelectorAll("[data-veh-tomar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehTomar)}});
   document.querySelectorAll("[data-veh-recuperar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehRecuperar)}});
@@ -2014,9 +2019,8 @@ async function abrirFicha(id,tabInicial){
         <p><b>Matrícula</b><span>${limpiar(v.matricula || "-")}</span></p>
         <p><b>Marca / modelo</b><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ") || "-")}</span></p>
         <p><b>Km actuales</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
-        <p><b>Responsable actual</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
-        <p><b>Inicio del uso</b><span>${limpiar(fechaHoraES(v.uso_iniciado_at))}</span></p>
-        <p><b>Tiempo de uso</b><span>${limpiar(duracionDesde(v.uso_iniciado_at))}</span></p>
+        <p><b>${esAsignacionHabitual(v) ? "Asignado a" : "Responsable actual"}</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
+        ${esAsignacionHabitual(v) ? `<p><b>Tipo de asignación</b><span>Habitual</span></p>` : `<p><b>Inicio del uso</b><span>${limpiar(fechaHoraES(v.uso_iniciado_at))}</span></p><p><b>Tiempo de uso</b><span>${limpiar(duracionDesde(v.uso_iniciado_at))}</span></p>`}
         <p><b>ITV</b><span>${limpiar(fechaES(v.itv_fecha) || "-")}</span></p>
         <p><b>Seguro</b><span>${limpiar(fechaES(v.seguro_fecha) || "-")}</span></p>
         <p><b>Revisión</b><span>${limpiar(fechaES(v.proxima_revision_fecha) || "-")}</span></p>
@@ -2163,7 +2167,7 @@ function instalarCSS(){
     .zx_veh_alertas span.warning{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
     .zx_veh_alertas span.critical{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
     .zx_veh_alertas small{font-size:9px;font-weight:850;opacity:.8}
-    .zx_veh_fastline{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:11px}.zx_veh_fastline>div{min-width:0;display:grid;grid-template-columns:23px minmax(0,1fr);align-items:center;background:white;border:1px solid #e6edf5;border-radius:14px;padding:9px 10px}.zx_veh_fastline span{font-size:16px}.zx_veh_fastline strong{color:#071330;font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_veh_fastline small{grid-column:2;color:#64748b;font-size:10px;font-weight:850;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .zx_veh_fastline{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:11px}.zx_veh_fastline>div{min-width:0;display:grid;grid-template-columns:23px minmax(0,1fr);align-items:center;background:white;border:1px solid #e6edf5;border-radius:14px;padding:9px 10px}.zx_veh_fastline span{font-size:16px}.zx_veh_fastline strong{color:#071330;font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_veh_fastline small{grid-column:2;color:#64748b;font-size:10px;font-weight:850;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_veh_fastline>div:last-child:nth-child(3){grid-column:1/-1}
     .zx_veh_info{margin-top:13px;display:grid;grid-template-columns:1fr;gap:8px}
     .zx_veh_info p{margin:0;background:white;border:1px solid #e6edf5;border-radius:16px;padding:11px}
     .zx_veh_info b{display:block;color:#64748b;font-size:12px;font-weight:950;margin-bottom:4px}
@@ -2172,7 +2176,7 @@ function instalarCSS(){
     .zx_veh_quick>div{display:grid;grid-template-columns:28px 1fr;align-items:center;background:white;border:1px solid #e6edf5;border-radius:16px;padding:11px 12px}
     .zx_veh_quick span{font-size:18px}.zx_veh_quick b{color:#071330;font-size:15px;font-weight:900}.zx_veh_quick small{grid-column:2;color:#64748b;font-size:12px;font-weight:850;margin-top:2px}
     .zx_veh_main_action{width:100%;border:0;border-radius:18px;padding:15px 12px;color:white;font-size:16px;font-weight:950;min-height:52px;margin-top:13px}
-    .zx_veh_main_action.green{background:#16a34a}.zx_veh_main_action.purple{background:#7c3aed}.zx_veh_main_action.orange{background:#f97316}
+    .zx_veh_main_action.green{background:#16a34a}.zx_veh_main_action.blue{background:#2563eb;box-shadow:0 10px 22px rgba(37,99,235,.22)}.zx_veh_main_action.purple{background:#7c3aed}.zx_veh_main_action.orange{background:#f97316}
     .zx_veh_more{width:100%;border:0;background:transparent;color:#334155;padding:12px 8px 4px;font-size:14px;font-weight:950}
     .zx_veh_titleline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.zx_veh_version{font-size:11px;font-weight:950;color:#64748b;background:#eef2f7;border:1px solid #dbe3ed;border-radius:999px;padding:4px 8px}
     .zx_veh_route_quick{width:100%;border:2px solid #c4b5fd;background:#f5f3ff;color:#5b21b6;border-radius:18px;padding:13px 12px;font-size:15px;font-weight:950;margin-top:10px;min-height:48px}
