@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3135 - MOTOR DE JORNADA + SINCRONIZACIÓN ENTRE MÓDULOS
+// V3136 - MOTOR CENTRAL DE JORNADA + BLOQUEO ANTIDUPLICADOS
 // ===============================
 (function(){
 "use strict";
@@ -2137,7 +2137,36 @@ function notificarCambioFichaje(tipo,jornadaId){
   });
 }
 
-async function registrar(tipo,opciones={}){
+let ZX_MOTOR_JORNADA_EN_CURSO=false;
+let ZX_MOTOR_JORNADA_ULTIMA_OPERACION=null;
+
+function idOperacionMotor(tipo){
+  return ["jornada",String(sesion().id||"sin_usuario"),String(tipo||"evento"),Date.now(),Math.random().toString(36).slice(2,8)].join(":");
+}
+
+function detalleMotorJornada(tipo,jornada,vehiculo,geo,operacionId){
+  const partes=[
+    "Motor de jornada: "+textoTipo(tipo),
+    "Operación: "+operacionId,
+    jornada?.id ? "Jornada: "+String(jornada.id) : null,
+    vehiculo?.matricula ? "Vehículo: "+String(vehiculo.matricula) : "Sin vehículo asociado",
+    vehiculo?.km!=null ? "Km: "+String(vehiculo.km) : null,
+    geo?.lat!=null && geo?.lng!=null ? "GPS registrado" : "GPS no disponible"
+  ].filter(Boolean);
+  return partes.join(" · ");
+}
+
+async function ejecutarMotorJornada(tipo,opciones={}){
+  if(ZX_MOTOR_JORNADA_EN_CURSO){
+    console.warn("[Zentryx Fichaje] Operación ignorada: el motor de jornada ya está procesando otra acción.");
+    return false;
+  }
+
+  ZX_MOTOR_JORNADA_EN_CURSO=true;
+  const operacionId=idOperacionMotor(tipo);
+  ZX_MOTOR_JORNADA_ULTIMA_OPERACION=operacionId;
+
+  try{
   guardarScroll();
   const s=sesion();
 
@@ -2230,16 +2259,40 @@ async function registrar(tipo,opciones={}){
     return;
   }
 
-  await insertarAuditoria("fichaje_"+tipo,"Fichaje registrado: "+textoTipo(tipo),s.id);
   await recalcularJornada(jornada.id);
 
   if(tipo==="salida"){
     await crearEventoAgendaExtra(jornada.id);
   }
 
+  await insertarAuditoria(
+    "motor_jornada_"+tipo,
+    detalleMotorJornada(tipo,jornada,vehiculoEvento,geo,operacionId),
+    s.id
+  );
+
   notificarCambioFichaje(tipo,jornada.id);
   await ZX_fichaje_real();
   restaurarScroll();
+  return true;
+  }catch(error){
+    console.error("[Zentryx Fichaje] Error en motor de jornada",error);
+    try{
+      await insertarAuditoria(
+        "motor_jornada_error",
+        "Operación "+operacionId+" · "+textoTipo(tipo)+" · "+String(error?.message||error),
+        sesion().id
+      );
+    }catch(e){}
+    alert("No se pudo completar el fichaje. Comprueba la conexión y vuelve a intentarlo.");
+    return false;
+  }finally{
+    ZX_MOTOR_JORNADA_EN_CURSO=false;
+  }
+}
+
+async function registrar(tipo,opciones={}){
+  return ejecutarMotorJornada(tipo,opciones);
 }
 
 // ===============================
