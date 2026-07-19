@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3134 - VEHÍCULO ASIGNADO HABITUAL + JORNADA AUTOMÁTICA
+// V3135 - MOTOR DE JORNADA + SINCRONIZACIÓN ENTRE MÓDULOS
 // ===============================
 (function(){
 "use strict";
@@ -2054,8 +2054,18 @@ async function recalcularJornada(jornadaId){
 
   await sincronizarHorasExtra(jornadaId,c,laboral,extraSeg,jornada);
 
+  const entradaVehiculo=eventos.find(f=>f.tipo==="entrada" && (f.vehiculo_id||f.vehiculo_matricula));
+  const salidaVehiculo=[...eventos].reverse().find(f=>f.tipo==="salida" && (f.vehiculo_id||f.vehiculo_matricula));
+
   const datos={
     salida:c.salida,
+
+    // El kilometraje de la jornada sale de los fichajes de entrada/salida.
+    // No modifica la asignación ni libera el vehículo habitual.
+    vehiculo_id:entradaVehiculo?.vehiculo_id || jornada.vehiculo_id || null,
+    vehiculo_matricula:entradaVehiculo?.vehiculo_matricula || jornada.vehiculo_matricula || null,
+    km_entrada:entradaVehiculo?.km_vehiculo ?? jornada.km_entrada ?? null,
+    km_salida:salidaVehiculo?.km_vehiculo ?? jornada.km_salida ?? null,
 
     minutos_trabajados:Math.floor(c.trabajadoSeg/60),
     minutos_descanso:Math.floor(c.descansoSeg/60),
@@ -2082,6 +2092,49 @@ async function recalcularJornada(jornadaId){
   if(r.error){
     alert("Error recalculando jornada: "+r.error.message);
   }
+}
+
+async function snapshotVehiculoJornada(tipo,jornada,vehiculoExplicito){
+  if(vehiculoExplicito) return vehiculoExplicito;
+
+  try{
+    // En la entrada se enlaza automáticamente el vehículo habitual ya asignado.
+    if(tipo==="entrada"){
+      const info=await cargarEstadoVehiculoRapido();
+      if(info?.actual && esAsignacionHabitualRapido(info.actual)){
+        return vehiculoSnapshotRapido(info.actual);
+      }
+      return null;
+    }
+
+    // En la salida se toma el kilometraje actual del mismo vehículo de la jornada.
+    // Si no puede leerse, se conserva el dato histórico sin bloquear el fichaje.
+    if(tipo==="salida" && jornada?.vehiculo_id){
+      const v=await vehiculoPorId(jornada.vehiculo_id);
+      if(v) return vehiculoSnapshotRapido(v);
+      return {
+        id:String(jornada.vehiculo_id),
+        matricula:jornada.vehiculo_matricula||null,
+        km:jornada.km_salida ?? jornada.km_entrada ?? null
+      };
+    }
+  }catch(e){}
+
+  return null;
+}
+
+function notificarCambioFichaje(tipo,jornadaId){
+  const detalle={tipo,jornada_id:String(jornadaId||""),usuario_id:String(sesion().id||""),at:Date.now()};
+  [
+    "zentryx:fichaje-actualizado",
+    "zentryx:jornada-actualizada",
+    "zentryx:inicio-refresh",
+    "zentryx:vehiculos-refresh",
+    "zentryx:agenda-refresh",
+    "zentryx:horas-refresh"
+  ].forEach(nombre=>{
+    try{window.dispatchEvent(new CustomEvent(nombre,{detail:detalle}));}catch(e){}
+  });
 }
 
 async function registrar(tipo,opciones={}){
@@ -2160,7 +2213,8 @@ async function registrar(tipo,opciones={}){
     return;
   }
 
-  const vehiculoEvento=opciones&&opciones.vehiculo ? opciones.vehiculo : null;
+  const vehiculoExplicito=opciones&&opciones.vehiculo ? opciones.vehiculo : null;
+  const vehiculoEvento=await snapshotVehiculoJornada(tipo,jornada,vehiculoExplicito);
 
   if(tipo==="entrada"){
     jornada=await crearJornada(motivoAdmin,vehiculoEvento);
@@ -2183,6 +2237,7 @@ async function registrar(tipo,opciones={}){
     await crearEventoAgendaExtra(jornada.id);
   }
 
+  notificarCambioFichaje(tipo,jornada.id);
   await ZX_fichaje_real();
   restaurarScroll();
 }
