@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3145 - ASIGNACIÓN HABITUAL SEPARADA DEL USO TEMPORAL
+// V3148 - HISTORIAL UNIFICADO DE MOVIMIENTOS Y RESUMEN DE KILÓMETROS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3147";
+const ZX_VERSION="3148";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3145";
+const CACHE_KEY="zentryx_cache_vehiculos_v3148";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -219,6 +219,31 @@ function identidadActual(){
 
 function responsableId(v){return String(v.usuario_actual_id || "")}
 function responsableNombre(v){return String(v.usuario_actual_nombre || v.usuario_asignado || "")}
+
+function tipoUsoRegistro(u){
+  const t=normalizar(u?.tipo_uso || u?.uso_tipo || u?.clasificacion || u?.categoria || "");
+  if(t.includes("personal")||t.includes("privado")) return "personal";
+  if(t.includes("laboral")||t.includes("trabajo")||t.includes("profesional")) return "laboral";
+  return "sin_clasificar";
+}
+function kmUso(u){
+  const directo=Number(u?.km_recorridos);
+  if(Number.isFinite(directo)&&directo>=0) return directo;
+  const ini=Number(u?.km_inicio), fin=Number(u?.km_fin);
+  return Number.isFinite(ini)&&Number.isFinite(fin)&&fin>=ini ? fin-ini : 0;
+}
+function resumenKmUsos(usos){
+  return (usos||[]).reduce((r,u)=>{
+    const km=kmUso(u);
+    r.total+=km;
+    r[tipoUsoRegistro(u)]+=km;
+    return r;
+  },{total:0,laboral:0,personal:0,sin_clasificar:0});
+}
+function textoTipoUso(u){
+  const t=tipoUsoRegistro(u);
+  return t==="laboral"?"Laboral":t==="personal"?"Personal":"Sin clasificar";
+}
 function esResponsableActual(v){
   const u=identidadActual();
   return !!u.id && responsableId(v)===u.id;
@@ -1436,6 +1461,7 @@ function renderVehiculo(v){
       <div class="zx_veh_more_panel" data-veh-more-panel="${limpiar(v.id)}" hidden>
         <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha completa</button>
         <button class="purple" data-veh-history="${limpiar(v.id)}">🧾 Historial de uso</button>
+        <button class="gray" data-veh-movements="${limpiar(v.id)}">🧭 Movimientos</button>
         <button class="gray" data-veh-changes="${limpiar(v.id)}">🔄 Cambios de responsable</button>
         ${gpsHabilitado ? `<button class="gray" data-veh-route="${limpiar(v.id)}">🛰️ Historial GPS</button>` : ""}
         ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar ficha</button>` : ""}
@@ -1540,6 +1566,7 @@ function conectarEventos(){
   document.querySelectorAll("[data-veh-open]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehOpen,"datos")}});
   document.querySelectorAll("[data-veh-route]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehRoute,"ruta")}});
   document.querySelectorAll("[data-veh-history]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehHistory,"historial")}});
+  document.querySelectorAll("[data-veh-movements]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehMovements,"movimientos")}});
   document.querySelectorAll("[data-veh-changes]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehChanges,"transferencias")}});
   document.querySelectorAll("[data-veh-edit]").forEach(btn=>{btn.onclick=function(){editarVehiculo(btn.dataset.vehEdit)}});
   document.querySelectorAll("[data-veh-tomar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehTomar)}});
@@ -2013,10 +2040,23 @@ async function abrirFicha(id,tabInicial){
   }).sort((a,b)=>new Date(b.ultima||0)-new Date(a.ultima||0));
   const rutaEnDirecto=!!(usoActual&&usoRutaId&&estadoVehiculo(v)==="uso");
 
+  const resumenKm=resumenKmUsos(usos);
   const usoHtml=usos.length ? usos.map(function(u){
     const kmTxt=(u.km_inicio!=null ? u.km_inicio : "-")+" → "+(u.km_fin!=null ? u.km_fin : "-");
-    return `<div class="zx_veh_hist_item"><b>${limpiar(u.nombre_usuario||u.usuario||"Usuario")}</b><span>${limpiar(fechaHoraES(u.inicio_at))} · ${limpiar(u.estado||"")}</span><small>Km ${limpiar(kmTxt)}${u.km_recorridos!=null ? " · "+limpiar(u.km_recorridos)+" km" : ""}</small></div>`;
+    const km=kmUso(u);
+    return `<div class="zx_veh_hist_item"><b>${limpiar(u.nombre_usuario||u.usuario||"Usuario")} · ${limpiar(textoTipoUso(u))}</b><span>${limpiar(fechaHoraES(u.inicio_at))} · ${limpiar(u.estado||"")}</span><small>Km ${limpiar(kmTxt)}${km ? " · "+limpiar(km)+" km" : ""}</small></div>`;
   }).join("") : `<div class="zx_veh_empty">Todavía no hay usos registrados.</div>`;
+
+  const movimientos=[];
+  usos.forEach(function(u){
+    movimientos.push({fecha:u.inicio_at||u.created_at,titulo:"Inicio de uso",detalle:(u.nombre_usuario||u.usuario||"Usuario")+" · "+textoTipoUso(u),km:u.km_inicio});
+    if(u.fin_at||u.km_fin!=null) movimientos.push({fecha:u.fin_at||u.updated_at,titulo:u.estado==="transferido"?"Uso transferido":"Fin de uso",detalle:(u.motivo_fin||u.estado||"Uso finalizado")+" · "+kmUso(u)+" km",km:u.km_fin});
+  });
+  transferencias.forEach(function(t){
+    movimientos.push({fecha:t.confirmado_at||t.created_at,titulo:"Cambio de responsable",detalle:(t.nombre_anterior||"Sin responsable")+" → "+(t.nombre_nuevo||"Usuario"),km:t.km_transferencia});
+  });
+  movimientos.sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0));
+  const movimientosHtml=movimientos.length?movimientos.map(function(m){return `<div class="zx_veh_hist_item"><b>${limpiar(m.titulo)}</b><span>${limpiar(fechaHoraES(m.fecha))}</span><small>${limpiar(m.detalle)}${m.km!=null?" · Km "+limpiar(m.km):""}</small></div>`}).join(""):`<div class="zx_veh_empty">No hay movimientos registrados.</div>`;
 
   const transHtml=transferencias.length ? transferencias.map(function(t){
     return `<div class="zx_veh_hist_item"><b>${limpiar(t.nombre_anterior||"Sin responsable")} → ${limpiar(t.nombre_nuevo||"Usuario")}</b><span>${limpiar(fechaHoraES(t.created_at))}</span><small>${limpiar(t.motivo||"Cambio de responsable")}</small></div>`;
@@ -2029,7 +2069,8 @@ async function abrirFicha(id,tabInicial){
 
     <div class="zx_veh_tabs">
       <button class="${tabInicial==="datos" ? "on" : ""}" data-veh-tab="datos">Datos</button>
-      <button class="${tabInicial==="historial" ? "on" : ""}" data-veh-tab="historial">Historial (${usos.length})</button>
+      <button class="${tabInicial==="historial" ? "on" : ""}" data-veh-tab="historial">Usos (${usos.length})</button>
+      <button class="${tabInicial==="movimientos" ? "on" : ""}" data-veh-tab="movimientos">Movimientos (${movimientos.length})</button>
       <button class="${tabInicial==="transferencias" ? "on" : ""}" data-veh-tab="transferencias">Cambios (${transferencias.length})</button>
       <button class="${tabInicial==="ruta" ? "on" : ""}" data-veh-tab="ruta">Ruta (${puntos.length})</button>
     </div>
@@ -2039,6 +2080,10 @@ async function abrirFicha(id,tabInicial){
         <p><b>Matrícula</b><span>${limpiar(v.matricula || "-")}</span></p>
         <p><b>Marca / modelo</b><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ") || "-")}</span></p>
         <p><b>Km actuales</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
+        <p><b>Km registrados en usos</b><span>${limpiar(resumenKm.total)} km</span></p>
+        <p><b>Km laborales</b><span>${limpiar(resumenKm.laboral)} km</span></p>
+        <p><b>Km personales</b><span>${limpiar(resumenKm.personal)} km</span></p>
+        ${resumenKm.sin_clasificar?`<p><b>Pendientes de clasificar</b><span>${limpiar(resumenKm.sin_clasificar)} km</span></p>`:""}
         <p><b>${esAsignacionHabitual(v) ? "Asignado a" : "Responsable actual"}</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
         ${esAsignacionHabitual(v) ? `<p><b>Tipo de asignación</b><span>${limpiar(tipoAsignacionTexto(v))}</span></p><p><b>Uso personal</b><span>${permiteUsoPersonal(v) ? "Permitido" : "No configurado"}</span></p>` : `<p><b>Inicio del uso</b><span>${limpiar(fechaHoraES(v.uso_iniciado_at))}</span></p><p><b>Tiempo de uso</b><span>${limpiar(duracionDesde(v.uso_iniciado_at))}</span></p>`}
         <p><b>ITV</b><span>${limpiar(fechaES(v.itv_fecha) || "-")}</span></p>
@@ -2050,6 +2095,7 @@ async function abrirFicha(id,tabInicial){
     </div>
 
     <div class="zx_veh_tab ${tabInicial==="historial" ? "on" : ""}" data-veh-panel="historial"><div class="zx_veh_hist">${usoHtml}</div></div>
+    <div class="zx_veh_tab ${tabInicial==="movimientos" ? "on" : ""}" data-veh-panel="movimientos"><div class="zx_veh_hist">${movimientosHtml}</div></div>
     <div class="zx_veh_tab ${tabInicial==="transferencias" ? "on" : ""}" data-veh-panel="transferencias"><div class="zx_veh_hist">${transHtml}</div></div>
     <div class="zx_veh_tab ${tabInicial==="ruta" ? "on" : ""}" data-veh-panel="ruta">
       <div class="zx_veh_route_box">
