@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3144 - GPS DE ALTA PRECISIÓN EN PRIMER PLANO
+// V3145 - ASIGNACIÓN HABITUAL SEPARADA DEL USO TEMPORAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3144";
+const ZX_VERSION="3145";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3144";
+const CACHE_KEY="zentryx_cache_vehiculos_v3145";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -166,9 +166,18 @@ function estadoVehiculo(v){
   return "libre";
 }
 
+function esAsignacionHabitual(v){
+  if(estadoVehiculo(v)!=="uso") return false;
+  if(normalizar(v.estado_flota)==="pendiente_devolucion") return false;
+  return !!(responsableId(v) || responsableNombre(v));
+}
+
 function estadoTexto(v){
   const e=estadoVehiculo(v);
-  if(e==="uso") return normalizar(v.estado_flota)==="pendiente_devolucion" ? "Pendiente de devolución" : "En uso";
+  if(e==="uso"){
+    if(normalizar(v.estado_flota)==="pendiente_devolucion") return "Pendiente de devolución";
+    return esAsignacionHabitual(v) ? "Asignado" : "En uso";
+  }
   if(e==="reservado") return "Reservado";
   if(e==="averia") return "Avería";
   if(e==="taller") return "Taller";
@@ -1264,7 +1273,7 @@ function resumen(){
   const total=ZX_VEH_CACHE.length;
   const activos=ZX_VEH_CACHE.filter(v=>estadoVehiculo(v)!=="inactivo").length;
   const libres=ZX_VEH_CACHE.filter(v=>estadoVehiculo(v)==="libre").length;
-  const uso=ZX_VEH_CACHE.filter(v=>estadoVehiculo(v)==="uso").length;
+  const asignados=ZX_VEH_CACHE.filter(v=>esAsignacionHabitual(v)).length;
   const avisos=resumenAvisos();
 
   return `
@@ -1272,7 +1281,7 @@ function resumen(){
       <div><b>${total}</b><span>Total</span></div>
       <div><b>${activos}</b><span>Activos</span></div>
       <div><b>${libres}</b><span>Libres</span></div>
-      <div><b>${uso}</b><span>En uso</span></div>
+      <div><b>${asignados}</b><span>Asignados</span></div>
       <button type="button" class="zx_veh_kpi_alert ${avisos.criticos ? "has-critical" : avisos.proximos ? "has-warning" : ""}" id="zx_veh_kpi_avisos">
         <b>${avisos.criticos+avisos.proximos}</b>
         <span>Avisos</span>
@@ -1286,7 +1295,7 @@ function toolbar(total){
   const filtros=[
     ["activos","Activos"],
     ["libres","Libres"],
-    ["uso","En uso"],
+    ["uso","Asignados"],
     ["inactivos","Inactivos"],
     ["avisos","Avisos"],
     ["todos","Todos"]
@@ -1351,16 +1360,27 @@ function renderVehiculo(v){
   const uso=v.__uso_actual || null;
   const responsable=responsableNombre(v) || "Sin responsable";
   const enUso=estado==="uso";
+  const asignado=esAsignacionHabitual(v);
+  const pendiente=normalizar(v.estado_flota)==="pendiente_devolucion";
   const inicio=uso?.inicio_at || v.uso_iniciado_at || null;
   const foto=fotoVehiculo(v);
   const ubicacion=ubicacionVehiculo(v);
-  const principal = esResponsableActual(v)
+  const gpsHabilitado=v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true";
+  const usoId=String((v.__uso_actual||{}).id||"");
+  const gpsActivo=!!usoId && ZX_GPS_USO_ID===usoId;
+  const principal = pendiente && (esResponsableActual(v) || puedeGestionar())
     ? `<button class="orange zx_veh_main_action" data-veh-devolver="${limpiar(v.id)}">📤 Devolver vehículo</button>`
-    : (v.__recuperacion && estado==="libre")
-      ? `<button class="purple zx_veh_main_action" data-veh-recuperar="${limpiar(v.id)}">↩️ Volver a utilizar</button>`
-      : (estado!=="inactivo" && !["averia","taller","fuera_servicio"].includes(estado))
-        ? `<button class="green zx_veh_main_action" data-veh-tomar="${limpiar(v.id)}">${estado==="uso" ? "🔄 Asumir vehículo" : "🚗 Utilizar vehículo"}</button>`
-        : "";
+    : asignado
+      ? `<button class="blue zx_veh_main_action" data-veh-open="${limpiar(v.id)}">🚗 Ver vehículo</button>`
+      : (v.__recuperacion && estado==="libre")
+        ? `<button class="purple zx_veh_main_action" data-veh-recuperar="${limpiar(v.id)}">↩️ Volver a utilizar</button>`
+        : (estado!=="inactivo" && !["averia","taller","fuera_servicio"].includes(estado))
+          ? `<button class="green zx_veh_main_action" data-veh-tomar="${limpiar(v.id)}">${estado==="uso" ? "🔄 Asumir vehículo" : "🚗 Utilizar vehículo"}</button>`
+          : "";
+
+  const estadoRuta = gpsHabilitado && gpsActivo
+    ? `<div><span>🛰️</span><strong>Ruta activa</strong><small>${ZX_GPS_ULTIMO_REGISTRO ? "Último punto "+limpiar(fechaHoraES(ZX_GPS_ULTIMO_REGISTRO))+(Number.isFinite(ZX_GPS_ULTIMA_PRECISION) ? " · ±"+Math.round(ZX_GPS_ULTIMA_PRECISION)+" m" : "") : "Esperando primera posición"}</small></div>`
+    : `<div><span>🛰️</span><strong>Sin ruta activa</strong><small>Sin desplazamiento registrado</small></div>`;
 
   return `
     <article class="zx_veh_card" data-id="${limpiar(v.id)}">
@@ -1380,11 +1400,11 @@ function renderVehiculo(v){
       ${renderAvisos(v)}
 
       <div class="zx_veh_fastline">
-        <div><span>👤</span><strong>${limpiar(responsable)}</strong></div>
-        <div><span>🧭</span><strong>${limpiar(v.km_actual ?? 0)} km</strong></div>
-        ${enUso && inicio ? `<div><span>🕒</span><strong data-veh-duration-start="${limpiar(inicio)}">${limpiar(duracionDesde(inicio))}</strong><small>Desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
+        <div><span>👤</span><strong>${limpiar(responsable)}</strong><small>${asignado ? "Responsable habitual" : "Responsable actual"}</small></div>
+        <div><span>🧭</span><strong>${limpiar(v.km_actual ?? 0)} km</strong><small>Kilometraje total</small></div>
+        ${!asignado && enUso && inicio ? `<div><span>🕒</span><strong data-veh-duration-start="${limpiar(inicio)}">${limpiar(duracionDesde(inicio))}</strong><small>Desde ${limpiar(fechaHoraES(inicio))}</small></div>` : ""}
         ${ubicacion ? `<div><span>📍</span><strong>${limpiar(ubicacion)}</strong></div>` : ""}
-        ${enUso && (v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true") ? `<div><span>🛰️</span><strong>Ruta activa</strong><small>${ZX_GPS_USO_ID===String((v.__uso_actual||{}).id||"") ? (ZX_GPS_ULTIMO_REGISTRO ? "Último punto "+limpiar(fechaHoraES(ZX_GPS_ULTIMO_REGISTRO))+(Number.isFinite(ZX_GPS_ULTIMA_PRECISION) ? " · ±"+Math.round(ZX_GPS_ULTIMA_PRECISION)+" m" : "") : "Esperando primera posición") : "Preparando seguimiento"}</small></div>` : ""}
+        ${estadoRuta}
       </div>
 
       ${principal}
@@ -1395,6 +1415,7 @@ function renderVehiculo(v){
       <div class="zx_veh_more_panel" data-veh-more-panel="${limpiar(v.id)}" hidden>
         <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha</button>
         ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar</button>` : ""}
+        ${asignado && puedeGestionar() ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar asignación</button>` : ""}
         ${estado!=="inactivo" && puedeGestionar() ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar</button>` : ""}
         ${estado==="inactivo" && puedeGestionar() ? `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar</button>` : ""}
       </div>
