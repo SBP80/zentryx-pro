@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3129 - BARRA DE MÓDULOS COMPACTA Y RELOJ SIMPLIFICADO
+// V3130 - NAVEGACIÓN PROFESIONAL Y MENÚ DE USUARIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3129";
+const ZX_VERSION="3130";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -214,15 +214,86 @@ function estilos(){
       text-overflow:ellipsis;
     }
 
-    #zx_salir{
-      border-radius:12px;
-      background:#fff1f2;
-      color:#9f1239;
-      padding:8px 10px;
-      font-size:11px;
-      font-weight:950;
+    #zx_user_menu_wrap{
+      position:relative;
       flex:none;
     }
+
+    #zx_user_btn{
+      width:36px;
+      height:36px;
+      min-width:36px;
+      border-radius:50%;
+      border:2px solid #dbeafe;
+      background:linear-gradient(135deg,#2563eb,#7c3aed);
+      color:#fff;
+      font-size:13px;
+      font-weight:1000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow:0 7px 16px rgba(37,99,235,.18);
+    }
+
+    #zx_user_btn[aria-expanded="true"]{
+      box-shadow:0 0 0 4px rgba(37,99,235,.12);
+    }
+
+    #zx_user_menu{
+      position:absolute;
+      top:44px;
+      right:0;
+      width:min(250px,calc(100vw - 24px));
+      background:#fff;
+      border:1px solid var(--zx-line);
+      border-radius:18px;
+      padding:8px;
+      box-shadow:0 20px 50px rgba(15,23,42,.20);
+      z-index:99999;
+    }
+
+    #zx_user_menu[hidden]{display:none!important}
+
+    .zx_user_menu_head{
+      padding:9px 10px 11px;
+      border-bottom:1px solid var(--zx-line);
+      margin-bottom:5px;
+    }
+
+    .zx_user_menu_name{
+      color:#071330;
+      font-size:14px;
+      font-weight:1000;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .zx_user_menu_role{
+      margin-top:2px;
+      color:var(--zx-muted);
+      font-size:11px;
+      font-weight:850;
+    }
+
+    .zx_user_menu_item{
+      width:100%;
+      min-height:42px;
+      border-radius:12px;
+      padding:9px 10px;
+      background:transparent;
+      color:#334155;
+      font-size:12px;
+      font-weight:900;
+      text-align:left;
+      display:flex;
+      align-items:center;
+      gap:9px;
+    }
+
+    .zx_user_menu_item:active{background:#f1f5f9}
+    .zx_user_menu_item.zx_danger{color:#b91c1c}
+
 
     #zx_reloj{
       width:100%;
@@ -442,15 +513,30 @@ function estilos(){
       box-shadow:none;
     }
 
+    .zx_nav_btn{
+      position:relative;
+    }
+
     .zx_nav_btn.zx_activo{
-      background:var(--zx-primary);
-      color:white;
-      border-color:var(--zx-primary);
-      box-shadow:0 7px 16px rgba(37,99,235,.18);
+      background:#eff6ff;
+      color:#1d4ed8;
+      border-color:#bfdbfe;
+      box-shadow:none;
+    }
+
+    .zx_nav_btn.zx_activo::after{
+      content:"";
+      position:absolute;
+      left:12px;
+      right:12px;
+      bottom:-1px;
+      height:3px;
+      border-radius:999px 999px 0 0;
+      background:#2563eb;
     }
 
     .zx_nav_btn.zx_activo .zx_nav_icon{
-      background:rgba(255,255,255,.18)!important;
+      background:#dbeafe!important;
       box-shadow:none;
     }
 
@@ -678,7 +764,7 @@ function estilos(){
       }
       #zx_brand_txt h1{font-size:17px}
       #zx_brand_txt div{font-size:10px}
-      #zx_salir{padding:7px 9px;font-size:10px}
+      #zx_user_btn{width:34px;height:34px;min-width:34px;font-size:12px}
 
       #zx_reloj{padding:4px 10px}
       #zx_reloj_inner{gap:7px}
@@ -733,7 +819,7 @@ function estilos(){
         width:auto;
         min-width:91px;
         min-height:42px;
-        border-radius:12px;
+        border-radius:10px;
         padding:5px 8px;
         font-size:10px;
         gap:6px;
@@ -799,6 +885,14 @@ function estilos(){
   document.head.appendChild(css);
 }
 
+function inicialesUsuario(u){
+  const base=String((u && (u.nombre || u.usuario)) || "U").trim();
+  const partes=base.split(/\s+/).filter(Boolean);
+  if(!partes.length) return "U";
+  if(partes.length===1) return partes[0].slice(0,2).toUpperCase();
+  return (partes[0][0]+partes[partes.length-1][0]).toUpperCase();
+}
+
 function topbar(){
   const u=usuarioActual();
 
@@ -815,7 +909,20 @@ function topbar(){
       </div>
       <div id="zx_topbar_actions">
         <div id="zx_connection_slot" aria-label="Estado de conexión"></div>
-        <button id="zx_salir" type="button">Salir</button>
+        <div id="zx_user_menu_wrap">
+          <button id="zx_user_btn" type="button" aria-label="Abrir menú de usuario" aria-expanded="false">
+            ${limpiar(inicialesUsuario(u))}
+          </button>
+          <div id="zx_user_menu" hidden>
+            <div class="zx_user_menu_head">
+              <div class="zx_user_menu_name">${limpiar(u.nombre || u.usuario || "Usuario")}</div>
+              <div class="zx_user_menu_role">${limpiar(u.rol || "Sin rol")}</div>
+            </div>
+            <button class="zx_user_menu_item" id="zx_menu_ajustes" type="button">⚙️ <span>Ajustes</span></button>
+            <button class="zx_user_menu_item" id="zx_menu_cambiar" type="button">👥 <span>Cambiar usuario</span></button>
+            <button class="zx_user_menu_item zx_danger" id="zx_menu_salir" type="button">↪️ <span>Cerrar sesión</span></button>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -838,11 +945,50 @@ function topbar(){
   });
   observadorConexion.observe(document.body,{childList:true,subtree:false});
 
-  $("zx_salir").onclick=function(){
+  const userBtn=$("zx_user_btn");
+  const userMenu=$("zx_user_menu");
+
+  function cerrarMenuUsuario(){
+    if(!userMenu || !userBtn) return;
+    userMenu.hidden=true;
+    userBtn.setAttribute("aria-expanded","false");
+  }
+
+  function abrirModuloDesdeMenu(id){
+    cerrarMenuUsuario();
+    const btn=document.querySelector(`.zx_nav_btn[data-modulo="${id}"]`);
+    if(btn){
+      btn.click();
+      return;
+    }
+    if(id==="ajustes" && window.ZX_ajustes) window.ZX_ajustes();
+  }
+
+  userBtn.onclick=function(ev){
+    ev.stopPropagation();
+    const abrir=userMenu.hidden;
+    userMenu.hidden=!abrir;
+    userBtn.setAttribute("aria-expanded",abrir ? "true" : "false");
+  };
+
+  userMenu.onclick=function(ev){
+    ev.stopPropagation();
+  };
+
+  document.addEventListener("click",cerrarMenuUsuario);
+
+  $("zx_menu_ajustes").onclick=function(){
+    abrirModuloDesdeMenu("ajustes");
+  };
+
+  function cerrarSesion(){
     localStorage.removeItem("zentryx_session");
     localStorage.removeItem("usuario");
     location.href="index.html?v="+ZX_VERSION;
-  };
+  }
+
+  $("zx_menu_cambiar").onclick=cerrarSesion;
+  $("zx_menu_salir").onclick=cerrarSesion;
 }
 
 
