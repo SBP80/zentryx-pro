@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3128 - NAVEGACIÓN RESPONSIVE Y CONTENIDO PRIORITARIO
+// V3129 - BARRA DE MÓDULOS COMPACTA Y RELOJ SIMPLIFICADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3128";
+const ZX_VERSION="3129";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -411,40 +411,42 @@ function estilos(){
 
     .zx_nav_btn{
       width:100%;
-      min-height:58px;
-      border-radius:16px;
+      min-height:46px;
+      border-radius:13px;
       background:white;
       color:#334155;
-      padding:6px 4px;
+      padding:5px 8px;
       font-size:11px;
       font-weight:950;
       border:1px solid var(--zx-line);
-      box-shadow:0 8px 18px rgba(15,23,42,.045);
-      text-align:center;
+      box-shadow:0 5px 12px rgba(15,23,42,.04);
+      text-align:left;
       display:flex;
-      flex-direction:column;
+      flex-direction:row;
       align-items:center;
-      justify-content:center;
-      gap:4px;
+      justify-content:flex-start;
+      gap:7px;
+      white-space:nowrap;
     }
 
     .zx_nav_icon{
-      width:30px;
-      height:30px;
-      border-radius:11px;
+      width:28px;
+      height:28px;
+      min-width:28px;
+      border-radius:9px;
       display:flex;
       align-items:center;
       justify-content:center;
-      font-size:22px;
+      font-size:18px;
       line-height:1;
-      box-shadow:0 8px 18px rgba(15,23,42,.06);
+      box-shadow:none;
     }
 
     .zx_nav_btn.zx_activo{
       background:var(--zx-primary);
       color:white;
       border-color:var(--zx-primary);
-      box-shadow:0 12px 24px rgba(37,99,235,.22);
+      box-shadow:0 7px 16px rgba(37,99,235,.18);
     }
 
     .zx_nav_btn.zx_activo .zx_nav_icon{
@@ -667,7 +669,7 @@ function estilos(){
     /* MÓVIL: navegación horizontal de una sola fila.
        Todos los módulos siguen accesibles sin ocupar media pantalla. */
     @media(max-width:639px){
-      #zx_topbar{padding:7px 10px}
+      #zx_topbar{padding:6px 10px}
       #zx_logo{
         width:36px;
         height:36px;
@@ -678,7 +680,7 @@ function estilos(){
       #zx_brand_txt div{font-size:10px}
       #zx_salir{padding:7px 9px;font-size:10px}
 
-      #zx_reloj{padding:5px 10px}
+      #zx_reloj{padding:4px 10px}
       #zx_reloj_inner{gap:7px}
       #zx_reloj_inner>div{
         min-width:0;
@@ -688,13 +690,13 @@ function estilos(){
         flex:1;
       }
       #zx_fecha{
-        max-width:62%;
+        max-width:68%;
         overflow:hidden;
         text-overflow:ellipsis;
         font-size:10px;
       }
       #zx_hora{
-        font-size:14px;
+        font-size:13px;
         line-height:1;
       }
       #zx_agenda_btn{
@@ -709,45 +711,47 @@ function estilos(){
 
       #zx_nav{
         position:sticky;
-        top:51px;
-        padding:6px 8px;
+        top:50px;
+        padding:5px 8px;
         overflow:hidden;
-        box-shadow:0 5px 15px rgba(15,23,42,.04);
+        box-shadow:0 4px 12px rgba(15,23,42,.035);
       }
       #zx_nav_inner{
         display:flex;
         grid-template-columns:none;
-        gap:6px;
+        gap:5px;
         overflow-x:auto;
         overflow-y:hidden;
         scroll-snap-type:x proximity;
         overscroll-behavior-x:contain;
         scrollbar-width:none;
-        padding:1px 1px 3px;
+        padding:1px 1px 2px;
       }
       #zx_nav_inner::-webkit-scrollbar{display:none}
       .zx_nav_btn{
-        flex:0 0 76px;
-        width:76px;
-        min-height:54px;
-        border-radius:14px;
-        padding:5px 3px;
+        flex:0 0 auto;
+        width:auto;
+        min-width:91px;
+        min-height:42px;
+        border-radius:12px;
+        padding:5px 8px;
         font-size:10px;
-        gap:3px;
+        gap:6px;
         scroll-snap-align:start;
       }
       .zx_nav_icon{
-        width:27px;
-        height:27px;
-        border-radius:10px;
-        font-size:18px;
+        width:25px;
+        height:25px;
+        min-width:25px;
+        border-radius:8px;
+        font-size:16px;
       }
       .zx_calendar_nav{
-        width:27px;
-        height:27px;
+        width:25px;
+        height:25px;
       }
       .zx_calendar_nav .zx_calendar_day{
-        font-size:11px;
+        font-size:10px;
         padding-bottom:2px;
       }
 
@@ -879,7 +883,7 @@ function reloj(){
   };
 
   actualizarReloj();
-  ZX_RELOJ_TIMER=setInterval(actualizarReloj,1000);
+  ZX_RELOJ_TIMER=setInterval(actualizarReloj,30000);
 
   actualizarContadorAgenda();
   ZX_AGENDA_TIMER=setInterval(actualizarContadorAgenda,60000);
@@ -889,16 +893,15 @@ function actualizarReloj(){
   const d=new Date();
 
   const fecha=d.toLocaleDateString("es-ES",{
-    weekday:"long",
+    weekday:"short",
     day:"2-digit",
     month:"2-digit",
     year:"numeric"
-  });
+  }).replace(".","");
 
   const hora=d.toLocaleTimeString("es-ES",{
     hour:"2-digit",
-    minute:"2-digit",
-    second:"2-digit"
+    minute:"2-digit"
   });
 
   if($("zx_fecha")) $("zx_fecha").textContent=fecha;
