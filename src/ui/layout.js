@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3131 - CABECERA UNIFICADA Y MÁS ESPACIO DE TRABAJO
+// V3132 - FAVORITOS FIJOS Y MENÚ COMPLETO DE MÓDULOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3131";
+const ZX_VERSION="3132";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -555,6 +555,125 @@ function estilos(){
       box-shadow:none;
     }
 
+
+    #zx_nav_more{
+      position:relative;
+    }
+
+    #zx_nav_more.zx_activo{
+      background:#eff6ff;
+      color:#1d4ed8;
+      border-color:#bfdbfe;
+    }
+
+    #zx_nav_more.zx_activo::after{
+      content:"";
+      position:absolute;
+      left:12px;
+      right:12px;
+      bottom:-1px;
+      height:3px;
+      border-radius:999px 999px 0 0;
+      background:#2563eb;
+    }
+
+    #zx_modules_backdrop{
+      position:fixed;
+      inset:0;
+      z-index:99990;
+      background:rgba(15,23,42,.34);
+      backdrop-filter:blur(5px);
+      display:flex;
+      align-items:flex-end;
+      justify-content:center;
+      padding:12px;
+    }
+
+    #zx_modules_backdrop[hidden]{display:none!important}
+
+    #zx_modules_panel{
+      width:min(720px,100%);
+      max-height:min(78vh,760px);
+      overflow:auto;
+      background:#fff;
+      border:1px solid var(--zx-line);
+      border-radius:26px;
+      padding:14px;
+      box-shadow:0 28px 80px rgba(15,23,42,.28);
+    }
+
+    .zx_modules_head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:3px 3px 12px;
+    }
+
+    .zx_modules_title{
+      color:#071330;
+      font-size:20px;
+      font-weight:1000;
+      letter-spacing:-.3px;
+    }
+
+    #zx_modules_close{
+      width:38px;
+      height:38px;
+      border-radius:12px;
+      background:#f1f5f9;
+      color:#334155;
+      font-size:18px;
+      font-weight:1000;
+    }
+
+    #zx_modules_grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px;
+    }
+
+    .zx_module_full_btn{
+      min-width:0;
+      min-height:72px;
+      border:1px solid var(--zx-line);
+      border-radius:16px;
+      background:#fff;
+      color:#334155;
+      padding:9px 7px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      font-size:11px;
+      font-weight:950;
+      text-align:center;
+    }
+
+    .zx_module_full_btn.zx_activo{
+      background:#eff6ff;
+      color:#1d4ed8;
+      border-color:#93c5fd;
+      box-shadow:0 0 0 2px rgba(37,99,235,.08);
+    }
+
+    .zx_module_full_btn .zx_nav_icon{
+      width:32px;
+      height:32px;
+      min-width:32px;
+      font-size:20px;
+    }
+
+    @media(min-width:640px){
+      #zx_modules_backdrop{
+        align-items:center;
+      }
+      #zx_modules_grid{
+        grid-template-columns:repeat(5,minmax(0,1fr));
+      }
+    }
+
     #app{
       width:100%;
       max-width:1180px;
@@ -807,38 +926,40 @@ function estilos(){
         box-shadow:0 4px 12px rgba(15,23,42,.035);
       }
       #zx_nav_inner{
-        display:flex;
-        grid-template-columns:none;
+        display:grid;
+        grid-template-columns:repeat(5,minmax(0,1fr));
         gap:5px;
-        overflow-x:auto;
-        overflow-y:hidden;
-        scroll-snap-type:x proximity;
-        overscroll-behavior-x:contain;
-        scrollbar-width:none;
-        padding:1px 1px 2px;
+        padding:1px;
       }
-      #zx_nav_inner::-webkit-scrollbar{display:none}
       .zx_nav_btn{
-        flex:0 0 auto;
-        width:auto;
-        min-width:91px;
-        min-height:42px;
+        min-width:0;
+        width:100%;
+        min-height:48px;
         border-radius:10px;
-        padding:5px 8px;
-        font-size:10px;
-        gap:6px;
-        scroll-snap-align:start;
+        padding:5px 2px;
+        font-size:9px;
+        gap:3px;
+        flex-direction:column;
+        justify-content:center;
+        text-align:center;
+        overflow:hidden;
+      }
+      .zx_nav_btn .zx_nav_label{
+        width:100%;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
       }
       .zx_nav_icon{
-        width:25px;
-        height:25px;
-        min-width:25px;
+        width:24px;
+        height:24px;
+        min-width:24px;
         border-radius:8px;
         font-size:16px;
       }
       .zx_calendar_nav{
-        width:25px;
-        height:25px;
+        width:24px;
+        height:24px;
       }
       .zx_calendar_nav .zx_calendar_day{
         font-size:10px;
@@ -1287,30 +1408,116 @@ function puedeVerModulo(modulo){
   return esAdmin() || esDesarrollador();
 }
 
+function modulosVisibles(){
+  return MODULOS.filter(function(m){return puedeVerModulo(m.id)});
+}
+
+function idsFavoritosNavegacion(){
+  return ["inicio","fichaje","agenda","trabajos"];
+}
+
+function moduloEsFavorito(id){
+  return idsFavoritosNavegacion().includes(String(id||""));
+}
+
+function cerrarMenuModulos(){
+  const fondo=$("zx_modules_backdrop");
+  if(fondo) fondo.hidden=true;
+  document.body.classList.remove("zx_modal_abierto");
+}
+
+function abrirMenuModulos(){
+  const fondo=$("zx_modules_backdrop");
+  if(!fondo) return;
+  fondo.hidden=false;
+  document.body.classList.add("zx_modal_abierto");
+  actualizarActivoMenuCompleto(leerModuloActual());
+}
+
+function actualizarActivoMenuCompleto(id){
+  document.querySelectorAll(".zx_module_full_btn").forEach(function(btn){
+    btn.classList.toggle("zx_activo",String(btn.dataset.modulo||"")===String(id||""));
+  });
+}
+
+function montarMenuCompletoModulos(){
+  const anterior=$("zx_modules_backdrop");
+  if(anterior) anterior.remove();
+
+  const fondo=document.createElement("div");
+  fondo.id="zx_modules_backdrop";
+  fondo.hidden=true;
+  fondo.innerHTML=`
+    <div id="zx_modules_panel" role="dialog" aria-modal="true" aria-label="Todos los módulos">
+      <div class="zx_modules_head">
+        <div class="zx_modules_title">Todos los módulos</div>
+        <button id="zx_modules_close" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <div id="zx_modules_grid">
+        ${modulosVisibles().map(function(m){
+          return `
+            <button class="zx_module_full_btn" data-modulo="${limpiar(m.id)}" type="button">
+              <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_nav") : limpiar(m.icono)}</span>
+              <span>${limpiar(m.texto)}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(fondo);
+
+  $("zx_modules_close").onclick=cerrarMenuModulos;
+  fondo.onclick=function(ev){
+    if(ev.target===fondo) cerrarMenuModulos();
+  };
+
+  document.querySelectorAll(".zx_module_full_btn").forEach(function(btn){
+    btn.onclick=function(){
+      const id=btn.dataset.modulo;
+      cerrarMenuModulos();
+      abrirModuloPorId(id);
+    };
+  });
+}
+
 function nav(){
+  const visibles=modulosVisibles();
+  const favoritos=idsFavoritosNavegacion()
+    .map(function(id){return visibles.find(function(m){return m.id===id})})
+    .filter(Boolean);
+
   const n=document.createElement("div");
   n.id="zx_nav";
 
   n.innerHTML=`
     <div id="zx_nav_inner">
-      ${MODULOS.filter(function(m){return puedeVerModulo(m.id)}).map(function(m){
+      ${favoritos.map(function(m){
         return `
           <button class="zx_nav_btn" data-modulo="${limpiar(m.id)}" type="button" title="${limpiar(m.texto)}" aria-label="${limpiar(m.texto)}">
             <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_nav") : limpiar(m.icono)}</span>
-            ${limpiar(m.texto)}
+            <span class="zx_nav_label">${limpiar(m.texto)}</span>
           </button>
         `;
       }).join("")}
+      <button class="zx_nav_btn" id="zx_nav_more" type="button" title="Todos los módulos" aria-label="Todos los módulos">
+        <span class="zx_nav_icon" style="background:#e2e8f0;color:#334155;">☰</span>
+        <span class="zx_nav_label">Más</span>
+      </button>
     </div>
   `;
 
   document.body.insertBefore(n,app());
 
-  document.querySelectorAll(".zx_nav_btn").forEach(function(btn){
+  document.querySelectorAll(".zx_nav_btn[data-modulo]").forEach(function(btn){
     btn.onclick=function(){
       abrirModuloPorId(btn.dataset.modulo);
     };
   });
+
+  $("zx_nav_more").onclick=abrirMenuModulos;
+  montarMenuCompletoModulos();
 }
 
 function activo(nombre){
@@ -1327,6 +1534,13 @@ function activo(nombre){
   if(zx() && typeof zx().marcarModuloActivo==="function"){
     zx().marcarModuloActivo(objetivo);
   }
+
+  const more=$("zx_nav_more");
+  if(more){
+    more.classList.toggle("zx_activo",!!objetivo && !moduloEsFavorito(objetivo));
+  }
+
+  actualizarActivoMenuCompleto(objetivo);
 
   if(objetivo) guardarModuloActual(objetivo);
 }
