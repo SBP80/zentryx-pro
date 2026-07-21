@@ -1,14 +1,15 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3123 - RUTA PANEL DESARROLLADOR
+// V3124 - CONSERVAR MÓDULO ACTIVO EN IOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3123";
+const ZX_VERSION="3124";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
+const ZX_LAST_MODULE_KEY="zentryx_last_module";
 
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
@@ -824,6 +825,33 @@ function moduloActivo(nombre){
   return true;
 }
 
+
+function guardarModuloActual(nombre){
+  const id=String(nombre||"").trim();
+  if(!id) return;
+  window.ZX_MODULO_ACTUAL=id;
+  try{sessionStorage.setItem(ZX_LAST_MODULE_KEY,id)}catch(e){}
+  try{localStorage.setItem(ZX_LAST_MODULE_KEY,id)}catch(e){}
+}
+
+function leerModuloActual(){
+  if(window.ZX_MODULO_ACTUAL) return String(window.ZX_MODULO_ACTUAL);
+  try{
+    const s=sessionStorage.getItem(ZX_LAST_MODULE_KEY);
+    if(s) return s;
+  }catch(e){}
+  try{
+    const s=localStorage.getItem(ZX_LAST_MODULE_KEY);
+    if(s) return s;
+  }catch(e){}
+  return "inicio";
+}
+
+function moduloVisibleEnDOM(){
+  const activoBtn=document.querySelector('.zx_nav_btn.zx_activo[data-modulo]');
+  return activoBtn ? String(activoBtn.dataset.modulo||"") : "";
+}
+
 function puedeVerModulo(modulo){
   const m=MODULOS.find(function(x){return x.id===modulo});
   if(!m) return false;
@@ -873,6 +901,8 @@ function activo(nombre){
   if(zx() && typeof zx().marcarModuloActivo==="function"){
     zx().marcarModuloActivo(objetivo);
   }
+
+  if(objetivo) guardarModuloActual(objetivo);
 }
 
 function abrirModulo(nombre,callback){
@@ -900,6 +930,12 @@ function abrirModulo(nombre,callback){
       </div>
     `;
   }
+}
+
+function restaurarModuloActual(){
+  let id=leerModuloActual();
+  if(!puedeVerModulo(id)) id="inicio";
+  abrirModuloPorId(id);
 }
 
 function abrirModuloPorId(id){
@@ -1219,6 +1255,8 @@ function instalarRutas(){
 }
 
 window.ZENTRYX_UI_LAYOUT={
+  restaurarModulo:restaurarModuloActual,
+  moduloActual:leerModuloActual,
   iniciar:function(){
     limpiarLayout();
     estilos();
@@ -1228,6 +1266,24 @@ window.ZENTRYX_UI_LAYOUT={
     nav();
     botonPostit();
     actionbar();
+
+    const asegurarModulo=function(){
+      if(document.hidden) return;
+      const esperado=leerModuloActual();
+      const visible=moduloVisibleEnDOM();
+      if(esperado && visible && esperado!==visible){
+        restaurarModuloActual();
+      }
+    };
+
+    document.addEventListener("visibilitychange",function(){
+      if(!document.hidden){
+        setTimeout(asegurarModulo,80);
+        setTimeout(asegurarModulo,500);
+      }
+    });
+    window.addEventListener("pageshow",function(){setTimeout(asegurarModulo,120)});
+    window.addEventListener("focus",function(){setTimeout(asegurarModulo,180)});
 
     if(location.hash && location.hash.replace("#","")==="desarrollador"){
       setTimeout(function(){
