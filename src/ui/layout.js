@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3132 - FAVORITOS FIJOS Y MENÚ COMPLETO DE MÓDULOS
+// V3133 - NOTAS RÁPIDAS INTEGRADAS Y CONTROLADAS POR PERMISO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3132";
+const ZX_VERSION="3133";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -66,6 +66,30 @@ function esDesarrollador(){
   const usuario=normalizar(u.usuario);
   return rol==="desarrollador" || rol==="developer" || rol==="dev" ||
          usuario==="desarrollador" || usuario==="developer" || usuario==="dev";
+}
+
+function puedeUsarNotasRapidas(){
+  const u=usuarioActual();
+  const rol=normalizar(u.rol);
+
+  // Preparado para el sistema definitivo de permisos.
+  // Si la sesión incluye el permiso, prevalece sobre el rol.
+  const s=sesion();
+  const permisos=s.permisos || s.permissions || {};
+  if(Object.prototype.hasOwnProperty.call(permisos,"notas_rapidas")){
+    return permisos.notas_rapidas===true;
+  }
+
+  return [
+    "administrador",
+    "desarrollador",
+    "developer",
+    "encargado",
+    "jefe",
+    "jefe de equipo",
+    "coordinador",
+    "oficina"
+  ].includes(rol);
 }
 
 function hoyISO(){
@@ -663,6 +687,53 @@ function estilos(){
       height:32px;
       min-width:32px;
       font-size:20px;
+    }
+
+
+    #zx_modules_tools{
+      margin-top:12px;
+      padding-top:12px;
+      border-top:1px solid var(--zx-line);
+    }
+
+    #zx_modules_tools[hidden]{display:none!important}
+
+    .zx_modules_section_title{
+      margin:0 2px 8px;
+      color:var(--zx-muted);
+      font-size:11px;
+      font-weight:1000;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+    }
+
+    .zx_tool_btn{
+      width:100%;
+      min-height:52px;
+      border:1px solid #fde68a;
+      border-radius:15px;
+      background:#fffbeb;
+      color:#92400e;
+      padding:9px 11px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap:10px;
+      font-size:12px;
+      font-weight:950;
+      text-align:left;
+    }
+
+    .zx_tool_icon{
+      width:32px;
+      height:32px;
+      min-width:32px;
+      border-radius:10px;
+      background:#fef3c7;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:18px;
     }
 
     @media(min-width:640px){
@@ -1463,6 +1534,14 @@ function montarMenuCompletoModulos(){
           `;
         }).join("")}
       </div>
+
+      <div id="zx_modules_tools" ${puedeUsarNotasRapidas() ? "" : "hidden"}>
+        <div class="zx_modules_section_title">Herramientas</div>
+        <button class="zx_tool_btn" id="zx_tool_notas" type="button">
+          <span class="zx_tool_icon">📝</span>
+          <span>Notas rápidas</span>
+        </button>
+      </div>
     </div>
   `;
 
@@ -1480,6 +1559,14 @@ function montarMenuCompletoModulos(){
       abrirModuloPorId(id);
     };
   });
+
+  const notas=$("zx_tool_notas");
+  if(notas){
+    notas.onclick=function(){
+      cerrarMenuModulos();
+      if(window.ZX_abrirNotasRapidas) window.ZX_abrirNotasRapidas();
+    };
+  }
 }
 
 function nav(){
@@ -1904,7 +1991,6 @@ window.ZENTRYX_UI_LAYOUT={
     topbar();
     reloj();
     nav();
-    botonPostit();
 
     const asegurarModulo=function(){
       if(document.hidden) return;
