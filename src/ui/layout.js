@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3130 - NAVEGACIÓN PROFESIONAL Y MENÚ DE USUARIO
+// V3131 - CABECERA UNIFICADA Y MÁS ESPACIO DE TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3130";
+const ZX_VERSION="3131";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -161,10 +161,35 @@ function estilos(){
       width:100%;
       max-width:1180px;
       margin:0 auto;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      grid-template-areas:
+        "brand actions"
+        "meta meta";
+      align-items:center;
+      gap:5px 8px;
+    }
+
+    #zx_brand{grid-area:brand}
+    #zx_topbar_actions{grid-area:actions}
+
+    #zx_header_meta{
+      grid-area:meta;
+      min-width:0;
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:8px;
+      padding-top:5px;
+      border-top:1px solid rgba(203,213,225,.72);
+    }
+
+    #zx_header_datetime{
+      min-width:0;
+      display:flex;
+      align-items:baseline;
+      gap:8px;
+      overflow:hidden;
     }
 
     #zx_brand{
@@ -295,27 +320,16 @@ function estilos(){
     .zx_user_menu_item.zx_danger{color:#b91c1c}
 
 
-    #zx_reloj{
-      width:100%;
-      background:rgba(255,255,255,.82);
-      border-bottom:1px solid var(--zx-line);
-      padding:6px 12px;
-      z-index:7000;
-    }
-
-    #zx_reloj_inner{
-      width:100%;
-      max-width:1180px;
-      margin:0 auto;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
+    #zx_reloj{display:none!important}
+    #zx_reloj_inner{display:none!important}
 
     #zx_fecha{
+      min-width:0;
+      max-width:70%;
+      overflow:hidden;
+      text-overflow:ellipsis;
       color:var(--zx-muted);
-      font-size:12px;
+      font-size:11px;
       font-weight:900;
       white-space:nowrap;
       text-transform:capitalize;
@@ -323,26 +337,27 @@ function estilos(){
 
     #zx_hora{
       color:#071330;
-      font-size:19px;
-      font-weight:950;
-      letter-spacing:-.2px;
+      font-size:13px;
+      font-weight:1000;
+      letter-spacing:-.1px;
       white-space:nowrap;
-      line-height:1.05;
+      line-height:1;
     }
 
     #zx_agenda_btn{
-      border-radius:12px;
+      border-radius:10px;
       background:#fff7ed;
       color:#c2410c;
-      padding:7px 10px;
-      min-width:56px;
-      font-size:18px;
+      padding:4px 7px;
+      min-width:42px;
+      min-height:30px;
+      font-size:14px;
       font-weight:950;
       display:flex;
       align-items:center;
       justify-content:center;
-      gap:7px;
-      box-shadow:0 8px 18px rgba(249,115,22,.13);
+      gap:5px;
+      box-shadow:none;
       flex:none;
     }
 
@@ -766,38 +781,27 @@ function estilos(){
       #zx_brand_txt div{font-size:10px}
       #zx_user_btn{width:34px;height:34px;min-width:34px;font-size:12px}
 
-      #zx_reloj{padding:4px 10px}
-      #zx_reloj_inner{gap:7px}
-      #zx_reloj_inner>div{
-        min-width:0;
-        display:flex;
-        align-items:center;
-        gap:7px;
-        flex:1;
+      #zx_header_meta{
+        padding-top:4px;
+        gap:6px;
       }
-      #zx_fecha{
-        max-width:68%;
-        overflow:hidden;
-        text-overflow:ellipsis;
-        font-size:10px;
-      }
-      #zx_hora{
-        font-size:13px;
-        line-height:1;
-      }
+      #zx_header_datetime{gap:6px}
+      #zx_fecha{max-width:72%;font-size:10px}
+      #zx_hora{font-size:12px}
       #zx_agenda_btn{
-        min-width:48px;
-        padding:5px 7px;
-        border-radius:11px;
+        min-width:38px;
+        min-height:28px;
+        padding:3px 6px;
+        border-radius:9px;
       }
       .zx_calendar_top_button{
-        width:25px;
-        height:25px;
+        width:23px;
+        height:23px;
       }
 
       #zx_nav{
         position:sticky;
-        top:50px;
+        top:82px;
         padding:5px 8px;
         overflow:hidden;
         box-shadow:0 4px 12px rgba(15,23,42,.035);
@@ -924,6 +928,16 @@ function topbar(){
           </div>
         </div>
       </div>
+      <div id="zx_header_meta">
+        <div id="zx_header_datetime">
+          <div id="zx_fecha">--/--/----</div>
+          <div id="zx_hora">--:--</div>
+        </div>
+        <button id="zx_agenda_btn" type="button" aria-label="Abrir Agenda de hoy">
+          ${iconoCalendarioHTML("zx_calendar_top_button")}
+          <span id="zx_agenda_count"></span>
+        </button>
+      </div>
     </div>
   `;
 
@@ -1010,28 +1024,22 @@ function actualizarIconosCalendario(){
 }
 
 function reloj(){
-  const r=document.createElement("div");
-  r.id="zx_reloj";
-  r.innerHTML=`
-    <div id="zx_reloj_inner">
-      <div>
-        <div id="zx_fecha">--/--/----</div>
-        <div id="zx_hora">--:--</div>
-      </div>
-      <button id="zx_agenda_btn" type="button">${iconoCalendarioHTML("zx_calendar_top_button")}<span id="zx_agenda_count"></span></button>
-    </div>
-  `;
+  const agendaBtn=$("zx_agenda_btn");
 
-  document.body.insertBefore(r,app());
-
-  $("zx_agenda_btn").onclick=function(){
-    if(window.ZX_abrirAgendaHoy) window.ZX_abrirAgendaHoy();
-  };
+  if(agendaBtn){
+    agendaBtn.onclick=function(){
+      if(window.ZX_abrirAgendaHoy) window.ZX_abrirAgendaHoy();
+    };
+  }
 
   actualizarReloj();
+
+  if(ZX_RELOJ_TIMER) clearInterval(ZX_RELOJ_TIMER);
   ZX_RELOJ_TIMER=setInterval(actualizarReloj,30000);
 
   actualizarContadorAgenda();
+
+  if(ZX_AGENDA_TIMER) clearInterval(ZX_AGENDA_TIMER);
   ZX_AGENDA_TIMER=setInterval(actualizarContadorAgenda,60000);
 }
 
