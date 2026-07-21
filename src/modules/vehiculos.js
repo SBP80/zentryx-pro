@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3148 - HISTORIAL UNIFICADO DE MOVIMIENTOS Y RESUMEN DE KILÓMETROS
+// V3149 - CRONOLOGÍA VISUAL Y TRAZABILIDAD DETALLADA DE MOVIMIENTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3148";
+const ZX_VERSION="3149";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3148";
+const CACHE_KEY="zentryx_cache_vehiculos_v3149";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -2047,16 +2047,84 @@ async function abrirFicha(id,tabInicial){
     return `<div class="zx_veh_hist_item"><b>${limpiar(u.nombre_usuario||u.usuario||"Usuario")} · ${limpiar(textoTipoUso(u))}</b><span>${limpiar(fechaHoraES(u.inicio_at))} · ${limpiar(u.estado||"")}</span><small>Km ${limpiar(kmTxt)}${km ? " · "+limpiar(km)+" km" : ""}</small></div>`;
   }).join("") : `<div class="zx_veh_empty">Todavía no hay usos registrados.</div>`;
 
+  function primerValor(obj,claves){
+    for(const k of claves){
+      const v=obj&&obj[k];
+      if(v!==undefined&&v!==null&&String(v).trim()!=="") return v;
+    }
+    return "";
+  }
+  function ubicacionMovimiento(obj){
+    return primerValor(obj,["direccion","ubicacion","direccion_inicio","direccion_fin","localizacion","gps_direccion"]);
+  }
+  function dispositivoMovimiento(obj){
+    return primerValor(obj,["dispositivo","device","device_name","nombre_dispositivo"]);
+  }
+  function iconoMovimiento(tipo){
+    return tipo==="inicio"?"🟢":tipo==="fin"?"🔴":tipo==="transferencia"?"🔄":tipo==="laboral"?"🚗":tipo==="personal"?"🏠":"📍";
+  }
+  function claseMovimiento(tipo){
+    return "zx_mov_"+(tipo||"otro");
+  }
+  function renderMovimiento(m){
+    const filas=[];
+    if(m.responsable) filas.push(`<div><span>Responsable</span><b>${limpiar(m.responsable)}</b></div>`);
+    if(m.clasificacion) filas.push(`<div><span>Clasificación</span><b>${limpiar(m.clasificacion)}</b></div>`);
+    if(m.kmInicio!==""&&m.kmInicio!=null) filas.push(`<div><span>Km iniciales</span><b>${limpiar(m.kmInicio)}</b></div>`);
+    if(m.kmFin!==""&&m.kmFin!=null) filas.push(`<div><span>Km finales</span><b>${limpiar(m.kmFin)}</b></div>`);
+    if(m.kmRecorridos!==""&&m.kmRecorridos!=null) filas.push(`<div><span>Recorrido</span><b>${limpiar(m.kmRecorridos)} km</b></div>`);
+    if(m.ubicacion) filas.push(`<div class="zx_mov_wide"><span>Ubicación</span><b>${limpiar(m.ubicacion)}</b></div>`);
+    if(m.dispositivo) filas.push(`<div class="zx_mov_wide"><span>Dispositivo</span><b>${limpiar(m.dispositivo)}</b></div>`);
+    if(m.observaciones) filas.push(`<div class="zx_mov_wide"><span>Observaciones</span><b>${limpiar(m.observaciones)}</b></div>`);
+    return `<article class="zx_veh_mov ${claseMovimiento(m.tipo)}">
+      <header><i>${iconoMovimiento(m.tipo)}</i><div><strong>${limpiar(m.titulo)}</strong><time>${limpiar(fechaHoraES(m.fecha))}</time></div></header>
+      ${filas.length?`<div class="zx_mov_grid">${filas.join("")}</div>`:""}
+    </article>`;
+  }
+
   const movimientos=[];
   usos.forEach(function(u){
-    movimientos.push({fecha:u.inicio_at||u.created_at,titulo:"Inicio de uso",detalle:(u.nombre_usuario||u.usuario||"Usuario")+" · "+textoTipoUso(u),km:u.km_inicio});
-    if(u.fin_at||u.km_fin!=null) movimientos.push({fecha:u.fin_at||u.updated_at,titulo:u.estado==="transferido"?"Uso transferido":"Fin de uso",detalle:(u.motivo_fin||u.estado||"Uso finalizado")+" · "+kmUso(u)+" km",km:u.km_fin});
+    const clas=textoTipoUso(u);
+    const tipoClas=tipoUsoRegistro(u);
+    movimientos.push({
+      fecha:u.inicio_at||u.created_at,
+      titulo:"Inicio de uso",
+      tipo:tipoClas==="laboral"?"laboral":tipoClas==="personal"?"personal":"inicio",
+      responsable:u.nombre_usuario||u.usuario||"Usuario",
+      clasificacion:clas==="Sin clasificar"?"Pendiente":clas,
+      kmInicio:u.km_inicio,
+      ubicacion:ubicacionMovimiento(u),
+      dispositivo:dispositivoMovimiento(u),
+      observaciones:primerValor(u,["observaciones","notas","motivo_inicio"])
+    });
+    if(u.fin_at||u.km_fin!=null) movimientos.push({
+      fecha:u.fin_at||u.updated_at,
+      titulo:u.estado==="transferido"?"Uso transferido":"Fin de uso",
+      tipo:u.estado==="transferido"?"transferencia":"fin",
+      responsable:u.nombre_usuario||u.usuario||"Usuario",
+      clasificacion:clas==="Sin clasificar"?"Pendiente":clas,
+      kmInicio:u.km_inicio,
+      kmFin:u.km_fin,
+      kmRecorridos:kmUso(u),
+      ubicacion:primerValor(u,["direccion_fin","ubicacion_fin","direccion","ubicacion"]),
+      dispositivo:dispositivoMovimiento(u),
+      observaciones:primerValor(u,["motivo_fin","observaciones","notas", "estado"])||"Uso finalizado"
+    });
   });
   transferencias.forEach(function(t){
-    movimientos.push({fecha:t.confirmado_at||t.created_at,titulo:"Cambio de responsable",detalle:(t.nombre_anterior||"Sin responsable")+" → "+(t.nombre_nuevo||"Usuario"),km:t.km_transferencia});
+    movimientos.push({
+      fecha:t.confirmado_at||t.created_at,
+      titulo:"Cambio de responsable",
+      tipo:"transferencia",
+      responsable:(t.nombre_anterior||"Sin responsable")+" → "+(t.nombre_nuevo||"Usuario"),
+      kmInicio:t.km_transferencia,
+      ubicacion:ubicacionMovimiento(t),
+      dispositivo:dispositivoMovimiento(t),
+      observaciones:primerValor(t,["motivo","observaciones","notas"])||"Cambio de responsable"
+    });
   });
   movimientos.sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0));
-  const movimientosHtml=movimientos.length?movimientos.map(function(m){return `<div class="zx_veh_hist_item"><b>${limpiar(m.titulo)}</b><span>${limpiar(fechaHoraES(m.fecha))}</span><small>${limpiar(m.detalle)}${m.km!=null?" · Km "+limpiar(m.km):""}</small></div>`}).join(""):`<div class="zx_veh_empty">No hay movimientos registrados.</div>`;
+  const movimientosHtml=movimientos.length?movimientos.map(renderMovimiento).join(""):`<div class="zx_veh_empty">No hay movimientos registrados.</div>`;
 
   const transHtml=transferencias.length ? transferencias.map(function(t){
     return `<div class="zx_veh_hist_item"><b>${limpiar(t.nombre_anterior||"Sin responsable")} → ${limpiar(t.nombre_nuevo||"Usuario")}</b><span>${limpiar(fechaHoraES(t.created_at))}</span><small>${limpiar(t.motivo||"Cambio de responsable")}</small></div>`;
@@ -2265,8 +2333,13 @@ function instalarCSS(){
     .zx_veh_tabs button{border:0;border-radius:999px;background:#e2e8f0;color:#334155;padding:10px 12px;font-size:13px;font-weight:950;white-space:nowrap}
     .zx_veh_tabs button.on{background:#2563eb;color:white}
     .zx_veh_tab{display:none}.zx_veh_tab.on{display:block}
-    .zx_veh_hist{display:grid;gap:9px}.zx_veh_hist_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px}
+    .zx_veh_hist{display:grid;gap:10px}.zx_veh_hist_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px}
     .zx_veh_hist_item b,.zx_veh_hist_item span,.zx_veh_hist_item small{display:block}.zx_veh_hist_item b{color:#071330;font-size:15px}.zx_veh_hist_item span{color:#475569;font-size:13px;font-weight:850;margin-top:4px}.zx_veh_hist_item small{color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
+    .zx_veh_mov{background:#f8fafc;border:1px solid #dbe3ef;border-left:6px solid #94a3b8;border-radius:18px;padding:14px;box-shadow:0 5px 14px rgba(15,23,42,.04)}
+    .zx_veh_mov header{display:flex;align-items:flex-start;gap:10px}.zx_veh_mov header i{font-style:normal;font-size:21px;line-height:1}.zx_veh_mov header strong,.zx_veh_mov header time{display:block}.zx_veh_mov header strong{color:#071330;font-size:16px;line-height:1.15}.zx_veh_mov header time{color:#64748b;font-size:12px;font-weight:900;margin-top:5px}
+    .zx_mov_grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_mov_grid>div{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:9px 10px;min-width:0}.zx_mov_grid span,.zx_mov_grid b{display:block}.zx_mov_grid span{color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.zx_mov_grid b{color:#16233d;font-size:12px;line-height:1.25;margin-top:3px;overflow-wrap:anywhere}.zx_mov_grid .zx_mov_wide{grid-column:1/-1}
+    .zx_mov_inicio{border-left-color:#22c55e}.zx_mov_fin{border-left-color:#ef4444}.zx_mov_transferencia{border-left-color:#7c3aed}.zx_mov_laboral{border-left-color:#2563eb}.zx_mov_personal{border-left-color:#f59e0b}.zx_mov_otro{border-left-color:#64748b}
+    .zx_veh_tabs{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.zx_veh_tabs::-webkit-scrollbar{display:none}.zx_veh_tabs button{flex:0 0 auto}
     .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a,.zx_veh_route_box button{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border:0;border-radius:14px;padding:11px 13px;font-weight:950;font:inherit;cursor:pointer}
     .zx_veh_route_head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.zx_veh_route_head em{font-style:normal;background:#fee2e2;color:#b91c1c;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:950;white-space:nowrap;animation:zxRutaPulso 1.5s infinite}.zx_veh_route_stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:13px 0}.zx_veh_route_stats>div{background:white;border:1px solid #dbe3ef;border-radius:14px;padding:9px;text-align:center;min-width:0}.zx_veh_route_stats strong{display:block;color:#071330;font-size:14px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_veh_route_stats small{display:block;color:#64748b;font-size:10px;font-weight:900;margin-top:3px}.zx_veh_mapa_ruta{width:100%;height:390px;border-radius:18px;border:1px solid #cbd5e1;overflow:hidden;background:#e2e8f0;margin-top:10px}.zx_veh_map_error{height:100%;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;color:#64748b;font-weight:900}.zx_ruta_marker_wrap{background:transparent!important;border:0!important}.zx_ruta_marker{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;border:3px solid white;box-shadow:0 3px 9px rgba(15,23,42,.35);font-size:11px;font-weight:950}@keyframes zxRutaPulso{0%,100%{opacity:1}50%{opacity:.55}}
 .zx_veh_map_choices{display:grid;gap:10px;margin-top:14px}
