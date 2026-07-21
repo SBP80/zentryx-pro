@@ -1,13 +1,14 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3149 - CRONOLOGÍA VISUAL Y TRAZABILIDAD DETALLADA DE MOVIMIENTOS
+// V3150 - AVISO GRÚA Y ASISTENCIA EN CARRETERA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3149";
+const ZX_VERSION="3150";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3149";
+const CACHE_KEY="zentryx_cache_vehiculos_v3150";
+const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3150";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -105,6 +106,97 @@ function guardarCache(lista){
 function numero(v){
   const n=Number(String(v ?? "0").replace(",","."));
   return Number.isFinite(n) ? n : 0;
+}
+
+
+function primerDato(obj,claves){
+  for(const k of claves){
+    const v=obj && obj[k];
+    if(v!==undefined && v!==null && String(v).trim()!=="") return String(v).trim();
+  }
+  return "";
+}
+
+function leerAsistencias(){
+  try{return JSON.parse(localStorage.getItem(ASISTENCIA_KEY)||"{}")||{}}
+  catch(e){return {}}
+}
+
+function guardarAsistenciaLocal(id,data){
+  try{
+    const all=leerAsistencias();
+    all[String(id)]=Object.assign({},all[String(id)]||{},data||{});
+    localStorage.setItem(ASISTENCIA_KEY,JSON.stringify(all));
+    return true;
+  }catch(e){return false}
+}
+
+function datosAsistencia(v){
+  const local=leerAsistencias()[String(v?.id||"")]||{};
+  const pick=(keys,lk)=>primerDato(v,keys)||String(local[lk]||"").trim();
+  return {
+    compania:pick(["seguro_compania","compania_seguro","aseguradora","seguro_aseguradora"],"compania"),
+    poliza:pick(["seguro_poliza","numero_poliza","poliza_seguro","poliza"],"poliza"),
+    telefono:pick(["seguro_telefono_asistencia","telefono_asistencia","asistencia_telefono","telefono_grua","seguro_telefono"],"telefono"),
+    telefonoAlternativo:pick(["seguro_telefono_alternativo","telefono_asistencia_alternativo"],"telefonoAlternativo"),
+    cobertura:pick(["seguro_cobertura","tipo_cobertura","cobertura_seguro"],"cobertura"),
+    instrucciones:pick(["seguro_instrucciones","instrucciones_asistencia","observaciones_seguro"],"instrucciones"),
+    vencimiento:primerDato(v,["seguro_fecha","seguro_vencimiento","fecha_vencimiento_seguro"]),
+    documento:primerDato(v,["seguro_documento_url","poliza_url","documento_seguro_url"])||String(local.documento||"").trim()
+  };
+}
+
+function telefonoLimpio(v){return String(v||"").replace(/[^+0-9]/g,"")}
+function coordTexto(n){return Number.isFinite(Number(n))?Number(n).toFixed(6):"-"}
+
+async function posicionAsistencia(){
+  return new Promise(function(resolve){
+    if(!navigator.geolocation){resolve({lat:null,lng:null,precision:null,error:"GPS no disponible"});return}
+    navigator.geolocation.getCurrentPosition(function(p){
+      resolve({lat:p.coords.latitude,lng:p.coords.longitude,precision:p.coords.accuracy||null,error:""});
+    },function(e){
+      resolve({lat:null,lng:null,precision:null,error:e&&e.message?e.message:"No se pudo obtener la ubicación"});
+    },{enableHighAccuracy:true,timeout:12000,maximumAge:15000});
+  });
+}
+
+async function direccionDesdeCoordenadas(lat,lng){
+  if(!Number.isFinite(Number(lat))||!Number.isFinite(Number(lng))||!navigator.onLine) return null;
+  try{
+    const url="https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat="+encodeURIComponent(lat)+"&lon="+encodeURIComponent(lng)+"&zoom=18&addressdetails=1";
+    const r=await fetch(url,{headers:{"Accept":"application/json"}});
+    if(!r.ok) return null;
+    const j=await r.json();
+    const a=j.address||{};
+    return {
+      completa:j.display_name||"",
+      carretera:a.road||a.motorway||a.trunk||a.path||"",
+      localidad:a.city||a.town||a.village||a.municipality||"",
+      provincia:a.state||a.county||"",
+      cp:a.postcode||""
+    };
+  }catch(e){return null}
+}
+
+function textoAvisoGrua(v,seg,pos,dir,pkManual,carreteraManual){
+  const carretera=String(carreteraManual||dir?.carretera||"").trim();
+  const pk=String(pkManual||"").trim();
+  return [
+    "ASISTENCIA EN CARRETERA - ZENTRYX PRO",
+    "Vehículo: "+nombreVehiculo(v),
+    "Matrícula: "+(v.matricula||"-"),
+    "Kilómetros: "+(v.km_actual??"-"),
+    "Conductor: "+(responsableNombre(v)||identidadActual().nombre||"-"),
+    "Aseguradora: "+(seg.compania||"No configurada"),
+    "Póliza: "+(seg.poliza||"No configurada"),
+    "Teléfono asistencia: "+(seg.telefono||"No configurado"),
+    "Dirección: "+(dir?.completa||"No disponible"),
+    carretera?"Carretera: "+carretera:"",
+    pk?"Punto kilométrico: "+pk:"",
+    "Coordenadas: "+coordTexto(pos?.lat)+", "+coordTexto(pos?.lng),
+    pos?.precision?"Precisión GPS aproximada: ±"+Math.round(pos.precision)+" m":"",
+    seg.instrucciones?"Instrucciones: "+seg.instrucciones:""
+  ].filter(Boolean).join("\n");
 }
 
 function valor(id){
@@ -1460,6 +1552,7 @@ function renderVehiculo(v){
       <button class="zx_veh_more" type="button" data-veh-more="${limpiar(v.id)}">••• Más opciones</button>
       <div class="zx_veh_more_panel" data-veh-more-panel="${limpiar(v.id)}" hidden>
         <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha completa</button>
+        <button class="orange" data-veh-grua="${limpiar(v.id)}">🚨 Aviso grúa</button>
         <button class="purple" data-veh-history="${limpiar(v.id)}">🧾 Historial de uso</button>
         <button class="gray" data-veh-movements="${limpiar(v.id)}">🧭 Movimientos</button>
         <button class="gray" data-veh-changes="${limpiar(v.id)}">🔄 Cambios de responsable</button>
@@ -1564,6 +1657,7 @@ function conectarEventos(){
   });
 
   document.querySelectorAll("[data-veh-open]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehOpen,"datos")}});
+  document.querySelectorAll("[data-veh-grua]").forEach(btn=>{btn.onclick=function(){abrirAvisoGrua(btn.dataset.vehGrua)}});
   document.querySelectorAll("[data-veh-route]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehRoute,"ruta")}});
   document.querySelectorAll("[data-veh-history]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehHistory,"historial")}});
   document.querySelectorAll("[data-veh-movements]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehMovements,"movimientos")}});
@@ -1592,6 +1686,101 @@ function input(id,label,value,type){
     <label class="zx_veh_label" for="${id}">${limpiar(label)}</label>
     <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${limpiar(label)}">
   `;
+}
+
+
+async function abrirAvisoGrua(id){
+  const v=vehiculoPorId(id);
+  if(!v){alert("Vehículo no encontrado.");return}
+  const seg=datosAsistencia(v);
+  modal(`
+    <h2>🚨 Aviso grúa</h2>
+    <div class="zx_grua_vehicle"><strong>${limpiar(v.matricula||"Vehículo")}</strong><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ")||"")}</span></div>
+    <div class="zx_grua_notice">Mantén esta pantalla abierta durante la llamada para consultar la póliza y tu ubicación.</div>
+    <div class="zx_grua_grid">
+      <div><span>Aseguradora</span><b>${limpiar(seg.compania||"No configurada")}</b></div>
+      <div><span>N.º póliza</span><b>${limpiar(seg.poliza||"No configurado")}</b></div>
+      <div><span>Teléfono asistencia</span><b>${limpiar(seg.telefono||"No configurado")}</b></div>
+      <div><span>Vencimiento</span><b>${limpiar(fechaES(seg.vencimiento)||"-")}</b></div>
+      ${seg.cobertura?`<div class="wide"><span>Cobertura</span><b>${limpiar(seg.cobertura)}</b></div>`:""}
+    </div>
+    <div id="zx_grua_location" class="zx_grua_location"><b>📍 Localizando posición exacta…</b><span>Autoriza el acceso al GPS si Safari lo solicita.</span></div>
+    <div class="zx_grua_manual">
+      <label class="zx_veh_label" for="zx_grua_carretera">Carretera / vía (opcional)</label>
+      <input id="zx_grua_carretera" placeholder="Ej.: A-3, M-219…">
+      <label class="zx_veh_label" for="zx_grua_pk">Punto kilométrico (si lo conoces)</label>
+      <input id="zx_grua_pk" inputmode="decimal" placeholder="Ej.: 41,5">
+      <small>El punto kilométrico no se inventa: se muestra solo si se introduce o puede identificarse con fiabilidad.</small>
+    </div>
+    <div class="zx_grua_actions">
+      ${seg.telefono?`<a class="call" id="zx_grua_llamar" href="tel:${limpiar(telefonoLimpio(seg.telefono))}">📞 Llamar a asistencia</a>`:`<button class="disabled" type="button">📞 Teléfono no configurado</button>`}
+      <button class="blue" id="zx_grua_copiar">📋 Copiar datos</button>
+      <button class="purple" id="zx_grua_compartir">↗️ Compartir ubicación</button>
+      <a class="maps" id="zx_grua_mapa" href="#">🗺 Abrir en mapas</a>
+      <button class="gray" id="zx_grua_relocalizar">📍 Actualizar ubicación</button>
+      ${puedeGestionar()?`<button class="orange" id="zx_grua_configurar">⚙️ Configurar seguro</button>`:""}
+      <button class="gray" id="zx_grua_cerrar">Cerrar</button>
+    </div>
+  `);
+
+  let pos={lat:null,lng:null,precision:null,error:""};
+  let dir=null;
+  async function localizar(){
+    const box=document.getElementById("zx_grua_location");
+    if(box) box.innerHTML="<b>📍 Localizando posición exacta…</b><span>Puede tardar unos segundos.</span>";
+    pos=await posicionAsistencia();
+    dir=await direccionDesdeCoordenadas(pos.lat,pos.lng);
+    if(!document.getElementById("zx_grua_location")) return;
+    const direccion=dir?.completa||"Dirección no disponible";
+    box.innerHTML=`<b>📍 ${limpiar(direccion)}</b><span>Coordenadas: ${limpiar(coordTexto(pos.lat))}, ${limpiar(coordTexto(pos.lng))}${pos.precision?` · precisión aproximada ±${Math.round(pos.precision)} m`:""}</span>${pos.error?`<em>${limpiar(pos.error)}</em>`:""}`;
+    const carretera=document.getElementById("zx_grua_carretera");
+    if(carretera&&!carretera.value&&dir?.carretera) carretera.value=dir.carretera;
+    const mapa=document.getElementById("zx_grua_mapa");
+    if(mapa&&Number.isFinite(Number(pos.lat))) mapa.href="https://www.google.com/maps?q="+encodeURIComponent(pos.lat+","+pos.lng);
+  }
+  function textoActual(){return textoAvisoGrua(v,seg,pos,dir,valor("zx_grua_pk"),valor("zx_grua_carretera"))}
+  document.getElementById("zx_grua_cerrar").onclick=cerrarModal;
+  document.getElementById("zx_grua_relocalizar").onclick=localizar;
+  document.getElementById("zx_grua_copiar").onclick=async function(){
+    try{await navigator.clipboard.writeText(textoActual());alert("Datos copiados.")}
+    catch(e){prompt("Copia estos datos:",textoActual())}
+  };
+  document.getElementById("zx_grua_compartir").onclick=async function(){
+    const text=textoActual();
+    try{if(navigator.share) await navigator.share({title:"Aviso grúa "+(v.matricula||""),text});else throw new Error()}
+    catch(e){try{await navigator.clipboard.writeText(text);alert("Datos copiados para compartir.")}catch(x){}}
+  };
+  const configurar=document.getElementById("zx_grua_configurar");
+  if(configurar) configurar.onclick=function(){editarAsistencia(v)};
+  await localizar();
+}
+
+function editarAsistencia(v){
+  const d=datosAsistencia(v);
+  modal(`
+    <h2>Seguro y asistencia</h2>
+    <div class="zx_veh_nota_form">Configuración provisional local. No se modifica SQL ni se crean columnas hasta revisar la estructura existente.</div>
+    <div class="zx_veh_form">
+      ${input("zx_as_compania","Aseguradora",d.compania)}
+      ${input("zx_as_poliza","Número de póliza",d.poliza)}
+      ${input("zx_as_telefono","Teléfono de asistencia",d.telefono,"tel")}
+      ${input("zx_as_telefono2","Teléfono alternativo",d.telefonoAlternativo,"tel")}
+      ${input("zx_as_cobertura","Cobertura",d.cobertura)}
+      <label class="zx_veh_label" for="zx_as_instrucciones">Instrucciones especiales</label>
+      <textarea id="zx_as_instrucciones" rows="4" placeholder="Asistencia desde km 0, franquicia, pasos especiales…">${limpiar(d.instrucciones)}</textarea>
+    </div>
+    <button class="zx_btn_big zx_verde" id="zx_as_guardar">Guardar configuración</button>
+    <button class="zx_btn_big zx_gris" id="zx_as_cancelar">Cancelar</button>
+  `);
+  document.getElementById("zx_as_cancelar").onclick=function(){abrirAvisoGrua(v.id)};
+  document.getElementById("zx_as_guardar").onclick=function(){
+    const ok=guardarAsistenciaLocal(v.id,{
+      compania:valor("zx_as_compania"),poliza:valor("zx_as_poliza"),telefono:valor("zx_as_telefono"),
+      telefonoAlternativo:valor("zx_as_telefono2"),cobertura:valor("zx_as_cobertura"),instrucciones:valor("zx_as_instrucciones")
+    });
+    if(!ok){alert("No se pudo guardar la configuración en este dispositivo.");return}
+    abrirAvisoGrua(v.id);
+  };
 }
 
 function abrirFormulario(v){
@@ -1633,6 +1822,7 @@ function abrirFormulario(v){
         <div>${input("veh_itv","Fecha ITV",v.itv_fecha,"date")}</div>
         <div>${input("veh_seguro","Vencimiento seguro",v.seguro_fecha,"date")}</div>
       </div>
+      <div class="zx_veh_nota_form">Los datos de asistencia se configuran desde el botón <b>Aviso grúa</b>. En esta versión se guardan de forma local hasta revisar la estructura SQL existente.</div>
       <div class="zx_veh_grid2">
         <div>${input("veh_revision","Próxima revisión",v.proxima_revision_fecha,"date")}</div>
         <div>${input("veh_revision_km","Km próxima revisión",v.proxima_revision_km,"number")}</div>
@@ -2184,6 +2374,7 @@ async function abrirFicha(id,tabInicial){
     </div>
 
     <div class="zx_veh_actions ficha_actions">
+      <button class="orange" id="veh_ficha_grua">🚨 Aviso grúa</button>
       ${puedeGestionar() ? `<button class="blue" id="veh_ficha_editar">Editar</button>` : ""}
       ${v.documento_url ? `<button class="purple" id="veh_ficha_doc">Documento</button>` : ""}
       <button class="gray" id="veh_ficha_cerrar">Cerrar</button>
@@ -2218,6 +2409,8 @@ async function abrirFicha(id,tabInicial){
       dibujarRutaExacta(true);
     };
   }
+  const grua=document.getElementById("veh_ficha_grua");
+  if(grua) grua.onclick=function(){abrirAvisoGrua(id)};
   const editar=document.getElementById("veh_ficha_editar");
   if(editar) editar.onclick=function(){editarVehiculo(id)};
   const doc=document.getElementById("veh_ficha_doc");
@@ -2348,6 +2541,12 @@ function instalarCSS(){
 .zx_veh_map_choices a:nth-child(3){background:#22c55e}
 .zx_veh_route_note{display:block;margin-top:12px;line-height:1.35;color:#64748b;font-weight:700}.zx_veh_route_select{display:block;margin:12px 0}.zx_veh_route_select span{display:block;margin-bottom:6px;color:#475569;font-weight:900}.zx_veh_route_select select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:14px;background:white;color:#071330;font-weight:850;font-size:14px}
 
+    .zx_grua_vehicle{display:grid;gap:3px;background:#fff7ed;border:1px solid #fdba74;border-radius:18px;padding:14px;margin-top:12px}.zx_grua_vehicle strong{font-size:25px;color:#7c2d12}.zx_grua_vehicle span{color:#9a3412;font-weight:850}
+    .zx_grua_notice{margin-top:10px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:16px;padding:12px;font-weight:850;line-height:1.35}
+    .zx_grua_grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_grua_grid>div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:14px;padding:10px;min-width:0}.zx_grua_grid .wide{grid-column:1/-1}.zx_grua_grid span,.zx_grua_grid b{display:block}.zx_grua_grid span{color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase}.zx_grua_grid b{color:#071330;font-size:13px;margin-top:4px;overflow-wrap:anywhere}
+    .zx_grua_location{display:grid;gap:5px;margin-top:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:16px;padding:13px}.zx_grua_location b{color:#1e3a8a;line-height:1.3}.zx_grua_location span{color:#475569;font-size:12px;font-weight:800;line-height:1.35}.zx_grua_location em{color:#b91c1c;font-size:11px;font-weight:850;font-style:normal}
+    .zx_grua_manual small{display:block;color:#64748b;font-size:11px;font-weight:750;line-height:1.35;margin-top:7px}
+    .zx_grua_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.zx_grua_actions a,.zx_grua_actions button{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;border:0;border-radius:16px;padding:13px 9px;min-height:48px;color:#fff;font-size:13px;font-weight:950}.zx_grua_actions .call{grid-column:1/-1;background:#16a34a;font-size:16px;box-shadow:0 9px 18px rgba(22,163,74,.2)}.zx_grua_actions .disabled{grid-column:1/-1;background:#94a3b8}.zx_grua_actions .blue{background:#2563eb}.zx_grua_actions .purple{background:#7c3aed}.zx_grua_actions .maps{background:#111827}.zx_grua_actions .orange{background:#f97316}.zx_grua_actions .gray{background:#64748b}
     @media(max-width:390px){.zx_veh_header{grid-template-columns:1fr}.zx_veh_header_actions{grid-template-columns:1fr 1fr}.zx_flota_head{display:grid}.zx_flota_stats{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(5,minmax(0,1fr))}.zx_veh_kpi_alert{grid-column:auto}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
