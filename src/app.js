@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3113 - ROL DESARROLLADOR Y ACCESO TECNICO
+// V3114 - ESTADO DE CONEXIÓN ADAPTABLE SIN TAPAR LOGIN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3113";
+const ZX_VERSION="3114";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -15,7 +15,7 @@ const USER_KEY="usuario";
 const CONFIG_KEY="zentryx_config";
 const OFFLINE_QUEUE_KEY="zentryx_offline_queue";
 const OFFLINE_CACHE_PREFIX="zentryx_cache_";
-const FETCH_WRAPPED_KEY="__zentryx_fetch_protegido_v3113";
+const FETCH_WRAPPED_KEY="__zentryx_fetch_protegido_v3114";
 
 let ZX_SERVICIOS_INICIADOS=false;
 let ZX_SYNC_TIMER=null;
@@ -728,29 +728,33 @@ function ensureEstadoConexion(){
     st.innerHTML=`
       #zx_connection_status{
         position:fixed;
-        left:12px;
-        bottom:calc(env(safe-area-inset-bottom) + 82px);
+        top:calc(env(safe-area-inset-top) + 10px);
+        right:12px;
+        left:auto;
+        bottom:auto;
         z-index:999999;
         border:0;
         border-radius:999px;
-        padding:8px 12px;
+        padding:7px 10px;
         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-        font-size:12px;
+        font-size:11px;
         font-weight:900;
+        line-height:1;
         color:#0f172a;
         background:#dcfce7;
-        box-shadow:0 10px 28px rgba(15,23,42,.18);
+        box-shadow:0 8px 22px rgba(15,23,42,.16);
         pointer-events:none;
+        white-space:nowrap;
       }
+      #zx_connection_status[hidden]{display:none!important}
       #zx_connection_status.zx_offline{background:#fef3c7;color:#92400e}
       #zx_connection_status.zx_degraded{background:#ffedd5;color:#9a3412}
       #zx_connection_status.zx_syncing{background:#dbeafe;color:#1d4ed8}
       #zx_connection_status.zx_synced{background:#dcfce7;color:#166534}
       @media(min-width:760px){
         #zx_connection_status{
+          top:16px;
           right:16px;
-          left:auto;
-          bottom:16px;
         }
       }
     `;
@@ -758,6 +762,17 @@ function ensureEstadoConexion(){
   }
 
   return el;
+}
+
+function ajustarVisibilidadEstadoConexion(el,tipo){
+  if(!el) return;
+
+  const integrado=!!document.getElementById("zx_connection_slot");
+  const normal=tipo==="online" || tipo==="synced";
+
+  // En Login, el estado correcto no ocupa espacio ni tapa botones.
+  // Los avisos reales (offline, débil, sincronizando o pendientes) sí se muestran.
+  el.hidden=!integrado && normal;
 }
 
 function renderEstadoConexion(tipo){
@@ -769,29 +784,34 @@ function renderEstadoConexion(tipo){
   if(tipo==="syncing"){
     el.classList.add("zx_syncing");
     el.textContent="🔄 Sincronizando";
+    ajustarVisibilidadEstadoConexion(el,"syncing");
     return;
   }
 
   if(tipo==="offline" || !red.online){
     el.classList.add("zx_offline");
     el.textContent="🟡 Sin conexión";
+    ajustarVisibilidadEstadoConexion(el,"offline");
     return;
   }
 
   if(tipo==="degraded" || red.calidad==="mala" || red.calidad==="degradada"){
     el.classList.add("zx_degraded");
     el.textContent="🟠 Conexión débil";
+    ajustarVisibilidadEstadoConexion(el,"degraded");
     return;
   }
 
   if(colaPendiente().length>0){
     el.classList.add("zx_syncing");
     el.textContent="🔄 Pendiente";
+    ajustarVisibilidadEstadoConexion(el,"syncing");
     return;
   }
 
   el.classList.add("zx_synced");
   el.textContent=tipo==="synced" ? "✅ Sincronizado" : "🟢 Conectado";
+  ajustarVisibilidadEstadoConexion(el,tipo==="synced" ? "synced" : "online");
 }
 
 function setSyncStatus(tipo){
