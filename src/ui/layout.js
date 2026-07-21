@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3126 - ICONO AGENDA DINÁMICO Y SIN ACCESOS RÁPIDOS INFERIORES
+// V3127 - LAYOUT COMPACTO Y ESTADO DE CONEXIÓN INTEGRADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3126";
+const ZX_VERSION="3127";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -133,7 +133,7 @@ function estilos(){
 
     body{
       min-height:100vh;
-      padding-bottom:calc(env(safe-area-inset-bottom) + 132px);
+      padding-bottom:calc(env(safe-area-inset-bottom) + 24px);
     }
 
     body.zx_modal_abierto #zx_postit,
@@ -150,7 +150,7 @@ function estilos(){
       width:100%;
       background:linear-gradient(135deg,#ffffff,#eef5ff);
       border-bottom:1px solid var(--zx-line);
-      padding:10px 14px;
+      padding:8px 12px;
       position:sticky;
       top:0;
       z-index:8000;
@@ -164,27 +164,27 @@ function estilos(){
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:10px;
+      gap:8px;
     }
 
     #zx_brand{
       display:flex;
       align-items:center;
-      gap:10px;
+      gap:8px;
       min-width:0;
       flex:1;
     }
 
     #zx_logo{
-      width:42px;
-      height:42px;
-      min-width:42px;
-      border-radius:15px;
+      width:38px;
+      height:38px;
+      min-width:38px;
+      border-radius:13px;
       background:linear-gradient(135deg,#2563eb,#10b981);
       display:flex;
       align-items:center;
       justify-content:center;
-      font-size:24px;
+      font-size:17px;
       font-weight:950;
       color:white;
       box-shadow:0 10px 22px rgba(37,99,235,.25);
@@ -194,7 +194,7 @@ function estilos(){
 
     #zx_brand_txt h1{
       margin:0;
-      font-size:20px;
+      font-size:18px;
       line-height:1.05;
       font-weight:950;
       letter-spacing:-.3px;
@@ -205,9 +205,9 @@ function estilos(){
     }
 
     #zx_brand_txt div{
-      margin-top:3px;
+      margin-top:2px;
       color:var(--zx-muted);
-      font-size:12px;
+      font-size:11px;
       font-weight:850;
       white-space:nowrap;
       overflow:hidden;
@@ -215,11 +215,11 @@ function estilos(){
     }
 
     #zx_salir{
-      border-radius:14px;
-      background:#fee2e2;
-      color:#991b1b;
-      padding:11px 13px;
-      font-size:14px;
+      border-radius:12px;
+      background:#fff1f2;
+      color:#9f1239;
+      padding:8px 10px;
+      font-size:11px;
       font-weight:950;
       flex:none;
     }
@@ -228,7 +228,7 @@ function estilos(){
       width:100%;
       background:rgba(255,255,255,.82);
       border-bottom:1px solid var(--zx-line);
-      padding:8px 14px;
+      padding:6px 12px;
       z-index:7000;
     }
 
@@ -252,7 +252,7 @@ function estilos(){
 
     #zx_hora{
       color:#071330;
-      font-size:22px;
+      font-size:19px;
       font-weight:950;
       letter-spacing:-.2px;
       white-space:nowrap;
@@ -260,11 +260,11 @@ function estilos(){
     }
 
     #zx_agenda_btn{
-      border-radius:16px;
+      border-radius:12px;
       background:#fff7ed;
       color:#c2410c;
-      padding:10px 14px;
-      min-width:78px;
+      padding:7px 10px;
+      min-width:56px;
       font-size:18px;
       font-weight:950;
       display:flex;
@@ -275,6 +275,67 @@ function estilos(){
       flex:none;
     }
 
+
+
+    #zx_topbar_actions{
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:7px;
+      flex:none;
+    }
+
+    #zx_connection_slot{
+      display:flex;
+      align-items:center;
+      min-width:12px;
+    }
+
+    #zx_connection_slot #zx_connection_status{
+      position:static!important;
+      left:auto!important;
+      right:auto!important;
+      bottom:auto!important;
+      z-index:auto!important;
+      min-width:12px;
+      max-width:132px;
+      padding:6px 8px!important;
+      border-radius:999px!important;
+      box-shadow:none!important;
+      font-size:10px!important;
+      font-weight:950!important;
+      line-height:1!important;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      pointer-events:auto!important;
+    }
+
+    @media(max-width:430px){
+      #zx_connection_slot #zx_connection_status{
+        width:12px;
+        height:12px;
+        padding:0!important;
+        border-radius:50%!important;
+        color:transparent!important;
+        font-size:0!important;
+        overflow:hidden;
+      }
+
+      #zx_connection_slot #zx_connection_status::before{
+        content:"";
+        display:block;
+        width:12px;
+        height:12px;
+        border-radius:50%;
+        background:#22c55e;
+      }
+
+      #zx_connection_slot #zx_connection_status.zx_offline::before{background:#eab308}
+      #zx_connection_slot #zx_connection_status.zx_degraded::before{background:#f97316}
+      #zx_connection_slot #zx_connection_status.zx_syncing::before{background:#3b82f6}
+      #zx_connection_slot #zx_connection_status.zx_synced::before{background:#22c55e}
+    }
 
     .zx_calendar_icon{
       position:relative;
@@ -334,7 +395,7 @@ function estilos(){
       width:100%;
       background:rgba(255,255,255,.88);
       border-bottom:1px solid var(--zx-line);
-      padding:10px 12px;
+      padding:7px 10px;
       z-index:6500;
     }
 
@@ -343,18 +404,18 @@ function estilos(){
       max-width:1180px;
       margin:0 auto;
       display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:8px;
+      grid-template-columns:repeat(5,1fr);
+      gap:6px;
     }
 
     .zx_nav_btn{
       width:100%;
-      min-height:70px;
-      border-radius:20px;
+      min-height:58px;
+      border-radius:16px;
       background:white;
       color:#334155;
-      padding:8px 6px;
-      font-size:12px;
+      padding:6px 4px;
+      font-size:11px;
       font-weight:950;
       border:1px solid var(--zx-line);
       box-shadow:0 8px 18px rgba(15,23,42,.045);
@@ -363,13 +424,13 @@ function estilos(){
       flex-direction:column;
       align-items:center;
       justify-content:center;
-      gap:6px;
+      gap:4px;
     }
 
     .zx_nav_icon{
-      width:34px;
-      height:34px;
-      border-radius:13px;
+      width:30px;
+      height:30px;
+      border-radius:11px;
       display:flex;
       align-items:center;
       justify-content:center;
@@ -394,7 +455,7 @@ function estilos(){
       width:100%;
       max-width:1180px;
       margin:0 auto;
-      padding:16px 12px;
+      padding:12px 10px;
       overflow-x:hidden;
     }
 
@@ -638,11 +699,30 @@ function topbar(){
           <div>${limpiar(u.usuario || u.nombre || "usuario")} · ${limpiar(u.rol || "Sin rol")}</div>
         </div>
       </div>
-      <button id="zx_salir" type="button">Salir</button>
+      <div id="zx_topbar_actions">
+        <div id="zx_connection_slot" aria-label="Estado de conexión"></div>
+        <button id="zx_salir" type="button">Salir</button>
+      </div>
     </div>
   `;
 
   document.body.insertBefore(t,app());
+
+  function integrarEstadoConexion(){
+    const slot=$("zx_connection_slot");
+    const estado=$("zx_connection_status");
+    if(slot && estado && estado.parentElement!==slot){
+      slot.appendChild(estado);
+      estado.title=estado.textContent || "Estado de conexión";
+    }
+  }
+
+  integrarEstadoConexion();
+
+  const observadorConexion=new MutationObserver(function(){
+    integrarEstadoConexion();
+  });
+  observadorConexion.observe(document.body,{childList:true,subtree:false});
 
   $("zx_salir").onclick=function(){
     localStorage.removeItem("zentryx_session");
