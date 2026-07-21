@@ -1,15 +1,16 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3152 - CENTRO DE EMERGENCIA PROFESIONAL
+// V3153 - EMERGENCIA, ACCIDENTES Y COMPARTIR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3152";
+const ZX_VERSION="3153";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3152";
-const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3152";
-const INCIDENCIAS_KEY="zentryx_vehiculos_incidencias_v3152";
+const CACHE_KEY="zentryx_cache_vehiculos_v3153";
+const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3153";
+const INCIDENCIAS_KEY="zentryx_vehiculos_incidencias_v3153";
+let zxEmergencyWakeLock=null;
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -1690,7 +1691,65 @@ function input(id,label,value,type){
 }
 
 
+
+async function activarPantallaEmergencia(){
+  try{
+    if("wakeLock" in navigator){
+      zxEmergencyWakeLock=await navigator.wakeLock.request("screen");
+    }
+  }catch(e){}
+}
+
+async function liberarPantallaEmergencia(){
+  try{
+    if(zxEmergencyWakeLock){
+      await zxEmergencyWakeLock.release();
+      zxEmergencyWakeLock=null;
+    }
+  }catch(e){}
+}
+
+function seguroCaducado(fecha){
+  if(!fecha) return false;
+  const d=new Date(fecha);
+  if(Number.isNaN(d.getTime())) return false;
+  const hoy=new Date();
+  hoy.setHours(0,0,0,0);
+  return d<hoy;
+}
+
+function mensajeAsistencia(v,seg,pos,dir,pk,carretera){
+  const mapa=(Number.isFinite(Number(pos?.lat))&&Number.isFinite(Number(pos?.lng)))
+    ?"https://www.google.com/maps?q="+encodeURIComponent(pos.lat+","+pos.lng)
+    :"";
+  return [
+    "🚨 ASISTENCIA VEHÍCULO",
+    "Matrícula: "+(v.matricula||"-"),
+    "Vehículo: "+([v.marca,v.modelo].filter(Boolean).join(" ")||"-"),
+    "Responsable: "+(responsableNombre(v)||identidadActual().nombre||"-"),
+    "Kilómetros: "+(v.km_actual??"-"),
+    "Aseguradora: "+(seg.compania||"-"),
+    "Póliza: "+(seg.poliza||"-"),
+    "Teléfono asistencia: "+(seg.telefono||"-"),
+    "Dirección: "+(dir?.completa||"-"),
+    "Carretera / vía: "+(carretera||dir?.carretera||"-"),
+    "Punto kilométrico: "+(pk||"-"),
+    "Coordenadas: "+coordTexto(pos?.lat)+", "+coordTexto(pos?.lng),
+    mapa?("Mapa: "+mapa):"",
+    "Hora: "+new Date().toLocaleString("es-ES")
+  ].filter(Boolean).join("\n");
+}
+
+function abrirWhatsAppConTexto(texto,telefono){
+  const limpio=telefonoLimpio(telefono||"");
+  const url=limpio
+    ?"https://wa.me/"+encodeURIComponent(limpio)+"?text="+encodeURIComponent(texto)
+    :"https://wa.me/?text="+encodeURIComponent(texto);
+  window.open(url,"_blank","noopener");
+}
+
 async function abrirAvisoGrua(id){
+  await activarPantallaEmergencia();
   const v=vehiculoPorId(id);
   if(!v){alert("Vehículo no encontrado.");return}
   const seg=datosAsistencia(v);
@@ -1706,6 +1765,7 @@ async function abrirAvisoGrua(id){
       <button id="zx_grua_avisar_empresa" class="zx_emergency_company">🏢 Avisar empresa</button>
       <button id="zx_grua_registrar" class="zx_emergency_incident">📋 Registrar incidencia</button>
       <button id="zx_grua_accidente" class="zx_emergency_accident">🚗 Asistente de accidente</button>
+      <button id="zx_grua_whatsapp" class="zx_emergency_whatsapp">💬 Enviar por WhatsApp</button>
     </div>
 
     <div class="zx_grua_vehicle">
@@ -1714,8 +1774,11 @@ async function abrirAvisoGrua(id){
       <div class="zx_vehicle_emergency_grid">
         <div><small>Color</small><b>${limpiar(v.color||"-")}</b></div>
         <div><small>Combustible</small><b>${limpiar(v.combustible||v.tipo_combustible||"-")}</b></div>
+        <div><small>Tipo</small><b>${limpiar(v.tipo||v.tipo_vehiculo||"-")}</b></div>
+        <div><small>Propietario</small><b>${limpiar(v.empresa_propietaria||v.propietario||"-")}</b></div>
         <div><small>Kilómetros</small><b>${limpiar(v.km_actual??"-")}</b></div>
         <div><small>Responsable</small><b>${limpiar(responsableNombre(v)||identidadActual().nombre||"-")}</b></div>
+        <div class="wide"><small>Última revisión</small><b>${limpiar(fechaES(v.fecha_revision||v.ultima_revision)||"-")}</b></div>
       </div>
     </div>
 
@@ -1729,8 +1792,10 @@ async function abrirAvisoGrua(id){
         <div><span>Aseguradora</span><b>${limpiar(seg.compania||"No configurada")}</b></div>
         <div><span>N.º póliza</span><b>${limpiar(seg.poliza||"No configurado")}</b></div>
         <div><span>Teléfono</span><b>${limpiar(seg.telefono||"No configurado")}</b></div>
-        <div><span>Vencimiento</span><b>${limpiar(fechaES(seg.vencimiento)||"-")}</b></div>
+        <div class="${seguroCaducado(seg.vencimiento)?"expired":""}"><span>Vencimiento</span><b>${limpiar(fechaES(seg.vencimiento)||"-")}${seguroCaducado(seg.vencimiento)?" · CADUCADO":""}</b></div>
         ${seg.cobertura?`<div class="wide"><span>Cobertura</span><b>${limpiar(seg.cobertura)}</b></div>`:""}
+        ${seg.franquicia?`<div><span>Franquicia</span><b>${limpiar(seg.franquicia)}</b></div>`:""}
+        ${seg.expediente?`<div><span>N.º expediente</span><b>${limpiar(seg.expediente)}</b></div>`:""}
         ${seg.instrucciones?`<div class="wide"><span>Instrucciones</span><b>${limpiar(seg.instrucciones)}</b></div>`:""}
       </div>
     </section>
@@ -1817,7 +1882,10 @@ async function abrirAvisoGrua(id){
       +"\nHora GPS: "+horaGPS();
   }
 
-  document.getElementById("zx_grua_cerrar").onclick=cerrarModal;
+  document.getElementById("zx_grua_cerrar").onclick=async function(){
+    await liberarPantallaEmergencia();
+    cerrarModal();
+  };
   document.getElementById("zx_grua_relocalizar").onclick=localizar;
 
   document.getElementById("zx_grua_copiar").onclick=async function(){
@@ -1863,6 +1931,10 @@ async function abrirAvisoGrua(id){
 
   document.getElementById("zx_grua_accidente").onclick=function(){
     abrirAsistenteAccidente(v,seg,pos,dir,valor("zx_grua_pk"),valor("zx_grua_carretera"));
+  };
+
+  document.getElementById("zx_grua_whatsapp").onclick=function(){
+    abrirWhatsAppConTexto(textoActual(),seg.whatsapp||seg.telefono||"");
   };
 
   const configurar=document.getElementById("zx_grua_configurar");
@@ -1978,6 +2050,12 @@ function abrirAsistenteAccidente(v,seg,pos,dir,pk,carretera){
         <option value="solicitada">Solicitada</option>
       </select>
 
+      <label class="zx_veh_label" for="zx_acc_danos">Daños del vehículo</label>
+      <textarea id="zx_acc_danos" rows="3" placeholder="Describe los daños visibles"></textarea>
+
+      <label class="zx_veh_label" for="zx_acc_testigos">Testigos</label>
+      <textarea id="zx_acc_testigos" rows="3" placeholder="Nombre y teléfono, si los hay"></textarea>
+
       <label class="zx_veh_label" for="zx_acc_contrario">Datos del contrario</label>
       <textarea id="zx_acc_contrario" rows="4" placeholder="Matrícula, nombre, teléfono, aseguradora…"></textarea>
 
@@ -2032,6 +2110,8 @@ function abrirAsistenteAccidente(v,seg,pos,dir,pk,carretera){
       tipo:"accidente",
       descripcion:valor("zx_acc_descripcion"),
       datos_contrario:valor("zx_acc_contrario"),
+      danos_vehiculo:valor("zx_acc_danos"),
+      testigos:valor("zx_acc_testigos"),
       heridos:valor("zx_acc_heridos"),
       policia:valor("zx_acc_policia"),
       fotos,
@@ -2845,7 +2925,7 @@ function instalarCSS(){
     .zx_grua_location{display:grid;gap:5px;margin-top:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:16px;padding:13px}.zx_grua_location b{color:#1e3a8a;line-height:1.3}.zx_grua_location span{color:#475569;font-size:12px;font-weight:800;line-height:1.35}.zx_grua_location em{color:#b91c1c;font-size:11px;font-weight:850;font-style:normal}
     .zx_grua_manual small{display:block;color:#64748b;font-size:11px;font-weight:750;line-height:1.35;margin-top:7px}
     .zx_grua_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.zx_grua_actions a,.zx_grua_actions button{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;border:0;border-radius:16px;padding:13px 9px;min-height:48px;color:#fff;font-size:13px;font-weight:950}.zx_grua_actions .call{grid-column:1/-1;background:#16a34a;font-size:16px;box-shadow:0 9px 18px rgba(22,163,74,.2)}
-    .zx_emergency_quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.zx_emergency_quick a,.zx_emergency_quick button{border:0;border-radius:16px;min-height:52px;padding:11px;text-align:center;text-decoration:none;color:#fff;font-weight:950;font-size:13px;display:flex;align-items:center;justify-content:center}.zx_emergency_112{grid-column:1/-1;background:#dc2626;font-size:16px!important}.zx_emergency_company{background:#0f766e}.zx_emergency_incident{background:#ea580c}.zx_emergency_assistance{grid-column:1/-1;background:#16a34a;font-size:15px!important}.zx_emergency_assistance.disabled{background:#94a3b8}.zx_emergency_accident{grid-column:1/-1;background:#7c3aed}.zx_vehicle_emergency_grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.zx_vehicle_emergency_grid>div{background:rgba(255,255,255,.6);border:1px solid #fed7aa;border-radius:12px;padding:8px}.zx_vehicle_emergency_grid small,.zx_vehicle_emergency_grid b{display:block}.zx_vehicle_emergency_grid small{font-size:9px;text-transform:uppercase;color:#9a3412;font-weight:950}.zx_vehicle_emergency_grid b{font-size:12px;color:#7c2d12;margin-top:3px;overflow-wrap:anywhere}.zx_accident_alerts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.zx_accident_alerts a{background:#dc2626;color:#fff;text-decoration:none;border-radius:14px;min-height:48px;padding:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:950}.zx_accident_alerts a+ a{background:#16a34a}.zx_voice_row{display:flex;gap:8px;align-items:center}.zx_voice_row button{border:0;border-radius:12px;background:#7c3aed;color:#fff;font-weight:900;padding:10px 14px}.zx_voice_row span{font-size:12px;color:#64748b;font-weight:800}
+    .zx_emergency_quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.zx_emergency_quick a,.zx_emergency_quick button{border:0;border-radius:16px;min-height:52px;padding:11px;text-align:center;text-decoration:none;color:#fff;font-weight:950;font-size:13px;display:flex;align-items:center;justify-content:center}.zx_emergency_112{grid-column:1/-1;background:#dc2626;font-size:16px!important}.zx_emergency_company{background:#0f766e}.zx_emergency_incident{background:#ea580c}.zx_emergency_assistance{grid-column:1/-1;background:#16a34a;font-size:15px!important}.zx_emergency_assistance.disabled{background:#94a3b8}.zx_emergency_accident{grid-column:1/-1;background:#7c3aed}.zx_emergency_whatsapp{grid-column:1/-1;background:#16a34a}.zx_vehicle_emergency_grid .wide{grid-column:1/-1}.zx_grua_insurance .expired{background:#fef2f2;border-color:#fecaca}.zx_grua_insurance .expired b{color:#b91c1c}.zx_vehicle_emergency_grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.zx_vehicle_emergency_grid>div{background:rgba(255,255,255,.6);border:1px solid #fed7aa;border-radius:12px;padding:8px}.zx_vehicle_emergency_grid small,.zx_vehicle_emergency_grid b{display:block}.zx_vehicle_emergency_grid small{font-size:9px;text-transform:uppercase;color:#9a3412;font-weight:950}.zx_vehicle_emergency_grid b{font-size:12px;color:#7c2d12;margin-top:3px;overflow-wrap:anywhere}.zx_accident_alerts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.zx_accident_alerts a{background:#dc2626;color:#fff;text-decoration:none;border-radius:14px;min-height:48px;padding:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:950}.zx_accident_alerts a+ a{background:#16a34a}.zx_voice_row{display:flex;gap:8px;align-items:center}.zx_voice_row button{border:0;border-radius:12px;background:#7c3aed;color:#fff;font-weight:900;padding:10px 14px}.zx_voice_row span{font-size:12px;color:#64748b;font-weight:800}
     .zx_grua_section{margin-top:12px}.zx_grua_section h3{margin:0 0 8px;color:#071330;font-size:16px}.zx_grua_insurance{display:grid;grid-template-columns:1fr 1fr;gap:8px}.zx_grua_insurance>div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:14px;padding:10px;min-width:0}.zx_grua_insurance .wide{grid-column:1/-1}.zx_grua_insurance span,.zx_grua_insurance b{display:block}.zx_grua_insurance span{color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase}.zx_grua_insurance b{color:#071330;font-size:13px;margin-top:4px;overflow-wrap:anywhere}
     .zx_grua_location{grid-template-columns:1fr 1fr}.zx_grua_location .wide{grid-column:1/-1}.zx_location_row{background:rgba(255,255,255,.65);border:1px solid #dbeafe;border-radius:12px;padding:9px}.zx_location_row span,.zx_location_row b{display:block}.zx_location_row span{font-size:10px;color:#64748b;font-weight:950;text-transform:uppercase}.zx_location_row b{margin-top:3px;color:#1e3a8a;font-size:12px;overflow-wrap:anywhere}
     .zx_grua_actions .apple{background:#334155}.zx_grua_actions .softblue{background:#0f766e}
