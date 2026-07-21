@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3127 - LAYOUT COMPACTO Y ESTADO DE CONEXIÓN INTEGRADO
+// V3128 - NAVEGACIÓN RESPONSIVE Y CONTENIDO PRIORITARIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3127";
+const ZX_VERSION="3128";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -393,10 +393,11 @@ function estilos(){
 
     #zx_nav{
       width:100%;
-      background:rgba(255,255,255,.88);
+      background:rgba(255,255,255,.94);
       border-bottom:1px solid var(--zx-line);
       padding:7px 10px;
       z-index:6500;
+      backdrop-filter:blur(16px);
     }
 
     #zx_nav_inner{
@@ -663,23 +664,132 @@ function estilos(){
       white-space:pre-wrap;
     }
 
-    @media(max-width:390px){
-      #zx_nav_inner{grid-template-columns:repeat(3,1fr)}
-      .zx_nav_btn{min-height:66px}
-      #zx_brand_txt h1{font-size:18px}
-      #zx_logo{width:40px;height:40px;min-width:40px}
-      #zx_hora{font-size:20px}
+    /* MÓVIL: navegación horizontal de una sola fila.
+       Todos los módulos siguen accesibles sin ocupar media pantalla. */
+    @media(max-width:639px){
+      #zx_topbar{padding:7px 10px}
+      #zx_logo{
+        width:36px;
+        height:36px;
+        min-width:36px;
+        border-radius:12px;
+      }
+      #zx_brand_txt h1{font-size:17px}
+      #zx_brand_txt div{font-size:10px}
+      #zx_salir{padding:7px 9px;font-size:10px}
+
+      #zx_reloj{padding:5px 10px}
+      #zx_reloj_inner{gap:7px}
+      #zx_reloj_inner>div{
+        min-width:0;
+        display:flex;
+        align-items:center;
+        gap:7px;
+        flex:1;
+      }
+      #zx_fecha{
+        max-width:62%;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        font-size:10px;
+      }
+      #zx_hora{
+        font-size:14px;
+        line-height:1;
+      }
+      #zx_agenda_btn{
+        min-width:48px;
+        padding:5px 7px;
+        border-radius:11px;
+      }
+      .zx_calendar_top_button{
+        width:25px;
+        height:25px;
+      }
+
+      #zx_nav{
+        position:sticky;
+        top:51px;
+        padding:6px 8px;
+        overflow:hidden;
+        box-shadow:0 5px 15px rgba(15,23,42,.04);
+      }
+      #zx_nav_inner{
+        display:flex;
+        grid-template-columns:none;
+        gap:6px;
+        overflow-x:auto;
+        overflow-y:hidden;
+        scroll-snap-type:x proximity;
+        overscroll-behavior-x:contain;
+        scrollbar-width:none;
+        padding:1px 1px 3px;
+      }
+      #zx_nav_inner::-webkit-scrollbar{display:none}
+      .zx_nav_btn{
+        flex:0 0 76px;
+        width:76px;
+        min-height:54px;
+        border-radius:14px;
+        padding:5px 3px;
+        font-size:10px;
+        gap:3px;
+        scroll-snap-align:start;
+      }
+      .zx_nav_icon{
+        width:27px;
+        height:27px;
+        border-radius:10px;
+        font-size:18px;
+      }
+      .zx_calendar_nav{
+        width:27px;
+        height:27px;
+      }
+      .zx_calendar_nav .zx_calendar_day{
+        font-size:11px;
+        padding-bottom:2px;
+      }
+
+      #app{
+        padding:9px 8px;
+      }
+      .zx_card{
+        border-radius:21px;
+        padding:16px;
+        margin-bottom:12px;
+      }
+      .zx_card h2{font-size:26px}
+      .zx_card h3{font-size:20px}
+      .zx_text{font-size:15px}
+
+      #zx_postit{
+        right:11px;
+        bottom:calc(env(safe-area-inset-bottom) + 14px);
+        width:48px;
+        height:48px;
+        border-radius:16px;
+        font-size:21px;
+      }
     }
 
-    @media(min-width:760px){
+    /* TABLETA: rejilla compacta, contenido con más aire. */
+    @media(min-width:640px) and (max-width:1099px){
       #zx_nav_inner{grid-template-columns:repeat(6,1fr)}
-      #app{padding:24px}
-      #zx_actionbar{display:none}
-      body{padding-bottom:40px}
+      .zx_nav_btn{min-height:58px}
+      #app{padding:18px}
+      body{padding-bottom:34px}
     }
 
-    @media(min-width:1120px){
+    /* PC: todos los módulos en una fila y contenido ancho. */
+    @media(min-width:1100px){
       #zx_nav_inner{grid-template-columns:repeat(10,1fr)}
+      #app{padding:24px}
+      #zx_topbar_inner,
+      #zx_reloj_inner,
+      #zx_nav_inner,
+      #app{max-width:1320px}
+      body{padding-bottom:40px}
     }
   `;
   document.head.appendChild(css);
@@ -1028,7 +1138,7 @@ function nav(){
     <div id="zx_nav_inner">
       ${MODULOS.filter(function(m){return puedeVerModulo(m.id)}).map(function(m){
         return `
-          <button class="zx_nav_btn" data-modulo="${limpiar(m.id)}" type="button">
+          <button class="zx_nav_btn" data-modulo="${limpiar(m.id)}" type="button" title="${limpiar(m.texto)}" aria-label="${limpiar(m.texto)}">
             <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_nav") : limpiar(m.icono)}</span>
             ${limpiar(m.texto)}
           </button>
