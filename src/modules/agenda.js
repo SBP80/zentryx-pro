@@ -1,18 +1,21 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3135 - SELECTOR DE NAVEGACIÓN GOOGLE, APPLE Y WAZE
+// V3136 - CARGA RÁPIDA, CACHÉ POR USUARIO Y DEDUPLICACIÓN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3135";
+const ZX_VERSION="3136";
 const TABLA="agenda_eventos";
-const CACHE_KEY="zentryx_cache_agenda_eventos";
+const CACHE_KEY="zentryx_cache_agenda_eventos_v3136";
+const ZX_AGENDA_TIMEOUT=8500;
 
 let ZX_AGENDA_FECHA=new Date();
 let ZX_AGENDA_CACHE=[];
 let ZX_AGENDA_FILTRO="todos";
 let ZX_AGENDA_CARGANDO=false;
+let ZX_AGENDA_CARGA_TOKEN=0;
+let ZX_AGENDA_ULTIMA_CARGA=0;
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -84,14 +87,37 @@ function primerDiaMes(d){return new Date(d.getFullYear(),d.getMonth(),1)}
 function ultimoDiaMes(d){return new Date(d.getFullYear(),d.getMonth()+1,0)}
 function nombreMes(d){return d.toLocaleDateString("es-ES",{month:"long",year:"numeric"})}
 
+function claveCacheAgenda(){
+  const s=sesion();
+  const uid=String(s.id || s.usuario_id || s.usuario || "anonimo");
+  const mes=ZX_AGENDA_FECHA.getFullYear()+"-"+String(ZX_AGENDA_FECHA.getMonth()+1).padStart(2,"0");
+  return CACHE_KEY+":"+uid+":"+mes;
+}
+
 function leerCache(){
-  try{return JSON.parse(localStorage.getItem(CACHE_KEY) || "[]")}
-  catch(e){return []}
+  try{
+    const raw=JSON.parse(localStorage.getItem(claveCacheAgenda()) || "null");
+    return raw && Array.isArray(raw.datos) ? raw.datos : [];
+  }catch(e){return []}
 }
 
 function guardarCache(lista){
-  try{localStorage.setItem(CACHE_KEY,JSON.stringify(lista || []))}
-  catch(e){}
+  try{
+    localStorage.setItem(claveCacheAgenda(),JSON.stringify({
+      guardado_en:Date.now(),
+      datos:Array.isArray(lista)?lista:[]
+    }));
+  }catch(e){}
+}
+
+function conTimeout(promesa,ms=ZX_AGENDA_TIMEOUT){
+  let timer;
+  return Promise.race([
+    promesa,
+    new Promise(function(_,reject){
+      timer=setTimeout(function(){reject(new Error("Tiempo de espera agotado"))},ms);
+    })
+  ]).finally(function(){clearTimeout(timer)});
 }
 
 
@@ -453,8 +479,22 @@ function eventoDesdeTrabajo(t,p){
 
 function esVisibleTrabajoParaUsuario(t,p,s){
   if(esAdmin()) return true;
-  const uid=String((p && p.usuario_id) || t.usuario_id || "");
-  return uid && uid===String(s.id || "");
+  const actual=String(s.id || s.usuario_id || "");
+  const principal=String((p && p.usuario_id) || t.usuario_id || t.responsable_id || "");
+  if(principal && principal===actual) return true;
+
+  const posibles=[
+    p && p.usuarios_ids,
+    p && p.participantes_ids,
+    t.usuarios_ids,
+    t.participantes_ids,
+    t.equipo_ids
+  ];
+  return posibles.some(function(v){
+    if(Array.isArray(v)) return v.map(String).includes(actual);
+    if(typeof v==="string") return v.split(",").map(function(x){return x.trim()}).includes(actual);
+    return false;
+  });
 }
 
 async function cargarTrabajosDirectos(desde,hasta){
@@ -462,24 +502,38 @@ async function cargarTrabajosDirectos(desde,hasta){
 
   try{
     const s=sesion();
-
-    const [rt,rp]=await Promise.all([
-      sb().from("trabajos").select("*")
-        .eq("archivado",false),
+    const rp=await conTimeout(
       sb().from("trabajos_planificacion").select("*")
         .gte("fecha",desde)
         .lte("fecha",hasta)
         .order("fecha",{ascending:true})
         .order("hora_inicio",{ascending:true})
-    ]);
-
-    if(rt.error) throw rt.error;
+    );
     if(rp.error) throw rp.error;
 
-    const trabajos=(rt.data || []).filter(function(t){
+    const planes=rp.data || [];
+    const idsPlan=Array.from(new Set(planes.map(function(p){return String(p.trabajo_id||"")}).filter(Boolean)));
+
+    const consultas=[
+      sb().from("trabajos").select("*")
+        .eq("archivado",false)
+        .gte("fecha",desde)
+        .lte("fecha",hasta)
+    ];
+    if(idsPlan.length){
+      consultas.push(sb().from("trabajos").select("*").eq("archivado",false).in("id",idsPlan));
+    }
+
+    const respuestas=await conTimeout(Promise.all(consultas));
+    const porId=new Map();
+    respuestas.forEach(function(r){
+      if(r.error) throw r.error;
+      (r.data||[]).forEach(function(t){porId.set(String(t.id),t)});
+    });
+
+    const trabajos=Array.from(porId.values()).filter(function(t){
       return normalizar(t.estado)!=="cancelado";
     });
-    const planes=rp.data || [];
     const porTrabajo=new Map();
 
     planes.forEach(function(p){
@@ -490,23 +544,19 @@ async function cargarTrabajosDirectos(desde,hasta){
     });
 
     const eventos=[];
-
     trabajos.forEach(function(t){
       const id=String(t.id || "");
       const lista=porTrabajo.get(id) || [];
-
       if(lista.length){
         lista.forEach(function(p){
-          if(!esVisibleTrabajoParaUsuario(t,p,s)) return;
-          eventos.push(eventoDesdeTrabajo(t,p));
+          if(esVisibleTrabajoParaUsuario(t,p,s)) eventos.push(eventoDesdeTrabajo(t,p));
         });
-        return;
+      }else{
+        const fecha=normalizarFecha(t.fecha);
+        if(fecha && fecha>=desde && fecha<=hasta && esVisibleTrabajoParaUsuario(t,null,s)){
+          eventos.push(eventoDesdeTrabajo(t,null));
+        }
       }
-
-      const fecha=normalizarFecha(t.fecha);
-      if(!fecha || fecha<desde || fecha>hasta) return;
-      if(!esVisibleTrabajoParaUsuario(t,null,s)) return;
-      eventos.push(eventoDesdeTrabajo(t,null));
     });
 
     return eventos;
@@ -516,15 +566,22 @@ async function cargarTrabajosDirectos(desde,hasta){
   }
 }
 
+function claveEvento(e){
+  if(e.origen_id) return [e.origen||e.tipo,e.origen_id,e.fecha_inicio||"",e.hora_inicio||"",e.usuario_id||""].join("|");
+  return [e.tipo||"",normalizar(e.titulo),e.fecha_inicio||"",e.hora_inicio||"",e.usuario_id||"",e.cliente_id||""].join("|");
+}
+
 function combinarEventosAgenda(eventosAgenda,eventosTrabajo){
-  const manuales=(eventosAgenda || []).filter(function(e){
-    return !(String(e.origen || "")==="trabajos" && String(e.origen_id || ""));
+  const mapa=new Map();
+
+  (eventosAgenda || []).forEach(function(e){
+    const esEspejoTrabajo=String(e.origen||"")==="trabajos" && String(e.origen_id||"");
+    if(esEspejoTrabajo) return;
+    mapa.set(claveEvento(e),e);
   });
 
-  const mapa=new Map();
-  manuales.concat(eventosTrabajo || []).forEach(function(e){
-    const clave=String(e.id || `${e.tipo}:${e.fecha_inicio}:${e.hora_inicio}:${e.titulo}`);
-    mapa.set(clave,e);
+  (eventosTrabajo || []).forEach(function(e){
+    mapa.set(claveEvento(e),e);
   });
 
   return Array.from(mapa.values()).sort(function(a,b){
@@ -534,65 +591,70 @@ function combinarEventosAgenda(eventosAgenda,eventosTrabajo){
   });
 }
 
-async function cargarEventos(){
-  if(ZX_AGENDA_CARGANDO) return ZX_AGENDA_CACHE;
-  ZX_AGENDA_CARGANDO=true;
+async function cargarEventos(opciones){
+  opciones=opciones || {};
+  if(ZX_AGENDA_CARGANDO && !opciones.forzar) return ZX_AGENDA_CACHE;
 
+  const token=++ZX_AGENDA_CARGA_TOKEN;
+  ZX_AGENDA_CARGANDO=true;
   const s=sesion();
   const r=rangoMes();
+  const cache=leerCache();
+
+  if(cache.length && (!ZX_AGENDA_CACHE.length || opciones.pintarCache!==false)){
+    ZX_AGENDA_CACHE=cache;
+    if(document.getElementById("zx_ag_calendario")) repintarDatos();
+  }
 
   if(!navigator.onLine || !sb()){
-    ZX_AGENDA_CACHE=leerCache();
     ZX_AGENDA_CARGANDO=false;
     return ZX_AGENDA_CACHE;
   }
 
   try{
-    let res;
-
-    if(zx() && typeof zx().selectCache==="function"){
-      res=await zx().selectCache(TABLA,function(q){
-        return q
-          .select("*")
+    const consultaAgenda=(zx() && typeof zx().selectCache==="function")
+      ? zx().selectCache(TABLA,function(q){
+          return q.select("*")
+            .lte("fecha_inicio",r.hasta)
+            .gte("fecha_fin",r.desde)
+            .order("fecha_inicio",{ascending:true})
+            .order("hora_inicio",{ascending:true});
+        })
+      : sb().from(TABLA).select("*")
           .lte("fecha_inicio",r.hasta)
           .gte("fecha_fin",r.desde)
           .order("fecha_inicio",{ascending:true})
           .order("hora_inicio",{ascending:true});
-      });
-    }else{
-      res=await sb()
-        .from(TABLA)
-        .select("*")
-        .lte("fecha_inicio",r.hasta)
-        .gte("fecha_fin",r.desde)
-        .order("fecha_inicio",{ascending:true})
-        .order("hora_inicio",{ascending:true});
-    }
 
+    const [res,trabajosDirectos]=await conTimeout(Promise.all([
+      consultaAgenda,
+      cargarTrabajosDirectos(r.desde,r.hasta)
+    ]));
+
+    if(token!==ZX_AGENDA_CARGA_TOKEN) return ZX_AGENDA_CACHE;
     if(res.error) throw res.error;
 
     let eventosAgenda=res.data || [];
-
     if(!esAdmin()){
       eventosAgenda=eventosAgenda.filter(function(e){
         return String(e.visible_para || "todos")==="todos" ||
-               String(e.usuario_id || "")===String(s.id || "");
+               String(e.usuario_id || "")===String(s.id || s.usuario_id || "");
       });
     }
 
-    const trabajosDirectos=await cargarTrabajosDirectos(r.desde,r.hasta);
     const datos=combinarEventosAgenda(eventosAgenda,trabajosDirectos);
-
     ZX_AGENDA_CACHE=datos;
+    ZX_AGENDA_ULTIMA_CARGA=Date.now();
     guardarCache(datos);
     prepararTrabajosOffline(datos);
 
   }catch(e){
-    console.error(e);
-    ZX_AGENDA_CACHE=leerCache();
+    console.error("Carga de Agenda:",e);
+    if(!ZX_AGENDA_CACHE.length) ZX_AGENDA_CACHE=cache;
+  }finally{
+    if(token===ZX_AGENDA_CARGA_TOKEN) ZX_AGENDA_CARGANDO=false;
   }
 
-  ZX_AGENDA_CARGANDO=false;
   return ZX_AGENDA_CACHE;
 }
 
@@ -1089,7 +1151,8 @@ async function borrarEvento(id){
 
 async function recargarAgenda(){
   ZX_AGENDA_CACHE=[];
-  await cargarEventos();
+  ZX_AGENDA_CARGANDO=false;
+  await cargarEventos({forzar:true,pintarCache:false});
   repintarDatos();
   setEstado("synced");
 }
@@ -1641,14 +1704,24 @@ window.ZX_agenda=async function(){
 
   pintarShell();
 
-  setTimeout(async function(){
-    await cargarEventos();
+  const cache=leerCache();
+  if(cache.length){
+    ZX_AGENDA_CACHE=cache;
     repintarDatos();
-  },20);
+  }
+
+  setTimeout(async function(){
+    await cargarEventos({pintarCache:false});
+    repintarDatos();
+  },0);
 };
 
 window.addEventListener("online",function(){
-  setTimeout(function(){prepararTrabajosOffline(ZX_AGENDA_CACHE)},1200);
+  setTimeout(async function(){
+    await cargarEventos({forzar:true,pintarCache:false});
+    repintarDatos();
+    prepararTrabajosOffline(ZX_AGENDA_CACHE);
+  },700);
 });
 
 window.ZX_abrirAgenda=window.ZX_agenda;
