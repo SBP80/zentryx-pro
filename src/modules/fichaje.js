@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3137 - REFRESCO INSTANTÁNEO + EVENTO OPTIMISTA SEGURO
+// V3138 - REFRESCO INSTANTÁNEO + EVENTO OPTIMISTA SEGURO
 // ===============================
 (function(){
 "use strict";
@@ -3190,6 +3190,20 @@ function estilosAdminCompacto(){
 // ===============================
 // SINCRONIZACIÓN MULTIDISPOSITIVO
 // ===============================
+function fichajeEstaActivo(){
+  const nav=document.querySelector('.zx_nav_btn.zx_activo[data-modulo="fichaje"]');
+  if(nav) return true;
+
+  const app=document.getElementById("app");
+  if(!app) return false;
+
+  return !!(
+    app.querySelector('[data-zx-modulo="fichaje"]') ||
+    app.querySelector(".zx_fichaje_root") ||
+    app.querySelector("#zx_fichaje_principal")
+  );
+}
+
 function solicitarRenderFichaje(){
   if(ZX_RT_RENDER_TIMER) clearTimeout(ZX_RT_RENDER_TIMER);
 
@@ -3197,6 +3211,7 @@ function solicitarRenderFichaje(){
     ZX_RT_RENDER_TIMER=null;
 
     if(document.hidden) return;
+    if(!fichajeEstaActivo()) return;
     if(document.getElementById("zx_modal_fichaje")) return;
 
     const t=Date.now();
@@ -3308,6 +3323,7 @@ async function firmaSincronizacion(){
 
 async function comprobarCambiosRemotos(forzarRender=false){
   if(ZX_SYNC_BUSY || document.hidden || zxOffline()) return;
+  if(!fichajeEstaActivo()) return;
   if(document.getElementById("zx_modal_fichaje")) return;
 
   ZX_SYNC_BUSY=true;
