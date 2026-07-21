@@ -1,15 +1,15 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3151 - CENTRO DE EMERGENCIA Y ASISTENCIA
+// V3152 - CENTRO DE EMERGENCIA PROFESIONAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3151";
+const ZX_VERSION="3152";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3151";
-const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3151";
-const INCIDENCIAS_KEY="zentryx_vehiculos_incidencias_v3151";
+const CACHE_KEY="zentryx_cache_vehiculos_v3152";
+const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3152";
+const INCIDENCIAS_KEY="zentryx_vehiculos_incidencias_v3152";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -1696,17 +1696,27 @@ async function abrirAvisoGrua(id){
   const seg=datosAsistencia(v);
 
   modal(`
-    <h2>🚨 Emergencia y asistencia</h2>
+    <h2>🚨 Centro de emergencia</h2>
 
     <div class="zx_emergency_quick">
-      <a href="tel:112" class="zx_emergency_112">🆘 Llamar al 112</a>
+      <a href="tel:112" class="zx_emergency_112">🆘 LLAMAR AL 112</a>
+      ${seg.telefono
+        ? `<a class="zx_emergency_assistance" id="zx_grua_llamar_top" href="tel:${limpiar(telefonoLimpio(seg.telefono))}">🚛 LLAMAR A ASISTENCIA</a>`
+        : `<button class="zx_emergency_assistance disabled" type="button">🚛 ASISTENCIA NO CONFIGURADA</button>`}
       <button id="zx_grua_avisar_empresa" class="zx_emergency_company">🏢 Avisar empresa</button>
       <button id="zx_grua_registrar" class="zx_emergency_incident">📋 Registrar incidencia</button>
+      <button id="zx_grua_accidente" class="zx_emergency_accident">🚗 Asistente de accidente</button>
     </div>
 
     <div class="zx_grua_vehicle">
       <strong>${limpiar(v.matricula||"Vehículo")}</strong>
       <span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ")||"")}</span>
+      <div class="zx_vehicle_emergency_grid">
+        <div><small>Color</small><b>${limpiar(v.color||"-")}</b></div>
+        <div><small>Combustible</small><b>${limpiar(v.combustible||v.tipo_combustible||"-")}</b></div>
+        <div><small>Kilómetros</small><b>${limpiar(v.km_actual??"-")}</b></div>
+        <div><small>Responsable</small><b>${limpiar(responsableNombre(v)||identidadActual().nombre||"-")}</b></div>
+      </div>
     </div>
 
     <div class="zx_grua_notice">
@@ -1782,6 +1792,7 @@ async function abrirAvisoGrua(id){
       <div class="zx_location_row wide"><span>Dirección</span><b>${limpiar(direccion)}</b></div>
       <div class="zx_location_row"><span>Municipio</span><b>${limpiar(dir?.localidad||"-")}</b></div>
       <div class="zx_location_row"><span>Provincia</span><b>${limpiar(dir?.provincia||"-")}</b></div>
+      <div class="zx_location_row"><span>Código postal</span><b>${limpiar(dir?.codigo_postal||dir?.cp||"-")}</b></div>
       <div class="zx_location_row"><span>Latitud</span><b>${limpiar(coordTexto(pos.lat))}</b></div>
       <div class="zx_location_row"><span>Longitud</span><b>${limpiar(coordTexto(pos.lng))}</b></div>
       <div class="zx_location_row"><span>Precisión</span><b>${pos.precision?"±"+Math.round(pos.precision)+" m":"-"}</b></div>
@@ -1850,6 +1861,10 @@ async function abrirAvisoGrua(id){
     abrirRegistroIncidencia(v,seg,pos,dir,valor("zx_grua_pk"),valor("zx_grua_carretera"));
   };
 
+  document.getElementById("zx_grua_accidente").onclick=function(){
+    abrirAsistenteAccidente(v,seg,pos,dir,valor("zx_grua_pk"),valor("zx_grua_carretera"));
+  };
+
   const configurar=document.getElementById("zx_grua_configurar");
   if(configurar) configurar.onclick=function(){editarAsistencia(v)};
 
@@ -1916,6 +1931,124 @@ function abrirRegistroIncidencia(v,seg,pos,dir,pk,carretera){
     };
     if(!guardarIncidenciaLocal(inc)){alert("No se pudo guardar la incidencia.");return}
     alert("Incidencia registrada en el dispositivo.");
+    abrirAvisoGrua(v.id);
+  };
+}
+
+
+function leerFotosAccidente(input){
+  return new Promise((resolve)=>{
+    const files=Array.from(input?.files||[]).slice(0,6);
+    if(!files.length){resolve([]);return}
+    const out=[];
+    let pending=files.length;
+    files.forEach(file=>{
+      const reader=new FileReader();
+      reader.onload=()=>{out.push({name:file.name,type:file.type,data:reader.result});if(--pending===0)resolve(out)};
+      reader.onerror=()=>{if(--pending===0)resolve(out)};
+      reader.readAsDataURL(file);
+    });
+  });
+}
+
+function abrirAsistenteAccidente(v,seg,pos,dir,pk,carretera){
+  modal(`
+    <h2>🚗 Asistente de accidente</h2>
+    <div class="zx_veh_nota_form">
+      Registra solo información objetiva. Ante heridos, riesgo o peligro en la vía, llama primero al 112.
+    </div>
+
+    <div class="zx_accident_alerts">
+      <a href="tel:112">🆘 Llamar al 112</a>
+      ${seg.telefono?`<a href="tel:${limpiar(telefonoLimpio(seg.telefono))}">🚛 Llamar a asistencia</a>`:""}
+    </div>
+
+    <div class="zx_veh_form">
+      <label class="zx_veh_label" for="zx_acc_heridos">¿Hay heridos?</label>
+      <select id="zx_acc_heridos">
+        <option value="no">No</option>
+        <option value="si">Sí</option>
+        <option value="no_se">No lo sé</option>
+      </select>
+
+      <label class="zx_veh_label" for="zx_acc_policia">Intervención policial</label>
+      <select id="zx_acc_policia">
+        <option value="no">No</option>
+        <option value="si">Sí</option>
+        <option value="solicitada">Solicitada</option>
+      </select>
+
+      <label class="zx_veh_label" for="zx_acc_contrario">Datos del contrario</label>
+      <textarea id="zx_acc_contrario" rows="4" placeholder="Matrícula, nombre, teléfono, aseguradora…"></textarea>
+
+      <label class="zx_veh_label" for="zx_acc_descripcion">Qué ha ocurrido</label>
+      <textarea id="zx_acc_descripcion" rows="5" placeholder="Describe brevemente los hechos"></textarea>
+
+      <div class="zx_voice_row">
+        <button type="button" id="zx_acc_dictar">🎤 Dictar</button>
+        <span id="zx_acc_dictado_estado"></span>
+      </div>
+
+      <label class="zx_veh_label" for="zx_acc_fotos">Fotografías (máximo 6)</label>
+      <input id="zx_acc_fotos" type="file" accept="image/*" capture="environment" multiple>
+      <small>Haz fotos generales, daños, matrículas y señalización sin ponerte en peligro.</small>
+    </div>
+
+    <button class="zx_btn_big zx_naranja" id="zx_acc_guardar">Guardar accidente</button>
+    <button class="zx_btn_big zx_gris" id="zx_acc_cancelar">Cancelar</button>
+  `);
+
+  document.getElementById("zx_acc_cancelar").onclick=function(){abrirAvisoGrua(v.id)};
+
+  const dictar=document.getElementById("zx_acc_dictar");
+  if(dictar){
+    dictar.onclick=function(){
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SR){alert("El dictado no está disponible en este navegador.");return}
+      const rec=new SR();
+      rec.lang="es-ES";
+      rec.interimResults=false;
+      rec.maxAlternatives=1;
+      document.getElementById("zx_acc_dictado_estado").textContent="Escuchando…";
+      rec.onresult=e=>{
+        const txt=e.results?.[0]?.[0]?.transcript||"";
+        const ta=document.getElementById("zx_acc_descripcion");
+        ta.value=(ta.value?ta.value+" ":"")+txt;
+      };
+      rec.onerror=()=>document.getElementById("zx_acc_dictado_estado").textContent="No se pudo dictar.";
+      rec.onend=()=>document.getElementById("zx_acc_dictado_estado").textContent="";
+      rec.start();
+    };
+  }
+
+  document.getElementById("zx_acc_guardar").onclick=async function(){
+    const fotos=await leerFotosAccidente(document.getElementById("zx_acc_fotos"));
+    const inc={
+      id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),
+      vehiculo_id:v.id,
+      matricula:v.matricula||"",
+      usuario_id:identidadActual().id||"",
+      usuario_nombre:responsableNombre(v)||identidadActual().nombre||"",
+      tipo:"accidente",
+      descripcion:valor("zx_acc_descripcion"),
+      datos_contrario:valor("zx_acc_contrario"),
+      heridos:valor("zx_acc_heridos"),
+      policia:valor("zx_acc_policia"),
+      fotos,
+      fecha:new Date().toISOString(),
+      km:v.km_actual??null,
+      lat:pos?.lat??null,
+      lng:pos?.lng??null,
+      precision:pos?.precision??null,
+      direccion:dir?.completa||"",
+      carretera:carretera||dir?.carretera||"",
+      punto_km:pk||"",
+      aseguradora:seg.compania||"",
+      poliza:seg.poliza||"",
+      estado:"registrada_local"
+    };
+    if(!guardarIncidenciaLocal(inc)){alert("No se pudo guardar el accidente.");return}
+    alert("Accidente registrado en el dispositivo.");
     abrirAvisoGrua(v.id);
   };
 }
@@ -2712,7 +2845,7 @@ function instalarCSS(){
     .zx_grua_location{display:grid;gap:5px;margin-top:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:16px;padding:13px}.zx_grua_location b{color:#1e3a8a;line-height:1.3}.zx_grua_location span{color:#475569;font-size:12px;font-weight:800;line-height:1.35}.zx_grua_location em{color:#b91c1c;font-size:11px;font-weight:850;font-style:normal}
     .zx_grua_manual small{display:block;color:#64748b;font-size:11px;font-weight:750;line-height:1.35;margin-top:7px}
     .zx_grua_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.zx_grua_actions a,.zx_grua_actions button{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;border:0;border-radius:16px;padding:13px 9px;min-height:48px;color:#fff;font-size:13px;font-weight:950}.zx_grua_actions .call{grid-column:1/-1;background:#16a34a;font-size:16px;box-shadow:0 9px 18px rgba(22,163,74,.2)}
-    .zx_emergency_quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.zx_emergency_quick a,.zx_emergency_quick button{border:0;border-radius:16px;min-height:52px;padding:11px;text-align:center;text-decoration:none;color:#fff;font-weight:950;font-size:13px;display:flex;align-items:center;justify-content:center}.zx_emergency_112{grid-column:1/-1;background:#dc2626;font-size:16px!important}.zx_emergency_company{background:#0f766e}.zx_emergency_incident{background:#ea580c}
+    .zx_emergency_quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.zx_emergency_quick a,.zx_emergency_quick button{border:0;border-radius:16px;min-height:52px;padding:11px;text-align:center;text-decoration:none;color:#fff;font-weight:950;font-size:13px;display:flex;align-items:center;justify-content:center}.zx_emergency_112{grid-column:1/-1;background:#dc2626;font-size:16px!important}.zx_emergency_company{background:#0f766e}.zx_emergency_incident{background:#ea580c}.zx_emergency_assistance{grid-column:1/-1;background:#16a34a;font-size:15px!important}.zx_emergency_assistance.disabled{background:#94a3b8}.zx_emergency_accident{grid-column:1/-1;background:#7c3aed}.zx_vehicle_emergency_grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.zx_vehicle_emergency_grid>div{background:rgba(255,255,255,.6);border:1px solid #fed7aa;border-radius:12px;padding:8px}.zx_vehicle_emergency_grid small,.zx_vehicle_emergency_grid b{display:block}.zx_vehicle_emergency_grid small{font-size:9px;text-transform:uppercase;color:#9a3412;font-weight:950}.zx_vehicle_emergency_grid b{font-size:12px;color:#7c2d12;margin-top:3px;overflow-wrap:anywhere}.zx_accident_alerts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.zx_accident_alerts a{background:#dc2626;color:#fff;text-decoration:none;border-radius:14px;min-height:48px;padding:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:950}.zx_accident_alerts a+ a{background:#16a34a}.zx_voice_row{display:flex;gap:8px;align-items:center}.zx_voice_row button{border:0;border-radius:12px;background:#7c3aed;color:#fff;font-weight:900;padding:10px 14px}.zx_voice_row span{font-size:12px;color:#64748b;font-weight:800}
     .zx_grua_section{margin-top:12px}.zx_grua_section h3{margin:0 0 8px;color:#071330;font-size:16px}.zx_grua_insurance{display:grid;grid-template-columns:1fr 1fr;gap:8px}.zx_grua_insurance>div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:14px;padding:10px;min-width:0}.zx_grua_insurance .wide{grid-column:1/-1}.zx_grua_insurance span,.zx_grua_insurance b{display:block}.zx_grua_insurance span{color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase}.zx_grua_insurance b{color:#071330;font-size:13px;margin-top:4px;overflow-wrap:anywhere}
     .zx_grua_location{grid-template-columns:1fr 1fr}.zx_grua_location .wide{grid-column:1/-1}.zx_location_row{background:rgba(255,255,255,.65);border:1px solid #dbeafe;border-radius:12px;padding:9px}.zx_location_row span,.zx_location_row b{display:block}.zx_location_row span{font-size:10px;color:#64748b;font-weight:950;text-transform:uppercase}.zx_location_row b{margin-top:3px;color:#1e3a8a;font-size:12px;overflow-wrap:anywhere}
     .zx_grua_actions .apple{background:#334155}.zx_grua_actions .softblue{background:#0f766e}
