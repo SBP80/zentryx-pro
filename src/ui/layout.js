@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3124 - CONSERVAR MÓDULO ACTIVO EN IOS
+// V3125 - CONSERVAR MÓDULO ACTIVO EN IOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3124";
+const ZX_VERSION="3125";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -273,6 +273,73 @@ function estilos(){
       gap:7px;
       box-shadow:0 8px 18px rgba(249,115,22,.13);
       flex:none;
+    }
+
+
+    .zx_calendar_icon{
+      position:relative;
+      width:28px;
+      height:28px;
+      border-radius:7px;
+      background:#fff;
+      border:2px solid currentColor;
+      display:inline-flex;
+      align-items:flex-end;
+      justify-content:center;
+      overflow:hidden;
+      box-sizing:border-box;
+      flex:none;
+      line-height:1;
+    }
+
+    .zx_calendar_top{
+      position:absolute;
+      left:0;
+      right:0;
+      top:0;
+      height:7px;
+      background:currentColor;
+    }
+
+    .zx_calendar_day{
+      display:block;
+      padding-bottom:3px;
+      color:#071330;
+      font-size:13px;
+      font-weight:1000;
+      letter-spacing:-.5px;
+    }
+
+    #zx_agenda_count{
+      min-width:20px;
+      height:20px;
+      border-radius:999px;
+      background:#ea580c;
+      color:#fff;
+      align-items:center;
+      justify-content:center;
+      padding:0 6px;
+      font-size:11px;
+      font-weight:1000;
+      display:none;
+    }
+
+    .zx_calendar_nav{
+      width:30px;
+      height:30px;
+      color:#7c3aed;
+    }
+
+    .zx_calendar_action{
+      width:25px;
+      height:25px;
+      color:#7c3aed;
+      border-width:2px;
+    }
+
+    .zx_calendar_action .zx_calendar_day{
+      font-size:11px;
+      padding-bottom:2px;
     }
 
     #zx_nav{
@@ -596,6 +663,24 @@ function topbar(){
   };
 }
 
+
+function diaActualCalendario(){
+  return String(new Date().getDate());
+}
+
+function iconoCalendarioHTML(claseExtra=""){
+  return `<span class="zx_calendar_icon ${claseExtra}" aria-hidden="true">
+    <span class="zx_calendar_top"></span>
+    <span class="zx_calendar_day">${diaActualCalendario()}</span>
+  </span>`;
+}
+
+function actualizarIconosCalendario(){
+  document.querySelectorAll(".zx_calendar_day").forEach(function(el){
+    el.textContent=diaActualCalendario();
+  });
+}
+
 function reloj(){
   const r=document.createElement("div");
   r.id="zx_reloj";
@@ -605,7 +690,7 @@ function reloj(){
         <div id="zx_fecha">--/--/----</div>
         <div id="zx_hora">--:--</div>
       </div>
-      <button id="zx_agenda_btn" type="button">📅</button>
+      <button id="zx_agenda_btn" type="button">${iconoCalendarioHTML("zx_calendar_top_button")}<span id="zx_agenda_count"></span></button>
     </div>
   `;
 
@@ -640,6 +725,7 @@ function actualizarReloj(){
 
   if($("zx_fecha")) $("zx_fecha").textContent=fecha;
   if($("zx_hora")) $("zx_hora").textContent=hora;
+  actualizarIconosCalendario();
 }
 
 async function eventosHoy(){
@@ -675,13 +761,18 @@ async function eventosHoy(){
 
 async function actualizarContadorAgenda(){
   const btn=$("zx_agenda_btn");
-  if(!btn) return;
+  const count=$("zx_agenda_count");
+  if(!btn || !count) return;
+
+  actualizarIconosCalendario();
 
   try{
     const datos=await eventosHoy();
-    btn.textContent=datos.length ? "📅 "+datos.length : "📅";
+    count.textContent=datos.length ? String(datos.length) : "";
+    count.style.display=datos.length ? "inline-flex" : "none";
   }catch(e){
-    btn.textContent="📅";
+    count.textContent="";
+    count.style.display="none";
   }
 }
 
@@ -870,7 +961,7 @@ function nav(){
       ${MODULOS.filter(function(m){return puedeVerModulo(m.id)}).map(function(m){
         return `
           <button class="zx_nav_btn" data-modulo="${limpiar(m.id)}" type="button">
-            <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${limpiar(m.icono)}</span>
+            <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_nav") : limpiar(m.icono)}</span>
             ${limpiar(m.texto)}
           </button>
         `;
@@ -1144,7 +1235,7 @@ function actionbar(){
   bar.id="zx_actionbar";
   bar.innerHTML=`
     <button class="zx_action_btn zx_action_fichar" type="button" data-zx-action="fichaje"><span>⏱️</span>Fichar</button>
-    <button class="zx_action_btn zx_action_agenda" type="button" data-zx-action="agenda"><span>📅</span>Agenda</button>
+    <button class="zx_action_btn zx_action_agenda" type="button" data-zx-action="agenda"><span>${iconoCalendarioHTML("zx_calendar_action")}</span>Agenda</button>
     <button class="zx_action_btn zx_action_trabajos" type="button" data-zx-action="trabajos"><span>🛠️</span>Trabajo</button>
     <button class="zx_action_btn zx_action_nota" type="button" data-zx-action="nota"><span>📝</span>Nota</button>
   `;
