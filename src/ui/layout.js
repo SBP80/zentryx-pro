@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3125 - CONSERVAR MÓDULO ACTIVO EN IOS
+// V3126 - ICONO AGENDA DINÁMICO Y SIN ACCESOS RÁPIDOS INFERIORES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3125";
+const ZX_VERSION="3126";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -81,7 +81,7 @@ function formatoFechaES(f){
 }
 
 function limpiarLayout(){
-  ["zx_topbar","zx_reloj","zx_nav","zx_postit","zx_css","zx_actionbar"].forEach(function(id){
+  ["zx_topbar","zx_reloj","zx_nav","zx_postit","zx_css"].forEach(function(id){
     const el=$(id);
     if(el) el.remove();
   });
@@ -328,18 +328,6 @@ function estilos(){
       width:30px;
       height:30px;
       color:#7c3aed;
-    }
-
-    .zx_calendar_action{
-      width:25px;
-      height:25px;
-      color:#7c3aed;
-      border-width:2px;
-    }
-
-    .zx_calendar_action .zx_calendar_day{
-      font-size:11px;
-      padding-bottom:2px;
     }
 
     #zx_nav{
@@ -1235,7 +1223,7 @@ function actionbar(){
   bar.id="zx_actionbar";
   bar.innerHTML=`
     <button class="zx_action_btn zx_action_fichar" type="button" data-zx-action="fichaje"><span>⏱️</span>Fichar</button>
-    <button class="zx_action_btn zx_action_agenda" type="button" data-zx-action="agenda"><span>${iconoCalendarioHTML("zx_calendar_action")}</span>Agenda</button>
+    <button class="zx_action_btn zx_action_agenda" type="button" data-zx-action="agenda"><span>📅</span>Agenda</button>
     <button class="zx_action_btn zx_action_trabajos" type="button" data-zx-action="trabajos"><span>🛠️</span>Trabajo</button>
     <button class="zx_action_btn zx_action_nota" type="button" data-zx-action="nota"><span>📝</span>Nota</button>
   `;
@@ -1356,7 +1344,6 @@ window.ZENTRYX_UI_LAYOUT={
     reloj();
     nav();
     botonPostit();
-    actionbar();
 
     const asegurarModulo=function(){
       if(document.hidden) return;
