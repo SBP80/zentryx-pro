@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3138 - REFRESCO INSTANTÁNEO + EVENTO OPTIMISTA SEGURO
+// V3139 - SINCRONIZACIÓN SIN CAMBIAR DE MÓDULO
 // ===============================
 (function(){
 "use strict";
@@ -3191,17 +3191,9 @@ function estilosAdminCompacto(){
 // SINCRONIZACIÓN MULTIDISPOSITIVO
 // ===============================
 function fichajeEstaActivo(){
+  if(String(window.ZX_MODULO_ACTUAL||"")!=="fichaje") return false;
   const nav=document.querySelector('.zx_nav_btn.zx_activo[data-modulo="fichaje"]');
-  if(nav) return true;
-
-  const app=document.getElementById("app");
-  if(!app) return false;
-
-  return !!(
-    app.querySelector('[data-zx-modulo="fichaje"]') ||
-    app.querySelector(".zx_fichaje_root") ||
-    app.querySelector("#zx_fichaje_principal")
-  );
+  return !!nav;
 }
 
 function solicitarRenderFichaje(){
