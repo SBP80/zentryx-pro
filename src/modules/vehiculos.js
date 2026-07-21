@@ -1,14 +1,15 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3150 - AVISO GRÚA Y ASISTENCIA EN CARRETERA
+// V3151 - CENTRO DE EMERGENCIA Y ASISTENCIA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3150";
+const ZX_VERSION="3151";
 const TABLA="vehiculos";
-const CACHE_KEY="zentryx_cache_vehiculos_v3150";
-const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3150";
+const CACHE_KEY="zentryx_cache_vehiculos_v3151";
+const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3151";
+const INCIDENCIAS_KEY="zentryx_vehiculos_incidencias_v3151";
 
 let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
@@ -153,9 +154,9 @@ async function posicionAsistencia(){
   return new Promise(function(resolve){
     if(!navigator.geolocation){resolve({lat:null,lng:null,precision:null,error:"GPS no disponible"});return}
     navigator.geolocation.getCurrentPosition(function(p){
-      resolve({lat:p.coords.latitude,lng:p.coords.longitude,precision:p.coords.accuracy||null,error:""});
+      resolve({lat:p.coords.latitude,lng:p.coords.longitude,precision:p.coords.accuracy||null,error:"",hora:new Date().toISOString()});
     },function(e){
-      resolve({lat:null,lng:null,precision:null,error:e&&e.message?e.message:"No se pudo obtener la ubicación"});
+      resolve({lat:null,lng:null,precision:null,error:e&&e.message?e.message:"No se pudo obtener la ubicación",hora:new Date().toISOString()});
     },{enableHighAccuracy:true,timeout:12000,maximumAge:15000});
   });
 }
@@ -1693,66 +1694,230 @@ async function abrirAvisoGrua(id){
   const v=vehiculoPorId(id);
   if(!v){alert("Vehículo no encontrado.");return}
   const seg=datosAsistencia(v);
+
   modal(`
-    <h2>🚨 Aviso grúa</h2>
-    <div class="zx_grua_vehicle"><strong>${limpiar(v.matricula||"Vehículo")}</strong><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ")||"")}</span></div>
-    <div class="zx_grua_notice">Mantén esta pantalla abierta durante la llamada para consultar la póliza y tu ubicación.</div>
-    <div class="zx_grua_grid">
-      <div><span>Aseguradora</span><b>${limpiar(seg.compania||"No configurada")}</b></div>
-      <div><span>N.º póliza</span><b>${limpiar(seg.poliza||"No configurado")}</b></div>
-      <div><span>Teléfono asistencia</span><b>${limpiar(seg.telefono||"No configurado")}</b></div>
-      <div><span>Vencimiento</span><b>${limpiar(fechaES(seg.vencimiento)||"-")}</b></div>
-      ${seg.cobertura?`<div class="wide"><span>Cobertura</span><b>${limpiar(seg.cobertura)}</b></div>`:""}
+    <h2>🚨 Emergencia y asistencia</h2>
+
+    <div class="zx_emergency_quick">
+      <a href="tel:112" class="zx_emergency_112">🆘 Llamar al 112</a>
+      <button id="zx_grua_avisar_empresa" class="zx_emergency_company">🏢 Avisar empresa</button>
+      <button id="zx_grua_registrar" class="zx_emergency_incident">📋 Registrar incidencia</button>
     </div>
-    <div id="zx_grua_location" class="zx_grua_location"><b>📍 Localizando posición exacta…</b><span>Autoriza el acceso al GPS si Safari lo solicita.</span></div>
+
+    <div class="zx_grua_vehicle">
+      <strong>${limpiar(v.matricula||"Vehículo")}</strong>
+      <span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ")||"")}</span>
+    </div>
+
+    <div class="zx_grua_notice">
+      Mantén esta pantalla abierta durante la llamada. Aquí tendrás visibles la póliza, el vehículo y tu ubicación exacta.
+    </div>
+
+    <section class="zx_grua_section">
+      <h3>🛡 Seguro y asistencia</h3>
+      <div class="zx_grua_insurance">
+        <div><span>Aseguradora</span><b>${limpiar(seg.compania||"No configurada")}</b></div>
+        <div><span>N.º póliza</span><b>${limpiar(seg.poliza||"No configurado")}</b></div>
+        <div><span>Teléfono</span><b>${limpiar(seg.telefono||"No configurado")}</b></div>
+        <div><span>Vencimiento</span><b>${limpiar(fechaES(seg.vencimiento)||"-")}</b></div>
+        ${seg.cobertura?`<div class="wide"><span>Cobertura</span><b>${limpiar(seg.cobertura)}</b></div>`:""}
+        ${seg.instrucciones?`<div class="wide"><span>Instrucciones</span><b>${limpiar(seg.instrucciones)}</b></div>`:""}
+      </div>
+    </section>
+
+    <section class="zx_grua_section">
+      <h3>📍 Ubicación</h3>
+      <div id="zx_grua_location" class="zx_grua_location">
+        <b>Localizando posición exacta…</b>
+        <span>Autoriza el acceso al GPS si Safari lo solicita.</span>
+      </div>
+    </section>
+
     <div class="zx_grua_manual">
-      <label class="zx_veh_label" for="zx_grua_carretera">Carretera / vía (opcional)</label>
+      <label class="zx_veh_label" for="zx_grua_carretera">Carretera / vía</label>
       <input id="zx_grua_carretera" placeholder="Ej.: A-3, M-219…">
       <label class="zx_veh_label" for="zx_grua_pk">Punto kilométrico (si lo conoces)</label>
       <input id="zx_grua_pk" inputmode="decimal" placeholder="Ej.: 41,5">
-      <small>El punto kilométrico no se inventa: se muestra solo si se introduce o puede identificarse con fiabilidad.</small>
+      <small>El punto kilométrico solo se muestra cuando se introduce o puede identificarse con fiabilidad.</small>
     </div>
+
     <div class="zx_grua_actions">
-      ${seg.telefono?`<a class="call" id="zx_grua_llamar" href="tel:${limpiar(telefonoLimpio(seg.telefono))}">📞 Llamar a asistencia</a>`:`<button class="disabled" type="button">📞 Teléfono no configurado</button>`}
-      <button class="blue" id="zx_grua_copiar">📋 Copiar datos</button>
+      ${seg.telefono
+        ? `<a class="call" id="zx_grua_llamar" href="tel:${limpiar(telefonoLimpio(seg.telefono))}">📞 LLAMAR A ASISTENCIA</a>`
+        : `<button class="disabled" type="button">📞 TELÉFONO NO CONFIGURADO</button>`}
+      <button class="blue" id="zx_grua_copiar">📋 Copiar todos los datos</button>
       <button class="purple" id="zx_grua_compartir">↗️ Compartir ubicación</button>
-      <a class="maps" id="zx_grua_mapa" href="#">🗺 Abrir en mapas</a>
-      <button class="gray" id="zx_grua_relocalizar">📍 Actualizar ubicación</button>
+      <a class="maps" id="zx_grua_google" href="#" target="_blank" rel="noopener">🌍 Google Maps</a>
+      <a class="apple" id="zx_grua_apple" href="#" target="_blank" rel="noopener"> Apple Maps</a>
+      <button class="softblue" id="zx_grua_copiar_coord">🧭 Copiar coordenadas</button>
+      <button class="softblue" id="zx_grua_copiar_dir">🏠 Copiar dirección</button>
+      <button class="gray" id="zx_grua_relocalizar">🔄 Actualizar ubicación</button>
       ${puedeGestionar()?`<button class="orange" id="zx_grua_configurar">⚙️ Configurar seguro</button>`:""}
       <button class="gray" id="zx_grua_cerrar">Cerrar</button>
     </div>
   `);
 
-  let pos={lat:null,lng:null,precision:null,error:""};
+  let pos={lat:null,lng:null,precision:null,error:"",hora:new Date().toISOString()};
   let dir=null;
+
+  function horaGPS(){
+    try{return new Date(pos.hora||Date.now()).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
+    catch(e){return "-"}
+  }
+
+  function direccionCorta(){
+    if(!dir) return "Dirección no disponible";
+    return dir.completa||[dir.carretera,dir.localidad,dir.provincia].filter(Boolean).join(", ")||"Dirección no disponible";
+  }
+
   async function localizar(){
     const box=document.getElementById("zx_grua_location");
     if(box) box.innerHTML="<b>📍 Localizando posición exacta…</b><span>Puede tardar unos segundos.</span>";
     pos=await posicionAsistencia();
     dir=await direccionDesdeCoordenadas(pos.lat,pos.lng);
     if(!document.getElementById("zx_grua_location")) return;
-    const direccion=dir?.completa||"Dirección no disponible";
-    box.innerHTML=`<b>📍 ${limpiar(direccion)}</b><span>Coordenadas: ${limpiar(coordTexto(pos.lat))}, ${limpiar(coordTexto(pos.lng))}${pos.precision?` · precisión aproximada ±${Math.round(pos.precision)} m`:""}</span>${pos.error?`<em>${limpiar(pos.error)}</em>`:""}`;
+
+    const direccion=direccionCorta();
+    box.innerHTML=`
+      <div class="zx_location_row wide"><span>Dirección</span><b>${limpiar(direccion)}</b></div>
+      <div class="zx_location_row"><span>Municipio</span><b>${limpiar(dir?.localidad||"-")}</b></div>
+      <div class="zx_location_row"><span>Provincia</span><b>${limpiar(dir?.provincia||"-")}</b></div>
+      <div class="zx_location_row"><span>Latitud</span><b>${limpiar(coordTexto(pos.lat))}</b></div>
+      <div class="zx_location_row"><span>Longitud</span><b>${limpiar(coordTexto(pos.lng))}</b></div>
+      <div class="zx_location_row"><span>Precisión</span><b>${pos.precision?"±"+Math.round(pos.precision)+" m":"-"}</b></div>
+      <div class="zx_location_row"><span>Hora GPS</span><b>${limpiar(horaGPS())}</b></div>
+      ${pos.error?`<em class="wide">${limpiar(pos.error)}</em>`:""}
+    `;
+
     const carretera=document.getElementById("zx_grua_carretera");
     if(carretera&&!carretera.value&&dir?.carretera) carretera.value=dir.carretera;
-    const mapa=document.getElementById("zx_grua_mapa");
-    if(mapa&&Number.isFinite(Number(pos.lat))) mapa.href="https://www.google.com/maps?q="+encodeURIComponent(pos.lat+","+pos.lng);
+
+    if(Number.isFinite(Number(pos.lat))){
+      const q=encodeURIComponent(pos.lat+","+pos.lng);
+      const google=document.getElementById("zx_grua_google");
+      const apple=document.getElementById("zx_grua_apple");
+      if(google) google.href="https://www.google.com/maps?q="+q;
+      if(apple) apple.href="https://maps.apple.com/?q="+q;
+    }
   }
-  function textoActual(){return textoAvisoGrua(v,seg,pos,dir,valor("zx_grua_pk"),valor("zx_grua_carretera"))}
+
+  function textoActual(){
+    return textoAvisoGrua(v,seg,pos,dir,valor("zx_grua_pk"),valor("zx_grua_carretera"))
+      +"\nHora GPS: "+horaGPS();
+  }
+
   document.getElementById("zx_grua_cerrar").onclick=cerrarModal;
   document.getElementById("zx_grua_relocalizar").onclick=localizar;
+
   document.getElementById("zx_grua_copiar").onclick=async function(){
     try{await navigator.clipboard.writeText(textoActual());alert("Datos copiados.")}
     catch(e){prompt("Copia estos datos:",textoActual())}
   };
+
+  document.getElementById("zx_grua_copiar_coord").onclick=async function(){
+    const t=coordTexto(pos.lat)+", "+coordTexto(pos.lng);
+    try{await navigator.clipboard.writeText(t);alert("Coordenadas copiadas.")}
+    catch(e){prompt("Copia las coordenadas:",t)}
+  };
+
+  document.getElementById("zx_grua_copiar_dir").onclick=async function(){
+    const t=direccionCorta();
+    try{await navigator.clipboard.writeText(t);alert("Dirección copiada.")}
+    catch(e){prompt("Copia la dirección:",t)}
+  };
+
   document.getElementById("zx_grua_compartir").onclick=async function(){
     const text=textoActual();
-    try{if(navigator.share) await navigator.share({title:"Aviso grúa "+(v.matricula||""),text});else throw new Error()}
-    catch(e){try{await navigator.clipboard.writeText(text);alert("Datos copiados para compartir.")}catch(x){}}
+    try{
+      if(navigator.share) await navigator.share({title:"Asistencia "+(v.matricula||""),text});
+      else throw new Error();
+    }catch(e){
+      try{await navigator.clipboard.writeText(text);alert("Datos copiados para compartir.")}catch(x){}
+    }
   };
+
+  document.getElementById("zx_grua_avisar_empresa").onclick=async function(){
+    const text="AVISO A EMPRESA\n"+textoActual();
+    try{
+      if(navigator.share) await navigator.share({title:"Incidencia "+(v.matricula||""),text});
+      else throw new Error();
+    }catch(e){
+      try{await navigator.clipboard.writeText(text);alert("Aviso copiado. Puedes enviarlo a la empresa.")}catch(x){}
+    }
+  };
+
+  document.getElementById("zx_grua_registrar").onclick=function(){
+    abrirRegistroIncidencia(v,seg,pos,dir,valor("zx_grua_pk"),valor("zx_grua_carretera"));
+  };
+
   const configurar=document.getElementById("zx_grua_configurar");
   if(configurar) configurar.onclick=function(){editarAsistencia(v)};
+
   await localizar();
+}
+
+function leerIncidenciasLocales(){
+  try{return JSON.parse(localStorage.getItem(INCIDENCIAS_KEY)||"[]")||[]}
+  catch(e){return []}
+}
+
+function guardarIncidenciaLocal(inc){
+  try{
+    const lista=leerIncidenciasLocales();
+    lista.unshift(inc);
+    localStorage.setItem(INCIDENCIAS_KEY,JSON.stringify(lista.slice(0,250)));
+    return true;
+  }catch(e){return false}
+}
+
+function abrirRegistroIncidencia(v,seg,pos,dir,pk,carretera){
+  modal(`
+    <h2>📋 Registrar incidencia</h2>
+    <div class="zx_veh_nota_form">Quedará guardada en este dispositivo. La sincronización central se añadirá después de revisar la estructura SQL existente.</div>
+    <div class="zx_veh_form">
+      <label class="zx_veh_label" for="zx_inc_tipo">Tipo</label>
+      <select id="zx_inc_tipo">
+        <option value="averia">Avería</option>
+        <option value="accidente">Accidente</option>
+        <option value="pinchazo">Pinchazo</option>
+        <option value="bateria">Batería</option>
+        <option value="combustible">Falta de combustible</option>
+        <option value="danos">Daños</option>
+        <option value="otro">Otro</option>
+      </select>
+      <label class="zx_veh_label" for="zx_inc_descripcion">Descripción</label>
+      <textarea id="zx_inc_descripcion" rows="5" placeholder="Describe brevemente qué ha ocurrido"></textarea>
+    </div>
+    <button class="zx_btn_big zx_naranja" id="zx_inc_guardar">Guardar incidencia</button>
+    <button class="zx_btn_big zx_gris" id="zx_inc_cancelar">Cancelar</button>
+  `);
+
+  document.getElementById("zx_inc_cancelar").onclick=function(){abrirAvisoGrua(v.id)};
+  document.getElementById("zx_inc_guardar").onclick=function(){
+    const inc={
+      id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),
+      vehiculo_id:v.id,
+      matricula:v.matricula||"",
+      usuario_id:identidadActual().id||"",
+      usuario_nombre:responsableNombre(v)||identidadActual().nombre||"",
+      tipo:valor("zx_inc_tipo")||"otro",
+      descripcion:valor("zx_inc_descripcion"),
+      fecha:new Date().toISOString(),
+      km:v.km_actual??null,
+      lat:pos?.lat??null,
+      lng:pos?.lng??null,
+      precision:pos?.precision??null,
+      direccion:dir?.completa||"",
+      carretera:carretera||dir?.carretera||"",
+      punto_km:pk||"",
+      aseguradora:seg.compania||"",
+      poliza:seg.poliza||"",
+      estado:"registrada_local"
+    };
+    if(!guardarIncidenciaLocal(inc)){alert("No se pudo guardar la incidencia.");return}
+    alert("Incidencia registrada en el dispositivo.");
+    abrirAvisoGrua(v.id);
+  };
 }
 
 function editarAsistencia(v){
@@ -2546,7 +2711,12 @@ function instalarCSS(){
     .zx_grua_grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_grua_grid>div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:14px;padding:10px;min-width:0}.zx_grua_grid .wide{grid-column:1/-1}.zx_grua_grid span,.zx_grua_grid b{display:block}.zx_grua_grid span{color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase}.zx_grua_grid b{color:#071330;font-size:13px;margin-top:4px;overflow-wrap:anywhere}
     .zx_grua_location{display:grid;gap:5px;margin-top:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:16px;padding:13px}.zx_grua_location b{color:#1e3a8a;line-height:1.3}.zx_grua_location span{color:#475569;font-size:12px;font-weight:800;line-height:1.35}.zx_grua_location em{color:#b91c1c;font-size:11px;font-weight:850;font-style:normal}
     .zx_grua_manual small{display:block;color:#64748b;font-size:11px;font-weight:750;line-height:1.35;margin-top:7px}
-    .zx_grua_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.zx_grua_actions a,.zx_grua_actions button{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;border:0;border-radius:16px;padding:13px 9px;min-height:48px;color:#fff;font-size:13px;font-weight:950}.zx_grua_actions .call{grid-column:1/-1;background:#16a34a;font-size:16px;box-shadow:0 9px 18px rgba(22,163,74,.2)}.zx_grua_actions .disabled{grid-column:1/-1;background:#94a3b8}.zx_grua_actions .blue{background:#2563eb}.zx_grua_actions .purple{background:#7c3aed}.zx_grua_actions .maps{background:#111827}.zx_grua_actions .orange{background:#f97316}.zx_grua_actions .gray{background:#64748b}
+    .zx_grua_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.zx_grua_actions a,.zx_grua_actions button{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;border:0;border-radius:16px;padding:13px 9px;min-height:48px;color:#fff;font-size:13px;font-weight:950}.zx_grua_actions .call{grid-column:1/-1;background:#16a34a;font-size:16px;box-shadow:0 9px 18px rgba(22,163,74,.2)}
+    .zx_emergency_quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.zx_emergency_quick a,.zx_emergency_quick button{border:0;border-radius:16px;min-height:52px;padding:11px;text-align:center;text-decoration:none;color:#fff;font-weight:950;font-size:13px;display:flex;align-items:center;justify-content:center}.zx_emergency_112{grid-column:1/-1;background:#dc2626;font-size:16px!important}.zx_emergency_company{background:#0f766e}.zx_emergency_incident{background:#ea580c}
+    .zx_grua_section{margin-top:12px}.zx_grua_section h3{margin:0 0 8px;color:#071330;font-size:16px}.zx_grua_insurance{display:grid;grid-template-columns:1fr 1fr;gap:8px}.zx_grua_insurance>div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:14px;padding:10px;min-width:0}.zx_grua_insurance .wide{grid-column:1/-1}.zx_grua_insurance span,.zx_grua_insurance b{display:block}.zx_grua_insurance span{color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase}.zx_grua_insurance b{color:#071330;font-size:13px;margin-top:4px;overflow-wrap:anywhere}
+    .zx_grua_location{grid-template-columns:1fr 1fr}.zx_grua_location .wide{grid-column:1/-1}.zx_location_row{background:rgba(255,255,255,.65);border:1px solid #dbeafe;border-radius:12px;padding:9px}.zx_location_row span,.zx_location_row b{display:block}.zx_location_row span{font-size:10px;color:#64748b;font-weight:950;text-transform:uppercase}.zx_location_row b{margin-top:3px;color:#1e3a8a;font-size:12px;overflow-wrap:anywhere}
+    .zx_grua_actions .apple{background:#334155}.zx_grua_actions .softblue{background:#0f766e}
+.zx_grua_actions .disabled{grid-column:1/-1;background:#94a3b8}.zx_grua_actions .blue{background:#2563eb}.zx_grua_actions .purple{background:#7c3aed}.zx_grua_actions .maps{background:#111827}.zx_grua_actions .orange{background:#f97316}.zx_grua_actions .gray{background:#64748b}
     @media(max-width:390px){.zx_veh_header{grid-template-columns:1fr}.zx_veh_header_actions{grid-template-columns:1fr 1fr}.zx_flota_head{display:grid}.zx_flota_stats{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(5,minmax(0,1fr))}.zx_veh_kpi_alert{grid-column:auto}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
