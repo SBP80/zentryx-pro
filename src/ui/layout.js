@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3133 - NOTAS RÁPIDAS INTEGRADAS Y CONTROLADAS POR PERMISO
+// V3134 - MENÚ DE APLICACIONES CON BUSCADOR Y HERRAMIENTAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3133";
+const ZX_VERSION="3134";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -650,6 +650,51 @@ function estilos(){
       font-size:18px;
       font-weight:1000;
     }
+
+
+    #zx_modules_search_wrap{
+      position:relative;
+      margin:0 0 12px;
+    }
+
+    #zx_modules_search{
+      width:100%;
+      min-height:46px;
+      border:1px solid var(--zx-line);
+      border-radius:14px;
+      background:#f8fafc;
+      color:#0f172a;
+      padding:10px 42px 10px 14px;
+      font-size:14px;
+      font-weight:800;
+      outline:none;
+    }
+
+    #zx_modules_search:focus{
+      background:#fff;
+      border-color:#93c5fd;
+      box-shadow:0 0 0 4px rgba(37,99,235,.10);
+    }
+
+    #zx_modules_search_icon{
+      position:absolute;
+      right:14px;
+      top:50%;
+      transform:translateY(-50%);
+      color:#64748b;
+      font-size:17px;
+      pointer-events:none;
+    }
+
+    #zx_modules_empty{
+      padding:24px 12px;
+      color:var(--zx-muted);
+      font-size:13px;
+      font-weight:850;
+      text-align:center;
+    }
+
+    #zx_modules_empty[hidden]{display:none!important}
 
     #zx_modules_grid{
       display:grid;
@@ -1500,9 +1545,26 @@ function cerrarMenuModulos(){
 function abrirMenuModulos(){
   const fondo=$("zx_modules_backdrop");
   if(!fondo) return;
+
+  const buscador=$("zx_modules_search");
+  if(buscador) buscador.value="";
+
+  document.querySelectorAll(".zx_module_full_btn,.zx_tool_btn").forEach(function(btn){
+    btn.hidden=false;
+  });
+
+  const tools=$("zx_modules_tools");
+  if(tools) tools.style.display="";
+  const vacio=$("zx_modules_empty");
+  if(vacio) vacio.hidden=true;
+
   fondo.hidden=false;
   document.body.classList.add("zx_modal_abierto");
   actualizarActivoMenuCompleto(leerModuloActual());
+
+  if(window.innerWidth>=640 && buscador){
+    setTimeout(function(){buscador.focus()},50);
+  }
 }
 
 function actualizarActivoMenuCompleto(id){
@@ -1521,13 +1583,20 @@ function montarMenuCompletoModulos(){
   fondo.innerHTML=`
     <div id="zx_modules_panel" role="dialog" aria-modal="true" aria-label="Todos los módulos">
       <div class="zx_modules_head">
-        <div class="zx_modules_title">Todos los módulos</div>
+        <div class="zx_modules_title">Menú de aplicaciones</div>
         <button id="zx_modules_close" type="button" aria-label="Cerrar">✕</button>
       </div>
+
+      <div id="zx_modules_search_wrap">
+        <input id="zx_modules_search" type="search" placeholder="Buscar módulo o herramienta…" autocomplete="off" spellcheck="false">
+        <span id="zx_modules_search_icon">🔍</span>
+      </div>
+
+      <div class="zx_modules_section_title">Módulos</div>
       <div id="zx_modules_grid">
         ${modulosVisibles().map(function(m){
           return `
-            <button class="zx_module_full_btn" data-modulo="${limpiar(m.id)}" type="button">
+            <button class="zx_module_full_btn" data-modulo="${limpiar(m.id)}" data-busqueda="${limpiar((m.texto+" "+m.id).toLowerCase())}" type="button">
               <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_nav") : limpiar(m.icono)}</span>
               <span>${limpiar(m.texto)}</span>
             </button>
@@ -1535,9 +1604,11 @@ function montarMenuCompletoModulos(){
         }).join("")}
       </div>
 
+      <div id="zx_modules_empty" hidden>No hay resultados para esta búsqueda.</div>
+
       <div id="zx_modules_tools" ${puedeUsarNotasRapidas() ? "" : "hidden"}>
         <div class="zx_modules_section_title">Herramientas</div>
-        <button class="zx_tool_btn" id="zx_tool_notas" type="button">
+        <button class="zx_tool_btn" id="zx_tool_notas" data-busqueda="notas rápidas postit recordatorio herramienta" type="button">
           <span class="zx_tool_icon">📝</span>
           <span>Notas rápidas</span>
         </button>
@@ -1546,6 +1617,42 @@ function montarMenuCompletoModulos(){
   `;
 
   document.body.appendChild(fondo);
+
+  const buscador=$("zx_modules_search");
+
+  function normalizarBusqueda(valor){
+    return String(valor||"")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"")
+      .toLowerCase()
+      .trim();
+  }
+
+  function filtrarMenuAplicaciones(){
+    const termino=normalizarBusqueda(buscador ? buscador.value : "");
+    let visibles=0;
+
+    document.querySelectorAll(".zx_module_full_btn,.zx_tool_btn").forEach(function(btn){
+      const texto=normalizarBusqueda(btn.dataset.busqueda || btn.textContent);
+      const mostrar=!termino || texto.includes(termino);
+      btn.hidden=!mostrar;
+      if(mostrar) visibles++;
+    });
+
+    const tools=$("zx_modules_tools");
+    if(tools){
+      const herramientasVisibles=Array.from(tools.querySelectorAll(".zx_tool_btn"))
+        .some(function(btn){return !btn.hidden});
+      tools.style.display=herramientasVisibles ? "" : "none";
+    }
+
+    const vacio=$("zx_modules_empty");
+    if(vacio) vacio.hidden=visibles>0;
+  }
+
+  if(buscador){
+    buscador.addEventListener("input",filtrarMenuAplicaciones);
+  }
 
   $("zx_modules_close").onclick=cerrarMenuModulos;
   fondo.onclick=function(ev){
@@ -1588,9 +1695,9 @@ function nav(){
           </button>
         `;
       }).join("")}
-      <button class="zx_nav_btn" id="zx_nav_more" type="button" title="Todos los módulos" aria-label="Todos los módulos">
+      <button class="zx_nav_btn" id="zx_nav_more" type="button" title="Abrir menú" aria-label="Abrir menú">
         <span class="zx_nav_icon" style="background:#e2e8f0;color:#334155;">☰</span>
-        <span class="zx_nav_label">Más</span>
+        <span class="zx_nav_label">Menú</span>
       </button>
     </div>
   `;
