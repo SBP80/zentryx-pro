@@ -1,20 +1,17 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3143 - ZXROUTER V1: NAVEGACIÓN, HISTORIAL Y CONTEXTO UNIFICADOS
+// V3144 - CABECERA Y NAVEGACIÓN SIEMPRE VISIBLES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3143";
+const ZX_VERSION="3144";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
 const ZX_LAST_MODULE_KEY="zentryx_last_module";
 const ZX_RECENT_MODULES_KEY="zentryx_recent_modules";
 const ZX_FAVORITE_MODULES_KEY="zentryx_favorite_modules";
-const ZX_ROUTER_HISTORY_KEY="zentryx_router_history_v1";
-const ZX_ROUTER_CONTEXT_KEY="zentryx_router_context_v1";
-const ZX_ROUTER_MAX_HISTORY=30;
 
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
@@ -145,6 +142,7 @@ function estilos(){
       --zx-cyan:#0891b2;
       --zx-gray:#64748b;
       --zx-shadow:0 12px 28px rgba(15,23,42,.07);
+      --zx-topbar-sticky-height:82px;
     }
 
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -183,6 +181,8 @@ function estilos(){
       position:sticky;
       top:0;
       z-index:8000;
+      padding-top:calc(8px + env(safe-area-inset-top));
+      box-shadow:0 4px 18px rgba(15,23,42,.055);
       backdrop-filter:blur(18px);
     }
 
@@ -199,7 +199,8 @@ function estilos(){
       gap:5px 8px;
     }
 
-    #zx_brand{grid-area:brand}
+    #zx_brand{grid-area:brand;cursor:pointer;border-radius:14px}
+    #zx_brand:focus-visible{outline:3px solid rgba(37,99,235,.35);outline-offset:3px}
     #zx_topbar_actions{grid-area:actions}
 
     #zx_header_meta{
@@ -508,10 +509,13 @@ function estilos(){
 
     #zx_nav{
       width:100%;
+      position:sticky;
+      top:var(--zx-topbar-sticky-height);
       background:rgba(255,255,255,.94);
       border-bottom:1px solid var(--zx-line);
       padding:7px 10px;
-      z-index:6500;
+      z-index:7900;
+      box-shadow:0 5px 16px rgba(15,23,42,.045);
       backdrop-filter:blur(16px);
     }
 
@@ -1772,7 +1776,7 @@ function estilos(){
     /* MÓVIL: navegación horizontal de una sola fila.
        Todos los módulos siguen accesibles sin ocupar media pantalla. */
     @media(max-width:639px){
-      #zx_topbar{padding:6px 10px}
+      #zx_topbar{padding:calc(6px + env(safe-area-inset-top)) 10px 6px}
       #zx_logo{
         width:36px;
         height:36px;
@@ -1802,8 +1806,7 @@ function estilos(){
       }
 
       #zx_nav{
-        position:sticky;
-        top:82px;
+        top:var(--zx-topbar-sticky-height);
         padding:5px 8px;
         overflow:hidden;
         box-shadow:0 4px 12px rgba(15,23,42,.035);
@@ -1901,6 +1904,32 @@ function inicialesUsuario(u){
   return (partes[0][0]+partes[partes.length-1][0]).toUpperCase();
 }
 
+function actualizarAlturaCabeceraFija(){
+  const top=$('zx_topbar');
+  if(!top) return;
+  const alto=Math.ceil(top.getBoundingClientRect().height);
+  document.documentElement.style.setProperty('--zx-topbar-sticky-height',alto+'px');
+}
+
+function instalarCabeceraFija(){
+  actualizarAlturaCabeceraFija();
+
+  const top=$('zx_topbar');
+  if(top && typeof ResizeObserver!=="undefined"){
+    const ro=new ResizeObserver(function(){
+      actualizarAlturaCabeceraFija();
+    });
+    ro.observe(top);
+    top.__zxResizeObserver=ro;
+  }
+
+  window.addEventListener('resize',actualizarAlturaCabeceraFija,{passive:true});
+  window.addEventListener('orientationchange',function(){
+    setTimeout(actualizarAlturaCabeceraFija,80);
+    setTimeout(actualizarAlturaCabeceraFija,350);
+  },{passive:true});
+}
+
 function topbar(){
   const u=usuarioActual();
 
@@ -1908,7 +1937,7 @@ function topbar(){
   t.id="zx_topbar";
   t.innerHTML=`
     <div id="zx_topbar_inner">
-      <div id="zx_brand">
+      <div id="zx_brand" role="button" tabindex="0" aria-label="Ir a Inicio">
         <div id="zx_logo">Z</div>
         <div id="zx_brand_txt">
           <h1>Zentryx PRO</h1>
@@ -1946,6 +1975,21 @@ function topbar(){
   `;
 
   document.body.insertBefore(t,app());
+
+  const brand=$('zx_brand');
+  if(brand){
+    const irInicio=function(){
+      if(typeof abrirModuloPorId==="function") abrirModuloPorId("inicio");
+      else if(typeof window.ZX_abrirInicio==="function") window.ZX_abrirInicio();
+    };
+    brand.onclick=irInicio;
+    brand.onkeydown=function(ev){
+      if(ev.key==="Enter" || ev.key===" "){
+        ev.preventDefault();
+        irInicio();
+      }
+    };
+  }
 
   function integrarEstadoConexion(){
     const slot=$("zx_connection_slot");
@@ -2158,8 +2202,18 @@ function renderEventoHoy(e){
 window.ZX_abrirTrabajoDesdeLayout=function(id){
   const m=$("zx_modal_agenda_hoy");
   if(m) m.remove();
+
   document.body.classList.remove("zx_modal_abierto");
-  ZXRouter.open("trabajos",{recordId:String(id || ""),source:"agenda_hoy"});
+
+  window.ZX_TRABAJO_ABRIR_ID=String(id || "");
+
+  if(window.ZX_trabajos){
+    window.ZX_trabajos();
+    activo("trabajos");
+    return;
+  }
+
+  alert("No se ha cargado Trabajos.");
 };
 
 window.ZX_abrirAgendaHoy=async function(){
@@ -2673,12 +2727,18 @@ function aplicarBusquedaEnModulo(modulo,termino){
 function abrirResultadoGlobal(resultado){
   if(!resultado) return;
 
+  if(resultado.modulo==="trabajos" && resultado.id){
+    window.ZX_TRABAJO_ABRIR_ID=String(resultado.id);
+  }
+
   cerrarMenuModulos();
-  ZXRouter.open(resultado.modulo,{
-    recordId:resultado.id || "",
-    query:resultado.modulo==="trabajos" && resultado.id ? "" : (resultado.titulo || resultado.busqueda || ""),
-    source:"busqueda_global"
-  });
+  abrirModuloPorId(resultado.modulo);
+
+  if(!(resultado.modulo==="trabajos" && resultado.id)){
+    setTimeout(function(){
+      aplicarBusquedaEnModulo(resultado.modulo,resultado.titulo || resultado.busqueda || "");
+    },180);
+  }
 }
 
 function pintarResultadosGlobales(termino){
@@ -3079,203 +3139,6 @@ function activo(nombre){
   }
 }
 
-
-function zxRouterNormalizarModulo(modulo){
-  const id=String(modulo || "").trim().toLowerCase();
-  return id==="horas" ? "horas_extra" : id;
-}
-
-function zxRouterLeerJSON(clave,defecto){
-  try{
-    const valor=JSON.parse(sessionStorage.getItem(clave) || "null");
-    return valor===null ? defecto : valor;
-  }catch(e){
-    return defecto;
-  }
-}
-
-function zxRouterGuardarJSON(clave,valor){
-  try{sessionStorage.setItem(clave,JSON.stringify(valor))}catch(e){}
-}
-
-function zxRouterSelectorSeguro(valor){
-  try{return CSS.escape(String(valor || ""))}catch(e){return String(valor || "").replace(/["\\]/g,"\\$&")}
-}
-
-function zxRouterCapturarContexto(modulo){
-  const id=zxRouterNormalizarModulo(modulo || leerModuloActual());
-  if(!id || !app()) return null;
-
-  const campos={};
-  app().querySelectorAll('input[id],select[id],textarea[id]').forEach(function(el){
-    if(el.type==="password" || el.type==="file") return;
-    campos[el.id]={
-      value:el.type==="checkbox" || el.type==="radio" ? !!el.checked : el.value,
-      tipo:el.type || el.tagName.toLowerCase()
-    };
-  });
-
-  const activoEl=app().querySelector('[data-tab].active,[data-tab].activo,[data-pestana].active,[data-pestana].activo,.tab.active,.pestana.activa');
-  const contexto={
-    modulo:id,
-    scrollY:Math.max(0,window.scrollY || document.documentElement.scrollTop || 0),
-    campos:campos,
-    tab:activoEl ? (activoEl.dataset.tab || activoEl.dataset.pestana || activoEl.id || "") : "",
-    actualizado:new Date().toISOString()
-  };
-
-  const todos=zxRouterLeerJSON(ZX_ROUTER_CONTEXT_KEY,{});
-  todos[id]=contexto;
-  zxRouterGuardarJSON(ZX_ROUTER_CONTEXT_KEY,todos);
-  return contexto;
-}
-
-function zxRouterRestaurarContexto(modulo,opciones){
-  const id=zxRouterNormalizarModulo(modulo);
-  const todos=zxRouterLeerJSON(ZX_ROUTER_CONTEXT_KEY,{});
-  const contexto=todos[id];
-  if(!contexto) return;
-
-  const opts=opciones || {};
-  let intentos=0;
-  const timer=setInterval(function(){
-    intentos++;
-    const raiz=app();
-    if(!raiz){
-      if(intentos>=15) clearInterval(timer);
-      return;
-    }
-
-    Object.keys(contexto.campos || {}).forEach(function(campoId){
-      const el=$(campoId);
-      const dato=contexto.campos[campoId];
-      if(!el || !dato) return;
-      if(dato.tipo==="checkbox" || dato.tipo==="radio") el.checked=!!dato.value;
-      else el.value=dato.value == null ? "" : dato.value;
-      el.dispatchEvent(new Event("input",{bubbles:true}));
-      el.dispatchEvent(new Event("change",{bubbles:true}));
-    });
-
-    if(contexto.tab){
-      const v=zxRouterSelectorSeguro(contexto.tab);
-      const tab=raiz.querySelector('[data-tab="'+v+'"],[data-pestana="'+v+'"],#'+v);
-      if(tab && typeof tab.click==="function") tab.click();
-    }
-
-    if(opts.restaurarScroll!==false){
-      window.scrollTo({top:Number(contexto.scrollY || 0),left:0,behavior:"auto"});
-    }
-
-    if(raiz.children.length || intentos>=15) clearInterval(timer);
-  },80);
-}
-
-function zxRouterRutaActual(){
-  const modulo=zxRouterNormalizarModulo(leerModuloActual());
-  return {modulo:modulo,recordId:"",query:"",timestamp:Date.now()};
-}
-
-function zxRouterLeerHistorial(){
-  const h=zxRouterLeerJSON(ZX_ROUTER_HISTORY_KEY,[]);
-  return Array.isArray(h) ? h : [];
-}
-
-function zxRouterGuardarHistorial(historial){
-  zxRouterGuardarJSON(ZX_ROUTER_HISTORY_KEY,(historial || []).slice(-ZX_ROUTER_MAX_HISTORY));
-}
-
-function zxRouterPrepararRegistro(modulo,recordId){
-  const id=String(recordId || "").trim();
-  if(!id) return;
-  if(modulo==="trabajos") window.ZX_TRABAJO_ABRIR_ID=id;
-  window.ZX_ROUTER_RECORD={modulo:modulo,id:id,timestamp:Date.now()};
-  try{sessionStorage.setItem("zentryx_router_record",JSON.stringify(window.ZX_ROUTER_RECORD))}catch(e){}
-}
-
-function zxRouterEjecutarModulo(id){
-  const mapa={
-    inicio:window.ZX_inicio,
-    fichaje:window.ZX_abrirFichaje,
-    agenda:window.ZX_abrirAgenda,
-    clientes:window.ZX_abrirClientes,
-    trabajos:window.ZX_abrirTrabajos,
-    usuarios:window.ZX_usuarios,
-    horas_extra:window.ZX_abrirHorasExtra,
-    control_fichajes:window.ZX_abrirControlFichajes,
-    vehiculos:window.ZX_vehiculos,
-    desarrollador:window.ZX_abrirDesarrollador,
-    configuracion:window.ZX_configuracion
-  };
-
-  if(typeof mapa[id]==="function"){
-    mapa[id]();
-    return true;
-  }
-
-  app().innerHTML=`
-    <div class="zx_card">
-      <h2>${limpiar(id || "Pantalla")}</h2>
-      <div class="zx_text">Esta pantalla no está disponible.</div>
-    </div>
-  `;
-  return false;
-}
-
-const ZXRouter={
-  version:"1.0",
-  open:function(modulo,opciones){
-    const id=zxRouterNormalizarModulo(modulo);
-    const opts=typeof opciones==="string" ? {recordId:opciones} : (opciones || {});
-    if(!id) return false;
-
-    const anterior=zxRouterRutaActual();
-    if(anterior.modulo) zxRouterCapturarContexto(anterior.modulo);
-
-    if(opts.replace!==true && anterior.modulo && anterior.modulo!==id){
-      const historial=zxRouterLeerHistorial();
-      const ultimo=historial[historial.length-1];
-      if(!ultimo || ultimo.modulo!==anterior.modulo){
-        historial.push(anterior);
-        zxRouterGuardarHistorial(historial);
-      }
-    }
-
-    zxRouterPrepararRegistro(id,opts.recordId || opts.id);
-    const abierto=zxRouterEjecutarModulo(id);
-
-    if(abierto && opts.query){
-      setTimeout(function(){aplicarBusquedaEnModulo(id,String(opts.query || ""))},180);
-    }else if(abierto && opts.restore!==false && !(opts.recordId || opts.id)){
-      zxRouterRestaurarContexto(id,opts);
-    }
-
-    document.dispatchEvent(new CustomEvent("zentryx:navigation",{detail:{modulo:id,opciones:opts}}));
-    return abierto;
-  },
-  replace:function(modulo,opciones){
-    return this.open(modulo,Object.assign({},opciones || {},{replace:true}));
-  },
-  back:function(){
-    zxRouterCapturarContexto(leerModuloActual());
-    const historial=zxRouterLeerHistorial();
-    const anterior=historial.pop();
-    zxRouterGuardarHistorial(historial);
-    if(!anterior) return this.open("inicio",{replace:true});
-    return this.open(anterior.modulo,{replace:true,restore:true,recordId:anterior.recordId || "",query:anterior.query || ""});
-  },
-  current:function(){return zxRouterRutaActual()},
-  history:function(){return zxRouterLeerHistorial().slice()},
-  saveContext:function(){return zxRouterCapturarContexto(leerModuloActual())},
-  restoreContext:function(modulo){return zxRouterRestaurarContexto(modulo || leerModuloActual(),{})},
-  clear:function(){
-    zxRouterGuardarHistorial([]);
-    zxRouterGuardarJSON(ZX_ROUTER_CONTEXT_KEY,{});
-  }
-};
-
-window.ZXRouter=ZXRouter;
-window.ZX_ROUTER=ZXRouter;
-
 function abrirModulo(nombre,callback){
   if(!puedeVerModulo(nombre)){
     activo("");
@@ -3306,11 +3169,35 @@ function abrirModulo(nombre,callback){
 function restaurarModuloActual(){
   let id=leerModuloActual();
   if(!puedeVerModulo(id)) id="inicio";
-  ZXRouter.replace(id,{restore:true,source:"restaurar"});
+  abrirModuloPorId(id);
 }
 
-function abrirModuloPorId(id,opciones){
-  return ZXRouter.open(id,opciones || {});
+function abrirModuloPorId(id){
+  const mapa={
+    inicio:window.ZX_inicio,
+    fichaje:window.ZX_abrirFichaje,
+    agenda:window.ZX_abrirAgenda,
+    clientes:window.ZX_abrirClientes,
+    trabajos:window.ZX_abrirTrabajos,
+    usuarios:window.ZX_usuarios,
+    horas_extra:window.ZX_abrirHorasExtra,
+    control_fichajes:window.ZX_abrirControlFichajes,
+    vehiculos:window.ZX_vehiculos,
+    desarrollador:window.ZX_abrirDesarrollador,
+    configuracion:window.ZX_configuracion
+  };
+
+  if(typeof mapa[id]==="function"){
+    mapa[id]();
+    return;
+  }
+
+  app().innerHTML=`
+    <div class="zx_card">
+      <h2>${limpiar(id || "Pantalla")}</h2>
+      <div class="zx_text">Esta pantalla no está disponible.</div>
+    </div>
+  `;
 }
 
 async function cargarNotas(){
@@ -3604,8 +3491,6 @@ function instalarRutas(){
 window.ZENTRYX_UI_LAYOUT={
   restaurarModulo:restaurarModuloActual,
   moduloActual:leerModuloActual,
-  router:ZXRouter,
-  volver:function(){return ZXRouter.back()},
   iniciar:function(){
     limpiarLayout();
     estilos();
@@ -3613,6 +3498,7 @@ window.ZENTRYX_UI_LAYOUT={
     topbar();
     reloj();
     nav();
+    instalarCabeceraFija();
 
     const asegurarModulo=function(){
       if(document.hidden) return;
