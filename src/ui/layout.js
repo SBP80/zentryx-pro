@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3139 - EDICIÓN PROFESIONAL Y SEGURA DE FAVORITOS
+// V3140 - GESTOR PROFESIONAL Y SEGURO DE FAVORITOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3139";
+const ZX_VERSION="3140";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -700,24 +700,24 @@ function estilos(){
 
 
     #zx_modules_favorites{
-      margin:0 0 14px;
+      margin:0 0 16px;
     }
 
     #zx_modules_favorites[hidden]{display:none!important}
 
-    .zx_favorites_heading{
+    .zx_favorites_header{
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:10px;
-      margin:0 2px 8px;
+      margin:0 2px 9px;
     }
 
-    .zx_favorites_heading .zx_modules_section_title{
+    .zx_favorites_header .zx_modules_section_title{
       margin:0;
     }
 
-    #zx_favorites_edit_btn{
+    #zx_favorites_manage{
       min-height:34px;
       padding:0 13px;
       border:1px solid #cbd5e1;
@@ -726,12 +726,6 @@ function estilos(){
       color:#334155;
       font-size:12px;
       font-weight:950;
-    }
-
-    #zx_favorites_edit_btn.zx_activo{
-      border-color:#2563eb;
-      background:#eff6ff;
-      color:#1d4ed8;
     }
 
     #zx_modules_favorites_list{
@@ -776,42 +770,116 @@ function estilos(){
       font-size:19px;
     }
 
-    #zx_favorites_editor{
-      margin-top:4px;
+    #zx_favorites_editor_backdrop{
+      position:fixed;
+      inset:0;
+      z-index:100020;
+      display:flex;
+      align-items:flex-end;
+      justify-content:center;
       padding:12px;
-      border:1px solid #bfdbfe;
-      border-radius:16px;
-      background:#f8fbff;
+      background:rgba(15,23,42,.42);
+      backdrop-filter:blur(5px);
     }
 
-    #zx_favorites_editor[hidden]{display:none!important}
+    #zx_favorites_editor_backdrop[hidden]{display:none!important}
 
-    .zx_favorites_editor_help{
-      margin:0 0 10px;
+    #zx_favorites_editor_panel{
+      width:min(720px,100%);
+      max-height:min(86vh,820px);
+      overflow:auto;
+      border:1px solid var(--zx-line);
+      border-radius:24px;
+      background:#fff;
+      box-shadow:0 28px 80px rgba(15,23,42,.30);
+    }
+
+    .zx_favorites_editor_head{
+      position:sticky;
+      top:0;
+      z-index:3;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:14px;
+      border-bottom:1px solid var(--zx-line);
+      background:#fff;
+    }
+
+    .zx_favorites_editor_title{
+      font-size:18px;
+      font-weight:1000;
+      color:#0f172a;
+    }
+
+    .zx_favorites_editor_close{
+      width:40px;
+      height:40px;
+      border-radius:12px;
+      background:#f1f5f9;
+      color:#334155;
+      font-size:18px;
+      font-weight:1000;
+    }
+
+    .zx_favorites_editor_body{
+      padding:14px;
+    }
+
+    .zx_favorites_editor_intro{
+      margin:0 0 14px;
+      padding:12px 13px;
+      border:1px solid #dbeafe;
+      border-radius:14px;
+      background:#f8fbff;
       color:#475569;
       font-size:12px;
       font-weight:750;
-      line-height:1.4;
+      line-height:1.45;
     }
 
-    #zx_favorites_editor_list{
+    .zx_favorites_editor_section{
+      margin:0 0 16px;
+    }
+
+    .zx_favorites_editor_section_title{
+      margin:0 0 9px;
+      color:#64748b;
+      font-size:11px;
+      font-weight:1000;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+    }
+
+    #zx_favorites_selected{
       display:flex;
       flex-direction:column;
       gap:8px;
     }
 
-    .zx_favorite_editor_row{
+    .zx_favorites_selected_empty{
+      padding:16px;
+      border:1px dashed #cbd5e1;
+      border-radius:14px;
+      color:#64748b;
+      font-size:12px;
+      font-weight:800;
+      text-align:center;
+    }
+
+    .zx_favorite_selected_row{
       display:grid;
       grid-template-columns:minmax(0,1fr) auto;
       align-items:center;
-      gap:8px;
-      padding:8px;
-      border:1px solid #dbeafe;
-      border-radius:13px;
+      gap:10px;
+      padding:9px;
+      border:1px solid #dbe3ef;
+      border-radius:14px;
       background:#fff;
     }
 
-    .zx_favorite_editor_info{
+    .zx_favorite_selected_info{
       min-width:0;
       display:flex;
       align-items:center;
@@ -821,46 +889,110 @@ function estilos(){
       font-weight:950;
     }
 
-    .zx_favorite_editor_info .zx_nav_icon{
+    .zx_favorite_selected_info .zx_nav_icon{
       width:32px;
       height:32px;
       min-width:32px;
       font-size:19px;
     }
 
-    .zx_favorite_editor_actions{
+    .zx_favorite_selected_controls{
       display:flex;
       gap:6px;
     }
 
-    .zx_favorite_editor_action{
-      min-width:42px;
-      min-height:38px;
-      padding:0 9px;
+    .zx_favorite_selected_btn{
+      min-height:40px;
+      min-width:52px;
+      padding:0 10px;
       border:1px solid #cbd5e1;
       border-radius:10px;
       background:#fff;
       color:#334155;
-      font-size:15px;
+      font-size:11px;
       font-weight:1000;
     }
 
-    .zx_favorite_editor_action:disabled{
-      opacity:.35;
-    }
+    .zx_favorite_selected_btn:disabled{opacity:.35}
 
-    .zx_favorite_editor_remove{
-      color:#b91c1c;
+    .zx_favorite_selected_remove{
       border-color:#fecaca;
       background:#fff7f7;
+      color:#b91c1c;
     }
 
-    .zx_favorites_empty{
-      padding:10px 4px;
-      color:#64748b;
-      font-size:12px;
-      font-weight:800;
+    #zx_favorites_available{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+    }
+
+    .zx_favorite_choice{
+      min-height:58px;
+      padding:9px;
+      border:1px solid #dbe3ef;
+      border-radius:14px;
+      background:#fff;
+      color:#334155;
+      display:flex;
+      align-items:center;
+      gap:9px;
+      text-align:left;
+      font-size:11px;
+      font-weight:950;
+    }
+
+    .zx_favorite_choice .zx_nav_icon{
+      width:32px;
+      height:32px;
+      min-width:32px;
+      font-size:19px;
+    }
+
+    .zx_favorite_choice.zx_selected{
+      border-color:#60a5fa;
+      background:#eff6ff;
+      color:#1d4ed8;
+      box-shadow:0 0 0 2px rgba(37,99,235,.08);
+    }
+
+    .zx_favorite_choice_mark{
+      margin-left:auto;
+      min-width:24px;
+      color:#2563eb;
+      font-size:18px;
+      font-weight:1000;
       text-align:center;
+    }
+
+    .zx_favorites_editor_footer{
+      position:sticky;
+      bottom:0;
+      z-index:3;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:9px;
+      padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+      border-top:1px solid var(--zx-line);
+      background:#fff;
+    }
+
+    .zx_favorites_editor_footer button{
+      min-height:48px;
+      border-radius:13px;
+      font-size:13px;
+      font-weight:1000;
+    }
+
+    #zx_favorites_cancel{
+      border:1px solid #cbd5e1;
+      background:#fff;
+      color:#334155;
+    }
+
+    #zx_favorites_save{
+      background:#2563eb;
+      color:#fff;
     }
 
     #zx_modules_recent{
@@ -948,46 +1080,6 @@ function estilos(){
       height:32px;
       min-width:32px;
       font-size:20px;
-    }
-
-    .zx_module_pin{
-      display:none;
-      position:absolute;
-      top:6px;
-      right:6px;
-      min-width:31px;
-      height:29px;
-      padding:0 8px;
-      border-radius:10px;
-      background:#fff;
-      border:1px solid #cbd5e1;
-      color:#475569;
-      align-items:center;
-      justify-content:center;
-      font-size:11px;
-      font-weight:1000;
-      line-height:1;
-      z-index:2;
-      box-shadow:0 2px 7px rgba(15,23,42,.08);
-    }
-
-    #zx_modules_panel.zx_editando_favoritos .zx_module_pin{
-      display:flex;
-    }
-
-    #zx_modules_panel.zx_editando_favoritos .zx_module_full_btn{
-      cursor:pointer;
-      border-style:dashed;
-    }
-
-    #zx_modules_panel.zx_editando_favoritos .zx_module_full_btn:hover{
-      background:#f8fafc;
-    }
-
-    .zx_module_pin.zx_fijado{
-      background:#eff6ff;
-      border-color:#60a5fa;
-      color:#1d4ed8;
     }
 
 
@@ -1331,6 +1423,49 @@ function estilos(){
       #zx_modules_grid{
         grid-template-columns:repeat(3,minmax(0,1fr));
         padding-bottom:2px;
+      }
+
+      #zx_favorites_editor_backdrop{
+        padding:0;
+        align-items:flex-start;
+        background:#fff;
+        backdrop-filter:none;
+      }
+
+      #zx_favorites_editor_panel{
+        width:100%;
+        height:100vh;
+        height:100dvh;
+        max-height:none;
+        border:0;
+        border-radius:0;
+        box-shadow:none;
+        overscroll-behavior:contain;
+      }
+
+      .zx_favorites_editor_head{
+        padding:calc(8px + env(safe-area-inset-top)) 12px 8px;
+      }
+
+      .zx_favorites_editor_body{
+        padding:12px;
+      }
+
+      #zx_favorites_available{
+        grid-template-columns:1fr;
+      }
+
+      .zx_favorite_selected_row{
+        grid-template-columns:1fr;
+      }
+
+      .zx_favorite_selected_controls{
+        display:grid;
+        grid-template-columns:1fr 1fr 1fr;
+      }
+
+      .zx_favorite_selected_btn{
+        min-width:0;
       }
 
       body.zx_modal_abierto{
@@ -1875,8 +2010,6 @@ function moduloEsFavorito(id){
   return idsFavoritosNavegacion().includes(String(id||""));
 }
 
-let zxEditandoFavoritos=false;
-
 function claveModulosFavoritos(){
   const u=usuarioActual();
   return `${ZX_FAVORITE_MODULES_KEY}_${u.empresa_id || "demo"}_${u.id || u.usuario || "anonimo"}`;
@@ -1910,65 +2043,440 @@ function guardarModulosFavoritos(ids){
   }catch(e){}
 }
 
-function esModuloFavoritoCentro(id){
-  return leerModulosFavoritos().includes(String(id||""));
+let ZX_FAVORITES_DRAFT=[];
+
+function abrirEditorFavoritos(){
+  ZX_FAVORITES_DRAFT=leerModulosFavoritos().slice();
+  renderizarEditorFavoritos();
+
+  const fondo=$("zx_favorites_editor_backdrop");
+  if(fondo) fondo.hidden=false;
 }
 
-function alternarModuloFavorito(id){
+function cerrarEditorFavoritos(){
+  const fondo=$("zx_favorites_editor_backdrop");
+  if(fondo) fondo.hidden=true;
+  ZX_FAVORITES_DRAFT=[];
+}
+
+function alternarFavoritoBorrador(id){
   id=String(id||"");
   if(!id || !puedeVerModulo(id)) return;
 
-  const favoritos=leerModulosFavoritos();
-  const indice=favoritos.indexOf(id);
-
+  const indice=ZX_FAVORITES_DRAFT.indexOf(id);
   if(indice>=0){
-    favoritos.splice(indice,1);
-  }else{
-    favoritos.push(id);
+    ZX_FAVORITES_DRAFT.splice(indice,1);
+  }else if(ZX_FAVORITES_DRAFT.length<12){
+    ZX_FAVORITES_DRAFT.push(id);
   }
 
-  guardarModulosFavoritos(favoritos);
-  renderizarModulosFavoritos();
-  actualizarPinesFavoritos();
+  renderizarEditorFavoritos();
 }
 
-function moverModuloFavorito(id,direccion){
-  const favoritos=leerModulosFavoritos();
-  const indice=favoritos.indexOf(String(id||""));
+function moverFavoritoBorrador(id,direccion){
+  const indice=ZX_FAVORITES_DRAFT.indexOf(String(id||""));
   const destino=indice+Number(direccion||0);
 
-  if(indice<0 || destino<0 || destino>=favoritos.length) return;
+  if(indice<0 || destino<0 || destino>=ZX_FAVORITES_DRAFT.length) return;
 
-  const temporal=favoritos[indice];
-  favoritos[indice]=favoritos[destino];
-  favoritos[destino]=temporal;
-
-  guardarModulosFavoritos(favoritos);
-  renderizarModulosFavoritos();
-  actualizarPinesFavoritos();
+  const temporal=ZX_FAVORITES_DRAFT[indice];
+  ZX_FAVORITES_DRAFT[indice]=ZX_FAVORITES_DRAFT[destino];
+  ZX_FAVORITES_DRAFT[destino]=temporal;
+  renderizarEditorFavoritos();
 }
 
-function actualizarPinesFavoritos(){
-  const favoritos=leerModulosFavoritos();
+function renderizarEditorFavoritos(){
+  const seleccionados=$("zx_favorites_selected");
+  const disponibles=$("zx_favorites_available");
+  if(!seleccionados || !disponibles) return;
 
-  const editarFavoritos=$("zx_favorites_edit_btn");
-  if(editarFavoritos){
-    editarFavoritos.onclick=function(){
-      establecerEdicionFavoritos(!zxEditandoFavoritos);
+  const modulos=modulosVisibles();
+
+  const seleccion=ZX_FAVORITES_DRAFT
+    .map(function(id){return modulos.find(function(m){return m.id===id})})
+    .filter(Boolean);
+
+  seleccionados.innerHTML=seleccion.length ? seleccion.map(function(m,index){
+    return `
+      <div class="zx_favorite_selected_row">
+        <div class="zx_favorite_selected_info">
+          <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_favorite_edit") : limpiar(m.icono)}</span>
+          <span>${limpiar(m.texto)}</span>
+        </div>
+        <div class="zx_favorite_selected_controls">
+          <button class="zx_favorite_selected_btn zx_favorite_move_up" data-modulo="${limpiar(m.id)}" type="button" ${index===0 ? "disabled" : ""}>Subir</button>
+          <button class="zx_favorite_selected_btn zx_favorite_move_down" data-modulo="${limpiar(m.id)}" type="button" ${index===seleccion.length-1 ? "disabled" : ""}>Bajar</button>
+          <button class="zx_favorite_selected_btn zx_favorite_selected_remove" data-modulo="${limpiar(m.id)}" type="button">Quitar</button>
+        </div>
+      </div>
+    `;
+  }).join("") : '<div class="zx_favorites_selected_empty">No hay favoritos seleccionados.</div>';
+
+  disponibles.innerHTML=modulos.map(function(m){
+    const seleccionado=ZX_FAVORITES_DRAFT.includes(m.id);
+    return `
+      <button class="zx_favorite_choice ${seleccionado ? "zx_selected" : ""}" data-modulo="${limpiar(m.id)}" type="button">
+        <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_favorite_choice") : limpiar(m.icono)}</span>
+        <span>${limpiar(m.texto)}</span>
+        <span class="zx_favorite_choice_mark">${seleccionado ? "✓" : "+"}</span>
+      </button>
+    `;
+  }).join("");
+
+  seleccionados.querySelectorAll(".zx_favorite_move_up").forEach(function(btn){
+    btn.onclick=function(){moverFavoritoBorrador(btn.dataset.modulo,-1)};
+  });
+
+  seleccionados.querySelectorAll(".zx_favorite_move_down").forEach(function(btn){
+    btn.onclick=function(){moverFavoritoBorrador(btn.dataset.modulo,1)};
+  });
+
+  seleccionados.querySelectorAll(".zx_favorite_selected_remove").forEach(function(btn){
+    btn.onclick=function(){alternarFavoritoBorrador(btn.dataset.modulo)};
+  });
+
+  disponibles.querySelectorAll(".zx_favorite_choice").forEach(function(btn){
+    btn.onclick=function(){alternarFavoritoBorrador(btn.dataset.modulo)};
+  });
+}
+
+function renderizarModulosFavoritos(){
+  const contenedor=$("zx_modules_favorites");
+  const lista=$("zx_modules_favorites_list");
+  if(!contenedor || !lista) return;
+
+  const favoritos=leerModulosFavoritos()
+    .map(function(id){return MODULOS.find(function(m){return m.id===id})})
+    .filter(Boolean);
+
+  contenedor.hidden=false;
+
+  lista.innerHTML=favoritos.length ? favoritos.map(function(m){
+    return `
+      <div class="zx_favorite_item" data-modulo="${limpiar(m.id)}" data-busqueda="${limpiar(("favorito fijado "+m.texto+" "+m.id).toLowerCase())}">
+        <button class="zx_favorite_open" data-modulo="${limpiar(m.id)}" type="button">
+          <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_favorite") : limpiar(m.icono)}</span>
+          <span>${limpiar(m.texto)}</span>
+        </button>
+      </div>
+    `;
+  }).join("") : '<div class="zx_favorites_selected_empty">No tienes favoritos configurados.</div>';
+
+  lista.querySelectorAll(".zx_favorite_open").forEach(function(btn){
+    btn.onclick=function(){
+      const id=btn.dataset.modulo;
+      cerrarMenuModulos();
+      abrirModuloPorId(id);
+    };
+  });
+}
+
+function claveModulosRecientes(){
+  const u=usuarioActual();
+  return `${ZX_RECENT_MODULES_KEY}_${u.empresa_id || "demo"}_${u.id || u.usuario || "anonimo"}`;
+}
+
+function leerModulosRecientes(){
+  try{
+    const datos=JSON.parse(localStorage.getItem(claveModulosRecientes()) || "[]");
+    if(!Array.isArray(datos)) return [];
+    return datos
+      .map(function(id){return String(id||"")})
+      .filter(function(id,index,lista){
+        return id && lista.indexOf(id)===index && puedeVerModulo(id);
+      })
+      .slice(0,5);
+  }catch(e){
+    return [];
+  }
+}
+
+function guardarModuloReciente(id){
+  id=String(id||"");
+  if(!id || !puedeVerModulo(id)) return;
+
+  const recientes=leerModulosRecientes().filter(function(actual){
+    return actual!==id;
+  });
+
+  recientes.unshift(id);
+
+  try{
+    localStorage.setItem(claveModulosRecientes(),JSON.stringify(recientes.slice(0,5)));
+  }catch(e){}
+}
+
+function renderizarModulosRecientes(){
+  const contenedor=$("zx_modules_recent");
+  const lista=$("zx_modules_recent_list");
+  if(!contenedor || !lista) return;
+
+  const recientes=leerModulosRecientes()
+    .map(function(id){return MODULOS.find(function(m){return m.id===id})})
+    .filter(Boolean);
+
+  contenedor.hidden=recientes.length===0;
+  lista.innerHTML=recientes.map(function(m){
+    return `
+      <button class="zx_recent_btn" data-modulo="${limpiar(m.id)}" data-busqueda="${limpiar(("reciente "+m.texto+" "+m.id).toLowerCase())}" type="button">
+        <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_recent") : limpiar(m.icono)}</span>
+        <span>${limpiar(m.texto)}</span>
+      </button>
+    `;
+  }).join("");
+
+  lista.querySelectorAll(".zx_recent_btn").forEach(function(btn){
+    btn.onclick=function(){
+      const id=btn.dataset.modulo;
+      cerrarMenuModulos();
+      abrirModuloPorId(id);
+    };
+  });
+}
+
+function cerrarMenuModulos(){
+  const fondo=$("zx_modules_backdrop");
+  if(fondo) fondo.hidden=true;
+
+  const scrollY=Number(document.body.dataset.zxMenuScrollY||0);
+  document.body.classList.remove("zx_modal_abierto");
+  document.body.style.top="";
+  delete document.body.dataset.zxMenuScrollY;
+
+  if(window.innerWidth<640){
+    window.scrollTo(0,scrollY);
+  }
+}
+
+function abrirMenuModulos(){
+  const fondo=$("zx_modules_backdrop");
+  if(!fondo) return;
+
+  const buscador=$("zx_modules_search");
+  if(buscador) buscador.value="";
+
+  document.querySelectorAll(".zx_module_full_btn,.zx_tool_btn,.zx_favorite_item,.zx_recent_btn").forEach(function(btn){
+    btn.hidden=false;
+  });
+
+  const grid=$("zx_modules_grid");
+  if(grid) grid.hidden=false;
+  const tituloModulos=$("zx_modules_main_title");
+  if(tituloModulos) tituloModulos.hidden=false;
+
+  const tools=$("zx_modules_tools");
+  if(tools) tools.hidden=!puedeUsarNotasRapidas();
+  const vacio=$("zx_modules_empty");
+  if(vacio) vacio.hidden=true;
+
+  if(window.innerWidth<640){
+    const scrollY=window.scrollY||document.documentElement.scrollTop||0;
+    document.body.dataset.zxMenuScrollY=String(scrollY);
+    document.body.style.top=`-${scrollY}px`;
+  }
+
+  renderizarModulosFavoritos();
+  renderizarModulosRecientes();
+
+  fondo.hidden=false;
+  document.body.classList.add("zx_modal_abierto");
+  actualizarActivoMenuCompleto(leerModuloActual());
+
+  if(window.innerWidth>=640 && buscador){
+    setTimeout(function(){buscador.focus()},50);
+  }
+}
+
+function actualizarActivoMenuCompleto(id){
+  document.querySelectorAll(".zx_module_full_btn").forEach(function(btn){
+    btn.classList.toggle("zx_activo",String(btn.dataset.modulo||"")===String(id||""));
+  });
+}
+
+function montarMenuCompletoModulos(){
+  const anterior=$("zx_modules_backdrop");
+  if(anterior) anterior.remove();
+
+  const fondo=document.createElement("div");
+  fondo.id="zx_modules_backdrop";
+  fondo.hidden=true;
+  fondo.innerHTML=`
+    <div id="zx_modules_panel" role="dialog" aria-modal="true" aria-label="Todos los módulos">
+      <div class="zx_modules_head">
+        <div class="zx_modules_title">Menú de aplicaciones</div>
+        <button id="zx_modules_close" type="button" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div id="zx_modules_search_wrap">
+        <input id="zx_modules_search" type="search" placeholder="Buscar módulo o herramienta…" autocomplete="off" spellcheck="false">
+        <span id="zx_modules_search_icon">🔍</span>
+      </div>
+
+      <div id="zx_modules_favorites">
+        <div class="zx_favorites_header">
+          <div class="zx_modules_section_title">Favoritos</div>
+          <button id="zx_favorites_manage" type="button">Gestionar</button>
+        </div>
+        <div id="zx_modules_favorites_list"></div>
+      </div>
+
+      <div id="zx_modules_recent" hidden>
+        <div class="zx_modules_section_title">Recientes</div>
+        <div id="zx_modules_recent_list"></div>
+      </div>
+
+      <div class="zx_modules_section_title" id="zx_modules_main_title">Módulos</div>
+      <div id="zx_modules_grid">
+        ${modulosVisibles().map(function(m){
+          return `
+            <button class="zx_module_full_btn" data-modulo="${limpiar(m.id)}" data-busqueda="${limpiar((m.texto+" "+m.id).toLowerCase())}" type="button">
+              <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_nav") : limpiar(m.icono)}</span>
+              <span>${limpiar(m.texto)}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+
+      <div id="zx_modules_empty" hidden>No hay resultados para esta búsqueda.</div>
+
+      <div id="zx_modules_tools" ${puedeUsarNotasRapidas() ? "" : "hidden"}>
+        <div class="zx_modules_section_title">Herramientas</div>
+        <button class="zx_tool_btn" id="zx_tool_notas" data-busqueda="notas rápidas postit recordatorio herramienta" type="button">
+          <span class="zx_tool_icon">📝</span>
+          <span>Notas rápidas</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(fondo);
+
+  const editor=document.createElement("div");
+  editor.id="zx_favorites_editor_backdrop";
+  editor.hidden=true;
+  editor.innerHTML=`
+    <div id="zx_favorites_editor_panel" role="dialog" aria-modal="true" aria-label="Gestionar favoritos">
+      <div class="zx_favorites_editor_head">
+        <div class="zx_favorites_editor_title">Gestionar favoritos</div>
+        <button class="zx_favorites_editor_close" id="zx_favorites_editor_close" type="button" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="zx_favorites_editor_body">
+        <p class="zx_favorites_editor_intro">
+          Los cambios solo se aplican al pulsar Guardar. Selecciona los módulos que quieres ver como favoritos y ordénalos desde la lista superior.
+        </p>
+
+        <section class="zx_favorites_editor_section">
+          <div class="zx_favorites_editor_section_title">Orden de favoritos</div>
+          <div id="zx_favorites_selected"></div>
+        </section>
+
+        <section class="zx_favorites_editor_section">
+          <div class="zx_favorites_editor_section_title">Módulos disponibles</div>
+          <div id="zx_favorites_available"></div>
+        </section>
+      </div>
+
+      <div class="zx_favorites_editor_footer">
+        <button id="zx_favorites_cancel" type="button">Cancelar</button>
+        <button id="zx_favorites_save" type="button">Guardar cambios</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(editor);
+
+  const buscador=$("zx_modules_search");
+
+  function normalizarBusqueda(valor){
+    return String(valor||"")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"")
+      .toLowerCase()
+      .trim();
+  }
+
+  function filtrarMenuAplicaciones(){
+    const termino=normalizarBusqueda(buscador ? buscador.value : "");
+    const panel=$("zx_modules_panel");
+    if(!panel) return;
+
+    let visibles=0;
+
+    panel.querySelectorAll(".zx_module_full_btn,.zx_tool_btn,.zx_recent_btn,.zx_favorite_item").forEach(function(btn){
+      const texto=normalizarBusqueda(btn.dataset.busqueda || btn.textContent);
+      const mostrar=!termino || texto.includes(termino);
+      btn.hidden=!mostrar;
+      if(mostrar) visibles++;
+    });
+
+    const favoritos=$("zx_modules_favorites");
+    if(favoritos){
+      const items=Array.from(favoritos.querySelectorAll(".zx_favorite_item"));
+      const favoritosVisibles=items.some(function(item){return !item.hidden});
+      favoritos.hidden=!!termino && items.length>0 && !favoritosVisibles;
+    }
+
+    const recientes=$("zx_modules_recent");
+    if(recientes){
+      const recientesVisibles=Array.from(recientes.querySelectorAll(".zx_recent_btn"))
+        .some(function(btn){return !btn.hidden});
+      recientes.hidden=!recientesVisibles;
+    }
+
+    const grid=$("zx_modules_grid");
+    const tituloModulos=$("zx_modules_main_title");
+    if(grid && tituloModulos){
+      const modulosVisibles=Array.from(grid.querySelectorAll(".zx_module_full_btn"))
+        .some(function(btn){return !btn.hidden});
+      grid.hidden=!modulosVisibles;
+      tituloModulos.hidden=!modulosVisibles;
+    }
+
+    const tools=$("zx_modules_tools");
+    if(tools){
+      const herramientasVisibles=Array.from(tools.querySelectorAll(".zx_tool_btn"))
+        .some(function(btn){return !btn.hidden});
+      tools.hidden=!herramientasVisibles;
+    }
+
+    const vacio=$("zx_modules_empty");
+    if(vacio) vacio.hidden=visibles>0;
+  }
+
+  if(buscador){
+    buscador.addEventListener("input",filtrarMenuAplicaciones);
+  }
+
+  $("zx_modules_close").onclick=cerrarMenuModulos;
+  fondo.onclick=function(ev){
+    if(ev.target===fondo) cerrarMenuModulos();
+  };
+
+  const gestionar=$("zx_favorites_manage");
+  if(gestionar) gestionar.onclick=abrirEditorFavoritos;
+
+  const cerrarEditor=$("zx_favorites_editor_close");
+  if(cerrarEditor) cerrarEditor.onclick=cerrarEditorFavoritos;
+
+  const cancelar=$("zx_favorites_cancel");
+  if(cancelar) cancelar.onclick=cerrarEditorFavoritos;
+
+  const guardar=$("zx_favorites_save");
+  if(guardar){
+    guardar.onclick=function(){
+      guardarModulosFavoritos(ZX_FAVORITES_DRAFT);
+      cerrarEditorFavoritos();
+      renderizarModulosFavoritos();
     };
   }
 
+  editor.onclick=function(ev){
+    if(ev.target===editor) cerrarEditorFavoritos();
+  };
+
   document.querySelectorAll(".zx_module_full_btn").forEach(function(btn){
-    btn.onclick=function(ev){
+    btn.onclick=function(){
       const id=btn.dataset.modulo;
-
-      if(zxEditandoFavoritos){
-        ev.preventDefault();
-        ev.stopPropagation();
-        alternarModuloFavorito(id);
-        return;
-      }
-
       cerrarMenuModulos();
       abrirModuloPorId(id);
     };
