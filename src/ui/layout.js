@@ -1,15 +1,16 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3136 - MENÚ FIJO ARRIBA Y ADAPTADO AL TECLADO EN IPHONE
+// V3137 - MÓDULOS RECIENTES EN EL CENTRO DE NAVEGACIÓN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3136";
+const ZX_VERSION="3137";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
 const ZX_LAST_MODULE_KEY="zentryx_last_module";
+const ZX_RECENT_MODULES_KEY="zentryx_recent_modules";
 
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
@@ -695,6 +696,50 @@ function estilos(){
     }
 
     #zx_modules_empty[hidden]{display:none!important}
+
+
+    #zx_modules_recent{
+      margin:0 0 14px;
+    }
+
+    #zx_modules_recent[hidden]{display:none!important}
+
+    #zx_modules_recent_list{
+      display:flex;
+      gap:8px;
+      overflow-x:auto;
+      padding:1px 1px 4px;
+      scrollbar-width:none;
+      -webkit-overflow-scrolling:touch;
+    }
+
+    #zx_modules_recent_list::-webkit-scrollbar{display:none}
+
+    .zx_recent_btn{
+      flex:0 0 auto;
+      min-width:106px;
+      min-height:48px;
+      border:1px solid var(--zx-line);
+      border-radius:14px;
+      background:#f8fafc;
+      color:#334155;
+      padding:7px 10px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:11px;
+      font-weight:950;
+      text-align:left;
+    }
+
+    .zx_recent_btn[hidden]{display:none!important}
+
+    .zx_recent_btn .zx_nav_icon{
+      width:30px;
+      height:30px;
+      min-width:30px;
+      font-size:18px;
+    }
 
     #zx_modules_grid{
       display:grid;
@@ -1624,6 +1669,69 @@ function moduloEsFavorito(id){
   return idsFavoritosNavegacion().includes(String(id||""));
 }
 
+function claveModulosRecientes(){
+  const u=usuarioActual();
+  return `${ZX_RECENT_MODULES_KEY}_${u.empresa_id || "demo"}_${u.id || u.usuario || "anonimo"}`;
+}
+
+function leerModulosRecientes(){
+  try{
+    const datos=JSON.parse(localStorage.getItem(claveModulosRecientes()) || "[]");
+    if(!Array.isArray(datos)) return [];
+    return datos
+      .map(function(id){return String(id||"")})
+      .filter(function(id,index,lista){
+        return id && lista.indexOf(id)===index && puedeVerModulo(id);
+      })
+      .slice(0,5);
+  }catch(e){
+    return [];
+  }
+}
+
+function guardarModuloReciente(id){
+  id=String(id||"");
+  if(!id || !puedeVerModulo(id)) return;
+
+  const recientes=leerModulosRecientes().filter(function(actual){
+    return actual!==id;
+  });
+
+  recientes.unshift(id);
+
+  try{
+    localStorage.setItem(claveModulosRecientes(),JSON.stringify(recientes.slice(0,5)));
+  }catch(e){}
+}
+
+function renderizarModulosRecientes(){
+  const contenedor=$("zx_modules_recent");
+  const lista=$("zx_modules_recent_list");
+  if(!contenedor || !lista) return;
+
+  const recientes=leerModulosRecientes()
+    .map(function(id){return MODULOS.find(function(m){return m.id===id})})
+    .filter(Boolean);
+
+  contenedor.hidden=recientes.length===0;
+  lista.innerHTML=recientes.map(function(m){
+    return `
+      <button class="zx_recent_btn" data-modulo="${limpiar(m.id)}" data-busqueda="${limpiar(("reciente "+m.texto+" "+m.id).toLowerCase())}" type="button">
+        <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_recent") : limpiar(m.icono)}</span>
+        <span>${limpiar(m.texto)}</span>
+      </button>
+    `;
+  }).join("");
+
+  lista.querySelectorAll(".zx_recent_btn").forEach(function(btn){
+    btn.onclick=function(){
+      const id=btn.dataset.modulo;
+      cerrarMenuModulos();
+      abrirModuloPorId(id);
+    };
+  });
+}
+
 function cerrarMenuModulos(){
   const fondo=$("zx_modules_backdrop");
   if(fondo) fondo.hidden=true;
@@ -1649,6 +1757,11 @@ function abrirMenuModulos(){
     btn.hidden=false;
   });
 
+  const grid=$("zx_modules_grid");
+  if(grid) grid.hidden=false;
+  const tituloModulos=$("zx_modules_main_title");
+  if(tituloModulos) tituloModulos.hidden=false;
+
   const tools=$("zx_modules_tools");
   if(tools) tools.hidden=!puedeUsarNotasRapidas();
   const vacio=$("zx_modules_empty");
@@ -1659,6 +1772,8 @@ function abrirMenuModulos(){
     document.body.dataset.zxMenuScrollY=String(scrollY);
     document.body.style.top=`-${scrollY}px`;
   }
+
+  renderizarModulosRecientes();
 
   fondo.hidden=false;
   document.body.classList.add("zx_modal_abierto");
@@ -1694,7 +1809,12 @@ function montarMenuCompletoModulos(){
         <span id="zx_modules_search_icon">🔍</span>
       </div>
 
-      <div class="zx_modules_section_title">Módulos</div>
+      <div id="zx_modules_recent" hidden>
+        <div class="zx_modules_section_title">Recientes</div>
+        <div id="zx_modules_recent_list"></div>
+      </div>
+
+      <div class="zx_modules_section_title" id="zx_modules_main_title">Módulos</div>
       <div id="zx_modules_grid">
         ${modulosVisibles().map(function(m){
           return `
@@ -1737,12 +1857,28 @@ function montarMenuCompletoModulos(){
 
     let visibles=0;
 
-    panel.querySelectorAll(".zx_module_full_btn,.zx_tool_btn").forEach(function(btn){
+    panel.querySelectorAll(".zx_module_full_btn,.zx_tool_btn,.zx_recent_btn").forEach(function(btn){
       const texto=normalizarBusqueda(btn.dataset.busqueda || btn.textContent);
       const mostrar=!termino || texto.includes(termino);
       btn.hidden=!mostrar;
       if(mostrar) visibles++;
     });
+
+    const recientes=$("zx_modules_recent");
+    if(recientes){
+      const recientesVisibles=Array.from(recientes.querySelectorAll(".zx_recent_btn"))
+        .some(function(btn){return !btn.hidden});
+      recientes.hidden=!recientesVisibles;
+    }
+
+    const grid=$("zx_modules_grid");
+    const tituloModulos=$("zx_modules_main_title");
+    if(grid && tituloModulos){
+      const modulosVisibles=Array.from(grid.querySelectorAll(".zx_module_full_btn"))
+        .some(function(btn){return !btn.hidden});
+      grid.hidden=!modulosVisibles;
+      tituloModulos.hidden=!modulosVisibles;
+    }
 
     const tools=$("zx_modules_tools");
     if(tools){
@@ -1841,7 +1977,10 @@ function activo(nombre){
 
   actualizarActivoMenuCompleto(objetivo);
 
-  if(objetivo) guardarModuloActual(objetivo);
+  if(objetivo){
+    guardarModuloActual(objetivo);
+    guardarModuloReciente(objetivo);
+  }
 }
 
 function abrirModulo(nombre,callback){
