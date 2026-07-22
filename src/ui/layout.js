@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3134 - MENÚ DE APLICACIONES CON BUSCADOR Y HERRAMIENTAS
+// V3135 - CORRECCIÓN REAL DEL FILTRO DEL MENÚ
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3134";
+const ZX_VERSION="3135";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -700,6 +700,11 @@ function estilos(){
       display:grid;
       grid-template-columns:repeat(3,minmax(0,1fr));
       gap:8px;
+    }
+
+    .zx_module_full_btn[hidden],
+    .zx_tool_btn[hidden]{
+      display:none!important;
     }
 
     .zx_module_full_btn{
@@ -1554,7 +1559,7 @@ function abrirMenuModulos(){
   });
 
   const tools=$("zx_modules_tools");
-  if(tools) tools.style.display="";
+  if(tools) tools.hidden=!puedeUsarNotasRapidas();
   const vacio=$("zx_modules_empty");
   if(vacio) vacio.hidden=true;
 
@@ -1630,9 +1635,12 @@ function montarMenuCompletoModulos(){
 
   function filtrarMenuAplicaciones(){
     const termino=normalizarBusqueda(buscador ? buscador.value : "");
+    const panel=$("zx_modules_panel");
+    if(!panel) return;
+
     let visibles=0;
 
-    document.querySelectorAll(".zx_module_full_btn,.zx_tool_btn").forEach(function(btn){
+    panel.querySelectorAll(".zx_module_full_btn,.zx_tool_btn").forEach(function(btn){
       const texto=normalizarBusqueda(btn.dataset.busqueda || btn.textContent);
       const mostrar=!termino || texto.includes(termino);
       btn.hidden=!mostrar;
@@ -1643,7 +1651,7 @@ function montarMenuCompletoModulos(){
     if(tools){
       const herramientasVisibles=Array.from(tools.querySelectorAll(".zx_tool_btn"))
         .some(function(btn){return !btn.hidden});
-      tools.style.display=herramientasVisibles ? "" : "none";
+      tools.hidden=!herramientasVisibles;
     }
 
     const vacio=$("zx_modules_empty");
