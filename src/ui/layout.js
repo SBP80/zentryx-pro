@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3140 - GESTOR PROFESIONAL Y SEGURO DE FAVORITOS
+// V3141 - BUSCADOR GLOBAL INSTANTÁNEO SOBRE DATOS LOCALES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3140";
+const ZX_VERSION="3141";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -686,6 +686,111 @@ function estilos(){
       color:#64748b;
       font-size:17px;
       pointer-events:none;
+    }
+
+    #zx_global_results{
+      margin:0 0 16px;
+    }
+
+    #zx_global_results[hidden]{display:none!important}
+
+    .zx_global_results_head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin:0 2px 8px;
+    }
+
+    .zx_global_results_title{
+      color:#64748b;
+      font-size:11px;
+      font-weight:1000;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+    }
+
+    #zx_global_results_count{
+      color:#64748b;
+      font-size:11px;
+      font-weight:900;
+    }
+
+    #zx_global_results_list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .zx_global_result{
+      width:100%;
+      min-height:62px;
+      padding:10px 11px;
+      border:1px solid #dbe3ef;
+      border-radius:15px;
+      background:#fff;
+      color:#334155;
+      display:grid;
+      grid-template-columns:auto minmax(0,1fr) auto;
+      align-items:center;
+      gap:10px;
+      text-align:left;
+      box-shadow:0 3px 10px rgba(15,23,42,.035);
+    }
+
+    .zx_global_result_icon{
+      width:38px;
+      height:38px;
+      min-width:38px;
+      border-radius:13px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:20px;
+      font-weight:1000;
+    }
+
+    .zx_global_result_text{min-width:0}
+
+    .zx_global_result_title{
+      display:block;
+      overflow:hidden;
+      color:#0f172a;
+      font-size:13px;
+      font-weight:1000;
+      line-height:1.25;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .zx_global_result_meta{
+      display:block;
+      overflow:hidden;
+      margin-top:3px;
+      color:#64748b;
+      font-size:11px;
+      font-weight:800;
+      line-height:1.25;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .zx_global_result_type{
+      padding:5px 8px;
+      border-radius:999px;
+      background:#f1f5f9;
+      color:#475569;
+      font-size:10px;
+      font-weight:1000;
+      white-space:nowrap;
+    }
+
+    .zx_global_results_note{
+      margin:8px 2px 0;
+      color:#94a3b8;
+      font-size:10px;
+      font-weight:750;
+      line-height:1.35;
     }
 
     #zx_modules_empty{
@@ -2234,6 +2339,208 @@ function renderizarModulosRecientes(){
   });
 }
 
+function normalizarGlobal(valor){
+  return String(valor||"")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase()
+    .trim();
+}
+
+function leerCacheGlobal(clave){
+  try{
+    const datos=JSON.parse(localStorage.getItem(clave) || "[]");
+    return Array.isArray(datos) ? datos : [];
+  }catch(e){
+    return [];
+  }
+}
+
+function leerCacheVehiculosGlobal(){
+  const claves=["zentryx_cache_vehiculos_v3144","zentryx_cache_vehiculos","zentryx_vehiculos_cache"];
+
+  for(const clave of claves){
+    const lista=leerCacheGlobal(clave);
+    if(lista.length) return lista;
+  }
+
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const clave=localStorage.key(i);
+      if(/^zentryx_cache_vehiculos/i.test(String(clave||""))){
+        const lista=leerCacheGlobal(clave);
+        if(lista.length) return lista;
+      }
+    }
+  }catch(e){}
+
+  return [];
+}
+
+function primerValor(registro,claves,defecto){
+  for(const clave of claves){
+    const valor=registro && registro[clave];
+    if(valor!==null && valor!==undefined && String(valor).trim()){
+      return String(valor).trim();
+    }
+  }
+  return defecto || "";
+}
+
+function textoGlobalRegistro(registro){
+  if(!registro || typeof registro!=="object") return "";
+
+  return normalizarGlobal(
+    Object.keys(registro)
+      .filter(function(clave){
+        return !/pin|password|hash|token|firma|foto|archivo|documento|contenido|base64/i.test(clave);
+      })
+      .map(function(clave){
+        const valor=registro[clave];
+        if(valor===null || valor===undefined || typeof valor==="object") return "";
+        return String(valor);
+      })
+      .join(" ")
+  );
+}
+
+function resultadosGlobales(termino){
+  termino=normalizarGlobal(termino);
+  if(termino.length<2) return [];
+
+  const configuraciones=[
+    {
+      modulo:"clientes",tipo:"Cliente",icono:"👥",bg:"#dbeafe",color:"#2563eb",
+      datos:leerCacheGlobal("zentryx_cache_clientes"),
+      titulo:function(r){return primerValor(r,["nombre","razon_social","empresa","nombre_comercial"],"Cliente")},
+      meta:function(r){return [primerValor(r,["telefono","telefono_principal","movil"],""),primerValor(r,["email","email_principal"],""),primerValor(r,["poblacion","localidad","direccion"],"")].filter(Boolean).join(" · ")}
+    },
+    {
+      modulo:"trabajos",tipo:"Trabajo",icono:"🛠️",bg:"#dbeafe",color:"#2563eb",
+      datos:leerCacheGlobal("zentryx_cache_trabajos"),
+      titulo:function(r){return primerValor(r,["titulo","nombre","descripcion"],"Trabajo")},
+      meta:function(r){return [primerValor(r,["cliente_nombre","cliente","direccion_obra","direccion"],""),primerValor(r,["estado"],"")].filter(Boolean).join(" · ")}
+    },
+    {
+      modulo:"usuarios",tipo:"Usuario",icono:"👤",bg:"#ede9fe",color:"#7c3aed",
+      datos:leerCacheGlobal("zentryx_cache_usuarios"),
+      titulo:function(r){return [r&&r.nombre,r&&r.apellidos].filter(Boolean).join(" ").trim() || primerValor(r,["usuario","nombre_completo"],"Usuario")},
+      meta:function(r){return [primerValor(r,["rol","puesto"],""),primerValor(r,["telefono_personal","telefono_empresa","telefono"],""),primerValor(r,["email_empresa","email_personal","email"],"")].filter(Boolean).join(" · ")}
+    },
+    {
+      modulo:"vehiculos",tipo:"Vehículo",icono:"🚐",bg:"#dcfce7",color:"#16a34a",
+      datos:leerCacheVehiculosGlobal(),
+      titulo:function(r){
+        const matricula=primerValor(r,["matricula"],"");
+        const modelo=[primerValor(r,["marca"],""),primerValor(r,["modelo"],"")].filter(Boolean).join(" ");
+        return [matricula,modelo].filter(Boolean).join(" · ") || "Vehículo";
+      },
+      meta:function(r){return [primerValor(r,["usuario_nombre","usuario_asignado_nombre","estado"],""),primerValor(r,["km_actual","kilometros"],"")].filter(Boolean).join(" · ")}
+    }
+  ];
+
+  const resultados=[];
+
+  configuraciones.forEach(function(config){
+    if(!puedeVerModulo(config.modulo)) return;
+
+    config.datos.forEach(function(registro){
+      if(resultados.length>=20 || !textoGlobalRegistro(registro).includes(termino)) return;
+
+      resultados.push({
+        modulo:config.modulo,
+        tipo:config.tipo,
+        icono:config.icono,
+        bg:config.bg,
+        color:config.color,
+        id:primerValor(registro,["id","uuid"],""),
+        titulo:config.titulo(registro),
+        meta:config.meta(registro),
+        busqueda:termino
+      });
+    });
+  });
+
+  return resultados.slice(0,12);
+}
+
+function aplicarBusquedaEnModulo(modulo,termino){
+  const mapa={
+    clientes:"zx_buscar_clientes",
+    trabajos:"zx_buscar_trabajos",
+    usuarios:"zx_buscar_usuarios",
+    vehiculos:"zx_buscar_vehiculos"
+  };
+
+  const id=mapa[modulo];
+  if(!id) return;
+
+  let intentos=0;
+  const timer=setInterval(function(){
+    intentos++;
+    const input=$(id);
+
+    if(input){
+      clearInterval(timer);
+      input.value=termino || "";
+      input.dispatchEvent(new Event("input",{bubbles:true}));
+      input.dispatchEvent(new Event("change",{bubbles:true}));
+      try{input.focus()}catch(e){}
+    }else if(intentos>=20){
+      clearInterval(timer);
+    }
+  },100);
+}
+
+function abrirResultadoGlobal(resultado){
+  if(!resultado) return;
+
+  if(resultado.modulo==="trabajos" && resultado.id){
+    window.ZX_TRABAJO_ABRIR_ID=String(resultado.id);
+  }
+
+  cerrarMenuModulos();
+  abrirModuloPorId(resultado.modulo);
+
+  if(!(resultado.modulo==="trabajos" && resultado.id)){
+    setTimeout(function(){
+      aplicarBusquedaEnModulo(resultado.modulo,resultado.titulo || resultado.busqueda || "");
+    },180);
+  }
+}
+
+function pintarResultadosGlobales(termino){
+  const bloque=$("zx_global_results");
+  const lista=$("zx_global_results_list");
+  const contador=$("zx_global_results_count");
+  if(!bloque || !lista || !contador) return 0;
+
+  const resultados=resultadosGlobales(termino);
+  bloque.hidden=normalizarGlobal(termino).length<2 || resultados.length===0;
+  contador.textContent=resultados.length ? `${resultados.length} resultado${resultados.length===1 ? "" : "s"}` : "";
+
+  lista.innerHTML=resultados.map(function(r,index){
+    return `
+      <button class="zx_global_result" data-global-index="${index}" type="button">
+        <span class="zx_global_result_icon" style="background:${r.bg};color:${r.color};">${limpiar(r.icono)}</span>
+        <span class="zx_global_result_text">
+          <span class="zx_global_result_title">${limpiar(r.titulo)}</span>
+          <span class="zx_global_result_meta">${limpiar(r.meta || "Abrir en "+r.tipo)}</span>
+        </span>
+        <span class="zx_global_result_type">${limpiar(r.tipo)}</span>
+      </button>
+    `;
+  }).join("");
+
+  lista.querySelectorAll(".zx_global_result").forEach(function(btn){
+    btn.onclick=function(){
+      abrirResultadoGlobal(resultados[Number(btn.dataset.globalIndex)]);
+    };
+  });
+
+  return resultados.length;
+}
+
 function cerrarMenuModulos(){
   const fondo=$("zx_modules_backdrop");
   if(fondo) fondo.hidden=true;
@@ -2268,6 +2575,11 @@ function abrirMenuModulos(){
   if(tools) tools.hidden=!puedeUsarNotasRapidas();
   const vacio=$("zx_modules_empty");
   if(vacio) vacio.hidden=true;
+
+  const globales=$("zx_global_results");
+  if(globales) globales.hidden=true;
+  const globalLista=$("zx_global_results_list");
+  if(globalLista) globalLista.innerHTML="";
 
   if(window.innerWidth<640){
     const scrollY=window.scrollY||document.documentElement.scrollTop||0;
@@ -2308,8 +2620,17 @@ function montarMenuCompletoModulos(){
       </div>
 
       <div id="zx_modules_search_wrap">
-        <input id="zx_modules_search" type="search" placeholder="Buscar módulo o herramienta…" autocomplete="off" spellcheck="false">
+        <input id="zx_modules_search" type="search" placeholder="Buscar módulos, clientes, trabajos, usuarios…" autocomplete="off" spellcheck="false">
         <span id="zx_modules_search_icon">🔍</span>
+      </div>
+
+      <div id="zx_global_results" hidden>
+        <div class="zx_global_results_head">
+          <div class="zx_global_results_title">Resultados de la aplicación</div>
+          <div id="zx_global_results_count"></div>
+        </div>
+        <div id="zx_global_results_list"></div>
+        <div class="zx_global_results_note">Búsqueda instantánea sobre la información disponible en el dispositivo. Funciona también sin cobertura.</div>
       </div>
 
       <div id="zx_modules_favorites">
@@ -2401,6 +2722,7 @@ function montarMenuCompletoModulos(){
     if(!panel) return;
 
     let visibles=0;
+    const globalesVisibles=pintarResultadosGlobales(termino);
 
     panel.querySelectorAll(".zx_module_full_btn,.zx_tool_btn,.zx_recent_btn,.zx_favorite_item").forEach(function(btn){
       const texto=normalizarBusqueda(btn.dataset.busqueda || btn.textContent);
@@ -2440,7 +2762,7 @@ function montarMenuCompletoModulos(){
     }
 
     const vacio=$("zx_modules_empty");
-    if(vacio) vacio.hidden=visibles>0;
+    if(vacio) vacio.hidden=(visibles+globalesVisibles)>0;
   }
 
   if(buscador){
