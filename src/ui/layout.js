@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3141 - BUSCADOR GLOBAL INSTANTÁNEO SOBRE DATOS LOCALES
+// V3142 - CENTRO DE COMANDOS RESPONSIVE PARA MÓVIL, TABLETA Y PC
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3141";
+const ZX_VERSION="3142";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -791,6 +791,191 @@ function estilos(){
       font-size:10px;
       font-weight:750;
       line-height:1.35;
+    }
+
+    .zx_command_shortcut{
+      display:none;
+      position:absolute;
+      right:12px;
+      top:50%;
+      transform:translateY(-50%);
+      padding:4px 7px;
+      border:1px solid #cbd5e1;
+      border-radius:8px;
+      background:#f8fafc;
+      color:#64748b;
+      font-size:10px;
+      font-weight:950;
+      line-height:1;
+      pointer-events:none;
+      white-space:nowrap;
+    }
+
+    .zx_global_result:focus-visible,
+    #zx_modules_search:focus-visible,
+    #zx_modules_close:focus-visible,
+    #zx_favorites_manage:focus-visible{
+      outline:3px solid rgba(37,99,235,.24);
+      outline-offset:2px;
+    }
+
+    @media(max-width:639px){
+      #zx_global_results{margin:0 0 14px}
+      .zx_global_results_head{margin:0 1px 8px}
+      #zx_global_results_list{gap:7px}
+
+      .zx_global_result{
+        min-height:68px;
+        padding:10px;
+        grid-template-columns:auto minmax(0,1fr);
+        gap:10px;
+        border-radius:14px;
+      }
+
+      .zx_global_result_icon{
+        width:40px;
+        height:40px;
+        min-width:40px;
+        border-radius:12px;
+      }
+
+      .zx_global_result_title{
+        font-size:13px;
+        white-space:normal;
+        display:-webkit-box;
+        -webkit-box-orient:vertical;
+        -webkit-line-clamp:2;
+      }
+
+      .zx_global_result_meta{
+        font-size:10.5px;
+        white-space:normal;
+        display:-webkit-box;
+        -webkit-box-orient:vertical;
+        -webkit-line-clamp:2;
+      }
+
+      .zx_global_result_type{
+        grid-column:2;
+        justify-self:start;
+        margin-top:-3px;
+        padding:4px 7px;
+      }
+    }
+
+    @media(min-width:640px) and (max-width:1099px){
+      #zx_modules_panel{
+        width:min(92vw,820px);
+        max-height:88vh;
+        padding:18px;
+      }
+
+      #zx_modules_search{
+        min-height:52px;
+        font-size:16px;
+      }
+
+      #zx_global_results_list{
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:10px;
+      }
+
+      .zx_global_result{min-height:76px}
+
+      #zx_modules_grid{
+        grid-template-columns:repeat(4,minmax(0,1fr));
+      }
+
+      #zx_modules_favorites_list{
+        display:grid;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        overflow:visible;
+      }
+
+      .zx_favorite_item{min-width:0}
+    }
+
+    @media(min-width:1100px){
+      #zx_modules_backdrop{
+        align-items:center;
+        justify-content:center;
+        padding:28px;
+      }
+
+      #zx_modules_panel{
+        width:min(1120px,92vw);
+        max-height:min(86vh,900px);
+        padding:22px;
+        border-radius:28px;
+      }
+
+      .zx_modules_title{font-size:24px}
+      #zx_modules_search_wrap{margin-bottom:18px}
+
+      #zx_modules_search{
+        min-height:56px;
+        padding-right:78px;
+        border-radius:16px;
+        font-size:17px;
+      }
+
+      .zx_command_shortcut{
+        display:inline-flex;
+        align-items:center;
+      }
+
+      #zx_global_results{margin-bottom:22px}
+
+      #zx_global_results_list{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:11px;
+      }
+
+      .zx_global_result{
+        min-height:80px;
+        padding:12px;
+        transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;
+      }
+
+      .zx_global_result:hover{
+        transform:translateY(-1px);
+        border-color:#bfdbfe;
+        box-shadow:0 10px 24px rgba(15,23,42,.08);
+      }
+
+      #zx_modules_favorites_list{
+        display:grid;
+        grid-template-columns:repeat(6,minmax(0,1fr));
+        overflow:visible;
+        gap:10px;
+      }
+
+      .zx_favorite_item{min-width:0}
+
+      .zx_favorite_open{
+        min-height:68px;
+        transition:transform .15s ease,box-shadow .15s ease;
+      }
+
+      .zx_favorite_open:hover{
+        transform:translateY(-1px);
+        box-shadow:0 9px 20px rgba(15,23,42,.08);
+      }
+
+      #zx_modules_grid{
+        grid-template-columns:repeat(6,minmax(0,1fr));
+        gap:10px;
+      }
+
+      #zx_favorites_editor_panel{
+        width:min(900px,92vw);
+      }
+
+      #zx_favorites_available{
+        grid-template-columns:repeat(3,minmax(0,1fr));
+      }
     }
 
     #zx_modules_empty{
@@ -2521,7 +2706,7 @@ function pintarResultadosGlobales(termino){
 
   lista.innerHTML=resultados.map(function(r,index){
     return `
-      <button class="zx_global_result" data-global-index="${index}" type="button">
+      <button class="zx_global_result" data-global-index="${index}" type="button" aria-label="Abrir ${limpiar(r.tipo)}: ${limpiar(r.titulo)}">
         <span class="zx_global_result_icon" style="background:${r.bg};color:${r.color};">${limpiar(r.icono)}</span>
         <span class="zx_global_result_text">
           <span class="zx_global_result_title">${limpiar(r.titulo)}</span>
@@ -2620,8 +2805,9 @@ function montarMenuCompletoModulos(){
       </div>
 
       <div id="zx_modules_search_wrap">
-        <input id="zx_modules_search" type="search" placeholder="Buscar módulos, clientes, trabajos, usuarios…" autocomplete="off" spellcheck="false">
+        <input id="zx_modules_search" type="search" placeholder="Buscar módulos, clientes, trabajos, usuarios…" autocomplete="off" spellcheck="false" inputmode="search" enterkeyhint="search" aria-label="Buscar en Zentryx PRO">
         <span id="zx_modules_search_icon">🔍</span>
+        <span class="zx_command_shortcut" aria-hidden="true">Ctrl K</span>
       </div>
 
       <div id="zx_global_results" hidden>
@@ -2658,7 +2844,7 @@ function montarMenuCompletoModulos(){
         }).join("")}
       </div>
 
-      <div id="zx_modules_empty" hidden>No hay resultados para esta búsqueda.</div>
+      <div id="zx_modules_empty" hidden>No se encontraron resultados. Prueba con un nombre, teléfono, matrícula, dirección o título de trabajo.</div>
 
       <div id="zx_modules_tools" ${puedeUsarNotasRapidas() ? "" : "hidden"}>
         <div class="zx_modules_section_title">Herramientas</div>
@@ -2795,6 +2981,33 @@ function montarMenuCompletoModulos(){
   editor.onclick=function(ev){
     if(ev.target===editor) cerrarEditorFavoritos();
   };
+
+  document.addEventListener("keydown",function(ev){
+    const tecla=String(ev.key||"").toLowerCase();
+
+    if((ev.ctrlKey || ev.metaKey) && tecla==="k"){
+      ev.preventDefault();
+      abrirMenuModulos();
+      setTimeout(function(){
+        const input=$("zx_modules_search");
+        if(input) input.focus();
+      },30);
+      return;
+    }
+
+    if(ev.key==="Escape"){
+      const editorFavoritos=$("zx_favorites_editor_backdrop");
+      if(editorFavoritos && !editorFavoritos.hidden){
+        cerrarEditorFavoritos();
+        return;
+      }
+
+      const menu=$("zx_modules_backdrop");
+      if(menu && !menu.hidden){
+        cerrarMenuModulos();
+      }
+    }
+  });
 
   document.querySelectorAll(".zx_module_full_btn").forEach(function(btn){
     btn.onclick=function(){
