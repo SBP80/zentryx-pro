@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3135 - CORRECCIÓN REAL DEL FILTRO DEL MENÚ
+// V3136 - MENÚ FIJO ARRIBA Y ADAPTADO AL TECLADO EN IPHONE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3135";
+const ZX_VERSION="3136";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -1007,6 +1007,89 @@ function estilos(){
       white-space:pre-wrap;
     }
 
+    /* iPhone/móvil: el menú se convierte en una pantalla fija completa.
+       La cabecera y el buscador permanecen arriba al abrir el teclado. */
+    @media(max-width:639px){
+      #zx_modules_backdrop{
+        position:fixed;
+        inset:0;
+        width:100%;
+        height:100vh;
+        height:100dvh;
+        padding:0;
+        align-items:flex-start;
+        justify-content:stretch;
+        background:#fff;
+        backdrop-filter:none;
+        overflow:hidden;
+        overscroll-behavior:none;
+      }
+
+      #zx_modules_panel{
+        position:absolute;
+        inset:0;
+        width:100%;
+        height:100%;
+        max-height:none;
+        margin:0;
+        padding:0 12px calc(16px + env(safe-area-inset-bottom));
+        border:0;
+        border-radius:0;
+        box-shadow:none;
+        overflow-y:auto;
+        overflow-x:hidden;
+        overscroll-behavior:contain;
+        -webkit-overflow-scrolling:touch;
+        background:#fff;
+      }
+
+      .zx_modules_head{
+        position:sticky;
+        top:0;
+        z-index:4;
+        min-height:calc(58px + env(safe-area-inset-top));
+        padding:calc(8px + env(safe-area-inset-top)) 2px 8px;
+        background:#fff;
+        border-bottom:1px solid var(--zx-line);
+      }
+
+      .zx_modules_title{
+        font-size:20px;
+      }
+
+      #zx_modules_close{
+        width:40px;
+        height:40px;
+        min-width:40px;
+      }
+
+      #zx_modules_search_wrap{
+        position:sticky;
+        top:calc(58px + env(safe-area-inset-top));
+        z-index:3;
+        margin:0 -2px 12px;
+        padding:10px 2px 8px;
+        background:#fff;
+      }
+
+      #zx_modules_search{
+        min-height:48px;
+        font-size:16px;
+      }
+
+      #zx_modules_grid{
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        padding-bottom:2px;
+      }
+
+      body.zx_modal_abierto{
+        position:fixed;
+        width:100%;
+        overflow:hidden!important;
+        touch-action:none;
+      }
+    }
+
     /* MÓVIL: navegación horizontal de una sola fila.
        Todos los módulos siguen accesibles sin ocupar media pantalla. */
     @media(max-width:639px){
@@ -1544,7 +1627,15 @@ function moduloEsFavorito(id){
 function cerrarMenuModulos(){
   const fondo=$("zx_modules_backdrop");
   if(fondo) fondo.hidden=true;
+
+  const scrollY=Number(document.body.dataset.zxMenuScrollY||0);
   document.body.classList.remove("zx_modal_abierto");
+  document.body.style.top="";
+  delete document.body.dataset.zxMenuScrollY;
+
+  if(window.innerWidth<640){
+    window.scrollTo(0,scrollY);
+  }
 }
 
 function abrirMenuModulos(){
@@ -1562,6 +1653,12 @@ function abrirMenuModulos(){
   if(tools) tools.hidden=!puedeUsarNotasRapidas();
   const vacio=$("zx_modules_empty");
   if(vacio) vacio.hidden=true;
+
+  if(window.innerWidth<640){
+    const scrollY=window.scrollY||document.documentElement.scrollTop||0;
+    document.body.dataset.zxMenuScrollY=String(scrollY);
+    document.body.style.top=`-${scrollY}px`;
+  }
 
   fondo.hidden=false;
   document.body.classList.add("zx_modal_abierto");
