@@ -1,16 +1,17 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3137 - MÓDULOS RECIENTES EN EL CENTRO DE NAVEGACIÓN
+// V3138 - FAVORITOS CONFIGURABLES POR USUARIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3137";
+const ZX_VERSION="3138";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
 const ZX_LAST_MODULE_KEY="zentryx_last_module";
 const ZX_RECENT_MODULES_KEY="zentryx_recent_modules";
+const ZX_FAVORITE_MODULES_KEY="zentryx_favorite_modules";
 
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
@@ -698,6 +699,72 @@ function estilos(){
     #zx_modules_empty[hidden]{display:none!important}
 
 
+    #zx_modules_favorites{
+      margin:0 0 14px;
+    }
+
+    #zx_modules_favorites[hidden]{display:none!important}
+
+    #zx_modules_favorites_list{
+      display:flex;
+      gap:8px;
+      overflow-x:auto;
+      padding:1px 1px 5px;
+      scrollbar-width:none;
+      -webkit-overflow-scrolling:touch;
+    }
+
+    #zx_modules_favorites_list::-webkit-scrollbar{display:none}
+
+    .zx_favorite_item{
+      flex:0 0 132px;
+      min-width:132px;
+      border:1px solid #facc15;
+      border-radius:15px;
+      background:#fffbeb;
+      overflow:hidden;
+    }
+
+    .zx_favorite_item[hidden]{display:none!important}
+
+    .zx_favorite_open{
+      width:100%;
+      min-height:52px;
+      padding:8px 9px 6px;
+      background:transparent;
+      color:#713f12;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:11px;
+      font-weight:950;
+      text-align:left;
+    }
+
+    .zx_favorite_open .zx_nav_icon{
+      width:30px;
+      height:30px;
+      min-width:30px;
+      font-size:18px;
+    }
+
+    .zx_favorite_actions{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      border-top:1px solid #fde68a;
+    }
+
+    .zx_favorite_action{
+      min-height:30px;
+      background:rgba(255,255,255,.55);
+      color:#92400e;
+      font-size:14px;
+      font-weight:1000;
+      border-right:1px solid #fde68a;
+    }
+
+    .zx_favorite_action:last-child{border-right:0}
+
     #zx_modules_recent{
       margin:0 0 14px;
     }
@@ -753,6 +820,7 @@ function estilos(){
     }
 
     .zx_module_full_btn{
+      position:relative;
       min-width:0;
       min-height:72px;
       border:1px solid var(--zx-line);
@@ -782,6 +850,30 @@ function estilos(){
       height:32px;
       min-width:32px;
       font-size:20px;
+    }
+
+    .zx_module_pin{
+      position:absolute;
+      top:5px;
+      right:5px;
+      width:27px;
+      height:27px;
+      border-radius:9px;
+      background:#f8fafc;
+      border:1px solid #e2e8f0;
+      color:#94a3b8;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:15px;
+      line-height:1;
+      z-index:2;
+    }
+
+    .zx_module_pin.zx_fijado{
+      background:#fef3c7;
+      border-color:#facc15;
+      color:#ca8a04;
     }
 
 
@@ -1669,6 +1761,146 @@ function moduloEsFavorito(id){
   return idsFavoritosNavegacion().includes(String(id||""));
 }
 
+function claveModulosFavoritos(){
+  const u=usuarioActual();
+  return `${ZX_FAVORITE_MODULES_KEY}_${u.empresa_id || "demo"}_${u.id || u.usuario || "anonimo"}`;
+}
+
+function leerModulosFavoritos(){
+  try{
+    const datos=JSON.parse(localStorage.getItem(claveModulosFavoritos()) || "[]");
+    if(!Array.isArray(datos)) return [];
+    return datos
+      .map(function(id){return String(id||"")})
+      .filter(function(id,index,lista){
+        return id && lista.indexOf(id)===index && puedeVerModulo(id);
+      })
+      .slice(0,12);
+  }catch(e){
+    return [];
+  }
+}
+
+function guardarModulosFavoritos(ids){
+  const limpios=(Array.isArray(ids) ? ids : [])
+    .map(function(id){return String(id||"")})
+    .filter(function(id,index,lista){
+      return id && lista.indexOf(id)===index && puedeVerModulo(id);
+    })
+    .slice(0,12);
+
+  try{
+    localStorage.setItem(claveModulosFavoritos(),JSON.stringify(limpios));
+  }catch(e){}
+}
+
+function esModuloFavoritoCentro(id){
+  return leerModulosFavoritos().includes(String(id||""));
+}
+
+function alternarModuloFavorito(id){
+  id=String(id||"");
+  if(!id || !puedeVerModulo(id)) return;
+
+  const favoritos=leerModulosFavoritos();
+  const indice=favoritos.indexOf(id);
+
+  if(indice>=0){
+    favoritos.splice(indice,1);
+  }else{
+    favoritos.push(id);
+  }
+
+  guardarModulosFavoritos(favoritos);
+  renderizarModulosFavoritos();
+  actualizarPinesFavoritos();
+}
+
+function moverModuloFavorito(id,direccion){
+  const favoritos=leerModulosFavoritos();
+  const indice=favoritos.indexOf(String(id||""));
+  const destino=indice+Number(direccion||0);
+
+  if(indice<0 || destino<0 || destino>=favoritos.length) return;
+
+  const temporal=favoritos[indice];
+  favoritos[indice]=favoritos[destino];
+  favoritos[destino]=temporal;
+
+  guardarModulosFavoritos(favoritos);
+  renderizarModulosFavoritos();
+  actualizarPinesFavoritos();
+}
+
+function actualizarPinesFavoritos(){
+  const favoritos=leerModulosFavoritos();
+
+  document.querySelectorAll(".zx_module_pin").forEach(function(pin){
+    const fijado=favoritos.includes(String(pin.dataset.modulo||""));
+    pin.classList.toggle("zx_fijado",fijado);
+    pin.textContent=fijado ? "★" : "☆";
+    pin.setAttribute("aria-label",fijado ? "Quitar de favoritos" : "Añadir a favoritos");
+    pin.setAttribute("title",fijado ? "Quitar de favoritos" : "Añadir a favoritos");
+  });
+}
+
+function renderizarModulosFavoritos(){
+  const contenedor=$("zx_modules_favorites");
+  const lista=$("zx_modules_favorites_list");
+  if(!contenedor || !lista) return;
+
+  const favoritos=leerModulosFavoritos()
+    .map(function(id){return MODULOS.find(function(m){return m.id===id})})
+    .filter(Boolean);
+
+  contenedor.hidden=favoritos.length===0;
+
+  lista.innerHTML=favoritos.map(function(m,index){
+    return `
+      <div class="zx_favorite_item" data-modulo="${limpiar(m.id)}" data-busqueda="${limpiar(("favorito fijado "+m.texto+" "+m.id).toLowerCase())}">
+        <button class="zx_favorite_open" data-modulo="${limpiar(m.id)}" type="button">
+          <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_favorite") : limpiar(m.icono)}</span>
+          <span>${limpiar(m.texto)}</span>
+        </button>
+        <div class="zx_favorite_actions">
+          <button class="zx_favorite_action zx_favorite_left" data-modulo="${limpiar(m.id)}" type="button" aria-label="Mover a la izquierda" ${index===0 ? "disabled" : ""}>←</button>
+          <button class="zx_favorite_action zx_favorite_remove" data-modulo="${limpiar(m.id)}" type="button" aria-label="Quitar de favoritos">★</button>
+          <button class="zx_favorite_action zx_favorite_right" data-modulo="${limpiar(m.id)}" type="button" aria-label="Mover a la derecha" ${index===favoritos.length-1 ? "disabled" : ""}>→</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  lista.querySelectorAll(".zx_favorite_open").forEach(function(btn){
+    btn.onclick=function(){
+      const id=btn.dataset.modulo;
+      cerrarMenuModulos();
+      abrirModuloPorId(id);
+    };
+  });
+
+  lista.querySelectorAll(".zx_favorite_remove").forEach(function(btn){
+    btn.onclick=function(ev){
+      ev.stopPropagation();
+      alternarModuloFavorito(btn.dataset.modulo);
+    };
+  });
+
+  lista.querySelectorAll(".zx_favorite_left").forEach(function(btn){
+    btn.onclick=function(ev){
+      ev.stopPropagation();
+      moverModuloFavorito(btn.dataset.modulo,-1);
+    };
+  });
+
+  lista.querySelectorAll(".zx_favorite_right").forEach(function(btn){
+    btn.onclick=function(ev){
+      ev.stopPropagation();
+      moverModuloFavorito(btn.dataset.modulo,1);
+    };
+  });
+}
+
 function claveModulosRecientes(){
   const u=usuarioActual();
   return `${ZX_RECENT_MODULES_KEY}_${u.empresa_id || "demo"}_${u.id || u.usuario || "anonimo"}`;
@@ -1753,7 +1985,7 @@ function abrirMenuModulos(){
   const buscador=$("zx_modules_search");
   if(buscador) buscador.value="";
 
-  document.querySelectorAll(".zx_module_full_btn,.zx_tool_btn").forEach(function(btn){
+  document.querySelectorAll(".zx_module_full_btn,.zx_tool_btn,.zx_favorite_item,.zx_recent_btn").forEach(function(btn){
     btn.hidden=false;
   });
 
@@ -1773,7 +2005,9 @@ function abrirMenuModulos(){
     document.body.style.top=`-${scrollY}px`;
   }
 
+  renderizarModulosFavoritos();
   renderizarModulosRecientes();
+  actualizarPinesFavoritos();
 
   fondo.hidden=false;
   document.body.classList.add("zx_modal_abierto");
@@ -1809,6 +2043,11 @@ function montarMenuCompletoModulos(){
         <span id="zx_modules_search_icon">🔍</span>
       </div>
 
+      <div id="zx_modules_favorites" hidden>
+        <div class="zx_modules_section_title">Favoritos</div>
+        <div id="zx_modules_favorites_list"></div>
+      </div>
+
       <div id="zx_modules_recent" hidden>
         <div class="zx_modules_section_title">Recientes</div>
         <div id="zx_modules_recent_list"></div>
@@ -1819,6 +2058,7 @@ function montarMenuCompletoModulos(){
         ${modulosVisibles().map(function(m){
           return `
             <button class="zx_module_full_btn" data-modulo="${limpiar(m.id)}" data-busqueda="${limpiar((m.texto+" "+m.id).toLowerCase())}" type="button">
+              <span class="zx_module_pin" data-modulo="${limpiar(m.id)}" role="button" tabindex="0" aria-label="Añadir a favoritos">☆</span>
               <span class="zx_nav_icon" style="background:${m.bg};color:${m.color};">${m.id==="agenda" ? iconoCalendarioHTML("zx_calendar_nav") : limpiar(m.icono)}</span>
               <span>${limpiar(m.texto)}</span>
             </button>
@@ -1857,12 +2097,19 @@ function montarMenuCompletoModulos(){
 
     let visibles=0;
 
-    panel.querySelectorAll(".zx_module_full_btn,.zx_tool_btn,.zx_recent_btn").forEach(function(btn){
+    panel.querySelectorAll(".zx_module_full_btn,.zx_tool_btn,.zx_recent_btn,.zx_favorite_item").forEach(function(btn){
       const texto=normalizarBusqueda(btn.dataset.busqueda || btn.textContent);
       const mostrar=!termino || texto.includes(termino);
       btn.hidden=!mostrar;
       if(mostrar) visibles++;
     });
+
+    const favoritos=$("zx_modules_favorites");
+    if(favoritos){
+      const favoritosVisibles=Array.from(favoritos.querySelectorAll(".zx_favorite_item"))
+        .some(function(item){return !item.hidden});
+      favoritos.hidden=!favoritosVisibles;
+    }
 
     const recientes=$("zx_modules_recent");
     if(recientes){
@@ -1899,6 +2146,21 @@ function montarMenuCompletoModulos(){
   fondo.onclick=function(ev){
     if(ev.target===fondo) cerrarMenuModulos();
   };
+
+  document.querySelectorAll(".zx_module_pin").forEach(function(pin){
+    const activar=function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      alternarModuloFavorito(pin.dataset.modulo);
+    };
+
+    pin.addEventListener("click",activar);
+    pin.addEventListener("keydown",function(ev){
+      if(ev.key==="Enter" || ev.key===" "){
+        activar(ev);
+      }
+    });
+  });
 
   document.querySelectorAll(".zx_module_full_btn").forEach(function(btn){
     btn.onclick=function(){
