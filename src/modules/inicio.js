@@ -1,15 +1,47 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3156 - VEHÍCULO ASIGNADO Y TARJETA DE AGENDA CORREGIDA
+// V3157 - ARRANQUE ESTABLE, REFRESCO AGRUPADO Y LIMPIEZA DE EVENTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3156";
-const CACHE_PREFIX="zentryx_mi_dia_v3156";
+const ZX_VERSION="3157";
+const CACHE_PREFIX="zentryx_mi_dia_v3157";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
 let ZX_MI_DIA_RENDER=0;
+const ZX_MI_DIA_RUNTIME_KEY="__ZX_MI_DIA_RUNTIME__";
+
+function obtenerRuntime(){
+  const anterior=window[ZX_MI_DIA_RUNTIME_KEY];
+  if(anterior && typeof anterior.destruir==="function") anterior.destruir();
+
+  const runtime={
+    listeners:[],
+    refreshTimer:0,
+    destroyed:false,
+    add(target,nombre,handler,options){
+      if(!target || typeof target.addEventListener!=="function") return;
+      target.addEventListener(nombre,handler,options);
+      this.listeners.push([target,nombre,handler,options]);
+    },
+    destruir(){
+      if(this.destroyed) return;
+      this.destroyed=true;
+      if(this.refreshTimer) clearTimeout(this.refreshTimer);
+      this.refreshTimer=0;
+      this.listeners.forEach(function(item){
+        try{item[0].removeEventListener(item[1],item[2],item[3])}catch(e){}
+      });
+      this.listeners.length=0;
+    }
+  };
+
+  window[ZX_MI_DIA_RUNTIME_KEY]=runtime;
+  return runtime;
+}
+
+const ZX_MI_DIA_RUNTIME=obtenerRuntime();
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -111,12 +143,16 @@ function guardarCache(data){
 }
 
 function conTimeout(promesa,ms){
+  const limite=ms || QUERY_TIMEOUT_MS;
+  let timer=0;
   return Promise.race([
     Promise.resolve(promesa),
     new Promise(function(_,reject){
-      setTimeout(function(){reject(new Error("timeout"))},ms || QUERY_TIMEOUT_MS);
+      timer=setTimeout(function(){reject(new Error("timeout"))},limite);
     })
-  ]);
+  ]).finally(function(){
+    if(timer) clearTimeout(timer);
+  });
 }
 
 async function consulta(fn,fallback){
@@ -608,8 +644,7 @@ function renderAvisos(lista){
 }
 
 function estilos(){
-  const old=document.getElementById("zx_mi_dia_css");
-  if(old) old.remove();
+  if(document.getElementById("zx_mi_dia_css")) return;
   const s=document.createElement("style");
   s.id="zx_mi_dia_css";
   s.textContent=`
@@ -656,6 +691,9 @@ window.ZX_miDia_mapa=abrirMapa;
 window.ZX_miDia_llamar=llamar;
 
 window.ZENTRYX_UI_inicio=async function(){
+  const contenedor=app();
+  if(!contenedor) return;
+
   const renderId=++ZX_MI_DIA_RENDER;
   estilos();
 
@@ -667,7 +705,7 @@ window.ZENTRYX_UI_inicio=async function(){
   const s=sesion();
   const nombre=(s.nombre || s.usuario || "").split(" ")[0] || "Hola";
 
-  app().innerHTML=`
+  contenedor.innerHTML=`
     <div class="zx_md">
       <section class="zx_md_hero">
         <div class="zx_md_hero_top"><div><h2>Hola, ${limpiar(nombre)} 👋</h2><p>Preparando tu día...</p></div></div>
@@ -681,7 +719,7 @@ window.ZENTRYX_UI_inicio=async function(){
   const actual=proximoTrabajo(data.trabajos);
   const hoyCount=(data.trabajos || []).filter(t=>fechaTrabajo(t)===hoy()).length;
 
-  app().innerHTML=`
+  contenedor.innerHTML=`
     <div class="zx_md">
       <section class="zx_md_hero">
         <div class="zx_md_hero_top">
@@ -706,9 +744,16 @@ window.ZX_inicio=function(){
 };
 
 function refrescarMiDiaVisible(){
-  if(document.querySelector(".zx_md") && typeof window.ZX_inicio==="function"){
-    window.ZX_inicio();
-  }
+  if(ZX_MI_DIA_RUNTIME.destroyed || !document.querySelector(".zx_md")) return;
+  if(typeof window.ZX_inicio!=="function") return;
+
+  if(ZX_MI_DIA_RUNTIME.refreshTimer) clearTimeout(ZX_MI_DIA_RUNTIME.refreshTimer);
+  ZX_MI_DIA_RUNTIME.refreshTimer=setTimeout(function(){
+    ZX_MI_DIA_RUNTIME.refreshTimer=0;
+    if(!ZX_MI_DIA_RUNTIME.destroyed && document.querySelector(".zx_md")){
+      window.ZX_inicio();
+    }
+  },180);
 }
 
 [
@@ -723,7 +768,9 @@ function refrescarMiDiaVisible(){
   "zentryx:vehiculo:uso_actualizado",
   "zentryx:notificacion:actualizada",
   "zentryx:sync:complete"
-].forEach(function(nombre){window.addEventListener(nombre,refrescarMiDiaVisible)});
+].forEach(function(nombre){
+  ZX_MI_DIA_RUNTIME.add(window,nombre,refrescarMiDiaVisible);
+});
 
 if(zx() && typeof zx().registrarModulo==="function"){
   zx().registrarModulo("inicio",{nombre:"Mi día",activo:true,version:ZX_VERSION});
