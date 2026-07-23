@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3145 - LIMPIEZA SEGURA DE EVENTOS Y OBSERVADORES
+// V3146 - ROUTER ESTABLE Y NAVEGACION SIN DUPLICADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3145";
+const ZX_VERSION="3146";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -37,7 +37,11 @@ const ZX_RECENT_MODULES_KEY="zentryx_recent_modules";
 const ZX_FAVORITE_MODULES_KEY="zentryx_favorite_modules";
 const ZX_ROUTER_HISTORY_KEY="zentryx_router_history_v1";
 const ZX_ROUTER_CONTEXT_KEY="zentryx_router_context_v1";
+const ZX_ROUTER_CURRENT_KEY="zentryx_router_current_v1";
 const ZX_ROUTER_MAX_HISTORY=30;
+const ZX_ROUTER_DUPLICATE_WINDOW=250;
+let ZX_ROUTER_RESTORE_TIMER=null;
+let ZX_ROUTER_LAST_OPEN={key:"",at:0};
 
 function $(id){return document.getElementById(id)}
 function app(){return $("app")}
@@ -3219,19 +3223,28 @@ function zxRouterCapturarContexto(modulo){
   return contexto;
 }
 
+function zxRouterCancelarRestauracion(){
+  if(ZX_ROUTER_RESTORE_TIMER){
+    clearInterval(ZX_ROUTER_RESTORE_TIMER);
+    ZX_ROUTER_RESTORE_TIMER=null;
+  }
+}
+
 function zxRouterRestaurarContexto(modulo,opciones){
+  zxRouterCancelarRestauracion();
+
   const id=zxRouterNormalizarModulo(modulo);
   const todos=zxRouterLeerJSON(ZX_ROUTER_CONTEXT_KEY,{});
   const contexto=todos[id];
-  if(!contexto) return;
+  if(!contexto) return false;
 
   const opts=opciones || {};
   let intentos=0;
-  const timer=setInterval(function(){
+  ZX_ROUTER_RESTORE_TIMER=setInterval(function(){
     intentos++;
     const raiz=app();
     if(!raiz){
-      if(intentos>=15) clearInterval(timer);
+      if(intentos>=15) zxRouterCancelarRestauracion();
       return;
     }
 
@@ -3255,13 +3268,45 @@ function zxRouterRestaurarContexto(modulo,opciones){
       window.scrollTo({top:Number(contexto.scrollY || 0),left:0,behavior:"auto"});
     }
 
-    if(raiz.children.length || intentos>=15) clearInterval(timer);
+    if(raiz.children.length || intentos>=15) zxRouterCancelarRestauracion();
   },80);
+  return true;
 }
 
 function zxRouterRutaActual(){
+  const guardada=zxRouterLeerJSON(ZX_ROUTER_CURRENT_KEY,null);
   const modulo=zxRouterNormalizarModulo(leerModuloActual());
+  if(guardada && guardada.modulo===modulo){
+    return {
+      modulo:modulo,
+      recordId:String(guardada.recordId || ""),
+      query:String(guardada.query || ""),
+      timestamp:Number(guardada.timestamp || Date.now())
+    };
+  }
   return {modulo:modulo,recordId:"",query:"",timestamp:Date.now()};
+}
+
+function zxRouterGuardarRutaActual(modulo,opciones){
+  const opts=opciones || {};
+  const ruta={
+    modulo:zxRouterNormalizarModulo(modulo),
+    recordId:String(opts.recordId || opts.id || ""),
+    query:String(opts.query || ""),
+    timestamp:Date.now()
+  };
+  zxRouterGuardarJSON(ZX_ROUTER_CURRENT_KEY,ruta);
+  return ruta;
+}
+
+function zxRouterEsAperturaDuplicada(modulo,opciones){
+  const opts=opciones || {};
+  if(opts.force===true) return false;
+  const key=[modulo,String(opts.recordId || opts.id || ""),String(opts.query || "")].join("|");
+  const ahora=Date.now();
+  const duplicada=ZX_ROUTER_LAST_OPEN.key===key && (ahora-ZX_ROUTER_LAST_OPEN.at)<ZX_ROUTER_DUPLICATE_WINDOW;
+  ZX_ROUTER_LAST_OPEN={key:key,at:ahora};
+  return duplicada;
 }
 
 function zxRouterLeerHistorial(){
@@ -3311,19 +3356,24 @@ function zxRouterEjecutarModulo(id){
 }
 
 const ZXRouter={
-  version:"1.0",
+  version:"1.1",
   open:function(modulo,opciones){
     const id=zxRouterNormalizarModulo(modulo);
-    const opts=typeof opciones==="string" ? {recordId:opciones} : (opciones || {});
-    if(!id) return false;
+    const opts=typeof opciones==="string" ? {recordId:opciones} : Object.assign({},opciones || {});
+    if(!id || zxRouterEsAperturaDuplicada(id,opts)) return false;
+
+    zxRouterCancelarRestauracion();
 
     const anterior=zxRouterRutaActual();
-    if(anterior.modulo) zxRouterCapturarContexto(anterior.modulo);
+    if(anterior.modulo && anterior.modulo!==id) zxRouterCapturarContexto(anterior.modulo);
 
     if(opts.replace!==true && anterior.modulo && anterior.modulo!==id){
       const historial=zxRouterLeerHistorial();
       const ultimo=historial[historial.length-1];
-      if(!ultimo || ultimo.modulo!==anterior.modulo){
+      const mismaRuta=ultimo && ultimo.modulo===anterior.modulo &&
+        String(ultimo.recordId || "")===String(anterior.recordId || "") &&
+        String(ultimo.query || "")===String(anterior.query || "");
+      if(!mismaRuta){
         historial.push(anterior);
         zxRouterGuardarHistorial(historial);
       }
@@ -3331,15 +3381,18 @@ const ZXRouter={
 
     zxRouterPrepararRegistro(id,opts.recordId || opts.id);
     const abierto=zxRouterEjecutarModulo(id);
+    if(!abierto) return false;
 
-    if(abierto && opts.query){
+    const ruta=zxRouterGuardarRutaActual(id,opts);
+
+    if(opts.query){
       setTimeout(function(){aplicarBusquedaEnModulo(id,String(opts.query || ""))},180);
-    }else if(abierto && opts.restore!==false && !(opts.recordId || opts.id)){
+    }else if(opts.restore!==false && !(opts.recordId || opts.id)){
       zxRouterRestaurarContexto(id,opts);
     }
 
-    document.dispatchEvent(new CustomEvent("zentryx:navigation",{detail:{modulo:id,opciones:opts}}));
-    return abierto;
+    document.dispatchEvent(new CustomEvent("zentryx:navigation",{detail:{modulo:id,opciones:opts,ruta:ruta}}));
+    return true;
   },
   replace:function(modulo,opciones){
     return this.open(modulo,Object.assign({},opciones || {},{replace:true}));
@@ -3357,8 +3410,10 @@ const ZXRouter={
   saveContext:function(){return zxRouterCapturarContexto(leerModuloActual())},
   restoreContext:function(modulo){return zxRouterRestaurarContexto(modulo || leerModuloActual(),{})},
   clear:function(){
+    zxRouterCancelarRestauracion();
     zxRouterGuardarHistorial([]);
     zxRouterGuardarJSON(ZX_ROUTER_CONTEXT_KEY,{});
+    try{sessionStorage.removeItem(ZX_ROUTER_CURRENT_KEY)}catch(e){}
   }
 };
 
