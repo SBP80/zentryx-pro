@@ -1,14 +1,25 @@
 // ===============================
 // ZENTRYX PRO - BACKEND MANAGER
-// V3120 - NÚCLEO DE DATOS, CACHE Y OFFLINE
+// V3121 - SINCRONIZACIÓN SEGURA, CACHE CONSISTENTE Y SIN DUPLICADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_BACKEND_VERSION="3120";
+const ZX_BACKEND_VERSION="3121";
+const RUNTIME_KEY="__zentryx_backend_runtime";
+const MAX_SYNCED_QUEUE_ITEMS=100;
+const MAX_QUEUE_ATTEMPTS=8;
 const CACHE_PREFIX="zentryx_backend_cache_";
 const QUEUE_KEY="zentryx_backend_queue";
 const META_KEY="zentryx_backend_meta";
+
+const previousRuntime=window[RUNTIME_KEY];
+if(previousRuntime && typeof previousRuntime.destroy==="function"){
+  try{previousRuntime.destroy();}catch(e){}
+}
+
+let syncPromise=null;
+let onlineHandler=null;
 
 function now(){
   return new Date().toISOString();
@@ -155,6 +166,43 @@ function cacheSet(table,data){
   return list;
 }
 
+function cacheMerge(table,data,field){
+  field=field || "id";
+  const incoming=Array.isArray(data) ? data : [];
+  const current=cacheGet(table);
+  const index=new Map();
+
+  current.forEach(function(item){
+    if(item && item[field]!==undefined && item[field]!==null){
+      index.set(String(item[field]),item);
+    }
+  });
+
+  incoming.forEach(function(item){
+    if(!item || item[field]===undefined || item[field]===null) return;
+    const key=String(item[field]);
+    index.set(key,Object.assign({},index.get(key) || {},item));
+  });
+
+  const merged=Array.from(index.values());
+  cacheSet(table,merged);
+  return merged;
+}
+
+function isFilteredGet(options){
+  return Boolean(
+    options && (
+      (Array.isArray(options.eq) && options.eq.length) ||
+      (Array.isArray(options.neq) && options.neq.length) ||
+      (Array.isArray(options.gte) && options.gte.length) ||
+      (Array.isArray(options.lte) && options.lte.length) ||
+      (Array.isArray(options.order) && options.order.length) ||
+      options.limit ||
+      typeof options.query==="function"
+    )
+  );
+}
+
 function cacheUpsert(table,item,field){
   field=field || "id";
 
@@ -193,8 +241,19 @@ function queueGet(){
   return Array.isArray(q) ? q : [];
 }
 
+function compactQueue(list){
+  const source=Array.isArray(list) ? list : [];
+  const pending=source.filter(function(item){
+    return item && item.status==="pending";
+  });
+  const other=source.filter(function(item){
+    return item && item.status!=="pending";
+  }).slice(-MAX_SYNCED_QUEUE_ITEMS);
+  return pending.concat(other);
+}
+
 function queueSet(list){
-  return writeJSON(QUEUE_KEY,Array.isArray(list) ? list : []);
+  return writeJSON(QUEUE_KEY,compactQueue(list));
 }
 
 function queuePending(){
@@ -331,7 +390,14 @@ async function get(table,options){
     if(r && r.error) throw r.error;
 
     const data=Array.isArray(r.data) ? r.data : (r.data ? [r.data] : []);
-    cacheSet(table,data);
+
+    // Una consulta filtrada no debe reemplazar toda la caché de la tabla.
+    // Se fusiona por id para conservar datos disponibles sin conexión.
+    if(isFilteredGet(options)){
+      cacheMerge(table,data,options.cacheField || "id");
+    }else{
+      cacheSet(table,data);
+    }
 
     return {
       data:data,
@@ -469,7 +535,7 @@ async function write(action,table,data,options){
   }
 }
 
-async function sync(){
+async function syncInternal(){
   if(!isOnline()){
     notify();
     return {ok:false,offline:true,pending:queuePending().length};
@@ -486,6 +552,13 @@ async function sync(){
 
   for(const item of list){
     if(!item || item.status!=="pending") continue;
+
+    if((item.attempts || 0)>=MAX_QUEUE_ATTEMPTS){
+      item.status="error";
+      item.error=item.error || "Máximo de reintentos alcanzado";
+      item.failed_at=now();
+      continue;
+    }
 
     try{
       item.attempts=(item.attempts || 0)+1;
@@ -538,6 +611,16 @@ async function sync(){
   };
 }
 
+function sync(){
+  if(syncPromise) return syncPromise;
+
+  syncPromise=syncInternal().finally(function(){
+    syncPromise=null;
+  });
+
+  return syncPromise;
+}
+
 function clearCache(table){
   if(table){
     return removeKey(cacheKey(table));
@@ -576,6 +659,7 @@ const Backend={
   cache:{
     get:cacheGet,
     set:cacheSet,
+    merge:cacheMerge,
     upsert:cacheUpsert,
     delete:cacheDelete,
     clear:clearCache
@@ -599,9 +683,21 @@ window.ZENTRYX=window.ZENTRYX || {};
 window.ZENTRYX.Backend=Backend;
 window.ZENTRYX.backend=Backend;
 
-window.addEventListener("online",function(){
+onlineHandler=function(){
   setTimeout(sync,800);
-});
+};
+
+window.addEventListener("online",onlineHandler);
+
+window[RUNTIME_KEY]={
+  version:ZX_BACKEND_VERSION,
+  destroy:function(){
+    if(onlineHandler){
+      try{window.removeEventListener("online",onlineHandler);}catch(e){}
+    }
+    onlineHandler=null;
+  }
+};
 
 console.log("Zentryx BackendManager V"+ZX_BACKEND_VERSION+" cargado");
 
