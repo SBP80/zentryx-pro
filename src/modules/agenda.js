@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3136 - CARGA RÁPIDA, CACHÉ POR USUARIO Y DEDUPLICACIÓN
+// V3137 - CICLO DE VIDA ESTABLE, REPINTADO AGRUPADO Y RECARGA SEGURA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3136";
+const ZX_VERSION="3137";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3136";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -16,6 +16,30 @@ let ZX_AGENDA_FILTRO="todos";
 let ZX_AGENDA_CARGANDO=false;
 let ZX_AGENDA_CARGA_TOKEN=0;
 let ZX_AGENDA_ULTIMA_CARGA=0;
+let ZX_AGENDA_TIMER_CARGA=null;
+let ZX_AGENDA_TIMER_ONLINE=null;
+let ZX_AGENDA_RAF_REPINTADO=0;
+let ZX_AGENDA_ACTIVA=false;
+
+function agendaMontada(){
+  const raiz=app();
+  return !!(ZX_AGENDA_ACTIVA && raiz && raiz.querySelector(".zx_ag_shell"));
+}
+
+function cancelarTrabajoPendiente(){
+  if(ZX_AGENDA_TIMER_CARGA){
+    clearTimeout(ZX_AGENDA_TIMER_CARGA);
+    ZX_AGENDA_TIMER_CARGA=null;
+  }
+  if(ZX_AGENDA_TIMER_ONLINE){
+    clearTimeout(ZX_AGENDA_TIMER_ONLINE);
+    ZX_AGENDA_TIMER_ONLINE=null;
+  }
+  if(ZX_AGENDA_RAF_REPINTADO){
+    cancelAnimationFrame(ZX_AGENDA_RAF_REPINTADO);
+    ZX_AGENDA_RAF_REPINTADO=0;
+  }
+}
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -603,7 +627,7 @@ async function cargarEventos(opciones){
 
   if(cache.length && (!ZX_AGENDA_CACHE.length || opciones.pintarCache!==false)){
     ZX_AGENDA_CACHE=cache;
-    if(document.getElementById("zx_ag_calendario")) repintarDatos();
+    if(document.getElementById("zx_ag_calendario")) solicitarRepintado();
   }
 
   if(!navigator.onLine || !sb()){
@@ -669,11 +693,20 @@ function pintarShell(){
 }
 
 function repintarDatos(){
+  if(!agendaMontada()) return;
   const cal=document.getElementById("zx_ag_calendario");
   const listas=document.getElementById("zx_ag_listas");
 
   if(cal) cal.innerHTML=renderCalendario();
   if(listas) listas.innerHTML=renderListas();
+}
+
+function solicitarRepintado(){
+  if(!agendaMontada() || ZX_AGENDA_RAF_REPINTADO) return;
+  ZX_AGENDA_RAF_REPINTADO=requestAnimationFrame(function(){
+    ZX_AGENDA_RAF_REPINTADO=0;
+    repintarDatos();
+  });
 }
 
 function renderCabecera(){
@@ -1691,6 +1724,8 @@ function instalarCSS(){
 }
 
 window.ZX_agenda=async function(){
+  ZX_AGENDA_ACTIVA=true;
+  cancelarTrabajoPendiente();
   instalarCSS();
 
   if(zx() && typeof zx().marcarModuloActivo==="function"){
@@ -1710,19 +1745,34 @@ window.ZX_agenda=async function(){
     repintarDatos();
   }
 
-  setTimeout(async function(){
+  ZX_AGENDA_TIMER_CARGA=setTimeout(async function(){
+    ZX_AGENDA_TIMER_CARGA=null;
     await cargarEventos({pintarCache:false});
-    repintarDatos();
+    solicitarRepintado();
   },0);
 };
 
-window.addEventListener("online",function(){
-  setTimeout(async function(){
-    await cargarEventos({forzar:true,pintarCache:false});
-    repintarDatos();
-    prepararTrabajosOffline(ZX_AGENDA_CACHE);
+async function refrescarAgendaAlVolverOnline(){
+  if(!agendaMontada()) return;
+  await cargarEventos({forzar:true,pintarCache:false});
+  solicitarRepintado();
+  prepararTrabajosOffline(ZX_AGENDA_CACHE);
+}
+
+function manejarAgendaOnline(){
+  if(!agendaMontada()) return;
+  if(ZX_AGENDA_TIMER_ONLINE) clearTimeout(ZX_AGENDA_TIMER_ONLINE);
+  ZX_AGENDA_TIMER_ONLINE=setTimeout(function(){
+    ZX_AGENDA_TIMER_ONLINE=null;
+    refrescarAgendaAlVolverOnline();
   },700);
-});
+}
+
+if(window.__ZX_AGENDA_ONLINE_HANDLER__){
+  window.removeEventListener("online",window.__ZX_AGENDA_ONLINE_HANDLER__);
+}
+window.__ZX_AGENDA_ONLINE_HANDLER__=manejarAgendaOnline;
+window.addEventListener("online",manejarAgendaOnline);
 
 window.ZX_abrirAgenda=window.ZX_agenda;
 
