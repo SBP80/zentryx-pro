@@ -1,14 +1,37 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3144B - ZXROUTER V1 + CABECERA FIJA REAL
+// V3145 - LIMPIEZA SEGURA DE EVENTOS Y OBSERVADORES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3144B";
+const ZX_VERSION="3145";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
+let ZX_LAYOUT_CLEANUPS=[];
+
+function registrarLimpieza(fn){
+  if(typeof fn==="function") ZX_LAYOUT_CLEANUPS.push(fn);
+  return fn;
+}
+
+function escuchar(objetivo,evento,handler,opciones){
+  if(!objetivo || typeof objetivo.addEventListener!=="function") return function(){};
+  objetivo.addEventListener(evento,handler,opciones);
+  const quitar=function(){
+    try{objetivo.removeEventListener(evento,handler,opciones)}catch(e){}
+  };
+  registrarLimpieza(quitar);
+  return quitar;
+}
+
+function ejecutarLimpiezasLayout(){
+  const pendientes=ZX_LAYOUT_CLEANUPS.splice(0);
+  pendientes.reverse().forEach(function(fn){
+    try{fn()}catch(e){console.warn("Zentryx: limpieza de layout incompleta",e)}
+  });
+}
 const ZX_LAST_MODULE_KEY="zentryx_last_module";
 const ZX_RECENT_MODULES_KEY="zentryx_recent_modules";
 const ZX_FAVORITE_MODULES_KEY="zentryx_favorite_modules";
@@ -110,10 +133,25 @@ function formatoFechaES(f){
 }
 
 function limpiarLayout(){
-  ["zx_topbar","zx_reloj","zx_nav","zx_postit","zx_css"].forEach(function(id){
+  ejecutarLimpiezasLayout();
+
+  [
+    "zx_topbar","zx_reloj","zx_nav","zx_postit","zx_actionbar","zx_css",
+    "zx_modules_backdrop","zx_favorites_editor_backdrop","zx_modal_notas"
+  ].forEach(function(id){
     const el=$(id);
     if(el) el.remove();
   });
+
+  document.body.classList.remove("zx_modal_abierto");
+  document.documentElement.style.removeProperty("--zx-topbar-fixed-height");
+  const contenido=app();
+  if(contenido) contenido.style.marginTop="";
+
+  if(window.__ZX_FIXED_HEADER_OBSERVER){
+    try{window.__ZX_FIXED_HEADER_OBSERVER.disconnect()}catch(e){}
+    window.__ZX_FIXED_HEADER_OBSERVER=null;
+  }
 
   if(ZX_RELOJ_TIMER){
     clearInterval(ZX_RELOJ_TIMER);
@@ -1936,13 +1974,19 @@ function instalarCabeceraFijaReal(){
     if(top) ro.observe(top);
     if(nav) ro.observe(nav);
     window.__ZX_FIXED_HEADER_OBSERVER=ro;
+    registrarLimpieza(function(){
+      try{ro.disconnect()}catch(e){}
+      if(window.__ZX_FIXED_HEADER_OBSERVER===ro) window.__ZX_FIXED_HEADER_OBSERVER=null;
+    });
   }
 
-  window.addEventListener("resize",actualizarCabeceraFijaReal,{passive:true});
-  window.addEventListener("orientationchange",function(){
+  const alOrientar=function(){
     setTimeout(actualizarCabeceraFijaReal,80);
     setTimeout(actualizarCabeceraFijaReal,350);
-  },{passive:true});
+  };
+
+  escuchar(window,"resize",actualizarCabeceraFijaReal,{passive:true});
+  escuchar(window,"orientationchange",alOrientar,{passive:true});
 }
 
 function topbar(){
@@ -2006,6 +2050,7 @@ function topbar(){
     integrarEstadoConexion();
   });
   observadorConexion.observe(document.body,{childList:true,subtree:false});
+  registrarLimpieza(function(){observadorConexion.disconnect()});
 
   const userBtn=$("zx_user_btn");
   const userMenu=$("zx_user_menu");
@@ -2037,7 +2082,7 @@ function topbar(){
     ev.stopPropagation();
   };
 
-  document.addEventListener("click",cerrarMenuUsuario);
+  escuchar(document,"click",cerrarMenuUsuario);
 
   $("zx_menu_ajustes").onclick=function(){
     abrirModuloDesdeMenu("ajustes");
@@ -3013,7 +3058,7 @@ function montarMenuCompletoModulos(){
     if(ev.target===editor) cerrarEditorFavoritos();
   };
 
-  document.addEventListener("keydown",function(ev){
+  escuchar(document,"keydown",function(ev){
     const tecla=String(ev.key||"").toLowerCase();
 
     if((ev.ctrlKey || ev.metaKey) && tecla==="k"){
@@ -3668,14 +3713,14 @@ window.ZENTRYX_UI_LAYOUT={
       }
     };
 
-    document.addEventListener("visibilitychange",function(){
+    escuchar(document,"visibilitychange",function(){
       if(!document.hidden){
         setTimeout(asegurarModulo,80);
         setTimeout(asegurarModulo,500);
       }
     });
-    window.addEventListener("pageshow",function(){setTimeout(asegurarModulo,120)});
-    window.addEventListener("focus",function(){setTimeout(asegurarModulo,180)});
+    escuchar(window,"pageshow",function(){setTimeout(asegurarModulo,120)});
+    escuchar(window,"focus",function(){setTimeout(asegurarModulo,180)});
 
     if(location.hash && location.hash.replace("#","")==="desarrollador"){
       setTimeout(function(){
