@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3114";
+const ZX_VERSION="3115";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -15,11 +15,14 @@ const USER_KEY="usuario";
 const CONFIG_KEY="zentryx_config";
 const OFFLINE_QUEUE_KEY="zentryx_offline_queue";
 const OFFLINE_CACHE_PREFIX="zentryx_cache_";
-const FETCH_WRAPPED_KEY="__zentryx_fetch_protegido_v3114";
+const FETCH_WRAPPED_KEY="__zentryx_fetch_protegido";
+const LEGACY_FETCH_WRAPPED_KEY="__zentryx_fetch_protegido_v3114";
+const RUNTIME_KEY="__zentryx_app_runtime";
 
 let ZX_SERVICIOS_INICIADOS=false;
 let ZX_SYNC_TIMER=null;
 let ZX_NET_TIMER=null;
+let ZX_RUNTIME=null;
 let ZX_NET_STATE={
   online:typeof navigator!=="undefined" ? navigator.onLine : true,
   calidad:"desconocida",
@@ -175,13 +178,14 @@ function crearErrorAbortado(ms,url){
 }
 
 function instalarFetchProtegido(){
-  if(!window.fetch || window[FETCH_WRAPPED_KEY]){
+  if(!window.fetch || window[FETCH_WRAPPED_KEY] || window[LEGACY_FETCH_WRAPPED_KEY]){
     return;
   }
 
   const fetchOriginal=window.fetch.bind(window);
 
   window[FETCH_WRAPPED_KEY]=true;
+  window[LEGACY_FETCH_WRAPPED_KEY]=true;
   window.__zentryx_fetch_original=window.__zentryx_fetch_original || fetchOriginal;
 
   window.fetch=function(input,init){
@@ -1287,44 +1291,91 @@ function estadoSistema(){
   };
 }
 
+function limpiarRuntimeAnterior(){
+  const anterior=window[RUNTIME_KEY];
+
+  if(anterior && typeof anterior.dispose==="function"){
+    try{ anterior.dispose(); }catch(e){}
+  }
+}
+
+function crearRuntime(){
+  const timers=new Set();
+  const listeners=[];
+
+  function addTimer(id,tipo){
+    timers.add({id:id,tipo:tipo});
+    return id;
+  }
+
+  function addListener(target,tipo,handler,opciones){
+    target.addEventListener(tipo,handler,opciones);
+    listeners.push({target:target,tipo:tipo,handler:handler,opciones:opciones});
+  }
+
+  function dispose(){
+    timers.forEach(function(t){
+      if(t.tipo==="interval") clearInterval(t.id);
+      else clearTimeout(t.id);
+    });
+    timers.clear();
+
+    listeners.forEach(function(l){
+      try{ l.target.removeEventListener(l.tipo,l.handler,l.opciones); }catch(e){}
+    });
+    listeners.length=0;
+
+    ZX_SYNC_TIMER=null;
+    ZX_NET_TIMER=null;
+    ZX_SERVICIOS_INICIADOS=false;
+  }
+
+  return {
+    addTimeout:function(fn,ms){ return addTimer(setTimeout(fn,ms),"timeout"); },
+    addInterval:function(fn,ms){ return addTimer(setInterval(fn,ms),"interval"); },
+    addListener:addListener,
+    dispose:dispose
+  };
+}
+
 function iniciarServiciosLigeros(){
   if(ZX_SERVICIOS_INICIADOS) return;
 
   ZX_SERVICIOS_INICIADOS=true;
 
+  limpiarRuntimeAnterior();
+  ZX_RUNTIME=crearRuntime();
+  window[RUNTIME_KEY]=ZX_RUNTIME;
+
   instalarFetchProtegido();
   aplicarTemaGuardado();
   actualizarEstadoConexion();
 
-  window.addEventListener("online",function(){
+  const onOnline=function(){
     setSyncStatus("syncing");
-    setTimeout(syncOfflineQueue,600);
-  });
+    ZX_RUNTIME.addTimeout(syncOfflineQueue,600);
+  };
 
-  window.addEventListener("offline",function(){
+  const onOffline=function(){
     setSyncStatus("offline");
-  });
+  };
 
-  window.addEventListener("pageshow",function(){
+  const onPageShow=function(){
     aplicarTemaGuardado();
     actualizarEstadoConexion();
-  });
+  };
 
-  if(ZX_SYNC_TIMER){
-    clearInterval(ZX_SYNC_TIMER);
-  }
+  ZX_RUNTIME.addListener(window,"online",onOnline);
+  ZX_RUNTIME.addListener(window,"offline",onOffline);
+  ZX_RUNTIME.addListener(window,"pageshow",onPageShow);
 
-  if(ZX_NET_TIMER){
-    clearInterval(ZX_NET_TIMER);
-  }
-
-  ZX_NET_TIMER=setInterval(function(){
+  ZX_NET_TIMER=ZX_RUNTIME.addInterval(function(){
     testConexion();
   },90000);
 
-  setTimeout(testConexion,2500);
+  ZX_RUNTIME.addTimeout(testConexion,2500);
 
-  ZX_SYNC_TIMER=setInterval(function(){
+  ZX_SYNC_TIMER=ZX_RUNTIME.addInterval(function(){
     actualizarEstadoConexion();
 
     if(navigator.onLine && colaPendiente().length>0){
@@ -1333,7 +1384,7 @@ function iniciarServiciosLigeros(){
   },60000);
 
   if(navigator.onLine && colaPendiente().length>0){
-    setTimeout(syncOfflineQueue,1600);
+    ZX_RUNTIME.addTimeout(syncOfflineQueue,1600);
   }
 }
 
