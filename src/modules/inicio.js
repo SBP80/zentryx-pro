@@ -1,12 +1,12 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3157 - ARRANQUE ESTABLE, REFRESCO AGRUPADO Y LIMPIEZA DE EVENTOS
+// V3158 - SINCRONIZACIÓN REAL CON AGENDA Y VEHÍCULOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3157";
-const CACHE_PREFIX="zentryx_mi_dia_v3157";
+const ZX_VERSION="3158";
+const CACHE_PREFIX="zentryx_mi_dia_v3158";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
 let ZX_MI_DIA_RENDER=0;
@@ -304,6 +304,76 @@ async function cargarTrabajosDia(){
   return {ok:true,data:lista,error:""};
 }
 
+async function cargarEventosAgendaDia(){
+  const s=sesion();
+  const fHoy=hoy();
+  const fManana=manana();
+  const r=await consulta(c=>c
+    .from("agenda_eventos")
+    .select("*")
+    .gte("fecha_inicio",fHoy)
+    .lte("fecha_inicio",fManana)
+    .order("fecha_inicio",{ascending:true})
+    .order("hora_inicio",{ascending:true})
+    .limit(250),[]);
+
+  if(!r.ok) return {ok:false,data:[],error:r.error};
+
+  const lista=(r.data || []).filter(function(e){
+    const tipo=normalizar(e.tipo || "");
+    if(!["trabajo","cita","revision"].includes(tipo)) return false;
+    if(["terminado","completado","cancelado","archivado"].includes(normalizar(e.estado || "activo"))) return false;
+    if(esAdmin()) return true;
+    const uid=String(s.id || s.usuario_id || "");
+    const visible=String(e.visible_para || "todos");
+    return visible==="todos" || String(e.usuario_id || "")===uid;
+  }).map(function(e){
+    return {
+      ...e,
+      id:e.origen_id || e.id,
+      __evento_agenda_id:e.id,
+      __visita_id:"agenda|"+String(e.id || ""),
+      __plan_fecha:String(e.fecha_inicio || "").slice(0,10),
+      __plan_hora:e.hora_inicio || "",
+      __plan_hora_fin:e.hora_fin || "",
+      titulo:e.titulo || (normalizar(e.tipo)==="cita" ? "Cita" : "Trabajo"),
+      fecha:e.fecha_inicio,
+      hora_inicio:e.hora_inicio,
+      direccion_obra:e.direccion || e.direccion_obra || "",
+      cliente:e.cliente || "",
+      vehiculo_matricula:e.vehiculo || "",
+      estado:e.estado || "activo",
+      __origen_agenda:true
+    };
+  });
+
+  return {ok:true,data:lista,error:""};
+}
+
+function combinarTrabajosYAgenda(trabajos,eventos){
+  const mapa=new Map();
+  (trabajos || []).forEach(function(t){
+    const clave=[fechaTrabajo(t),horaTrabajo(t),normalizar(t.titulo || ""),String(t.id || "")].join("|");
+    mapa.set(clave,t);
+  });
+  (eventos || []).forEach(function(e){
+    const origen=String(e.origen_id || "");
+    const duplicado=Array.from(mapa.values()).some(function(t){
+      if(origen && String(t.id || "")===origen) return true;
+      return fechaTrabajo(t)===fechaTrabajo(e) &&
+        horaCorta(horaTrabajo(t))===horaCorta(horaTrabajo(e)) &&
+        normalizar(t.titulo || "")===normalizar(e.titulo || "");
+    });
+    if(!duplicado){
+      const clave=[fechaTrabajo(e),horaTrabajo(e),normalizar(e.titulo || ""),"agenda",String(e.__evento_agenda_id || e.id || "")].join("|");
+      mapa.set(clave,e);
+    }
+  });
+  return Array.from(mapa.values()).sort(function(a,b){
+    return (fechaTrabajo(a)+" "+(horaTrabajo(a)||"23:59")).localeCompare(fechaTrabajo(b)+" "+(horaTrabajo(b)||"23:59"));
+  });
+}
+
 async function cargarJornada(){
   const s=sesion();
   const r=await consulta(c=>c
@@ -325,7 +395,30 @@ async function cargarUsoVehiculo(){
     .in("estado",["en_uso","pendiente_devolucion"])
     .order("inicio_at",{ascending:false})
     .limit(1),[]);
-  return {ok:r.ok,data:r.data && r.data[0] ? r.data[0] : null,error:r.error};
+
+  const uso=r.data && r.data[0] ? r.data[0] : null;
+  if(!r.ok || !uso || !uso.vehiculo_id) return {ok:r.ok,data:uso,error:r.error};
+
+  const rv=await consulta(c=>c
+    .from("vehiculos")
+    .select("id,matricula,marca,modelo,km_actual,activo")
+    .eq("id",String(uso.vehiculo_id))
+    .maybeSingle(),null);
+
+  if(!rv.ok || !rv.data) return {ok:r.ok,data:uso,error:r.error};
+
+  return {
+    ok:true,
+    data:{
+      ...uso,
+      vehiculo_matricula:rv.data.matricula || uso.vehiculo_matricula,
+      vehiculo_marca:rv.data.marca || uso.vehiculo_marca,
+      vehiculo_modelo:rv.data.modelo || uso.vehiculo_modelo,
+      km_inicio:rv.data.km_actual ?? uso.km_inicio,
+      vehiculo_actual:rv.data
+    },
+    error:""
+  };
 }
 
 async function cargarAvisos(){
@@ -359,25 +452,30 @@ async function cargarMiDia(){
     };
   }
 
-  const [trabajos,jornada,vehiculo,avisos]=await Promise.all([
+  const [trabajos,eventosAgenda,jornada,vehiculo,avisos]=await Promise.all([
     cargarTrabajosDia(),
+    cargarEventosAgendaDia(),
     cargarJornada(),
     cargarUsoVehiculo(),
     cargarAvisos()
   ]);
 
+  const trabajosCombinados=(trabajos.ok || eventosAgenda.ok)
+    ? combinarTrabajosYAgenda(trabajos.ok ? trabajos.data : [],eventosAgenda.ok ? eventosAgenda.data : [])
+    : base.trabajos;
+
   const data={
-    trabajos:trabajos.ok ? trabajos.data : base.trabajos,
+    trabajos:trabajosCombinados,
     jornada:jornada.ok ? jornada.data : base.jornada,
     vehiculo:vehiculo.ok ? vehiculo.data : base.vehiculo,
     avisos:avisos.ok ? avisos.data : base.avisos,
     offline:false,
-    parcial:![trabajos.ok,jornada.ok,vehiculo.ok,avisos.ok].every(Boolean),
+    parcial:![trabajos.ok || eventosAgenda.ok,jornada.ok,vehiculo.ok,avisos.ok].every(Boolean),
     cache_antigua:false,
     actualizado_en:ahoraISO()
   };
 
-  if(trabajos.ok || jornada.ok || vehiculo.ok || avisos.ok) guardarCache(data);
+  if(trabajos.ok || eventosAgenda.ok || jornada.ok || vehiculo.ok || avisos.ok) guardarCache(data);
   return data;
 }
 
@@ -538,13 +636,25 @@ function renderEstadoJornada(j){
   `;
 }
 
+function abrirVehiculosSeguro(){
+  if(typeof window.ZX_vehiculos==="function"){
+    window.ZX_vehiculos();
+    return;
+  }
+  if(typeof window.ZENTRYX_UI_abrirVehiculos==="function"){
+    window.ZENTRYX_UI_abrirVehiculos();
+    return;
+  }
+  alert("No se ha podido abrir el módulo Vehículos.");
+}
+
 function renderVehiculo(v,jornada){
   if(!v){
     return `
       <div class="zx_md_inline">
         <span>🚗</span>
         <div><small>Vehículo</small><b>Sin vehículo asignado</b></div>
-        <button onclick="ZX_abrirVehiculos()">Gestionar</button>
+        <button onclick="ZX_miDia_abrirVehiculos()">Gestionar</button>
       </div>
     `;
   }
@@ -558,7 +668,7 @@ function renderVehiculo(v,jornada){
         <b>${limpiar(v.vehiculo_matricula || "Vehículo")}</b>
         <em>${pendiente ? "Revisa y cierra el uso anterior" : (jornada ? "Disponible durante tu jornada" : "Disponible para comenzar tu jornada")}${v.km_inicio!=null ? " · "+limpiar(v.km_inicio)+" km" : ""}</em>
       </div>
-      <button onclick="ZX_abrirVehiculos()">${pendiente ? "Devolver" : "Gestionar"}</button>
+      <button onclick="ZX_miDia_abrirVehiculos()">${pendiente ? "Devolver" : "Gestionar"}</button>
     </div>
   `;
 }
@@ -572,7 +682,7 @@ function renderTrabajo(t){
           <h3>No tienes trabajos para hoy</h3>
           <p>Consulta los próximos días en Agenda.</p>
         </div>
-        <button onclick="ZX_abrirAgenda()">📅 Ver agenda</button>
+        <button onclick="ZX_abrirAgenda()"><span class="zx_md_calendar_icon">${new Date().getDate()}</span> Ver agenda</button>
       </section>
     `;
   }
@@ -676,7 +786,7 @@ function estilos(){
     .zx_md_map_btn.apple{background:#111827;color:#fff}
     .zx_md_map_btn.waze{background:#16a34a;color:#fff}
     .zx_md_map_cancel{background:#e2e8f0;color:#334155}
-    .zx_md_empty{text-align:left;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:15px 17px}.zx_md_empty_icon{font-size:30px}.zx_md_empty_text{min-width:0}.zx_md_empty h3{margin:0 0 3px;font-size:18px}.zx_md_empty p{margin:0;color:#64748b;font-size:13px;font-weight:800}.zx_md_empty button{border:0;border-radius:14px;background:#7c3aed;color:#fff;padding:11px 13px;font-size:13px;font-weight:950;white-space:nowrap}
+    .zx_md_empty{text-align:left;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:15px 17px}.zx_md_empty_icon{font-size:30px}.zx_md_empty_text{min-width:0}.zx_md_empty h3{margin:0 0 3px;font-size:18px}.zx_md_empty p{margin:0;color:#64748b;font-size:13px;font-weight:800}.zx_md_empty button{border:0;border-radius:14px;background:#7c3aed;color:#fff;padding:11px 13px;font-size:13px;font-weight:950;white-space:nowrap}.zx_md_calendar_icon{display:inline-flex;align-items:center;justify-content:center;min-width:23px;height:23px;border-radius:6px;background:#fff;color:#7c3aed;font-size:12px;font-weight:950;margin-right:5px}
     .zx_md_later h3,.zx_md_alerts h3{font-size:20px;margin:0 0 10px}.zx_md_later_row{width:100%;border:0;border-top:1px solid #edf2f7;background:transparent;padding:12px 0;display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:9px;text-align:left;align-items:center}.zx_md_later_row>span{color:#2563eb;font-size:12px;font-weight:950}.zx_md_later_row b{display:block;color:#071330;font-size:14px;font-weight:950}.zx_md_later_row small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:2px}.zx_md_later_row i{font-style:normal;color:#94a3b8;font-size:22px}
     .zx_md_alert{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 0;border-top:1px solid #edf2f7}.zx_md_alert b{display:block;color:#071330;font-size:14px;font-weight:950}.zx_md_alert small{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:3px;line-height:1.35}
     @media(min-width:700px){#app{padding-bottom:32px}.zx_md_day{grid-template-columns:1fr 1fr}.zx_md_primary{grid-column:1/-1}.zx_md_quick{grid-template-columns:repeat(3,1fr)}}
@@ -689,6 +799,25 @@ function estilos(){
 window.ZX_miDia_abrirTrabajo=abrirTrabajo;
 window.ZX_miDia_mapa=abrirMapa;
 window.ZX_miDia_llamar=llamar;
+window.ZX_miDia_abrirVehiculos=abrirVehiculosSeguro;
+
+function ofrecerRutaPrimerEvento(data,actual){
+  if(!data?.jornada || !actual) return;
+  const dir=direccionTrabajo(actual);
+  if(!dir) return;
+  const clave="zentryx_ruta_ofrecida:"+hoy()+":"+String(actual.__visita_id || actual.id || "");
+  try{
+    if(sessionStorage.getItem(clave)==="1") return;
+    sessionStorage.setItem(clave,"1");
+  }catch(e){}
+  setTimeout(function(){
+    if(!document.querySelector(".zx_md")) return;
+    const hora=horaCorta(horaTrabajo(actual));
+    if(confirm("Tu primer evento de hoy es “"+String(actual.titulo || "Trabajo")+"”"+(hora!=="--:--" ? " a las "+hora : "")+".\n\n¿Quieres abrir la ruta ahora?")){
+      abrirMapa(dir);
+    }
+  },350);
+}
 
 window.ZENTRYX_UI_inicio=async function(){
   const contenedor=app();
@@ -737,6 +866,8 @@ window.ZENTRYX_UI_inicio=async function(){
       ${renderAvisos(data.avisos)}
     </div>
   `;
+
+  ofrecerRutaPrimerEvento(data,actual);
 };
 
 window.ZX_inicio=function(){
