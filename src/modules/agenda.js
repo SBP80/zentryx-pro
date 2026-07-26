@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3139 - SELECTOR DE CLIENTES ROBUSTO CON CACHÉ Y COMPATIBILIDAD
+// V3140 - DIRECCIÓN PROPIA EN EVENTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3138";
+const ZX_VERSION="3140";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -1090,6 +1090,10 @@ async function abrirModalEvento(e,fecha){
     <label class="zx_ag_label">Cliente</label>
     <select id="ag_cliente"><option value="">Cargando...</option></select>
 
+    <label class="zx_ag_label">Dirección</label>
+    <input id="ag_direccion" value="${limpiar(e.direccion || "")}" placeholder="Dirección del evento">
+    <div class="zx_ag_hint">Si se deja vacía, la navegación podrá usar la dirección del cliente asociado.</div>
+
     <label class="zx_ag_label">Vehículo</label>
     <select id="ag_vehiculo"><option value="">Cargando...</option></select>
 
@@ -1135,6 +1139,7 @@ function dataFormulario(original){
     tipo:document.getElementById("ag_tipo").value || original.tipo || "cita",
     titulo:String(document.getElementById("ag_titulo").value || "").trim(),
     descripcion:String(document.getElementById("ag_descripcion").value || "").trim(),
+    direccion:String((document.getElementById("ag_direccion") || {}).value || "").trim(),
     fecha_inicio:document.getElementById("ag_fecha_inicio").value,
     fecha_fin:document.getElementById("ag_fecha_fin").value || document.getElementById("ag_fecha_inicio").value,
     hora_inicio:document.getElementById("ag_hora_inicio").value || null,
