@@ -1,13 +1,13 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3138 - SELECTOR DE CLIENTES ROBUSTO CON CACHÉ Y COMPATIBILIDAD
+// V3139 - SELECTOR DE CLIENTES ROBUSTO CON CACHÉ Y COMPATIBILIDAD
 // ===============================
 (function(){
 "use strict";
 
 const ZX_VERSION="3138";
 const TABLA="agenda_eventos";
-const CACHE_KEY="zentryx_cache_agenda_eventos_v3136";
+const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
 
 let ZX_AGENDA_FECHA=new Date();
@@ -486,6 +486,8 @@ function eventoDesdeTrabajo(t,p){
     hora_fin:horaFin,
     cliente_id:String(t.cliente_id || ""),
     cliente:t.cliente || "",
+    vehiculo_id:String(plan.vehiculo_id || t.vehiculo_id || ""),
+    vehiculo:plan.vehiculo || t.vehiculo || "",
     usuario_id:usuarioId,
     usuario:usuario,
     estado:t.estado==="terminado" ? "completado" : (t.estado || "pendiente"),
@@ -595,6 +597,30 @@ function claveEvento(e){
   return [e.tipo||"",normalizar(e.titulo),e.fecha_inicio||"",e.hora_inicio||"",e.usuario_id||"",e.cliente_id||""].join("|");
 }
 
+
+async function actualizarVehiculosAgenda(eventos){
+  const lista=Array.isArray(eventos) ? eventos : [];
+  const ids=Array.from(new Set(lista.map(function(e){return String(e.vehiculo_id || "");}).filter(Boolean)));
+  if(!ids.length || !navigator.onLine || !sb()) return lista;
+
+  try{
+    const r=await conTimeout(
+      sb().from("vehiculos").select("id,matricula,marca,modelo").in("id",ids),
+      ZX_AGENDA_TIMEOUT
+    );
+    if(r && !r.error && Array.isArray(r.data)){
+      const mapa=new Map(r.data.map(function(v){return [String(v.id),nombreVehiculo(v)];}));
+      lista.forEach(function(e){
+        const actual=mapa.get(String(e.vehiculo_id || ""));
+        if(actual) e.vehiculo=actual;
+      });
+    }
+  }catch(e){
+    console.warn("Agenda: no se pudieron actualizar los vehículos",e);
+  }
+  return lista;
+}
+
 function combinarEventosAgenda(eventosAgenda,eventosTrabajo){
   const mapa=new Map();
 
@@ -667,6 +693,7 @@ async function cargarEventos(opciones){
     }
 
     const datos=combinarEventosAgenda(eventosAgenda,trabajosDirectos);
+    await actualizarVehiculosAgenda(datos);
     ZX_AGENDA_CACHE=datos;
     ZX_AGENDA_ULTIMA_CARGA=Date.now();
     guardarCache(datos);
