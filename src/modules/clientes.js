@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3109 - CARGA RÁPIDA RESPONSIVE
+// V3110 - VALIDACIÓN PIN SEGURA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3109";
+const ZX_VERSION="3110";
 const TABLA="clientes";
 const CACHE_KEY="zentryx_cache_clientes";
 
@@ -80,8 +80,6 @@ function modal(html){
   document.body.appendChild(d);
 }
 
-function hashPin(pin){return btoa(String(pin))}
-
 async function pedirPinAdmin(){
   return new Promise(function(resolve){
     modal(`
@@ -136,7 +134,18 @@ async function pedirPinAdmin(){
         return;
       }
 
-      if(hashPin(pin)!==String(r.data.pin_hash || "")){
+      const security=window.ZENTRYX_SECURITY;
+      let pinCorrecto=false;
+
+      if(security && typeof security.verifyPin==="function"){
+        const verificacion=await security.verifyPin(pin,String(r.data.pin_hash || ""));
+        pinCorrecto=!!(verificacion && verificacion.ok);
+      }else{
+        try{pinCorrecto=btoa(String(pin))===String(r.data.pin_hash || "")}
+        catch(e){pinCorrecto=false}
+      }
+
+      if(!pinCorrecto){
         error.textContent="PIN incorrecto.";
         input.value="";
         input.focus();
