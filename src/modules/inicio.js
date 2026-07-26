@@ -1,12 +1,12 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3158 - SINCRONIZACIÓN REAL CON AGENDA Y VEHÍCULOS
+// V3159 - RUTA INTELIGENTE Y DIRECCIONES DE CLIENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3158";
-const CACHE_PREFIX="zentryx_mi_dia_v3158";
+const ZX_VERSION="3159";
+const CACHE_PREFIX="zentryx_mi_dia_v3159";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
 let ZX_MI_DIA_RENDER=0;
@@ -319,7 +319,28 @@ async function cargarEventosAgendaDia(){
 
   if(!r.ok) return {ok:false,data:[],error:r.error};
 
-  const lista=(r.data || []).filter(function(e){
+  // Completa cliente y dirección desde la ficha actual del cliente.
+  // Así Inicio puede ofrecer la ruta aunque Agenda solo haya guardado cliente_id.
+  const eventosBrutos=r.data || [];
+  const clienteIds=Array.from(new Set(eventosBrutos.map(function(e){
+    return String(e.cliente_id || "").trim();
+  }).filter(Boolean)));
+  const clientesPorId=new Map();
+
+  if(clienteIds.length){
+    const rc=await consulta(c=>c
+      .from("clientes")
+      .select("*")
+      .in("id",clienteIds),[]);
+
+    if(rc.ok){
+      (rc.data || []).forEach(function(c){
+        clientesPorId.set(String(c.id || ""),c);
+      });
+    }
+  }
+
+  const lista=eventosBrutos.filter(function(e){
     const tipo=normalizar(e.tipo || "");
     if(!["trabajo","cita","revision"].includes(tipo)) return false;
     if(["terminado","completado","cancelado","archivado"].includes(normalizar(e.estado || "activo"))) return false;
@@ -328,6 +349,17 @@ async function cargarEventosAgendaDia(){
     const visible=String(e.visible_para || "todos");
     return visible==="todos" || String(e.usuario_id || "")===uid;
   }).map(function(e){
+    const clienteActual=clientesPorId.get(String(e.cliente_id || "")) || null;
+    const direccionCliente=clienteActual ? [
+      clienteActual.direccion,clienteActual.numero,clienteActual.portal,
+      clienteActual.escalera,clienteActual.piso,clienteActual.puerta,
+      clienteActual.codigo_postal,clienteActual.poblacion,clienteActual.provincia
+    ].filter(Boolean).join(", ") : "";
+    const nombreCliente=clienteActual ? String(
+      clienteActual.nombre_comercial || clienteActual.razon_social ||
+      clienteActual.nombre || clienteActual.empresa || ""
+    ).trim() : "";
+
     return {
       ...e,
       id:e.origen_id || e.id,
@@ -339,8 +371,8 @@ async function cargarEventosAgendaDia(){
       titulo:e.titulo || (normalizar(e.tipo)==="cita" ? "Cita" : "Trabajo"),
       fecha:e.fecha_inicio,
       hora_inicio:e.hora_inicio,
-      direccion_obra:e.direccion || e.direccion_obra || "",
-      cliente:e.cliente || "",
+      direccion_obra:e.direccion || e.direccion_obra || direccionCliente || "",
+      cliente:e.cliente || nombreCliente || "",
       vehiculo_matricula:e.vehiculo || "",
       estado:e.estado || "activo",
       __origen_agenda:true
@@ -805,18 +837,45 @@ function ofrecerRutaPrimerEvento(data,actual){
   if(!data?.jornada || !actual) return;
   const dir=direccionTrabajo(actual);
   if(!dir) return;
+
   const clave="zentryx_ruta_ofrecida:"+hoy()+":"+String(actual.__visita_id || actual.id || "");
   try{
     if(sessionStorage.getItem(clave)==="1") return;
-    sessionStorage.setItem(clave,"1");
   }catch(e){}
+
   setTimeout(function(){
-    if(!document.querySelector(".zx_md")) return;
+    if(!document.querySelector(".zx_md") || document.getElementById("zx_md_route_offer")) return;
+
     const hora=horaCorta(horaTrabajo(actual));
-    if(confirm("Tu primer evento de hoy es “"+String(actual.titulo || "Trabajo")+"”"+(hora!=="--:--" ? " a las "+hora : "")+".\n\n¿Quieres abrir la ruta ahora?")){
+    const modal=document.createElement("div");
+    modal.id="zx_md_route_offer";
+    modal.className="zx_md_map_modal";
+    modal.innerHTML=`
+      <div class="zx_md_map_backdrop" data-route-close="1"></div>
+      <div class="zx_md_map_sheet" role="dialog" aria-modal="true" aria-label="Ir al primer evento">
+        <div class="zx_md_map_handle"></div>
+        <h2>Primer evento de hoy</h2>
+        <p><b>${limpiar(actual.titulo || "Trabajo")}</b>${hora!=="--:--" ? " · "+limpiar(hora) : ""}</p>
+        <p>${limpiar(dir)}</p>
+        <button type="button" class="zx_md_map_btn google" data-route-open="1">🧭 Ir ahora</button>
+        <button type="button" class="zx_md_map_cancel" data-route-close="1">Ahora no</button>
+      </div>`;
+
+    const cerrar=function(){
+      try{sessionStorage.setItem(clave,"1")}catch(e){}
+      modal.remove();
+    };
+
+    modal.querySelectorAll("[data-route-close]").forEach(function(btn){btn.onclick=cerrar});
+    const abrir=modal.querySelector("[data-route-open]");
+    if(abrir) abrir.onclick=function(){
+      try{sessionStorage.setItem(clave,"1")}catch(e){}
+      modal.remove();
       abrirMapa(dir);
-    }
-  },350);
+    };
+
+    document.body.appendChild(modal);
+  },450);
 }
 
 window.ZENTRYX_UI_inicio=async function(){
