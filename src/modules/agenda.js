@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3137 - CICLO DE VIDA ESTABLE, REPINTADO AGRUPADO Y RECARGA SEGURA
+// V3138 - SELECTOR DE CLIENTES ROBUSTO CON CACHÉ Y COMPATIBILIDAD
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3137";
+const ZX_VERSION="3138";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3136";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -905,18 +905,49 @@ async function cargarUsuarios(){
   }
 }
 
+function leerCacheClientesAgenda(){
+  const claves=["zentryx_cache_clientes","zentryx_backend_cache_clientes"];
+
+  for(const clave of claves){
+    try{
+      const raw=JSON.parse(localStorage.getItem(clave) || "null");
+      const datos=Array.isArray(raw) ? raw : (raw && Array.isArray(raw.data) ? raw.data : (raw && Array.isArray(raw.datos) ? raw.datos : []));
+      if(datos.length) return datos;
+    }catch(e){}
+  }
+
+  return [];
+}
+
+function ordenarClientesAgenda(lista){
+  return (Array.isArray(lista) ? lista : [])
+    .filter(function(c){return c && c.id;})
+    .sort(function(a,b){
+      return nombreCliente(a).localeCompare(nombreCliente(b),"es",{sensitivity:"base"});
+    });
+}
+
 async function cargarClientes(){
-  if(!navigator.onLine || !sb()) return [];
+  const cache=ordenarClientesAgenda(leerCacheClientesAgenda());
+  if(!navigator.onLine || !sb()) return cache;
 
   try{
-    const r=await sb()
-      .from("clientes")
-      .select("id,nombre,razon_social,cliente,empresa,nombre_comercial")
-      .order("nombre",{ascending:true});
+    // Se usa select("*") para mantener compatibilidad con instalaciones que
+    // no tienen todas las columnas antiguas (razon_social, empresa, etc.).
+    const r=await conTimeout(
+      sb().from("clientes").select("*").order("nombre",{ascending:true}),
+      ZX_AGENDA_TIMEOUT
+    );
 
-    return r.error ? [] : (r.data || []);
+    if(r && !r.error && Array.isArray(r.data)){
+      const lista=ordenarClientesAgenda(r.data);
+      try{localStorage.setItem("zentryx_cache_clientes",JSON.stringify(lista));}catch(e){}
+      return lista;
+    }
+
+    return cache;
   }catch(e){
-    return [];
+    return cache;
   }
 }
 
@@ -943,17 +974,22 @@ function nombreVehiculo(v){
   return [v.matricula,v.marca,v.modelo].filter(Boolean).join(" ");
 }
 
-function opciones(lista,valor,tipo){
+function opciones(lista,valor,tipo,valorId){
   const vacio=tipo==="usuario" ? "Sin asignar" : tipo==="cliente" ? "Sin cliente" : "Sin vehículo";
 
-  return `<option value="">${vacio}</option>`+lista.map(function(x){
+  return `<option value="">${vacio}</option>`+(Array.isArray(lista) ? lista : []).map(function(x){
     let nombre="";
 
     if(tipo==="usuario") nombre=x.nombre || x.usuario || "";
     if(tipo==="cliente") nombre=nombreCliente(x);
     if(tipo==="vehiculo") nombre=nombreVehiculo(x);
+    if(!String(nombre || "").trim()) return "";
 
-    return `<option value="${limpiar(nombre)}" data-id="${limpiar(x.id || "")}" ${String(valor || "")===String(nombre) ? "selected" : ""}>${limpiar(nombre)}</option>`;
+    const seleccionado=valorId
+      ? String(valorId)===String(x.id || "")
+      : String(valor || "")===String(nombre);
+
+    return `<option value="${limpiar(nombre)}" data-id="${limpiar(x.id || "")}" ${seleccionado ? "selected" : ""}>${limpiar(nombre)}</option>`;
   }).join("");
 }
 
@@ -1057,9 +1093,9 @@ async function abrirModalEvento(e,fecha){
   const cSel=document.getElementById("ag_cliente");
   const vSel=document.getElementById("ag_vehiculo");
 
-  if(uSel) uSel.innerHTML=opciones(usuarios,e.usuario,"usuario");
-  if(cSel) cSel.innerHTML=opciones(clientes,e.cliente,"cliente");
-  if(vSel) vSel.innerHTML=opciones(vehiculos,e.vehiculo,"vehiculo");
+  if(uSel) uSel.innerHTML=opciones(usuarios,e.usuario,"usuario",e.usuario_id);
+  if(cSel) cSel.innerHTML=opciones(clientes,e.cliente,"cliente",e.cliente_id);
+  if(vSel) vSel.innerHTML=opciones(vehiculos,e.vehiculo,"vehiculo",e.vehiculo_id);
 }
 
 function dataFormulario(original){
