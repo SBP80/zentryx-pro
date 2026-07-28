@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3140 - DIRECCIÓN PROPIA EN EVENTOS
+// V3143 - DIRECCIÓN Y APERTURA DE TRABAJOS MEJORADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3140";
+const ZX_VERSION="3143";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -840,6 +840,21 @@ function renderCalendario(){
   return html;
 }
 
+function direccionCompletaEvento(e){
+  e=e || {};
+  return [
+    [e.direccion,e.numero].filter(Boolean).join(" "),
+    e.portal ? "Portal "+e.portal : "",
+    e.escalera ? "Esc. "+e.escalera : "",
+    e.piso ? "Piso "+e.piso : "",
+    e.puerta ? "Puerta "+e.puerta : "",
+    e.codigo_postal,
+    e.poblacion,
+    e.provincia,
+    e.pais
+  ].filter(Boolean).join(", ");
+}
+
 function renderEvento(e){
   const trabajo=esTrabajo(e);
   const done=terminado(e);
@@ -849,8 +864,9 @@ function renderEvento(e){
 
   if(trabajo){
     acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">🛠️ Abrir trabajo</button>`;
-    if(e.direccion){
-      acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(e.direccion)}')">📍 Mapa</button>`;
+    const direccionMapa=direccionCompletaEvento(e);
+    if(direccionMapa){
+      acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(direccionMapa)}')">📍 Mapa</button>`;
     }
   }else{
     acciones+=`<button class="blue" onclick="ZX_ag_editar('${limpiar(e.id)}')">Editar</button>`;
@@ -877,6 +893,7 @@ function renderEvento(e){
         ${e.usuario ? `<p>👤 ${limpiar(e.usuario)}</p>` : ""}
         ${e.cliente ? `<p>👥 ${limpiar(e.cliente)}</p>` : ""}
         ${e.vehiculo ? `<p>🚗 ${limpiar(e.vehiculo)}</p>` : ""}
+        ${direccionCompletaEvento(e) ? `<p>📍 ${limpiar(direccionCompletaEvento(e))}</p>` : ""}
         ${e.descripcion ? `<p>${limpiar(e.descripcion)}</p>` : ""}
         ${trabajo ? `<p><b>Vinculado a trabajo</b></p>` : ""}
       </div>
@@ -1107,7 +1124,10 @@ async function abrirModalEvento(e,fecha){
   modalBase(`
     <h2>${e.id ? "Editar evento" : "Nuevo evento"}</h2>
 
-    ${esTrabajo(e) ? `<div class="zx_ag_notice">Este evento está vinculado a un trabajo. Los cambios importantes deben hacerse desde Trabajos.</div>` : ""}
+    ${esTrabajo(e) ? `<div class="zx_ag_notice">
+      <span>Este evento está vinculado a un trabajo. Los cambios importantes deben hacerse desde Trabajos.</span>
+      <button type="button" class="zx_btn_small zx_azul" id="ag_abrir_trabajo_vinculado">Abrir trabajo</button>
+    </div>` : ""}
 
     <label class="zx_ag_label">Tipo</label>
     <select id="ag_tipo" ${esTrabajo(e) ? "disabled" : ""}>
@@ -1216,6 +1236,13 @@ async function abrirModalEvento(e,fecha){
 
   document.getElementById("ag_cancelar").onclick=cerrarModal;
   document.getElementById("ag_guardar").onclick=function(){guardarEvento(e.id || null,e)};
+
+  const abrirTrabajoVinculado=document.getElementById("ag_abrir_trabajo_vinculado");
+  if(abrirTrabajoVinculado){
+    abrirTrabajoVinculado.onclick=function(){
+      window.ZX_ag_abrirTrabajo(e.origen_id);
+    };
+  }
 
   const [usuarios,clientes,vehiculos]=await Promise.all([
     cargarUsuarios(),
