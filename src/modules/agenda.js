@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3140 - DIRECCIÓN PROPIA EN EVENTOS
+// V3141 - DIRECCIÓN PROFESIONAL EN EVENTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3140";
+const ZX_VERSION="3141";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -849,8 +849,9 @@ function renderEvento(e){
 
   if(trabajo){
     acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">🛠️ Abrir trabajo</button>`;
-    if(e.direccion){
-      acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(e.direccion)}')">📍 Mapa</button>`;
+    const direccionMapa=direccionCompletaAgenda(e);
+    if(direccionMapa){
+      acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(direccionMapa)}')">📍 Mapa</button>`;
     }
   }else{
     acciones+=`<button class="blue" onclick="ZX_ag_editar('${limpiar(e.id)}')">Editar</button>`;
@@ -1001,6 +1002,50 @@ function nombreVehiculo(v){
   return [v.matricula,v.marca,v.modelo].filter(Boolean).join(" ");
 }
 
+function direccionCompletaAgenda(x){
+  x=x || {};
+  return [
+    x.direccion,
+    x.numero ? "Nº "+x.numero : "",
+    x.portal ? "Portal "+x.portal : "",
+    x.escalera ? "Esc. "+x.escalera : "",
+    x.piso ? "Piso "+x.piso : "",
+    x.puerta ? "Puerta "+x.puerta : "",
+    x.codigo_postal,
+    x.poblacion,
+    x.provincia,
+    x.pais
+  ].map(function(v){return String(v || "").trim();}).filter(Boolean).join(", ");
+}
+
+function camposDireccionVacios(){
+  return ["ag_direccion","ag_numero","ag_portal","ag_escalera","ag_piso","ag_puerta","ag_codigo_postal","ag_poblacion","ag_provincia","ag_pais"]
+    .every(function(id){
+      const el=document.getElementById(id);
+      return !el || !String(el.value || "").trim();
+    });
+}
+
+function copiarDireccionCliente(c){
+  if(!c || !camposDireccionVacios()) return;
+  const mapa={
+    ag_direccion:"direccion",
+    ag_numero:"numero",
+    ag_portal:"portal",
+    ag_escalera:"escalera",
+    ag_piso:"piso",
+    ag_puerta:"puerta",
+    ag_codigo_postal:"codigo_postal",
+    ag_poblacion:"poblacion",
+    ag_provincia:"provincia",
+    ag_pais:"pais"
+  };
+  Object.keys(mapa).forEach(function(id){
+    const el=document.getElementById(id);
+    if(el) el.value=String(c[mapa[id]] || "");
+  });
+}
+
 function opciones(lista,valor,tipo,valorId){
   const vacio=tipo==="usuario" ? "Sin asignar" : tipo==="cliente" ? "Sin cliente" : "Sin vehículo";
 
@@ -1090,9 +1135,33 @@ async function abrirModalEvento(e,fecha){
     <label class="zx_ag_label">Cliente</label>
     <select id="ag_cliente"><option value="">Cargando...</option></select>
 
-    <label class="zx_ag_label">Dirección</label>
-    <input id="ag_direccion" value="${limpiar(e.direccion || "")}" placeholder="Dirección del evento">
-    <div class="zx_ag_hint">Si se deja vacía, la navegación podrá usar la dirección del cliente asociado.</div>
+    <section class="zx_ag_address_box">
+      <h3>Dirección del evento</h3>
+      <div class="zx_ag_hint">Puede ser distinta de la dirección del cliente. Si está vacía, se copiará automáticamente la dirección del cliente seleccionado.</div>
+
+      <label class="zx_ag_label">Dirección</label>
+      <input id="ag_direccion" value="${limpiar(e.direccion || "")}" placeholder="Calle, avenida, camino...">
+
+      <div class="zx_ag_grid3">
+        <div><label class="zx_ag_label">Número</label><input id="ag_numero" value="${limpiar(e.numero || "")}" inputmode="text"></div>
+        <div><label class="zx_ag_label">Portal</label><input id="ag_portal" value="${limpiar(e.portal || "")}"></div>
+        <div><label class="zx_ag_label">Escalera</label><input id="ag_escalera" value="${limpiar(e.escalera || "")}"></div>
+      </div>
+
+      <div class="zx_ag_grid3">
+        <div><label class="zx_ag_label">Piso</label><input id="ag_piso" value="${limpiar(e.piso || "")}"></div>
+        <div><label class="zx_ag_label">Puerta</label><input id="ag_puerta" value="${limpiar(e.puerta || "")}"></div>
+        <div><label class="zx_ag_label">Código postal</label><input id="ag_codigo_postal" value="${limpiar(e.codigo_postal || "")}" inputmode="numeric"></div>
+      </div>
+
+      <div class="zx_ag_grid2">
+        <div><label class="zx_ag_label">Población</label><input id="ag_poblacion" value="${limpiar(e.poblacion || "")}"></div>
+        <div><label class="zx_ag_label">Provincia</label><input id="ag_provincia" value="${limpiar(e.provincia || "")}"></div>
+      </div>
+
+      <label class="zx_ag_label">País</label>
+      <input id="ag_pais" value="${limpiar(e.pais || "España")}">
+    </section>
 
     <label class="zx_ag_label">Vehículo</label>
     <select id="ag_vehiculo"><option value="">Cargando...</option></select>
@@ -1125,7 +1194,15 @@ async function abrirModalEvento(e,fecha){
   const vSel=document.getElementById("ag_vehiculo");
 
   if(uSel) uSel.innerHTML=opciones(usuarios,e.usuario,"usuario",e.usuario_id);
-  if(cSel) cSel.innerHTML=opciones(clientes,e.cliente,"cliente",e.cliente_id);
+  if(cSel){
+    cSel.innerHTML=opciones(clientes,e.cliente,"cliente",e.cliente_id);
+    cSel.onchange=function(){
+      const opt=cSel.selectedOptions && cSel.selectedOptions[0];
+      const clienteId=opt ? String(opt.dataset.id || "") : "";
+      const cliente=clientes.find(function(x){return String(x.id || "")===clienteId;});
+      copiarDireccionCliente(cliente);
+    };
+  }
   if(vSel) vSel.innerHTML=opciones(vehiculos,e.vehiculo,"vehiculo",e.vehiculo_id);
 }
 
@@ -1140,6 +1217,15 @@ function dataFormulario(original){
     titulo:String(document.getElementById("ag_titulo").value || "").trim(),
     descripcion:String(document.getElementById("ag_descripcion").value || "").trim(),
     direccion:String((document.getElementById("ag_direccion") || {}).value || "").trim(),
+    numero:String((document.getElementById("ag_numero") || {}).value || "").trim(),
+    portal:String((document.getElementById("ag_portal") || {}).value || "").trim(),
+    escalera:String((document.getElementById("ag_escalera") || {}).value || "").trim(),
+    piso:String((document.getElementById("ag_piso") || {}).value || "").trim(),
+    puerta:String((document.getElementById("ag_puerta") || {}).value || "").trim(),
+    codigo_postal:String((document.getElementById("ag_codigo_postal") || {}).value || "").trim(),
+    poblacion:String((document.getElementById("ag_poblacion") || {}).value || "").trim(),
+    provincia:String((document.getElementById("ag_provincia") || {}).value || "").trim(),
+    pais:String((document.getElementById("ag_pais") || {}).value || "").trim(),
     fecha_inicio:document.getElementById("ag_fecha_inicio").value,
     fecha_fin:document.getElementById("ag_fecha_fin").value || document.getElementById("ag_fecha_inicio").value,
     hora_inicio:document.getElementById("ag_hora_inicio").value || null,
@@ -1740,6 +1826,11 @@ function instalarCSS(){
       font-weight:900;
       line-height:1.35;
     }
+
+    .zx_ag_grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .zx_ag_address_box{margin:18px 0;padding:16px;border:1px solid #dbe4f0;border-radius:18px;background:#f8fbff}
+    .zx_ag_address_box h3{margin:0 0 6px;font-size:18px;color:#0f172a}
+    @media(max-width:560px){.zx_ag_grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
     #zx_modal_agenda input,
     #zx_modal_agenda select,
