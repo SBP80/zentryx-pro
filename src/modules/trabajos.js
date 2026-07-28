@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3114 - GUARDADO DE MATERIALES COMPATIBLE
+// V3154 - SINCRONIZACIÓN COMPLETA TRABAJOS ↔ AGENDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3114";
+const ZX_VERSION="3154";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1057,7 +1057,6 @@ async function guardarTrabajo(id,clientes,usuarios){
         "Trabajo editado y equipo actualizado.",
         Object.assign({},data,{equipo:equipo})
       );
-      await sincronizarAgenda(trabajoId,Object.assign({},data,{id:trabajoId}));
     }else{
       await registrarHistorial(
         trabajoId,
@@ -1066,6 +1065,9 @@ async function guardarTrabajo(id,clientes,usuarios){
         Object.assign({},data,{equipo:equipo})
       );
     }
+
+    // Tanto los trabajos nuevos como los editados deben aparecer inmediatamente en Agenda.
+    await sincronizarAgenda(trabajoId,Object.assign({},data,{id:trabajoId,equipo:equipo}));
 
     try{
       window.dispatchEvent(new CustomEvent("zentryx:trabajo:equipo_actualizado",{
@@ -1101,6 +1103,11 @@ async function sincronizarAgenda(id,t){
       cliente:t.cliente || "",
       usuario_id:String(t.usuario_id || ""),
       usuario:t.usuario || "",
+      direccion:t.direccion_obra || t.direccion || "",
+      codigo_postal:t.codigo_postal || "",
+      poblacion:t.poblacion || "",
+      provincia:t.provincia || "",
+      pais:t.pais || "España",
       estado:t.estado==="terminado" ? "completado" : "activo",
       prioridad:t.prioridad || "media",
       visible_para:"todos",
@@ -1108,7 +1115,15 @@ async function sincronizarAgenda(id,t){
       origen_id:String(id),
       creado_por:t.creado_por || ""
     }]);
-  }catch(e){}
+
+    try{
+      window.dispatchEvent(new CustomEvent("zentryx:agenda:actualizar",{
+        detail:{origen:"trabajos",trabajo_id:String(id)}
+      }));
+    }catch(e){}
+  }catch(e){
+    console.warn("No se pudo sincronizar el trabajo con Agenda:",e);
+  }
 }
 
 async function abrirCambioEstado(id){
