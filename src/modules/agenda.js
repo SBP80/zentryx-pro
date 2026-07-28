@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3141 - DIRECCIÓN PROFESIONAL EN EVENTOS
+// V3140 - DIRECCIÓN PROPIA EN EVENTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3141";
+const ZX_VERSION="3140";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -849,9 +849,8 @@ function renderEvento(e){
 
   if(trabajo){
     acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">🛠️ Abrir trabajo</button>`;
-    const direccionMapa=direccionCompletaAgenda(e);
-    if(direccionMapa){
-      acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(direccionMapa)}')">📍 Mapa</button>`;
+    if(e.direccion){
+      acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(e.direccion)}')">📍 Mapa</button>`;
     }
   }else{
     acciones+=`<button class="blue" onclick="ZX_ag_editar('${limpiar(e.id)}')">Editar</button>`;
@@ -1002,50 +1001,6 @@ function nombreVehiculo(v){
   return [v.matricula,v.marca,v.modelo].filter(Boolean).join(" ");
 }
 
-function direccionCompletaAgenda(x){
-  x=x || {};
-  return [
-    x.direccion,
-    x.numero ? "Nº "+x.numero : "",
-    x.portal ? "Portal "+x.portal : "",
-    x.escalera ? "Esc. "+x.escalera : "",
-    x.piso ? "Piso "+x.piso : "",
-    x.puerta ? "Puerta "+x.puerta : "",
-    x.codigo_postal,
-    x.poblacion,
-    x.provincia,
-    x.pais
-  ].map(function(v){return String(v || "").trim();}).filter(Boolean).join(", ");
-}
-
-function camposDireccionVacios(){
-  return ["ag_direccion","ag_numero","ag_portal","ag_escalera","ag_piso","ag_puerta","ag_codigo_postal","ag_poblacion","ag_provincia","ag_pais"]
-    .every(function(id){
-      const el=document.getElementById(id);
-      return !el || !String(el.value || "").trim();
-    });
-}
-
-function copiarDireccionCliente(c){
-  if(!c || !camposDireccionVacios()) return;
-  const mapa={
-    ag_direccion:"direccion",
-    ag_numero:"numero",
-    ag_portal:"portal",
-    ag_escalera:"escalera",
-    ag_piso:"piso",
-    ag_puerta:"puerta",
-    ag_codigo_postal:"codigo_postal",
-    ag_poblacion:"poblacion",
-    ag_provincia:"provincia",
-    ag_pais:"pais"
-  };
-  Object.keys(mapa).forEach(function(id){
-    const el=document.getElementById(id);
-    if(el) el.value=String(c[mapa[id]] || "");
-  });
-}
-
 function opciones(lista,valor,tipo,valorId){
   const vacio=tipo==="usuario" ? "Sin asignar" : tipo==="cliente" ? "Sin cliente" : "Sin vehículo";
 
@@ -1063,6 +1018,70 @@ function opciones(lista,valor,tipo,valorId){
 
     return `<option value="${limpiar(nombre)}" data-id="${limpiar(x.id || "")}" ${seleccionado ? "selected" : ""}>${limpiar(nombre)}</option>`;
   }).join("");
+}
+
+
+function tiposViaAgenda(){
+  return ["","Calle","Avenida","Plaza","Camino","Carretera","Paseo","Ronda","Travesía","Urbanización","Polígono","Glorieta","Pasaje","Otro"];
+}
+
+function separarTipoViaAgenda(direccion){
+  const texto=String(direccion || "").trim();
+  const tipos=tiposViaAgenda().filter(function(x){return x && x!=="Otro";});
+  const encontrado=tipos.find(function(tipo){return texto.toLowerCase().startsWith(tipo.toLowerCase()+" ");});
+  if(encontrado) return {tipo:encontrado,otro:"",via:texto.slice(encontrado.length).trim()};
+  return {tipo:texto ? "Otro" : "",otro:"",via:texto};
+}
+
+function direccionClienteAgenda(c){
+  c=c || {};
+  return {
+    tipo:String(c.via_tipo || "").trim(),
+    via:String(c.direccion || "").trim(),
+    numero:String(c.numero || "").trim(),
+    portal:String(c.portal || "").trim(),
+    escalera:String(c.escalera || "").trim(),
+    piso:String(c.piso || "").trim(),
+    puerta:String(c.puerta || "").trim(),
+    codigo_postal:String(c.codigo_postal || "").trim(),
+    poblacion:String(c.poblacion || "").trim(),
+    provincia:String(c.provincia || "").trim(),
+    pais:String(c.pais || "España").trim()
+  };
+}
+
+function campoAgenda(id){
+  return document.getElementById(id);
+}
+
+function actualizarOtroTipoViaAgenda(){
+  const sel=campoAgenda("ag_via_tipo");
+  const bloque=campoAgenda("ag_via_otro_wrap");
+  if(bloque) bloque.style.display=sel && sel.value==="Otro" ? "block" : "none";
+}
+
+function formularioDireccionAgendaTieneDatos(){
+  return ["ag_direccion","ag_numero","ag_portal","ag_escalera","ag_piso","ag_puerta","ag_codigo_postal","ag_poblacion","ag_provincia","ag_pais"]
+    .some(function(id){const el=campoAgenda(id);return el && String(el.value || "").trim();});
+}
+
+function aplicarDireccionClienteAgenda(cliente){
+  const d=direccionClienteAgenda(cliente);
+  const tipos=tiposViaAgenda();
+  const tipoConocido=tipos.includes(d.tipo) && d.tipo!=="Otro";
+  campoAgenda("ag_via_tipo").value=d.tipo ? (tipoConocido ? d.tipo : "Otro") : "";
+  campoAgenda("ag_via_otro").value=d.tipo && !tipoConocido ? d.tipo : "";
+  campoAgenda("ag_direccion").value=d.via;
+  campoAgenda("ag_numero").value=d.numero;
+  campoAgenda("ag_portal").value=d.portal;
+  campoAgenda("ag_escalera").value=d.escalera;
+  campoAgenda("ag_piso").value=d.piso;
+  campoAgenda("ag_puerta").value=d.puerta;
+  campoAgenda("ag_codigo_postal").value=d.codigo_postal;
+  campoAgenda("ag_poblacion").value=d.poblacion;
+  campoAgenda("ag_provincia").value=d.provincia;
+  campoAgenda("ag_pais").value=d.pais;
+  actualizarOtroTipoViaAgenda();
 }
 
 function cerrarModal(){
@@ -1135,33 +1154,48 @@ async function abrirModalEvento(e,fecha){
     <label class="zx_ag_label">Cliente</label>
     <select id="ag_cliente"><option value="">Cargando...</option></select>
 
-    <section class="zx_ag_address_box">
-      <h3>Dirección del evento</h3>
-      <div class="zx_ag_hint">Puede ser distinta de la dirección del cliente. Si está vacía, se copiará automáticamente la dirección del cliente seleccionado.</div>
-
-      <label class="zx_ag_label">Dirección</label>
-      <input id="ag_direccion" value="${limpiar(e.direccion || "")}" placeholder="Calle, avenida, camino...">
-
+    <div class="zx_ag_address_box">
+      <div class="zx_ag_address_head">
+        <strong>Dirección del evento</strong>
+        <button type="button" class="zx_btn_small zx_azul" id="ag_usar_direccion_cliente">Usar dirección del cliente</button>
+      </div>
+      ${function(){
+        const sep=separarTipoViaAgenda(e.direccion || "");
+        const tipoGuardado=String(e.via_tipo || sep.tipo || "");
+        const tipoConocido=tiposViaAgenda().includes(tipoGuardado);
+        const tipoSelect=tipoGuardado ? (tipoConocido ? tipoGuardado : "Otro") : "";
+        const otro=tipoSelect==="Otro" ? (String(e.via_tipo_otro || "") || (!tipoConocido ? tipoGuardado : sep.otro)) : "";
+        const via=e.via_tipo ? String(e.direccion || "") : sep.via;
+        return `
+          <label class="zx_ag_label">Tipo de vía</label>
+          <select id="ag_via_tipo">
+            ${tiposViaAgenda().map(function(tipo){return `<option value="${limpiar(tipo)}" ${tipoSelect===tipo ? "selected" : ""}>${limpiar(tipo || "Seleccionar")}</option>`;}).join("")}
+          </select>
+          <div id="ag_via_otro_wrap" style="display:${tipoSelect==="Otro" ? "block" : "none"}">
+            <label class="zx_ag_label">Escribir tipo de vía</label>
+            <input id="ag_via_otro" value="${limpiar(otro)}" placeholder="Ej.: Muelle, Recinto, Vereda…">
+          </div>
+          <label class="zx_ag_label">Nombre de la vía</label>
+          <input id="ag_direccion" value="${limpiar(via)}" placeholder="Nombre de la calle o vía">
+        `;
+      }()}
       <div class="zx_ag_grid3">
-        <div><label class="zx_ag_label">Número</label><input id="ag_numero" value="${limpiar(e.numero || "")}" inputmode="text"></div>
+        <div><label class="zx_ag_label">Número</label><input id="ag_numero" value="${limpiar(e.numero || "")}"></div>
         <div><label class="zx_ag_label">Portal</label><input id="ag_portal" value="${limpiar(e.portal || "")}"></div>
         <div><label class="zx_ag_label">Escalera</label><input id="ag_escalera" value="${limpiar(e.escalera || "")}"></div>
       </div>
-
       <div class="zx_ag_grid3">
         <div><label class="zx_ag_label">Piso</label><input id="ag_piso" value="${limpiar(e.piso || "")}"></div>
         <div><label class="zx_ag_label">Puerta</label><input id="ag_puerta" value="${limpiar(e.puerta || "")}"></div>
         <div><label class="zx_ag_label">Código postal</label><input id="ag_codigo_postal" value="${limpiar(e.codigo_postal || "")}" inputmode="numeric"></div>
       </div>
-
       <div class="zx_ag_grid2">
         <div><label class="zx_ag_label">Población</label><input id="ag_poblacion" value="${limpiar(e.poblacion || "")}"></div>
         <div><label class="zx_ag_label">Provincia</label><input id="ag_provincia" value="${limpiar(e.provincia || "")}"></div>
       </div>
-
       <label class="zx_ag_label">País</label>
       <input id="ag_pais" value="${limpiar(e.pais || "España")}">
-    </section>
+    </div>
 
     <label class="zx_ag_label">Vehículo</label>
     <select id="ag_vehiculo"><option value="">Cargando...</option></select>
@@ -1194,16 +1228,24 @@ async function abrirModalEvento(e,fecha){
   const vSel=document.getElementById("ag_vehiculo");
 
   if(uSel) uSel.innerHTML=opciones(usuarios,e.usuario,"usuario",e.usuario_id);
-  if(cSel){
-    cSel.innerHTML=opciones(clientes,e.cliente,"cliente",e.cliente_id);
-    cSel.onchange=function(){
-      const opt=cSel.selectedOptions && cSel.selectedOptions[0];
-      const clienteId=opt ? String(opt.dataset.id || "") : "";
-      const cliente=clientes.find(function(x){return String(x.id || "")===clienteId;});
-      copiarDireccionCliente(cliente);
-    };
-  }
+  if(cSel) cSel.innerHTML=opciones(clientes,e.cliente,"cliente",e.cliente_id);
   if(vSel) vSel.innerHTML=opciones(vehiculos,e.vehiculo,"vehiculo",e.vehiculo_id);
+
+  const viaSel=campoAgenda("ag_via_tipo");
+  if(viaSel) viaSel.onchange=actualizarOtroTipoViaAgenda;
+  actualizarOtroTipoViaAgenda();
+
+  const botonDireccion=campoAgenda("ag_usar_direccion_cliente");
+  if(botonDireccion) botonDireccion.onclick=function(){
+    const opcion=cSel && cSel.selectedOptions ? cSel.selectedOptions[0] : null;
+    const id=opcion ? String(opcion.dataset.id || "") : "";
+    const cliente=clientes.find(function(item){return String(item.id || "")===id;});
+    if(!cliente){alert("Selecciona primero un cliente con dirección.");return;}
+    const d=direccionClienteAgenda(cliente);
+    if(!d.via && !d.poblacion && !d.codigo_postal){alert("El cliente seleccionado no tiene una dirección guardada.");return;}
+    if(formularioDireccionAgendaTieneDatos() && !confirm("La dirección actual será sustituida por la del cliente. ¿Continuar?")) return;
+    aplicarDireccionClienteAgenda(cliente);
+  };
 }
 
 function dataFormulario(original){
@@ -1216,16 +1258,21 @@ function dataFormulario(original){
     tipo:document.getElementById("ag_tipo").value || original.tipo || "cita",
     titulo:String(document.getElementById("ag_titulo").value || "").trim(),
     descripcion:String(document.getElementById("ag_descripcion").value || "").trim(),
-    direccion:String((document.getElementById("ag_direccion") || {}).value || "").trim(),
-    numero:String((document.getElementById("ag_numero") || {}).value || "").trim(),
-    portal:String((document.getElementById("ag_portal") || {}).value || "").trim(),
-    escalera:String((document.getElementById("ag_escalera") || {}).value || "").trim(),
-    piso:String((document.getElementById("ag_piso") || {}).value || "").trim(),
-    puerta:String((document.getElementById("ag_puerta") || {}).value || "").trim(),
-    codigo_postal:String((document.getElementById("ag_codigo_postal") || {}).value || "").trim(),
-    poblacion:String((document.getElementById("ag_poblacion") || {}).value || "").trim(),
-    provincia:String((document.getElementById("ag_provincia") || {}).value || "").trim(),
-    pais:String((document.getElementById("ag_pais") || {}).value || "").trim(),
+    direccion:[
+      campoAgenda("ag_via_tipo") && campoAgenda("ag_via_tipo").value==="Otro"
+        ? String((campoAgenda("ag_via_otro") || {}).value || "").trim()
+        : String((campoAgenda("ag_via_tipo") || {}).value || "").trim(),
+      String((campoAgenda("ag_direccion") || {}).value || "").trim()
+    ].filter(Boolean).join(" "),
+    numero:String((campoAgenda("ag_numero") || {}).value || "").trim(),
+    portal:String((campoAgenda("ag_portal") || {}).value || "").trim(),
+    escalera:String((campoAgenda("ag_escalera") || {}).value || "").trim(),
+    piso:String((campoAgenda("ag_piso") || {}).value || "").trim(),
+    puerta:String((campoAgenda("ag_puerta") || {}).value || "").trim(),
+    codigo_postal:String((campoAgenda("ag_codigo_postal") || {}).value || "").trim(),
+    poblacion:String((campoAgenda("ag_poblacion") || {}).value || "").trim(),
+    provincia:String((campoAgenda("ag_provincia") || {}).value || "").trim(),
+    pais:String((campoAgenda("ag_pais") || {}).value || "").trim(),
     fecha_inicio:document.getElementById("ag_fecha_inicio").value,
     fecha_fin:document.getElementById("ag_fecha_fin").value || document.getElementById("ag_fecha_inicio").value,
     hora_inicio:document.getElementById("ag_hora_inicio").value || null,
@@ -1826,11 +1873,6 @@ function instalarCSS(){
       font-weight:900;
       line-height:1.35;
     }
-
-    .zx_ag_grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-    .zx_ag_address_box{margin:18px 0;padding:16px;border:1px solid #dbe4f0;border-radius:18px;background:#f8fbff}
-    .zx_ag_address_box h3{margin:0 0 6px;font-size:18px;color:#0f172a}
-    @media(max-width:560px){.zx_ag_grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
     #zx_modal_agenda input,
     #zx_modal_agenda select,
