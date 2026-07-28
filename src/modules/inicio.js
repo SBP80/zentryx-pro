@@ -743,7 +743,7 @@ function renderTrabajo(t){
       <div class="zx_md_quick">
         ${dir ? `<button onclick="ZX_miDia_mapa('${limpiar(dir)}')">🧭 Ruta</button>` : ""}
         ${tel ? `<button onclick="ZX_miDia_llamar('${limpiar(tel)}')">📞 Llamar</button>` : ""}
-        <button onclick="ZX_abrirAgenda()">📅 Agenda</button>
+        <button onclick="ZX_abrirAgenda()"><span class="zx_md_calendar_icon">${new Date().getDate()}</span> Agenda</button>
       </div>
     </section>
   `;
@@ -968,3 +968,4 @@ if(zx() && typeof zx().registrarModulo==="function"){
 
 console.log("ZENTRYX inicio.js V"+ZX_VERSION+" cargado");
 })();
+
