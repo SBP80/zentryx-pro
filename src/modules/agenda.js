@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3144 - ACTUALIZACIÓN INMEDIATA AL EDITAR EVENTOS
+// V3145 - BORRADO PROTEGIDO CON PIN Y AUDITORÍA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3144";
+const ZX_VERSION="3145";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -1385,9 +1385,152 @@ async function cambiarEstado(id,estado){
   }
 }
 
+async function pedirPinAdminAgenda(){
+  return new Promise(function(resolve){
+    modalBase(`
+      <h2>PIN administrador</h2>
+      <div class="zx_text">Introduce el PIN de administrador para borrar el evento.</div>
+      <input id="ag_pin_admin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="PIN">
+      <div id="ag_pin_error" class="zx_ag_error" style="min-height:22px;margin-top:8px"></div>
+      <button class="zx_btn_big zx_verde" id="ag_pin_ok">Confirmar</button>
+      <button class="zx_btn_big zx_gris" id="ag_pin_cancelar">Cancelar</button>
+    `);
+
+    const input=document.getElementById("ag_pin_admin");
+    const error=document.getElementById("ag_pin_error");
+    let resuelto=false;
+
+    function terminar(valor){
+      if(resuelto) return;
+      resuelto=true;
+      cerrarModal();
+      resolve(valor);
+    }
+
+    document.getElementById("ag_pin_cancelar").onclick=function(){terminar(false)};
+
+    document.getElementById("ag_pin_ok").onclick=async function(){
+      const pin=String(input.value || "").trim();
+
+      if(!/^[0-9]{4}$/.test(pin)){
+        error.textContent="PIN inválido.";
+        input.value="";
+        input.focus();
+        return;
+      }
+
+      if(!navigator.onLine || !sb()){
+        error.textContent="Necesitas conexión para validar el PIN.";
+        return;
+      }
+
+      const s=sesion();
+      try{
+        const r=await sb()
+          .from("usuarios")
+          .select("id,usuario,rol,pin_hash,debe_crear_pin")
+          .eq("id",String(s.id || s.usuario_id || ""))
+          .maybeSingle();
+
+        if(r.error || !r.data){
+          error.textContent="No se pudo validar el usuario.";
+          return;
+        }
+
+        const admin=normalizar(r.data.rol)==="administrador" || normalizar(r.data.usuario)==="admin";
+        if(!admin){
+          error.textContent="Solo un administrador puede borrar eventos.";
+          return;
+        }
+
+        if(r.data.debe_crear_pin || !r.data.pin_hash){
+          error.textContent="El administrador no tiene un PIN activo.";
+          return;
+        }
+
+        const security=window.ZENTRYX_SECURITY;
+        let correcto=false;
+        if(security && typeof security.verifyPin==="function"){
+          const verificacion=await security.verifyPin(pin,String(r.data.pin_hash || ""));
+          correcto=!!(verificacion && verificacion.ok);
+        }else{
+          try{correcto=btoa(pin)===String(r.data.pin_hash || "")}
+          catch(e){correcto=false}
+        }
+
+        if(!correcto){
+          error.textContent="PIN incorrecto.";
+          input.value="";
+          input.focus();
+          return;
+        }
+
+        terminar(true);
+      }catch(e){
+        error.textContent="No se pudo validar el PIN.";
+      }
+    };
+
+    input.addEventListener("keydown",function(ev){
+      if(ev.key==="Enter") document.getElementById("ag_pin_ok").click();
+    });
+    setTimeout(function(){input.focus()},100);
+  });
+}
+
+function idAuditoriaAgenda(){
+  if(window.crypto && typeof window.crypto.randomUUID==="function") return window.crypto.randomUUID();
+  return "ag-"+Date.now()+"-"+Math.random().toString(16).slice(2);
+}
+
+async function registrarBorradoAgenda(evento){
+  if(!sb()) return;
+  const s=sesion();
+  const detalle={
+    evento_id:String(evento.id || ""),
+    titulo:evento.titulo || "",
+    tipo:evento.tipo || "",
+    fecha_inicio:evento.fecha_inicio || null,
+    hora_inicio:evento.hora_inicio || null,
+    cliente:evento.cliente || "",
+    motivo:"Borrado manual autorizado mediante PIN de administrador"
+  };
+
+  try{
+    await sb().from("auditoria").insert([{
+      id:idAuditoriaAgenda(),
+      usuario_id:String(s.id || s.usuario_id || ""),
+      usuario:s.usuario || "",
+      nombre:s.nombre || "",
+      modulo:"agenda",
+      accion:"borrar_evento",
+      detalle:JSON.stringify(detalle),
+      usuario_objetivo_id:evento.usuario_id ? String(evento.usuario_id) : null,
+      created_at:new Date().toISOString()
+    }]);
+  }catch(e){
+    console.warn("No se pudo registrar la auditoría del borrado de Agenda.",e);
+  }
+}
+
 async function borrarEvento(id){
   if(!id) return;
+
+  const evento=ZX_AGENDA_CACHE.find(function(x){return String(x.id)===String(id)});
+  if(!evento){
+    alert("Evento no encontrado.");
+    return;
+  }
+
+  if(esTrabajo(evento)){
+    alert("Este evento está vinculado a un trabajo. Debes modificarlo o eliminarlo desde el módulo Trabajos.");
+    return;
+  }
+
   if(!confirm("¿Borrar este evento?")) return;
+
+  const pinValido=await pedirPinAdminAgenda();
+  if(!pinValido) return;
 
   try{
     let r;
@@ -1400,10 +1543,11 @@ async function borrarEvento(id){
 
     if(r && r.error) throw r.error;
 
+    await registrarBorradoAgenda(evento);
     await recargarAgenda();
 
   }catch(e){
-    alert("No se pudo borrar el evento.");
+    alert("No se pudo borrar el evento: "+(e.message || "Error"));
   }
 }
 
