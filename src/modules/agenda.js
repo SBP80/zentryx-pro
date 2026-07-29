@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3148 - ROLES VISUALES, OPCIONES Y EVENTO ÚNICO POR TRABAJO
+// V3149 - ROLES VISUALES, OPCIONES Y EVENTO ÚNICO POR TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3148";
+const ZX_VERSION="3149";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -880,8 +880,8 @@ function renderEvento(e){
 
   if(trabajo){
     acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">🛠️ Abrir trabajo</button>`;
-    acciones+=`<button class="orange" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">✏️ Editar trabajo</button>`;
-    acciones+=`<button class="red" onclick="ZX_ag_borrar('${limpiar(e.id)}')">🗑️ Eliminar</button>`;
+    acciones+=`<button class="orange" onclick="ZX_ag_editarTrabajo('${limpiar(e.origen_id)}')">✏️ Editar trabajo</button>`;
+    acciones+=`<button class="red" onclick="ZX_ag_eliminarTrabajo('${limpiar(e.origen_id)}')">🗑️ Eliminar trabajo</button>`;
     if(e.direccion){
       acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(e.direccion)}')">📍 Mapa</button>`;
     }
@@ -1718,6 +1718,43 @@ window.ZX_ag_abrirTrabajo=function(id){
   }
 
   alert("No se ha cargado Trabajos.");
+};
+
+function abrirTrabajoDesdeAgenda(id,accion){
+  cerrarModal();
+  window.ZX_TRABAJO_ABRIR_ID=String(id || "");
+  window.ZX_TRABAJO_ACCION_DIRECTA=String(accion || "ver");
+
+  if(window.ZX_trabajos){
+    window.ZX_trabajos();
+    return;
+  }
+  if(window.ZX_abrirTrabajos){
+    window.ZX_abrirTrabajos();
+    return;
+  }
+  alert("No se ha cargado Trabajos.");
+}
+
+window.ZX_ag_editarTrabajo=function(id){
+  abrirTrabajoDesdeAgenda(id,"editar");
+};
+
+window.ZX_ag_eliminarTrabajo=function(id){
+  modalBase(`
+    <h2>Eliminar trabajo</h2>
+    <div class="zx_text">
+      Este evento pertenece a un trabajo planificado.<br><br>
+      El borrado debe realizarse desde el propio trabajo para mantener sincronizados Agenda y Trabajos.
+    </div>
+    <button class="zx_btn_big zx_rojo" id="ag_ir_eliminar_trabajo">🗑️ Ir al trabajo para eliminarlo</button>
+    <button class="zx_btn_big zx_gris" id="ag_cancelar_eliminar_trabajo">Cancelar</button>
+  `);
+
+  document.getElementById("ag_ir_eliminar_trabajo").onclick=function(){
+    abrirTrabajoDesdeAgenda(id,"eliminar");
+  };
+  document.getElementById("ag_cancelar_eliminar_trabajo").onclick=cerrarModal;
 };
 
 window.ZX_ag_verDia=function(fecha){
