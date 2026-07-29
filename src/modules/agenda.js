@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3147 - ROLES DIFERENCIADOS EN AGENDA
+// V3148 - ROLES VISUALES, OPCIONES Y EVENTO ÚNICO POR TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3147";
+const ZX_VERSION="3148";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -466,27 +466,36 @@ function rangoMes(){
 }
 
 
-function eventoDesdeTrabajo(t,planes){
-  const lista=Array.isArray(planes) ? planes : (planes ? [planes] : []);
-  const base=lista[0] || {};
-  const fecha=normalizarFecha(base.fecha || t.fecha || hoy());
-  const horaInicio=base.hora_inicio || t.hora_inicio || null;
-  const horaFin=base.hora_fin || t.hora_fin || null;
-  const responsableId=String(t.usuario_id || t.responsable_id || base.usuario_id || "");
-  const responsable=t.usuario || t.responsable || base.usuario || "";
-
-  const equipo=[];
+function nombresEquipoTrabajo(t,planes){
+  const principalId=String(t.usuario_id || t.responsable_id || "");
   const vistos=new Set();
-  lista.forEach(function(plan){
-    const id=String(plan.usuario_id || "");
-    const nombre=String(plan.usuario || "").trim();
-    if(!id || id===responsableId || vistos.has(id)) return;
-    vistos.add(id);
-    equipo.push({id:id,nombre:nombre || "Usuario"});
+  const equipo=[];
+
+  (planes || []).forEach(function(p){
+    const id=String(p.usuario_id || p.tecnico_id || "");
+    const nombre=String(p.usuario || p.tecnico || p.usuario_nombre || p.tecnico_nombre || "").trim();
+    if(!nombre || (principalId && id===principalId)) return;
+    const clave=id || normalizar(nombre);
+    if(vistos.has(clave)) return;
+    vistos.add(clave);
+    equipo.push(nombre);
   });
 
+  return equipo;
+}
+
+function eventoDesdeTrabajo(t,p,planesTrabajo){
+  const plan=p || {};
+  const fecha=normalizarFecha(plan.fecha || t.fecha || hoy());
+  const horaInicio=plan.hora_inicio || t.hora_inicio || null;
+  const horaFin=plan.hora_fin || t.hora_fin || null;
+  const responsableId=String(t.usuario_id || t.responsable_id || plan.usuario_id || "");
+  const responsable=String(t.usuario || t.responsable || plan.usuario || "").trim();
+  const equipo=nombresEquipoTrabajo(t,planesTrabajo || (p ? [p] : []));
+  const planId=String(plan.id || "base");
+
   return {
-    id:`trabajo:${String(t.id)}:unico`,
+    id:`trabajo:${String(t.id)}:${planId}`,
     tipo:"trabajo",
     titulo:t.titulo || "Trabajo",
     descripcion:t.descripcion || t.notas || "",
@@ -496,14 +505,13 @@ function eventoDesdeTrabajo(t,planes){
     hora_fin:horaFin,
     cliente_id:String(t.cliente_id || ""),
     cliente:t.cliente || "",
-    vehiculo_id:String(base.vehiculo_id || t.vehiculo_id || ""),
-    vehiculo:base.vehiculo || t.vehiculo || "",
+    vehiculo_id:String(plan.vehiculo_id || t.vehiculo_id || ""),
+    vehiculo:plan.vehiculo || t.vehiculo || "",
     usuario_id:responsableId,
     usuario:responsable,
-    responsable_id:responsableId,
     responsable:responsable,
+    responsable_id:responsableId,
     equipo:equipo,
-    participantes:equipo.map(function(x){return x.nombre;}),
     estado:t.estado==="terminado" ? "completado" : (t.estado || "pendiente"),
     prioridad:t.prioridad || "media",
     visible_para:"todos",
@@ -588,12 +596,20 @@ async function cargarTrabajosDirectos(desde,hasta){
       const id=String(t.id || "");
       const lista=porTrabajo.get(id) || [];
       if(lista.length){
-        const visible=esAdmin() || lista.some(function(p){return esVisibleTrabajoParaUsuario(t,p,s);});
-        if(visible) eventos.push(eventoDesdeTrabajo(t,lista));
+        const grupos=new Map();
+        lista.forEach(function(p){
+          const clave=[normalizarFecha(p.fecha || t.fecha),p.hora_inicio || t.hora_inicio || "",p.hora_fin || t.hora_fin || ""].join("|");
+          if(!grupos.has(clave)) grupos.set(clave,[]);
+          grupos.get(clave).push(p);
+        });
+        grupos.forEach(function(planes){
+          const visible=planes.some(function(p){return esVisibleTrabajoParaUsuario(t,p,s)});
+          if(visible) eventos.push(eventoDesdeTrabajo(t,planes[0],planes));
+        });
       }else{
         const fecha=normalizarFecha(t.fecha);
         if(fecha && fecha>=desde && fecha<=hasta && esVisibleTrabajoParaUsuario(t,null,s)){
-          eventos.push(eventoDesdeTrabajo(t,[]));
+          eventos.push(eventoDesdeTrabajo(t,null,[]));
         }
       }
     });
@@ -606,7 +622,7 @@ async function cargarTrabajosDirectos(desde,hasta){
 }
 
 function claveEvento(e){
-  if(e.origen_id) return [e.origen||e.tipo,e.origen_id,e.fecha_inicio||"",e.hora_inicio||"",e.usuario_id||""].join("|");
+  if(e.origen_id) return [e.origen||e.tipo,e.origen_id,e.fecha_inicio||"",e.hora_inicio||"",e.hora_fin||""].join("|");
   return [e.tipo||"",normalizar(e.titulo),e.fecha_inicio||"",e.hora_inicio||"",e.usuario_id||"",e.cliente_id||""].join("|");
 }
 
@@ -857,23 +873,27 @@ function renderEvento(e){
   const trabajo=esTrabajo(e);
   const done=terminado(e);
   const canc=cancelado(e);
+  const responsable=String(e.responsable || e.usuario || "").trim();
+  const equipo=Array.isArray(e.equipo) ? e.equipo.filter(Boolean) : [];
 
   let acciones="";
 
   if(trabajo){
     acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">🛠️ Abrir trabajo</button>`;
+    acciones+=`<button class="orange" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">✏️ Editar trabajo</button>`;
+    acciones+=`<button class="red" onclick="ZX_ag_borrar('${limpiar(e.id)}')">🗑️ Eliminar</button>`;
     if(e.direccion){
       acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(e.direccion)}')">📍 Mapa</button>`;
     }
   }else{
-    acciones+=`<button class="blue" onclick="ZX_ag_editar('${limpiar(e.id)}')">Editar</button>`;
+    acciones+=`<button class="blue" onclick="ZX_ag_editar('${limpiar(e.id)}')">✏️ Editar</button>`;
 
     if(!done && !canc){
       acciones+=`<button class="green" onclick="ZX_ag_completar('${limpiar(e.id)}')">Hecho</button>`;
       acciones+=`<button class="orange" onclick="ZX_ag_cancelar('${limpiar(e.id)}')">Cancelar</button>`;
     }
 
-    acciones+=`<button class="red" onclick="ZX_ag_borrar('${limpiar(e.id)}')">Borrar</button>`;
+    acciones+=`<button class="red" onclick="ZX_ag_borrar('${limpiar(e.id)}')">🗑️ Eliminar</button>`;
   }
 
   return `
@@ -886,18 +906,13 @@ function renderEvento(e){
         <em>${limpiar(e.hora_inicio ? String(e.hora_inicio).slice(0,5) : "")}</em>
       </div>
 
-      <div class="zx_ag_event_txt">
-        ${trabajo ? `
-          ${e.cliente ? `<div class="zx_ag_role zx_ag_role_cliente"><span class="zx_ag_role_icon">👤</span><div><small>CLIENTE</small><b>${limpiar(e.cliente)}</b></div></div>` : ""}
-          ${(e.responsable || e.usuario) ? `<div class="zx_ag_role zx_ag_role_responsable"><span class="zx_ag_role_icon">👷</span><div><small>RESPONSABLE</small><b>${limpiar(e.responsable || e.usuario)}</b></div></div>` : ""}
-          ${Array.isArray(e.equipo) && e.equipo.length ? `<div class="zx_ag_role zx_ag_role_equipo"><span class="zx_ag_role_icon">👥</span><div><small>EQUIPO (${e.equipo.length})</small>${e.equipo.map(function(u){return `<b>${limpiar(u.nombre || "Usuario")}</b>`;}).join("")}</div></div>` : ""}
-          <div class="zx_ag_role zx_ag_role_vinculado"><span class="zx_ag_role_icon">🔗</span><div><small>VINCULADO A TRABAJO</small><b>Este evento está vinculado a un trabajo</b></div></div>
-        ` : `
-          ${e.usuario ? `<p>👤 ${limpiar(e.usuario)}</p>` : ""}
-          ${e.cliente ? `<p>👥 ${limpiar(e.cliente)}</p>` : ""}
-        `}
-        ${e.vehiculo ? `<p>🚗 ${limpiar(e.vehiculo)}</p>` : ""}
-        ${e.descripcion ? `<p>${limpiar(e.descripcion)}</p>` : ""}
+      <div class="zx_ag_event_roles">
+        ${e.cliente ? `<div class="zx_ag_role cliente"><strong>🟠 CLIENTE</strong><span>${limpiar(e.cliente)}</span></div>` : ""}
+        ${responsable ? `<div class="zx_ag_role responsable"><strong>🔵 RESPONSABLE</strong><span>${limpiar(responsable)}</span></div>` : ""}
+        ${equipo.length ? `<div class="zx_ag_role equipo"><strong>🟢 EQUIPO (${equipo.length})</strong><span>${equipo.map(limpiar).join("<br>")}</span></div>` : ""}
+        ${e.vehiculo ? `<div class="zx_ag_role vehiculo"><strong>🚗 VEHÍCULO</strong><span>${limpiar(e.vehiculo)}</span></div>` : ""}
+        ${e.descripcion ? `<div class="zx_ag_role descripcion"><span>${limpiar(e.descripcion)}</span></div>` : ""}
+        ${trabajo ? `<div class="zx_ag_role vinculado"><strong>🟣 VINCULADO A TRABAJO</strong></div>` : ""}
       </div>
 
       <div class="zx_ag_actions">${acciones}</div>
@@ -1990,50 +2005,21 @@ function instalarCSS(){
       margin:4px 0;
     }
 
-
-    .zx_ag_role{
-      display:grid;
-      grid-template-columns:34px 1fr;
-      gap:9px;
-      align-items:start;
-      padding:9px 0;
-      border-bottom:1px solid rgba(255,255,255,.24);
-    }
-
-    .zx_ag_role:last-child{border-bottom:0}
-
-    .zx_ag_role_icon{
-      font-size:24px;
-      line-height:1;
-      text-align:center;
-    }
-
-    .zx_ag_role small{
-      display:block;
-      margin-bottom:3px;
-      font-size:11px;
-      font-weight:950;
-      letter-spacing:.04em;
-    }
-
-    .zx_ag_role b{
-      display:block;
-      margin:2px 0;
-      font-size:14px;
-      line-height:1.25;
-    }
-
-    .zx_ag_role_cliente small{color:#ffd08a}
-    .zx_ag_role_responsable small{color:#bfdbfe}
-    .zx_ag_role_equipo small{color:#bbf7d0}
-    .zx_ag_role_vinculado small{color:#ddd6fe}
-
     .zx_ag_actions{
       display:grid;
       grid-template-columns:repeat(2,minmax(0,1fr));
       gap:8px;
       margin-top:14px;
     }
+
+    .zx_ag_event_roles{display:grid;gap:9px;margin:12px 0}
+    .zx_ag_role{background:rgba(255,255,255,.13);border-radius:14px;padding:10px 12px;display:grid;gap:3px}
+    .zx_ag_role strong{font-size:12px;letter-spacing:.04em}
+    .zx_ag_role span{font-size:15px;font-weight:900;line-height:1.35}
+    .zx_ag_role.cliente strong{color:#fed7aa}
+    .zx_ag_role.responsable strong{color:#bfdbfe}
+    .zx_ag_role.equipo strong{color:#bbf7d0}
+    .zx_ag_role.vinculado strong{color:#ddd6fe}
 
     .zx_ag_actions button{
       border:0;
