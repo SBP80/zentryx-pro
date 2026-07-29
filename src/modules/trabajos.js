@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3155 - ICONO DE CALENDARIO DINÁMICO EN DETALLE
+// V3156 - ICONO DE CALENDARIO DINÁMICO EN DETALLE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3155";
+const ZX_VERSION="3156";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -67,8 +67,12 @@ function puedeGestionar(){return puedeEntrar()}
 function puedeBorrar(){return esAdmin()}
 
 function idTrabajoUnico(){return String(window.ZX_TRABAJO_ABRIR_ID || "").trim()}
+function accionTrabajoDirecta(){return String(window.ZX_TRABAJO_ACCION_DIRECTA || "ver").trim().toLowerCase()}
 function modoTrabajoUnico(){return !!idTrabajoUnico()}
-function salirTrabajoUnico(){window.ZX_TRABAJO_ABRIR_ID=""}
+function salirTrabajoUnico(){
+  window.ZX_TRABAJO_ABRIR_ID="";
+  window.ZX_TRABAJO_ACCION_DIRECTA="";
+}
 
 function leerCache(){
   try{return JSON.parse(localStorage.getItem(CACHE_KEY) || "[]")}
@@ -196,7 +200,17 @@ async function pedirPinAdmin(){
         return;
       }
 
-      if(btoa(String(pin))!==String(r.data.pin_hash || "")){
+      const security=window.ZENTRYX_SECURITY;
+      let correcto=false;
+      if(security && typeof security.verifyPin==="function"){
+        const verificacion=await security.verifyPin(String(pin),String(r.data.pin_hash || ""));
+        correcto=!!(verificacion && verificacion.ok);
+      }else{
+        try{correcto=btoa(String(pin))===String(r.data.pin_hash || "")}
+        catch(e){correcto=false}
+      }
+
+      if(!correcto){
         error.textContent="PIN incorrecto.";
         input.value="";
         input.focus();
@@ -1880,7 +1894,19 @@ window.ZX_trabajos=async function(){
     pintarShell(lista);
 
     if(modoTrabajoUnico() && lista.length===1){
-      setTimeout(function(){abrirFicha(lista[0].id)},120);
+      const id=lista[0].id;
+      const accion=accionTrabajoDirecta();
+      setTimeout(function(){
+        if(accion==="editar"){
+          cargarTrabajo(id).then(function(t){if(t) abrirFormulario(t)});
+          return;
+        }
+        if(accion==="eliminar"){
+          gestionarTrabajo(id);
+          return;
+        }
+        abrirFicha(id);
+      },120);
     }
   },20);
 };
