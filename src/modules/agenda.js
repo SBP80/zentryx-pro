@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3143 - DIRECCIÓN Y APERTURA DE TRABAJOS MEJORADAS
+// V3144 - ACTUALIZACIÓN INMEDIATA AL EDITAR EVENTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3143";
+const ZX_VERSION="3144";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -662,7 +662,7 @@ async function cargarEventos(opciones){
   }
 
   try{
-    const consultaAgenda=(zx() && typeof zx().selectCache==="function")
+    const consultaAgenda=(!opciones.forzar && zx() && typeof zx().selectCache==="function")
       ? zx().selectCache(TABLA,function(q){
           return q.select("*")
             .lte("fecha_inicio",r.hasta)
@@ -840,21 +840,6 @@ function renderCalendario(){
   return html;
 }
 
-function direccionCompletaEvento(e){
-  e=e || {};
-  return [
-    [e.direccion,e.numero].filter(Boolean).join(" "),
-    e.portal ? "Portal "+e.portal : "",
-    e.escalera ? "Esc. "+e.escalera : "",
-    e.piso ? "Piso "+e.piso : "",
-    e.puerta ? "Puerta "+e.puerta : "",
-    e.codigo_postal,
-    e.poblacion,
-    e.provincia,
-    e.pais
-  ].filter(Boolean).join(", ");
-}
-
 function renderEvento(e){
   const trabajo=esTrabajo(e);
   const done=terminado(e);
@@ -864,9 +849,8 @@ function renderEvento(e){
 
   if(trabajo){
     acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">🛠️ Abrir trabajo</button>`;
-    const direccionMapa=direccionCompletaEvento(e);
-    if(direccionMapa){
-      acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(direccionMapa)}')">📍 Mapa</button>`;
+    if(e.direccion){
+      acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(e.direccion)}')">📍 Mapa</button>`;
     }
   }else{
     acciones+=`<button class="blue" onclick="ZX_ag_editar('${limpiar(e.id)}')">Editar</button>`;
@@ -893,7 +877,6 @@ function renderEvento(e){
         ${e.usuario ? `<p>👤 ${limpiar(e.usuario)}</p>` : ""}
         ${e.cliente ? `<p>👥 ${limpiar(e.cliente)}</p>` : ""}
         ${e.vehiculo ? `<p>🚗 ${limpiar(e.vehiculo)}</p>` : ""}
-        ${direccionCompletaEvento(e) ? `<p>📍 ${limpiar(direccionCompletaEvento(e))}</p>` : ""}
         ${e.descripcion ? `<p>${limpiar(e.descripcion)}</p>` : ""}
         ${trabajo ? `<p><b>Vinculado a trabajo</b></p>` : ""}
       </div>
@@ -1124,10 +1107,7 @@ async function abrirModalEvento(e,fecha){
   modalBase(`
     <h2>${e.id ? "Editar evento" : "Nuevo evento"}</h2>
 
-    ${esTrabajo(e) ? `<div class="zx_ag_notice">
-      <span>Este evento está vinculado a un trabajo. Los cambios importantes deben hacerse desde Trabajos.</span>
-      <button type="button" class="zx_btn_small zx_azul" id="ag_abrir_trabajo_vinculado">Abrir trabajo</button>
-    </div>` : ""}
+    ${esTrabajo(e) ? `<div class="zx_ag_notice">Este evento está vinculado a un trabajo. Los cambios importantes deben hacerse desde Trabajos.</div>` : ""}
 
     <label class="zx_ag_label">Tipo</label>
     <select id="ag_tipo" ${esTrabajo(e) ? "disabled" : ""}>
@@ -1236,13 +1216,6 @@ async function abrirModalEvento(e,fecha){
 
   document.getElementById("ag_cancelar").onclick=cerrarModal;
   document.getElementById("ag_guardar").onclick=function(){guardarEvento(e.id || null,e)};
-
-  const abrirTrabajoVinculado=document.getElementById("ag_abrir_trabajo_vinculado");
-  if(abrirTrabajoVinculado){
-    abrirTrabajoVinculado.onclick=function(){
-      window.ZX_ag_abrirTrabajo(e.origen_id);
-    };
-  }
 
   const [usuarios,clientes,vehiculos]=await Promise.all([
     cargarUsuarios(),
@@ -1359,7 +1332,31 @@ async function guardarEvento(id,original){
 
     if(r && r.error) throw r.error;
 
+    // Actualización optimista: refleja el cambio en pantalla al instante.
+    if(id){
+      const indice=ZX_AGENDA_CACHE.findIndex(function(e){return String(e.id)===String(id)});
+      if(indice>=0){
+        ZX_AGENDA_CACHE[indice]=Object.assign({},ZX_AGENDA_CACHE[indice],data,{id:id});
+      }else{
+        ZX_AGENDA_CACHE.push(Object.assign({},original,data,{id:id}));
+      }
+    }else{
+      const creado=(r && Array.isArray(r.data) && r.data[0])
+        ? r.data[0]
+        : (r && r.data && !Array.isArray(r.data) ? r.data : null);
+      if(creado) ZX_AGENDA_CACHE.push(creado);
+    }
+
+    ZX_AGENDA_CACHE.sort(function(a,b){
+      const fa=String(a.fecha_inicio || "")+" "+String(a.hora_inicio || "");
+      const fb=String(b.fecha_inicio || "")+" "+String(b.hora_inicio || "");
+      return fa.localeCompare(fb);
+    });
+    guardarCache(ZX_AGENDA_CACHE);
     cerrarModal();
+    repintarDatos();
+
+    // Confirma después contra Supabase, evitando la caché de lectura.
     await recargarAgenda();
 
   }catch(e){
