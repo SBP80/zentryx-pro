@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3145 - BORRADO PROTEGIDO CON PIN Y AUDITORÍA
+// V3147 - ROLES DIFERENCIADOS EN AGENDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3145";
+const ZX_VERSION="3147";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
