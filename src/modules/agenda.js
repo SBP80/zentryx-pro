@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3146 - UN ÚNICO EVENTO POR TRABAJO Y EQUIPO COMPLETO
+// V3145 - BORRADO PROTEGIDO CON PIN Y AUDITORÍA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3146";
+const ZX_VERSION="3145";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -468,35 +468,25 @@ function rangoMes(){
 
 function eventoDesdeTrabajo(t,planes){
   const lista=Array.isArray(planes) ? planes : (planes ? [planes] : []);
-  const planBase=lista[0] || {};
-  const fecha=normalizarFecha(planBase.fecha || t.fecha || hoy());
-  const horaInicio=planBase.hora_inicio || t.hora_inicio || null;
-  const horaFin=planBase.hora_fin || t.hora_fin || null;
+  const base=lista[0] || {};
+  const fecha=normalizarFecha(base.fecha || t.fecha || hoy());
+  const horaInicio=base.hora_inicio || t.hora_inicio || null;
+  const horaFin=base.hora_fin || t.hora_fin || null;
+  const responsableId=String(t.usuario_id || t.responsable_id || base.usuario_id || "");
+  const responsable=t.usuario || t.responsable || base.usuario || "";
 
-  const participantes=[];
+  const equipo=[];
   const vistos=new Set();
   lista.forEach(function(plan){
     const id=String(plan.usuario_id || "");
     const nombre=String(plan.usuario || "").trim();
-    const clave=id || normalizar(nombre);
-    if(!clave || vistos.has(clave)) return;
-    vistos.add(clave);
-    participantes.push({id:id,nombre:nombre});
+    if(!id || id===responsableId || vistos.has(id)) return;
+    vistos.add(id);
+    equipo.push({id:id,nombre:nombre || "Usuario"});
   });
 
-  const principalId=String(t.usuario_id || t.responsable_id || planBase.usuario_id || "");
-  const principalNombre=String(t.usuario || planBase.usuario || "").trim();
-  const clavePrincipal=principalId || normalizar(principalNombre);
-  if(clavePrincipal && !vistos.has(clavePrincipal)){
-    participantes.unshift({id:principalId,nombre:principalNombre});
-    vistos.add(clavePrincipal);
-  }
-
-  const nombres=participantes.map(function(x){return x.nombre}).filter(Boolean);
-  const ids=participantes.map(function(x){return x.id}).filter(Boolean);
-
   return {
-    id:`trabajo:${String(t.id)}`,
+    id:`trabajo:${String(t.id)}:unico`,
     tipo:"trabajo",
     titulo:t.titulo || "Trabajo",
     descripcion:t.descripcion || t.notas || "",
@@ -506,12 +496,14 @@ function eventoDesdeTrabajo(t,planes){
     hora_fin:horaFin,
     cliente_id:String(t.cliente_id || ""),
     cliente:t.cliente || "",
-    vehiculo_id:String(planBase.vehiculo_id || t.vehiculo_id || ""),
-    vehiculo:planBase.vehiculo || t.vehiculo || "",
-    usuario_id:principalId,
-    usuario:nombres.join(", ") || principalNombre,
-    participantes_ids:ids,
-    participantes:nombres,
+    vehiculo_id:String(base.vehiculo_id || t.vehiculo_id || ""),
+    vehiculo:base.vehiculo || t.vehiculo || "",
+    usuario_id:responsableId,
+    usuario:responsable,
+    responsable_id:responsableId,
+    responsable:responsable,
+    equipo:equipo,
+    participantes:equipo.map(function(x){return x.nombre;}),
     estado:t.estado==="terminado" ? "completado" : (t.estado || "pendiente"),
     prioridad:t.prioridad || "media",
     visible_para:"todos",
@@ -596,9 +588,7 @@ async function cargarTrabajosDirectos(desde,hasta){
       const id=String(t.id || "");
       const lista=porTrabajo.get(id) || [];
       if(lista.length){
-        const visible=esAdmin() || lista.some(function(p){
-          return esVisibleTrabajoParaUsuario(t,p,s);
-        });
+        const visible=esAdmin() || lista.some(function(p){return esVisibleTrabajoParaUsuario(t,p,s);});
         if(visible) eventos.push(eventoDesdeTrabajo(t,lista));
       }else{
         const fecha=normalizarFecha(t.fecha);
@@ -616,7 +606,7 @@ async function cargarTrabajosDirectos(desde,hasta){
 }
 
 function claveEvento(e){
-  if(e.origen_id) return [e.origen||e.tipo,e.origen_id,e.fecha_inicio||"",e.hora_inicio||""].join("|");
+  if(e.origen_id) return [e.origen||e.tipo,e.origen_id,e.fecha_inicio||"",e.hora_inicio||"",e.usuario_id||""].join("|");
   return [e.tipo||"",normalizar(e.titulo),e.fecha_inicio||"",e.hora_inicio||"",e.usuario_id||"",e.cliente_id||""].join("|");
 }
 
@@ -897,11 +887,17 @@ function renderEvento(e){
       </div>
 
       <div class="zx_ag_event_txt">
-        ${e.usuario ? `<p>👤 ${limpiar(e.usuario)}</p>` : ""}
-        ${e.cliente ? `<p>👥 ${limpiar(e.cliente)}</p>` : ""}
+        ${trabajo ? `
+          ${e.cliente ? `<div class="zx_ag_role zx_ag_role_cliente"><span class="zx_ag_role_icon">👤</span><div><small>CLIENTE</small><b>${limpiar(e.cliente)}</b></div></div>` : ""}
+          ${(e.responsable || e.usuario) ? `<div class="zx_ag_role zx_ag_role_responsable"><span class="zx_ag_role_icon">👷</span><div><small>RESPONSABLE</small><b>${limpiar(e.responsable || e.usuario)}</b></div></div>` : ""}
+          ${Array.isArray(e.equipo) && e.equipo.length ? `<div class="zx_ag_role zx_ag_role_equipo"><span class="zx_ag_role_icon">👥</span><div><small>EQUIPO (${e.equipo.length})</small>${e.equipo.map(function(u){return `<b>${limpiar(u.nombre || "Usuario")}</b>`;}).join("")}</div></div>` : ""}
+          <div class="zx_ag_role zx_ag_role_vinculado"><span class="zx_ag_role_icon">🔗</span><div><small>VINCULADO A TRABAJO</small><b>Este evento está vinculado a un trabajo</b></div></div>
+        ` : `
+          ${e.usuario ? `<p>👤 ${limpiar(e.usuario)}</p>` : ""}
+          ${e.cliente ? `<p>👥 ${limpiar(e.cliente)}</p>` : ""}
+        `}
         ${e.vehiculo ? `<p>🚗 ${limpiar(e.vehiculo)}</p>` : ""}
         ${e.descripcion ? `<p>${limpiar(e.descripcion)}</p>` : ""}
-        ${trabajo ? `<p><b>Vinculado a trabajo</b></p>` : ""}
       </div>
 
       <div class="zx_ag_actions">${acciones}</div>
@@ -1993,6 +1989,44 @@ function instalarCSS(){
     .zx_ag_event_txt p{
       margin:4px 0;
     }
+
+
+    .zx_ag_role{
+      display:grid;
+      grid-template-columns:34px 1fr;
+      gap:9px;
+      align-items:start;
+      padding:9px 0;
+      border-bottom:1px solid rgba(255,255,255,.24);
+    }
+
+    .zx_ag_role:last-child{border-bottom:0}
+
+    .zx_ag_role_icon{
+      font-size:24px;
+      line-height:1;
+      text-align:center;
+    }
+
+    .zx_ag_role small{
+      display:block;
+      margin-bottom:3px;
+      font-size:11px;
+      font-weight:950;
+      letter-spacing:.04em;
+    }
+
+    .zx_ag_role b{
+      display:block;
+      margin:2px 0;
+      font-size:14px;
+      line-height:1.25;
+    }
+
+    .zx_ag_role_cliente small{color:#ffd08a}
+    .zx_ag_role_responsable small{color:#bfdbfe}
+    .zx_ag_role_equipo small{color:#bbf7d0}
+    .zx_ag_role_vinculado small{color:#ddd6fe}
 
     .zx_ag_actions{
       display:grid;
