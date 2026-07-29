@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3145 - BORRADO PROTEGIDO CON PIN Y AUDITORÍA
+// V3146 - UN ÚNICO EVENTO POR TRABAJO Y EQUIPO COMPLETO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3145";
+const ZX_VERSION="3146";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -466,17 +466,37 @@ function rangoMes(){
 }
 
 
-function eventoDesdeTrabajo(t,p){
-  const plan=p || {};
-  const fecha=normalizarFecha(plan.fecha || t.fecha || hoy());
-  const horaInicio=plan.hora_inicio || t.hora_inicio || null;
-  const horaFin=plan.hora_fin || t.hora_fin || null;
-  const usuarioId=String(plan.usuario_id || t.usuario_id || "");
-  const usuario=plan.usuario || t.usuario || "";
-  const planId=String(plan.id || "base");
+function eventoDesdeTrabajo(t,planes){
+  const lista=Array.isArray(planes) ? planes : (planes ? [planes] : []);
+  const planBase=lista[0] || {};
+  const fecha=normalizarFecha(planBase.fecha || t.fecha || hoy());
+  const horaInicio=planBase.hora_inicio || t.hora_inicio || null;
+  const horaFin=planBase.hora_fin || t.hora_fin || null;
+
+  const participantes=[];
+  const vistos=new Set();
+  lista.forEach(function(plan){
+    const id=String(plan.usuario_id || "");
+    const nombre=String(plan.usuario || "").trim();
+    const clave=id || normalizar(nombre);
+    if(!clave || vistos.has(clave)) return;
+    vistos.add(clave);
+    participantes.push({id:id,nombre:nombre});
+  });
+
+  const principalId=String(t.usuario_id || t.responsable_id || planBase.usuario_id || "");
+  const principalNombre=String(t.usuario || planBase.usuario || "").trim();
+  const clavePrincipal=principalId || normalizar(principalNombre);
+  if(clavePrincipal && !vistos.has(clavePrincipal)){
+    participantes.unshift({id:principalId,nombre:principalNombre});
+    vistos.add(clavePrincipal);
+  }
+
+  const nombres=participantes.map(function(x){return x.nombre}).filter(Boolean);
+  const ids=participantes.map(function(x){return x.id}).filter(Boolean);
 
   return {
-    id:`trabajo:${String(t.id)}:${planId}`,
+    id:`trabajo:${String(t.id)}`,
     tipo:"trabajo",
     titulo:t.titulo || "Trabajo",
     descripcion:t.descripcion || t.notas || "",
@@ -486,10 +506,12 @@ function eventoDesdeTrabajo(t,p){
     hora_fin:horaFin,
     cliente_id:String(t.cliente_id || ""),
     cliente:t.cliente || "",
-    vehiculo_id:String(plan.vehiculo_id || t.vehiculo_id || ""),
-    vehiculo:plan.vehiculo || t.vehiculo || "",
-    usuario_id:usuarioId,
-    usuario:usuario,
+    vehiculo_id:String(planBase.vehiculo_id || t.vehiculo_id || ""),
+    vehiculo:planBase.vehiculo || t.vehiculo || "",
+    usuario_id:principalId,
+    usuario:nombres.join(", ") || principalNombre,
+    participantes_ids:ids,
+    participantes:nombres,
     estado:t.estado==="terminado" ? "completado" : (t.estado || "pendiente"),
     prioridad:t.prioridad || "media",
     visible_para:"todos",
@@ -574,13 +596,14 @@ async function cargarTrabajosDirectos(desde,hasta){
       const id=String(t.id || "");
       const lista=porTrabajo.get(id) || [];
       if(lista.length){
-        lista.forEach(function(p){
-          if(esVisibleTrabajoParaUsuario(t,p,s)) eventos.push(eventoDesdeTrabajo(t,p));
+        const visible=esAdmin() || lista.some(function(p){
+          return esVisibleTrabajoParaUsuario(t,p,s);
         });
+        if(visible) eventos.push(eventoDesdeTrabajo(t,lista));
       }else{
         const fecha=normalizarFecha(t.fecha);
         if(fecha && fecha>=desde && fecha<=hasta && esVisibleTrabajoParaUsuario(t,null,s)){
-          eventos.push(eventoDesdeTrabajo(t,null));
+          eventos.push(eventoDesdeTrabajo(t,[]));
         }
       }
     });
@@ -593,7 +616,7 @@ async function cargarTrabajosDirectos(desde,hasta){
 }
 
 function claveEvento(e){
-  if(e.origen_id) return [e.origen||e.tipo,e.origen_id,e.fecha_inicio||"",e.hora_inicio||"",e.usuario_id||""].join("|");
+  if(e.origen_id) return [e.origen||e.tipo,e.origen_id,e.fecha_inicio||"",e.hora_inicio||""].join("|");
   return [e.tipo||"",normalizar(e.titulo),e.fecha_inicio||"",e.hora_inicio||"",e.usuario_id||"",e.cliente_id||""].join("|");
 }
 
