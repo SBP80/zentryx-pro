@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3154 - SINCRONIZACIÓN COMPLETA TRABAJOS ↔ AGENDA
+// V3155 - ICONO DE CALENDARIO DINÁMICO EN DETALLE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3154";
+const ZX_VERSION="3155";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1390,7 +1390,7 @@ async function abrirFicha(id){
         </div>
 
         <div class="zx_tr_status_grid">
-          ${t.fecha ? `<div><span>📅</span><small>Fecha</small><b>${limpiar(fechaES(t.fecha))}</b></div>` : ""}
+          ${t.fecha ? `<div><span class="zx_tr_calendar_day" aria-label="Calendario">${new Date().getDate()}</span><small>Fecha</small><b>${limpiar(fechaES(t.fecha))}</b></div>` : ""}
           ${horario ? `<div><span>🕒</span><small>Horario</small><b>${limpiar(horario)}</b></div>` : ""}
           <div><span>👥</span><small>Equipo</small><b>${equipo.length || 1}</b></div>
           <div><span>📦</span><small>Materiales</small><b>${mat.length}</b></div>
@@ -1795,6 +1795,7 @@ function instalarCSS(){
     .zx_tr_status_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
     .zx_tr_status_grid>div{display:grid;grid-template-columns:auto 1fr;column-gap:8px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:10px}
     .zx_tr_status_grid>div>span{grid-row:1/3;font-size:20px}
+    .zx_tr_status_grid .zx_tr_calendar_day{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;background:#fff;color:#7c3aed;border:1px solid #e2e8f0;font-size:13px;font-weight:950;line-height:1}
     .zx_tr_status_grid small{color:#64748b;font-size:10px;font-weight:850}
     .zx_tr_status_grid b{color:#071330;font-size:14px;font-weight:950;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .zx_tr_main_action{width:100%;border:0;border-radius:20px;padding:18px 16px;color:white;font-size:19px;font-weight:950;display:flex;align-items:center;justify-content:center;gap:10px;text-align:center}
