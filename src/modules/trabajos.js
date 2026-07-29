@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3156 - ICONO DE CALENDARIO DINÁMICO EN DETALLE
+// V3157 - RETORNO AUTOMÁTICO A AGENDA TRAS GUARDAR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3156";
+const ZX_VERSION="3157";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1089,7 +1089,27 @@ async function guardarTrabajo(id,clientes,usuarios){
       }));
     }catch(e){}
 
+    const volverAgenda=modoTrabajoUnico() && accionTrabajoDirecta()==="editar";
+
     cerrarModal();
+
+    if(volverAgenda){
+      salirTrabajoUnico();
+      if(typeof window.ZX_agenda==="function"){
+        await window.ZX_agenda();
+      }else if(typeof window.ZX_abrirAgenda==="function"){
+        await window.ZX_abrirAgenda();
+      }else{
+        await window.ZX_trabajos();
+      }
+      setTimeout(function(){
+        if(typeof window.ZX_TOAST==="function"){
+          window.ZX_TOAST("Trabajo actualizado correctamente");
+        }
+      },80);
+      return;
+    }
+
     await window.ZX_trabajos();
 
   }catch(e){
