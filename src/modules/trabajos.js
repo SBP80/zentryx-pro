@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3160 - ACCIONES RÁPIDAS PROFESIONALES
+// V3161 - ACCIONES RÁPIDAS PROFESIONALES + RECARGA FORZADA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3160";
+const ZX_VERSION="3161";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
