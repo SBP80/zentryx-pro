@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3159 - ARCHIVOS CORREGIDOS Y ACCIONES PROFESIONALES
+// V3160 - ACCIONES RÁPIDAS PROFESIONALES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3159";
+const ZX_VERSION="3160";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1456,10 +1456,10 @@ async function abrirFicha(id){
       </section>
 
       <div class="zx_tr_quick_actions">
-        ${dir ? `<button class="purple" id="tr_quick_route">🧭 Ruta</button>` : ""}
-        ${tel ? `<button class="green" id="tr_quick_call">📞 Llamar</button>` : ""}
-        ${tel ? `<button class="zx_tr_whatsapp" id="tr_quick_whatsapp">💬 WhatsApp</button>` : ""}
-        <button class="gray" id="tr_quick_note">📝 Nota</button>
+        ${dir ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_route"><span class="zx_tr_quick_icon">🧭</span><span>Abrir ruta</span></button>` : ""}
+        ${tel ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_call"><span class="zx_tr_quick_icon">📞</span><span>Llamar</span></button>` : ""}
+        ${tel ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_whatsapp"><span class="zx_tr_quick_icon">💬</span><span>WhatsApp</span></button>` : ""}
+        <button type="button" class="zx_tr_quick_btn" id="tr_quick_note"><span class="zx_tr_quick_icon">📝</span><span>Añadir nota</span></button>
       </div>
 
       <details class="zx_tr_more">
@@ -2007,7 +2007,9 @@ function instalarCSS(){
     .zx_tr_contact_line span{color:#071330;font-size:14px;font-weight:850;line-height:1.35}
     .zx_tr_description{background:#f8fafc;border-radius:14px;padding:12px;color:#475569;font-size:14px;font-weight:800;line-height:1.4}
     .zx_tr_quick_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-    .zx_tr_quick_actions button{border:0;border-radius:15px;padding:13px 8px;color:white;font-size:14px;font-weight:950}
+    .zx_tr_quick_actions .zx_tr_quick_btn{min-height:58px;border:1px solid #d8e4f2;border-radius:16px;padding:10px 12px;background:#fff!important;color:#10213f!important;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:flex-start;gap:9px;text-align:left;line-height:1.15;box-shadow:0 2px 7px rgba(16,33,63,.05)}
+    .zx_tr_quick_actions .zx_tr_quick_btn:active{transform:scale(.98);background:#edf5ff!important}
+    .zx_tr_quick_icon{font-size:24px;line-height:1;flex:0 0 auto}
     .zx_tr_more_grid button{min-height:58px;border:1px solid #d8e4f2;border-radius:16px;padding:10px 12px;background:#fff!important;color:#10213f!important;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:flex-start;gap:9px;text-align:left;line-height:1.15;box-shadow:0 2px 7px rgba(16,33,63,.05)}
     .zx_tr_more_grid button:active{transform:scale(.98);background:#edf5ff!important}
     .zx_tr_action_icon{font-size:21px;line-height:1;flex:0 0 auto}
