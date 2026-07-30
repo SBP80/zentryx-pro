@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3162 - GESTIÓN COMPLETA DE ARCHIVOS
+// V3163 - BOTONES RENOMBRAR Y COMPARTIR VISIBLES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3162";
+const ZX_VERSION="3163";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1982,8 +1982,8 @@ async function abrirMenuArchivo(archivoId,trabajoId){
     <h2>${limpiar(nombre)}</h2>
     <div class="zx_tr_file_info">${limpiar(tipoArchivoVisible(archivo))}${fechaArchivoVisible(archivo) ? " · "+limpiar(fechaArchivoVisible(archivo)) : ""}</div>
     <button class="zx_btn_big zx_azul" id="tr_file_view">👁 Ver archivo</button>
-    <button class="zx_btn_big zx_blanco" id="tr_file_rename_btn">✏️ Renombrar</button>
-    <button class="zx_btn_big zx_blanco" id="tr_file_share">📤 Compartir</button>
+    <button class="zx_btn_big zx_archivo_secundario" id="tr_file_rename_btn">✏️ Renombrar</button>
+    <button class="zx_btn_big zx_archivo_secundario" id="tr_file_share">📤 Compartir</button>
     <button class="zx_btn_big zx_rojo" id="tr_file_delete">🗑️ Eliminar</button>
     <button class="zx_btn_big zx_gris" id="tr_file_close">Cerrar</button>
   `);
@@ -2112,6 +2112,8 @@ function instalarCSS(){
     .zx_tr_file_text small{font-size:12px;color:#64748b;font-weight:800;letter-spacing:.02em}
     .zx_tr_file_more{font-size:24px;color:#64748b;line-height:1}
     .zx_tr_file_info{padding:12px 14px;margin:-4px 0 14px;border-radius:14px;background:#f3f7fb;color:#64748b;font-weight:800;text-align:center}
+    .zx_btn_big.zx_archivo_secundario{background:#fff!important;color:#0f2348!important;border:2px solid #b9d2f3!important;box-shadow:0 2px 8px rgba(15,35,72,.08)!important;opacity:1!important;-webkit-text-fill-color:#0f2348!important}
+    .zx_btn_big.zx_archivo_secundario:active{background:#eef6ff!important;transform:scale(.99)}
     .zx_tr_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_tr_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
     .zx_tr_header{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
