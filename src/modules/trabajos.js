@@ -1,13 +1,15 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3166 - HISTORIAL PROFESIONAL FASE 1
+// V3167 - BIBLIOTECAS INTELIGENTES Y SUGERENCIAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3166";
+const ZX_VERSION="3167";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
+const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
+const SUGGESTION_MIN_SCORE=2;
 
 let ZX_TR_CACHE=[];
 let ZX_TR_BUSQUEDA="";
@@ -271,6 +273,132 @@ async function cargarPlanificacion(id){
   }catch(e){
     return [];
   }
+}
+
+
+function leerBibliotecaMaterialesLocal(){
+  try{
+    const x=JSON.parse(localStorage.getItem(MATERIAL_LIBRARY_KEY) || "[]");
+    return Array.isArray(x) ? x : [];
+  }catch(e){return []}
+}
+
+function guardarBibliotecaMaterialesLocal(lista){
+  try{localStorage.setItem(MATERIAL_LIBRARY_KEY,JSON.stringify((lista || []).slice(0,500)))}catch(e){}
+}
+
+function aprenderMaterial(material){
+  const nombre=String((material && (material.nombre || material.material)) || "").trim();
+  if(!nombre) return;
+  const clave=normalizar(nombre);
+  const lista=leerBibliotecaMaterialesLocal();
+  let item=lista.find(x=>normalizar(x.nombre)===clave);
+  if(!item){
+    item={nombre:nombre,unidad:material.unidad || "ud",referencia:material.referencia || "",proveedor:material.proveedor || "",precio_compra:material.precio_compra ?? "",precio_venta:material.precio_venta ?? "",usos:0,actualizado:new Date().toISOString()};
+    lista.push(item);
+  }
+  item.nombre=nombre;
+  item.unidad=material.unidad || item.unidad || "ud";
+  for(const campo of ["referencia","proveedor","precio_compra","precio_venta"]){
+    if(material[campo]!==undefined && material[campo]!==null && String(material[campo]).trim()!=="") item[campo]=material[campo];
+  }
+  item.usos=Number(item.usos || 0)+1;
+  item.actualizado=new Date().toISOString();
+  lista.sort((a,b)=>Number(b.usos||0)-Number(a.usos||0) || String(a.nombre).localeCompare(String(b.nombre),"es"));
+  guardarBibliotecaMaterialesLocal(lista);
+}
+
+async function cargarBibliotecaMateriales(){
+  const mapa=new Map();
+  const agregar=function(x){
+    const nombre=String((x && (x.nombre || x.material)) || "").trim();
+    if(!nombre) return;
+    const k=normalizar(nombre);
+    const previo=mapa.get(k) || {nombre:nombre,unidad:x.unidad || "ud",referencia:x.referencia || "",proveedor:x.proveedor || "",precio_compra:x.precio_compra ?? "",precio_venta:x.precio_venta ?? "",usos:0};
+    previo.usos=Number(previo.usos||0)+Number(x.usos||1);
+    for(const c of ["unidad","referencia","proveedor","precio_compra","precio_venta"]){if(x[c]!==undefined && x[c]!==null && String(x[c]).trim()!=="") previo[c]=x[c]}
+    mapa.set(k,previo);
+  };
+  leerBibliotecaMaterialesLocal().forEach(agregar);
+  if(navigator.onLine && sb()){
+    try{
+      const r=await sb().from("trabajos_materiales").select("*").order("created_at",{ascending:false}).limit(800);
+      if(!r.error) (r.data || []).forEach(agregar);
+    }catch(e){}
+  }
+  return Array.from(mapa.values()).sort((a,b)=>Number(b.usos||0)-Number(a.usos||0) || String(a.nombre).localeCompare(String(b.nombre),"es"));
+}
+
+function palabrasClaveTrabajo(t){
+  const stop=new Set(["para","desde","hasta","como","con","sin","del","las","los","una","uno","unos","unas","trabajo","instalacion","instalar","revision","reparacion","mantenimiento","equipo","cliente","kw","kW"]);
+  const texto=normalizar([t.titulo,t.descripcion,t.notas,t.marca,t.modelo,t.referencia].filter(Boolean).join(" "));
+  return Array.from(new Set(texto.split(/[^a-z0-9]+/).filter(x=>x.length>=2 && !stop.has(x))));
+}
+
+function scoreCoincidencia(texto,palabras){
+  const n=normalizar(texto);
+  let score=0;
+  for(const p of palabras){
+    if(!p) continue;
+    if(n.includes(p)) score += /^\d+$/.test(p) ? 2 : (p.length>=5 ? 2 : 1);
+  }
+  return score;
+}
+
+async function cargarSugerenciasDocumentales(t,archivosActuales){
+  if(!navigator.onLine || !sb()) return [];
+  const palabras=palabrasClaveTrabajo(t);
+  if(!palabras.length) return [];
+  try{
+    const [ra,rt]=await Promise.all([
+      sb().from("trabajos_archivos").select("*").order("created_at",{ascending:false}).limit(500),
+      sb().from("trabajos").select("id,titulo,descripcion,notas").limit(500)
+    ]);
+    if(ra.error) return [];
+    const trabajos=new Map((rt.error ? [] : (rt.data || [])).map(x=>[String(x.id),x]));
+    const actuales=new Set((archivosActuales || []).map(a=>normalizar(a.nombre || a.filename || "")+"|"+String(a.url || a.archivo_url || "")));
+    const sugerencias=[];
+    for(const a of (ra.data || [])){
+      if(String(a.trabajo_id)===String(t.id)) continue;
+      const origen=trabajos.get(String(a.trabajo_id)) || {};
+      const nombre=a.nombre || a.filename || "Archivo";
+      const url=a.url || a.archivo_url || "";
+      if(!url || actuales.has(normalizar(nombre)+"|"+url)) continue;
+      const score=scoreCoincidencia([nombre,origen.titulo,origen.descripcion,origen.notas].filter(Boolean).join(" "),palabras);
+      if(score>=SUGGESTION_MIN_SCORE) sugerencias.push({...a,_score:score,_origen:origen.titulo || "Biblioteca documental"});
+    }
+    sugerencias.sort((a,b)=>b._score-a._score);
+    const vistos=new Set();
+    return sugerencias.filter(x=>{const k=String(x.url || x.archivo_url || "")+"|"+normalizar(x.nombre || x.filename || "");if(vistos.has(k))return false;vistos.add(k);return true}).slice(0,12);
+  }catch(e){return []}
+}
+
+function renderSugerenciasInteligentes(lista){
+  if(!lista || !lista.length) return "";
+  return `<section class="zx_tr_block zx_tr_smart_block">
+    <div class="zx_tr_block_title"><h3>✨ Sugerencias inteligentes</h3><span>${lista.length} documento(s)</span></div>
+    <p class="zx_tr_smart_help">Encontrados por coincidencia con la descripción, marca, modelo o potencia del trabajo. Revísalos antes de añadir.</p>
+    <div class="zx_tr_smart_list">${lista.map(a=>`<label class="zx_tr_smart_item"><input type="checkbox" data-smart-file="${limpiar(a.id)}"><span><strong>${limpiar(a.nombre || a.filename || "Archivo")}</strong><small>${limpiar(tipoArchivoVisible(a))} · ${limpiar(a._origen || "Biblioteca")}</small></span></label>`).join("")}</div>
+    <button type="button" class="zx_btn_big zx_azul" id="tr_smart_attach">Añadir seleccionados al trabajo</button>
+  </section>`;
+}
+
+async function adjuntarSugerencias(trabajoId,sugerencias){
+  const checks=Array.from(document.querySelectorAll("[data-smart-file]:checked"));
+  if(!checks.length){alert("Selecciona al menos un documento.");return}
+  const boton=document.getElementById("tr_smart_attach");
+  if(boton){boton.disabled=true;boton.textContent="Añadiendo..."}
+  let añadidos=0;
+  try{
+    for(const c of checks){
+      const a=sugerencias.find(x=>String(x.id)===String(c.dataset.smartFile));
+      if(!a) continue;
+      const r=await insertarArchivoCompatible({trabajo_id:String(trabajoId),nombre:a.nombre || a.filename || "Documento",url:a.url || a.archivo_url || "",tipo:a.tipo || a.mime_type || "",tamano:a.tamano || a.size || 0});
+      if(!r.error){añadidos++;await registrarHistorial(trabajoId,"archivo","Documento sugerido añadido: "+(a.nombre || a.filename || "Documento"),{origen_archivo_id:a.id,origen_trabajo_id:a.trabajo_id})}
+    }
+    alert(añadidos ? `${añadidos} documento(s) añadido(s) al trabajo.` : "No se pudo añadir ningún documento.");
+    await abrirFicha(trabajoId);
+  }catch(e){alert("No se pudieron añadir los documentos.\n\n"+mensajeError(e))}
 }
 
 async function cargarMateriales(id){
@@ -1402,6 +1530,7 @@ async function abrirFicha(id){
     cargarArchivos(id),
     cargarHistorial(id)
   ]);
+  const sugerencias=await cargarSugerenciasDocumentales(t,arch);
 
   const equipo=equipoPlanificacion(plan,t);
   const dir=direccionTrabajo(t);
@@ -1478,6 +1607,8 @@ async function abrirFicha(id){
       }))}
       ${renderMaterialesResumen(id,mat)}
       ${renderArchivos(arch)}
+      ${renderNotasVisibles(hist)}
+      ${renderSugerenciasInteligentes(sugerencias)}
       ${renderHistorialProfesional(hist)}
     </div>
   `;
@@ -1506,6 +1637,15 @@ async function abrirFicha(id){
 
   const note=document.getElementById("tr_quick_note");
   if(note) note.onclick=function(){registrarNotaRapida(id)};
+
+  const smart=document.getElementById("tr_smart_attach");
+  if(smart) smart.onclick=function(){adjuntarSugerencias(id,sugerencias)};
+}
+
+function renderNotasVisibles(hist){
+  const notas=(hist || []).filter(h=>normalizar(h.tipo).includes("nota") || normalizar(h.notas).startsWith("nota"));
+  if(!notas.length) return "";
+  return `<section class="zx_tr_block zx_tr_notes_block"><div class="zx_tr_block_title"><h3>Notas</h3><span>${notas.length}</span></div>${notas.slice(0,5).map(h=>`<article class="zx_tr_note_visible"><p>${limpiar(h.notas || "")}</p><small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small></article>`).join("")}</section>`;
 }
 
 function renderMaterialesResumen(trabajoId,lista){
@@ -1908,7 +2048,10 @@ async function abrirMaterial(id,material){
   modal(`
     <h2>${material ? "Editar material" : "Nuevo material"}</h2>
     <label class="zx_tr_label">Material</label>
-    <input id="tr_mat_nombre" placeholder="Material" value="${limpiar(material ? (material.nombre || material.material || "") : "")}">
+    <div class="zx_tr_autocomplete_wrap">
+      <input id="tr_mat_nombre" autocomplete="off" placeholder="Empieza a escribir para buscar..." value="${limpiar(material ? (material.nombre || material.material || "") : "")}">
+      <div id="tr_mat_sugerencias" class="zx_tr_autocomplete_list" hidden></div>
+    </div>
     <div class="zx_tr_grid2">
       <div>
         <label class="zx_tr_label">Cantidad</label>
@@ -1919,6 +2062,12 @@ async function abrirMaterial(id,material){
         <input id="tr_mat_unidad" value="${limpiar(material ? (material.unidad || "ud") : "ud")}">
       </div>
     </div>
+    <details class="zx_tr_material_extra">
+      <summary>Datos de biblioteca (opcional)</summary>
+      <label class="zx_tr_label">Referencia</label><input id="tr_mat_referencia" value="${limpiar(material ? (material.referencia || "") : "")}">
+      <label class="zx_tr_label">Proveedor</label><input id="tr_mat_proveedor" value="${limpiar(material ? (material.proveedor || "") : "")}">
+      <div class="zx_tr_grid2"><div><label class="zx_tr_label">Precio compra</label><input id="tr_mat_precio_compra" type="number" step="0.01" value="${limpiar(material && material.precio_compra!=null ? material.precio_compra : "")}"></div><div><label class="zx_tr_label">Precio venta</label><input id="tr_mat_precio_venta" type="number" step="0.01" value="${limpiar(material && material.precio_venta!=null ? material.precio_venta : "")}"></div></div>
+    </details>
     <label class="zx_tr_label">Notas</label>
     <textarea id="tr_mat_notas" rows="3">${limpiar(material ? (material.notas || "") : "")}</textarea>
     <button class="zx_btn_big zx_verde" id="tr_mat_guardar">${material ? "Guardar cambios" : "Guardar material"}</button>
@@ -1926,6 +2075,30 @@ async function abrirMaterial(id,material){
   `);
 
   document.getElementById("tr_mat_cancelar").onclick=function(){abrirListaMateriales(id)};
+
+  const nombreInput=document.getElementById("tr_mat_nombre");
+  const sugerenciasBox=document.getElementById("tr_mat_sugerencias");
+  const biblioteca=await cargarBibliotecaMateriales();
+  function pintarSugerencias(){
+    const q=normalizar(nombreInput.value);
+    const items=biblioteca.filter(x=>!q || normalizar(x.nombre).includes(q)).slice(0,10);
+    if(!items.length || (!q && document.activeElement!==nombreInput)){sugerenciasBox.hidden=true;return}
+    sugerenciasBox.innerHTML=items.map((x,i)=>`<button type="button" data-mat-sug="${i}"><strong>${limpiar(x.nombre)}</strong><small>${limpiar([x.unidad,x.referencia,x.proveedor].filter(Boolean).join(" · "))}${x.usos ? ` · usado ${x.usos} veces` : ""}</small></button>`).join("");
+    sugerenciasBox.hidden=false;
+    sugerenciasBox.querySelectorAll("[data-mat-sug]").forEach(btn=>btn.onclick=function(){
+      const x=items[Number(btn.dataset.matSug)]; if(!x)return;
+      nombreInput.value=x.nombre || "";
+      document.getElementById("tr_mat_unidad").value=x.unidad || "ud";
+      document.getElementById("tr_mat_referencia").value=x.referencia || "";
+      document.getElementById("tr_mat_proveedor").value=x.proveedor || "";
+      document.getElementById("tr_mat_precio_compra").value=x.precio_compra ?? "";
+      document.getElementById("tr_mat_precio_venta").value=x.precio_venta ?? "";
+      sugerenciasBox.hidden=true;
+    });
+  }
+  nombreInput.addEventListener("input",pintarSugerencias);
+  nombreInput.addEventListener("focus",pintarSugerencias);
+  setTimeout(()=>document.addEventListener("click",function cerrarSug(ev){if(!ev.target.closest(".zx_tr_autocomplete_wrap")){sugerenciasBox.hidden=true;document.removeEventListener("click",cerrarSug)}},true),0);
 
   document.getElementById("tr_mat_guardar").onclick=async function(){
     const nombre=valor("tr_mat_nombre");
@@ -1939,6 +2112,10 @@ async function abrirMaterial(id,material){
       cantidad:Number(valor("tr_mat_cantidad") || 1),
       unidad:valor("tr_mat_unidad") || "ud",
       notas:valor("tr_mat_notas"),
+      referencia:valor("tr_mat_referencia"),
+      proveedor:valor("tr_mat_proveedor"),
+      precio_compra:valor("tr_mat_precio_compra")!=="" ? Number(valor("tr_mat_precio_compra")) : null,
+      precio_venta:valor("tr_mat_precio_venta")!=="" ? Number(valor("tr_mat_precio_venta")) : null,
       preparado:false,
       created_at:new Date().toISOString()
     };
@@ -1954,7 +2131,8 @@ async function abrirMaterial(id,material){
           material:nombre,
           cantidad:data.cantidad,
           unidad:data.unidad,
-          notas:data.notas
+          notas:data.notas,
+          referencia:data.referencia,proveedor:data.proveedor,precio_compra:data.precio_compra,precio_venta:data.precio_venta
         };
         r=await actualizarMaterialCompatible(material.id,cambios);
       }else{
@@ -1962,8 +2140,9 @@ async function abrirMaterial(id,material){
       }
       if(r && r.error) throw r.error;
 
+      aprenderMaterial(data);
       await registrarHistorial(id,"material",(material ? "Material actualizado: " : "Material añadido: ")+nombre,{
-        material:nombre,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas
+        material:nombre,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas,referencia:data.referencia,proveedor:data.proveedor
       });
       await abrirListaMateriales(id);
 
@@ -2363,6 +2542,8 @@ function instalarCSS(){
     .zx_tr_file{display:block;background:white;border:1px solid #e6edf5;border-radius:14px;padding:11px;margin-top:8px;color:#2563eb;font-size:14px;font-weight:950;text-decoration:none}
     .zx_tr_notice{background:#f8fafc;border:1px solid #dbe3ef;border-left:7px solid #64748b;border-radius:18px;padding:14px;color:#334155;font-size:15px;font-weight:900;line-height:1.35}
     .zx_tr_notice.danger{border-left-color:#dc2626;background:#fef2f2;color:#991b1b}
+
+    .zx_tr_autocomplete_wrap{position:relative}.zx_tr_autocomplete_list{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:30;max-height:280px;overflow:auto;background:#fff;border:1px solid #b9d2f3;border-radius:16px;padding:6px;box-shadow:0 14px 30px rgba(15,35,72,.18)}.zx_tr_autocomplete_list button{display:grid;width:100%;gap:3px;text-align:left;border:0;border-bottom:1px solid #eef2f7;background:#fff;padding:11px;border-radius:11px}.zx_tr_autocomplete_list button:active{background:#eff6ff}.zx_tr_autocomplete_list strong{color:#071330;font-size:15px}.zx_tr_autocomplete_list small{color:#64748b;font-size:12px;font-weight:800}.zx_tr_material_extra{margin-top:12px;border:1px solid #dbe3ef;border-radius:16px;padding:10px 12px;background:#fff}.zx_tr_material_extra summary{color:#334155;font-weight:950;cursor:pointer}.zx_tr_smart_block{border-color:#c4b5fd;background:#faf5ff}.zx_tr_smart_help{color:#64748b;font-size:13px;font-weight:800;line-height:1.4}.zx_tr_smart_list{display:grid;gap:8px;margin:12px 0}.zx_tr_smart_item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;background:#fff;border:1px solid #ddd6fe;border-radius:14px;padding:11px}.zx_tr_smart_item input{width:22px!important;height:22px;accent-color:#7c3aed}.zx_tr_smart_item span{display:grid;gap:3px;min-width:0}.zx_tr_smart_item strong{color:#071330;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_tr_smart_item small{color:#64748b;font-size:11px;font-weight:800}.zx_tr_notes_block{background:#fffbeb;border-color:#fde68a}.zx_tr_note_visible{background:#fff;border:1px solid #fde68a;border-radius:14px;padding:11px;margin-top:9px}.zx_tr_note_visible p{margin:0;color:#334155;font-size:14px;font-weight:800;line-height:1.4;white-space:pre-wrap}.zx_tr_note_visible small{display:block;margin-top:7px;color:#92400e;font-size:11px;font-weight:850}
     @media(max-width:390px){.zx_tr_panel{padding:15px;border-radius:22px}.zx_tr_header h2{font-size:27px}.zx_tr_actions,.zx_tr_ficha_actions{grid-template-columns:1fr}.zx_tr_kpis{grid-template-columns:1fr 1fr}.zx_tr_top h3{font-size:19px}}
     @media(min-width:700px){.zx_tr_shell{padding-bottom:32px}.zx_tr_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_tr_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_tr_panel{padding:22px}.zx_tr_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
