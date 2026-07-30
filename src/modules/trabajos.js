@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3165 - MINIATURAS Y METADATOS DE ARCHIVOS
+// V3166 - HISTORIAL PROFESIONAL FASE 1
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3165";
+const ZX_VERSION="3166";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1478,9 +1478,7 @@ async function abrirFicha(id){
       }))}
       ${renderMaterialesResumen(id,mat)}
       ${renderArchivos(arch)}
-      ${renderBloque("Historial",hist.map(function(h){
-        return `${fechaES(h.fecha || h.created_at)} · ${h.tipo || ""} · ${h.notas || ""}`;
-      }))}
+      ${renderHistorialProfesional(hist)}
     </div>
   `;
 
@@ -1618,6 +1616,73 @@ async function eliminarMaterial(trabajoId,materialId){
   }catch(e){
     alert("No se pudo eliminar el material."+(mensajeError(e) ? "\n\n"+mensajeError(e) : ""));
   }
+}
+
+function configHistorial(tipo,notas){
+  const t=normalizar(tipo || "");
+  const n=normalizar(notas || "");
+
+  if(t.includes("archivo") || n.includes("archivo")) return {icono:"📎",titulo:"Archivos",clase:"archivo"};
+  if(t.includes("material") || n.includes("material")) return {icono:"📦",titulo:"Materiales",clase:"material"};
+  if(t.includes("estado") || n.includes("estado")) return {icono:"🔄",titulo:"Estado",clase:"estado"};
+  if(t.includes("plan") || n.includes("planific") || n.includes("fecha") || n.includes("hora")) return {icono:"📅",titulo:"Planificación",clase:"planificacion"};
+  if(t.includes("nota") || n.includes("nota")) return {icono:"📝",titulo:"Nota",clase:"nota"};
+  if(t.includes("inicio") || n.includes("iniciado")) return {icono:"▶️",titulo:"Inicio del trabajo",clase:"inicio"};
+  if(t.includes("fin") || t.includes("termin") || n.includes("terminado") || n.includes("finalizado")) return {icono:"✅",titulo:"Finalización",clase:"fin"};
+  if(t.includes("equipo") || t.includes("usuario") || n.includes("responsable") || n.includes("participante")) return {icono:"👥",titulo:"Equipo",clase:"equipo"};
+  if(t.includes("elimin") || n.includes("eliminado") || n.includes("borrado")) return {icono:"🗑️",titulo:"Eliminación",clase:"eliminar"};
+  if(t.includes("edicion") || t.includes("editar") || n.includes("actualizado") || n.includes("modificado")) return {icono:"✏️",titulo:"Edición",clase:"edicion"};
+  return {icono:"🕘",titulo:"Actividad",clase:"sistema"};
+}
+
+function fechaHoraHistorial(h){
+  let fecha=fechaES(h.fecha || h.created_at);
+  let hora="";
+
+  if(h.created_at){
+    const d=new Date(h.created_at);
+    if(!isNaN(d.getTime())){
+      fecha=d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"});
+      hora=d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"});
+    }
+  }
+
+  if(!hora && h.hora_inicio) hora=String(h.hora_inicio).slice(0,5);
+  return fecha+(hora ? " · "+hora : "");
+}
+
+function renderHistorialProfesional(lista){
+  const hist=Array.isArray(lista) ? lista : [];
+
+  return `
+    <section class="zx_tr_block zx_tr_history_block">
+      <div class="zx_tr_block_title">
+        <h3>Historial</h3>
+        <span>${hist.length}</span>
+      </div>
+      ${hist.length ? `
+        <div class="zx_tr_history_list">
+          ${hist.map(function(h){
+            const cfg=configHistorial(h.tipo,h.notas);
+            const usuario=h.usuario || h.usuario_nombre || h.nombre_usuario || "Sistema";
+            return `
+              <article class="zx_tr_history_item ${cfg.clase}">
+                <div class="zx_tr_history_icon">${cfg.icono}</div>
+                <div class="zx_tr_history_content">
+                  <div class="zx_tr_history_head">
+                    <strong>${limpiar(cfg.titulo)}</strong>
+                    <time>${limpiar(fechaHoraHistorial(h))}</time>
+                  </div>
+                  <p>${limpiar(h.notas || "Actividad registrada")}</p>
+                  <div class="zx_tr_history_user"><span>👤</span>${limpiar(usuario)}</div>
+                </div>
+              </article>
+            `;
+          }).join("")}
+        </div>
+      ` : `<div class="zx_tr_empty mini">Todavía no hay actividad registrada.</div>`}
+    </section>
+  `;
 }
 
 function renderBloque(titulo,lineas){
@@ -2274,6 +2339,26 @@ function instalarCSS(){
     .zx_tr_add_material{border:0;border-radius:14px;background:#16a34a;color:white;padding:11px 13px;font-size:14px;font-weight:950;white-space:nowrap}
     #tr_material_list{display:grid;gap:10px;margin:16px 0}.zx_tr_material_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:13px}.zx_tr_material_info{display:grid;gap:4px}.zx_tr_material_info strong{color:#071330;font-size:17px;font-weight:950}.zx_tr_material_info span{color:#2563eb;font-size:14px;font-weight:900}.zx_tr_material_info small{color:#64748b;font-size:13px;font-weight:800;line-height:1.35}
     .zx_tr_material_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_tr_material_actions button{border:0;border-radius:13px;padding:10px;font-size:13px;font-weight:950}.zx_tr_material_actions .blue{background:#dbeafe;color:#1d4ed8}.zx_tr_material_actions .red{background:#fee2e2;color:#b91c1c}.zx_tr_empty_card{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:18px;padding:22px;text-align:center;color:#64748b;font-weight:900}
+    .zx_tr_history_block{padding:16px}
+    .zx_tr_history_list{display:grid;gap:10px;margin-top:12px}
+    .zx_tr_history_item{display:grid;grid-template-columns:46px minmax(0,1fr);gap:11px;align-items:start;background:#fff;border:1px solid #e2e8f0;border-left:5px solid #64748b;border-radius:17px;padding:12px;box-shadow:0 2px 8px rgba(15,23,42,.035)}
+    .zx_tr_history_icon{width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;font-size:20px}
+    .zx_tr_history_content{min-width:0}
+    .zx_tr_history_head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+    .zx_tr_history_head strong{color:#071330;font-size:15px;font-weight:950;line-height:1.2}
+    .zx_tr_history_head time{color:#64748b;font-size:11px;font-weight:850;white-space:nowrap}
+    .zx_tr_history_content p{margin:7px 0 8px;color:#334155;font-size:14px;font-weight:800;line-height:1.4;word-break:break-word}
+    .zx_tr_history_user{display:flex;align-items:center;gap:5px;color:#64748b;font-size:12px;font-weight:900}
+    .zx_tr_history_item.archivo{border-left-color:#2563eb}.zx_tr_history_item.archivo .zx_tr_history_icon{background:#dbeafe}
+    .zx_tr_history_item.material{border-left-color:#7c3aed}.zx_tr_history_item.material .zx_tr_history_icon{background:#ede9fe}
+    .zx_tr_history_item.estado{border-left-color:#f97316}.zx_tr_history_item.estado .zx_tr_history_icon{background:#ffedd5}
+    .zx_tr_history_item.planificacion{border-left-color:#0891b2}.zx_tr_history_item.planificacion .zx_tr_history_icon{background:#cffafe}
+    .zx_tr_history_item.nota{border-left-color:#ca8a04}.zx_tr_history_item.nota .zx_tr_history_icon{background:#fef9c3}
+    .zx_tr_history_item.inicio{border-left-color:#16a34a}.zx_tr_history_item.inicio .zx_tr_history_icon{background:#dcfce7}
+    .zx_tr_history_item.fin{border-left-color:#15803d}.zx_tr_history_item.fin .zx_tr_history_icon{background:#dcfce7}
+    .zx_tr_history_item.equipo{border-left-color:#4f46e5}.zx_tr_history_item.equipo .zx_tr_history_icon{background:#e0e7ff}
+    .zx_tr_history_item.eliminar{border-left-color:#dc2626}.zx_tr_history_item.eliminar .zx_tr_history_icon{background:#fee2e2}
+    .zx_tr_history_item.edicion{border-left-color:#0f766e}.zx_tr_history_item.edicion .zx_tr_history_icon{background:#ccfbf1}
     .zx_tr_line{background:white;border:1px solid #e6edf5;border-radius:14px;padding:10px;margin-top:8px;color:#071330;font-size:14px;font-weight:850}
     .zx_tr_file{display:block;background:white;border:1px solid #e6edf5;border-radius:14px;padding:11px;margin-top:8px;color:#2563eb;font-size:14px;font-weight:950;text-decoration:none}
     .zx_tr_notice{background:#f8fafc;border:1px solid #dbe3ef;border-left:7px solid #64748b;border-radius:18px;padding:14px;color:#334155;font-size:15px;font-weight:900;line-height:1.35}
