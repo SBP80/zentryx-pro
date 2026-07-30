@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3161 - ACCIONES RÁPIDAS PROFESIONALES + RECARGA FORZADA
+// V3162 - GESTIÓN COMPLETA DE ARCHIVOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3161";
+const ZX_VERSION="3162";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1629,13 +1629,49 @@ function renderBloque(titulo,lineas){
   `;
 }
 
+function tipoArchivoVisible(a){
+  const tipo=String(a.tipo || a.mime_type || "").trim();
+  if(tipo) return tipo.split("/").pop().toUpperCase();
+  const url=String(a.url || a.archivo_url || "").split("?")[0];
+  const ext=(url.split(".").pop() || "").toUpperCase();
+  return ext && ext.length<=6 ? ext : "ARCHIVO";
+}
+
+function fechaArchivoVisible(a){
+  const raw=a.created_at || a.fecha || a.fecha_subida || "";
+  if(!raw) return "";
+  const d=new Date(raw);
+  if(Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"});
+}
+
+function iconoArchivo(a){
+  const tipo=String(a.tipo || a.mime_type || "").toLowerCase();
+  const url=String(a.url || a.archivo_url || "").toLowerCase();
+  if(tipo.startsWith("image/") || /\.(jpg|jpeg|png|webp|gif|heic)(\?|$)/.test(url)) return "🖼️";
+  if(tipo.includes("pdf") || /\.pdf(\?|$)/.test(url)) return "📕";
+  if(tipo.includes("word") || /\.(doc|docx)(\?|$)/.test(url)) return "📘";
+  return "📎";
+}
+
 function renderArchivos(lista){
   return `
     <div class="zx_tr_block">
       <h3>Archivos</h3>
       ${
         lista.length
-        ? lista.map(a=>`<a class="zx_tr_file" href="${limpiar(a.url || a.archivo_url || "")}" target="_blank">${limpiar(a.nombre || a.filename || "Archivo")}</a>`).join("")
+        ? `<div class="zx_tr_files_list">${lista.map(a=>{
+            const nombre=a.nombre || a.filename || "Archivo";
+            const fecha=fechaArchivoVisible(a);
+            return `<button type="button" class="zx_tr_file zx_tr_file_manage" onclick="ZX_tr_file_menu('${limpiar(a.id)}','${limpiar(a.trabajo_id || "")}')">
+              <span class="zx_tr_file_icon">${iconoArchivo(a)}</span>
+              <span class="zx_tr_file_text">
+                <strong>${limpiar(nombre)}</strong>
+                <small>${limpiar(tipoArchivoVisible(a))}${fecha ? " · "+limpiar(fecha) : ""}</small>
+              </span>
+              <span class="zx_tr_file_more">⋯</span>
+            </button>`;
+          }).join("")}</div>`
         : `<div class="zx_tr_empty mini">Sin archivos.</div>`
       }
     </div>
@@ -1838,6 +1874,129 @@ async function abrirMaterial(id,material){
   };
 }
 
+function rutaStorageDesdeUrl(url){
+  const texto=String(url || "");
+  const marcas=[
+    "/storage/v1/object/public/zentryx-trabajos/",
+    "/storage/v1/object/sign/zentryx-trabajos/",
+    "/storage/v1/object/authenticated/zentryx-trabajos/"
+  ];
+  for(const marca of marcas){
+    const pos=texto.indexOf(marca);
+    if(pos>=0){
+      const ruta=texto.slice(pos+marca.length).split("?")[0];
+      try{return decodeURIComponent(ruta)}catch(e){return ruta}
+    }
+  }
+  return "";
+}
+
+async function cargarArchivoPorId(archivoId){
+  if(!archivoId || !sb()) return null;
+  try{
+    const r=await sb().from("trabajos_archivos").select("*").eq("id",String(archivoId)).maybeSingle();
+    return r && !r.error ? r.data : null;
+  }catch(e){return null}
+}
+
+async function renombrarArchivo(archivo){
+  const nombreActual=archivo.nombre || archivo.filename || "Archivo";
+  modal(`
+    <h2>Renombrar archivo</h2>
+    <label class="zx_tr_label">Nombre visible</label>
+    <input id="tr_file_rename" value="${limpiar(nombreActual)}" maxlength="120">
+    <button class="zx_btn_big zx_verde" id="tr_file_rename_save">Guardar nombre</button>
+    <button class="zx_btn_big zx_gris" id="tr_file_rename_cancel">Cancelar</button>
+  `);
+  document.getElementById("tr_file_rename_cancel").onclick=()=>abrirMenuArchivo(archivo.id,archivo.trabajo_id);
+  const input=document.getElementById("tr_file_rename");
+  input.focus();
+  input.select();
+  document.getElementById("tr_file_rename_save").onclick=async function(){
+    const nuevo=String(input.value || "").trim();
+    if(!nuevo){alert("Escribe un nombre para el archivo.");return}
+    if(nuevo===nombreActual){abrirMenuArchivo(archivo.id,archivo.trabajo_id);return}
+    this.disabled=true;
+    this.textContent="Guardando...";
+    try{
+      const r=await sb().from("trabajos_archivos").update({nombre:nuevo}).eq("id",String(archivo.id));
+      if(r.error) throw r.error;
+      await registrarHistorial(archivo.trabajo_id,"archivo",`Archivo renombrado: ${nombreActual} → ${nuevo}`,{archivo_id:archivo.id,nombre_anterior:nombreActual,nombre_nuevo:nuevo});
+      cerrarModal();
+      await abrirFicha(archivo.trabajo_id);
+    }catch(e){
+      alert("No se pudo renombrar el archivo."+(mensajeError(e) ? "\n\n"+mensajeError(e) : ""));
+      this.disabled=false;
+      this.textContent="Guardar nombre";
+    }
+  };
+}
+
+async function eliminarArchivoGestion(archivo){
+  const nombre=archivo.nombre || archivo.filename || "Archivo";
+  if(!confirm(`¿Eliminar definitivamente “${nombre}”?`)) return;
+  if(!navigator.onLine || !sb()){alert("Necesitas conexión para eliminar archivos.");return}
+  try{
+    const r=await sb().from("trabajos_archivos").delete().eq("id",String(archivo.id));
+    if(r.error) throw r.error;
+    const ruta=rutaStorageDesdeUrl(archivo.url || archivo.archivo_url || "");
+    if(ruta){
+      try{await sb().storage.from("zentryx-trabajos").remove([ruta])}catch(e){}
+    }
+    await registrarHistorial(archivo.trabajo_id,"archivo","Archivo eliminado: "+nombre,{archivo_id:archivo.id,ruta:ruta});
+    cerrarModal();
+    await abrirFicha(archivo.trabajo_id);
+  }catch(e){
+    alert("No se pudo eliminar el archivo."+(mensajeError(e) ? "\n\n"+mensajeError(e) : ""));
+  }
+}
+
+async function compartirArchivo(archivo){
+  const url=archivo.url || archivo.archivo_url || "";
+  const nombre=archivo.nombre || archivo.filename || "Archivo";
+  if(!url){alert("Este archivo no tiene una dirección válida.");return}
+  try{
+    if(navigator.share){
+      await navigator.share({title:nombre,text:nombre,url:url});
+      return;
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(url);
+      alert("Enlace copiado.");
+      return;
+    }
+    window.open(url,"_blank","noopener");
+  }catch(e){
+    if(e && e.name==="AbortError") return;
+    window.open(url,"_blank","noopener");
+  }
+}
+
+async function abrirMenuArchivo(archivoId,trabajoId){
+  const archivo=await cargarArchivoPorId(archivoId);
+  if(!archivo){alert("No se pudo cargar el archivo.");return}
+  archivo.trabajo_id=archivo.trabajo_id || trabajoId;
+  const nombre=archivo.nombre || archivo.filename || "Archivo";
+  const url=archivo.url || archivo.archivo_url || "";
+  modal(`
+    <h2>${limpiar(nombre)}</h2>
+    <div class="zx_tr_file_info">${limpiar(tipoArchivoVisible(archivo))}${fechaArchivoVisible(archivo) ? " · "+limpiar(fechaArchivoVisible(archivo)) : ""}</div>
+    <button class="zx_btn_big zx_azul" id="tr_file_view">👁 Ver archivo</button>
+    <button class="zx_btn_big zx_blanco" id="tr_file_rename_btn">✏️ Renombrar</button>
+    <button class="zx_btn_big zx_blanco" id="tr_file_share">📤 Compartir</button>
+    <button class="zx_btn_big zx_rojo" id="tr_file_delete">🗑️ Eliminar</button>
+    <button class="zx_btn_big zx_gris" id="tr_file_close">Cerrar</button>
+  `);
+  document.getElementById("tr_file_close").onclick=cerrarModal;
+  document.getElementById("tr_file_view").onclick=()=>{
+    if(url) window.open(url,"_blank","noopener");
+    else alert("Este archivo no tiene una dirección válida.");
+  };
+  document.getElementById("tr_file_rename_btn").onclick=()=>renombrarArchivo(archivo);
+  document.getElementById("tr_file_share").onclick=()=>compartirArchivo(archivo);
+  document.getElementById("tr_file_delete").onclick=()=>eliminarArchivoGestion(archivo);
+}
+
 async function insertarArchivoCompatible(datos){
   const variantes=[
     {trabajo_id:datos.trabajo_id,nombre:datos.nombre,archivo_url:datos.url,tipo:datos.tipo},
@@ -1932,6 +2091,7 @@ window.ZX_tr_estado=function(id){abrirCambioEstado(id)};
 window.ZX_tr_mapa=function(dir){abrirMapa(dir)};
 window.ZX_tr_material=function(id){abrirListaMateriales(id)};
 window.ZX_tr_archivo=function(id){abrirArchivo(id)};
+window.ZX_tr_file_menu=function(archivoId,trabajoId){abrirMenuArchivo(archivoId,trabajoId)};
 window.ZX_tr_gestionar=function(id){gestionarTrabajo(id)};
 window.ZX_tr_nota=function(id){registrarNotaRapida(id)};
 
@@ -1942,6 +2102,16 @@ function instalarCSS(){
   const s=document.createElement("style");
   s.id="zx_trabajos_css_v3114";
   s.innerHTML=`
+
+    .zx_tr_files_list{display:grid;gap:10px}
+    .zx_tr_file_manage{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border:1px solid #dbe5f0;background:#fff;border-radius:16px;padding:13px 14px;color:#0b1b3a;box-shadow:0 2px 7px rgba(15,23,42,.04);font:inherit}
+    .zx_tr_file_manage:active{transform:scale(.99);background:#f3f8ff}
+    .zx_tr_file_icon{font-size:28px;line-height:1;flex:0 0 34px;text-align:center}
+    .zx_tr_file_text{display:flex;flex-direction:column;min-width:0;flex:1;gap:3px}
+    .zx_tr_file_text strong{font-size:17px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .zx_tr_file_text small{font-size:12px;color:#64748b;font-weight:800;letter-spacing:.02em}
+    .zx_tr_file_more{font-size:24px;color:#64748b;line-height:1}
+    .zx_tr_file_info{padding:12px 14px;margin:-4px 0 14px;border-radius:14px;background:#f3f7fb;color:#64748b;font-weight:800;text-align:center}
     .zx_tr_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_tr_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
     .zx_tr_header{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
