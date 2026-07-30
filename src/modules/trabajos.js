@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3158 - GESTIÓN COMPLETA DE MATERIALES DESDE LA FICHA
+// V3159 - ARCHIVOS CORREGIDOS Y ACCIONES PROFESIONALES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3158";
+const ZX_VERSION="3159";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1465,11 +1465,11 @@ async function abrirFicha(id){
       <details class="zx_tr_more">
         <summary>Más opciones</summary>
         <div class="zx_tr_more_grid">
-          ${puedeGestionar() ? `<button class="blue" onclick="ZX_tr_editar('${limpiar(id)}')">✏️ Editar</button>` : ""}
-          ${puedeGestionar() ? `<button class="orange" onclick="ZX_tr_estado('${limpiar(id)}')">🔄 Estado</button>` : ""}
-          ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_material('${limpiar(id)}')">📦 Material</button>` : ""}
-          ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_archivo('${limpiar(id)}')">📎 Archivo</button>` : ""}
-          ${puedeBorrar() ? `<button class="red" onclick="ZX_tr_gestionar('${limpiar(id)}')">⚙️ Gestionar</button>` : ""}
+          ${puedeGestionar() ? `<button class="blue" onclick="ZX_tr_editar('${limpiar(id)}')"><span class="zx_tr_action_icon">✏️</span><span>Editar trabajo</span></button>` : ""}
+          ${puedeGestionar() ? `<button class="orange" onclick="ZX_tr_estado('${limpiar(id)}')"><span class="zx_tr_action_icon">🔄</span><span>Cambiar estado</span></button>` : ""}
+          ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_material('${limpiar(id)}')"><span class="zx_tr_action_icon">📦</span><span>Materiales</span></button>` : ""}
+          ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_archivo('${limpiar(id)}')"><span class="zx_tr_action_icon">📎</span><span>Archivos</span></button>` : ""}
+          ${puedeBorrar() ? `<button class="red" onclick="ZX_tr_gestionar('${limpiar(id)}')"><span class="zx_tr_action_icon">⚙️</span><span>Gestionar</span></button>` : ""}
         </div>
       </details>
 
@@ -1838,54 +1838,92 @@ async function abrirMaterial(id,material){
   };
 }
 
+async function insertarArchivoCompatible(datos){
+  const variantes=[
+    {trabajo_id:datos.trabajo_id,nombre:datos.nombre,archivo_url:datos.url,tipo:datos.tipo},
+    {trabajo_id:datos.trabajo_id,nombre:datos.nombre,url:datos.url,tipo:datos.tipo},
+    {trabajo_id:datos.trabajo_id,nombre:datos.nombre,archivo_url:datos.url},
+    {trabajo_id:datos.trabajo_id,nombre:datos.nombre,url:datos.url}
+  ];
+
+  let ultimoError=null;
+  for(const payload of variantes){
+    try{
+      const r=await sb().from("trabajos_archivos").insert([payload]).select("*").single();
+      if(!r.error) return r;
+      ultimoError=r.error;
+    }catch(e){
+      ultimoError=e;
+    }
+  }
+  return {data:null,error:ultimoError || new Error("No se pudo registrar el archivo.")};
+}
+
 async function abrirArchivo(id){
   modal(`
-    <h2>Archivo</h2>
-    <label class="zx_tr_label">Archivo</label>
+    <h2>Subir archivo</h2>
+    <label class="zx_tr_label">Foto, PDF o documento</label>
     <input id="tr_file" type="file" accept="image/*,.pdf,.doc,.docx">
-    <label class="zx_tr_label">Nombre</label>
-    <input id="tr_file_nombre" placeholder="Nombre del archivo">
+    <label class="zx_tr_label">Nombre visible</label>
+    <input id="tr_file_nombre" placeholder="Ej.: Foto de la instalación">
     <button class="zx_btn_big zx_verde" id="tr_file_guardar">Subir archivo</button>
     <button class="zx_btn_big zx_gris" id="tr_file_cancelar">Cancelar</button>
   `);
 
   document.getElementById("tr_file_cancelar").onclick=cerrarModal;
+  const input=document.getElementById("tr_file");
+  input.onchange=function(){
+    const file=(input.files || [])[0];
+    const nombre=document.getElementById("tr_file_nombre");
+    if(file && nombre && !nombre.value.trim()) nombre.value=file.name.replace(/\.[^.]+$/,'');
+  };
 
   document.getElementById("tr_file_guardar").onclick=async function(){
+    const boton=this;
     const file=(document.getElementById("tr_file").files || [])[0];
-    if(!file){alert("Selecciona un archivo.");return}
+    if(!file){alert("Selecciona una foto o un archivo.");return}
 
     if(!navigator.onLine || !sb()){
       alert("Para subir archivos necesitas conexión.");
       return;
     }
 
-    const nombre=valor("tr_file_nombre") || file.name;
+    const nombre=(valor("tr_file_nombre") || file.name.replace(/\.[^.]+$/,'')).trim();
     const ext=(file.name.split(".").pop() || "dat").toLowerCase();
-    const path="trabajos/"+String(id)+"_"+Date.now()+"."+ext;
+    const path="trabajos/"+String(id)+"/"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"."+ext;
 
-    const up=await sb().storage.from("zentryx-trabajos").upload(path,file,{upsert:true});
+    boton.disabled=true;
+    boton.textContent="Subiendo...";
 
-    if(up.error){
-      alert("Error subiendo archivo: "+up.error.message);
-      return;
+    try{
+      const up=await sb().storage.from("zentryx-trabajos").upload(path,file,{upsert:false,contentType:file.type || undefined});
+      if(up.error) throw up.error;
+
+      const publicData=sb().storage.from("zentryx-trabajos").getPublicUrl(path);
+      const url=publicData && publicData.data ? publicData.data.publicUrl : "";
+      if(!url) throw new Error("No se pudo obtener la dirección del archivo.");
+
+      const guardado=await insertarArchivoCompatible({
+        trabajo_id:String(id),
+        nombre:nombre,
+        url:url,
+        tipo:file.type || ""
+      });
+
+      if(guardado.error){
+        try{await sb().storage.from("zentryx-trabajos").remove([path])}catch(e){}
+        throw guardado.error;
+      }
+
+      await registrarHistorial(id,"archivo","Archivo añadido: "+nombre,{url:url,path:path});
+      cerrarModal();
+      await abrirFicha(id);
+    }catch(e){
+      const detalle=e && e.message ? e.message : String(e || "Error desconocido");
+      alert("No se pudo subir el archivo.\n\n"+detalle);
+      boton.disabled=false;
+      boton.textContent="Subir archivo";
     }
-
-    const url=sb().storage.from("zentryx-trabajos").getPublicUrl(path).data.publicUrl;
-
-    await sb().from("trabajos_archivos").insert([{
-      trabajo_id:String(id),
-      nombre:nombre,
-      url:url,
-      archivo_url:url,
-      tipo:file.type || "",
-      created_at:new Date().toISOString()
-    }]);
-
-    await registrarHistorial(id,"archivo","Archivo añadido: "+nombre,{url:url});
-
-    cerrarModal();
-    abrirFicha(id);
   };
 }
 
@@ -1969,7 +2007,10 @@ function instalarCSS(){
     .zx_tr_contact_line span{color:#071330;font-size:14px;font-weight:850;line-height:1.35}
     .zx_tr_description{background:#f8fafc;border-radius:14px;padding:12px;color:#475569;font-size:14px;font-weight:800;line-height:1.4}
     .zx_tr_quick_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-    .zx_tr_quick_actions button,.zx_tr_more_grid button{border:0;border-radius:15px;padding:13px 8px;color:white;font-size:14px;font-weight:950}
+    .zx_tr_quick_actions button{border:0;border-radius:15px;padding:13px 8px;color:white;font-size:14px;font-weight:950}
+    .zx_tr_more_grid button{min-height:58px;border:1px solid #d8e4f2;border-radius:16px;padding:10px 12px;background:#fff!important;color:#10213f!important;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:flex-start;gap:9px;text-align:left;line-height:1.15;box-shadow:0 2px 7px rgba(16,33,63,.05)}
+    .zx_tr_more_grid button:active{transform:scale(.98);background:#edf5ff!important}
+    .zx_tr_action_icon{font-size:21px;line-height:1;flex:0 0 auto}
     .zx_tr_whatsapp{background:#22c55e}
     .zx_tr_more{border:1px solid #dbe3ef;border-radius:18px;background:#f8fafc;overflow:hidden}
     .zx_tr_more summary{padding:14px;color:#334155;font-size:14px;font-weight:950;text-align:center;cursor:pointer}
