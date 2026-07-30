@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3167 - BIBLIOTECAS INTELIGENTES Y SUGERENCIAS
+// V3168 - FICHA RESPONSIVE MÓVIL SIN DESPLAZAMIENTO LATERAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3167";
+const ZX_VERSION="3168";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2544,6 +2544,55 @@ function instalarCSS(){
     .zx_tr_notice.danger{border-left-color:#dc2626;background:#fef2f2;color:#991b1b}
 
     .zx_tr_autocomplete_wrap{position:relative}.zx_tr_autocomplete_list{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:30;max-height:280px;overflow:auto;background:#fff;border:1px solid #b9d2f3;border-radius:16px;padding:6px;box-shadow:0 14px 30px rgba(15,35,72,.18)}.zx_tr_autocomplete_list button{display:grid;width:100%;gap:3px;text-align:left;border:0;border-bottom:1px solid #eef2f7;background:#fff;padding:11px;border-radius:11px}.zx_tr_autocomplete_list button:active{background:#eff6ff}.zx_tr_autocomplete_list strong{color:#071330;font-size:15px}.zx_tr_autocomplete_list small{color:#64748b;font-size:12px;font-weight:800}.zx_tr_material_extra{margin-top:12px;border:1px solid #dbe3ef;border-radius:16px;padding:10px 12px;background:#fff}.zx_tr_material_extra summary{color:#334155;font-weight:950;cursor:pointer}.zx_tr_smart_block{border-color:#c4b5fd;background:#faf5ff}.zx_tr_smart_help{color:#64748b;font-size:13px;font-weight:800;line-height:1.4}.zx_tr_smart_list{display:grid;gap:8px;margin:12px 0}.zx_tr_smart_item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;background:#fff;border:1px solid #ddd6fe;border-radius:14px;padding:11px}.zx_tr_smart_item input{width:22px!important;height:22px;accent-color:#7c3aed}.zx_tr_smart_item span{display:grid;gap:3px;min-width:0}.zx_tr_smart_item strong{color:#071330;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_tr_smart_item small{color:#64748b;font-size:11px;font-weight:800}.zx_tr_notes_block{background:#fffbeb;border-color:#fde68a}.zx_tr_note_visible{background:#fff;border:1px solid #fde68a;border-radius:14px;padding:11px;margin-top:9px}.zx_tr_note_visible p{margin:0;color:#334155;font-size:14px;font-weight:800;line-height:1.4;white-space:pre-wrap}.zx_tr_note_visible small{display:block;margin-top:7px;color:#92400e;font-size:11px;font-weight:850}
+    /* Ficha responsive: evita cualquier desbordamiento horizontal en móvil */
+    #zx_modal_trabajo,
+    #zx_modal_trabajo *{box-sizing:border-box;min-width:0}
+    #zx_modal_trabajo{overflow-x:hidden;padding:max(8px,env(safe-area-inset-left)) max(8px,env(safe-area-inset-right))}
+    #zx_modal_trabajo .zx_modal_caja{width:min(100%,620px);max-width:620px;overflow-x:hidden;overscroll-behavior-x:none}
+    #zx_modal_trabajo .zx_tr_operativo,
+    #zx_modal_trabajo .zx_tr_status_card,
+    #zx_modal_trabajo .zx_tr_contact_card,
+    #zx_modal_trabajo .zx_tr_block,
+    #zx_modal_trabajo .zx_tr_more,
+    #zx_modal_trabajo .zx_tr_main_action{width:100%;max-width:100%}
+    #zx_modal_trabajo .zx_tr_contact_title,
+    #zx_modal_trabajo .zx_tr_contact_line span,
+    #zx_modal_trabajo .zx_tr_description,
+    #zx_modal_trabajo .zx_tr_line,
+    #zx_modal_trabajo .zx_tr_note_visible p{overflow-wrap:anywhere;word-break:break-word;white-space:normal}
+    #zx_modal_trabajo .zx_tr_status_grid>div,
+    #zx_modal_trabajo .zx_tr_status_grid>button{min-width:0}
+    #zx_modal_trabajo .zx_tr_status_grid b{min-width:0;max-width:100%}
+    #zx_modal_trabajo button{max-width:100%}
+
+    @media(max-width:520px){
+      #zx_modal_trabajo{align-items:stretch;padding:0}
+      #zx_modal_trabajo .zx_modal_caja{width:100%;max-width:none;max-height:100dvh;height:100dvh;border-radius:0;padding:calc(16px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));}
+      #zx_modal_trabajo .zx_modal_caja>h2{font-size:25px;line-height:1.12;overflow-wrap:anywhere}
+      #zx_modal_trabajo .zx_tr_status_top{flex-direction:column;align-items:stretch}
+      #zx_modal_trabajo .zx_tr_badges{margin-top:2px}
+      #zx_modal_trabajo .zx_tr_status_grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      #zx_modal_trabajo .zx_tr_status_grid>div,
+      #zx_modal_trabajo .zx_tr_status_grid>button{padding:9px 8px;column-gap:7px}
+      #zx_modal_trabajo .zx_tr_status_grid b{font-size:13px;white-space:normal;overflow-wrap:anywhere;line-height:1.15}
+      #zx_modal_trabajo .zx_tr_main_action{padding:16px 12px;font-size:18px;line-height:1.15;white-space:normal}
+      #zx_modal_trabajo .zx_tr_quick_actions,
+      #zx_modal_trabajo .zx_tr_more_grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      #zx_modal_trabajo .zx_tr_quick_actions .zx_tr_quick_btn,
+      #zx_modal_trabajo .zx_tr_more_grid button{padding:10px 9px;gap:7px;font-size:12.5px;white-space:normal;overflow-wrap:anywhere}
+      #zx_modal_trabajo .zx_tr_quick_icon{font-size:21px}
+      #zx_modal_trabajo .zx_tr_block_title{align-items:flex-start;flex-wrap:wrap}
+      #zx_modal_trabajo .zx_tr_history_head{flex-direction:column;gap:3px}
+      #zx_modal_trabajo .zx_tr_history_head time{white-space:normal}
+      #zx_modal_trabajo .zx_tr_smart_item strong{white-space:normal;overflow-wrap:anywhere}
+    }
+    @media(max-width:360px){
+      #zx_modal_trabajo .zx_modal_caja{padding-left:10px;padding-right:10px}
+      #zx_modal_trabajo .zx_tr_status_grid{grid-template-columns:1fr}
+      #zx_modal_trabajo .zx_tr_quick_actions,
+      #zx_modal_trabajo .zx_tr_more_grid{grid-template-columns:1fr}
+    }
+
     @media(max-width:390px){.zx_tr_panel{padding:15px;border-radius:22px}.zx_tr_header h2{font-size:27px}.zx_tr_actions,.zx_tr_ficha_actions{grid-template-columns:1fr}.zx_tr_kpis{grid-template-columns:1fr 1fr}.zx_tr_top h3{font-size:19px}}
     @media(min-width:700px){.zx_tr_shell{padding-bottom:32px}.zx_tr_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_tr_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_tr_panel{padding:22px}.zx_tr_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
