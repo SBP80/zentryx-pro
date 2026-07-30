@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3164 - BOTONES ARCHIVO CON ESTILO FORZADO
+// V3165 - MINIATURAS Y METADATOS DE ARCHIVOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3164";
+const ZX_VERSION="3165";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 
@@ -1645,6 +1645,37 @@ function fechaArchivoVisible(a){
   return d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"});
 }
 
+function horaArchivoVisible(a){
+  const raw=a.created_at || a.fecha || a.fecha_subida || "";
+  if(!raw) return "";
+  const d=new Date(raw);
+  if(Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",hour12:false});
+}
+
+function tamanoArchivoVisible(a){
+  const n=Number(a.tamano || a.tamaño || a.size || a.file_size || 0);
+  if(!Number.isFinite(n) || n<=0) return "";
+  if(n<1024) return n+" B";
+  if(n<1024*1024) return (n/1024).toFixed(n<10240?1:0).replace(".",",")+" KB";
+  if(n<1024*1024*1024) return (n/(1024*1024)).toFixed(1).replace(".",",")+" MB";
+  return (n/(1024*1024*1024)).toFixed(1).replace(".",",")+" GB";
+}
+
+function esImagenArchivo(a){
+  const tipo=String(a.tipo || a.mime_type || "").toLowerCase();
+  const url=String(a.url || a.archivo_url || "").toLowerCase();
+  return tipo.startsWith("image/") || /\.(jpg|jpeg|png|webp|gif|heic)(\?|$)/.test(url);
+}
+
+function miniaturaArchivo(a){
+  const url=String(a.url || a.archivo_url || "");
+  if(esImagenArchivo(a) && url){
+    return `<img class="zx_tr_file_thumb" src="${limpiar(url)}" alt="" loading="lazy">`;
+  }
+  return `<span class="zx_tr_file_icon">${iconoArchivo(a)}</span>`;
+}
+
 function iconoArchivo(a){
   const tipo=String(a.tipo || a.mime_type || "").toLowerCase();
   const url=String(a.url || a.archivo_url || "").toLowerCase();
@@ -1663,11 +1694,16 @@ function renderArchivos(lista){
         ? `<div class="zx_tr_files_list">${lista.map(a=>{
             const nombre=a.nombre || a.filename || "Archivo";
             const fecha=fechaArchivoVisible(a);
+            const hora=horaArchivoVisible(a);
+            const tamano=tamanoArchivoVisible(a);
+            const meta1=[tipoArchivoVisible(a),tamano].filter(Boolean).join(" · ");
+            const meta2=[fecha,hora].filter(Boolean).join(" · ");
             return `<button type="button" class="zx_tr_file zx_tr_file_manage" onclick="ZX_tr_file_menu('${limpiar(a.id)}','${limpiar(a.trabajo_id || "")}')">
-              <span class="zx_tr_file_icon">${iconoArchivo(a)}</span>
+              ${miniaturaArchivo(a)}
               <span class="zx_tr_file_text">
                 <strong>${limpiar(nombre)}</strong>
-                <small>${limpiar(tipoArchivoVisible(a))}${fecha ? " · "+limpiar(fecha) : ""}</small>
+                <small>${limpiar(meta1)}</small>
+                ${meta2 ? `<small class="zx_tr_file_date">${limpiar(meta2)}</small>` : ""}
               </span>
               <span class="zx_tr_file_more">⋯</span>
             </button>`;
@@ -1978,9 +2014,15 @@ async function abrirMenuArchivo(archivoId,trabajoId){
   archivo.trabajo_id=archivo.trabajo_id || trabajoId;
   const nombre=archivo.nombre || archivo.filename || "Archivo";
   const url=archivo.url || archivo.archivo_url || "";
+  const fecha=fechaArchivoVisible(archivo);
+  const hora=horaArchivoVisible(archivo);
+  const tamano=tamanoArchivoVisible(archivo);
+  const metaPrincipal=[tipoArchivoVisible(archivo),tamano].filter(Boolean).join(" · ");
+  const metaFecha=[fecha,hora].filter(Boolean).join(" · ");
   modal(`
     <h2>${limpiar(nombre)}</h2>
-    <div class="zx_tr_file_info">${limpiar(tipoArchivoVisible(archivo))}${fechaArchivoVisible(archivo) ? " · "+limpiar(fechaArchivoVisible(archivo)) : ""}</div>
+    ${esImagenArchivo(archivo) && url ? `<img class="zx_tr_file_preview" src="${limpiar(url)}" alt="Vista previa de ${limpiar(nombre)}">` : ""}
+    <div class="zx_tr_file_info"><strong>${limpiar(metaPrincipal)}</strong>${metaFecha ? `<span>${limpiar(metaFecha)}</span>` : ""}</div>
     <button class="zx_btn_big zx_azul" id="tr_file_view">👁 Ver archivo</button>
     <button class="zx_btn_big" id="tr_file_rename_btn" style="background:#ffffff!important;color:#0f2348!important;-webkit-text-fill-color:#0f2348!important;border:2px solid #b9d2f3!important;box-shadow:0 2px 8px rgba(15,35,72,.08)!important;opacity:1!important;">✏️ Renombrar</button>
     <button class="zx_btn_big" id="tr_file_share" style="background:#ffffff!important;color:#0f2348!important;-webkit-text-fill-color:#0f2348!important;border:2px solid #b9d2f3!important;box-shadow:0 2px 8px rgba(15,35,72,.08)!important;opacity:1!important;">📤 Compartir</button>
@@ -1999,6 +2041,8 @@ async function abrirMenuArchivo(archivoId,trabajoId){
 
 async function insertarArchivoCompatible(datos){
   const variantes=[
+    {trabajo_id:datos.trabajo_id,nombre:datos.nombre,archivo_url:datos.url,tipo:datos.tipo,tamano:datos.tamano},
+    {trabajo_id:datos.trabajo_id,nombre:datos.nombre,url:datos.url,tipo:datos.tipo,tamano:datos.tamano},
     {trabajo_id:datos.trabajo_id,nombre:datos.nombre,archivo_url:datos.url,tipo:datos.tipo},
     {trabajo_id:datos.trabajo_id,nombre:datos.nombre,url:datos.url,tipo:datos.tipo},
     {trabajo_id:datos.trabajo_id,nombre:datos.nombre,archivo_url:datos.url},
@@ -2066,7 +2110,8 @@ async function abrirArchivo(id){
         trabajo_id:String(id),
         nombre:nombre,
         url:url,
-        tipo:file.type || ""
+        tipo:file.type || "",
+        tamano:file.size || 0
       });
 
       if(guardado.error){
@@ -2106,12 +2151,17 @@ function instalarCSS(){
     .zx_tr_files_list{display:grid;gap:10px}
     .zx_tr_file_manage{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border:1px solid #dbe5f0;background:#fff;border-radius:16px;padding:13px 14px;color:#0b1b3a;box-shadow:0 2px 7px rgba(15,23,42,.04);font:inherit}
     .zx_tr_file_manage:active{transform:scale(.99);background:#f3f8ff}
-    .zx_tr_file_icon{font-size:28px;line-height:1;flex:0 0 34px;text-align:center}
+    .zx_tr_file_icon{font-size:28px;line-height:1;flex:0 0 58px;text-align:center}
+    .zx_tr_file_thumb{width:58px;height:58px;flex:0 0 58px;object-fit:cover;border-radius:12px;background:#eef3f8;border:1px solid #d9e3ee}
     .zx_tr_file_text{display:flex;flex-direction:column;min-width:0;flex:1;gap:3px}
     .zx_tr_file_text strong{font-size:17px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .zx_tr_file_text small{font-size:12px;color:#64748b;font-weight:800;letter-spacing:.02em}
+    .zx_tr_file_text .zx_tr_file_date{color:#8290a5;font-weight:750}
     .zx_tr_file_more{font-size:24px;color:#64748b;line-height:1}
-    .zx_tr_file_info{padding:12px 14px;margin:-4px 0 14px;border-radius:14px;background:#f3f7fb;color:#64748b;font-weight:800;text-align:center}
+    .zx_tr_file_preview{display:block;width:100%;max-height:210px;object-fit:cover;border-radius:16px;margin:-2px 0 12px;background:#eef3f8;border:1px solid #d9e3ee}
+    .zx_tr_file_info{display:flex;flex-direction:column;gap:4px;padding:12px 14px;margin:-4px 0 14px;border-radius:14px;background:#f3f7fb;color:#64748b;font-weight:800;text-align:center}
+    .zx_tr_file_info strong{color:#52637a}
+    .zx_tr_file_info span{font-size:13px}
     .zx_btn_big.zx_archivo_secundario{background:#fff!important;color:#0f2348!important;border:2px solid #b9d2f3!important;box-shadow:0 2px 8px rgba(15,35,72,.08)!important;opacity:1!important;-webkit-text-fill-color:#0f2348!important}
     .zx_btn_big.zx_archivo_secundario:active{background:#eef6ff!important;transform:scale(.99)}
     #tr_file_rename_btn,#tr_file_share{background:#fff!important;color:#0f2348!important;-webkit-text-fill-color:#0f2348!important;border:2px solid #b9d2f3!important;opacity:1!important}
