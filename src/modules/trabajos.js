@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3168 - FICHA RESPONSIVE MÓVIL SIN DESPLAZAMIENTO LATERAL
+// V3169 - ESTADOS VISUALES DESTACADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3168";
+const ZX_VERSION="3169";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -671,7 +671,7 @@ function renderTrabajo(t){
   const prio=t.prioridad || "media";
 
   return `
-    <article class="zx_tr_card" data-id="${limpiar(t.id)}">
+    <article class="zx_tr_card zx_tr_estado_${claseEstado(estado)}" data-id="${limpiar(t.id)}">
       <div class="zx_tr_top">
         <div class="zx_tr_icon">🛠️</div>
         <div>
@@ -1540,7 +1540,7 @@ async function abrirFicha(id){
 
   box.innerHTML=`
     <div class="zx_tr_operativo">
-      <section class="zx_tr_status_card">
+      <section class="zx_tr_status_card zx_tr_estado_${claseEstado(t.estado)}">
         <div class="zx_tr_status_top">
           <div>
             <span class="zx_tr_status_label">Estado actual</span>
@@ -2410,6 +2410,34 @@ function instalarCSS(){
     .zx_btn_big.zx_archivo_secundario:active{background:#eef6ff!important;transform:scale(.99)}
     #tr_file_rename_btn,#tr_file_share{background:#fff!important;color:#0f2348!important;-webkit-text-fill-color:#0f2348!important;border:2px solid #b9d2f3!important;opacity:1!important}
     #tr_file_rename_btn:active,#tr_file_share:active{background:#eef6ff!important}
+
+    .zx_tr_card{position:relative;transition:background .18s ease,border-color .18s ease,box-shadow .18s ease}
+    .zx_tr_card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;border-radius:24px 0 0 24px;background:#f59e0b}
+    .zx_tr_card.zx_tr_estado_pendiente{background:#fffbeb;border-color:#f6c453;box-shadow:0 10px 24px rgba(245,158,11,.12)}
+    .zx_tr_card.zx_tr_estado_pendiente::before{background:#f59e0b}
+    .zx_tr_card.zx_tr_estado_curso{background:#eff6ff;border-color:#60a5fa;box-shadow:0 10px 24px rgba(37,99,235,.14)}
+    .zx_tr_card.zx_tr_estado_curso::before{background:#2563eb}
+    .zx_tr_card.zx_tr_estado_ok{background:#ecfdf5;border-color:#4ade80;box-shadow:0 10px 24px rgba(22,163,74,.14)}
+    .zx_tr_card.zx_tr_estado_ok::before{background:#16a34a}
+    .zx_tr_card.zx_tr_estado_rojo{background:#fef2f2;border-color:#f87171;box-shadow:0 10px 24px rgba(220,38,38,.13)}
+    .zx_tr_card.zx_tr_estado_rojo::before{background:#dc2626}
+    .zx_tr_status_card{position:relative;overflow:hidden;border-width:2px!important}
+    .zx_tr_status_card::before{content:"";position:absolute;left:0;right:0;top:0;height:9px;background:#f59e0b}
+    .zx_tr_status_card.zx_tr_estado_pendiente{background:#fffbeb;border-color:#f6c453}
+    .zx_tr_status_card.zx_tr_estado_pendiente::before{background:#f59e0b}
+    .zx_tr_status_card.zx_tr_estado_curso{background:#eff6ff;border-color:#60a5fa}
+    .zx_tr_status_card.zx_tr_estado_curso::before{background:#2563eb}
+    .zx_tr_status_card.zx_tr_estado_ok{background:#ecfdf5;border-color:#4ade80}
+    .zx_tr_status_card.zx_tr_estado_ok::before{background:#16a34a}
+    .zx_tr_status_card.zx_tr_estado_rojo{background:#fef2f2;border-color:#f87171}
+    .zx_tr_status_card.zx_tr_estado_rojo::before{background:#dc2626}
+    .zx_tr_status_card .zx_tr_status_top{padding-top:8px}
+    .zx_tr_status_card.zx_tr_estado_pendiente .zx_tr_status_top strong{color:#92400e}
+    .zx_tr_status_card.zx_tr_estado_curso .zx_tr_status_top strong{color:#1d4ed8}
+    .zx_tr_status_card.zx_tr_estado_ok .zx_tr_status_top strong{color:#166534}
+    .zx_tr_status_card.zx_tr_estado_rojo .zx_tr_status_top strong{color:#991b1b}
+    .zx_tr_status_card .zx_tr_badges .estado{font-size:14px;padding:9px 14px;border:2px solid currentColor}
+
     .zx_tr_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_tr_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
     .zx_tr_header{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
