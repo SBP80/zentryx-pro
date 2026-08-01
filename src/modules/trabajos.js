@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3170 - FILTROS DE ESTADO CORREGIDOS
+// V3171 - FILTROS, BUSCADOR AVANZADO Y ACCESO MONITOR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3170";
+const ZX_VERSION="3171";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -13,7 +13,9 @@ const SUGGESTION_MIN_SCORE=2;
 
 let ZX_TR_CACHE=[];
 let ZX_TR_BUSQUEDA="";
-let ZX_TR_FILTRO="activos";
+let ZX_TR_FILTRO="todos";
+let ZX_TR_FECHA_DESDE="";
+let ZX_TR_FECHA_HASTA="";
 let ZX_TR_CARGANDO=false;
 
 function app(){return document.getElementById("app")}
@@ -127,21 +129,6 @@ function clasePrioridad(p){
   if(p==="alta") return "alta";
   if(p==="baja") return "baja";
   return "media";
-}
-
-function estadoCanonico(valor){
-  const e=normalizar(valor || "pendiente").replace(/[\s-]+/g,"_");
-
-  if(["en_curso","curso","iniciado","trabajando"].includes(e)) return "en_curso";
-  if(["terminado","finalizado","completado","hecho"].includes(e)) return "terminado";
-  if(["cancelado","anulado"].includes(e)) return "cancelado";
-  if(["bloqueado","pausado"].includes(e)) return "bloqueado";
-  return "pendiente";
-}
-
-function estaArchivado(t){
-  const v=t && t.archivado;
-  return v===true || v===1 || normalizar(v)==="true" || normalizar(v)==="si" || normalizar(v)==="1";
 }
 
 function telefonoLimpio(tel){
@@ -536,41 +523,78 @@ function prepararTrabajo(t){
   return t;
 }
 
+
+function estadoCanonico(v){
+  const n=normalizar(v).replace(/\s+/g,"_");
+  if(["terminado","terminada","finalizado","finalizada","completado","completada"].includes(n)) return "terminado";
+  if(["en_curso","curso","iniciado","iniciada","trabajando"].includes(n)) return "en_curso";
+  if(["cancelado","cancelada","anulado","anulada"].includes(n)) return "cancelado";
+  if(["bloqueado","bloqueada"].includes(n)) return "bloqueado";
+  return "pendiente";
+}
+
+function estaArchivado(t){
+  return t && (t.archivado===true || String(t.archivado).toLowerCase()==="true");
+}
+
+function fechaTrabajoISO(t){
+  const f=String((t && (t.fecha || t.fecha_inicio || t.created_at)) || "").slice(0,10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : "";
+}
+
+function coincideFiltro(t,filtro){
+  const est=estadoCanonico(t.estado);
+  const arch=estaArchivado(t);
+  if(filtro==="todos") return true;
+  if(filtro==="activos") return !arch && est!=="terminado" && est!=="cancelado";
+  if(filtro==="archivados") return arch;
+  if(filtro==="pendientes") return !arch && est==="pendiente";
+  if(filtro==="curso") return !arch && est==="en_curso";
+  if(filtro==="terminados") return !arch && est==="terminado";
+  if(filtro==="urgentes") return !arch && normalizar(t.prioridad)==="urgente";
+  return true;
+}
+
+function contarFiltros(){
+  const base=ZX_TR_CACHE || [];
+  return {
+    todos:base.length,
+    activos:base.filter(t=>coincideFiltro(t,"activos")).length,
+    pendientes:base.filter(t=>coincideFiltro(t,"pendientes")).length,
+    curso:base.filter(t=>coincideFiltro(t,"curso")).length,
+    terminados:base.filter(t=>coincideFiltro(t,"terminados")).length,
+    urgentes:base.filter(t=>coincideFiltro(t,"urgentes")).length,
+    archivados:base.filter(t=>coincideFiltro(t,"archivados")).length
+  };
+}
+
 function filtrarTrabajos(){
   let lista=[...(ZX_TR_CACHE || [])];
 
   const unico=idTrabajoUnico();
-
   if(unico){
     return lista.filter(t=>String(t.id)===String(unico));
   }
 
-  lista=lista.filter(function(t){
-    const archivado=estaArchivado(t);
-    const estado=estadoCanonico(t.estado);
+  lista=lista.filter(t=>coincideFiltro(t,ZX_TR_FILTRO));
 
-    switch(ZX_TR_FILTRO){
-      case "pendientes":
-        return !archivado && estado==="pendiente";
-      case "curso":
-        return !archivado && estado==="en_curso";
-      case "terminados":
-        return !archivado && estado==="terminado";
-      case "urgentes":
-        return !archivado && normalizar(t.prioridad)==="urgente";
-      case "archivados":
-        return archivado;
-      case "activos":
-      default:
-        return !archivado && !["terminado","cancelado"].includes(estado);
-    }
-  });
+  if(ZX_TR_FECHA_DESDE){
+    lista=lista.filter(t=>{
+      const f=fechaTrabajoISO(t);
+      return f && f>=ZX_TR_FECHA_DESDE;
+    });
+  }
+
+  if(ZX_TR_FECHA_HASTA){
+    lista=lista.filter(t=>{
+      const f=fechaTrabajoISO(t);
+      return f && f<=ZX_TR_FECHA_HASTA;
+    });
+  }
 
   const q=normalizar(ZX_TR_BUSQUEDA);
-
   if(q){
     const palabras=q.split(/\s+/).filter(Boolean);
-
     lista=lista.filter(function(t){
       const txt=t.__zx_busqueda || textoBusqueda(t);
       if(txt.includes(q)) return true;
@@ -644,7 +668,9 @@ function resumen(){
 }
 
 function toolbar(total){
+  const counts=contarFiltros();
   const filtros=[
+    ["todos","Todos"],
     ["activos","Activos"],
     ["pendientes","Pendientes"],
     ["curso","En curso"],
@@ -660,17 +686,28 @@ function toolbar(total){
       ` : ""}
 
       <div class="zx_tr_search">
-        <input id="zx_buscar_trabajos" type="search" value="${limpiar(ZX_TR_BUSQUEDA)}" placeholder="Buscar trabajo, cliente, dirección, técnico o estado">
+        <input id="zx_buscar_trabajos" type="search" value="${limpiar(ZX_TR_BUSQUEDA)}" placeholder="Buscar título, cliente, dirección, teléfono, técnico, estado o notas">
         ${ZX_TR_BUSQUEDA ? `<button id="zx_limpiar_trabajos" type="button">✕</button>` : ""}
+      </div>
+
+      <div class="zx_tr_date_filters">
+        <label>Desde<input id="zx_tr_fecha_desde" type="date" value="${limpiar(ZX_TR_FECHA_DESDE)}"></label>
+        <label>Hasta<input id="zx_tr_fecha_hasta" type="date" value="${limpiar(ZX_TR_FECHA_HASTA)}"></label>
+        <button type="button" id="zx_tr_hoy">Hoy</button>
+        <button type="button" id="zx_tr_semana">Esta semana</button>
+        <button type="button" id="zx_tr_limpiar_fechas">Limpiar fechas</button>
       </div>
 
       <div class="zx_tr_filters">
         ${filtros.map(function(f){
-          return `<button class="${ZX_TR_FILTRO===f[0] ? "on" : ""}" data-tr-filter="${limpiar(f[0])}">${limpiar(f[1])}</button>`;
+          return `<button class="${ZX_TR_FILTRO===f[0] ? "on" : ""}" data-tr-filter="${limpiar(f[0])}">${limpiar(f[1])} <b>${counts[f[0]]}</b></button>`;
         }).join("")}
       </div>
 
-      <div class="zx_tr_resume">${total} resultado(s)</div>
+      <div class="zx_tr_toolbar_bottom">
+        <div id="zx_tr_resume" class="zx_tr_resume">${total} resultado(s)</div>
+        ${!modoTrabajoUnico() ? `<button type="button" class="zx_tr_monitor_btn" id="zx_tr_monitor">🖥️ Monitor de oficina</button>` : ""}
+      </div>
     </div>
   `;
 }
@@ -762,11 +799,22 @@ function pintarShell(lista){
 function repintarLista(){
   const lista=filtrarTrabajos();
   const box=document.getElementById("zx_trabajos_lista");
+  const resume=document.getElementById("zx_tr_resume");
+  const head=document.querySelector(".zx_tr_list_head span");
 
-  if(box){
-    box.innerHTML=renderListado(lista);
-    conectarEventos();
-  }
+  if(box) box.innerHTML=renderListado(lista);
+  if(resume) resume.textContent=lista.length+" resultado(s)";
+  if(head) head.textContent=lista.length+" trabajo(s)";
+
+  const counts=contarFiltros();
+  document.querySelectorAll("[data-tr-filter]").forEach(function(btn){
+    const key=btn.dataset.trFilter || "todos";
+    const b=btn.querySelector("b");
+    if(b) b.textContent=counts[key] ?? 0;
+    btn.classList.toggle("on",ZX_TR_FILTRO===key);
+  });
+
+  conectarEventos();
 }
 
 function conectarEventos(){
@@ -788,11 +836,49 @@ function conectarEventos(){
     };
   }
 
+  const desde=document.getElementById("zx_tr_fecha_desde");
+  const hasta=document.getElementById("zx_tr_fecha_hasta");
+  if(desde) desde.onchange=function(){ZX_TR_FECHA_DESDE=desde.value || "";repintarLista()};
+  if(hasta) hasta.onchange=function(){ZX_TR_FECHA_HASTA=hasta.value || "";repintarLista()};
+
+  const hoyBtn=document.getElementById("zx_tr_hoy");
+  if(hoyBtn) hoyBtn.onclick=function(){
+    ZX_TR_FECHA_DESDE=hoy();
+    ZX_TR_FECHA_HASTA=hoy();
+    pintarShell(filtrarTrabajos());
+  };
+
+  const semanaBtn=document.getElementById("zx_tr_semana");
+  if(semanaBtn) semanaBtn.onclick=function(){
+    const d=new Date();
+    const dia=(d.getDay()+6)%7;
+    const ini=new Date(d); ini.setDate(d.getDate()-dia);
+    const fin=new Date(ini); fin.setDate(ini.getDate()+6);
+    const iso=x=>x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");
+    ZX_TR_FECHA_DESDE=iso(ini);
+    ZX_TR_FECHA_HASTA=iso(fin);
+    pintarShell(filtrarTrabajos());
+  };
+
+  const limpiarFechas=document.getElementById("zx_tr_limpiar_fechas");
+  if(limpiarFechas) limpiarFechas.onclick=function(){
+    ZX_TR_FECHA_DESDE="";
+    ZX_TR_FECHA_HASTA="";
+    pintarShell(filtrarTrabajos());
+  };
+
+  const monitorBtn=document.getElementById("zx_tr_monitor");
+  if(monitorBtn) monitorBtn.onclick=function(){
+    if(typeof window.ZX_monitor_oficina==="function") window.ZX_monitor_oficina();
+    else alert("El modo Monitor no está disponible.");
+  };
+
   document.querySelectorAll("[data-tr-filter]").forEach(function(btn){
-    btn.onclick=function(ev){
-      if(ev) ev.preventDefault();
-      ZX_TR_FILTRO=btn.getAttribute("data-tr-filter") || "activos";
-      pintarShell(filtrarTrabajos());
+    btn.onclick=function(){
+      ZX_TR_FILTRO=btn.dataset.trFilter || "todos";
+      document.querySelectorAll("[data-tr-filter]").forEach(b=>b.classList.remove("on"));
+      btn.classList.add("on");
+      repintarLista();
     };
   });
 
@@ -2466,6 +2552,14 @@ function instalarCSS(){
     .zx_tr_filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px}
     .zx_tr_filters button{border:0;border-radius:999px;background:#f1f5f9;color:#334155;padding:10px 13px;font-size:13px;font-weight:950;white-space:nowrap}
     .zx_tr_filters button.on{background:#2563eb;color:white}
+    .zx_tr_filters button b{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:rgba(15,23,42,.08);font-size:11px}
+    .zx_tr_filters button.on b{background:rgba(255,255,255,.22);color:white}
+    .zx_tr_date_filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .zx_tr_date_filters label{display:grid;gap:5px;font-size:12px;font-weight:900;color:#64748b}
+    .zx_tr_date_filters input{width:100%;border:1px solid #dbe3ef;border-radius:14px;padding:10px;background:#fff;color:#0f172a;font-weight:800}
+    .zx_tr_date_filters button,.zx_tr_monitor_btn{border:1px solid #bfdbfe;border-radius:14px;padding:10px 12px;background:#eff6ff;color:#1d4ed8;font-weight:950}
+    .zx_tr_toolbar_bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    @media(min-width:760px){.zx_tr_date_filters{grid-template-columns:repeat(5,minmax(0,1fr))}}
     .zx_tr_resume{color:#64748b;font-size:13px;font-weight:900}
     .zx_tr_list_head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
     .zx_tr_list_head h3{margin:0;color:#071330;font-size:25px;font-weight:950;letter-spacing:-.3px}
