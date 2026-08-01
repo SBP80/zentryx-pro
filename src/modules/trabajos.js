@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3169 - ESTADOS VISUALES DESTACADOS
+// V3170 - FILTROS DE ESTADO CORREGIDOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3169";
+const ZX_VERSION="3170";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -127,6 +127,21 @@ function clasePrioridad(p){
   if(p==="alta") return "alta";
   if(p==="baja") return "baja";
   return "media";
+}
+
+function estadoCanonico(valor){
+  const e=normalizar(valor || "pendiente").replace(/[\s-]+/g,"_");
+
+  if(["en_curso","curso","iniciado","trabajando"].includes(e)) return "en_curso";
+  if(["terminado","finalizado","completado","hecho"].includes(e)) return "terminado";
+  if(["cancelado","anulado"].includes(e)) return "cancelado";
+  if(["bloqueado","pausado"].includes(e)) return "bloqueado";
+  return "pendiente";
+}
+
+function estaArchivado(t){
+  const v=t && t.archivado;
+  return v===true || v===1 || normalizar(v)==="true" || normalizar(v)==="si" || normalizar(v)==="1";
 }
 
 function telefonoLimpio(tel){
@@ -522,38 +537,34 @@ function prepararTrabajo(t){
 }
 
 function filtrarTrabajos(){
-  let lista=ZX_TR_CACHE || [];
+  let lista=[...(ZX_TR_CACHE || [])];
 
   const unico=idTrabajoUnico();
 
   if(unico){
-    lista=lista.filter(t=>String(t.id)===String(unico));
-    return lista;
+    return lista.filter(t=>String(t.id)===String(unico));
   }
 
-  if(ZX_TR_FILTRO==="activos"){
-    lista=lista.filter(t=>t.archivado!==true && t.archivado!=="true");
-  }
+  lista=lista.filter(function(t){
+    const archivado=estaArchivado(t);
+    const estado=estadoCanonico(t.estado);
 
-  if(ZX_TR_FILTRO==="archivados"){
-    lista=lista.filter(t=>t.archivado===true || t.archivado==="true");
-  }
-
-  if(ZX_TR_FILTRO==="pendientes"){
-    lista=lista.filter(t=>t.archivado!==true && String(t.estado || "pendiente")==="pendiente");
-  }
-
-  if(ZX_TR_FILTRO==="curso"){
-    lista=lista.filter(t=>t.archivado!==true && String(t.estado || "")==="en_curso");
-  }
-
-  if(ZX_TR_FILTRO==="terminados"){
-    lista=lista.filter(t=>t.archivado!==true && String(t.estado || "")==="terminado");
-  }
-
-  if(ZX_TR_FILTRO==="urgentes"){
-    lista=lista.filter(t=>t.archivado!==true && String(t.prioridad || "")==="urgente");
-  }
+    switch(ZX_TR_FILTRO){
+      case "pendientes":
+        return !archivado && estado==="pendiente";
+      case "curso":
+        return !archivado && estado==="en_curso";
+      case "terminados":
+        return !archivado && estado==="terminado";
+      case "urgentes":
+        return !archivado && normalizar(t.prioridad)==="urgente";
+      case "archivados":
+        return archivado;
+      case "activos":
+      default:
+        return !archivado && !["terminado","cancelado"].includes(estado);
+    }
+  });
 
   const q=normalizar(ZX_TR_BUSQUEDA);
 
@@ -778,11 +789,10 @@ function conectarEventos(){
   }
 
   document.querySelectorAll("[data-tr-filter]").forEach(function(btn){
-    btn.onclick=function(){
-      ZX_TR_FILTRO=btn.dataset.trFilter || "activos";
-      document.querySelectorAll("[data-tr-filter]").forEach(b=>b.classList.remove("on"));
-      btn.classList.add("on");
-      repintarLista();
+    btn.onclick=function(ev){
+      if(ev) ev.preventDefault();
+      ZX_TR_FILTRO=btn.getAttribute("data-tr-filter") || "activos";
+      pintarShell(filtrarTrabajos());
     };
   });
 
