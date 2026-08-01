@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3149 - ROLES VISUALES, OPCIONES Y EVENTO ÚNICO POR TRABAJO
+// V3150 - ESTADOS VISUALES DESTACADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3149";
+const ZX_VERSION="3150";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -423,6 +423,14 @@ function colorTipo(tipo){
   if(t==="festivo") return "festivo";
   if(t==="libranza") return "libranza";
   return "default";
+}
+
+function claseEstadoVisual(e){
+  const estado=normalizar(e);
+  if(estado==="completado" || estado==="terminado") return "estado_terminado";
+  if(estado==="en_curso") return "estado_curso";
+  if(estado==="cancelado") return "estado_cancelado";
+  return "estado_pendiente";
 }
 
 function esTrabajo(e){
@@ -854,7 +862,7 @@ function renderCalendario(){
       <button class="zx_ag_day ${claseHoy}" onclick="ZX_ag_verDia('${fecha}')">
         <b>${d}</b>
         ${evs.slice(0,3).map(function(e){
-          return `<span class="${colorTipo(e.tipo)}">${limpiar(e.hora_inicio ? String(e.hora_inicio).slice(0,5)+" " : "")}${limpiar(e.titulo || "")}</span>`;
+          return `<span class="${colorTipo(e.tipo)} ${esTrabajo(e) ? claseEstadoVisual(e.estado) : ""}">${limpiar(e.hora_inicio ? String(e.hora_inicio).slice(0,5)+" " : "")}${limpiar(e.titulo || "")}</span>`;
         }).join("")}
         ${evs.length>3 ? `<em>+${evs.length-3}</em>` : ""}
       </button>
@@ -897,7 +905,7 @@ function renderEvento(e){
   }
 
   return `
-    <article class="zx_ag_event ${colorTipo(e.tipo)}">
+    <article class="zx_ag_event ${colorTipo(e.tipo)} ${trabajo ? claseEstadoVisual(e.estado) : ""}">
       <div class="zx_ag_event_top">
         <div>
           <b>${limpiar(e.titulo || "Evento")}</b>
@@ -2071,6 +2079,17 @@ function instalarCSS(){
     .zx_ag_actions .green{background:#16a34a}
     .zx_ag_actions .orange{background:#f97316}
     .zx_ag_actions .red{background:#dc2626}
+
+
+    .zx_ag_event.trabajo.estado_pendiente{background:linear-gradient(145deg,#f59e0b,#d97706);box-shadow:0 12px 28px rgba(245,158,11,.24)}
+    .zx_ag_event.trabajo.estado_curso{background:linear-gradient(145deg,#2563eb,#1d4ed8);box-shadow:0 12px 28px rgba(37,99,235,.24)}
+    .zx_ag_event.trabajo.estado_terminado{background:linear-gradient(145deg,#16a34a,#15803d);box-shadow:0 12px 28px rgba(22,163,74,.24)}
+    .zx_ag_event.trabajo.estado_cancelado{background:linear-gradient(145deg,#dc2626,#991b1b);box-shadow:0 12px 28px rgba(220,38,38,.22)}
+    .zx_ag_event.trabajo .zx_ag_event_top span{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.18);font-size:12px;letter-spacing:.02em;text-transform:uppercase}
+    .zx_ag_day span.trabajo.estado_pendiente{background:#f59e0b!important}
+    .zx_ag_day span.trabajo.estado_curso{background:#2563eb!important}
+    .zx_ag_day span.trabajo.estado_terminado{background:#16a34a!important}
+    .zx_ag_day span.trabajo.estado_cancelado{background:#dc2626!important}
 
     .zx_ag_event.trabajo,
     .zx_ag_day span.trabajo{background:#2563eb}
