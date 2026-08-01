@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3171 - FILTROS, BUSCADOR AVANZADO Y ACCESO MONITOR
+// V3172 - INTERFAZ COMPACTA RESPONSIVE PARA MOVIL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3171";
+const ZX_VERSION="3172";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -691,11 +691,15 @@ function toolbar(total){
       </div>
 
       <div class="zx_tr_date_filters">
-        <label>Desde<input id="zx_tr_fecha_desde" type="date" value="${limpiar(ZX_TR_FECHA_DESDE)}"></label>
-        <label>Hasta<input id="zx_tr_fecha_hasta" type="date" value="${limpiar(ZX_TR_FECHA_HASTA)}"></label>
-        <button type="button" id="zx_tr_hoy">Hoy</button>
-        <button type="button" id="zx_tr_semana">Esta semana</button>
-        <button type="button" id="zx_tr_limpiar_fechas">Limpiar fechas</button>
+        <div class="zx_tr_date_range">
+          <label>Desde<input id="zx_tr_fecha_desde" type="date" value="${limpiar(ZX_TR_FECHA_DESDE)}"></label>
+          <label>Hasta<input id="zx_tr_fecha_hasta" type="date" value="${limpiar(ZX_TR_FECHA_HASTA)}"></label>
+        </div>
+        <div class="zx_tr_date_quick">
+          <button type="button" id="zx_tr_hoy">Hoy</button>
+          <button type="button" id="zx_tr_semana">Semana</button>
+          <button type="button" id="zx_tr_limpiar_fechas">Limpiar</button>
+        </div>
       </div>
 
       <div class="zx_tr_filters">
@@ -706,8 +710,8 @@ function toolbar(total){
 
       <div class="zx_tr_toolbar_bottom">
         <div id="zx_tr_resume" class="zx_tr_resume">${total} resultado(s)</div>
-        ${!modoTrabajoUnico() ? `<button type="button" class="zx_tr_monitor_btn" id="zx_tr_monitor">🖥️ Monitor de oficina</button>` : ""}
       </div>
+      ${!modoTrabajoUnico() ? `<button type="button" class="zx_tr_monitor_btn" id="zx_tr_monitor">🖥️ Monitor de oficina</button>` : ""}
     </div>
   `;
 }
@@ -2541,25 +2545,29 @@ function instalarCSS(){
     .zx_tr_header p{margin:8px 0 0;color:#64748b;font-size:15px;font-weight:850;line-height:1.35}
     .zx_tr_new{border:0;border-radius:18px;background:#16a34a;color:white;padding:14px 16px;font-size:16px;font-weight:950;white-space:nowrap}
     .zx_tr_kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
-    .zx_tr_kpis div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px;text-align:center}
+    .zx_tr_kpis div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px;text-align:center;min-width:0}
     .zx_tr_kpis b{display:block;color:#071330;font-size:27px;font-weight:950;line-height:1}
-    .zx_tr_kpis span{display:block;color:#64748b;font-size:13px;font-weight:900;margin-top:6px}
-    .zx_tr_toolbar{display:grid;grid-template-columns:1fr;gap:12px}
+    .zx_tr_kpis span{display:block;color:#64748b;font-size:13px;font-weight:900;margin-top:6px;white-space:nowrap}
+    .zx_tr_toolbar{display:grid;grid-template-columns:1fr;gap:10px;min-width:0}
     .zx_tr_back{border:0;border-radius:18px;background:#dbeafe;color:#1d4ed8;padding:13px;font-size:15px;font-weight:950;text-align:left}
     .zx_tr_search{position:relative}
     .zx_tr_search input{width:100%;margin:0!important;padding-right:48px!important;border:1px solid #dbe3ef;border-radius:18px;padding:15px;font-size:16px;font-weight:850;background:#f8fafc;color:#071330}
     .zx_tr_search button{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:#e2e8f0;width:34px;height:34px;border-radius:12px;font-weight:950;color:#334155}
-    .zx_tr_filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px}
-    .zx_tr_filters button{border:0;border-radius:999px;background:#f1f5f9;color:#334155;padding:10px 13px;font-size:13px;font-weight:950;white-space:nowrap}
+    .zx_tr_filters{display:flex;gap:7px;overflow-x:auto;padding:2px 1px 5px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:none;min-width:0}
+    .zx_tr_filters::-webkit-scrollbar{display:none}
+    .zx_tr_filters button{flex:0 0 auto;scroll-snap-align:start;border:0;border-radius:999px;background:#f1f5f9;color:#334155;padding:9px 11px;font-size:12px;font-weight:950;white-space:nowrap}
     .zx_tr_filters button.on{background:#2563eb;color:white}
     .zx_tr_filters button b{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:rgba(15,23,42,.08);font-size:11px}
     .zx_tr_filters button.on b{background:rgba(255,255,255,.22);color:white}
-    .zx_tr_date_filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-    .zx_tr_date_filters label{display:grid;gap:5px;font-size:12px;font-weight:900;color:#64748b}
-    .zx_tr_date_filters input{width:100%;border:1px solid #dbe3ef;border-radius:14px;padding:10px;background:#fff;color:#0f172a;font-weight:800}
-    .zx_tr_date_filters button,.zx_tr_monitor_btn{border:1px solid #bfdbfe;border-radius:14px;padding:10px 12px;background:#eff6ff;color:#1d4ed8;font-weight:950}
+    .zx_tr_date_filters{display:grid;gap:8px;min-width:0}
+    .zx_tr_date_range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0}
+    .zx_tr_date_quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .zx_tr_date_filters label{display:grid;gap:5px;font-size:12px;font-weight:900;color:#64748b;min-width:0}
+    .zx_tr_date_filters input{box-sizing:border-box;min-width:0;width:100%;border:1px solid #dbe3ef;border-radius:14px;padding:10px 7px;background:#fff;color:#0f172a;font-weight:800;font-size:13px}
+    .zx_tr_date_filters button,.zx_tr_monitor_btn{border:1px solid #bfdbfe;border-radius:14px;padding:10px 8px;background:#eff6ff;color:#1d4ed8;font-weight:950;min-width:0}
+    .zx_tr_monitor_btn{width:100%;display:flex;align-items:center;justify-content:center;gap:7px}
     .zx_tr_toolbar_bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-    @media(min-width:760px){.zx_tr_date_filters{grid-template-columns:repeat(5,minmax(0,1fr))}}
+    @media(min-width:760px){.zx_tr_date_filters{grid-template-columns:minmax(360px,1fr) auto;align-items:end}.zx_tr_date_quick{grid-template-columns:repeat(3,auto)}.zx_tr_monitor_btn{width:auto;justify-self:end}}
     .zx_tr_resume{color:#64748b;font-size:13px;font-weight:900}
     .zx_tr_list_head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
     .zx_tr_list_head h3{margin:0;color:#071330;font-size:25px;font-weight:950;letter-spacing:-.3px}
@@ -2725,6 +2733,24 @@ function instalarCSS(){
       #zx_modal_trabajo .zx_tr_more_grid{grid-template-columns:1fr}
     }
 
+    @media(max-width:699px){
+      .zx_tr_shell{gap:10px}
+      .zx_tr_panel{padding:13px;border-radius:22px}
+      .zx_tr_kpis{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:0 0 9px}
+      .zx_tr_kpis div{padding:8px 2px;border-radius:13px}
+      .zx_tr_kpis b{font-size:19px}
+      .zx_tr_kpis span{font-size:9px;margin-top:4px;overflow:hidden;text-overflow:ellipsis}
+      .zx_tr_search input{padding:12px 43px 12px 13px!important;font-size:14px}
+      .zx_tr_date_filters{gap:6px}
+      .zx_tr_date_range,.zx_tr_date_quick{gap:6px}
+      .zx_tr_date_filters label{font-size:10px;gap:3px}
+      .zx_tr_date_filters input{padding:8px 5px;border-radius:12px;font-size:12px}
+      .zx_tr_date_filters button,.zx_tr_monitor_btn{padding:9px 6px;border-radius:12px;font-size:12px}
+      .zx_tr_filters{margin-inline:-2px}
+      .zx_tr_resume{font-size:12px}
+      .zx_tr_list_head{margin-bottom:9px}
+      .zx_tr_list_head h3{font-size:23px}
+    }
     @media(max-width:390px){.zx_tr_panel{padding:15px;border-radius:22px}.zx_tr_header h2{font-size:27px}.zx_tr_actions,.zx_tr_ficha_actions{grid-template-columns:1fr}.zx_tr_kpis{grid-template-columns:1fr 1fr}.zx_tr_top h3{font-size:19px}}
     @media(min-width:700px){.zx_tr_shell{padding-bottom:32px}.zx_tr_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_tr_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_tr_panel{padding:22px}.zx_tr_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
