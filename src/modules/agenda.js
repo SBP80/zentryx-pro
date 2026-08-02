@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3150 - ESTADOS VISUALES DESTACADOS
+// V3151 - ESTADOS VISUALES DESTACADOS
 // ===============================
 (function(){
 "use strict";
@@ -887,7 +887,7 @@ function renderEvento(e){
   let acciones="";
 
   if(trabajo){
-    acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}')">🛠️ Abrir trabajo</button>`;
+    acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}','${limpiar(e.id)}','${limpiar(e.fecha_inicio || "")}')">🛠️ Abrir trabajo</button>`;
     acciones+=`<button class="orange" onclick="ZX_ag_editarTrabajo('${limpiar(e.origen_id)}')">✏️ Editar trabajo</button>`;
     acciones+=`<button class="red" onclick="ZX_ag_eliminarTrabajo('${limpiar(e.origen_id)}')">🗑️ Eliminar trabajo</button>`;
     if(e.direccion){
@@ -1710,10 +1710,12 @@ window.ZX_ag_mapa=function(direccion){
   if(cancelar) cancelar.onclick=cerrarModal;
 };
 
-window.ZX_ag_abrirTrabajo=function(id){
+window.ZX_ag_abrirTrabajo=function(id,eventoId,fecha){
   cerrarModal();
 
   window.ZX_TRABAJO_ABRIR_ID=String(id || "");
+  window.ZX_AGENDA_EVENTO_ID=String(eventoId || "");
+  window.ZX_AGENDA_EVENTO_FECHA=String(fecha || "").slice(0,10);
 
   if(window.ZX_trabajos){
     window.ZX_trabajos();
@@ -1732,6 +1734,8 @@ function abrirTrabajoDesdeAgenda(id,accion){
   cerrarModal();
   window.ZX_TRABAJO_ABRIR_ID=String(id || "");
   window.ZX_TRABAJO_ACCION_DIRECTA=String(accion || "ver");
+  window.ZX_AGENDA_EVENTO_ID="";
+  window.ZX_AGENDA_EVENTO_FECHA="";
 
   if(window.ZX_trabajos){
     window.ZX_trabajos();
