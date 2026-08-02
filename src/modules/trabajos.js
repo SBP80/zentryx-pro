@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3175 - BIBLIOTECA INTELIGENTE DE MATERIALES COMPLETA
+// V3176 - MATERIALES SIN DUPLICADOS: SUMA AUTOMATICA DE CANTIDAD
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3175";
+const ZX_VERSION="3176";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2391,6 +2391,10 @@ async function abrirMaterial(id,material){
 
     try{
       let r;
+      let materialAcumulado=false;
+      let cantidadAnterior=0;
+      let cantidadFinal=data.cantidad;
+
       if(material){
         const cambios={
           nombre:nombre,
@@ -2402,13 +2406,52 @@ async function abrirMaterial(id,material){
         };
         r=await actualizarMaterialCompatible(material.id,cambios);
       }else{
-        r=await insertarMaterialCompatible(data);
+        const materialesTrabajo=await cargarMateriales(id);
+        const iguales=materialesTrabajo.filter(function(m){
+          return normalizar(m.nombre || m.material || "")===normalizar(nombre);
+        });
+
+        if(iguales.length){
+          const principal=iguales[0];
+          cantidadAnterior=iguales.reduce(function(total,m){
+            return total + Number(m.cantidad || 0);
+          },0);
+          cantidadFinal=cantidadAnterior + Number(data.cantidad || 0);
+
+          const cambios={
+            nombre:nombre,
+            material:nombre,
+            cantidad:cantidadFinal,
+            unidad:data.unidad || principal.unidad || "ud",
+            notas:data.notas || principal.notas || "",
+            referencia:data.referencia || principal.referencia || "",
+            proveedor:data.proveedor || principal.proveedor || "",
+            precio_compra:data.precio_compra ?? principal.precio_compra ?? null,
+            precio_venta:data.precio_venta ?? principal.precio_venta ?? null
+          };
+          r=await actualizarMaterialCompatible(principal.id,cambios);
+          if(r && r.error) throw r.error;
+
+          const duplicados=iguales.slice(1).map(function(m){return String(m.id)}).filter(Boolean);
+          if(duplicados.length && sb()){
+            const borrado=await sb().from("trabajos_materiales").delete().in("id",duplicados);
+            if(borrado && borrado.error) throw borrado.error;
+          }
+          materialAcumulado=true;
+        }else{
+          r=await insertarMaterialCompatible(data);
+        }
       }
       if(r && r.error) throw r.error;
 
-      aprenderMaterial(data);
-      await registrarHistorial(id,"material",(material ? "Material actualizado: " : "Material añadido: ")+nombre,{
-        material:nombre,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas,referencia:data.referencia,proveedor:data.proveedor,fabricante:data.fabricante,alias:data.alias,iva:data.iva
+      aprenderMaterial({...data,cantidad:cantidadFinal});
+      const textoHistorial=material
+        ? "Material actualizado: "+nombre
+        : materialAcumulado
+          ? "Cantidad aumentada: "+nombre+" ("+cantidadAnterior+" → "+cantidadFinal+" "+data.unidad+")"
+          : "Material añadido: "+nombre;
+      await registrarHistorial(id,"material",textoHistorial,{
+        material:nombre,cantidad:cantidadFinal,cantidad_anterior:cantidadAnterior,unidad:data.unidad,notas:data.notas,referencia:data.referencia,proveedor:data.proveedor,fabricante:data.fabricante,alias:data.alias,iva:data.iva,acumulado:materialAcumulado
       });
       await abrirListaMateriales(id);
 
