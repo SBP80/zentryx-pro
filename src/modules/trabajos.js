@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3184 - PLANIFICACION DE TRABAJOS EN VARIOS DIAS
+// V3185 - MODO EJECUCION Y PLANIFICACION PLEGABLE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3184";
+const ZX_VERSION="3185";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -147,7 +147,17 @@ function telefonoLimpio(tel){
   return n;
 }
 
+let ZX_TR_EXEC_TIMER=null;
+
+function detenerTemporizadorEjecucion(){
+  if(ZX_TR_EXEC_TIMER){
+    clearInterval(ZX_TR_EXEC_TIMER);
+    ZX_TR_EXEC_TIMER=null;
+  }
+}
+
 function cerrarModal(){
+  detenerTemporizadorEjecucion();
   const m=document.getElementById("zx_modal_trabajo");
   if(m) m.remove();
   document.body.classList.remove("zx_modal_abierto");
@@ -1948,16 +1958,212 @@ function whatsappTrabajo(tel){
   window.open("https://wa.me/"+numero,"_blank","noopener");
 }
 
+
+function obtenerUbicacionTrabajo(){
+  return new Promise(function(resolve){
+    if(!navigator.geolocation){
+      resolve(null);
+      return;
+    }
+    let terminado=false;
+    const cerrar=function(valor){
+      if(terminado) return;
+      terminado=true;
+      resolve(valor);
+    };
+    const timeout=setTimeout(function(){cerrar(null)},8000);
+    navigator.geolocation.getCurrentPosition(
+      function(pos){
+        clearTimeout(timeout);
+        cerrar({
+          latitud:Number(pos.coords.latitude),
+          longitud:Number(pos.coords.longitude),
+          precision:Number(pos.coords.accuracy || 0)
+        });
+      },
+      function(){
+        clearTimeout(timeout);
+        cerrar(null);
+      },
+      {enableHighAccuracy:true,timeout:7000,maximumAge:30000}
+    );
+  });
+}
+
+function inicioRealTrabajo(hist){
+  const lista=Array.isArray(hist) ? hist : [];
+  const registro=lista.find(function(h){
+    const tipo=normalizar(h.tipo || "");
+    const nota=normalizar(h.notas || "");
+    return tipo.includes("inicio") || nota.includes("trabajo iniciado");
+  });
+  if(!registro) return null;
+  const raw=registro.created_at || registro.fecha;
+  if(!raw) return null;
+  const d=new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatoDuracion(ms){
+  const total=Math.max(0,Math.floor(ms/1000));
+  const h=Math.floor(total/3600);
+  const m=Math.floor((total%3600)/60);
+  const s=total%60;
+  return [h,m,s].map(function(n){return String(n).padStart(2,"0")}).join(":");
+}
+
+function minutosPlanificadosTrabajo(t,plan){
+  const primera=(plan || [])[0] || {};
+  const inicio=String(primera.hora_inicio || t.hora_inicio || "").slice(0,5);
+  const fin=String(primera.hora_fin || t.hora_fin || "").slice(0,5);
+  if(!inicio || !fin) return 0;
+  const [hi,mi]=inicio.split(":").map(Number);
+  const [hf,mf]=fin.split(":").map(Number);
+  const n=(hf*60+mf)-(hi*60+mi);
+  return n>0 ? n : 0;
+}
+
+function renderPanelEjecucion(t,plan,hist){
+  if(String(t.estado || "")!=="en_curso") return "";
+  const inicio=inicioRealTrabajo(hist);
+  const minutos=minutosPlanificadosTrabajo(t,plan);
+  return `<section class="zx_tr_execution_panel">
+    <div class="zx_tr_execution_head">
+      <div>
+        <span>Trabajo en curso</span>
+        <strong id="tr_execution_timer">${inicio ? formatoDuracion(Date.now()-inicio.getTime()) : "00:00:00"}</strong>
+      </div>
+      <div class="zx_tr_execution_sync">● Sincronizado</div>
+    </div>
+    <div class="zx_tr_execution_grid">
+      <div><small>Inicio real</small><b>${inicio ? inicio.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}) : "Ahora"}</b></div>
+      <div><small>Tiempo previsto</small><b>${minutos ? Math.floor(minutos/60)+" h "+(minutos%60)+" min" : "Sin definir"}</b></div>
+      <div><small>Jornadas</small><b>${Math.max(1,new Set((plan||[]).map(p=>String(p.fecha||""))).size)}</b></div>
+    </div>
+  </section>`;
+}
+
+function iniciarTemporizadorEjecucion(hist){
+  detenerTemporizadorEjecucion();
+  const inicio=inicioRealTrabajo(hist);
+  const el=document.getElementById("tr_execution_timer");
+  if(!inicio || !el) return;
+  const pintar=function(){
+    const actual=document.getElementById("tr_execution_timer");
+    if(!actual){
+      detenerTemporizadorEjecucion();
+      return;
+    }
+    actual.textContent=formatoDuracion(Date.now()-inicio.getTime());
+  };
+  pintar();
+  ZX_TR_EXEC_TIMER=setInterval(pintar,1000);
+}
+
+function resumenPlanificacion(plan){
+  const lista=Array.isArray(plan) ? plan : [];
+  if(!lista.length) return {jornadas:0,desde:"",hasta:"",equipo:0};
+  const fechas=[...new Set(lista.map(p=>String(p.fecha || "").slice(0,10)).filter(Boolean))].sort();
+  const equipo=new Set(lista.map(p=>String(p.usuario_id || p.tecnico_id || p.usuario || p.tecnico || "")).filter(Boolean));
+  return {
+    jornadas:fechas.length,
+    desde:fechas[0] || "",
+    hasta:fechas[fechas.length-1] || "",
+    equipo:equipo.size
+  };
+}
+
+function renderPlanificacionPlegable(plan){
+  const r=resumenPlanificacion(plan);
+  const contenido=(plan || []).length
+    ? plan.map(function(p){
+        return `<div class="zx_tr_line">${limpiar(
+          `${fechaES(p.fecha)} ${p.hora_inicio ? String(p.hora_inicio).slice(0,5) : ""} ${p.hora_fin ? "–"+String(p.hora_fin).slice(0,5) : ""} ${p.nombre || p.usuario || p.tecnico || ""}`
+        )}</div>`;
+      }).join("")
+    : `<div class="zx_tr_empty mini">Sin planificación.</div>`;
+
+  const rango=r.jornadas
+    ? `${fechaES(r.desde)}${r.hasta && r.hasta!==r.desde ? " → "+fechaES(r.hasta) : ""}`
+    : "Sin fechas";
+
+  return `<section class="zx_tr_block zx_tr_plan_block">
+    <button type="button" class="zx_tr_plan_toggle" id="tr_plan_toggle" aria-expanded="false">
+      <span>Planificación</span>
+      <b>${r.jornadas} jornada${r.jornadas===1 ? "" : "s"}</b>
+      <em>${limpiar(rango)}${r.equipo ? " · "+r.equipo+" técnico"+(r.equipo===1?"":"s") : ""}</em>
+    </button>
+    <div class="zx_tr_plan_panel" id="tr_plan_panel" hidden>${contenido}</div>
+  </section>`;
+}
+
+function iniciarDictadoMientrasPulsa(boton,textarea){
+  const SpeechRecognition=window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!boton || !textarea) return;
+  let reconocimiento=null;
+  let activo=false;
+
+  const iniciar=function(ev){
+    if(ev) ev.preventDefault();
+    if(activo) return;
+    if(!SpeechRecognition){
+      textarea.focus();
+      return;
+    }
+    activo=true;
+    boton.classList.add("escuchando");
+    reconocimiento=new SpeechRecognition();
+    reconocimiento.lang="es-ES";
+    reconocimiento.interimResults=true;
+    reconocimiento.continuous=true;
+    reconocimiento.onresult=function(event){
+      let texto="";
+      for(let i=event.resultIndex;i<event.results.length;i++){
+        texto+=event.results[i][0].transcript;
+      }
+      if(texto){
+        textarea.value=(textarea.value ? textarea.value.trim()+" " : "")+texto.trim();
+      }
+    };
+    reconocimiento.onend=function(){
+      activo=false;
+      boton.classList.remove("escuchando");
+    };
+    try{reconocimiento.start()}catch(e){}
+  };
+
+  const parar=function(ev){
+    if(ev) ev.preventDefault();
+    if(!activo) return;
+    activo=false;
+    boton.classList.remove("escuchando");
+    try{reconocimiento.stop()}catch(e){}
+  };
+
+  boton.addEventListener("touchstart",iniciar,{passive:false});
+  boton.addEventListener("touchend",parar,{passive:false});
+  boton.addEventListener("touchcancel",parar,{passive:false});
+  boton.addEventListener("mousedown",iniciar);
+  boton.addEventListener("mouseup",parar);
+  boton.addEventListener("mouseleave",parar);
+}
+
+
 async function registrarNotaRapida(id){
   modal(`
     <h2>Nota rápida</h2>
     <div class="zx_text">Añade una observación breve al historial del trabajo.</div>
     <textarea id="tr_nota_rapida" rows="5" placeholder="Escribe o dicta la nota..."></textarea>
+    <button type="button" class="zx_tr_hold_mic" id="tr_nota_micro">🎙️ Mantén pulsado para dictar</button>
     <button class="zx_btn_big zx_verde" id="tr_nota_guardar">Guardar nota</button>
     <button class="zx_btn_big zx_gris" id="tr_nota_cancelar">Cancelar</button>
   `);
 
   document.getElementById("tr_nota_cancelar").onclick=cerrarModal;
+  iniciarDictadoMientrasPulsa(
+    document.getElementById("tr_nota_micro"),
+    document.getElementById("tr_nota_rapida")
+  );
   document.getElementById("tr_nota_guardar").onclick=async function(){
     const nota=valor("tr_nota_rapida");
 
@@ -2029,6 +2235,7 @@ async function ejecutarAccionPrincipal(id,accion){
     if(!t) return;
 
     try{
+      const ubicacion=await obtenerUbicacionTrabajo();
       const r=await actualizarTrabajo(id,{estado:"en_curso"});
       if(r && r.error) throw r.error;
 
@@ -2038,7 +2245,8 @@ async function ejecutarAccionPrincipal(id,accion){
         "Trabajo iniciado.",
         {
           estado:"en_curso",
-          iniciado_at:new Date().toISOString()
+          iniciado_at:new Date().toISOString(),
+          ubicacion:ubicacion
         }
       );
 
@@ -2112,6 +2320,8 @@ async function abrirFicha(id){
         </div>
       </section>
 
+      ${renderPanelEjecucion(t,plan,hist)}
+
       ${principal.accion!=="ninguna" ? `
         <button
           type="button"
@@ -2154,9 +2364,7 @@ async function abrirFicha(id){
         </div>
       </details>
 
-      ${renderBloque("Planificación",plan.map(function(p){
-        return `${fechaES(p.fecha)} ${p.hora_inicio ? String(p.hora_inicio).slice(0,5) : ""} ${p.nombre || p.usuario || p.tecnico || ""}`;
-      }))}
+${renderPlanificacionPlegable(plan)}
       ${renderMaterialesResumen(id,mat)}
       ${renderSugerenciasMateriales(sugerenciasMateriales)}
       ${renderArchivos(arch,id)}
@@ -2193,6 +2401,20 @@ async function abrirFicha(id){
 
   const note=document.getElementById("tr_quick_note");
   if(note) note.onclick=function(){registrarNotaRapida(id)};
+
+  const planToggle=document.getElementById("tr_plan_toggle");
+  const planPanel=document.getElementById("tr_plan_panel");
+  if(planToggle && planPanel){
+    planPanel.hidden=true;
+    planToggle.setAttribute("aria-expanded","false");
+    planToggle.onclick=function(){
+      const abrir=planPanel.hidden;
+      planPanel.hidden=!abrir;
+      planToggle.setAttribute("aria-expanded",abrir ? "true" : "false");
+    };
+  }
+
+  iniciarTemporizadorEjecucion(hist);
 
   const smartMaterials=document.getElementById("tr_smart_material_attach");
   if(smartMaterials) smartMaterials.onclick=function(){adjuntarSugerenciasMateriales(id,sugerenciasMateriales)};
@@ -3477,6 +3699,28 @@ function instalarCSS(){
     .zx_tr_status_card.zx_tr_estado_ok .zx_tr_status_top strong{color:#166534}
     .zx_tr_status_card.zx_tr_estado_rojo .zx_tr_status_top strong{color:#991b1b}
     .zx_tr_status_card .zx_tr_badges .estado{font-size:14px;padding:9px 14px;border:2px solid currentColor}
+    .zx_tr_execution_panel{border:2px solid #60a5fa;border-radius:20px;padding:15px;background:linear-gradient(135deg,#eff6ff,#dbeafe)}
+    .zx_tr_execution_head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .zx_tr_execution_head span{display:block;font-size:12px;font-weight:900;color:#1d4ed8;text-transform:uppercase}
+    .zx_tr_execution_head strong{display:block;font-size:34px;line-height:1.1;color:#0f172a;font-variant-numeric:tabular-nums}
+    .zx_tr_execution_sync{font-size:12px;font-weight:950;color:#047857;background:#d1fae5;border-radius:999px;padding:7px 10px;white-space:nowrap}
+    .zx_tr_execution_grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:13px}
+    .zx_tr_execution_grid>div{padding:10px;border-radius:14px;background:rgba(255,255,255,.78);min-width:0}
+    .zx_tr_execution_grid small{display:block;color:#64748b;font-weight:800;font-size:11px}
+    .zx_tr_execution_grid b{display:block;color:#0f172a;font-size:14px;overflow-wrap:anywhere}
+    .zx_tr_plan_toggle{width:100%;border:0;border-radius:17px;padding:14px;background:#f8fafc;display:grid;grid-template-columns:1fr auto;gap:3px 10px;text-align:left;color:#0f172a}
+    .zx_tr_plan_toggle span{font-size:18px;font-weight:950}
+    .zx_tr_plan_toggle b{font-size:13px;color:#2563eb}
+    .zx_tr_plan_toggle em{grid-column:1/-1;font-style:normal;font-size:12px;font-weight:800;color:#64748b}
+    .zx_tr_plan_toggle[aria-expanded="true"]{background:#eff6ff}
+    .zx_tr_plan_panel{padding-top:10px}
+    .zx_tr_hold_mic{width:100%;border:2px solid #bfdbfe;border-radius:16px;padding:13px;background:#eff6ff;color:#1d4ed8;font-weight:950;margin-bottom:10px}
+    .zx_tr_hold_mic.escuchando{background:#fee2e2;border-color:#f87171;color:#b91c1c;transform:scale(.99)}
+    @media(max-width:480px){
+      .zx_tr_execution_grid{grid-template-columns:1fr}
+      .zx_tr_execution_head strong{font-size:29px}
+    }
+
 
     .zx_tr_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_tr_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
