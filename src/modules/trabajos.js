@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3185 - MODO EJECUCION Y PLANIFICACION PLEGABLE
+// V3186 - TRABAJO A PANTALLA COMPLETA DESDE AGENDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3185";
+const ZX_VERSION="3186";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2270,14 +2270,30 @@ async function abrirFicha(id){
   if(!t){alert("Trabajo no encontrado.");return}
 
   modal(`
-    <h2>${limpiar(t.titulo || "Trabajo")}</h2>
+    <div class="zx_tr_full_header">
+      ${modoTrabajoUnico() ? `<button type="button" class="zx_tr_back_agenda" id="tr_back_agenda">‹ Agenda</button>` : ""}
+      <h2>${limpiar(t.titulo || "Trabajo")}</h2>
+      <span class="zx_tr_full_state ${claseEstado(t.estado)}">${limpiar(estadoTexto(t.estado))}</span>
+    </div>
     <div id="tr_ficha_contenido">
       <div class="zx_tr_loading">Cargando ficha...</div>
     </div>
     <button class="zx_btn_big zx_gris" id="tr_ficha_cerrar">Cerrar</button>
   `);
 
-  document.getElementById("tr_ficha_cerrar").onclick=cerrarModal;
+  const modalTrabajo=document.getElementById("zx_modal_trabajo");
+  if(modoTrabajoUnico() && modalTrabajo){
+    modalTrabajo.classList.add("zx_tr_fullscreen");
+  }
+
+  const volverAgendaDesdeTrabajo=function(){
+    cerrarModal();
+    if(modoTrabajoUnico()) salirTrabajoUnico();
+  };
+
+  document.getElementById("tr_ficha_cerrar").onclick=volverAgendaDesdeTrabajo;
+  const backAgenda=document.getElementById("tr_back_agenda");
+  if(backAgenda) backAgenda.onclick=volverAgendaDesdeTrabajo;
 
   const box=document.getElementById("tr_ficha_contenido");
 
@@ -3714,6 +3730,22 @@ function instalarCSS(){
     .zx_tr_plan_toggle em{grid-column:1/-1;font-style:normal;font-size:12px;font-weight:800;color:#64748b}
     .zx_tr_plan_toggle[aria-expanded="true"]{background:#eff6ff}
     .zx_tr_plan_panel{padding-top:10px}
+    .zx_tr_plan_panel[hidden]{display:none!important}
+    .zx_tr_full_header{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;background:#fff;padding:8px 0 12px;border-bottom:1px solid #e2e8f0}
+    .zx_tr_full_header h2{margin:0!important;min-width:0;overflow-wrap:anywhere}
+    .zx_tr_back_agenda{border:1px solid #bfdbfe;border-radius:12px;padding:9px 11px;background:#eff6ff;color:#1d4ed8;font-weight:950;white-space:nowrap}
+    .zx_tr_full_state{border-radius:999px;padding:7px 10px;font-size:12px;font-weight:950;white-space:nowrap}
+    #zx_modal_trabajo.zx_tr_fullscreen{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;padding:0!important;margin:0!important;align-items:stretch!important;justify-content:stretch!important;background:#fff!important;z-index:999999!important}
+    #zx_modal_trabajo.zx_tr_fullscreen .zx_modal_caja{width:100vw!important;max-width:none!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))!important;box-shadow:none!important;overflow-y:auto!important;overflow-x:hidden!important}
+    @media(min-width:900px){
+      #zx_modal_trabajo.zx_tr_fullscreen .zx_modal_caja{padding-left:max(28px,env(safe-area-inset-left))!important;padding-right:max(28px,env(safe-area-inset-right))!important}
+      #zx_modal_trabajo.zx_tr_fullscreen .zx_tr_operativo{max-width:1180px;margin:0 auto}
+    }
+    @media(max-width:520px){
+      .zx_tr_full_header{grid-template-columns:auto minmax(0,1fr)}
+      .zx_tr_full_state{grid-column:1/-1;width:max-content}
+      .zx_tr_back_agenda{padding:8px 9px}
+    }
     .zx_tr_hold_mic{width:100%;border:2px solid #bfdbfe;border-radius:16px;padding:13px;background:#eff6ff;color:#1d4ed8;font-weight:950;margin-bottom:10px}
     .zx_tr_hold_mic.escuchando{background:#fee2e2;border-color:#f87171;color:#b91c1c;transform:scale(.99)}
     @media(max-width:480px){
