@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3177 - MATERIALES CONSOLIDADOS Y AJUSTE RAPIDO DE CANTIDAD
+// V3179 - CONSOLIDACION REAL DE MATERIALES E HISTORIAL PLEGADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3177";
+const ZX_VERSION="3179";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -42,6 +42,15 @@ function normalizar(v){
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g,"")
+    .trim();
+}
+
+function claveMaterial(v){
+  return normalizar(v)
+    .replace(/½/g,"1/2")
+    .replace(/¼/g,"1/4")
+    .replace(/¾/g,"3/4")
+    .replace(/[^a-z0-9]+/g,"")
     .trim();
 }
 
@@ -1835,6 +1844,20 @@ async function abrirFicha(id){
 
   const smart=document.getElementById("tr_smart_attach");
   if(smart) smart.onclick=function(){adjuntarSugerencias(id,sugerencias)};
+
+  const historyToggle=document.getElementById("tr_history_toggle");
+  const historyPanel=document.getElementById("tr_history_panel");
+  if(historyToggle && historyPanel){
+    historyPanel.hidden=true;
+    historyToggle.setAttribute("aria-expanded","false");
+    historyToggle.onclick=function(){
+      const abrir=historyPanel.hidden;
+      historyPanel.hidden=!abrir;
+      historyToggle.setAttribute("aria-expanded",abrir ? "true" : "false");
+      const em=historyToggle.querySelector("em");
+      if(em) em.textContent=abrir ? "Ocultar historial" : "Ver historial";
+    };
+  }
 }
 
 function renderNotasVisibles(hist){
@@ -1862,45 +1885,69 @@ function renderMaterialesResumen(trabajoId,lista){
 }
 
 async function consolidarMaterialesDuplicados(trabajoId,lista){
-  if(!navigator.onLine || !sb() || !Array.isArray(lista) || lista.length<2) return lista || [];
+  const origen=Array.isArray(lista) ? lista : [];
+  if(origen.length<2) return origen;
 
   const grupos=new Map();
-  lista.forEach(function(m){
-    const nombre=normalizar(m.nombre || m.material || "").replace(/\s+/g," ").trim();
-    const unidad=normalizar(m.unidad || "ud").replace(/\s+/g," ").trim();
-    if(!nombre) return;
-    const clave=nombre+"|"+unidad;
+  origen.forEach(function(m){
+    const clave=claveMaterial(m.nombre || m.material || "");
+    if(!clave) return;
     if(!grupos.has(clave)) grupos.set(clave,[]);
     grupos.get(clave).push(m);
   });
 
-  let huboCambios=false;
+  const salida=[];
   for(const items of grupos.values()){
-    if(items.length<2) continue;
-    const principal=items[0];
+    const ordenados=items.slice().sort(function(a,b){
+      return String(a.created_at||"").localeCompare(String(b.created_at||""));
+    });
+    const principal=ordenados[0];
+    if(items.length===1){salida.push(principal);continue;}
+
     const cantidadTotal=items.reduce(function(total,m){return total+Number(m.cantidad||0)},0);
-    const cambios={
-      nombre:principal.nombre || principal.material || "Material",
-      material:principal.material || principal.nombre || "Material",
+    const nombre=principal.nombre || principal.material || "Material";
+    const fusionado={
+      ...principal,
+      nombre:nombre,
+      material:nombre,
       cantidad:cantidadTotal,
-      unidad:principal.unidad || "ud",
+      unidad:items.map(m=>String(m.unidad||"").trim()).find(Boolean) || "ud",
       notas:items.map(m=>String(m.notas||"").trim()).find(Boolean) || "",
       referencia:items.map(m=>String(m.referencia||"").trim()).find(Boolean) || "",
       proveedor:items.map(m=>String(m.proveedor||"").trim()).find(Boolean) || "",
+      fabricante:items.map(m=>String(m.fabricante||"").trim()).find(Boolean) || "",
+      alias:items.map(m=>String(m.alias||"").trim()).find(Boolean) || "",
       precio_compra:items.map(m=>m.precio_compra).find(v=>v!==null&&v!==undefined&&v!=="") ?? null,
       precio_venta:items.map(m=>m.precio_venta).find(v=>v!==null&&v!==undefined&&v!=="") ?? null
     };
-    const actualizado=await actualizarMaterialCompatible(principal.id,cambios);
-    if(actualizado && actualizado.error) continue;
-    const ids=items.slice(1).map(m=>String(m.id)).filter(Boolean);
-    if(ids.length){
-      const borrado=await sb().from("trabajos_materiales").delete().in("id",ids);
-      if(borrado && borrado.error) continue;
+    salida.push(fusionado);
+
+    // La interfaz queda consolidada inmediatamente. Después se persiste la limpieza.
+    if(navigator.onLine && sb() && principal.id){
+      try{
+        const actualizado=await actualizarMaterialCompatible(principal.id,{
+          nombre:fusionado.nombre,material:fusionado.material,cantidad:fusionado.cantidad,
+          unidad:fusionado.unidad,notas:fusionado.notas,referencia:fusionado.referencia,
+          proveedor:fusionado.proveedor,fabricante:fusionado.fabricante,alias:fusionado.alias,
+          precio_compra:fusionado.precio_compra,precio_venta:fusionado.precio_venta
+        });
+        if(actualizado && actualizado.error) throw actualizado.error;
+
+        for(const duplicado of ordenados.slice(1)){
+          if(!duplicado.id) continue;
+          const borrado=await sb().from("trabajos_materiales").delete().eq("id",String(duplicado.id));
+          if(borrado && borrado.error) throw borrado.error;
+        }
+        await registrarHistorial(trabajoId,"material","Materiales duplicados reunidos: "+nombre+" ("+cantidadTotal+" "+fusionado.unidad+")",{material:nombre,cantidad:cantidadTotal,unidad:fusionado.unidad,consolidado:true});
+      }catch(e){
+        console.warn("No se pudo persistir la consolidación de materiales",e);
+      }
     }
-    huboCambios=true;
-    await registrarHistorial(trabajoId,"material","Materiales duplicados reunidos: "+cambios.nombre+" ("+cantidadTotal+" "+cambios.unidad+")",{material:cambios.nombre,cantidad:cantidadTotal,unidad:cambios.unidad,consolidado:true});
   }
-  return huboCambios ? await cargarMateriales(trabajoId) : lista;
+
+  // Conserva también registros sin nombre, si existieran.
+  origen.filter(m=>!claveMaterial(m.nombre || m.material || "")).forEach(m=>salida.push(m));
+  return salida;
 }
 
 async function cambiarCantidadMaterial(trabajoId,material,cambio){
@@ -2054,34 +2101,33 @@ function fechaHoraHistorial(h){
 
 function renderHistorialProfesional(lista){
   const hist=Array.isArray(lista) ? lista : [];
+  const contenido=hist.length ? `
+    <div class="zx_tr_history_list">
+      ${hist.map(function(h){
+        const cfg=configHistorial(h.tipo,h.notas);
+        const usuario=h.usuario || h.usuario_nombre || h.nombre_usuario || "Sistema";
+        return `
+          <article class="zx_tr_history_item ${cfg.clase}">
+            <div class="zx_tr_history_icon">${cfg.icono}</div>
+            <div class="zx_tr_history_content">
+              <div class="zx_tr_history_head">
+                <strong>${limpiar(cfg.titulo)}</strong>
+                <time>${limpiar(fechaHoraHistorial(h))}</time>
+              </div>
+              <p>${limpiar(h.notas || "Actividad registrada")}</p>
+              <div class="zx_tr_history_user"><span>👤</span>${limpiar(usuario)}</div>
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>` : `<div class="zx_tr_empty mini">Todavía no hay actividad registrada.</div>`;
 
   return `
     <section class="zx_tr_block zx_tr_history_block">
-      <div class="zx_tr_block_title">
-        <h3>Historial</h3>
-        <span>${hist.length}</span>
-      </div>
-      ${hist.length ? `
-        <div class="zx_tr_history_list">
-          ${hist.map(function(h){
-            const cfg=configHistorial(h.tipo,h.notas);
-            const usuario=h.usuario || h.usuario_nombre || h.nombre_usuario || "Sistema";
-            return `
-              <article class="zx_tr_history_item ${cfg.clase}">
-                <div class="zx_tr_history_icon">${cfg.icono}</div>
-                <div class="zx_tr_history_content">
-                  <div class="zx_tr_history_head">
-                    <strong>${limpiar(cfg.titulo)}</strong>
-                    <time>${limpiar(fechaHoraHistorial(h))}</time>
-                  </div>
-                  <p>${limpiar(h.notas || "Actividad registrada")}</p>
-                  <div class="zx_tr_history_user"><span>👤</span>${limpiar(usuario)}</div>
-                </div>
-              </article>
-            `;
-          }).join("")}
-        </div>
-      ` : `<div class="zx_tr_empty mini">Todavía no hay actividad registrada.</div>`}
+      <button type="button" class="zx_tr_history_toggle" id="tr_history_toggle" aria-expanded="false">
+        <span>Historial</span><b>${hist.length}</b><em>Ver historial</em>
+      </button>
+      <div class="zx_tr_history_panel" id="tr_history_panel" hidden>${contenido}</div>
     </section>
   `;
 }
@@ -2472,9 +2518,11 @@ async function abrirMaterial(id,material){
         };
         r=await actualizarMaterialCompatible(material.id,cambios);
       }else{
-        const materialesTrabajo=await cargarMateriales(id);
+        let materialesTrabajo=await cargarMateriales(id);
+        materialesTrabajo=await consolidarMaterialesDuplicados(id,materialesTrabajo);
+        const claveNueva=claveMaterial(nombre);
         const iguales=materialesTrabajo.filter(function(m){
-          return normalizar(m.nombre || m.material || "")===normalizar(nombre);
+          return claveMaterial(m.nombre || m.material || "")===claveNueva;
         });
 
         if(iguales.length){
@@ -2939,8 +2987,13 @@ function instalarCSS(){
     .zx_tr_add_material{border:0;border-radius:14px;background:#16a34a;color:white;padding:11px 13px;font-size:14px;font-weight:950;white-space:nowrap}
     #tr_material_list{display:grid;gap:10px;margin:16px 0}.zx_tr_material_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:13px}.zx_tr_material_info{display:grid;gap:4px}.zx_tr_material_info strong{color:#071330;font-size:17px;font-weight:950}.zx_tr_material_info span{color:#2563eb;font-size:14px;font-weight:900}.zx_tr_material_info small{color:#64748b;font-size:13px;font-weight:800;line-height:1.35}
     .zx_tr_material_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_tr_material_actions button{border:0;border-radius:13px;padding:10px;font-size:13px;font-weight:950}.zx_tr_material_actions .blue{background:#dbeafe;color:#1d4ed8}.zx_tr_material_actions .red{background:#fee2e2;color:#b91c1c}.zx_tr_empty_card{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:18px;padding:22px;text-align:center;color:#64748b;font-weight:900}
-    .zx_tr_history_block{padding:16px}
-    .zx_tr_history_list{display:grid;gap:10px;margin-top:12px}
+    .zx_tr_history_block{padding:0;overflow:hidden}
+    .zx_tr_history_toggle{display:grid;width:100%;grid-template-columns:1fr auto;gap:4px 14px;align-items:center;padding:20px 22px;border:0;background:transparent;text-align:left;cursor:pointer;font:inherit}
+    .zx_tr_history_toggle span{color:#071330;font-size:22px;font-weight:950}
+    .zx_tr_history_toggle b{color:#2563eb;font-size:16px;font-weight:950}
+    .zx_tr_history_toggle em{grid-column:1/-1;color:#2563eb;font-size:13px;font-style:normal;font-weight:950}
+    .zx_tr_history_panel[hidden]{display:none!important}
+    .zx_tr_history_list{display:grid;gap:10px;margin-top:0;padding:0 14px 16px}
     .zx_tr_history_item{display:grid;grid-template-columns:46px minmax(0,1fr);gap:11px;align-items:start;background:#fff;border:1px solid #e2e8f0;border-left:5px solid #64748b;border-radius:17px;padding:12px;box-shadow:0 2px 8px rgba(15,23,42,.035)}
     .zx_tr_history_icon{width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;font-size:20px}
     .zx_tr_history_content{min-width:0}
