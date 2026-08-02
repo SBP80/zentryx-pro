@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3186 - TRABAJO A PANTALLA COMPLETA DESDE AGENDA
+// V3187 - ESTADO INDEPENDIENTE POR JORNADA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3186";
+const ZX_VERSION="3187";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -82,9 +82,16 @@ function puedeBorrar(){return esAdmin()}
 function idTrabajoUnico(){return String(window.ZX_TRABAJO_ABRIR_ID || "").trim()}
 function accionTrabajoDirecta(){return String(window.ZX_TRABAJO_ACCION_DIRECTA || "ver").trim().toLowerCase()}
 function modoTrabajoUnico(){return !!idTrabajoUnico()}
+function idEventoAgendaSeleccionado(){return String(window.ZX_AGENDA_EVENTO_ID || "").trim()}
+function fechaAgendaSeleccionada(){return String(window.ZX_AGENDA_EVENTO_FECHA || "").slice(0,10)}
+function limpiarContextoAgendaTrabajo(){
+  window.ZX_AGENDA_EVENTO_ID="";
+  window.ZX_AGENDA_EVENTO_FECHA="";
+}
 function salirTrabajoUnico(){
   window.ZX_TRABAJO_ABRIR_ID="";
   window.ZX_TRABAJO_ACCION_DIRECTA="";
+  limpiarContextoAgendaTrabajo();
 }
 
 function leerCache(){
@@ -1790,10 +1797,119 @@ async function guardarTrabajo(id,clientes,usuarios){
   }
 }
 
+
+async function cargarJornadasAgendaTrabajo(trabajoId){
+  if(!trabajoId || !navigator.onLine || !sb()) return [];
+  try{
+    const r=await sb().from("agenda_eventos")
+      .select("*")
+      .eq("origen","trabajos")
+      .eq("origen_id",String(trabajoId))
+      .order("fecha_inicio",{ascending:true})
+      .order("hora_inicio",{ascending:true});
+    if(r.error) throw r.error;
+    return r.data || [];
+  }catch(e){
+    console.warn("No se pudieron cargar las jornadas de Agenda:",e);
+    return [];
+  }
+}
+
+function jornadaSeleccionadaAgenda(jornadas){
+  const lista=Array.isArray(jornadas) ? jornadas : [];
+  const id=idEventoAgendaSeleccionado();
+  if(id){
+    const porId=lista.find(x=>String(x.id)===id);
+    if(porId) return porId;
+  }
+  const fecha=fechaAgendaSeleccionada();
+  if(fecha){
+    const porFecha=lista.find(x=>String(x.fecha_inicio || "").slice(0,10)===fecha);
+    if(porFecha) return porFecha;
+  }
+  const hoyIso=hoy();
+  return lista.find(x=>String(x.fecha_inicio || "").slice(0,10)===hoyIso && !["completado","cancelado"].includes(String(x.estado || "")))
+    || lista.find(x=>!["completado","cancelado"].includes(String(x.estado || "")))
+    || lista[0]
+    || null;
+}
+
+function estadoJornadaTexto(estado){
+  const e=String(estado || "activo");
+  if(e==="en_curso") return "En curso";
+  if(e==="completado") return "Realizada";
+  if(e==="cancelado") return "Cancelada";
+  return "Pendiente";
+}
+
+function accionPrincipalJornada(t,jornada,totalJornadas){
+  if(!jornada) return accionPrincipalTrabajo(t);
+  const estado=String(jornada.estado || "activo");
+  const multi=Number(totalJornadas || 0)>1;
+
+  if(estado==="en_curso"){
+    return {
+      clase:"zx_tr_finish",
+      icono:"✅",
+      texto:multi ? "Finalizar jornada" : "Finalizar trabajo",
+      accion:"terminar_jornada"
+    };
+  }
+  if(estado==="completado"){
+    return {
+      clase:"zx_tr_done",
+      icono:"✓",
+      texto:multi ? "Jornada realizada" : "Trabajo finalizado",
+      accion:"ninguna"
+    };
+  }
+  if(estado==="cancelado"){
+    return {clase:"zx_tr_cancelled",icono:"⛔",texto:"Jornada cancelada",accion:"ninguna"};
+  }
+  return {
+    clase:"zx_tr_start",
+    icono:"▶",
+    texto:multi ? "Iniciar jornada" : "Iniciar trabajo",
+    accion:"iniciar_jornada"
+  };
+}
+
+async function actualizarEstadoJornadaAgenda(eventoId,estado){
+  if(!eventoId || !sb()) return {error:new Error("Jornada no localizada")};
+  return await sb().from("agenda_eventos").update({estado:estado}).eq("id",String(eventoId));
+}
+
+async function recalcularEstadoGeneralTrabajo(id,t){
+  const jornadas=await cargarJornadasAgendaTrabajo(id);
+  const validas=jornadas.filter(j=>String(j.estado || "")!=="cancelado");
+  const todasRealizadas=validas.length>0 && validas.every(j=>String(j.estado || "")==="completado");
+  const algunaIniciada=validas.some(j=>["en_curso","completado"].includes(String(j.estado || "")));
+  const nuevo=todasRealizadas ? "terminado" : (algunaIniciada ? "en_curso" : "pendiente");
+
+  const r=await actualizarTrabajo(id,{estado:nuevo});
+  if(r && r.error) throw r.error;
+  return {estado:nuevo,jornadas:jornadas};
+}
+
+
 async function sincronizarAgenda(id,t){
   if(!id || !navigator.onLine || !sb()) return;
 
   try{
+    const anteriores=await cargarJornadasAgendaTrabajo(id);
+    const estadosAnteriores=new Map(
+      anteriores.map(function(e){
+        return [
+          [
+            String(e.fecha_inicio || "").slice(0,10),
+            String(e.hora_inicio || "").slice(0,5),
+            String(e.hora_fin || "").slice(0,5)
+          ].join("|"),
+          String(e.estado || "activo")
+        ];
+      })
+    );
+
     await sb().from("agenda_eventos").delete().eq("origen","trabajos").eq("origen_id",String(id));
 
     if(t.archivado===true || t.estado==="cancelado") return;
@@ -1823,7 +1939,11 @@ async function sincronizarAgenda(id,t){
         poblacion:t.poblacion || "",
         provincia:t.provincia || "",
         pais:t.pais || "España",
-        estado:t.estado==="terminado" ? "completado" : "activo",
+        estado:estadosAnteriores.get([
+          String(j.fecha || t.fecha || hoy()).slice(0,10),
+          String(j.hora_inicio || "").slice(0,5),
+          String(j.hora_fin || "").slice(0,5)
+        ].join("|")) || (t.estado==="terminado" ? "completado" : "activo"),
         prioridad:t.prioridad || "media",
         visible_para:"todos",
         origen:"trabajos",
@@ -2188,79 +2308,140 @@ async function finalizarTrabajoRapido(id){
   const t=await cargarTrabajo(id);
   if(!t) return;
 
+  const jornadas=await cargarJornadasAgendaTrabajo(id);
+  const jornada=jornadaSeleccionadaAgenda(jornadas);
+  if(!jornada){
+    alert("No se ha podido localizar la jornada.");
+    return;
+  }
+
+  const multi=jornadas.length>1;
   modal(`
-    <h2>Finalizar trabajo</h2>
+    <h2>${multi ? "Finalizar jornada" : "Finalizar trabajo"}</h2>
     <div class="zx_text">
       <b>${limpiar(t.titulo || "Trabajo")}</b><br>
+      ${multi ? `Jornada: ${limpiar(fechaES(jornada.fecha_inicio))} · ${limpiar(String(jornada.hora_inicio || "").slice(0,5))}<br>` : ""}
       Puedes añadir un registro breve de lo realizado. Es opcional.
     </div>
     <textarea id="tr_fin_resumen" rows="5" placeholder="Trabajo realizado, observaciones o material pendiente..."></textarea>
-    <button class="zx_btn_big zx_verde" id="tr_fin_confirmar">✅ Finalizar</button>
+    <button class="zx_btn_big zx_verde" id="tr_fin_confirmar">✅ ${multi ? "Finalizar jornada" : "Finalizar"}</button>
+    ${multi ? `<button class="zx_btn_big zx_rojo" id="tr_fin_todo">Finalizar todo el trabajo</button>` : ""}
     <button class="zx_btn_big zx_gris" id="tr_fin_cancelar">Cancelar</button>
   `);
 
-  document.getElementById("tr_fin_cancelar").onclick=cerrarModal;
+  document.getElementById("tr_fin_cancelar").onclick=function(){abrirFicha(id)};
 
-  document.getElementById("tr_fin_confirmar").onclick=async function(){
+  const terminarSoloJornada=async function(finalizarTodo){
     const resumen=valor("tr_fin_resumen");
-
     try{
-      const r=await actualizarTrabajo(id,{estado:"terminado"});
-      if(r && r.error) throw r.error;
+      if(finalizarTodo){
+        const pendientes=jornadas.filter(j=>!["completado","cancelado"].includes(String(j.estado || "")));
+        if(pendientes.length>1){
+          const ok=confirm("Quedan "+pendientes.length+" jornadas sin realizar. ¿Finalizar todo el trabajo igualmente?");
+          if(!ok) return;
+        }
+        const rTodos=await sb().from("agenda_eventos")
+          .update({estado:"completado"})
+          .eq("origen","trabajos")
+          .eq("origen_id",String(id))
+          .neq("estado","cancelado");
+        if(rTodos.error) throw rTodos.error;
+      }else{
+        const rJ=await actualizarEstadoJornadaAgenda(jornada.id,"completado");
+        if(rJ && rJ.error) throw rJ.error;
+      }
+
+      const recalculo=await recalcularEstadoGeneralTrabajo(id,t);
+      const pendientesRestantes=recalculo.jornadas.filter(j=>!["completado","cancelado"].includes(String(j.estado || ""))).length;
 
       await registrarHistorial(
         id,
-        "finalizacion",
-        resumen || "Trabajo finalizado.",
+        finalizarTodo ? "finalizacion" : "jornada",
+        resumen || (finalizarTodo ? "Trabajo completo finalizado." : "Jornada finalizada."),
         {
-          estado:"terminado",
+          estado:recalculo.estado,
+          jornada_id:jornada.id,
+          fecha_jornada:jornada.fecha_inicio,
           resumen:resumen,
+          jornadas_pendientes:pendientesRestantes,
           finalizado_at:new Date().toISOString()
         }
       );
 
-      await sincronizarAgenda(id,Object.assign({},t,{estado:"terminado"}));
+      try{
+        window.dispatchEvent(new CustomEvent("zentryx:agenda:actualizar",{
+          detail:{origen:"trabajos",trabajo_id:String(id)}
+        }));
+      }catch(e){}
 
       cerrarModal();
-      await window.ZX_trabajos();
+      if(modoTrabajoUnico()){
+        await abrirFicha(id);
+      }else{
+        await window.ZX_trabajos();
+      }
     }catch(e){
-      alert("No se pudo finalizar el trabajo.");
+      alert("No se pudo finalizar la jornada.");
     }
   };
+
+  document.getElementById("tr_fin_confirmar").onclick=function(){terminarSoloJornada(false)};
+  const todo=document.getElementById("tr_fin_todo");
+  if(todo) todo.onclick=function(){terminarSoloJornada(true)};
 }
 
 async function ejecutarAccionPrincipal(id,accion){
-  if(accion==="iniciar"){
+  if(accion==="iniciar_jornada" || accion==="iniciar"){
     const t=await cargarTrabajo(id);
     if(!t) return;
 
+    const jornadas=await cargarJornadasAgendaTrabajo(id);
+    const jornada=jornadaSeleccionadaAgenda(jornadas);
+    if(!jornada){
+      alert("No se ha podido localizar la jornada.");
+      return;
+    }
+
     try{
       const ubicacion=await obtenerUbicacionTrabajo();
+      const rJ=await actualizarEstadoJornadaAgenda(jornada.id,"en_curso");
+      if(rJ && rJ.error) throw rJ.error;
+
       const r=await actualizarTrabajo(id,{estado:"en_curso"});
       if(r && r.error) throw r.error;
 
       await registrarHistorial(
         id,
-        "inicio",
-        "Trabajo iniciado.",
+        "jornada",
+        jornadas.length>1 ? "Jornada iniciada." : "Trabajo iniciado.",
         {
           estado:"en_curso",
+          jornada_id:jornada.id,
+          fecha_jornada:jornada.fecha_inicio,
           iniciado_at:new Date().toISOString(),
           ubicacion:ubicacion
         }
       );
 
-      await sincronizarAgenda(id,Object.assign({},t,{estado:"en_curso"}));
+      try{
+        window.dispatchEvent(new CustomEvent("zentryx:agenda:actualizar",{
+          detail:{origen:"trabajos",trabajo_id:String(id)}
+        }));
+      }catch(e){}
 
       cerrarModal();
-      await window.ZX_trabajos();
+      if(modoTrabajoUnico()){
+        await abrirFicha(id);
+      }else{
+        await window.ZX_trabajos();
+      }
     }catch(e){
-      alert("No se pudo iniciar el trabajo.");
+      alert("No se pudo iniciar la jornada.");
     }
     return;
   }
 
-  if(accion==="terminar"){
+  if(accion==="terminar_jornada" || accion==="terminar"){
     finalizarTrabajoRapido(id);
   }
 }
@@ -2273,7 +2454,7 @@ async function abrirFicha(id){
     <div class="zx_tr_full_header">
       ${modoTrabajoUnico() ? `<button type="button" class="zx_tr_back_agenda" id="tr_back_agenda">‹ Agenda</button>` : ""}
       <h2>${limpiar(t.titulo || "Trabajo")}</h2>
-      <span class="zx_tr_full_state ${claseEstado(t.estado)}">${limpiar(estadoTexto(t.estado))}</span>
+      <span class="zx_tr_full_state ${claseEstado(jornadaActual ? jornadaActual.estado : t.estado)}">${limpiar(estadoVisible)}</span>
     </div>
     <div id="tr_ficha_contenido">
       <div class="zx_tr_loading">Cargando ficha...</div>
@@ -2297,11 +2478,12 @@ async function abrirFicha(id){
 
   const box=document.getElementById("tr_ficha_contenido");
 
-  const [plan,mat,arch,hist]=await Promise.all([
+  const [plan,mat,arch,hist,jornadasAgenda]=await Promise.all([
     cargarPlanificacion(id),
     cargarMateriales(id),
     cargarArchivos(id),
-    cargarHistorial(id)
+    cargarHistorial(id),
+    cargarJornadasAgendaTrabajo(id)
   ]);
   const [sugerencias,sugerenciasMateriales]=await Promise.all([
     cargarSugerenciasDocumentales(t,arch),
@@ -2311,32 +2493,34 @@ async function abrirFicha(id){
   const equipo=equipoPlanificacion(plan,t);
   const dir=direccionTrabajo(t);
   const tel=t.telefono_contacto || t.telefono || "";
-  const principal=accionPrincipalTrabajo(t);
+  const jornadaActual=jornadaSeleccionadaAgenda(jornadasAgenda);
+  const principal=accionPrincipalJornada(t,jornadaActual,jornadasAgenda.length);
   const horario=tiempoPlanificado(t);
+  const estadoVisible=jornadaActual ? estadoJornadaTexto(jornadaActual.estado) : estadoTexto(t.estado);
 
   box.innerHTML=`
     <div class="zx_tr_operativo">
-      <section class="zx_tr_status_card zx_tr_estado_${claseEstado(t.estado)}">
+      <section class="zx_tr_status_card zx_tr_estado_${claseEstado(jornadaActual ? jornadaActual.estado : t.estado)}">
         <div class="zx_tr_status_top">
           <div>
             <span class="zx_tr_status_label">Estado actual</span>
-            <strong>${limpiar(estadoTexto(t.estado))}</strong>
+            <strong>${limpiar(estadoVisible)}</strong>
           </div>
           <div class="zx_tr_badges">
-            <span class="estado ${claseEstado(t.estado)}">${limpiar(estadoTexto(t.estado))}</span>
+            <span class="estado ${claseEstado(jornadaActual ? jornadaActual.estado : t.estado)}">${limpiar(estadoVisible)}</span>
             <span class="prio ${clasePrioridad(t.prioridad)}">${limpiar(prioridadTexto(t.prioridad))}</span>
           </div>
         </div>
 
         <div class="zx_tr_status_grid">
-          ${t.fecha ? `<div><span class="zx_tr_calendar_day" aria-label="Calendario">${new Date().getDate()}</span><small>Fecha</small><b>${limpiar(fechaES(t.fecha))}</b></div>` : ""}
-          ${horario ? `<div><span>🕒</span><small>Horario</small><b>${limpiar(horario)}</b></div>` : ""}
+          ${(jornadaActual?.fecha_inicio || t.fecha) ? `<div><span class="zx_tr_calendar_day" aria-label="Calendario">${limpiar(String((jornadaActual?.fecha_inicio || t.fecha)).slice(8,10))}</span><small>Fecha</small><b>${limpiar(fechaES(jornadaActual?.fecha_inicio || t.fecha))}</b></div>` : ""}
+          ${(jornadaActual?.hora_inicio || horario) ? `<div><span>🕒</span><small>Horario</small><b>${limpiar(jornadaActual ? [String(jornadaActual.hora_inicio||"").slice(0,5),String(jornadaActual.hora_fin||"").slice(0,5)].filter(Boolean).join("–") : horario)}</b></div>` : ""}
           <div><span>👥</span><small>Equipo</small><b>${equipo.length || 1}</b></div>
           <button type="button" class="zx_tr_status_materials" id="tr_open_materials"><span>📦</span><small>Materiales</small><b>${mat.length}</b></button>
         </div>
       </section>
 
-      ${renderPanelEjecucion(t,plan,hist)}
+      ${String(jornadaActual?.estado || t.estado)==="en_curso" ? renderPanelEjecucion(Object.assign({},t,{estado:"en_curso"}),plan,hist) : ""}
 
       ${principal.accion!=="ninguna" ? `
         <button
