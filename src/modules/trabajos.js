@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3176 - MATERIALES SIN DUPLICADOS: SUMA AUTOMATICA DE CANTIDAD
+// V3177 - MATERIALES CONSOLIDADOS Y AJUSTE RAPIDO DE CANTIDAD
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3176";
+const ZX_VERSION="3177";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -1861,6 +1861,61 @@ function renderMaterialesResumen(trabajoId,lista){
   `;
 }
 
+async function consolidarMaterialesDuplicados(trabajoId,lista){
+  if(!navigator.onLine || !sb() || !Array.isArray(lista) || lista.length<2) return lista || [];
+
+  const grupos=new Map();
+  lista.forEach(function(m){
+    const nombre=normalizar(m.nombre || m.material || "").replace(/\s+/g," ").trim();
+    const unidad=normalizar(m.unidad || "ud").replace(/\s+/g," ").trim();
+    if(!nombre) return;
+    const clave=nombre+"|"+unidad;
+    if(!grupos.has(clave)) grupos.set(clave,[]);
+    grupos.get(clave).push(m);
+  });
+
+  let huboCambios=false;
+  for(const items of grupos.values()){
+    if(items.length<2) continue;
+    const principal=items[0];
+    const cantidadTotal=items.reduce(function(total,m){return total+Number(m.cantidad||0)},0);
+    const cambios={
+      nombre:principal.nombre || principal.material || "Material",
+      material:principal.material || principal.nombre || "Material",
+      cantidad:cantidadTotal,
+      unidad:principal.unidad || "ud",
+      notas:items.map(m=>String(m.notas||"").trim()).find(Boolean) || "",
+      referencia:items.map(m=>String(m.referencia||"").trim()).find(Boolean) || "",
+      proveedor:items.map(m=>String(m.proveedor||"").trim()).find(Boolean) || "",
+      precio_compra:items.map(m=>m.precio_compra).find(v=>v!==null&&v!==undefined&&v!=="") ?? null,
+      precio_venta:items.map(m=>m.precio_venta).find(v=>v!==null&&v!==undefined&&v!=="") ?? null
+    };
+    const actualizado=await actualizarMaterialCompatible(principal.id,cambios);
+    if(actualizado && actualizado.error) continue;
+    const ids=items.slice(1).map(m=>String(m.id)).filter(Boolean);
+    if(ids.length){
+      const borrado=await sb().from("trabajos_materiales").delete().in("id",ids);
+      if(borrado && borrado.error) continue;
+    }
+    huboCambios=true;
+    await registrarHistorial(trabajoId,"material","Materiales duplicados reunidos: "+cambios.nombre+" ("+cantidadTotal+" "+cambios.unidad+")",{material:cambios.nombre,cantidad:cantidadTotal,unidad:cambios.unidad,consolidado:true});
+  }
+  return huboCambios ? await cargarMateriales(trabajoId) : lista;
+}
+
+async function cambiarCantidadMaterial(trabajoId,material,cambio){
+  const actual=Number(material.cantidad||0);
+  const nueva=actual+Number(cambio||0);
+  if(nueva<=0){
+    if(!confirm("La cantidad quedará a cero. ¿Eliminar este material?")) return;
+    return eliminarMaterial(trabajoId,material.id);
+  }
+  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva});
+  if(r && r.error){alert("No se pudo cambiar la cantidad.\n\n"+mensajeError(r.error));return}
+  await registrarHistorial(trabajoId,"material","Cantidad modificada: "+(material.nombre||material.material||"Material")+" ("+actual+" → "+nueva+" "+(material.unidad||"ud")+")",{material_id:material.id,cantidad_anterior:actual,cantidad:nueva,unidad:material.unidad||"ud"});
+  await abrirListaMateriales(trabajoId);
+}
+
 async function abrirListaMateriales(trabajoId){
   modal(`
     <div class="zx_tr_materials_header">
@@ -1879,7 +1934,8 @@ async function abrirListaMateriales(trabajoId){
   const add=document.getElementById("tr_material_add");
   if(add) add.onclick=function(){abrirMaterial(trabajoId,null)};
 
-  const lista=await cargarMateriales(trabajoId);
+  let lista=await cargarMateriales(trabajoId);
+  lista=await consolidarMaterialesDuplicados(trabajoId,lista);
   const box=document.getElementById("tr_material_list");
   if(!box) return;
 
@@ -1899,6 +1955,11 @@ async function abrirListaMateriales(trabajoId){
           ${m.notas ? `<small>${limpiar(m.notas)}</small>` : ""}
         </div>
         ${puedeGestionar() ? `
+          <div class="zx_tr_material_quick">
+            <button type="button" class="zx_tr_qty_btn" data-material-minus="${limpiar(m.id)}" aria-label="Restar cantidad">−</button>
+            <b>${limpiar(m.cantidad ?? 0)} ${limpiar(m.unidad || "ud")}</b>
+            <button type="button" class="zx_tr_qty_btn" data-material-plus="${limpiar(m.id)}" aria-label="Sumar cantidad">＋</button>
+          </div>
           <div class="zx_tr_material_actions">
             <button type="button" class="blue" data-edit-material="${limpiar(m.id)}">✏️ Editar</button>
             <button type="button" class="red" data-delete-material="${limpiar(m.id)}">🗑️ Eliminar</button>
@@ -1908,13 +1969,18 @@ async function abrirListaMateriales(trabajoId){
     `;
   }).join("");
 
+  box.querySelectorAll("[data-material-minus]").forEach(function(btn){
+    btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialMinus));if(m)cambiarCantidadMaterial(trabajoId,m,-1)};
+  });
+  box.querySelectorAll("[data-material-plus]").forEach(function(btn){
+    btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPlus));if(m)cambiarCantidadMaterial(trabajoId,m,1)};
+  });
   box.querySelectorAll("[data-edit-material]").forEach(function(btn){
     btn.onclick=function(){
       const material=lista.find(function(m){return String(m.id)===String(btn.dataset.editMaterial)});
       if(material) abrirMaterial(trabajoId,material);
     };
   });
-
   box.querySelectorAll("[data-delete-material]").forEach(function(btn){
     btn.onclick=function(){eliminarMaterial(trabajoId,btn.dataset.deleteMaterial)};
   });
@@ -2687,6 +2753,12 @@ async function abrirArchivo(id){
 window.ZX_tr_editar=function(id){cargarTrabajo(id).then(t=>{if(t) abrirFormulario(t)})};
 window.ZX_tr_estado=function(id){abrirCambioEstado(id)};
 window.ZX_tr_mapa=function(dir){abrirMapa(dir)};
+
+(function(){
+  const st=document.createElement("style");
+  st.textContent=`.zx_tr_material_quick{display:flex;align-items:center;justify-content:center;gap:14px;margin:12px 0}.zx_tr_qty_btn{width:54px;height:46px;border:1px solid #b7d5ff;border-radius:14px;background:#eef6ff;color:#0b2454;font-size:28px;font-weight:900;line-height:1}.zx_tr_material_quick b{min-width:110px;text-align:center;color:#155bd7;font-size:18px}`;
+  document.head.appendChild(st);
+})();
 window.ZX_tr_material=function(id){abrirListaMateriales(id)};
 window.ZX_tr_archivo=function(id){abrirArchivo(id)};
 window.ZX_tr_file_menu=function(archivoId,trabajoId){abrirMenuArchivo(archivoId,trabajoId)};
