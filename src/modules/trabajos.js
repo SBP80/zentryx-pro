@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3182 - PREPARACION VISIBLE, IMAGENES DE PRODUCTO Y ENTRADA POR VOZ
+// V3183 - BIBLIOTECA DOCUMENTAL INTELIGENTE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3182";
+const ZX_VERSION="3183";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -358,6 +358,179 @@ function scoreCoincidencia(texto,palabras){
   }
   return score;
 }
+
+
+function categoriaDocumento(a){
+  const texto=normalizar([
+    a.nombre,a.filename,a.tipo,a.mime_type,a._origen_titulo,a._origen_descripcion
+  ].filter(Boolean).join(" "));
+  if(texto.includes("manual")) return {clave:"manual",nombre:"Manual",icono:"📘"};
+  if(texto.includes("esquema") || texto.includes("electrico") || texto.includes("hidraulico")) return {clave:"esquema",nombre:"Esquema",icono:"🧩"};
+  if(texto.includes("despiece") || texto.includes("repuesto")) return {clave:"despiece",nombre:"Despiece",icono:"⚙️"};
+  if(texto.includes("ficha") || texto.includes("tecnica")) return {clave:"ficha",nombre:"Ficha técnica",icono:"📋"};
+  if(texto.includes("certificado") || texto.includes("declaracion") || texto.includes(" ce ")) return {clave:"certificado",nombre:"Certificado",icono:"✅"};
+  if(texto.includes("procedimiento") || texto.includes("checklist") || texto.includes("puesta en marcha")) return {clave:"procedimiento",nombre:"Procedimiento",icono:"🛠️"};
+  if(String(a.tipo || a.mime_type || "").toLowerCase().startsWith("image/")) return {clave:"imagen",nombre:"Imagen",icono:"🖼️"};
+  if(String(a.tipo || a.mime_type || "").toLowerCase().startsWith("video/")) return {clave:"video",nombre:"Vídeo",icono:"🎬"};
+  return {clave:"otro",nombre:"Documento",icono:iconoArchivo(a)};
+}
+
+async function cargarBibliotecaDocumental(){
+  if(!navigator.onLine || !sb()) return [];
+  try{
+    const [ra,rt]=await Promise.all([
+      sb().from("trabajos_archivos").select("*").order("created_at",{ascending:false}).limit(1200),
+      sb().from("trabajos").select("id,titulo,descripcion,notas,cliente").limit(1000)
+    ]);
+    if(ra.error) throw ra.error;
+    const trabajos=new Map((rt.error ? [] : (rt.data || [])).map(t=>[String(t.id),t]));
+    const vistos=new Set();
+    const lista=[];
+    for(const a of (ra.data || [])){
+      const url=String(a.url || a.archivo_url || "");
+      if(!url) continue;
+      const nombre=String(a.nombre || a.filename || "Documento").trim();
+      const clave=normalizar(nombre)+"|"+url;
+      if(vistos.has(clave)) continue;
+      vistos.add(clave);
+      const origen=trabajos.get(String(a.trabajo_id)) || {};
+      const categoria=categoriaDocumento({
+        ...a,
+        _origen_titulo:origen.titulo,
+        _origen_descripcion:origen.descripcion
+      });
+      lista.push({
+        ...a,
+        nombre:nombre,
+        url:url,
+        _origen_titulo:origen.titulo || "Trabajo anterior",
+        _origen_cliente:origen.cliente || "",
+        _origen_descripcion:origen.descripcion || "",
+        _origen_notas:origen.notas || "",
+        _categoria:categoria,
+        _buscar:normalizar([
+          nombre,categoria.nombre,origen.titulo,origen.cliente,
+          origen.descripcion,origen.notas,a.tipo,a.mime_type
+        ].filter(Boolean).join(" "))
+      });
+    }
+    return lista;
+  }catch(e){
+    alert("No se pudo cargar la biblioteca documental.\n\n"+mensajeError(e));
+    return [];
+  }
+}
+
+function tarjetaBibliotecaDocumento(a,trabajoId,yaAdjunto){
+  const cat=a._categoria || categoriaDocumento(a);
+  const fecha=fechaArchivoVisible(a);
+  return `<article class="zx_doc_card" data-doc-search="${limpiar(a._buscar || "")}">
+    <div class="zx_doc_preview">${miniaturaArchivo(a)}</div>
+    <div class="zx_doc_content">
+      <div class="zx_doc_top">
+        <span class="zx_doc_category zx_doc_${limpiar(cat.clave)}">${cat.icono} ${limpiar(cat.nombre)}</span>
+        ${fecha ? `<small>${limpiar(fecha)}</small>` : ""}
+      </div>
+      <strong>${limpiar(a.nombre || "Documento")}</strong>
+      <span>${limpiar(a._origen_titulo || "Biblioteca")}</span>
+      ${a._origen_cliente ? `<small>${limpiar(a._origen_cliente)}</small>` : ""}
+      <div class="zx_doc_actions">
+        <button type="button" class="zx_doc_open" data-doc-open="${limpiar(a.url)}">Ver</button>
+        ${trabajoId ? `<button type="button" class="zx_doc_attach" data-doc-attach="${limpiar(a.id)}" ${yaAdjunto ? "disabled" : ""}>${yaAdjunto ? "Añadido" : "Añadir al trabajo"}</button>` : ""}
+      </div>
+    </div>
+  </article>`;
+}
+
+async function abrirBibliotecaDocumental(trabajoId){
+  modal(`
+    <h2>Biblioteca documental</h2>
+    <div class="zx_doc_search_wrap">
+      <input id="zx_doc_search" type="search" placeholder="Buscar manual, marca, modelo, equipo, potencia...">
+      <select id="zx_doc_category">
+        <option value="">Todas las categorías</option>
+        <option value="manual">Manuales</option>
+        <option value="esquema">Esquemas</option>
+        <option value="despiece">Despieces</option>
+        <option value="ficha">Fichas técnicas</option>
+        <option value="certificado">Certificados</option>
+        <option value="procedimiento">Procedimientos</option>
+        <option value="imagen">Imágenes</option>
+        <option value="video">Vídeos</option>
+        <option value="otro">Otros</option>
+      </select>
+    </div>
+    <div id="zx_doc_results" class="zx_doc_results"><div class="zx_tr_loading">Cargando documentos...</div></div>
+    <button type="button" class="zx_btn_big zx_gris" id="zx_doc_close">Cerrar</button>
+  `);
+
+  document.getElementById("zx_doc_close").onclick=function(){
+    if(trabajoId) abrirFicha(trabajoId);
+    else cerrarModal();
+  };
+
+  const [biblioteca,actuales]=await Promise.all([
+    cargarBibliotecaDocumental(),
+    trabajoId ? cargarArchivos(trabajoId) : Promise.resolve([])
+  ]);
+  const actualesSet=new Set((actuales || []).map(a=>normalizar(a.nombre || a.filename || "")+"|"+String(a.url || a.archivo_url || "")));
+  const box=document.getElementById("zx_doc_results");
+  const input=document.getElementById("zx_doc_search");
+  const select=document.getElementById("zx_doc_category");
+
+  function pintar(){
+    const q=normalizar(input.value || "");
+    const categoria=select.value || "";
+    const filtrados=biblioteca.filter(a=>{
+      if(categoria && (!a._categoria || a._categoria.clave!==categoria)) return false;
+      if(q && !String(a._buscar || "").includes(q)) return false;
+      return true;
+    });
+    box.innerHTML=filtrados.length
+      ? filtrados.map(a=>tarjetaBibliotecaDocumento(
+          a,trabajoId,
+          actualesSet.has(normalizar(a.nombre || "")+"|"+String(a.url || ""))
+        )).join("")
+      : `<div class="zx_tr_empty">No se encontraron documentos.</div>`;
+
+    box.querySelectorAll("[data-doc-open]").forEach(btn=>{
+      btn.onclick=function(){window.open(btn.dataset.docOpen,"_blank","noopener")};
+    });
+    box.querySelectorAll("[data-doc-attach]").forEach(btn=>{
+      btn.onclick=async function(){
+        const a=biblioteca.find(x=>String(x.id)===String(btn.dataset.docAttach));
+        if(!a || !trabajoId) return;
+        btn.disabled=true;
+        btn.textContent="Añadiendo...";
+        const r=await insertarArchivoCompatible({
+          trabajo_id:String(trabajoId),
+          nombre:a.nombre || "Documento",
+          url:a.url || "",
+          tipo:a.tipo || a.mime_type || "",
+          tamano:a.tamano || a.size || 0
+        });
+        if(r && r.error){
+          btn.disabled=false;
+          btn.textContent="Añadir al trabajo";
+          alert("No se pudo añadir el documento.\n\n"+mensajeError(r.error));
+          return;
+        }
+        actualesSet.add(normalizar(a.nombre || "")+"|"+String(a.url || ""));
+        await registrarHistorial(
+          trabajoId,"archivo",
+          "Documento añadido desde la biblioteca: "+(a.nombre || "Documento"),
+          {origen_archivo_id:a.id,origen_trabajo_id:a.trabajo_id}
+        );
+        btn.textContent="Añadido";
+      };
+    });
+  }
+
+  input.oninput=pintar;
+  select.onchange=pintar;
+  pintar();
+}
+
 
 async function cargarSugerenciasDocumentales(t,archivosActuales){
   if(!navigator.onLine || !sb()) return [];
@@ -808,7 +981,10 @@ function toolbar(total){
       <div class="zx_tr_toolbar_bottom">
         <div id="zx_tr_resume" class="zx_tr_resume">${total} resultado(s)</div>
       </div>
-      ${!modoTrabajoUnico() ? `<button type="button" class="zx_tr_monitor_btn" id="zx_tr_monitor">🖥️ Monitor de oficina</button>` : ""}
+      ${!modoTrabajoUnico() ? `<div class="zx_tr_toolbar_tools">
+        <button type="button" class="zx_tr_library_btn" id="zx_tr_library">📚 Biblioteca documental</button>
+        <button type="button" class="zx_tr_monitor_btn" id="zx_tr_monitor">🖥️ Monitor de oficina</button>
+      </div>` : ""}
     </div>
   `;
 }
@@ -972,6 +1148,11 @@ function conectarEventos(){
   if(monitorBtn) monitorBtn.onclick=function(){
     if(typeof window.ZX_monitor_oficina==="function") window.ZX_monitor_oficina();
     else alert("El modo Monitor no está disponible.");
+  };
+
+  const libraryBtn=document.getElementById("zx_tr_library");
+  if(libraryBtn) libraryBtn.onclick=function(){
+    abrirBibliotecaDocumental("");
   };
 
   document.querySelectorAll("[data-tr-filter]").forEach(function(btn){
@@ -1807,7 +1988,7 @@ async function abrirFicha(id){
       }))}
       ${renderMaterialesResumen(id,mat)}
       ${renderSugerenciasMateriales(sugerenciasMateriales)}
-      ${renderArchivos(arch)}
+      ${renderArchivos(arch,id)}
       ${renderNotasVisibles(hist)}
       ${renderSugerenciasInteligentes(sugerencias)}
       ${renderHistorialProfesional(hist)}
@@ -1816,6 +1997,9 @@ async function abrirFicha(id){
 
   const materials=document.getElementById("tr_open_materials");
   if(materials) materials.onclick=function(){abrirListaMateriales(id)};
+
+  const docLibrary=document.getElementById("tr_open_doc_library");
+  if(docLibrary) docLibrary.onclick=function(){abrirBibliotecaDocumental(id)};
 
   const materialsBlock=document.getElementById("tr_materials_block");
   if(materialsBlock) materialsBlock.onclick=function(){abrirListaMateriales(id)};
@@ -2418,10 +2602,13 @@ function iconoArchivo(a){
   return "📎";
 }
 
-function renderArchivos(lista){
+function renderArchivos(lista,trabajoId){
   return `
     <div class="zx_tr_block">
-      <h3>Archivos</h3>
+      <div class="zx_tr_block_title">
+        <h3>Archivos</h3>
+        ${trabajoId ? `<button type="button" class="zx_doc_library_open" id="tr_open_doc_library">📚 Buscar en biblioteca</button>` : ""}
+      </div>
       ${
         lista.length
         ? `<div class="zx_tr_files_list">${lista.map(a=>{
@@ -3148,6 +3335,33 @@ function instalarCSS(){
     .zx_tr_date_filters input{box-sizing:border-box;min-width:0;width:100%;border:1px solid #dbe3ef;border-radius:14px;padding:10px 7px;background:#fff;color:#0f172a;font-weight:800;font-size:13px}
     .zx_tr_date_filters button,.zx_tr_monitor_btn{border:1px solid #bfdbfe;border-radius:14px;padding:10px 8px;background:#eff6ff;color:#1d4ed8;font-weight:950;min-width:0}
     .zx_tr_monitor_btn{width:100%;display:flex;align-items:center;justify-content:center;gap:7px}
+    .zx_tr_toolbar_tools{display:grid;grid-template-columns:1fr;gap:8px}
+    .zx_tr_library_btn{width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid #c4b5fd;border-radius:14px;padding:10px 8px;background:#f5f3ff;color:#6d28d9;font-weight:950}
+    .zx_doc_search_wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-bottom:12px}
+    .zx_doc_search_wrap input,.zx_doc_search_wrap select{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:13px;background:#fff;font-size:15px}
+    .zx_doc_results{display:grid;gap:10px;max-height:60vh;overflow:auto;padding-right:2px}
+    .zx_doc_card{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;padding:12px;border:1px solid #dbe4ef;border-radius:18px;background:#fff}
+    .zx_doc_preview{width:76px;height:76px;border-radius:14px;overflow:hidden;background:#f1f5f9;display:flex;align-items:center;justify-content:center}
+    .zx_doc_preview .zx_tr_file_thumb{width:100%;height:100%;object-fit:cover}
+    .zx_doc_preview .zx_tr_file_icon{font-size:32px}
+    .zx_doc_content{min-width:0;display:grid;gap:5px}
+    .zx_doc_content>strong{font-size:15px;color:#0f172a;overflow-wrap:anywhere}
+    .zx_doc_content>span,.zx_doc_content>small{font-size:12px;color:#64748b;overflow-wrap:anywhere}
+    .zx_doc_top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .zx_doc_top small{font-size:10px;color:#94a3b8}
+    .zx_doc_category{display:inline-flex;align-items:center;width:max-content;max-width:100%;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:950;background:#eef2ff;color:#3730a3}
+    .zx_doc_actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px}
+    .zx_doc_actions button,.zx_doc_library_open{border:1px solid #bfdbfe;border-radius:11px;padding:8px;background:#eff6ff;color:#1d4ed8;font-weight:900}
+    .zx_doc_actions button:disabled{background:#f1f5f9;color:#94a3b8;border-color:#e2e8f0}
+    .zx_doc_attach{background:#ecfdf5!important;color:#047857!important;border-color:#a7f3d0!important}
+    .zx_doc_library_open{padding:7px 9px;font-size:11px}
+    @media(min-width:760px){
+      .zx_tr_toolbar_tools{grid-template-columns:auto auto;justify-content:end}
+      .zx_tr_library_btn,.zx_tr_monitor_btn{width:auto}
+      .zx_doc_search_wrap{grid-template-columns:minmax(0,1fr) 230px}
+      .zx_doc_results{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+
     .zx_tr_toolbar_bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
     @media(min-width:760px){.zx_tr_date_filters{grid-template-columns:minmax(360px,1fr) auto;align-items:end}.zx_tr_date_quick{grid-template-columns:repeat(3,auto)}.zx_tr_monitor_btn{width:auto;justify-self:end}}
     .zx_tr_resume{color:#64748b;font-size:13px;font-weight:900}
