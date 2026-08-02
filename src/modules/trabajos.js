@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3187 - ESTADO INDEPENDIENTE POR JORNADA
+// V3188 - CORRECCION APERTURA Y FECHAS MULTIPLES EN LISTADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3187";
+const ZX_VERSION="3188";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -892,6 +892,67 @@ function filtrarTrabajos(){
   return lista;
 }
 
+
+async function cargarJornadasParaListado(trabajos){
+  const lista=Array.isArray(trabajos) ? trabajos : [];
+  lista.forEach(t=>{t.__zx_jornadas=[]});
+  if(!lista.length || !navigator.onLine || !sb()) return lista;
+
+  try{
+    const ids=new Set(lista.map(t=>String(t.id)));
+    const r=await sb().from("agenda_eventos")
+      .select("id,origen_id,fecha_inicio,fecha_fin,hora_inicio,hora_fin,estado")
+      .eq("origen","trabajos")
+      .order("fecha_inicio",{ascending:true})
+      .order("hora_inicio",{ascending:true})
+      .limit(3000);
+
+    if(r.error) throw r.error;
+
+    const grupos=new Map();
+    (r.data || []).forEach(function(e){
+      const id=String(e.origen_id || "");
+      if(!ids.has(id)) return;
+      if(!grupos.has(id)) grupos.set(id,[]);
+      grupos.get(id).push(e);
+    });
+
+    lista.forEach(function(t){
+      t.__zx_jornadas=grupos.get(String(t.id)) || [];
+    });
+  }catch(e){
+    console.warn("No se pudieron cargar las jornadas del listado:",e);
+  }
+  return lista;
+}
+
+function renderJornadasTarjeta(t){
+  const jornadas=Array.isArray(t.__zx_jornadas) ? t.__zx_jornadas : [];
+  if(!jornadas.length){
+    return t.fecha ? `<p><b>Primera jornada</b><span>${limpiar(fechaES(t.fecha))}${t.hora_inicio ? " · "+limpiar(String(t.hora_inicio).slice(0,5)) : ""}</span></p>` : "";
+  }
+
+  const lineas=jornadas.map(function(j,index){
+    const inicio=String(j.hora_inicio || "").slice(0,5);
+    const fin=String(j.hora_fin || "").slice(0,5);
+    const horario=[inicio,fin].filter(Boolean).join("–");
+    return `<div class="zx_tr_card_jornada ${index>=3 ? "zx_tr_card_jornada_extra" : ""}">
+      <span>${limpiar(fechaES(j.fecha_inicio))}${horario ? " · "+limpiar(horario) : ""}</span>
+      <b class="zx_tr_jornada_estado zx_tr_jornada_${limpiar(String(j.estado || "activo"))}">${limpiar(estadoJornadaTexto(j.estado))}</b>
+    </div>`;
+  }).join("");
+
+  return `<div class="zx_tr_card_plan">
+    <div class="zx_tr_card_plan_title">
+      <b>Planificación</b>
+      <span>${jornadas.length} jornada${jornadas.length===1 ? "" : "s"}</span>
+    </div>
+    ${lineas}
+    ${jornadas.length>3 ? `<small class="zx_tr_card_more">En móvil se muestran 3; abre el trabajo para ver todas.</small>` : ""}
+  </div>`;
+}
+
+
 async function cargarTrabajos(){
   if(!puedeEntrar()) return [];
 
@@ -928,6 +989,7 @@ async function cargarTrabajos(){
     if(r.error) throw r.error;
 
     ZX_TR_CACHE=(r.data || []).map(prepararTrabajo);
+    await cargarJornadasParaListado(ZX_TR_CACHE);
     guardarCache(ZX_TR_CACHE);
 
   }catch(e){
@@ -1028,7 +1090,7 @@ function renderTrabajo(t){
       </div>
 
       <div class="zx_tr_info">
-        ${t.fecha ? `<p><b>Fecha</b><span>${limpiar(fechaES(t.fecha))}${t.hora_inicio ? " · "+limpiar(String(t.hora_inicio).slice(0,5)) : ""}</span></p>` : ""}
+        ${renderJornadasTarjeta(t)}
         ${t.usuario ? `<p><b>Técnico</b><span>${limpiar(t.usuario)}</span></p>` : ""}
         ${tel ? `<p><b>Teléfono</b><span>${limpiar(tel)}</span></p>` : ""}
         ${dir ? `<p><b>Dirección</b><span>${limpiar(dir)}</span></p>` : ""}
@@ -2454,7 +2516,7 @@ async function abrirFicha(id){
     <div class="zx_tr_full_header">
       ${modoTrabajoUnico() ? `<button type="button" class="zx_tr_back_agenda" id="tr_back_agenda">‹ Agenda</button>` : ""}
       <h2>${limpiar(t.titulo || "Trabajo")}</h2>
-      <span class="zx_tr_full_state ${claseEstado(jornadaActual ? jornadaActual.estado : t.estado)}">${limpiar(estadoVisible)}</span>
+      <span class="zx_tr_full_state ${claseEstado(t.estado)}" id="tr_full_header_state">${limpiar(estadoTexto(t.estado))}</span>
     </div>
     <div id="tr_ficha_contenido">
       <div class="zx_tr_loading">Cargando ficha...</div>
@@ -2497,6 +2559,11 @@ async function abrirFicha(id){
   const principal=accionPrincipalJornada(t,jornadaActual,jornadasAgenda.length);
   const horario=tiempoPlanificado(t);
   const estadoVisible=jornadaActual ? estadoJornadaTexto(jornadaActual.estado) : estadoTexto(t.estado);
+  const headerState=document.getElementById("tr_full_header_state");
+  if(headerState){
+    headerState.className="zx_tr_full_state "+claseEstado(jornadaActual ? jornadaActual.estado : t.estado);
+    headerState.textContent=estadoVisible;
+  }
 
   box.innerHTML=`
     <div class="zx_tr_operativo">
@@ -4019,6 +4086,20 @@ function instalarCSS(){
     .zx_tr_info p{margin:0;background:white;border:1px solid #e6edf5;border-radius:16px;padding:11px}
     .zx_tr_info b{display:block;color:#64748b;font-size:12px;font-weight:950;margin-bottom:4px}
     .zx_tr_info span{display:block;color:#071330;font-size:15px;font-weight:850;line-height:1.3;word-break:break-word}
+    .zx_tr_card_plan{display:grid;gap:7px;padding:11px;border:1px solid #dbe4ef;border-radius:15px;background:#fff}
+    .zx_tr_card_plan_title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .zx_tr_card_plan_title>b{font-size:12px;color:#64748b}
+    .zx_tr_card_plan_title>span{font-size:11px;font-weight:900;color:#2563eb}
+    .zx_tr_card_jornada{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 8px;border-radius:10px;background:#f8fafc}
+    .zx_tr_card_jornada>span{font-size:12px;font-weight:900;color:#0f172a}
+    .zx_tr_jornada_estado{font-size:9px;padding:4px 6px;border-radius:999px;white-space:nowrap}
+    .zx_tr_jornada_activo{background:#fff7ed;color:#9a3412}
+    .zx_tr_jornada_en_curso{background:#dbeafe;color:#1d4ed8}
+    .zx_tr_jornada_completado{background:#dcfce7;color:#166534}
+    .zx_tr_jornada_cancelado{background:#fee2e2;color:#b91c1c}
+    .zx_tr_card_more{font-size:10px;color:#64748b;font-weight:750}
+    @media(max-width:600px){.zx_tr_card_jornada_extra{display:none}}
+
     .zx_tr_actions,.zx_tr_ficha_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
     .zx_tr_operativo{display:grid;gap:12px}
     .zx_tr_status_card{background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px}
@@ -4222,6 +4303,12 @@ function instalarCSS(){
 
 window.ZX_trabajos=async function(){
   instalarCSS();
+
+  const entradaDesdeAgenda=window.ZX_TRABAJO_DESDE_AGENDA===true;
+  window.ZX_TRABAJO_DESDE_AGENDA=false;
+  if(!entradaDesdeAgenda && modoTrabajoUnico()){
+    salirTrabajoUnico();
+  }
 
   if(zx() && typeof zx().marcarModuloActivo==="function"){
     zx().marcarModuloActivo("trabajos");
