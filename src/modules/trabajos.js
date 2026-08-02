@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3188 - CORRECCION APERTURA Y FECHAS MULTIPLES EN LISTADO
+// V3189 - ACTUALIZACION INMEDIATA AL FINALIZAR JORNADA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3188";
+const ZX_VERSION="3189";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2395,6 +2395,13 @@ async function finalizarTrabajoRapido(id){
 
   const terminarSoloJornada=async function(finalizarTodo){
     const resumen=valor("tr_fin_resumen");
+    const btnConfirmar=document.getElementById("tr_fin_confirmar");
+    const btnTodo=document.getElementById("tr_fin_todo");
+    if(btnConfirmar){
+      btnConfirmar.disabled=true;
+      btnConfirmar.textContent="Guardando...";
+    }
+    if(btnTodo) btnTodo.disabled=true;
     try{
       if(finalizarTodo){
         const pendientes=jornadas.filter(j=>!["completado","cancelado"].includes(String(j.estado || "")));
@@ -2437,12 +2444,30 @@ async function finalizarTrabajoRapido(id){
       }catch(e){}
 
       cerrarModal();
+
+      // Forzar recarga desde Supabase antes de repintar la ficha local.
+      ZX_TR_CACHE=ZX_TR_CACHE.filter(function(x){return String(x.id)!==String(id)});
+      guardarCache(ZX_TR_CACHE);
+
+      try{
+        window.dispatchEvent(new CustomEvent("zentryx:trabajos:actualizar",{
+          detail:{trabajo_id:String(id),jornada_id:String(jornada.id || "")}
+        }));
+      }catch(e){}
+
       if(modoTrabajoUnico()){
+        await new Promise(function(resolve){setTimeout(resolve,80)});
         await abrirFicha(id);
       }else{
+        await new Promise(function(resolve){setTimeout(resolve,80)});
         await window.ZX_trabajos();
       }
     }catch(e){
+      if(btnConfirmar){
+        btnConfirmar.disabled=false;
+        btnConfirmar.textContent=multi ? "✅ Finalizar jornada" : "✅ Finalizar";
+      }
+      if(btnTodo) btnTodo.disabled=false;
       alert("No se pudo finalizar la jornada.");
     }
   };
@@ -2492,9 +2517,13 @@ async function ejecutarAccionPrincipal(id,accion){
       }catch(e){}
 
       cerrarModal();
+      ZX_TR_CACHE=ZX_TR_CACHE.filter(function(x){return String(x.id)!==String(id)});
+      guardarCache(ZX_TR_CACHE);
       if(modoTrabajoUnico()){
+        await new Promise(function(resolve){setTimeout(resolve,80)});
         await abrirFicha(id);
       }else{
+        await new Promise(function(resolve){setTimeout(resolve,80)});
         await window.ZX_trabajos();
       }
     }catch(e){
@@ -4299,6 +4328,20 @@ function instalarCSS(){
     @media(min-width:1100px){.zx_tr_panel{padding:22px}.zx_tr_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
   document.head.appendChild(s);
+}
+
+
+if(!window.__ZX_TRABAJOS_REALTIME_LISTENER){
+  window.__ZX_TRABAJOS_REALTIME_LISTENER=true;
+  window.addEventListener("zentryx:trabajos:actualizar",async function(ev){
+    const id=String(ev?.detail?.trabajo_id || "");
+    if(!id) return;
+    ZX_TR_CACHE=ZX_TR_CACHE.filter(function(x){return String(x.id)!==id});
+    guardarCache(ZX_TR_CACHE);
+    if(modoTrabajoUnico() && String(window.ZX_TRABAJO_ABRIR_ID || "")===id){
+      try{await abrirFicha(id)}catch(e){}
+    }
+  });
 }
 
 window.ZX_trabajos=async function(){
