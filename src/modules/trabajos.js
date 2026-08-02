@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3180 - CANTIDAD DIRECTA Y BOTON AÑADIR CORREGIDO
+// V3181 - CONTROL DE MATERIALES PENDIENTES, PARCIALES Y LISTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3180";
+const ZX_VERSION="3181";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -1866,6 +1866,119 @@ function renderNotasVisibles(hist){
   return `<section class="zx_tr_block zx_tr_notes_block"><div class="zx_tr_block_title"><h3>Notas</h3><span>${notas.length}</span></div>${notas.slice(0,5).map(h=>`<article class="zx_tr_note_visible"><p>${limpiar(h.notas || "")}</p><small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small></article>`).join("")}</section>`;
 }
 
+
+const ZX_MATERIAL_PREPARADO_RE=/\[\[ZX_PREPARADO:([0-9]+(?:[.,][0-9]+)?)\]\]/i;
+
+function cantidadPreparadaMaterial(material){
+  const notas=String((material && material.notas) || "");
+  const match=notas.match(ZX_MATERIAL_PREPARADO_RE);
+  if(match){
+    const n=Number(String(match[1]).replace(",","."));
+    return Number.isFinite(n) && n>0 ? n : 0;
+  }
+  if(material && material.preparado===true) return Number(material.cantidad || 0);
+  return 0;
+}
+
+function notasVisiblesMaterial(material){
+  return String((material && material.notas) || "")
+    .replace(ZX_MATERIAL_PREPARADO_RE,"")
+    .replace(/\n{3,}/g,"\n\n")
+    .trim();
+}
+
+function notasConPreparado(notas,cantidadPreparada){
+  const limpia=String(notas || "")
+    .replace(ZX_MATERIAL_PREPARADO_RE,"")
+    .replace(/\n{3,}/g,"\n\n")
+    .trim();
+  const preparada=Number(cantidadPreparada || 0);
+  if(!(preparada>0)) return limpia;
+  return (limpia ? limpia+"\n" : "")+"[[ZX_PREPARADO:"+preparada+"]]";
+}
+
+function estadoPreparacionMaterial(material){
+  const total=Math.max(0,Number(material && material.cantidad || 0));
+  const preparada=Math.min(total,Math.max(0,cantidadPreparadaMaterial(material)));
+  if(total<=0 || preparada<=0){
+    return {clave:"pendiente",preparada:0,total:total,falta:total,texto:"Pendiente"};
+  }
+  if(preparada>=total){
+    return {clave:"listo",preparada:total,total:total,falta:0,texto:"Listo"};
+  }
+  return {clave:"parcial",preparada:preparada,total:total,falta:total-preparada,texto:"Parcial"};
+}
+
+async function establecerPreparacionMaterial(trabajoId,material,modo){
+  const total=Math.max(0,Number(material.cantidad || 0));
+  const actual=Math.min(total,Math.max(0,cantidadPreparadaMaterial(material)));
+  let nueva=actual;
+
+  if(modo==="pendiente"){
+    nueva=0;
+  }else if(modo==="listo"){
+    nueva=total;
+  }else{
+    const entrada=prompt(
+      "Cantidad disponible o preparada de "+(material.nombre||material.material||"Material")+
+      " (necesarias: "+total+" "+(material.unidad||"ud")+"):", String(actual)
+    );
+    if(entrada===null) return;
+    nueva=Number(String(entrada).trim().replace(",","."));
+    if(!Number.isFinite(nueva) || nueva<0 || nueva>total){
+      alert("Introduce una cantidad entre 0 y "+total+".");
+      return;
+    }
+  }
+
+  const notas=notasConPreparado(notasVisiblesMaterial(material),nueva);
+  const r=await actualizarMaterialCompatible(material.id,{
+    notas:notas,
+    preparado:nueva>=total && total>0
+  });
+  if(r && r.error){
+    alert("No se pudo actualizar la preparación del material.\n\n"+mensajeError(r.error));
+    return;
+  }
+
+  const falta=Math.max(0,total-nueva);
+  const descripcion=nueva<=0
+    ? "Material marcado como pendiente: "
+    : nueva>=total
+      ? "Material marcado como listo: "
+      : "Material preparado parcialmente: ";
+  await registrarHistorial(
+    trabajoId,"material",
+    descripcion+(material.nombre||material.material||"Material")+
+    " ("+nueva+" de "+total+" "+(material.unidad||"ud")+
+    (falta>0 ? "; faltan "+falta : "")+")",
+    {material_id:material.id,cantidad_total:total,cantidad_preparada:nueva,cantidad_pendiente:falta}
+  );
+  await abrirListaMateriales(trabajoId);
+}
+
+function abrirEstadoPreparacionMaterial(trabajoId,material){
+  const estado=estadoPreparacionMaterial(material);
+  modal(`
+    <h2>Preparación de material</h2>
+    <div class="zx_tr_material_prepare_summary">
+      <strong>${limpiar(material.nombre||material.material||"Material")}</strong>
+      <span>Necesario: ${limpiar(estado.total)} ${limpiar(material.unidad||"ud")}</span>
+      <span>Disponible: ${limpiar(estado.preparada)} ${limpiar(material.unidad||"ud")}</span>
+      <span>Falta: ${limpiar(estado.falta)} ${limpiar(material.unidad||"ud")}</span>
+    </div>
+    <button class="zx_btn_big zx_gris" id="tr_mat_prepare_pending">○ Pendiente</button>
+    <button class="zx_btn_big zx_naranja" id="tr_mat_prepare_partial">◐ Indicar cantidad disponible</button>
+    <button class="zx_btn_big zx_verde" id="tr_mat_prepare_ready">✓ Todo listo</button>
+    <button class="zx_btn_big zx_gris" id="tr_mat_prepare_cancel">Cancelar</button>
+  `);
+  document.getElementById("tr_mat_prepare_pending").onclick=function(){establecerPreparacionMaterial(trabajoId,material,"pendiente")};
+  document.getElementById("tr_mat_prepare_partial").onclick=function(){establecerPreparacionMaterial(trabajoId,material,"parcial")};
+  document.getElementById("tr_mat_prepare_ready").onclick=function(){establecerPreparacionMaterial(trabajoId,material,"listo")};
+  document.getElementById("tr_mat_prepare_cancel").onclick=function(){abrirListaMateriales(trabajoId)};
+}
+
+
 function renderMaterialesResumen(trabajoId,lista){
   return `
     <button type="button" class="zx_tr_block zx_tr_materials_block" id="tr_materials_block">
@@ -1957,7 +2070,8 @@ async function cambiarCantidadMaterial(trabajoId,material,cambio){
     if(!confirm("La cantidad quedará a cero. ¿Eliminar este material?")) return;
     return eliminarMaterial(trabajoId,material.id);
   }
-  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva});
+  const preparada=Math.min(nueva,cantidadPreparadaMaterial(material));
+  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasConPreparado(notasVisiblesMaterial(material),preparada),preparado:preparada>=nueva&&nueva>0});
   if(r && r.error){alert("No se pudo cambiar la cantidad.\n\n"+mensajeError(r.error));return}
   await registrarHistorial(trabajoId,"material","Cantidad modificada: "+(material.nombre||material.material||"Material")+" ("+actual+" → "+nueva+" "+(material.unidad||"ud")+")",{material_id:material.id,cantidad_anterior:actual,cantidad:nueva,unidad:material.unidad||"ud"});
   await abrirListaMateriales(trabajoId);
@@ -1979,7 +2093,8 @@ async function establecerCantidadMaterial(trabajoId,material){
     if(!confirm("La cantidad quedará a cero. ¿Eliminar este material?")) return;
     return eliminarMaterial(trabajoId,material.id);
   }
-  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva});
+  const preparada=Math.min(nueva,cantidadPreparadaMaterial(material));
+  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasConPreparado(notasVisiblesMaterial(material),preparada),preparado:preparada>=nueva&&nueva>0});
   if(r && r.error){alert("No se pudo cambiar la cantidad.\n\n"+mensajeError(r.error));return}
   await registrarHistorial(trabajoId,"material","Cantidad fijada: "+nombre+" ("+actual+" → "+nueva+" "+(material.unidad||"ud")+")",{material_id:material.id,cantidad_anterior:actual,cantidad:nueva,unidad:material.unidad||"ud",edicion_directa:true});
   await abrirListaMateriales(trabajoId);
@@ -2016,13 +2131,19 @@ async function abrirListaMateriales(trabajoId){
   box.innerHTML=lista.map(function(m){
     const nombre=m.nombre || m.material || "Material";
     const cantidad=[m.cantidad,m.unidad].filter(Boolean).join(" ");
+    const prep=estadoPreparacionMaterial(m);
+    const notasVisibles=notasVisiblesMaterial(m);
     return `
-      <article class="zx_tr_material_item">
+      <article class="zx_tr_material_item zx_tr_material_${prep.clave}">
         <div class="zx_tr_material_info">
           <strong>${limpiar(nombre)}</strong>
           ${cantidad ? `<span>${limpiar(cantidad)}</span>` : ""}
-          ${m.notas ? `<small>${limpiar(m.notas)}</small>` : ""}
+          ${notasVisibles ? `<small>${limpiar(notasVisibles)}</small>` : ""}
         </div>
+        <button type="button" class="zx_tr_material_prepare zx_tr_prepare_${prep.clave}" data-material-prepare="${limpiar(m.id)}">
+          <b>${prep.clave==="listo" ? "✓ Listo" : prep.clave==="parcial" ? "◐ Parcial" : "○ Pendiente"}</b>
+          <span>${limpiar(prep.preparada)} de ${limpiar(prep.total)} ${limpiar(m.unidad||"ud")}${prep.falta>0 ? ` · faltan ${limpiar(prep.falta)}` : ""}</span>
+        </button>
         ${puedeGestionar() ? `
           <div class="zx_tr_material_quick">
             <button type="button" class="zx_tr_qty_btn" data-material-minus="${limpiar(m.id)}" aria-label="Restar cantidad">−</button>
@@ -2038,6 +2159,12 @@ async function abrirListaMateriales(trabajoId){
     `;
   }).join("");
 
+  box.querySelectorAll("[data-material-prepare]").forEach(function(btn){
+    btn.onclick=function(){
+      const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPrepare));
+      if(m) abrirEstadoPreparacionMaterial(trabajoId,m);
+    };
+  });
   box.querySelectorAll("[data-material-minus]").forEach(function(btn){
     btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialMinus));if(m)cambiarCantidadMaterial(trabajoId,m,-1)};
   });
@@ -2432,7 +2559,7 @@ async function abrirMaterial(id,material){
       <label class="zx_tr_label">IVA (%)</label><input id="tr_mat_iva" type="number" step="0.01" value="${limpiar(material && material.iva!=null ? material.iva : "")}">
     </details>
     <label class="zx_tr_label">Notas</label>
-    <textarea id="tr_mat_notas" rows="3">${limpiar(material ? (material.notas || "") : "")}</textarea>
+    <textarea id="tr_mat_notas" rows="3">${limpiar(material ? notasVisiblesMaterial(material) : "")}</textarea>
     <button class="zx_btn_big zx_verde" id="tr_mat_guardar">${material ? "Guardar cambios" : "Guardar material"}</button>
     <button class="zx_btn_big zx_gris" id="tr_mat_cancelar">Cancelar</button>
   `);
@@ -2511,7 +2638,7 @@ async function abrirMaterial(id,material){
       material:nombre,
       cantidad:Number(valor("tr_mat_cantidad") || 1),
       unidad:valor("tr_mat_unidad") || "ud",
-      notas:valor("tr_mat_notas"),
+      notas:notasConPreparado(valor("tr_mat_notas"),material ? cantidadPreparadaMaterial(material) : 0),
       referencia:valor("tr_mat_referencia"),
       proveedor:valor("tr_mat_proveedor"),
       fabricante:valor("tr_mat_fabricante"),
@@ -3011,6 +3138,19 @@ function instalarCSS(){
     .zx_tr_materials_header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.zx_tr_materials_header h2{margin:0}.zx_tr_materials_header p{margin:5px 0 0;color:#64748b;font-weight:800}
     .zx_tr_add_material{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:0 0 auto;min-width:128px;min-height:48px;border:0;border-radius:16px;background:#16a34a;color:#fff;padding:11px 16px;font-size:15px;font-weight:950;line-height:1.1;white-space:nowrap;box-shadow:0 5px 14px rgba(22,163,74,.18)}
     #tr_material_list{display:grid;gap:10px;margin:16px 0}.zx_tr_material_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:13px}.zx_tr_material_info{display:grid;gap:4px}.zx_tr_material_info strong{color:#071330;font-size:17px;font-weight:950}.zx_tr_material_info span{color:#2563eb;font-size:14px;font-weight:900}.zx_tr_material_info small{color:#64748b;font-size:13px;font-weight:800;line-height:1.35}
+    .zx_tr_material_prepare{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border-radius:16px;border:2px solid transparent;margin-top:10px;text-align:left}
+    .zx_tr_material_prepare b{font-size:15px}
+    .zx_tr_material_prepare span{font-size:12px;font-weight:800;text-align:right}
+    .zx_tr_prepare_pendiente{background:#fff7ed;border-color:#fdba74;color:#9a3412}
+    .zx_tr_prepare_parcial{background:#fef9c3;border-color:#facc15;color:#854d0e}
+    .zx_tr_prepare_listo{background:#dcfce7;border-color:#4ade80;color:#166534}
+    .zx_tr_material_pendiente{border-left:7px solid #f97316}
+    .zx_tr_material_parcial{border-left:7px solid #eab308}
+    .zx_tr_material_listo{border-left:7px solid #22c55e;background:#f0fdf4}
+    .zx_tr_material_prepare_summary{display:grid;gap:8px;padding:15px;border:1px solid #dbe4ef;border-radius:18px;background:#f8fafc;margin-bottom:12px}
+    .zx_tr_material_prepare_summary strong{font-size:21px;color:#061631}
+    .zx_tr_material_prepare_summary span{font-weight:800;color:#64748b}
+
     .zx_tr_material_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_tr_material_actions button{border:0;border-radius:13px;padding:10px;font-size:13px;font-weight:950}.zx_tr_material_actions .blue{background:#dbeafe;color:#1d4ed8}.zx_tr_material_actions .red{background:#fee2e2;color:#b91c1c}.zx_tr_empty_card{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:18px;padding:22px;text-align:center;color:#64748b;font-weight:900}
     .zx_tr_history_block{padding:0;overflow:hidden}
     .zx_tr_history_toggle{display:grid;width:100%;grid-template-columns:1fr auto;gap:4px 14px;align-items:center;padding:20px 22px;border:0;background:transparent;text-align:left;cursor:pointer;font:inherit}
