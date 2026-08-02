@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3151 - ESTADOS VISUALES DESTACADOS
+// V3152 - ESTADOS VISUALES DESTACADOS
 // ===============================
 (function(){
 "use strict";
@@ -1716,6 +1716,7 @@ window.ZX_ag_abrirTrabajo=function(id,eventoId,fecha){
   window.ZX_TRABAJO_ABRIR_ID=String(id || "");
   window.ZX_AGENDA_EVENTO_ID=String(eventoId || "");
   window.ZX_AGENDA_EVENTO_FECHA=String(fecha || "").slice(0,10);
+  window.ZX_TRABAJO_DESDE_AGENDA=true;
 
   if(window.ZX_trabajos){
     window.ZX_trabajos();
