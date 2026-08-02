@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3179 - CONSOLIDACION REAL DE MATERIALES E HISTORIAL PLEGADO
+// V3180 - CANTIDAD DIRECTA Y BOTON AÑADIR CORREGIDO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3179";
+const ZX_VERSION="3180";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -1963,6 +1963,28 @@ async function cambiarCantidadMaterial(trabajoId,material,cambio){
   await abrirListaMateriales(trabajoId);
 }
 
+async function establecerCantidadMaterial(trabajoId,material){
+  const actual=Number(material.cantidad||0);
+  const nombre=material.nombre||material.material||"Material";
+  const entrada=prompt("Indica la cantidad de "+nombre+" ("+(material.unidad||"ud")+"):",String(actual));
+  if(entrada===null) return;
+  const normalizada=String(entrada).trim().replace(",",".");
+  const nueva=Number(normalizada);
+  if(!Number.isFinite(nueva) || nueva<0){
+    alert("Introduce una cantidad válida igual o mayor que cero.");
+    return;
+  }
+  if(nueva===actual) return;
+  if(nueva===0){
+    if(!confirm("La cantidad quedará a cero. ¿Eliminar este material?")) return;
+    return eliminarMaterial(trabajoId,material.id);
+  }
+  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva});
+  if(r && r.error){alert("No se pudo cambiar la cantidad.\n\n"+mensajeError(r.error));return}
+  await registrarHistorial(trabajoId,"material","Cantidad fijada: "+nombre+" ("+actual+" → "+nueva+" "+(material.unidad||"ud")+")",{material_id:material.id,cantidad_anterior:actual,cantidad:nueva,unidad:material.unidad||"ud",edicion_directa:true});
+  await abrirListaMateriales(trabajoId);
+}
+
 async function abrirListaMateriales(trabajoId){
   modal(`
     <div class="zx_tr_materials_header">
@@ -2004,7 +2026,7 @@ async function abrirListaMateriales(trabajoId){
         ${puedeGestionar() ? `
           <div class="zx_tr_material_quick">
             <button type="button" class="zx_tr_qty_btn" data-material-minus="${limpiar(m.id)}" aria-label="Restar cantidad">−</button>
-            <b>${limpiar(m.cantidad ?? 0)} ${limpiar(m.unidad || "ud")}</b>
+            <button type="button" class="zx_tr_qty_value" data-material-quantity="${limpiar(m.id)}" aria-label="Cambiar cantidad">${limpiar(m.cantidad ?? 0)} ${limpiar(m.unidad || "ud")}</button>
             <button type="button" class="zx_tr_qty_btn" data-material-plus="${limpiar(m.id)}" aria-label="Sumar cantidad">＋</button>
           </div>
           <div class="zx_tr_material_actions">
@@ -2021,6 +2043,9 @@ async function abrirListaMateriales(trabajoId){
   });
   box.querySelectorAll("[data-material-plus]").forEach(function(btn){
     btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPlus));if(m)cambiarCantidadMaterial(trabajoId,m,1)};
+  });
+  box.querySelectorAll("[data-material-quantity]").forEach(function(btn){
+    btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialQuantity));if(m)establecerCantidadMaterial(trabajoId,m)};
   });
   box.querySelectorAll("[data-edit-material]").forEach(function(btn){
     btn.onclick=function(){
@@ -2804,7 +2829,7 @@ window.ZX_tr_mapa=function(dir){abrirMapa(dir)};
 
 (function(){
   const st=document.createElement("style");
-  st.textContent=`.zx_tr_material_quick{display:flex;align-items:center;justify-content:center;gap:14px;margin:12px 0}.zx_tr_qty_btn{width:54px;height:46px;border:1px solid #b7d5ff;border-radius:14px;background:#eef6ff;color:#0b2454;font-size:28px;font-weight:900;line-height:1}.zx_tr_material_quick b{min-width:110px;text-align:center;color:#155bd7;font-size:18px}`;
+  st.textContent=`.zx_tr_material_quick{display:flex;align-items:center;justify-content:center;gap:14px;margin:12px 0}.zx_tr_qty_btn{width:54px;height:46px;border:1px solid #b7d5ff;border-radius:14px;background:#eef6ff;color:#0b2454;font-size:28px;font-weight:900;line-height:1}.zx_tr_qty_value{min-width:110px;border:0;background:transparent;text-align:center;color:#155bd7;font-size:18px;font-weight:950;padding:8px 6px;border-radius:12px;cursor:pointer}.zx_tr_qty_value:active{background:#e6f0ff}`;
   document.head.appendChild(st);
 })();
 window.ZX_tr_material=function(id){abrirListaMateriales(id)};
@@ -2984,7 +3009,7 @@ function instalarCSS(){
     .zx_tr_block_title{display:flex;align-items:center;justify-content:space-between;gap:12px}.zx_tr_block_title h3{margin:0}.zx_tr_block_title span{color:#2563eb;font-size:13px;font-weight:950}
     .zx_tr_materials_more{margin-top:9px;color:#64748b;font-size:13px;font-weight:900;text-align:right}
     .zx_tr_materials_header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.zx_tr_materials_header h2{margin:0}.zx_tr_materials_header p{margin:5px 0 0;color:#64748b;font-weight:800}
-    .zx_tr_add_material{border:0;border-radius:14px;background:#16a34a;color:white;padding:11px 13px;font-size:14px;font-weight:950;white-space:nowrap}
+    .zx_tr_add_material{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:0 0 auto;min-width:128px;min-height:48px;border:0;border-radius:16px;background:#16a34a;color:#fff;padding:11px 16px;font-size:15px;font-weight:950;line-height:1.1;white-space:nowrap;box-shadow:0 5px 14px rgba(22,163,74,.18)}
     #tr_material_list{display:grid;gap:10px;margin:16px 0}.zx_tr_material_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:13px}.zx_tr_material_info{display:grid;gap:4px}.zx_tr_material_info strong{color:#071330;font-size:17px;font-weight:950}.zx_tr_material_info span{color:#2563eb;font-size:14px;font-weight:900}.zx_tr_material_info small{color:#64748b;font-size:13px;font-weight:800;line-height:1.35}
     .zx_tr_material_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_tr_material_actions button{border:0;border-radius:13px;padding:10px;font-size:13px;font-weight:950}.zx_tr_material_actions .blue{background:#dbeafe;color:#1d4ed8}.zx_tr_material_actions .red{background:#fee2e2;color:#b91c1c}.zx_tr_empty_card{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:18px;padding:22px;text-align:center;color:#64748b;font-weight:900}
     .zx_tr_history_block{padding:0;overflow:hidden}
