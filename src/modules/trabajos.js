@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3183 - BIBLIOTECA DOCUMENTAL INTELIGENTE
+// V3184 - PLANIFICACION DE TRABAJOS EN VARIOS DIAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3183";
+const ZX_VERSION="3184";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -1336,19 +1336,161 @@ function idLocal(){
   return "zx-"+Date.now()+"-"+Math.random().toString(16).slice(2);
 }
 
-async function guardarEquipoTrabajo(trabajoId,equipo,datos){
+
+function normalizarJornadasPlanificacion(jornadas){
+  const vistas=new Set();
+  return (jornadas || []).map(function(j){
+    return {
+      fecha:String(j.fecha || "").slice(0,10),
+      hora_inicio:j.hora_inicio ? String(j.hora_inicio).slice(0,5) : "",
+      hora_fin:j.hora_fin ? String(j.hora_fin).slice(0,5) : "",
+      observaciones:String(j.observaciones || "").trim()
+    };
+  }).filter(function(j){
+    if(!j.fecha) return false;
+    const clave=[j.fecha,j.hora_inicio,j.hora_fin].join("|");
+    if(vistas.has(clave)) return false;
+    vistas.add(clave);
+    return true;
+  }).sort(function(a,b){
+    return (a.fecha+" "+a.hora_inicio).localeCompare(b.fecha+" "+b.hora_inicio);
+  });
+}
+
+function jornadasDesdePlanificacion(planificacion,t){
+  const jornadas=[];
+  const vistas=new Set();
+
+  (planificacion || []).forEach(function(p){
+    const fecha=String(p.fecha || "").slice(0,10);
+    if(!fecha) return;
+    const inicio=p.hora_inicio ? String(p.hora_inicio).slice(0,5) : "";
+    const fin=p.hora_fin ? String(p.hora_fin).slice(0,5) : "";
+    const clave=[fecha,inicio,fin].join("|");
+    if(vistas.has(clave)) return;
+    vistas.add(clave);
+    jornadas.push({fecha:fecha,hora_inicio:inicio,hora_fin:fin,observaciones:""});
+  });
+
+  if(!jornadas.length){
+    jornadas.push({
+      fecha:String((t && t.fecha) || hoy()).slice(0,10),
+      hora_inicio:t && t.hora_inicio ? String(t.hora_inicio).slice(0,5) : "",
+      hora_fin:t && t.hora_fin ? String(t.hora_fin).slice(0,5) : "",
+      observaciones:""
+    });
+  }
+  return normalizarJornadasPlanificacion(jornadas);
+}
+
+function renderJornadaPlanificacion(j,index){
+  return `<article class="zx_tr_plan_day" data-plan-day="${index}">
+    <div class="zx_tr_plan_day_head">
+      <strong>Día ${index+1}</strong>
+      ${index>0 ? `<button type="button" class="zx_tr_plan_remove" data-plan-remove="${index}">Eliminar día</button>` : ""}
+    </div>
+    <div class="zx_tr_grid2">
+      <label class="zx_tr_label">Fecha
+        <input class="tr_plan_fecha" type="date" value="${limpiar(j.fecha || hoy())}">
+      </label>
+      <label class="zx_tr_label">Hora inicio
+        <input class="tr_plan_inicio" type="time" value="${limpiar(j.hora_inicio || "")}">
+      </label>
+    </div>
+    <div class="zx_tr_grid2">
+      <label class="zx_tr_label">Hora fin
+        <input class="tr_plan_fin" type="time" value="${limpiar(j.hora_fin || "")}">
+      </label>
+      <label class="zx_tr_label">Observación del día
+        <input class="tr_plan_obs" type="text" value="${limpiar(j.observaciones || "")}" placeholder="Opcional">
+      </label>
+    </div>
+  </article>`;
+}
+
+function leerJornadasFormulario(){
+  return normalizarJornadasPlanificacion(
+    Array.from(document.querySelectorAll("[data-plan-day]")).map(function(card){
+      return {
+        fecha:card.querySelector(".tr_plan_fecha")?.value || "",
+        hora_inicio:card.querySelector(".tr_plan_inicio")?.value || "",
+        hora_fin:card.querySelector(".tr_plan_fin")?.value || "",
+        observaciones:card.querySelector(".tr_plan_obs")?.value || ""
+      };
+    })
+  );
+}
+
+function activarEditorJornadas(jornadasIniciales){
+  const box=document.getElementById("tr_plan_days");
+  const add=document.getElementById("tr_plan_add");
+  if(!box || !add) return;
+
+  let jornadas=normalizarJornadasPlanificacion(jornadasIniciales);
+  if(!jornadas.length) jornadas=[{fecha:hoy(),hora_inicio:"",hora_fin:"",observaciones:""}];
+
+  function pintar(){
+    box.innerHTML=jornadas.map(renderJornadaPlanificacion).join("");
+    box.querySelectorAll("[data-plan-remove]").forEach(function(btn){
+      btn.onclick=function(){
+        const idx=Number(btn.dataset.planRemove);
+        jornadas.splice(idx,1);
+        pintar();
+      };
+    });
+  }
+
+  add.onclick=function(){
+    const actuales=leerJornadasFormulario();
+    jornadas=actuales.length ? actuales : jornadas;
+    const ultima=jornadas[jornadas.length-1] || {fecha:hoy(),hora_inicio:"",hora_fin:""};
+    let siguiente=ultima.fecha || hoy();
+    try{
+      const d=new Date(siguiente+"T12:00:00");
+      d.setDate(d.getDate()+1);
+      siguiente=d.toISOString().slice(0,10);
+    }catch(e){}
+    jornadas.push({
+      fecha:siguiente,
+      hora_inicio:ultima.hora_inicio || "",
+      hora_fin:ultima.hora_fin || "",
+      observaciones:""
+    });
+    pintar();
+    setTimeout(function(){
+      const cards=box.querySelectorAll("[data-plan-day]");
+      const ultimo=cards[cards.length-1];
+      if(ultimo) ultimo.scrollIntoView({behavior:"smooth",block:"center"});
+    },20);
+  };
+
+  pintar();
+}
+
+
+async function guardarEquipoTrabajo(trabajoId,equipo,datos,jornadas){
   if(!trabajoId) return;
 
-  const filas=(equipo || []).map(function(u){
-    return {
-      id:idLocal(),
-      trabajo_id:String(trabajoId),
-      usuario_id:String(u.id),
-      usuario:String(u.nombre || ""),
-      fecha:datos.fecha || hoy(),
-      hora_inicio:datos.hora_inicio || null,
-      hora_fin:datos.hora_fin || null
-    };
+  const dias=normalizarJornadasPlanificacion(jornadas && jornadas.length ? jornadas : [{
+    fecha:datos.fecha || hoy(),
+    hora_inicio:datos.hora_inicio || "",
+    hora_fin:datos.hora_fin || "",
+    observaciones:""
+  }]);
+
+  const filas=[];
+  dias.forEach(function(dia){
+    (equipo || []).forEach(function(u){
+      filas.push({
+        id:idLocal(),
+        trabajo_id:String(trabajoId),
+        usuario_id:String(u.id),
+        usuario:String(u.nombre || ""),
+        fecha:dia.fecha || datos.fecha || hoy(),
+        hora_inicio:dia.hora_inicio || null,
+        hora_fin:dia.hora_fin || null
+      });
+    });
   });
 
   const backend=window.ZENTRYX_BACKEND || (zx() && (zx().Backend || zx().backend)) || null;
@@ -1416,6 +1558,7 @@ async function abrirFormulario(t){
   const participantesActuales=planificacion
     .map(function(p){return String(p.usuario_id || "")})
     .filter(Boolean);
+  const jornadasActuales=jornadasDesdePlanificacion(planificacion,t);
 
   modal(`
     <h2>${t.id ? "Editar trabajo" : "Nuevo trabajo"}</h2>
@@ -1439,15 +1582,12 @@ async function abrirFormulario(t){
         t.usuario_id
       )}
 
-      <div class="zx_tr_grid2">
-        <div>${input("tr_fecha","Fecha",t.fecha || hoy(),"date")}</div>
-        <div>${input("tr_hora_inicio","Hora inicio",t.hora_inicio ? String(t.hora_inicio).slice(0,5) : "","time")}</div>
-      </div>
+      <h3>Planificación</h3>
+      <p class="zx_tr_help">El trabajo será único, pero puede aparecer en Agenda durante varios días.</p>
+      <div id="tr_plan_days" class="zx_tr_plan_days"></div>
+      <button type="button" class="zx_tr_plan_add" id="tr_plan_add">＋ Añadir otro día</button>
 
-      <div class="zx_tr_grid2">
-        <div>${input("tr_hora_fin","Hora fin",t.hora_fin ? String(t.hora_fin).slice(0,5) : "","time")}</div>
-        <div>${input("tr_tel","Teléfono contacto",t.telefono_contacto,"tel")}</div>
-      </div>
+      <div>${input("tr_tel","Teléfono contacto",t.telefono_contacto,"tel")}</div>
 
       <h3>Ubicación</h3>
       ${input("tr_dir","Dirección",t.direccion_obra || t.direccion)}
@@ -1471,6 +1611,8 @@ async function abrirFormulario(t){
     <button class="zx_btn_big zx_verde" id="tr_guardar">Guardar</button>
     <button class="zx_btn_big zx_gris" id="tr_cancelar">Cancelar</button>
   `);
+
+  activarEditorJornadas(jornadasActuales);
 
   const selCliente=document.getElementById("tr_cliente");
   const selPrincipal=document.getElementById("tr_usuario_id");
@@ -1526,6 +1668,21 @@ async function guardarTrabajo(id,clientes,usuarios){
   const s=sesion();
 
   const trabajoId=id || idLocal();
+  const jornadas=leerJornadasFormulario();
+
+  if(!jornadas.length){
+    alert("Añade al menos un día de planificación.");
+    return;
+  }
+
+  for(const j of jornadas){
+    if(j.hora_inicio && j.hora_fin && j.hora_fin<=j.hora_inicio){
+      alert("La hora de fin debe ser posterior a la hora de inicio en "+fechaES(j.fecha)+".");
+      return;
+    }
+  }
+
+  const principal=jornadas[0];
 
   const data={
     titulo:titulo,
@@ -1535,9 +1692,9 @@ async function guardarTrabajo(id,clientes,usuarios){
     cliente:cliente ? nombreCliente(cliente) : "",
     usuario_id:usuarioId || "",
     usuario:user ? (user.nombre || user.usuario || "") : "",
-    fecha:valor("tr_fecha") || hoy(),
-    hora_inicio:valor("tr_hora_inicio") || null,
-    hora_fin:valor("tr_hora_fin") || null,
+    fecha:principal.fecha || hoy(),
+    hora_inicio:principal.hora_inicio || null,
+    hora_fin:principal.hora_fin || null,
     telefono_contacto:valor("tr_tel"),
     direccion_obra:valor("tr_dir"),
     direccion:valor("tr_dir"),
@@ -1568,26 +1725,26 @@ async function guardarTrabajo(id,clientes,usuarios){
 
     if(r && r.error) throw r.error;
 
-    await guardarEquipoTrabajo(trabajoId,equipo,data);
+    await guardarEquipoTrabajo(trabajoId,equipo,data,jornadas);
 
     if(id){
       await registrarHistorial(
         trabajoId,
         "edicion",
         "Trabajo editado y equipo actualizado.",
-        Object.assign({},data,{equipo:equipo})
+        Object.assign({},data,{equipo:equipo,jornadas:jornadas})
       );
     }else{
       await registrarHistorial(
         trabajoId,
         "creacion",
         "Trabajo creado con equipo asignado.",
-        Object.assign({},data,{equipo:equipo})
+        Object.assign({},data,{equipo:equipo,jornadas:jornadas})
       );
     }
 
     // Tanto los trabajos nuevos como los editados deben aparecer inmediatamente en Agenda.
-    await sincronizarAgenda(trabajoId,Object.assign({},data,{id:trabajoId,equipo:equipo}));
+    await sincronizarAgenda(trabajoId,Object.assign({},data,{id:trabajoId,equipo:equipo,jornadas:jornadas}));
 
     try{
       window.dispatchEvent(new CustomEvent("zentryx:trabajo:equipo_actualizado",{
@@ -1631,30 +1788,44 @@ async function sincronizarAgenda(id,t){
 
     if(t.archivado===true || t.estado==="cancelado") return;
 
-    await sb().from("agenda_eventos").insert([{
-      tipo:"trabajo",
-      titulo:"Trabajo - "+(t.titulo || ""),
-      descripcion:t.descripcion || "",
-      fecha_inicio:t.fecha || hoy(),
-      fecha_fin:t.fecha || hoy(),
-      hora_inicio:t.hora_inicio || null,
-      hora_fin:t.hora_fin || null,
-      cliente_id:String(t.cliente_id || ""),
-      cliente:t.cliente || "",
-      usuario_id:String(t.usuario_id || ""),
-      usuario:t.usuario || "",
-      direccion:t.direccion_obra || t.direccion || "",
-      codigo_postal:t.codigo_postal || "",
-      poblacion:t.poblacion || "",
-      provincia:t.provincia || "",
-      pais:t.pais || "España",
-      estado:t.estado==="terminado" ? "completado" : "activo",
-      prioridad:t.prioridad || "media",
-      visible_para:"todos",
-      origen:"trabajos",
-      origen_id:String(id),
-      creado_por:t.creado_por || ""
+    const jornadas=normalizarJornadasPlanificacion(t.jornadas && t.jornadas.length ? t.jornadas : [{
+      fecha:t.fecha || hoy(),
+      hora_inicio:t.hora_inicio || "",
+      hora_fin:t.hora_fin || "",
+      observaciones:""
     }]);
+
+    const eventos=jornadas.map(function(j){
+      return {
+        tipo:"trabajo",
+        titulo:"Trabajo - "+(t.titulo || ""),
+        descripcion:[t.descripcion || "",j.observaciones || ""].filter(Boolean).join("\n"),
+        fecha_inicio:j.fecha || t.fecha || hoy(),
+        fecha_fin:j.fecha || t.fecha || hoy(),
+        hora_inicio:j.hora_inicio || null,
+        hora_fin:j.hora_fin || null,
+        cliente_id:String(t.cliente_id || ""),
+        cliente:t.cliente || "",
+        usuario_id:String(t.usuario_id || ""),
+        usuario:t.usuario || "",
+        direccion:t.direccion_obra || t.direccion || "",
+        codigo_postal:t.codigo_postal || "",
+        poblacion:t.poblacion || "",
+        provincia:t.provincia || "",
+        pais:t.pais || "España",
+        estado:t.estado==="terminado" ? "completado" : "activo",
+        prioridad:t.prioridad || "media",
+        visible_para:"todos",
+        origen:"trabajos",
+        origen_id:String(id),
+        creado_por:t.creado_por || ""
+      };
+    });
+
+    if(eventos.length){
+      const insertados=await sb().from("agenda_eventos").insert(eventos);
+      if(insertados.error) throw insertados.error;
+    }
 
     try{
       window.dispatchEvent(new CustomEvent("zentryx:agenda:actualizar",{
@@ -3433,6 +3604,14 @@ function instalarCSS(){
     .zx_tr_loading{color:#64748b;font-size:16px;font-weight:850;padding:14px 0}
     .zx_tr_error{color:#dc2626;font-weight:950;margin-top:10px}
     .zx_tr_form h3,.zx_tr_block h3{margin:20px 0 8px;color:#071330;font-size:22px;font-weight:950}
+    .zx_tr_plan_days{display:grid;gap:12px}
+    .zx_tr_plan_day{border:1px solid #dbe4ef;border-radius:18px;padding:14px;background:#f8fbff}
+    .zx_tr_plan_day_head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+    .zx_tr_plan_day_head strong{font-size:17px;color:#061631}
+    .zx_tr_plan_remove{border:1px solid #fecaca;border-radius:10px;padding:7px 9px;background:#fff1f2;color:#b91c1c;font-weight:900}
+    .zx_tr_plan_add{width:100%;border:2px dashed #93c5fd;border-radius:16px;padding:13px;background:#eff6ff;color:#1d4ed8;font-weight:950}
+    .zx_tr_help{margin:0;color:#64748b;font-weight:750;font-size:13px;line-height:1.4}
+
     .zx_tr_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
     .zx_tr_form input,.zx_tr_form select,.zx_tr_form textarea,#zx_modal_trabajo input,#zx_modal_trabajo select,#zx_modal_trabajo textarea{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}
     .zx_tr_team_help{margin:0 0 10px;color:#64748b;font-size:13px;font-weight:800;line-height:1.4}
