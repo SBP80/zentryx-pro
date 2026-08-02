@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3174 - BIBLIOTECA INTELIGENTE DE MATERIALES Y SUGERENCIAS
+// V3175 - BIBLIOTECA INTELIGENTE DE MATERIALES COMPLETA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3174";
+const ZX_VERSION="3175";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -296,17 +296,18 @@ function aprenderMaterial(material){
   const lista=leerBibliotecaMaterialesLocal();
   let item=lista.find(x=>normalizar(x.nombre)===clave);
   if(!item){
-    item={nombre:nombre,unidad:material.unidad || "ud",referencia:material.referencia || "",proveedor:material.proveedor || "",precio_compra:material.precio_compra ?? "",precio_venta:material.precio_venta ?? "",usos:0,actualizado:new Date().toISOString()};
+    item={nombre:nombre,unidad:material.unidad || "ud",referencia:material.referencia || "",proveedor:material.proveedor || "",fabricante:material.fabricante || "",alias:material.alias || "",iva:material.iva ?? "",precio_compra:material.precio_compra ?? "",precio_venta:material.precio_venta ?? "",usos:0,favorito:false,ultimo_uso:new Date().toISOString(),actualizado:new Date().toISOString()};
     lista.push(item);
   }
   item.nombre=nombre;
   item.unidad=material.unidad || item.unidad || "ud";
-  for(const campo of ["referencia","proveedor","precio_compra","precio_venta"]){
+  for(const campo of ["referencia","proveedor","fabricante","alias","iva","precio_compra","precio_venta"]){
     if(material[campo]!==undefined && material[campo]!==null && String(material[campo]).trim()!=="") item[campo]=material[campo];
   }
   item.usos=Number(item.usos || 0)+1;
+  item.ultimo_uso=new Date().toISOString();
   item.actualizado=new Date().toISOString();
-  lista.sort((a,b)=>Number(b.usos||0)-Number(a.usos||0) || String(a.nombre).localeCompare(String(b.nombre),"es"));
+  lista.sort((a,b)=>Number(Boolean(b.favorito))-Number(Boolean(a.favorito)) || Number(b.usos||0)-Number(a.usos||0) || String(b.ultimo_uso||"").localeCompare(String(a.ultimo_uso||"")) || String(a.nombre).localeCompare(String(b.nombre),"es"));
   guardarBibliotecaMaterialesLocal(lista);
 }
 
@@ -316,9 +317,11 @@ async function cargarBibliotecaMateriales(){
     const nombre=String((x && (x.nombre || x.material)) || "").trim();
     if(!nombre) return;
     const k=normalizar(nombre);
-    const previo=mapa.get(k) || {nombre:nombre,unidad:x.unidad || "ud",referencia:x.referencia || "",proveedor:x.proveedor || "",precio_compra:x.precio_compra ?? "",precio_venta:x.precio_venta ?? "",usos:0};
+    const previo=mapa.get(k) || {nombre:nombre,unidad:x.unidad || "ud",referencia:x.referencia || "",proveedor:x.proveedor || "",fabricante:x.fabricante || "",alias:x.alias || "",iva:x.iva ?? "",precio_compra:x.precio_compra ?? "",precio_venta:x.precio_venta ?? "",usos:0,favorito:Boolean(x.favorito),ultimo_uso:x.ultimo_uso || x.actualizado || x.created_at || ""};
     previo.usos=Number(previo.usos||0)+Number(x.usos||1);
-    for(const c of ["unidad","referencia","proveedor","precio_compra","precio_venta"]){if(x[c]!==undefined && x[c]!==null && String(x[c]).trim()!=="") previo[c]=x[c]}
+    for(const c of ["unidad","referencia","proveedor","fabricante","alias","iva","precio_compra","precio_venta"]){if(x[c]!==undefined && x[c]!==null && String(x[c]).trim()!=="") previo[c]=x[c]}
+    previo.favorito=Boolean(previo.favorito || x.favorito);
+    if(String(x.ultimo_uso || x.actualizado || x.created_at || "")>String(previo.ultimo_uso || "")) previo.ultimo_uso=x.ultimo_uso || x.actualizado || x.created_at || "";
     mapa.set(k,previo);
   };
   leerBibliotecaMaterialesLocal().forEach(agregar);
@@ -328,7 +331,7 @@ async function cargarBibliotecaMateriales(){
       if(!r.error) (r.data || []).forEach(agregar);
     }catch(e){}
   }
-  return Array.from(mapa.values()).sort((a,b)=>Number(b.usos||0)-Number(a.usos||0) || String(a.nombre).localeCompare(String(b.nombre),"es"));
+  return Array.from(mapa.values()).sort((a,b)=>Number(Boolean(b.favorito))-Number(Boolean(a.favorito)) || Number(b.usos||0)-Number(a.usos||0) || String(b.ultimo_uso||"").localeCompare(String(a.ultimo_uso||"")) || String(a.nombre).localeCompare(String(b.nombre),"es"));
 }
 
 function palabrasClaveTrabajo(t){
@@ -2235,6 +2238,34 @@ async function insertarMaterialCompatible(data){
   return {data:null,error:ultimoError || new Error("No se pudo guardar el material.")};
 }
 
+
+function similitudMaterial(a,b){
+  const x=normalizar(a).replace(/\s+/g," ").trim();
+  const y=normalizar(b).replace(/\s+/g," ").trim();
+  if(!x || !y) return 0;
+  if(x===y) return 1;
+  if(x.includes(y) || y.includes(x)) return Math.min(x.length,y.length)/Math.max(x.length,y.length)+0.2;
+  const ax=new Set(x.split(" ").filter(Boolean));
+  const ay=new Set(y.split(" ").filter(Boolean));
+  const inter=[...ax].filter(v=>ay.has(v)).length;
+  const union=new Set([...ax,...ay]).size || 1;
+  return inter/union;
+}
+
+function textoBusquedaMaterial(x){
+  return normalizar([x.nombre,x.alias,x.referencia,x.fabricante,x.proveedor].filter(Boolean).join(" "));
+}
+
+function marcarFavoritoMaterial(nombre,valor){
+  const lista=leerBibliotecaMaterialesLocal();
+  const clave=normalizar(nombre);
+  let item=lista.find(x=>normalizar(x.nombre)===clave);
+  if(!item){item={nombre:nombre,unidad:"ud",usos:0};lista.push(item)}
+  item.favorito=Boolean(valor);
+  item.actualizado=new Date().toISOString();
+  guardarBibliotecaMaterialesLocal(lista);
+}
+
 async function abrirMaterial(id,material){
   material=material || null;
   modal(`
@@ -2258,7 +2289,10 @@ async function abrirMaterial(id,material){
       <summary>Datos de biblioteca (opcional)</summary>
       <label class="zx_tr_label">Referencia</label><input id="tr_mat_referencia" value="${limpiar(material ? (material.referencia || "") : "")}">
       <label class="zx_tr_label">Proveedor</label><input id="tr_mat_proveedor" value="${limpiar(material ? (material.proveedor || "") : "")}">
+      <label class="zx_tr_label">Fabricante</label><input id="tr_mat_fabricante" value="${limpiar(material ? (material.fabricante || "") : "")}">
+      <label class="zx_tr_label">Alias o palabras de búsqueda</label><input id="tr_mat_alias" placeholder="Ej.: llave media, válvula corte" value="${limpiar(material ? (material.alias || "") : "")}">
       <div class="zx_tr_grid2"><div><label class="zx_tr_label">Precio compra</label><input id="tr_mat_precio_compra" type="number" step="0.01" value="${limpiar(material && material.precio_compra!=null ? material.precio_compra : "")}"></div><div><label class="zx_tr_label">Precio venta</label><input id="tr_mat_precio_venta" type="number" step="0.01" value="${limpiar(material && material.precio_venta!=null ? material.precio_venta : "")}"></div></div>
+      <label class="zx_tr_label">IVA (%)</label><input id="tr_mat_iva" type="number" step="0.01" value="${limpiar(material && material.iva!=null ? material.iva : "")}">
     </details>
     <label class="zx_tr_label">Notas</label>
     <textarea id="tr_mat_notas" rows="3">${limpiar(material ? (material.notas || "") : "")}</textarea>
@@ -2270,35 +2304,68 @@ async function abrirMaterial(id,material){
 
   const nombreInput=document.getElementById("tr_mat_nombre");
   const sugerenciasBox=document.getElementById("tr_mat_sugerencias");
-  const biblioteca=await cargarBibliotecaMateriales();
+  let biblioteca=await cargarBibliotecaMateriales();
+  let materialSeleccionado=null;
   function pintarSugerencias(){
-    const q=normalizar(nombreInput.value);
+    const q=normalizar(nombreInput.value).trim();
+    if(q.length<2){sugerenciasBox.hidden=true;sugerenciasBox.innerHTML="";return}
     const items=biblioteca
-      .map(x=>{const n=normalizar(x.nombre);let score=0;if(!q)score=1;else if(n===q)score=100;else if(n.startsWith(q))score=70;else if(n.split(/\s+/).some(p=>p.startsWith(q)))score=50;else if(n.includes(q))score=30;return {...x,_match:score+Math.min(Number(x.usos||0),20)}})
+      .map(x=>{
+        const n=normalizar(x.nombre);
+        const t=textoBusquedaMaterial(x);
+        let score=0;
+        if(n===q) score=1000;
+        else if(n.startsWith(q)) score=700;
+        else if(n.split(/\s+/).some(p=>p.startsWith(q))) score=520;
+        else if(t.includes(q)) score=350;
+        score += x.favorito ? 150 : 0;
+        score += Math.min(Number(x.usos||0),50)*3;
+        return {...x,_match:score};
+      })
       .filter(x=>x._match>0)
-      .sort((a,b)=>b._match-a._match || String(a.nombre).localeCompare(String(b.nombre),"es"))
+      .sort((a,b)=>b._match-a._match || String(b.ultimo_uso||"").localeCompare(String(a.ultimo_uso||"")) || String(a.nombre).localeCompare(String(b.nombre),"es"))
       .slice(0,10);
-    if(!items.length || (!q && document.activeElement!==nombreInput)){sugerenciasBox.hidden=true;return}
-    sugerenciasBox.innerHTML=items.map((x,i)=>`<button type="button" data-mat-sug="${i}"><strong>${limpiar(x.nombre)}</strong><small>${limpiar([x.unidad,x.referencia,x.proveedor].filter(Boolean).join(" · "))}${x.usos ? ` · usado ${x.usos} veces` : ""}</small></button>`).join("");
+    const exacta=items.some(x=>normalizar(x.nombre)===q);
+    const crear=!exacta ? `<button type="button" class="zx_tr_create_material" data-create-material="1"><strong>＋ Crear “${limpiar(nombreInput.value.trim())}”</strong><small>Se guardará en la biblioteca al añadirlo.</small></button>` : "";
+    if(!items.length && !crear){sugerenciasBox.hidden=true;return}
+    sugerenciasBox.innerHTML=items.map((x,i)=>`<div class="zx_tr_suggestion_row"><button type="button" class="zx_tr_suggestion_pick" data-mat-sug="${i}"><strong>${x.favorito?"⭐ ":""}${limpiar(x.nombre)}</strong><small>${limpiar([x.unidad,x.referencia,x.fabricante,x.proveedor].filter(Boolean).join(" · "))}${x.usos ? ` · usado ${x.usos} veces` : ""}</small></button><button type="button" class="zx_tr_suggestion_star" data-mat-star="${i}" aria-label="Favorito">${x.favorito?"★":"☆"}</button></div>`).join("")+crear;
     sugerenciasBox.hidden=false;
     sugerenciasBox.querySelectorAll("[data-mat-sug]").forEach(btn=>btn.onclick=function(){
       const x=items[Number(btn.dataset.matSug)]; if(!x)return;
+      materialSeleccionado=x;
       nombreInput.value=x.nombre || "";
       document.getElementById("tr_mat_unidad").value=x.unidad || "ud";
       document.getElementById("tr_mat_referencia").value=x.referencia || "";
       document.getElementById("tr_mat_proveedor").value=x.proveedor || "";
+      document.getElementById("tr_mat_fabricante").value=x.fabricante || "";
+      document.getElementById("tr_mat_alias").value=x.alias || "";
+      document.getElementById("tr_mat_iva").value=x.iva ?? "";
       document.getElementById("tr_mat_precio_compra").value=x.precio_compra ?? "";
       document.getElementById("tr_mat_precio_venta").value=x.precio_venta ?? "";
       sugerenciasBox.hidden=true;
     });
+    sugerenciasBox.querySelectorAll("[data-mat-star]").forEach(btn=>btn.onclick=async function(ev){
+      ev.stopPropagation();
+      const x=items[Number(btn.dataset.matStar)]; if(!x)return;
+      marcarFavoritoMaterial(x.nombre,!x.favorito);
+      biblioteca=await cargarBibliotecaMateriales();
+      pintarSugerencias();
+    });
+    const crearBtn=sugerenciasBox.querySelector("[data-create-material]");
+    if(crearBtn) crearBtn.onclick=function(){materialSeleccionado=null;sugerenciasBox.hidden=true;document.getElementById("tr_mat_cantidad").focus()};
   }
   nombreInput.addEventListener("input",pintarSugerencias);
-  nombreInput.addEventListener("focus",pintarSugerencias);
   setTimeout(()=>document.addEventListener("click",function cerrarSug(ev){if(!ev.target.closest(".zx_tr_autocomplete_wrap")){sugerenciasBox.hidden=true;document.removeEventListener("click",cerrarSug)}},true),0);
 
   document.getElementById("tr_mat_guardar").onclick=async function(){
     const nombre=valor("tr_mat_nombre");
     if(!nombre){alert("Introduce material.");return}
+
+    const similares=biblioteca.filter(x=>normalizar(x.nombre)!==normalizar(nombre) && similitudMaterial(x.nombre,nombre)>=0.72).slice(0,3);
+    if(!material && similares.length){
+      const aviso="Puede que este material ya exista:\n\n"+similares.map(x=>"• "+x.nombre).join("\n")+"\n\n¿Quieres guardar uno nuevo de todas formas?";
+      if(!confirm(aviso)) return;
+    }
 
     const data={
       id:idLocal(),
@@ -2310,6 +2377,9 @@ async function abrirMaterial(id,material){
       notas:valor("tr_mat_notas"),
       referencia:valor("tr_mat_referencia"),
       proveedor:valor("tr_mat_proveedor"),
+      fabricante:valor("tr_mat_fabricante"),
+      alias:valor("tr_mat_alias"),
+      iva:valor("tr_mat_iva")!=="" ? Number(valor("tr_mat_iva")) : null,
       precio_compra:valor("tr_mat_precio_compra")!=="" ? Number(valor("tr_mat_precio_compra")) : null,
       precio_venta:valor("tr_mat_precio_venta")!=="" ? Number(valor("tr_mat_precio_venta")) : null,
       preparado:false,
@@ -2338,7 +2408,7 @@ async function abrirMaterial(id,material){
 
       aprenderMaterial(data);
       await registrarHistorial(id,"material",(material ? "Material actualizado: " : "Material añadido: ")+nombre,{
-        material:nombre,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas,referencia:data.referencia,proveedor:data.proveedor
+        material:nombre,cantidad:data.cantidad,unidad:data.unidad,notas:data.notas,referencia:data.referencia,proveedor:data.proveedor,fabricante:data.fabricante,alias:data.alias,iva:data.iva
       });
       await abrirListaMateriales(id);
 
@@ -2779,7 +2849,7 @@ function instalarCSS(){
     .zx_tr_notice{background:#f8fafc;border:1px solid #dbe3ef;border-left:7px solid #64748b;border-radius:18px;padding:14px;color:#334155;font-size:15px;font-weight:900;line-height:1.35}
     .zx_tr_notice.danger{border-left-color:#dc2626;background:#fef2f2;color:#991b1b}
 
-    .zx_tr_autocomplete_wrap{position:relative}.zx_tr_autocomplete_list{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:30;max-height:280px;overflow:auto;background:#fff;border:1px solid #b9d2f3;border-radius:16px;padding:6px;box-shadow:0 14px 30px rgba(15,35,72,.18)}.zx_tr_autocomplete_list button{display:grid;width:100%;gap:3px;text-align:left;border:0;border-bottom:1px solid #eef2f7;background:#fff;padding:11px;border-radius:11px}.zx_tr_autocomplete_list button:active{background:#eff6ff}.zx_tr_autocomplete_list strong{color:#071330;font-size:15px}.zx_tr_autocomplete_list small{color:#64748b;font-size:12px;font-weight:800}.zx_tr_material_extra{margin-top:12px;border:1px solid #dbe3ef;border-radius:16px;padding:10px 12px;background:#fff}.zx_tr_material_extra summary{color:#334155;font-weight:950;cursor:pointer}.zx_tr_smart_block{border-color:#c4b5fd;background:#faf5ff}.zx_tr_smart_materials{border-color:#86efac;background:#f0fdf4}.zx_tr_smart_help{color:#64748b;font-size:13px;font-weight:800;line-height:1.4}.zx_tr_smart_list{display:grid;gap:8px;margin:12px 0}.zx_tr_smart_item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;background:#fff;border:1px solid #ddd6fe;border-radius:14px;padding:11px}.zx_tr_smart_item input{width:22px!important;height:22px;accent-color:#7c3aed}.zx_tr_smart_item span{display:grid;gap:3px;min-width:0}.zx_tr_smart_item strong{color:#071330;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_tr_smart_item small{color:#64748b;font-size:11px;font-weight:800}.zx_tr_notes_block{background:#fffbeb;border-color:#fde68a}.zx_tr_note_visible{background:#fff;border:1px solid #fde68a;border-radius:14px;padding:11px;margin-top:9px}.zx_tr_note_visible p{margin:0;color:#334155;font-size:14px;font-weight:800;line-height:1.4;white-space:pre-wrap}.zx_tr_note_visible small{display:block;margin-top:7px;color:#92400e;font-size:11px;font-weight:850}
+    .zx_tr_autocomplete_wrap{position:relative}.zx_tr_autocomplete_list{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:30;max-height:280px;overflow:auto;background:#fff;border:1px solid #b9d2f3;border-radius:16px;padding:6px;box-shadow:0 14px 30px rgba(15,35,72,.18)}.zx_tr_autocomplete_list button{display:grid;width:100%;gap:3px;text-align:left;border:0;background:#fff;padding:11px;border-radius:11px}.zx_tr_suggestion_row{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:stretch;border-bottom:1px solid #eef2f7}.zx_tr_suggestion_pick{min-width:0}.zx_tr_suggestion_star{display:flex!important;align-items:center;justify-content:center!important;font-size:24px!important;color:#f59e0b!important;padding:6px!important}.zx_tr_create_material{border-top:1px solid #dbeafe!important;background:#eff6ff!important;color:#1d4ed8!important}.zx_tr_autocomplete_list button:active{background:#eff6ff}.zx_tr_autocomplete_list strong{color:#071330;font-size:15px}.zx_tr_autocomplete_list small{color:#64748b;font-size:12px;font-weight:800}.zx_tr_material_extra{margin-top:12px;border:1px solid #dbe3ef;border-radius:16px;padding:10px 12px;background:#fff}.zx_tr_material_extra summary{color:#334155;font-weight:950;cursor:pointer}.zx_tr_smart_block{border-color:#c4b5fd;background:#faf5ff}.zx_tr_smart_materials{border-color:#86efac;background:#f0fdf4}.zx_tr_smart_help{color:#64748b;font-size:13px;font-weight:800;line-height:1.4}.zx_tr_smart_list{display:grid;gap:8px;margin:12px 0}.zx_tr_smart_item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;background:#fff;border:1px solid #ddd6fe;border-radius:14px;padding:11px}.zx_tr_smart_item input{width:22px!important;height:22px;accent-color:#7c3aed}.zx_tr_smart_item span{display:grid;gap:3px;min-width:0}.zx_tr_smart_item strong{color:#071330;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_tr_smart_item small{color:#64748b;font-size:11px;font-weight:800}.zx_tr_notes_block{background:#fffbeb;border-color:#fde68a}.zx_tr_note_visible{background:#fff;border:1px solid #fde68a;border-radius:14px;padding:11px;margin-top:9px}.zx_tr_note_visible p{margin:0;color:#334155;font-size:14px;font-weight:800;line-height:1.4;white-space:pre-wrap}.zx_tr_note_visible small{display:block;margin-top:7px;color:#92400e;font-size:11px;font-weight:850}
     /* Ficha responsive: evita cualquier desbordamiento horizontal en móvil */
     #zx_modal_trabajo,
     #zx_modal_trabajo *{box-sizing:border-box;min-width:0}
