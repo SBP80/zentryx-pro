@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3181 - CONTROL DE MATERIALES PENDIENTES, PARCIALES Y LISTOS
+// V3182 - PREPARACION VISIBLE, IMAGENES DE PRODUCTO Y ENTRADA POR VOZ
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3181";
+const ZX_VERSION="3182";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -1869,6 +1869,81 @@ function renderNotasVisibles(hist){
 
 const ZX_MATERIAL_PREPARADO_RE=/\[\[ZX_PREPARADO:([0-9]+(?:[.,][0-9]+)?)\]\]/i;
 
+const ZX_MATERIAL_IMAGEN_RE=/\[\[ZX_MAT_IMG:([^\]]+)\]\]/i;
+
+function imagenMaterial(material){
+  const notas=String((material && material.notas) || "");
+  const match=notas.match(ZX_MATERIAL_IMAGEN_RE);
+  return match ? String(match[1] || "").trim() : "";
+}
+
+function notasSinMetadatosMaterial(material){
+  return String((material && material.notas) || "")
+    .replace(ZX_MATERIAL_PREPARADO_RE,"")
+    .replace(ZX_MATERIAL_IMAGEN_RE,"")
+    .replace(/\n{3,}/g,"\n\n")
+    .trim();
+}
+
+function construirNotasMaterial(notas,cantidadPreparada,urlImagen){
+  const limpia=String(notas || "")
+    .replace(ZX_MATERIAL_PREPARADO_RE,"")
+    .replace(ZX_MATERIAL_IMAGEN_RE,"")
+    .replace(/\n{3,}/g,"\n\n")
+    .trim();
+  const partes=[];
+  if(limpia) partes.push(limpia);
+  const preparada=Number(cantidadPreparada || 0);
+  if(preparada>0) partes.push("[[ZX_PREPARADO:"+preparada+"]]");
+  if(urlImagen) partes.push("[[ZX_MAT_IMG:"+String(urlImagen).trim()+"]]");
+  return partes.join("\n");
+}
+
+function reconocimientoVozDisponible(){
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function iniciarDictadoMaterial(inputId){
+  const input=document.getElementById(inputId);
+  if(!input) return;
+  const SpeechRecognition=reconocimientoVozDisponible();
+  if(!SpeechRecognition){
+    input.focus();
+    alert("En este dispositivo usa el micrófono del teclado para dictar.");
+    return;
+  }
+  const rec=new SpeechRecognition();
+  rec.lang="es-ES";
+  rec.interimResults=false;
+  rec.maxAlternatives=1;
+  rec.onresult=function(ev){
+    const texto=ev.results && ev.results[0] && ev.results[0][0] ? ev.results[0][0].transcript : "";
+    if(texto){
+      input.value=(input.value ? input.value+" " : "")+texto;
+      input.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+  };
+  rec.onerror=function(){input.focus()};
+  rec.start();
+}
+
+async function subirImagenMaterial(file,trabajoId){
+  if(!file) return "";
+  if(!navigator.onLine || !sb()) throw new Error("Necesitas conexión para subir la imagen.");
+  const ext=(file.name.split(".").pop() || "jpg").toLowerCase();
+  const path="materiales/"+String(trabajoId)+"/"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"."+ext;
+  const up=await sb().storage.from("zentryx-trabajos").upload(path,file,{
+    upsert:false,
+    contentType:file.type || "image/jpeg"
+  });
+  if(up.error) throw up.error;
+  const publicData=sb().storage.from("zentryx-trabajos").getPublicUrl(path);
+  const url=publicData && publicData.data ? publicData.data.publicUrl : "";
+  if(!url) throw new Error("No se pudo obtener la dirección de la imagen.");
+  return url;
+}
+
+
 function cantidadPreparadaMaterial(material){
   const notas=String((material && material.notas) || "");
   const match=notas.match(ZX_MATERIAL_PREPARADO_RE);
@@ -1881,20 +1956,11 @@ function cantidadPreparadaMaterial(material){
 }
 
 function notasVisiblesMaterial(material){
-  return String((material && material.notas) || "")
-    .replace(ZX_MATERIAL_PREPARADO_RE,"")
-    .replace(/\n{3,}/g,"\n\n")
-    .trim();
+  return notasSinMetadatosMaterial(material);
 }
 
-function notasConPreparado(notas,cantidadPreparada){
-  const limpia=String(notas || "")
-    .replace(ZX_MATERIAL_PREPARADO_RE,"")
-    .replace(/\n{3,}/g,"\n\n")
-    .trim();
-  const preparada=Number(cantidadPreparada || 0);
-  if(!(preparada>0)) return limpia;
-  return (limpia ? limpia+"\n" : "")+"[[ZX_PREPARADO:"+preparada+"]]";
+function notasConPreparado(notas,cantidadPreparada,urlImagen){
+  return construirNotasMaterial(notas,cantidadPreparada,urlImagen || "");
 }
 
 function estadoPreparacionMaterial(material){
@@ -1931,7 +1997,7 @@ async function establecerPreparacionMaterial(trabajoId,material,modo){
     }
   }
 
-  const notas=notasConPreparado(notasVisiblesMaterial(material),nueva);
+  const notas=notasConPreparado(notasVisiblesMaterial(material),nueva,imagenMaterial(material));
   const r=await actualizarMaterialCompatible(material.id,{
     notas:notas,
     preparado:nueva>=total && total>0
@@ -2071,7 +2137,7 @@ async function cambiarCantidadMaterial(trabajoId,material,cambio){
     return eliminarMaterial(trabajoId,material.id);
   }
   const preparada=Math.min(nueva,cantidadPreparadaMaterial(material));
-  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasConPreparado(notasVisiblesMaterial(material),preparada),preparado:preparada>=nueva&&nueva>0});
+  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasConPreparado(notasVisiblesMaterial(material),preparada,imagenMaterial(material)),preparado:preparada>=nueva&&nueva>0});
   if(r && r.error){alert("No se pudo cambiar la cantidad.\n\n"+mensajeError(r.error));return}
   await registrarHistorial(trabajoId,"material","Cantidad modificada: "+(material.nombre||material.material||"Material")+" ("+actual+" → "+nueva+" "+(material.unidad||"ud")+")",{material_id:material.id,cantidad_anterior:actual,cantidad:nueva,unidad:material.unidad||"ud"});
   await abrirListaMateriales(trabajoId);
@@ -2094,7 +2160,7 @@ async function establecerCantidadMaterial(trabajoId,material){
     return eliminarMaterial(trabajoId,material.id);
   }
   const preparada=Math.min(nueva,cantidadPreparadaMaterial(material));
-  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasConPreparado(notasVisiblesMaterial(material),preparada),preparado:preparada>=nueva&&nueva>0});
+  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasConPreparado(notasVisiblesMaterial(material),preparada,imagenMaterial(material)),preparado:preparada>=nueva&&nueva>0});
   if(r && r.error){alert("No se pudo cambiar la cantidad.\n\n"+mensajeError(r.error));return}
   await registrarHistorial(trabajoId,"material","Cantidad fijada: "+nombre+" ("+actual+" → "+nueva+" "+(material.unidad||"ud")+")",{material_id:material.id,cantidad_anterior:actual,cantidad:nueva,unidad:material.unidad||"ud",edicion_directa:true});
   await abrirListaMateriales(trabajoId);
@@ -2105,7 +2171,7 @@ async function abrirListaMateriales(trabajoId){
     <div class="zx_tr_materials_header">
       <div>
         <h2>Materiales</h2>
-        <p>Gestiona los materiales de este trabajo.</p>
+        <p>Gestiona cantidades y preparación. Pulsa Pendiente, Parcial o Listo para cambiarlo.</p>
       </div>
       ${puedeGestionar() ? `<button type="button" class="zx_tr_add_material" id="tr_material_add">＋ Añadir</button>` : ""}
     </div>
@@ -2135,10 +2201,13 @@ async function abrirListaMateriales(trabajoId){
     const notasVisibles=notasVisiblesMaterial(m);
     return `
       <article class="zx_tr_material_item zx_tr_material_${prep.clave}">
-        <div class="zx_tr_material_info">
-          <strong>${limpiar(nombre)}</strong>
-          ${cantidad ? `<span>${limpiar(cantidad)}</span>` : ""}
-          ${notasVisibles ? `<small>${limpiar(notasVisibles)}</small>` : ""}
+        <div class="zx_tr_material_head">
+          ${imagenMaterial(m) ? `<img class="zx_tr_material_thumb" src="${limpiar(imagenMaterial(m))}" alt="">` : `<div class="zx_tr_material_thumb zx_tr_material_thumb_empty">📦</div>`}
+          <div class="zx_tr_material_info">
+            <strong>${limpiar(nombre)}</strong>
+            ${cantidad ? `<span>${limpiar(cantidad)}</span>` : ""}
+            ${notasVisibles ? `<small>${limpiar(notasVisibles)}</small>` : ""}
+          </div>
         </div>
         <button type="button" class="zx_tr_material_prepare zx_tr_prepare_${prep.clave}" data-material-prepare="${limpiar(m.id)}">
           <b>${prep.clave==="listo" ? "✓ Listo" : prep.clave==="parcial" ? "◐ Parcial" : "○ Pendiente"}</b>
@@ -2411,6 +2480,17 @@ async function gestionarTrabajo(id){
     if(!confirm("¿Borrar definitivamente este trabajo?")) return;
 
     try{
+      let imagenUrl=material ? imagenMaterial(material) : "";
+      const imagenFile=imagenInput && imagenInput.files ? imagenInput.files[0] : null;
+      if(imagenFile){
+        if(boton) boton.textContent="Subiendo imagen...";
+        imagenUrl=await subirImagenMaterial(imagenFile,id);
+      }
+      data.notas=notasConPreparado(
+        data.notas,
+        material ? cantidadPreparadaMaterial(material) : 0,
+        imagenUrl
+      );
       let r;
 
       if(zx() && typeof zx().remove==="function"){
@@ -2535,9 +2615,12 @@ async function abrirMaterial(id,material){
   modal(`
     <h2>${material ? "Editar material" : "Nuevo material"}</h2>
     <label class="zx_tr_label">Material</label>
-    <div class="zx_tr_autocomplete_wrap">
-      <input id="tr_mat_nombre" autocomplete="off" placeholder="Empieza a escribir para buscar..." value="${limpiar(material ? (material.nombre || material.material || "") : "")}">
-      <div id="tr_mat_sugerencias" class="zx_tr_autocomplete_list" hidden></div>
+    <div class="zx_tr_material_voice_row">
+      <div class="zx_tr_autocomplete_wrap">
+        <input id="tr_mat_nombre" autocomplete="off" placeholder="Empieza a escribir para buscar..." value="${limpiar(material ? (material.nombre || material.material || "") : "")}">
+        <div id="tr_mat_sugerencias" class="zx_tr_autocomplete_list" hidden></div>
+      </div>
+      <button type="button" class="zx_tr_voice_btn" id="tr_mat_voz" aria-label="Dictar material">🎙️</button>
     </div>
     <div class="zx_tr_grid2">
       <div>
@@ -2558,6 +2641,13 @@ async function abrirMaterial(id,material){
       <div class="zx_tr_grid2"><div><label class="zx_tr_label">Precio compra</label><input id="tr_mat_precio_compra" type="number" step="0.01" value="${limpiar(material && material.precio_compra!=null ? material.precio_compra : "")}"></div><div><label class="zx_tr_label">Precio venta</label><input id="tr_mat_precio_venta" type="number" step="0.01" value="${limpiar(material && material.precio_venta!=null ? material.precio_venta : "")}"></div></div>
       <label class="zx_tr_label">IVA (%)</label><input id="tr_mat_iva" type="number" step="0.01" value="${limpiar(material && material.iva!=null ? material.iva : "")}">
     </details>
+    <label class="zx_tr_label">Imagen del producto (opcional)</label>
+    <div class="zx_tr_material_image_form">
+      <div id="tr_mat_image_preview" class="zx_tr_material_image_preview">
+        ${material && imagenMaterial(material) ? `<img src="${limpiar(imagenMaterial(material))}" alt="">` : `<span>📷 Sin imagen</span>`}
+      </div>
+      <input id="tr_mat_imagen" type="file" accept="image/*" capture="environment">
+    </div>
     <label class="zx_tr_label">Notas</label>
     <textarea id="tr_mat_notas" rows="3">${limpiar(material ? notasVisiblesMaterial(material) : "")}</textarea>
     <button class="zx_btn_big zx_verde" id="tr_mat_guardar">${material ? "Guardar cambios" : "Guardar material"}</button>
@@ -2565,6 +2655,17 @@ async function abrirMaterial(id,material){
   `);
 
   document.getElementById("tr_mat_cancelar").onclick=function(){abrirListaMateriales(id)};
+  const vozBtn=document.getElementById("tr_mat_voz");
+  if(vozBtn) vozBtn.onclick=function(){iniciarDictadoMaterial("tr_mat_nombre")};
+  const imagenInput=document.getElementById("tr_mat_imagen");
+  if(imagenInput) imagenInput.onchange=function(){
+    const file=imagenInput.files && imagenInput.files[0];
+    if(!file) return;
+    const preview=document.getElementById("tr_mat_image_preview");
+    const reader=new FileReader();
+    reader.onload=function(){if(preview) preview.innerHTML=`<img src="${reader.result}" alt="">`};
+    reader.readAsDataURL(file);
+  };
 
   const nombreInput=document.getElementById("tr_mat_nombre");
   const sugerenciasBox=document.getElementById("tr_mat_sugerencias");
@@ -2638,7 +2739,7 @@ async function abrirMaterial(id,material){
       material:nombre,
       cantidad:Number(valor("tr_mat_cantidad") || 1),
       unidad:valor("tr_mat_unidad") || "ud",
-      notas:notasConPreparado(valor("tr_mat_notas"),material ? cantidadPreparadaMaterial(material) : 0),
+      notas:valor("tr_mat_notas"),
       referencia:valor("tr_mat_referencia"),
       proveedor:valor("tr_mat_proveedor"),
       fabricante:valor("tr_mat_fabricante"),
@@ -3151,6 +3252,15 @@ function instalarCSS(){
     .zx_tr_material_prepare_summary strong{font-size:21px;color:#061631}
     .zx_tr_material_prepare_summary span{font-weight:800;color:#64748b}
 
+    .zx_tr_material_head{display:flex;align-items:flex-start;gap:12px}
+    .zx_tr_material_thumb{width:70px;height:70px;border-radius:16px;object-fit:cover;flex:0 0 70px;border:1px solid #d8e3ef;background:#fff}
+    .zx_tr_material_thumb_empty{display:flex;align-items:center;justify-content:center;font-size:31px;background:#eef6ff}
+    .zx_tr_material_voice_row{display:grid;grid-template-columns:minmax(0,1fr) 64px;gap:10px;align-items:start}
+    .zx_tr_voice_btn{height:64px;border:2px solid #bfdbfe;border-radius:18px;background:#eff6ff;font-size:28px}
+    .zx_tr_material_image_form{display:grid;gap:10px;margin-bottom:18px}
+    .zx_tr_material_image_preview{height:150px;border:2px dashed #bfdbfe;border-radius:18px;background:#f8fbff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#64748b;font-weight:800}
+    .zx_tr_material_image_preview img{width:100%;height:100%;object-fit:contain}
+    .zx_tr_material_prepare{display:flex!important;visibility:visible!important;opacity:1!important}
     .zx_tr_material_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_tr_material_actions button{border:0;border-radius:13px;padding:10px;font-size:13px;font-weight:950}.zx_tr_material_actions .blue{background:#dbeafe;color:#1d4ed8}.zx_tr_material_actions .red{background:#fee2e2;color:#b91c1c}.zx_tr_empty_card{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:18px;padding:22px;text-align:center;color:#64748b;font-weight:900}
     .zx_tr_history_block{padding:0;overflow:hidden}
     .zx_tr_history_toggle{display:grid;width:100%;grid-template-columns:1fr auto;gap:4px 14px;align-items:center;padding:20px 22px;border:0;background:transparent;text-align:left;cursor:pointer;font:inherit}
