@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3190 - CRONOMETRO POR JORNADA Y ESTADOS INDEPENDIENTES
+// V3191 - CRONOMETRO DE JORNADA CORREGIDO - CRONOMETRO POR JORNADA Y ESTADOS INDEPENDIENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3190";
+const ZX_VERSION="3191";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2172,6 +2172,32 @@ function obtenerUbicacionTrabajo(){
   });
 }
 
+
+function claveInicioJornada(trabajoId,jornadaId){
+  return "zx_tr_inicio_jornada_"+String(trabajoId || "")+"_"+String(jornadaId || "");
+}
+
+function guardarInicioJornadaLocal(trabajoId,jornadaId,fechaISO){
+  try{
+    localStorage.setItem(claveInicioJornada(trabajoId,jornadaId),String(fechaISO || new Date().toISOString()));
+  }catch(e){}
+}
+
+function leerInicioJornadaLocal(trabajoId,jornadaId){
+  try{
+    const raw=localStorage.getItem(claveInicioJornada(trabajoId,jornadaId));
+    if(!raw) return null;
+    const d=new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }catch(e){
+    return null;
+  }
+}
+
+function borrarInicioJornadaLocal(trabajoId,jornadaId){
+  try{localStorage.removeItem(claveInicioJornada(trabajoId,jornadaId))}catch(e){}
+}
+
 function datosHistorial(h){
   const d=h && h.datos;
   if(!d) return {};
@@ -2179,18 +2205,31 @@ function datosHistorial(h){
   try{return JSON.parse(d)}catch(e){return {}}
 }
 
-function inicioRealTrabajo(hist,jornadaId){
-  const lista=Array.isArray(hist) ? hist : [];
+function inicioRealTrabajo(hist,jornadaId,trabajoId){
   const jid=String(jornadaId || "");
-  const registro=lista.find(function(h){
+
+  const local=leerInicioJornadaLocal(trabajoId,jid);
+  if(local) return local;
+
+  const lista=Array.isArray(hist) ? hist : [];
+  const esInicio=function(h){
     const tipo=normalizar(h.tipo || "");
     const nota=normalizar(h.notas || "");
+    return tipo.includes("inicio") || nota.includes("trabajo iniciado") || nota.includes("jornada iniciada");
+  };
+
+  let registro=lista.find(function(h){
+    if(!esInicio(h)) return false;
     const datos=datosHistorial(h);
-    const coincide=!jid || String(datos.jornada_id || "")===jid;
-    const esInicio=tipo.includes("inicio") || nota.includes("trabajo iniciado") || nota.includes("jornada iniciada");
-    return coincide && esInicio;
+    return jid && String(datos.jornada_id || "")===jid;
   });
+
+  // Algunas instalaciones no tienen la columna "datos". En ese caso,
+  // registrarHistorial guarda la entrada sin jornada_id. Usamos el inicio
+  // más reciente porque la jornada seleccionada ya está marcada En curso.
+  if(!registro) registro=lista.find(esInicio);
   if(!registro) return null;
+
   const datos=datosHistorial(registro);
   const raw=datos.iniciado_at || registro.created_at || registro.fecha;
   if(!raw) return null;
@@ -2219,7 +2258,7 @@ function minutosPlanificadosTrabajo(t,plan){
 
 function renderPanelEjecucion(t,plan,hist,jornada){
   if(String(t.estado || "")!=="en_curso") return "";
-  const inicio=inicioRealTrabajo(hist,jornada && jornada.id);
+  const inicio=inicioRealTrabajo(hist,jornada && jornada.id,t && t.id);
   const minutos=minutosPlanificadosTrabajo(t,plan);
   return `<section class="zx_tr_execution_panel">
     <div class="zx_tr_execution_head">
@@ -2237,9 +2276,9 @@ function renderPanelEjecucion(t,plan,hist,jornada){
   </section>`;
 }
 
-function iniciarTemporizadorEjecucion(hist,jornada){
+function iniciarTemporizadorEjecucion(hist,jornada,trabajoId){
   detenerTemporizadorEjecucion();
-  const inicio=inicioRealTrabajo(hist,jornada && jornada.id);
+  const inicio=inicioRealTrabajo(hist,jornada && jornada.id,trabajoId);
   const el=document.getElementById("tr_execution_timer");
   if(!inicio || !el) return;
   const pintar=function(){
@@ -2432,6 +2471,12 @@ async function finalizarTrabajoRapido(id){
         if(rJ && rJ.error) throw rJ.error;
       }
 
+      if(finalizarTodo){
+        jornadas.forEach(function(j){borrarInicioJornadaLocal(id,j.id)});
+      }else{
+        borrarInicioJornadaLocal(id,jornada.id);
+      }
+
       const recalculo=await recalcularEstadoGeneralTrabajo(id,t);
       const pendientesRestantes=recalculo.jornadas.filter(j=>!["completado","cancelado"].includes(String(j.estado || ""))).length;
 
@@ -2511,6 +2556,9 @@ async function ejecutarAccionPrincipal(id,accion){
       const r=await actualizarTrabajo(id,{estado:"en_curso"});
       if(r && r.error) throw r.error;
 
+      const iniciadoAt=new Date().toISOString();
+      guardarInicioJornadaLocal(id,jornada.id,iniciadoAt);
+
       await registrarHistorial(
         id,
         "jornada",
@@ -2519,7 +2567,7 @@ async function ejecutarAccionPrincipal(id,accion){
           estado:"en_curso",
           jornada_id:jornada.id,
           fecha_jornada:jornada.fecha_inicio,
-          iniciado_at:new Date().toISOString(),
+          iniciado_at:iniciadoAt,
           ubicacion:ubicacion
         }
       );
@@ -2724,7 +2772,7 @@ ${renderPlanificacionPlegable(plan)}
     };
   }
 
-  iniciarTemporizadorEjecucion(hist,jornadaActual);
+  iniciarTemporizadorEjecucion(hist,jornadaActual,id);
 
   const smartMaterials=document.getElementById("tr_smart_material_attach");
   if(smartMaterials) smartMaterials.onclick=function(){adjuntarSugerenciasMateriales(id,sugerenciasMateriales)};
