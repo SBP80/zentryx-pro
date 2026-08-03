@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3200 - PARTES COMPACTOS, LIMPIOS Y CON VISTA AMPLIADA
+// V3201 - MENU DE PARTE, COMPARTIR, PDF Y LISTAS COMPACTAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3200";
+const ZX_VERSION="3201";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3317,7 +3317,12 @@ ${renderPlanificacionPlegable(plan)}
         if(mostrar){visibles++;visiblesDia++}
       });
       day.hidden=visiblesDia===0;
-      if(visiblesDia && (q || user || date)) day.open=true;
+      if(visiblesDia && (q || user || date)){
+        day.open=true;
+        day.classList.add("zx_tr_filtering_parts");
+      }else{
+        day.classList.remove("zx_tr_filtering_parts");
+      }
     });
 
     if(partsResult) partsResult.textContent=visibles+" parte"+(visibles===1?"":"s");
@@ -3332,6 +3337,15 @@ ${renderPlanificacionPlegable(plan)}
     if(partsDate) partsDate.value="";
     aplicarFiltroPartes();
   };
+
+  document.querySelectorAll("[data-parts-more]").forEach(function(btn){
+    btn.onclick=function(){
+      const day=btn.closest(".zx_tr_part_day");
+      if(!day) return;
+      const abierto=day.classList.toggle("zx_tr_show_all_parts");
+      btn.textContent=abierto ? "Mostrar solo 2" : "Ver todos ("+day.querySelectorAll(".zx_tr_part_item").length+")";
+    };
+  });
 
   const historyToggle=document.getElementById("tr_history_toggle");
   const historyPanel=document.getElementById("tr_history_panel");
@@ -3488,7 +3502,12 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
         const prevista=minutosEntreHoras(inicio,fin);
         const real=duracionRealJornada(hist,jornada?.id);
         const duracion=real ? `Real ${textoDuracionMinutos(real)}` : (prevista ? `Prevista ${textoDuracionMinutos(prevista)}` : "");
-        const resumenJornada=[horario,duracion,`${items.length} parte${items.length===1?"":"s"}`].filter(Boolean).join(" · ");
+        const fotosDia=items.reduce(function(total,h){
+          const d=datosHistorial(h);
+          return total+(Array.isArray(d.archivos) ? d.archivos.filter(a=>String(a.tipo || "")==="foto").length : 0);
+        },0);
+        const firmasDia=items.reduce(function(total,h){return total+(resumenFirmaParte(datosHistorial(h)).firma ? 1 : 0)},0);
+        const resumenJornada=[horario,duracion,`${items.length} parte${items.length===1?"":"s"}`,`${fotosDia} foto${fotosDia===1?"":"s"}`,`${firmasDia} firma${firmasDia===1?"":"s"}`].filter(Boolean).join(" · ");
 
         return `<details class="zx_tr_part_day ${actual?"actual":""}" data-fecha="${limpiar(fecha)}">
           <summary>
@@ -3499,7 +3518,7 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
             <em class="${actual?"actual":""}">${actual?"Seleccionada":estadoJornadaTexto(jornada?.estado)}</em>
           </summary>
           <div class="zx_tr_part_day_body">
-            ${items.map(function(h){
+            ${items.map(function(h,parteIndex){
               const datos=datosHistorial(h);
               const archivos=Array.isArray(datos.archivos) ? datos.archivos : [];
               const fotos=archivos.map((a,i)=>({a:a,i:i})).filter(x=>String(x.a.tipo || "")==="foto" && x.a.url);
@@ -3510,7 +3529,7 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
                 ? ` · Editado ${new Date(datos.actualizado_at).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}`
                 : "";
 
-              return `<article class="zx_tr_part_item"
+              return `<article class="zx_tr_part_item ${parteIndex>=2?"zx_tr_part_extra":""}"
                 data-texto="${limpiar(normalizar([texto,usuario,firmaInfo.nombre].join(" ")))}"
                 data-usuario="${limpiar(normalizar(usuario))}"
                 data-fecha="${limpiar(fecha)}">
@@ -3522,7 +3541,7 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
                   </div>
                   <div>
                     <button onclick="ZX_tr_parte_editar('${limpiar(h.trabajo_id || t?.id || "")}','${limpiar(h.id)}')">✏️ Editar</button>
-                    <button class="danger" onclick="ZX_tr_parte_borrar('${limpiar(h.id)}','${limpiar(h.trabajo_id || t?.id || "")}')">🗑️ Borrar</button>
+                    <button onclick="ZX_tr_parte_menu('${limpiar(h.id)}','${limpiar(h.trabajo_id || t?.id || "")}')">••• Opciones</button>
                   </div>
                 </div>
 
@@ -3546,6 +3565,7 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
                 </button>` : ""}
               </article>`;
             }).join("")}
+            ${items.length>2 ? `<button type="button" class="zx_tr_parts_more" data-parts-more>Ver todos (${items.length})</button>` : ""}
           </div>
         </details>`;
       }).join("")}
@@ -4217,6 +4237,162 @@ async function borrarFotoLegacy(archivoId,trabajoId){
 }
 
 
+
+async function cargarPartePorId(historialId){
+  if(!navigator.onLine || !sb()) return null;
+  try{
+    const r=await sb().from("trabajos_historial").select("*").eq("id",String(historialId)).maybeSingle();
+    if(r.error) throw r.error;
+    return r.data || null;
+  }catch(e){
+    console.warn("No se pudo cargar el parte:",e);
+    return null;
+  }
+}
+
+function textoCompartirParte(h){
+  const datos=datosHistorial(h || {});
+  const fecha=fechaISOParte(datos.fecha_jornada || h?.created_at || h?.fecha);
+  const trabajo=datos.trabajo_realizado || notasParteSinDatos(h?.notas || "") || "Parte de jornada";
+  const firma=resumenFirmaParte(datos);
+  const fotos=Array.isArray(datos.archivos) ? datos.archivos.filter(a=>String(a.tipo || "")==="foto" && a.url) : [];
+  return [
+    "Parte de jornada",
+    fecha ? "Fecha: "+fechaES(fecha) : "",
+    "Técnico: "+String(h?.usuario || "Sistema"),
+    "",
+    trabajo,
+    "",
+    fotos.length ? "Fotografías: "+fotos.length : "",
+    firma.firma ? "Firmado"+(firma.nombre ? " por "+firma.nombre : "") : ""
+  ].filter(Boolean).join("\n");
+}
+
+async function compartirParteJornada(historialId){
+  const h=await cargarPartePorId(historialId);
+  if(!h){alert("No se pudo cargar el parte.");return}
+  const texto=textoCompartirParte(h);
+  try{
+    if(navigator.share){
+      await navigator.share({title:"Parte de jornada",text:texto});
+      return;
+    }
+    if(navigator.clipboard?.writeText){
+      await navigator.clipboard.writeText(texto);
+      alert("Parte copiado.");
+      return;
+    }
+    alert(texto);
+  }catch(e){
+    if(e?.name!=="AbortError") alert("No se pudo compartir el parte.");
+  }
+}
+
+function htmlImpresionParte(h,tituloTrabajo){
+  const datos=datosHistorial(h || {});
+  const fecha=fechaISOParte(datos.fecha_jornada || h?.created_at || h?.fecha);
+  const texto=datos.trabajo_realizado || notasParteSinDatos(h?.notas || "") || "Parte de jornada";
+  const firma=resumenFirmaParte(datos);
+  const fotos=Array.isArray(datos.archivos) ? datos.archivos.filter(a=>String(a.tipo || "")==="foto" && a.url) : [];
+  const hora=horaHistorialParte(h);
+  const esc=function(v){return limpiar(String(v || ""))};
+
+  return `<!doctype html>
+  <html lang="es"><head><meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Parte de jornada</title>
+  <style>
+    *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#0f172a;margin:0;padding:28px}
+    .page{max-width:850px;margin:auto}.head{border-bottom:3px solid #2563eb;padding-bottom:16px;margin-bottom:20px}
+    h1{font-size:28px;margin:0 0 6px}h2{font-size:18px;margin:24px 0 8px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .box{border:1px solid #dbe4ef;border-radius:12px;padding:12px;background:#f8fafc}.text{white-space:pre-wrap;line-height:1.5}
+    .photos{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.photos img{width:100%;height:260px;object-fit:contain;border:1px solid #e2e8f0;border-radius:10px}
+    .firma{border:1px solid #bbf7d0;border-radius:12px;padding:12px;background:#f0fdf4}.firma img{display:block;width:100%;height:150px;object-fit:contain;background:#fff;margin-top:8px}
+    .print{position:fixed;right:18px;top:18px;border:0;border-radius:10px;padding:11px 15px;background:#2563eb;color:#fff;font-weight:800}
+    @media print{.print{display:none}body{padding:0}.page{max-width:none}}@media(max-width:600px){.meta,.photos{grid-template-columns:1fr}}
+  </style></head><body>
+  <button class="print" onclick="window.print()">Imprimir / Guardar PDF</button>
+  <main class="page">
+    <div class="head"><h1>Parte de jornada</h1><strong>${esc(tituloTrabajo || "Trabajo")}</strong></div>
+    <div class="meta">
+      <div class="box"><b>Fecha</b><br>${esc(fecha ? fechaES(fecha) : "")}</div>
+      <div class="box"><b>Hora de registro</b><br>${esc(hora)}</div>
+      <div class="box"><b>Técnico</b><br>${esc(h?.usuario || "Sistema")}</div>
+      <div class="box"><b>Firmante</b><br>${esc(firma.nombre || "Sin firma")}</div>
+    </div>
+    <h2>Trabajo realizado</h2><div class="box text">${esc(texto)}</div>
+    ${fotos.length ? `<h2>Fotografías</h2><div class="photos">${fotos.map(a=>`<img src="${esc(a.url)}" alt="${esc(a.nombre || "Foto")}">`).join("")}</div>` : ""}
+    ${firma.firma ? `<h2>Firma</h2><div class="firma"><b>${esc(firma.nombre || "Cliente")}</b><img src="${esc(firma.firma)}" alt="Firma"></div>` : ""}
+  </main></body></html>`;
+}
+
+async function imprimirParteJornada(historialId,trabajoId){
+  const h=await cargarPartePorId(historialId);
+  if(!h){alert("No se pudo cargar el parte.");return}
+  let titulo="Trabajo";
+  try{
+    const t=await cargarTrabajo(trabajoId || h.trabajo_id);
+    if(t?.titulo) titulo=t.titulo;
+  }catch(e){}
+  const ventana=window.open("","_blank");
+  if(!ventana){alert("El navegador ha bloqueado la ventana de impresión.");return}
+  ventana.document.open();
+  ventana.document.write(htmlImpresionParte(h,titulo));
+  ventana.document.close();
+}
+
+async function duplicarParteJornada(historialId,trabajoId){
+  const h=await cargarPartePorId(historialId);
+  if(!h){alert("No se pudo cargar el parte.");return}
+  if(!confirm("¿Duplicar este parte? Se copiará el texto sin repetir fotos ni firma.")) return;
+
+  try{
+    const datosOriginales=datosHistorial(h);
+    const datos={
+      jornada_id:datosOriginales.jornada_id || "",
+      fecha_jornada:datosOriginales.fecha_jornada || fechaISOParte(h.created_at || h.fecha),
+      trabajo_realizado:datosOriginales.trabajo_realizado || notasParteSinDatos(h.notas || ""),
+      firmante:"",
+      firma_url:"",
+      archivos:[],
+      guardado_at:new Date().toISOString(),
+      duplicado_de:String(historialId)
+    };
+    await registrarHistorial(
+      trabajoId || h.trabajo_id,
+      "parte_jornada",
+      notasParteConDatos(datos.trabajo_realizado || "Parte duplicado.",datos),
+      datos
+    );
+    await abrirFicha(trabajoId || h.trabajo_id);
+  }catch(e){
+    alert("No se pudo duplicar el parte.\n\n"+mensajeError(e));
+  }
+}
+
+async function abrirMenuParte(historialId,trabajoId){
+  const h=await cargarPartePorId(historialId);
+  if(!h){alert("No se pudo cargar el parte.");return}
+  const datos=datosHistorial(h);
+  const texto=datos.trabajo_realizado || notasParteSinDatos(h.notas || "") || "Parte de jornada";
+  modal(`
+    <h2>Opciones del parte</h2>
+    <div class="zx_text"><b>${limpiar(fechaES(fechaISOParte(datos.fecha_jornada || h.created_at || h.fecha)))}</b><br>${limpiar(texto.slice(0,180))}${texto.length>180?"…":""}</div>
+    <button class="zx_btn_big zx_azul" id="tr_part_menu_edit">✏️ Editar</button>
+    <button class="zx_btn_big" id="tr_part_menu_duplicate" style="background:#fff!important;color:#0f2348!important;border:2px solid #b9d2f3!important">📄 Duplicar texto</button>
+    <button class="zx_btn_big" id="tr_part_menu_share" style="background:#fff!important;color:#0f2348!important;border:2px solid #b9d2f3!important">📤 Compartir</button>
+    <button class="zx_btn_big" id="tr_part_menu_pdf" style="background:#fff!important;color:#0f2348!important;border:2px solid #b9d2f3!important">🧾 Imprimir / Guardar PDF</button>
+    <button class="zx_btn_big zx_rojo" id="tr_part_menu_delete">🗑️ Borrar parte</button>
+    <button class="zx_btn_big zx_gris" id="tr_part_menu_close">Cerrar</button>
+  `);
+  document.getElementById("tr_part_menu_close").onclick=function(){abrirFicha(trabajoId || h.trabajo_id)};
+  document.getElementById("tr_part_menu_edit").onclick=function(){abrirParteJornada(trabajoId || h.trabajo_id,historialId)};
+  document.getElementById("tr_part_menu_duplicate").onclick=function(){duplicarParteJornada(historialId,trabajoId || h.trabajo_id)};
+  document.getElementById("tr_part_menu_share").onclick=function(){compartirParteJornada(historialId)};
+  document.getElementById("tr_part_menu_pdf").onclick=function(){imprimirParteJornada(historialId,trabajoId || h.trabajo_id)};
+  document.getElementById("tr_part_menu_delete").onclick=function(){borrarParteJornada(historialId,trabajoId || h.trabajo_id)};
+}
+
 async function borrarParteJornada(historialId,trabajoId){
   if(!navigator.onLine || !sb()){alert("Necesitas conexión para borrar el parte.");return}
   if(!confirm("¿Borrar el parte completo, incluidas sus fotos y firma?")) return;
@@ -4875,6 +5051,10 @@ window.ZX_tr_nota=function(id){registrarNotaRapida(id)};
 window.ZX_tr_parte=function(id){abrirParteJornada(id)};
 window.ZX_tr_parte_editar=function(id,historialId){abrirParteJornada(id,historialId)};
 window.ZX_tr_parte_borrar=function(historialId,trabajoId){borrarParteJornada(historialId,trabajoId)};
+window.ZX_tr_parte_menu=function(historialId,trabajoId){abrirMenuParte(historialId,trabajoId)};
+window.ZX_tr_parte_duplicar=function(historialId,trabajoId){duplicarParteJornada(historialId,trabajoId)};
+window.ZX_tr_parte_compartir=function(historialId){compartirParteJornada(historialId)};
+window.ZX_tr_parte_pdf=function(historialId,trabajoId){imprimirParteJornada(historialId,trabajoId)};
 window.ZX_tr_ver_foto=function(url,nombre){verFotoParte(url,nombre)};
 window.ZX_tr_parte_borrar_foto=function(historialId,indice,path,trabajoId){borrarFotoParte(historialId,indice,path,trabajoId)};
 window.ZX_tr_parte_borrar_legacy=function(archivoId,trabajoId){borrarFotoLegacy(archivoId,trabajoId)};
@@ -5052,6 +5232,12 @@ function instalarCSS(){
     .zx_tr_part_item_head{display:flex;justify-content:space-between;gap:8px;align-items:center}
 
     .zx_tr_part_item{border:1px solid #dbe4ef;border-radius:15px;padding:13px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.035)}
+
+    .zx_tr_part_extra{display:none}
+    .zx_tr_part_day.zx_tr_show_all_parts .zx_tr_part_extra,
+    .zx_tr_part_day.zx_tr_filtering_parts .zx_tr_part_extra{display:grid}
+    .zx_tr_parts_more{width:100%;border:1px solid #bfdbfe;border-radius:11px;padding:10px;background:#eff6ff;color:#1d4ed8;font-weight:950}
+
     .zx_tr_part_meta{display:grid;gap:3px}
     .zx_tr_part_meta b{font-size:13px;color:#0f172a}
     .zx_tr_part_meta small{font-size:11px;color:#64748b;font-weight:800}
