@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3198 - PARTES ORGANIZADOS POR JORNADA Y EDITABLES
+// V3199 - HISTORIAL PROFESIONAL DE PARTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3198";
+const ZX_VERSION="3199";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3292,6 +3292,47 @@ ${renderPlanificacionPlegable(plan)}
     };
   }
 
+
+  const partsSearch=document.getElementById("tr_parts_search");
+  const partsUser=document.getElementById("tr_parts_user");
+  const partsDate=document.getElementById("tr_parts_date");
+  const partsClear=document.getElementById("tr_parts_clear");
+  const partsResult=document.getElementById("tr_parts_filter_result");
+
+  const aplicarFiltroPartes=function(){
+    if(!partsSearch) return;
+    const q=normalizar(partsSearch.value || "");
+    const user=normalizar(partsUser?.value || "");
+    const date=String(partsDate?.value || "");
+    let visibles=0;
+
+    document.querySelectorAll("#tr_parts_groups .zx_tr_part_day").forEach(function(day){
+      let visiblesDia=0;
+      day.querySelectorAll(".zx_tr_part_item").forEach(function(item){
+        const okTexto=!q || String(item.dataset.texto || "").includes(q);
+        const okUser=!user || String(item.dataset.usuario || "")===user;
+        const okDate=!date || String(item.dataset.fecha || "")===date;
+        const mostrar=okTexto && okUser && okDate;
+        item.hidden=!mostrar;
+        if(mostrar){visibles++;visiblesDia++}
+      });
+      day.hidden=visiblesDia===0;
+      if(visiblesDia && (q || user || date)) day.open=true;
+    });
+
+    if(partsResult) partsResult.textContent=visibles+" parte"+(visibles===1?"":"s");
+  };
+
+  if(partsSearch) partsSearch.oninput=aplicarFiltroPartes;
+  if(partsUser) partsUser.onchange=aplicarFiltroPartes;
+  if(partsDate) partsDate.onchange=aplicarFiltroPartes;
+  if(partsClear) partsClear.onclick=function(){
+    partsSearch.value="";
+    if(partsUser) partsUser.value="";
+    if(partsDate) partsDate.value="";
+    aplicarFiltroPartes();
+  };
+
   const historyToggle=document.getElementById("tr_history_toggle");
   const historyPanel=document.getElementById("tr_history_panel");
   if(historyToggle && historyPanel){
@@ -3313,32 +3354,185 @@ function renderNotasVisibles(hist){
   return `<section class="zx_tr_block zx_tr_notes_block"><div class="zx_tr_block_title"><h3>Notas</h3><span>${notas.length}</span></div>${notas.slice(0,5).map(h=>`<article class="zx_tr_note_visible"><p>${limpiar(h.notas || "")}</p><small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small></article>`).join("")}</section>`;
 }
 
+
+function horaHistorialParte(h){
+  const raw=h?.created_at || h?.fecha || "";
+  const d=new Date(raw);
+  if(Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"});
+}
+
+function fechaISOParte(valor){
+  return String(valor || "").slice(0,10);
+}
+
+function minutosEntreHoras(inicio,fin){
+  const a=String(inicio || "").slice(0,5).split(":").map(Number);
+  const b=String(fin || "").slice(0,5).split(":").map(Number);
+  if(a.length<2 || b.length<2 || a.some(Number.isNaN) || b.some(Number.isNaN)) return 0;
+  const n=(b[0]*60+b[1])-(a[0]*60+a[1]);
+  return n>0 ? n : 0;
+}
+
+function textoDuracionMinutos(minutos){
+  const n=Math.max(0,Number(minutos || 0));
+  if(!n) return "";
+  const h=Math.floor(n/60);
+  const m=Math.round(n%60);
+  if(h && m) return `${h} h ${m} min`;
+  if(h) return `${h} h`;
+  return `${m} min`;
+}
+
+function duracionRealJornada(hist,jornadaId){
+  const jid=String(jornadaId || "");
+  if(!jid) return 0;
+
+  const entradas=(hist || []).filter(function(h){
+    const datos=datosHistorial(h);
+    if(String(datos.jornada_id || "")!==jid) return false;
+    const tipo=normalizar(h.tipo || "");
+    const nota=normalizar(notasParteSinDatos(h.notas || ""));
+    return tipo.includes("jornada") || nota.includes("jornada iniciada") || nota.includes("jornada finalizada");
+  });
+
+  let inicio=null;
+  let fin=null;
+  entradas.forEach(function(h){
+    const datos=datosHistorial(h);
+    const nota=normalizar(notasParteSinDatos(h.notas || ""));
+    const rawInicio=datos.iniciado_at || (nota.includes("jornada iniciada") ? (h.created_at || h.fecha) : "");
+    const rawFin=datos.finalizado_at || (nota.includes("jornada finalizada") ? (h.created_at || h.fecha) : "");
+    if(rawInicio){
+      const d=new Date(rawInicio);
+      if(!Number.isNaN(d.getTime()) && (!inicio || d<inicio)) inicio=d;
+    }
+    if(rawFin){
+      const d=new Date(rawFin);
+      if(!Number.isNaN(d.getTime()) && (!fin || d>fin)) fin=d;
+    }
+  });
+
+  if(!inicio || !fin || fin<=inicio) return 0;
+  return Math.round((fin.getTime()-inicio.getTime())/60000);
+}
+
+function resumenFirmaParte(datos){
+  const nombre=String(datos?.firmante || "").trim();
+  const firma=datos?.firma_url || (Array.isArray(datos?.archivos) ? datos.archivos.find(a=>String(a.tipo || "")==="firma")?.url : "");
+  return {nombre:nombre,firma:firma || ""};
+}
+
 function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
   const partes=(hist || []).filter(h=>normalizar(h.tipo).includes("parte jornada") || normalizar(h.tipo).includes("parte_jornada"));
   if(!partes.length) return "";
-  const jornadaActiva=jornadaSeleccionadaAgenda(jornadas || []);
-  const grupos=new Map();
+
+  const porFecha={};
   partes.forEach(function(h){
-    const d=datosHistorial(h);
-    const fecha=String(d.fecha_jornada || h.fecha || "").slice(0,10) || "sin-fecha";
-    if(!grupos.has(fecha)) grupos.set(fecha,[]);
-    grupos.get(fecha).push(h);
+    const datos=datosHistorial(h);
+    const fecha=fechaISOParte(datos.fecha_jornada || h.created_at || h.fecha);
+    if(!porFecha[fecha]) porFecha[fecha]=[];
+    porFecha[fecha].push(h);
   });
-  const fechas=[...grupos.keys()].sort().reverse();
+
+  const fechas=Object.keys(porFecha).sort();
+  const tecnicos=[...new Set(partes.map(h=>String(h.usuario || "Sistema").trim()).filter(Boolean))].sort();
+  const totalFotos=partes.reduce(function(total,h){
+    const datos=datosHistorial(h);
+    return total+(Array.isArray(datos.archivos) ? datos.archivos.filter(a=>String(a.tipo || "")==="foto").length : 0);
+  },0);
+  const totalFirmas=partes.reduce(function(total,h){
+    return total+(resumenFirmaParte(datosHistorial(h)).firma ? 1 : 0);
+  },0);
+
   return `<section class="zx_tr_block zx_tr_parts_block">
-    <div class="zx_tr_parts_heading"><div><h3>Partes de jornada</h3><small>${partes.length} parte${partes.length===1?"":"s"}</small></div><button type="button" onclick="ZX_tr_parte('${limpiar(t?.id || partes[0]?.trabajo_id || "")}')">+ Nuevo parte</button></div>
-    <div class="zx_tr_parts_groups">${fechas.map(function(fecha){
-      const items=grupos.get(fecha) || [];
-      const jornada=(jornadas || []).find(j=>String(j.fecha_inicio || "").slice(0,10)===fecha);
-      const actual=String(jornadaActiva?.fecha_inicio || "").slice(0,10)===fecha;
-      const horario=[String(jornada?.hora_inicio||"").slice(0,5),String(jornada?.hora_fin||"").slice(0,5)].filter(Boolean).join("–");
-      return `<details class="zx_tr_part_day ${actual?"actual":""}"><summary><span><b>${limpiar(fechaES(fecha))}</b><small>${limpiar(horario || "Sin horario")} · ${items.length} parte${items.length===1?"":"s"}</small></span><em>${actual?"Jornada seleccionada":estadoJornadaTexto(jornada?.estado)}</em></summary><div class="zx_tr_part_day_body">${items.map(function(h){
-        const datos=datosHistorial(h);const archivos=Array.isArray(datos.archivos)?datos.archivos:[];
-        const fotos=archivos.map((a,i)=>({a:a,i:i})).filter(x=>String(x.a.tipo||"")==="foto"&&x.a.url);
-        const firma=datos.firma_url || archivos.find(a=>String(a.tipo||"")==="firma")?.url || "";
-        return `<article class="zx_tr_part_item"><div class="zx_tr_part_item_head"><small>${limpiar(fechaHoraHistorial(h))}</small><div><button onclick="ZX_tr_parte_editar('${limpiar(h.trabajo_id || t?.id || "")}','${limpiar(h.id)}')">✏️ Editar</button><button class="danger" onclick="ZX_tr_parte_borrar('${limpiar(h.id)}','${limpiar(h.trabajo_id || t?.id || "")}')">🗑️ Borrar parte</button></div></div><p>${limpiar(datos.trabajo_realizado || notasParteSinDatos(h.notas) || "Parte de jornada")}</p>${fotos.length?`<div class="zx_tr_part_photos">${fotos.map(x=>`<figure><button class="zx_tr_part_photo_open" onclick="ZX_tr_ver_foto('${limpiar(x.a.url)}','${limpiar(x.a.nombre||"Foto")}')"><img src="${limpiar(x.a.url)}" alt="${limpiar(x.a.nombre||"Foto")}"></button><figcaption>${limpiar(x.a.nombre||"")}</figcaption><button type="button" class="zx_tr_part_delete_photo" onclick="ZX_tr_parte_borrar_foto('${limpiar(h.id)}',${x.i},'${limpiar(x.a.path||"")}','${limpiar(h.trabajo_id || t?.id || "")}')">🗑️ Borrar foto</button></figure>`).join("")}</div>`:""}${datos.firmante?`<small class="zx_tr_part-sign">Firmado por: ${limpiar(datos.firmante)}</small>`:""}${firma?`<div class="zx_tr_part_signature"><span>Firma</span><img src="${limpiar(firma)}" alt="Firma"></div>`:""}</article>`;
-      }).join("")}</div></details>`;
-    }).join("")}</div>
+    <div class="zx_tr_parts_heading">
+      <div>
+        <h3>Partes de jornada</h3>
+        <small>${partes.length} parte${partes.length===1?"":"s"} · ${totalFotos} foto${totalFotos===1?"":"s"} · ${totalFirmas} firma${totalFirmas===1?"":"s"}</small>
+      </div>
+      <button type="button" onclick="ZX_tr_parte('${limpiar(t?.id || partes[0]?.trabajo_id || "")}')">+ Nuevo parte</button>
+    </div>
+
+    <div class="zx_tr_parts_filters">
+      <input id="tr_parts_search" type="search" placeholder="Buscar en los partes">
+      <select id="tr_parts_user">
+        <option value="">Todos los técnicos</option>
+        ${tecnicos.map(n=>`<option value="${limpiar(normalizar(n))}">${limpiar(n)}</option>`).join("")}
+      </select>
+      <input id="tr_parts_date" type="date">
+      <button type="button" id="tr_parts_clear">Limpiar</button>
+    </div>
+    <div class="zx_tr_parts_filter_result" id="tr_parts_filter_result">${partes.length} parte${partes.length===1?"":"s"}</div>
+
+    <div class="zx_tr_parts_groups" id="tr_parts_groups">
+      ${fechas.map(function(fecha){
+        const items=porFecha[fecha].sort((a,b)=>new Date(b.created_at || b.fecha || 0)-new Date(a.created_at || a.fecha || 0));
+        const jornada=(jornadas || []).find(j=>fechaISOParte(j.fecha_inicio)===fecha);
+        const actual=fecha===fechaISOParte(jornadaSeleccionadaAgenda(jornadas)?.fecha_inicio);
+        const inicio=String(jornada?.hora_inicio || "").slice(0,5);
+        const fin=String(jornada?.hora_fin || "").slice(0,5);
+        const horario=[inicio,fin].filter(Boolean).join("–");
+        const prevista=minutosEntreHoras(inicio,fin);
+        const real=duracionRealJornada(hist,jornada?.id);
+        const duracion=real ? `Real ${textoDuracionMinutos(real)}` : (prevista ? `Prevista ${textoDuracionMinutos(prevista)}` : "Duración sin registrar");
+
+        return `<details class="zx_tr_part_day ${actual?"actual":""}" data-fecha="${limpiar(fecha)}">
+          <summary>
+            <span>
+              <b>${limpiar(fechaES(fecha))}</b>
+              <small>${limpiar(horario || "Sin horario")} · ${limpiar(duracion)} · ${items.length} parte${items.length===1?"":"s"}</small>
+            </span>
+            <em>${actual?"Jornada seleccionada":estadoJornadaTexto(jornada?.estado)}</em>
+          </summary>
+          <div class="zx_tr_part_day_body">
+            ${items.map(function(h){
+              const datos=datosHistorial(h);
+              const archivos=Array.isArray(datos.archivos) ? datos.archivos : [];
+              const fotos=archivos.map((a,i)=>({a:a,i:i})).filter(x=>String(x.a.tipo || "")==="foto" && x.a.url);
+              const firmaInfo=resumenFirmaParte(datos);
+              const texto=datos.trabajo_realizado || notasParteSinDatos(h.notas) || "Parte de jornada";
+              const usuario=String(h.usuario || "Sistema");
+              const actualizado=datos.actualizado_at && datos.guardado_at && datos.actualizado_at!==datos.guardado_at
+                ? ` · Editado ${new Date(datos.actualizado_at).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}`
+                : "";
+
+              return `<article class="zx_tr_part_item"
+                data-texto="${limpiar(normalizar([texto,usuario,firmaInfo.nombre].join(" ")))}"
+                data-usuario="${limpiar(normalizar(usuario))}"
+                data-fecha="${limpiar(fecha)}">
+                <div class="zx_tr_part_item_head">
+                  <div class="zx_tr_part_meta">
+                    <b>${limpiar(fechaES(fecha))} · ${limpiar(horaHistorialParte(h) || "Sin hora")}</b>
+                    <small>👤 ${limpiar(usuario)}${limpiar(actualizado)}</small>
+                    <span>${fotos.length} foto${fotos.length===1?"":"s"} · ${firmaInfo.firma?"Firmado":"Sin firma"}</span>
+                  </div>
+                  <div>
+                    <button onclick="ZX_tr_parte_editar('${limpiar(h.trabajo_id || t?.id || "")}','${limpiar(h.id)}')">✏️ Editar</button>
+                    <button class="danger" onclick="ZX_tr_parte_borrar('${limpiar(h.id)}','${limpiar(h.trabajo_id || t?.id || "")}')">🗑️ Borrar</button>
+                  </div>
+                </div>
+
+                <p>${limpiar(texto)}</p>
+
+                ${fotos.length ? `<div class="zx_tr_part_photos">${fotos.map(x=>`<figure>
+                  <button class="zx_tr_part_photo_open" onclick="ZX_tr_ver_foto('${limpiar(x.a.url)}','${limpiar(x.a.nombre || "Foto")}')">
+                    <img src="${limpiar(x.a.url)}" alt="${limpiar(x.a.nombre || "Foto")}">
+                  </button>
+                  <figcaption>${limpiar(x.a.nombre || "")}</figcaption>
+                  <button type="button" class="zx_tr_part_delete_photo" onclick="ZX_tr_parte_borrar_foto('${limpiar(h.id)}',${x.i},'${limpiar(x.a.path || "")}','${limpiar(h.trabajo_id || t?.id || "")}')">🗑️ Borrar foto</button>
+                </figure>`).join("")}</div>` : ""}
+
+                ${firmaInfo.firma ? `<button type="button" class="zx_tr_part_signature_compact" onclick="ZX_tr_ver_foto('${limpiar(firmaInfo.firma)}','Firma de ${limpiar(firmaInfo.nombre || "cliente")}')">
+                  <span>✓ Firmado${firmaInfo.nombre ? ` por ${limpiar(firmaInfo.nombre)}` : ""}</span>
+                  <img src="${limpiar(firmaInfo.firma)}" alt="Firma">
+                </button>` : ""}
+              </article>`;
+            }).join("")}
+          </div>
+        </details>`;
+      }).join("")}
+    </div>
   </section>`;
 }
 
@@ -4019,9 +4213,28 @@ async function borrarParteJornada(historialId,trabajoId){
   }catch(e){alert("No se pudo borrar el parte.\n\n"+mensajeError(e))}
 }
 function verFotoParte(url,nombre){
-  modal(`<div class="zx_tr_photo_view"><button id="tr_photo_close">✕ Cerrar</button><img src="${limpiar(url)}" alt="${limpiar(nombre||"Foto")}"><b>${limpiar(nombre||"")}</b></div>`);
+  modal(`<div class="zx_tr_photo_view">
+    <div class="zx_tr_photo_toolbar">
+      <button id="tr_photo_close">✕ Cerrar</button>
+      <button id="tr_photo_share">Compartir</button>
+      <a href="${limpiar(url)}" target="_blank" rel="noopener">Abrir</a>
+      <a href="${limpiar(url)}" download="${limpiar(nombre || "archivo")}">Guardar</a>
+    </div>
+    <img src="${limpiar(url)}" alt="${limpiar(nombre||"Foto")}">
+    <b>${limpiar(nombre||"")}</b>
+  </div>`);
   const m=document.getElementById("zx_modal_trabajo");if(m)m.classList.add("zx_tr_photo_fullscreen");
   document.getElementById("tr_photo_close").onclick=cerrarModal;
+  document.getElementById("tr_photo_share").onclick=async function(){
+    try{
+      if(navigator.share){
+        await navigator.share({title:nombre || "Archivo",url:url});
+      }else{
+        await navigator.clipboard.writeText(url);
+        alert("Enlace copiado.");
+      }
+    }catch(e){}
+  };
 }
 
 async function gestionarTrabajo(id){
@@ -4805,8 +5018,35 @@ function instalarCSS(){
     .zx_tr_part_delete_photo{width:100%;border:1px solid #fecaca;border-radius:10px;padding:8px;background:#fff1f2;color:#b91c1c;font-weight:900}
 
     .zx_tr_parts_heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.zx_tr_parts-heading h3,.zx_tr_parts_heading h3{margin:0}.zx_tr_parts_heading small{color:#64748b;font-weight:800}.zx_tr_parts_heading button{border:1px solid #bfdbfe;border-radius:12px;padding:9px 12px;background:#eff6ff;color:#1d4ed8;font-weight:950}
-    .zx_tr_parts_groups{display:grid;gap:10px}.zx_tr_part_day{border:1px solid #dbe4ef;border-radius:16px;background:#fff;overflow:hidden}.zx_tr_part_day.actual{border:2px solid #60a5fa;background:#eff6ff}.zx_tr_part_day summary{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:14px;cursor:pointer;list-style:none}.zx_tr_part_day summary::-webkit-details-marker{display:none}.zx_tr_part_day summary span{display:grid;gap:3px}.zx_tr_part_day summary small{color:#64748b;font-weight:800}.zx_tr_part_day summary em{font-style:normal;font-size:11px;font-weight:900;color:#2563eb}.zx_tr_part_day_body{display:grid;gap:10px;padding:0 12px 12px}
-    .zx_tr_part_item_head{display:flex;justify-content:space-between;gap:8px;align-items:center}.zx_tr_part_item_head>div{display:flex;gap:7px;flex-wrap:wrap}.zx_tr_part_item_head button{border:1px solid #bfdbfe;border-radius:9px;padding:7px 9px;background:#eff6ff;color:#1d4ed8;font-weight:900}.zx_tr_part_item_head button.danger{border-color:#fecaca;background:#fff1f2;color:#b91c1c}.zx_tr_part_photo_open{border:0;padding:0;background:transparent;width:100%}.zx_tr_part-sign{font-weight:900;color:#334155!important}
+    .zx_tr_parts_groups{display:grid;gap:10px}
+
+    .zx_tr_parts_filters{display:grid;grid-template-columns:minmax(190px,1.4fr) minmax(150px,1fr) minmax(145px,.8fr) auto;gap:8px;margin:12px 0 6px}
+    .zx_tr_parts_filters input,.zx_tr_parts_filters select{width:100%;height:44px;border:1px solid #cbd5e1;border-radius:12px;padding:0 11px;background:#fff;color:#0f172a;font-weight:800}
+    .zx_tr_parts_filters button{border:1px solid #bfdbfe;border-radius:12px;padding:0 13px;background:#eff6ff;color:#1d4ed8;font-weight:900}
+    .zx_tr_parts_filter_result{margin-bottom:10px;color:#64748b;font-size:12px;font-weight:850}
+.zx_tr_part_day{border:1px solid #dbe4ef;border-radius:16px;background:#fff;overflow:hidden}.zx_tr_part_day.actual{border:2px solid #60a5fa;background:#eff6ff}.zx_tr_part_day summary{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:14px;cursor:pointer;list-style:none}.zx_tr_part_day summary::-webkit-details-marker{display:none}.zx_tr_part_day summary span{display:grid;gap:3px}.zx_tr_part_day summary small{color:#64748b;font-weight:800}.zx_tr_part_day summary em{font-style:normal;font-size:11px;font-weight:900;color:#2563eb}.zx_tr_part_day_body{display:grid;gap:10px;padding:0 12px 12px}
+    .zx_tr_part_item_head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+
+    .zx_tr_part_item{border:1px solid #dbe4ef;border-radius:15px;padding:13px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.035)}
+    .zx_tr_part_meta{display:grid;gap:3px}
+    .zx_tr_part_meta b{font-size:13px;color:#0f172a}
+    .zx_tr_part_meta small{font-size:11px;color:#64748b;font-weight:800}
+    .zx_tr_part_meta span{font-size:10px;color:#2563eb;font-weight:900}
+    .zx_tr_part_signature_compact{width:100%;display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:10px;align-items:center;border:1px solid #bbf7d0;border-radius:13px;padding:9px 11px;background:#f0fdf4;color:#166534;text-align:left}
+    .zx_tr_part_signature_compact span{font-weight:950}
+    .zx_tr_part_signature_compact img{width:130px;height:54px;object-fit:contain;border:1px solid #dcfce7;border-radius:9px;background:#fff}
+    .zx_tr_photo_toolbar{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+    .zx_tr_photo_toolbar a,.zx_tr_photo_toolbar button{border:1px solid #475569;border-radius:12px;padding:10px 14px;background:#0f172a;color:#fff;font-weight:900;text-decoration:none}
+    @media(max-width:760px){
+      .zx_tr_parts_filters{grid-template-columns:1fr 1fr}
+    }
+    @media(max-width:520px){
+      .zx_tr_parts_filters{grid-template-columns:1fr}
+      .zx_tr_part_item_head{align-items:flex-start;flex-direction:column}
+      .zx_tr_part_signature_compact{grid-template-columns:1fr 90px}
+      .zx_tr_part_signature_compact img{width:90px}
+    }
+.zx_tr_part_item_head>div{display:flex;gap:7px;flex-wrap:wrap}.zx_tr_part_item_head button{border:1px solid #bfdbfe;border-radius:9px;padding:7px 9px;background:#eff6ff;color:#1d4ed8;font-weight:900}.zx_tr_part_item_head button.danger{border-color:#fecaca;background:#fff1f2;color:#b91c1c}.zx_tr_part_photo_open{border:0;padding:0;background:transparent;width:100%}.zx_tr_part-sign{font-weight:900;color:#334155!important}
     #zx_modal_trabajo.zx_tr_photo_fullscreen{position:fixed!important;inset:0!important;z-index:1000002!important;background:rgba(2,6,23,.95)!important;padding:0!important}.zx_tr_photo_fullscreen .zx_modal_caja{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;border-radius:0!important;background:#020617!important;padding:18px!important;display:grid!important;grid-template-rows:auto 1fr auto;gap:12px}.zx_tr_photo_view{display:contents}.zx_tr_photo_view button{justify-self:end;border:1px solid #475569;border-radius:12px;padding:10px 14px;background:#0f172a;color:#fff;font-weight:900}.zx_tr_photo_view img{width:100%;height:100%;object-fit:contain;min-height:0}.zx_tr_photo_view b{color:#fff;text-align:center}
     .zx_tr_part_existing{display:grid;gap:8px;padding:12px;border:1px solid #dbe4ef;border-radius:14px;background:#f8fafc}.zx_tr_part_existing>div{display:flex;gap:8px;overflow-x:auto}.zx_tr_part_existing img{width:90px;height:70px;object-fit:cover;border-radius:10px}.zx_tr_part_existing_signature{display:grid;gap:7px;padding:12px;border:1px solid #dbe4ef;border-radius:14px;background:#f8fafc}.zx_tr_part_existing_signature img{width:100%;height:100px;object-fit:contain;background:#fff;border-radius:10px}
 
@@ -5203,3 +5443,4 @@ if(zx() && typeof zx().registrarModulo==="function"){
 console.log("ZENTRYX trabajos.js V"+ZX_VERSION+" cargado");
 
 })();
+
