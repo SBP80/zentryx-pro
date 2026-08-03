@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3197 - FOTOS Y FIRMAS DENTRO DE PARTES CON BORRADO
+// V3198 - PARTES ORGANIZADOS POR JORNADA Y EDITABLES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3197";
+const ZX_VERSION="3198";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2622,31 +2622,44 @@ function categoriaFotoTexto(valor){
   return "Durante";
 }
 
-async function abrirParteJornada(id){
+async function abrirParteJornada(id,historialId){
   const t=await cargarTrabajo(id);
   if(!t) return;
 
-  const jornadas=await cargarJornadasAgendaTrabajo(id);
-  const jornada=jornadaSeleccionadaAgenda(jornadas);
-  const fecha=jornada?.fecha_inicio || t.fecha || hoy();
+  const [jornadas,historial]=await Promise.all([
+    cargarJornadasAgendaTrabajo(id),
+    cargarHistorial(id)
+  ]);
+  const parteExistente=historialId
+    ? historial.find(h=>String(h.id)===String(historialId))
+    : null;
+  const datosExistentes=parteExistente ? datosHistorial(parteExistente) : {};
+  const jornada=parteExistente
+    ? (jornadas.find(j=>String(j.id)===String(datosExistentes.jornada_id || "")) || jornadaSeleccionadaAgenda(jornadas))
+    : jornadaSeleccionadaAgenda(jornadas);
+  const fecha=datosExistentes.fecha_jornada || jornada?.fecha_inicio || t.fecha || hoy();
+  const archivosPrevios=Array.isArray(datosExistentes.archivos) ? [...datosExistentes.archivos] : [];
+  const firmaPrevia=datosExistentes.firma_url || (archivosPrevios.find(a=>String(a.tipo||"")==="firma")?.url || "");
 
   modal(`
     <div class="zx_tr_part_full_header">
       <button type="button" class="zx_tr_part_back" id="tr_parte_volver">‹ Trabajo</button>
       <div>
-        <h2>Parte de jornada</h2>
+        <h2>${parteExistente ? "Editar parte" : "Parte de jornada"}</h2>
         <p>${limpiar(t.titulo || "Trabajo")} · ${limpiar(fechaES(fecha))}</p>
       </div>
     </div>
 
     <label class="zx_tr_label">Trabajo realizado</label>
-    <textarea id="tr_parte_texto" rows="6" placeholder="Describe brevemente lo realizado..."></textarea>
+    <textarea id="tr_parte_texto" rows="6" placeholder="Describe brevemente lo realizado...">${limpiar(datosExistentes.trabajo_realizado || notasParteSinDatos(parteExistente?.notas || ""))}</textarea>
     <div class="zx_tr_dictation_actions">
       <button type="button" class="zx_tr_hold_mic" id="tr_parte_micro">🎙️ Mantén pulsado para dictar</button>
       <button type="button" class="zx_tr_clear_text" id="tr_parte_borrar">🗑️ Borrar texto</button>
     </div>
 
-    <label class="zx_tr_label">Fotografías (opcional)</label>
+    ${archivosPrevios.filter(a=>String(a.tipo||"")==="foto" && a.url).length ? `<div class="zx_tr_part_existing"><b>Fotografías guardadas</b><div>${archivosPrevios.filter(a=>String(a.tipo||"")==="foto" && a.url).map(a=>`<img src="${limpiar(a.url)}" alt="${limpiar(a.nombre || "Foto")}">`).join("")}</div></div>` : ""}
+
+    <label class="zx_tr_label">Añadir fotografías (opcional)</label>
     <div class="zx_tr_part_photo_row">
       <select id="tr_parte_categoria">
         <option value="antes">Antes</option>
@@ -2655,53 +2668,36 @@ async function abrirParteJornada(id){
       </select>
       <input id="tr_parte_fotos" type="file" accept="image/*" capture="environment" multiple>
     </div>
-    <small class="zx_tr_help">Puedes añadir varias fotos. Quedarán guardadas dentro del parte de jornada.</small>
+    <small class="zx_tr_help">Las fotografías quedarán dentro de este parte.</small>
 
     <label class="zx_tr_label">Nombre de quien firma (opcional)</label>
-    <input id="tr_parte_firmante" placeholder="Nombre del cliente o responsable">
+    <input id="tr_parte_firmante" value="${limpiar(datosExistentes.firmante || "")}" placeholder="Nombre del cliente o responsable">
 
+    ${firmaPrevia ? `<div class="zx_tr_part_existing_signature"><b>Firma actual</b><img src="${limpiar(firmaPrevia)}" alt="Firma actual"><small>Dibuja una nueva firma para sustituirla.</small></div>` : ""}
     <div class="zx_tr_signature_title">
-      <label class="zx_tr_label">Firma (opcional)</label>
+      <label class="zx_tr_label">${firmaPrevia ? "Nueva firma (opcional)" : "Firma (opcional)"}</label>
       <button type="button" id="tr_parte_limpiar_firma">Limpiar</button>
     </div>
     <canvas id="tr_parte_firma" class="zx_tr_signature_canvas"></canvas>
 
-    <button class="zx_btn_big zx_verde" id="tr_parte_guardar">Guardar parte</button>
+    <button class="zx_btn_big zx_verde" id="tr_parte_guardar">${parteExistente ? "Guardar cambios" : "Guardar parte"}</button>
     <button class="zx_btn_big zx_gris" id="tr_parte_cancelar">Cancelar</button>
   `);
 
   const modalParte=document.getElementById("zx_modal_trabajo");
   if(modalParte) modalParte.classList.add("zx_tr_part_fullscreen");
 
-  const volverAlTrabajo=function(){
-    cerrarModal();
-    abrirFicha(id);
-  };
-
-  const volverParte=document.getElementById("tr_parte_volver");
-  if(volverParte) volverParte.onclick=volverAlTrabajo;
+  const volverAlTrabajo=function(){cerrarModal();abrirFicha(id)};
+  document.getElementById("tr_parte_volver").onclick=volverAlTrabajo;
+  document.getElementById("tr_parte_cancelar").onclick=volverAlTrabajo;
 
   const texto=document.getElementById("tr_parte_texto");
   const canvas=document.getElementById("tr_parte_firma");
-  const tieneFirma=activarFirmaCanvas(
-    canvas,
-    document.getElementById("tr_parte_limpiar_firma")
-  );
-
-  iniciarDictadoMientrasPulsa(
-    document.getElementById("tr_parte_micro"),
-    texto
-  );
-
+  const tieneFirma=activarFirmaCanvas(canvas,document.getElementById("tr_parte_limpiar_firma"));
+  iniciarDictadoMientrasPulsa(document.getElementById("tr_parte_micro"),texto);
   document.getElementById("tr_parte_borrar").onclick=function(){
-    if(!texto.value.trim()) return;
-    if(confirm("¿Borrar todo el texto del parte?")){
-      texto.value="";
-      texto.focus();
-    }
+    if(texto.value.trim() && confirm("¿Borrar todo el texto del parte?")){texto.value="";texto.focus()}
   };
-
-  document.getElementById("tr_parte_cancelar").onclick=volverAlTrabajo;
 
   document.getElementById("tr_parte_guardar").onclick=async function(){
     const boton=this;
@@ -2709,79 +2705,43 @@ async function abrirParteJornada(id){
     const firmante=valor("tr_parte_firmante");
     const categoria=valor("tr_parte_categoria") || "durante";
     const fotos=Array.from(document.getElementById("tr_parte_fotos").files || []);
-
-    if(!trabajoRealizado && !fotos.length && !tieneFirma()){
-      alert("Añade el trabajo realizado, una fotografía o una firma.");
-      return;
+    if(!trabajoRealizado && !fotos.length && !tieneFirma() && !archivosPrevios.length){
+      alert("Añade el trabajo realizado, una fotografía o una firma.");return;
     }
-
-    boton.disabled=true;
-    boton.textContent="Guardando parte...";
-
-    const archivosGuardados=[];
-    let firmaUrl="";
-
+    boton.disabled=true;boton.textContent="Guardando...";
+    const archivosGuardados=[...archivosPrevios];
+    let firmaUrl=firmaPrevia;
     try{
       for(let i=0;i<fotos.length;i++){
         const file=fotos[i];
-        const nombre=`Foto ${categoriaFotoTexto(categoria)} · ${fechaES(fecha)} · ${i+1}`;
+        const nombre=`Foto ${categoriaFotoTexto(categoria)} · ${fechaES(fecha)} · ${archivosGuardados.filter(a=>String(a.tipo||"")==="foto").length+1}`;
         const guardada=await guardarArchivoParte(id,file,nombre);
-        archivosGuardados.push({
-          tipo:"foto",
-          categoria:categoria,
-          nombre:nombre,
-          url:guardada.url,
-          path:guardada.path
-        });
+        archivosGuardados.push({tipo:"foto",categoria:categoria,nombre:nombre,url:guardada.url,path:guardada.path});
       }
-
       if(tieneFirma()){
+        const anterior=archivosGuardados.find(a=>String(a.tipo||"")==="firma");
+        if(anterior?.path){try{await sb().storage.from("zentryx-trabajos").remove([anterior.path])}catch(e){}}
+        for(let i=archivosGuardados.length-1;i>=0;i--){if(String(archivosGuardados[i].tipo||"")==="firma") archivosGuardados.splice(i,1)}
         const blob=await canvasABlob(canvas);
-        const nombreArchivo="firma_"+String(id)+"_"+Date.now()+".png";
-        const subido=await subirBlobTrabajo(id,blob,nombreArchivo,"image/png");
+        const subido=await subirBlobTrabajo(id,blob,"firma_"+String(id)+"_"+Date.now()+".png","image/png");
         firmaUrl=subido.url;
-
-        archivosGuardados.push({
-          tipo:"firma",
-          nombre:`Firma · ${firmante || "Cliente"}`,
-          url:firmaUrl,
-          path:subido.path
-        });
+        archivosGuardados.push({tipo:"firma",nombre:`Firma · ${firmante || "Cliente"}`,url:firmaUrl,path:subido.path});
       }
-
-      const datosParte={
-        jornada_id:jornada?.id || "",
-        fecha_jornada:fecha,
-        trabajo_realizado:trabajoRealizado,
-        firmante:firmante,
-        firma_url:firmaUrl,
-        archivos:archivosGuardados,
-        guardado_at:new Date().toISOString()
-      };
-
-      await registrarHistorial(
-        id,
-        "parte_jornada",
-        notasParteConDatos(trabajoRealizado || "Parte de jornada guardado.",datosParte),
-        datosParte
-      );
-
-      try{
-        window.dispatchEvent(new CustomEvent("zentryx:trabajos:actualizar",{
-          detail:{trabajo_id:String(id),jornada_id:String(jornada?.id || "")}
-        }));
-      }catch(e){}
-
-      cerrarModal();
-      await abrirFicha(id);
-    }catch(e){
-      boton.disabled=false;
-      boton.textContent="Guardar parte";
-      alert("No se pudo guardar el parte.\n\n"+mensajeError(e));
-    }
+      const datosParte={jornada_id:jornada?.id || datosExistentes.jornada_id || "",fecha_jornada:fecha,trabajo_realizado:trabajoRealizado,firmante:firmante,firma_url:firmaUrl,archivos:archivosGuardados,guardado_at:datosExistentes.guardado_at || new Date().toISOString(),actualizado_at:new Date().toISOString()};
+      const notas=notasParteConDatos(trabajoRealizado || "Parte de jornada guardado.",datosParte);
+      if(parteExistente){
+        let r=await sb().from("trabajos_historial").update({notas:notas,datos:datosParte}).eq("id",String(parteExistente.id));
+        if(r.error) r=await sb().from("trabajos_historial").update({notas:notas}).eq("id",String(parteExistente.id));
+        if(r.error) throw r.error;
+      }else{
+        const ok=await registrarHistorial(id,"parte_jornada",notas,datosParte);
+        if(!ok) throw new Error("No se pudo registrar el parte.");
+      }
+      window.dispatchEvent(new CustomEvent("zentryx:trabajos:actualizar",{detail:{trabajo_id:String(id),jornada_id:String(jornada?.id || "")}}));
+      cerrarModal();await abrirFicha(id);
+    }catch(e){boton.disabled=false;boton.textContent=parteExistente ? "Guardar cambios" : "Guardar parte";alert("No se pudo guardar el parte.\n\n"+mensajeError(e))}
   };
 }
-
 
 async function registrarNotaRapida(id){
   modal(`
@@ -2849,12 +2809,14 @@ async function finalizarTrabajoRapido(id){
       Puedes añadir un registro breve de lo realizado. Es opcional.
     </div>
     <textarea id="tr_fin_resumen" rows="5" placeholder="Trabajo realizado, observaciones o material pendiente..."></textarea>
+    <button class="zx_btn_big zx_azul" id="tr_fin_parte">✍️ Completar parte antes de finalizar</button>
     <button class="zx_btn_big zx_verde" id="tr_fin_confirmar">✅ ${multi ? "Finalizar jornada" : "Finalizar"}</button>
     ${multi ? `<button class="zx_btn_big zx_rojo" id="tr_fin_todo">Finalizar todo el trabajo</button>` : ""}
     <button class="zx_btn_big zx_gris" id="tr_fin_cancelar">Cancelar</button>
   `);
 
   document.getElementById("tr_fin_cancelar").onclick=function(){abrirFicha(id)};
+  document.getElementById("tr_fin_parte").onclick=function(){abrirParteJornada(id)};
 
   const terminarSoloJornada=async function(finalizarTodo){
     const resumen=valor("tr_fin_resumen");
@@ -3258,7 +3220,7 @@ ${renderPlanificacionPlegable(plan)}
       ${renderMaterialesResumen(id,mat)}
       ${renderSugerenciasMateriales(sugerenciasMateriales)}
       ${renderArchivos(arch,id)}
-      ${renderPartesJornada(hist,arch)}
+      ${renderPartesJornada(hist,arch,t,jornadasAgenda)}
       ${renderNotasVisibles(hist)}
       ${renderSugerenciasInteligentes(sugerencias)}
       ${renderHistorialProfesional(hist)}
@@ -3351,74 +3313,32 @@ function renderNotasVisibles(hist){
   return `<section class="zx_tr_block zx_tr_notes_block"><div class="zx_tr_block_title"><h3>Notas</h3><span>${notas.length}</span></div>${notas.slice(0,5).map(h=>`<article class="zx_tr_note_visible"><p>${limpiar(h.notas || "")}</p><small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small></article>`).join("")}</section>`;
 }
 
-function renderPartesJornada(hist,archivosTrabajo){
+function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
   const partes=(hist || []).filter(h=>normalizar(h.tipo).includes("parte jornada") || normalizar(h.tipo).includes("parte_jornada"));
   if(!partes.length) return "";
-
-  const legacy=(archivosTrabajo || []).filter(function(a){
-    const n=normalizar(a.nombre || a.filename || "");
-    return n.startsWith("foto antes ") || n.startsWith("foto durante ") || n.startsWith("foto despues ") || n.startsWith("firma ");
+  const jornadaActiva=jornadaSeleccionadaAgenda(jornadas || []);
+  const grupos=new Map();
+  partes.forEach(function(h){
+    const d=datosHistorial(h);
+    const fecha=String(d.fecha_jornada || h.fecha || "").slice(0,10) || "sin-fecha";
+    if(!grupos.has(fecha)) grupos.set(fecha,[]);
+    grupos.get(fecha).push(h);
   });
-
-  function fechaMs(valor){
-    const d=new Date(valor || 0);
-    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
-  }
-
+  const fechas=[...grupos.keys()].sort().reverse();
   return `<section class="zx_tr_block zx_tr_parts_block">
-    <button type="button" class="zx_tr_parts_toggle" id="tr_parts_toggle" aria-expanded="false">
-      <span>Partes de jornada</span>
-      <b>${partes.length}</b>
-      <em>Ver partes guardados</em>
-    </button>
-    <div id="tr_parts_panel" class="zx_tr_parts_panel" hidden>
-      ${partes.map(function(h){
-        const datos=datosHistorial(h);
-        const firmante=datos.firmante || "";
-        const archivos=Array.isArray(datos.archivos) ? datos.archivos : [];
-        const fotos=archivos.filter(a=>String(a.tipo || "")==="foto" && a.url);
-        const firmaArchivo=archivos.find(a=>String(a.tipo || "")==="firma" && a.url);
-        const firma=datos.firma_url || (firmaArchivo && firmaArchivo.url) || "";
-        const momento=fechaMs(h.created_at || h.fecha);
-        const legacyCercanos=legacy.filter(function(a){
-          const fm=fechaMs(a.created_at || a.fecha);
-          return momento && fm && Math.abs(fm-momento)<=15*60*1000;
-        });
-
-        const fotosLegacy=legacyCercanos.filter(function(a){
-          return normalizar(a.nombre || a.filename || "").startsWith("foto ");
-        });
-        const firmaLegacy=legacyCercanos.find(function(a){
-          return normalizar(a.nombre || a.filename || "").startsWith("firma ");
-        });
-
-        const todasFotos=[
-          ...fotos.map((a,i)=>({modo:"parte",a:a,indice:i})),
-          ...fotosLegacy.map(a=>({modo:"legacy",a:a,indice:-1}))
-        ];
-        const firmaFinal=firma || (firmaLegacy && (firmaLegacy.url || firmaLegacy.archivo_url)) || "";
-
-        return `<article class="zx_tr_part_item">
-          <p>${limpiar(datos.trabajo_realizado || notasParteSinDatos(h.notas) || "Parte de jornada")}</p>
-          ${todasFotos.length ? `<div class="zx_tr_part_photos">${todasFotos.map(item=>{
-            const a=item.a;
-            const url=a.url || a.archivo_url || "";
-            const nombre=a.nombre || a.filename || "Foto del parte";
-            const borrar=item.modo==="parte"
-              ? `ZX_tr_parte_borrar_foto('${limpiar(h.id)}',${item.indice},'${limpiar(a.path || "")}','${limpiar(h.trabajo_id || "")}')`
-              : `ZX_tr_parte_borrar_legacy('${limpiar(a.id)}','${limpiar(a.trabajo_id || h.trabajo_id || "")}')`;
-            return `<figure>
-              <img src="${limpiar(url)}" alt="${limpiar(nombre)}">
-              <figcaption>${limpiar(nombre)}</figcaption>
-              <button type="button" class="zx_tr_part_delete_photo" onclick="${borrar}">🗑️ Borrar foto</button>
-            </figure>`;
-          }).join("")}</div>` : ""}
-          ${firmante ? `<small class="zx_tr_part_signer">Firmado por: ${limpiar(firmante)}</small>` : ""}
-          ${firmaFinal ? `<div class="zx_tr_part_signature"><span>Firma</span><img src="${limpiar(firmaFinal)}" alt="Firma de ${limpiar(firmante || "cliente")}"></div>` : ""}
-          <small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small>
-        </article>`;
-      }).join("")}
-    </div>
+    <div class="zx_tr_parts_heading"><div><h3>Partes de jornada</h3><small>${partes.length} parte${partes.length===1?"":"s"}</small></div><button type="button" onclick="ZX_tr_parte('${limpiar(t?.id || partes[0]?.trabajo_id || "")}')">+ Nuevo parte</button></div>
+    <div class="zx_tr_parts_groups">${fechas.map(function(fecha){
+      const items=grupos.get(fecha) || [];
+      const jornada=(jornadas || []).find(j=>String(j.fecha_inicio || "").slice(0,10)===fecha);
+      const actual=String(jornadaActiva?.fecha_inicio || "").slice(0,10)===fecha;
+      const horario=[String(jornada?.hora_inicio||"").slice(0,5),String(jornada?.hora_fin||"").slice(0,5)].filter(Boolean).join("–");
+      return `<details class="zx_tr_part_day ${actual?"actual":""}"><summary><span><b>${limpiar(fechaES(fecha))}</b><small>${limpiar(horario || "Sin horario")} · ${items.length} parte${items.length===1?"":"s"}</small></span><em>${actual?"Jornada seleccionada":estadoJornadaTexto(jornada?.estado)}</em></summary><div class="zx_tr_part_day_body">${items.map(function(h){
+        const datos=datosHistorial(h);const archivos=Array.isArray(datos.archivos)?datos.archivos:[];
+        const fotos=archivos.map((a,i)=>({a:a,i:i})).filter(x=>String(x.a.tipo||"")==="foto"&&x.a.url);
+        const firma=datos.firma_url || archivos.find(a=>String(a.tipo||"")==="firma")?.url || "";
+        return `<article class="zx_tr_part_item"><div class="zx_tr_part_item_head"><small>${limpiar(fechaHoraHistorial(h))}</small><div><button onclick="ZX_tr_parte_editar('${limpiar(h.trabajo_id || t?.id || "")}','${limpiar(h.id)}')">✏️ Editar</button><button class="danger" onclick="ZX_tr_parte_borrar('${limpiar(h.id)}','${limpiar(h.trabajo_id || t?.id || "")}')">🗑️ Borrar parte</button></div></div><p>${limpiar(datos.trabajo_realizado || notasParteSinDatos(h.notas) || "Parte de jornada")}</p>${fotos.length?`<div class="zx_tr_part_photos">${fotos.map(x=>`<figure><button class="zx_tr_part_photo_open" onclick="ZX_tr_ver_foto('${limpiar(x.a.url)}','${limpiar(x.a.nombre||"Foto")}')"><img src="${limpiar(x.a.url)}" alt="${limpiar(x.a.nombre||"Foto")}"></button><figcaption>${limpiar(x.a.nombre||"")}</figcaption><button type="button" class="zx_tr_part_delete_photo" onclick="ZX_tr_parte_borrar_foto('${limpiar(h.id)}',${x.i},'${limpiar(x.a.path||"")}','${limpiar(h.trabajo_id || t?.id || "")}')">🗑️ Borrar foto</button></figure>`).join("")}</div>`:""}${datos.firmante?`<small class="zx_tr_part-sign">Firmado por: ${limpiar(datos.firmante)}</small>`:""}${firma?`<div class="zx_tr_part_signature"><span>Firma</span><img src="${limpiar(firma)}" alt="Firma"></div>`:""}</article>`;
+      }).join("")}</div></details>`;
+    }).join("")}</div>
   </section>`;
 }
 
@@ -4086,6 +4006,24 @@ async function borrarFotoLegacy(archivoId,trabajoId){
 }
 
 
+async function borrarParteJornada(historialId,trabajoId){
+  if(!navigator.onLine || !sb()){alert("Necesitas conexión para borrar el parte.");return}
+  if(!confirm("¿Borrar el parte completo, incluidas sus fotos y firma?")) return;
+  try{
+    const r=await sb().from("trabajos_historial").select("*").eq("id",String(historialId)).maybeSingle();
+    if(r.error || !r.data) throw r.error || new Error("No se encontró el parte.");
+    const datos=datosHistorial(r.data);const rutas=(Array.isArray(datos.archivos)?datos.archivos:[]).map(a=>a.path || rutaStorageDesdeUrl(a.url||"")).filter(Boolean);
+    const del=await sb().from("trabajos_historial").delete().eq("id",String(historialId));if(del.error) throw del.error;
+    if(rutas.length){try{await sb().storage.from("zentryx-trabajos").remove(rutas)}catch(e){}}
+    await abrirFicha(trabajoId || r.data.trabajo_id);
+  }catch(e){alert("No se pudo borrar el parte.\n\n"+mensajeError(e))}
+}
+function verFotoParte(url,nombre){
+  modal(`<div class="zx_tr_photo_view"><button id="tr_photo_close">✕ Cerrar</button><img src="${limpiar(url)}" alt="${limpiar(nombre||"Foto")}"><b>${limpiar(nombre||"")}</b></div>`);
+  const m=document.getElementById("zx_modal_trabajo");if(m)m.classList.add("zx_tr_photo_fullscreen");
+  document.getElementById("tr_photo_close").onclick=cerrarModal;
+}
+
 async function gestionarTrabajo(id){
   const t=await cargarTrabajo(id);
   if(!t) return;
@@ -4705,6 +4643,9 @@ window.ZX_tr_file_menu=function(archivoId,trabajoId){abrirMenuArchivo(archivoId,
 window.ZX_tr_gestionar=function(id){gestionarTrabajo(id)};
 window.ZX_tr_nota=function(id){registrarNotaRapida(id)};
 window.ZX_tr_parte=function(id){abrirParteJornada(id)};
+window.ZX_tr_parte_editar=function(id,historialId){abrirParteJornada(id,historialId)};
+window.ZX_tr_parte_borrar=function(historialId,trabajoId){borrarParteJornada(historialId,trabajoId)};
+window.ZX_tr_ver_foto=function(url,nombre){verFotoParte(url,nombre)};
 window.ZX_tr_parte_borrar_foto=function(historialId,indice,path,trabajoId){borrarFotoParte(historialId,indice,path,trabajoId)};
 window.ZX_tr_parte_borrar_legacy=function(archivoId,trabajoId){borrarFotoLegacy(archivoId,trabajoId)};
 
@@ -4862,6 +4803,13 @@ function instalarCSS(){
     .zx_tr_part_photos figcaption{font-size:11px;color:#64748b;font-weight:750}
 
     .zx_tr_part_delete_photo{width:100%;border:1px solid #fecaca;border-radius:10px;padding:8px;background:#fff1f2;color:#b91c1c;font-weight:900}
+
+    .zx_tr_parts_heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.zx_tr_parts-heading h3,.zx_tr_parts_heading h3{margin:0}.zx_tr_parts_heading small{color:#64748b;font-weight:800}.zx_tr_parts_heading button{border:1px solid #bfdbfe;border-radius:12px;padding:9px 12px;background:#eff6ff;color:#1d4ed8;font-weight:950}
+    .zx_tr_parts_groups{display:grid;gap:10px}.zx_tr_part_day{border:1px solid #dbe4ef;border-radius:16px;background:#fff;overflow:hidden}.zx_tr_part_day.actual{border:2px solid #60a5fa;background:#eff6ff}.zx_tr_part_day summary{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:14px;cursor:pointer;list-style:none}.zx_tr_part_day summary::-webkit-details-marker{display:none}.zx_tr_part_day summary span{display:grid;gap:3px}.zx_tr_part_day summary small{color:#64748b;font-weight:800}.zx_tr_part_day summary em{font-style:normal;font-size:11px;font-weight:900;color:#2563eb}.zx_tr_part_day_body{display:grid;gap:10px;padding:0 12px 12px}
+    .zx_tr_part_item_head{display:flex;justify-content:space-between;gap:8px;align-items:center}.zx_tr_part_item_head>div{display:flex;gap:7px;flex-wrap:wrap}.zx_tr_part_item_head button{border:1px solid #bfdbfe;border-radius:9px;padding:7px 9px;background:#eff6ff;color:#1d4ed8;font-weight:900}.zx_tr_part_item_head button.danger{border-color:#fecaca;background:#fff1f2;color:#b91c1c}.zx_tr_part_photo_open{border:0;padding:0;background:transparent;width:100%}.zx_tr_part-sign{font-weight:900;color:#334155!important}
+    #zx_modal_trabajo.zx_tr_photo_fullscreen{position:fixed!important;inset:0!important;z-index:1000002!important;background:rgba(2,6,23,.95)!important;padding:0!important}.zx_tr_photo_fullscreen .zx_modal_caja{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;border-radius:0!important;background:#020617!important;padding:18px!important;display:grid!important;grid-template-rows:auto 1fr auto;gap:12px}.zx_tr_photo_view{display:contents}.zx_tr_photo_view button{justify-self:end;border:1px solid #475569;border-radius:12px;padding:10px 14px;background:#0f172a;color:#fff;font-weight:900}.zx_tr_photo_view img{width:100%;height:100%;object-fit:contain;min-height:0}.zx_tr_photo_view b{color:#fff;text-align:center}
+    .zx_tr_part_existing{display:grid;gap:8px;padding:12px;border:1px solid #dbe4ef;border-radius:14px;background:#f8fafc}.zx_tr_part_existing>div{display:flex;gap:8px;overflow-x:auto}.zx_tr_part_existing img{width:90px;height:70px;object-fit:cover;border-radius:10px}.zx_tr_part_existing_signature{display:grid;gap:7px;padding:12px;border:1px solid #dbe4ef;border-radius:14px;background:#f8fafc}.zx_tr_part_existing_signature img{width:100%;height:100px;object-fit:contain;background:#fff;border-radius:10px}
+
 
     .zx_tr_part_signer{font-size:13px;color:#334155!important}
     .zx_tr_part_signature{display:grid;gap:6px;padding:10px;border:1px solid #dbe4ef;border-radius:13px;background:#f8fafc}
