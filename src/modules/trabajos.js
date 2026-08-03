@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3192 - SINCRONIZACION AUTOMATICA ENTRE DISPOSITIVOS
+// V3193 - PARTE DE JORNADA, FOTOS Y FIRMA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3192";
+const ZX_VERSION="3193";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2405,6 +2405,279 @@ function iniciarDictadoMientrasPulsa(boton,textarea){
 }
 
 
+
+function canvasFirmaPreparar(canvas){
+  if(!canvas) return null;
+  const ratio=Math.max(1,window.devicePixelRatio || 1);
+  const rect=canvas.getBoundingClientRect();
+  const ancho=Math.max(280,Math.round(rect.width || 600));
+  const alto=Math.max(150,Math.round(rect.height || 220));
+  canvas.width=ancho*ratio;
+  canvas.height=alto*ratio;
+  const ctx=canvas.getContext("2d");
+  ctx.scale(ratio,ratio);
+  ctx.fillStyle="#ffffff";
+  ctx.fillRect(0,0,ancho,alto);
+  ctx.strokeStyle="#0f172a";
+  ctx.lineWidth=2.2;
+  ctx.lineCap="round";
+  ctx.lineJoin="round";
+  return {ctx:ctx,ancho:ancho,alto:alto};
+}
+
+function activarFirmaCanvas(canvas,limpiarBtn){
+  const preparado=canvasFirmaPreparar(canvas);
+  if(!canvas || !preparado) return function(){return false};
+
+  const ctx=preparado.ctx;
+  let dibujando=false;
+  let firmado=false;
+
+  const punto=function(ev){
+    const r=canvas.getBoundingClientRect();
+    const t=ev.touches && ev.touches[0] ? ev.touches[0] : ev;
+    return {x:t.clientX-r.left,y:t.clientY-r.top};
+  };
+
+  const iniciar=function(ev){
+    ev.preventDefault();
+    dibujando=true;
+    firmado=true;
+    const p=punto(ev);
+    ctx.beginPath();
+    ctx.moveTo(p.x,p.y);
+  };
+
+  const mover=function(ev){
+    if(!dibujando) return;
+    ev.preventDefault();
+    const p=punto(ev);
+    ctx.lineTo(p.x,p.y);
+    ctx.stroke();
+  };
+
+  const parar=function(ev){
+    if(ev) ev.preventDefault();
+    dibujando=false;
+  };
+
+  canvas.addEventListener("pointerdown",iniciar);
+  canvas.addEventListener("pointermove",mover);
+  canvas.addEventListener("pointerup",parar);
+  canvas.addEventListener("pointercancel",parar);
+  canvas.addEventListener("pointerleave",parar);
+
+  if(limpiarBtn){
+    limpiarBtn.onclick=function(){
+      ctx.clearRect(0,0,preparado.ancho,preparado.alto);
+      ctx.fillStyle="#ffffff";
+      ctx.fillRect(0,0,preparado.ancho,preparado.alto);
+      firmado=false;
+    };
+  }
+
+  return function(){return firmado};
+}
+
+function canvasABlob(canvas){
+  return new Promise(function(resolve,reject){
+    if(!canvas){
+      reject(new Error("No se encontró la firma."));
+      return;
+    }
+    canvas.toBlob(function(blob){
+      if(blob) resolve(blob);
+      else reject(new Error("No se pudo generar la firma."));
+    },"image/png",0.92);
+  });
+}
+
+async function subirBlobTrabajo(id,blob,nombreArchivo,tipo){
+  if(!navigator.onLine || !sb()) throw new Error("Necesitas conexión para subir archivos.");
+  const ext=(nombreArchivo.split(".").pop() || "dat").toLowerCase();
+  const path="trabajos/"+String(id)+"/"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"."+ext;
+  const up=await sb().storage.from("zentryx-trabajos").upload(path,blob,{
+    upsert:false,
+    contentType:tipo || blob.type || undefined
+  });
+  if(up.error) throw up.error;
+  const publicData=sb().storage.from("zentryx-trabajos").getPublicUrl(path);
+  const url=publicData && publicData.data ? publicData.data.publicUrl : "";
+  if(!url) throw new Error("No se pudo obtener la dirección del archivo.");
+  return {url:url,path:path};
+}
+
+async function guardarArchivoParte(id,file,nombreVisible){
+  const subido=await subirBlobTrabajo(
+    id,
+    file,
+    file.name || "archivo.dat",
+    file.type || ""
+  );
+
+  const guardado=await insertarArchivoCompatible({
+    trabajo_id:String(id),
+    nombre:nombreVisible,
+    url:subido.url,
+    tipo:file.type || "",
+    tamano:file.size || 0
+  });
+
+  if(guardado.error){
+    try{await sb().storage.from("zentryx-trabajos").remove([subido.path])}catch(e){}
+    throw guardado.error;
+  }
+  return {url:subido.url,path:subido.path};
+}
+
+function categoriaFotoTexto(valor){
+  if(valor==="antes") return "Antes";
+  if(valor==="despues") return "Después";
+  return "Durante";
+}
+
+async function abrirParteJornada(id){
+  const t=await cargarTrabajo(id);
+  if(!t) return;
+
+  const jornadas=await cargarJornadasAgendaTrabajo(id);
+  const jornada=jornadaSeleccionadaAgenda(jornadas);
+  const fecha=jornada?.fecha_inicio || t.fecha || hoy();
+
+  modal(`
+    <h2>Parte de jornada</h2>
+    <div class="zx_text">
+      <b>${limpiar(t.titulo || "Trabajo")}</b><br>
+      ${limpiar(fechaES(fecha))}
+    </div>
+
+    <label class="zx_tr_label">Trabajo realizado</label>
+    <textarea id="tr_parte_texto" rows="6" placeholder="Describe brevemente lo realizado..."></textarea>
+    <button type="button" class="zx_tr_hold_mic" id="tr_parte_micro">🎙️ Mantén pulsado para dictar</button>
+
+    <label class="zx_tr_label">Fotografías (opcional)</label>
+    <div class="zx_tr_part_photo_row">
+      <select id="tr_parte_categoria">
+        <option value="antes">Antes</option>
+        <option value="durante" selected>Durante</option>
+        <option value="despues">Después</option>
+      </select>
+      <input id="tr_parte_fotos" type="file" accept="image/*" capture="environment" multiple>
+    </div>
+    <small class="zx_tr_help">Puedes añadir varias fotos. Quedarán clasificadas en Archivos.</small>
+
+    <label class="zx_tr_label">Nombre de quien firma (opcional)</label>
+    <input id="tr_parte_firmante" placeholder="Nombre del cliente o responsable">
+
+    <div class="zx_tr_signature_title">
+      <label class="zx_tr_label">Firma (opcional)</label>
+      <button type="button" id="tr_parte_limpiar_firma">Limpiar</button>
+    </div>
+    <canvas id="tr_parte_firma" class="zx_tr_signature_canvas"></canvas>
+
+    <button class="zx_btn_big zx_verde" id="tr_parte_guardar">Guardar parte</button>
+    <button class="zx_btn_big zx_gris" id="tr_parte_cancelar">Cancelar</button>
+  `);
+
+  const texto=document.getElementById("tr_parte_texto");
+  const canvas=document.getElementById("tr_parte_firma");
+  const tieneFirma=activarFirmaCanvas(
+    canvas,
+    document.getElementById("tr_parte_limpiar_firma")
+  );
+
+  iniciarDictadoMientrasPulsa(
+    document.getElementById("tr_parte_micro"),
+    texto
+  );
+
+  document.getElementById("tr_parte_cancelar").onclick=function(){abrirFicha(id)};
+
+  document.getElementById("tr_parte_guardar").onclick=async function(){
+    const boton=this;
+    const trabajoRealizado=valor("tr_parte_texto");
+    const firmante=valor("tr_parte_firmante");
+    const categoria=valor("tr_parte_categoria") || "durante";
+    const fotos=Array.from(document.getElementById("tr_parte_fotos").files || []);
+
+    if(!trabajoRealizado && !fotos.length && !tieneFirma()){
+      alert("Añade el trabajo realizado, una fotografía o una firma.");
+      return;
+    }
+
+    boton.disabled=true;
+    boton.textContent="Guardando parte...";
+
+    const archivosGuardados=[];
+    let firmaUrl="";
+
+    try{
+      for(let i=0;i<fotos.length;i++){
+        const file=fotos[i];
+        const nombre=`Foto ${categoriaFotoTexto(categoria)} · ${fechaES(fecha)} · ${i+1}`;
+        const guardada=await guardarArchivoParte(id,file,nombre);
+        archivosGuardados.push({
+          tipo:"foto",
+          categoria:categoria,
+          nombre:nombre,
+          url:guardada.url
+        });
+      }
+
+      if(tieneFirma()){
+        const blob=await canvasABlob(canvas);
+        const nombreArchivo="firma_"+String(id)+"_"+Date.now()+".png";
+        const subido=await subirBlobTrabajo(id,blob,nombreArchivo,"image/png");
+        firmaUrl=subido.url;
+
+        const guardadoFirma=await insertarArchivoCompatible({
+          trabajo_id:String(id),
+          nombre:`Firma · ${firmante || "Cliente"} · ${fechaES(fecha)}`,
+          url:firmaUrl,
+          tipo:"image/png",
+          tamano:blob.size || 0
+        });
+        if(guardadoFirma.error) throw guardadoFirma.error;
+
+        archivosGuardados.push({
+          tipo:"firma",
+          nombre:`Firma · ${firmante || "Cliente"}`,
+          url:firmaUrl
+        });
+      }
+
+      await registrarHistorial(
+        id,
+        "parte_jornada",
+        trabajoRealizado || "Parte de jornada guardado.",
+        {
+          jornada_id:jornada?.id || "",
+          fecha_jornada:fecha,
+          trabajo_realizado:trabajoRealizado,
+          firmante:firmante,
+          firma_url:firmaUrl,
+          archivos:archivosGuardados,
+          guardado_at:new Date().toISOString()
+        }
+      );
+
+      try{
+        window.dispatchEvent(new CustomEvent("zentryx:trabajos:actualizar",{
+          detail:{trabajo_id:String(id),jornada_id:String(jornada?.id || "")}
+        }));
+      }catch(e){}
+
+      cerrarModal();
+      await abrirFicha(id);
+    }catch(e){
+      boton.disabled=false;
+      boton.textContent="Guardar parte";
+      alert("No se pudo guardar el parte.\n\n"+mensajeError(e));
+    }
+  };
+}
+
+
 async function registrarNotaRapida(id){
   modal(`
     <h2>Nota rápida</h2>
@@ -2849,6 +3122,7 @@ async function abrirFicha(id){
         ${tel ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_call"><span class="zx_tr_quick_icon">📞</span><span>Llamar</span></button>` : ""}
         ${tel ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_whatsapp"><span class="zx_tr_quick_icon">💬</span><span>WhatsApp</span></button>` : ""}
         <button type="button" class="zx_tr_quick_btn" id="tr_quick_note"><span class="zx_tr_quick_icon">📝</span><span>Añadir nota</span></button>
+        <button type="button" class="zx_tr_quick_btn zx_tr_quick_part" id="tr_quick_part"><span class="zx_tr_quick_icon">✍️</span><span>Parte y firma</span></button>
       </div>
 
       <details class="zx_tr_more">
@@ -2866,6 +3140,7 @@ ${renderPlanificacionPlegable(plan)}
       ${renderMaterialesResumen(id,mat)}
       ${renderSugerenciasMateriales(sugerenciasMateriales)}
       ${renderArchivos(arch,id)}
+      ${renderPartesJornada(hist)}
       ${renderNotasVisibles(hist)}
       ${renderSugerenciasInteligentes(sugerencias)}
       ${renderHistorialProfesional(hist)}
@@ -2900,6 +3175,9 @@ ${renderPlanificacionPlegable(plan)}
   const note=document.getElementById("tr_quick_note");
   if(note) note.onclick=function(){registrarNotaRapida(id)};
 
+  const parte=document.getElementById("tr_quick_part");
+  if(parte) parte.onclick=function(){abrirParteJornada(id)};
+
   const planToggle=document.getElementById("tr_plan_toggle");
   const planPanel=document.getElementById("tr_plan_panel");
   if(planToggle && planPanel){
@@ -2921,6 +3199,19 @@ ${renderPlanificacionPlegable(plan)}
   const smart=document.getElementById("tr_smart_attach");
   if(smart) smart.onclick=function(){adjuntarSugerencias(id,sugerencias)};
 
+  const partsToggle=document.getElementById("tr_parts_toggle");
+  const partsPanel=document.getElementById("tr_parts_panel");
+  if(partsToggle && partsPanel){
+    partsPanel.hidden=true;
+    partsToggle.onclick=function(){
+      const abrir=partsPanel.hidden;
+      partsPanel.hidden=!abrir;
+      partsToggle.setAttribute("aria-expanded",abrir ? "true" : "false");
+      const em=partsToggle.querySelector("em");
+      if(em) em.textContent=abrir ? "Ocultar partes" : "Ver partes guardados";
+    };
+  }
+
   const historyToggle=document.getElementById("tr_history_toggle");
   const historyPanel=document.getElementById("tr_history_panel");
   if(historyToggle && historyPanel){
@@ -2940,6 +3231,32 @@ function renderNotasVisibles(hist){
   const notas=(hist || []).filter(h=>normalizar(h.tipo).includes("nota") || normalizar(h.notas).startsWith("nota"));
   if(!notas.length) return "";
   return `<section class="zx_tr_block zx_tr_notes_block"><div class="zx_tr_block_title"><h3>Notas</h3><span>${notas.length}</span></div>${notas.slice(0,5).map(h=>`<article class="zx_tr_note_visible"><p>${limpiar(h.notas || "")}</p><small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small></article>`).join("")}</section>`;
+}
+
+function renderPartesJornada(hist){
+  const partes=(hist || []).filter(h=>normalizar(h.tipo).includes("parte jornada") || normalizar(h.tipo).includes("parte_jornada"));
+  if(!partes.length) return "";
+
+  return `<section class="zx_tr_block zx_tr_parts_block">
+    <button type="button" class="zx_tr_parts_toggle" id="tr_parts_toggle" aria-expanded="false">
+      <span>Partes de jornada</span>
+      <b>${partes.length}</b>
+      <em>Ver partes guardados</em>
+    </button>
+    <div id="tr_parts_panel" class="zx_tr_parts_panel" hidden>
+      ${partes.map(function(h){
+        const datos=datosHistorial(h);
+        const firmante=datos.firmante || "";
+        const firma=datos.firma_url || "";
+        return `<article class="zx_tr_part_item">
+          <p>${limpiar(datos.trabajo_realizado || h.notas || "Parte de jornada")}</p>
+          ${firmante ? `<small>Firmado por: ${limpiar(firmante)}</small>` : ""}
+          ${firma ? `<img src="${limpiar(firma)}" alt="Firma">` : ""}
+          <small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small>
+        </article>`;
+      }).join("")}
+    </div>
+  </section>`;
 }
 
 
@@ -4144,6 +4461,7 @@ window.ZX_tr_archivo=function(id){abrirArchivo(id)};
 window.ZX_tr_file_menu=function(archivoId,trabajoId){abrirMenuArchivo(archivoId,trabajoId)};
 window.ZX_tr_gestionar=function(id){gestionarTrabajo(id)};
 window.ZX_tr_nota=function(id){registrarNotaRapida(id)};
+window.ZX_tr_parte=function(id){abrirParteJornada(id)};
 
 function instalarCSS(){
   const old=document.getElementById("zx_trabajos_css_v3114");
@@ -4231,6 +4549,25 @@ function instalarCSS(){
     }
     .zx_tr_hold_mic{width:100%;border:2px solid #bfdbfe;border-radius:16px;padding:13px;background:#eff6ff;color:#1d4ed8;font-weight:950;margin-bottom:10px}
     .zx_tr_hold_mic.escuchando{background:#fee2e2;border-color:#f87171;color:#b91c1c;transform:scale(.99)}
+
+    .zx_tr_quick_part{grid-column:1/-1;background:#f5f3ff!important;border-color:#c4b5fd!important;color:#6d28d9!important}
+    .zx_tr_part_photo_row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;align-items:center}
+    .zx_tr_part_photo_row select,.zx_tr_part_photo_row input{width:100%;box-sizing:border-box}
+    .zx_tr_signature_title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+    .zx_tr_signature_title button{border:1px solid #fecaca;border-radius:10px;padding:7px 10px;background:#fff1f2;color:#b91c1c;font-weight:900}
+    .zx_tr_signature_canvas{display:block;width:100%;height:190px;border:2px dashed #93c5fd;border-radius:16px;background:#fff;touch-action:none;margin-bottom:12px}
+    .zx_tr_parts_toggle{width:100%;border:0;border-radius:17px;padding:14px;background:#f8fafc;display:grid;grid-template-columns:1fr auto;gap:3px 10px;text-align:left;color:#0f172a}
+    .zx_tr_parts_toggle span{font-size:18px;font-weight:950}
+    .zx_tr_parts_toggle b{font-size:13px;color:#2563eb}
+    .zx_tr_parts_toggle em{grid-column:1/-1;font-style:normal;font-size:12px;font-weight:800;color:#64748b}
+    .zx_tr_parts_panel[hidden]{display:none!important}
+    .zx_tr_parts_panel{display:grid;gap:10px;padding-top:10px}
+    .zx_tr_part_item{display:grid;gap:6px;padding:13px;border:1px solid #dbe4ef;border-radius:15px;background:#fff}
+    .zx_tr_part_item p{margin:0;font-weight:800;color:#0f172a;white-space:pre-wrap}
+    .zx_tr_part_item small{color:#64748b;font-weight:750}
+    .zx_tr_part_item img{width:100%;max-height:120px;object-fit:contain;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+    @media(max-width:520px){.zx_tr_part_photo_row{grid-template-columns:1fr}}
+
     @media(max-width:480px){
       .zx_tr_execution_grid{grid-template-columns:1fr}
       .zx_tr_execution_head strong{font-size:29px}
