@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3199 - HISTORIAL PROFESIONAL DE PARTES
+// V3200 - PARTES COMPACTOS, LIMPIOS Y CON VISTA AMPLIADA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3199";
+const ZX_VERSION="3200";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3445,11 +3445,23 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
     return total+(resumenFirmaParte(datosHistorial(h)).firma ? 1 : 0);
   },0);
 
+  const ultimaActualizacion=partes
+    .map(h=>new Date(h.created_at || h.fecha || 0))
+    .filter(d=>!Number.isNaN(d.getTime()))
+    .sort((a,b)=>b-a)[0];
+  const tecnicosUnicos=[...new Set(partes.map(h=>String(h.usuario || "Sistema").trim()).filter(Boolean))];
+
   return `<section class="zx_tr_block zx_tr_parts_block">
     <div class="zx_tr_parts_heading">
       <div>
         <h3>Partes de jornada</h3>
-        <small>${partes.length} parte${partes.length===1?"":"s"} · ${totalFotos} foto${totalFotos===1?"":"s"} · ${totalFirmas} firma${totalFirmas===1?"":"s"}</small>
+        <div class="zx_tr_parts_summary">
+          <span><b>${partes.length}</b> parte${partes.length===1?"":"s"}</span>
+          <span><b>${totalFotos}</b> foto${totalFotos===1?"":"s"}</span>
+          <span><b>${totalFirmas}</b> firma${totalFirmas===1?"":"s"}</span>
+          <span><b>${tecnicosUnicos.length}</b> técnico${tecnicosUnicos.length===1?"":"s"}</span>
+        </div>
+        ${ultimaActualizacion ? `<small>Última actualización: ${limpiar(ultimaActualizacion.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}))}</small>` : ""}
       </div>
       <button type="button" onclick="ZX_tr_parte('${limpiar(t?.id || partes[0]?.trabajo_id || "")}')">+ Nuevo parte</button>
     </div>
@@ -3475,15 +3487,16 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
         const horario=[inicio,fin].filter(Boolean).join("–");
         const prevista=minutosEntreHoras(inicio,fin);
         const real=duracionRealJornada(hist,jornada?.id);
-        const duracion=real ? `Real ${textoDuracionMinutos(real)}` : (prevista ? `Prevista ${textoDuracionMinutos(prevista)}` : "Duración sin registrar");
+        const duracion=real ? `Real ${textoDuracionMinutos(real)}` : (prevista ? `Prevista ${textoDuracionMinutos(prevista)}` : "");
+        const resumenJornada=[horario,duracion,`${items.length} parte${items.length===1?"":"s"}`].filter(Boolean).join(" · ");
 
         return `<details class="zx_tr_part_day ${actual?"actual":""}" data-fecha="${limpiar(fecha)}">
           <summary>
             <span>
               <b>${limpiar(fechaES(fecha))}</b>
-              <small>${limpiar(horario || "Sin horario")} · ${limpiar(duracion)} · ${items.length} parte${items.length===1?"":"s"}</small>
+              <small>${limpiar(resumenJornada)}</small>
             </span>
-            <em>${actual?"Jornada seleccionada":estadoJornadaTexto(jornada?.estado)}</em>
+            <em class="${actual?"actual":""}">${actual?"Seleccionada":estadoJornadaTexto(jornada?.estado)}</em>
           </summary>
           <div class="zx_tr_part_day_body">
             ${items.map(function(h){
@@ -3503,9 +3516,9 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
                 data-fecha="${limpiar(fecha)}">
                 <div class="zx_tr_part_item_head">
                   <div class="zx_tr_part_meta">
-                    <b>${limpiar(fechaES(fecha))} · ${limpiar(horaHistorialParte(h) || "Sin hora")}</b>
+                    <b>🕒 ${limpiar(horaHistorialParte(h) || "Hora no registrada")}</b>
                     <small>👤 ${limpiar(usuario)}${limpiar(actualizado)}</small>
-                    <span>${fotos.length} foto${fotos.length===1?"":"s"} · ${firmaInfo.firma?"Firmado":"Sin firma"}</span>
+                    <span>📷 ${fotos.length} · ${firmaInfo.firma?"✍️ Firmado":"Sin firma"}</span>
                   </div>
                   <div>
                     <button onclick="ZX_tr_parte_editar('${limpiar(h.trabajo_id || t?.id || "")}','${limpiar(h.id)}')">✏️ Editar</button>
@@ -3518,13 +3531,17 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
                 ${fotos.length ? `<div class="zx_tr_part_photos">${fotos.map(x=>`<figure>
                   <button class="zx_tr_part_photo_open" onclick="ZX_tr_ver_foto('${limpiar(x.a.url)}','${limpiar(x.a.nombre || "Foto")}')">
                     <img src="${limpiar(x.a.url)}" alt="${limpiar(x.a.nombre || "Foto")}">
+                    <span>Ver foto</span>
                   </button>
                   <figcaption>${limpiar(x.a.nombre || "")}</figcaption>
-                  <button type="button" class="zx_tr_part_delete_photo" onclick="ZX_tr_parte_borrar_foto('${limpiar(h.id)}',${x.i},'${limpiar(x.a.path || "")}','${limpiar(h.trabajo_id || t?.id || "")}')">🗑️ Borrar foto</button>
+                  <button type="button" class="zx_tr_part_delete_photo" onclick="ZX_tr_parte_borrar_foto('${limpiar(h.id)}',${x.i},'${limpiar(x.a.path || "")}','${limpiar(h.trabajo_id || t?.id || "")}')">🗑️ Eliminar</button>
                 </figure>`).join("")}</div>` : ""}
 
                 ${firmaInfo.firma ? `<button type="button" class="zx_tr_part_signature_compact" onclick="ZX_tr_ver_foto('${limpiar(firmaInfo.firma)}','Firma de ${limpiar(firmaInfo.nombre || "cliente")}')">
-                  <span>✓ Firmado${firmaInfo.nombre ? ` por ${limpiar(firmaInfo.nombre)}` : ""}</span>
+                  <span>
+                    <b>✓ Firmado${firmaInfo.nombre ? ` por ${limpiar(firmaInfo.nombre)}` : ""}</b>
+                    <small>Toca para ampliar la firma</small>
+                  </span>
                   <img src="${limpiar(firmaInfo.firma)}" alt="Firma">
                 </button>` : ""}
               </article>`;
@@ -5010,14 +5027,19 @@ function instalarCSS(){
     .zx_tr_part_full_header h2{margin:0!important}
     .zx_tr_part_full_header p{margin:3px 0 0;color:#64748b;font-weight:800}
     .zx_tr_part_back{border:1px solid #bfdbfe;border-radius:13px;padding:10px 12px;background:#eff6ff;color:#1d4ed8;font-weight:950;white-space:nowrap}
-    .zx_tr_part_photos{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+    .zx_tr_part_photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,220px));gap:10px;align-items:start}
     .zx_tr_part_photos figure{margin:0;display:grid;gap:5px}
-    .zx_tr_part_photos img{width:100%;height:150px;max-height:none;object-fit:cover}
-    .zx_tr_part_photos figcaption{font-size:11px;color:#64748b;font-weight:750}
+    .zx_tr_part_photos img{width:100%;height:120px;max-height:none;object-fit:cover}
+    .zx_tr_part_photos figcaption{font-size:10px;color:#64748b;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .zx_tr_part_photo_open{position:relative;width:100%;border:0;padding:0;border-radius:12px;overflow:hidden;background:#0f172a}
+    .zx_tr_part_photo_open span{position:absolute;right:7px;bottom:7px;border-radius:999px;padding:4px 7px;background:rgba(15,23,42,.78);color:#fff;font-size:9px;font-weight:900}
 
-    .zx_tr_part_delete_photo{width:100%;border:1px solid #fecaca;border-radius:10px;padding:8px;background:#fff1f2;color:#b91c1c;font-weight:900}
+    .zx_tr_part_delete_photo{width:100%;border:1px solid #fecaca;border-radius:9px;padding:7px;background:#fff1f2;color:#b91c1c;font-size:10px;font-weight:900}
 
     .zx_tr_parts_heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.zx_tr_parts-heading h3,.zx_tr_parts_heading h3{margin:0}.zx_tr_parts_heading small{color:#64748b;font-weight:800}.zx_tr_parts_heading button{border:1px solid #bfdbfe;border-radius:12px;padding:9px 12px;background:#eff6ff;color:#1d4ed8;font-weight:950}
+    .zx_tr_parts_summary{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0 5px}
+    .zx_tr_parts_summary span{display:inline-flex;align-items:center;gap:4px;border:1px solid #dbeafe;border-radius:999px;padding:5px 8px;background:#eff6ff;color:#475569;font-size:10px;font-weight:850}
+    .zx_tr_parts_summary b{color:#1d4ed8;font-size:11px}
     .zx_tr_parts_groups{display:grid;gap:10px}
 
     .zx_tr_parts_filters{display:grid;grid-template-columns:minmax(190px,1.4fr) minmax(150px,1fr) minmax(145px,.8fr) auto;gap:8px;margin:12px 0 6px}
@@ -5025,6 +5047,8 @@ function instalarCSS(){
     .zx_tr_parts_filters button{border:1px solid #bfdbfe;border-radius:12px;padding:0 13px;background:#eff6ff;color:#1d4ed8;font-weight:900}
     .zx_tr_parts_filter_result{margin-bottom:10px;color:#64748b;font-size:12px;font-weight:850}
 .zx_tr_part_day{border:1px solid #dbe4ef;border-radius:16px;background:#fff;overflow:hidden}.zx_tr_part_day.actual{border:2px solid #60a5fa;background:#eff6ff}.zx_tr_part_day summary{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:14px;cursor:pointer;list-style:none}.zx_tr_part_day summary::-webkit-details-marker{display:none}.zx_tr_part_day summary span{display:grid;gap:3px}.zx_tr_part_day summary small{color:#64748b;font-weight:800}.zx_tr_part_day summary em{font-style:normal;font-size:11px;font-weight:900;color:#2563eb}.zx_tr_part_day_body{display:grid;gap:10px;padding:0 12px 12px}
+    .zx_tr_part_day summary em{border-radius:999px;padding:5px 8px;background:#f1f5f9;color:#475569}
+    .zx_tr_part_day summary em.actual{background:#dbeafe;color:#1d4ed8}
     .zx_tr_part_item_head{display:flex;justify-content:space-between;gap:8px;align-items:center}
 
     .zx_tr_part_item{border:1px solid #dbe4ef;border-radius:15px;padding:13px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.035)}
@@ -5032,9 +5056,11 @@ function instalarCSS(){
     .zx_tr_part_meta b{font-size:13px;color:#0f172a}
     .zx_tr_part_meta small{font-size:11px;color:#64748b;font-weight:800}
     .zx_tr_part_meta span{font-size:10px;color:#2563eb;font-weight:900}
-    .zx_tr_part_signature_compact{width:100%;display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:10px;align-items:center;border:1px solid #bbf7d0;border-radius:13px;padding:9px 11px;background:#f0fdf4;color:#166534;text-align:left}
-    .zx_tr_part_signature_compact span{font-weight:950}
-    .zx_tr_part_signature_compact img{width:130px;height:54px;object-fit:contain;border:1px solid #dcfce7;border-radius:9px;background:#fff}
+    .zx_tr_part_signature_compact{width:100%;display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:12px;align-items:center;border:1px solid #bbf7d0;border-radius:13px;padding:10px 12px;background:#f0fdf4;color:#166534;text-align:left}
+    .zx_tr_part_signature_compact span{display:grid;gap:3px}
+    .zx_tr_part_signature_compact b{font-weight:950}
+    .zx_tr_part_signature_compact small{color:#4d7c5c;font-size:10px;font-weight:800}
+    .zx_tr_part_signature_compact img{width:180px;height:72px;object-fit:contain;border:1px solid #dcfce7;border-radius:9px;background:#fff}
     .zx_tr_photo_toolbar{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
     .zx_tr_photo_toolbar a,.zx_tr_photo_toolbar button{border:1px solid #475569;border-radius:12px;padding:10px 14px;background:#0f172a;color:#fff;font-weight:900;text-decoration:none}
     @media(max-width:760px){
@@ -5043,8 +5069,8 @@ function instalarCSS(){
     @media(max-width:520px){
       .zx_tr_parts_filters{grid-template-columns:1fr}
       .zx_tr_part_item_head{align-items:flex-start;flex-direction:column}
-      .zx_tr_part_signature_compact{grid-template-columns:1fr 90px}
-      .zx_tr_part_signature_compact img{width:90px}
+      .zx_tr_part_signature_compact{grid-template-columns:1fr 110px}
+      .zx_tr_part_signature_compact img{width:110px;height:62px}
     }
 .zx_tr_part_item_head>div{display:flex;gap:7px;flex-wrap:wrap}.zx_tr_part_item_head button{border:1px solid #bfdbfe;border-radius:9px;padding:7px 9px;background:#eff6ff;color:#1d4ed8;font-weight:900}.zx_tr_part_item_head button.danger{border-color:#fecaca;background:#fff1f2;color:#b91c1c}.zx_tr_part_photo_open{border:0;padding:0;background:transparent;width:100%}.zx_tr_part-sign{font-weight:900;color:#334155!important}
     #zx_modal_trabajo.zx_tr_photo_fullscreen{position:fixed!important;inset:0!important;z-index:1000002!important;background:rgba(2,6,23,.95)!important;padding:0!important}.zx_tr_photo_fullscreen .zx_modal_caja{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;border-radius:0!important;background:#020617!important;padding:18px!important;display:grid!important;grid-template-rows:auto 1fr auto;gap:12px}.zx_tr_photo_view{display:contents}.zx_tr_photo_view button{justify-self:end;border:1px solid #475569;border-radius:12px;padding:10px 14px;background:#0f172a;color:#fff;font-weight:900}.zx_tr_photo_view img{width:100%;height:100%;object-fit:contain;min-height:0}.zx_tr_photo_view b{color:#fff;text-align:center}
