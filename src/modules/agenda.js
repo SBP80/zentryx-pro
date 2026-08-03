@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3154 - ESTADO REAL INDEPENDIENTE POR JORNADA
+// V3155 - ACTUALIZACION AUTOMATICA DEL CALENDARIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3150";
+const ZX_VERSION="3155";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -18,6 +18,10 @@ let ZX_AGENDA_CARGA_TOKEN=0;
 let ZX_AGENDA_ULTIMA_CARGA=0;
 let ZX_AGENDA_TIMER_CARGA=null;
 let ZX_AGENDA_TIMER_ONLINE=null;
+let ZX_AGENDA_LIVE_CHANNEL=null;
+let ZX_AGENDA_LIVE_POLL=null;
+let ZX_AGENDA_LIVE_REFRESH=null;
+let ZX_AGENDA_LIVE_FIRMA="";
 let ZX_AGENDA_RAF_REPINTADO=0;
 let ZX_AGENDA_ACTIVA=false;
 
@@ -2220,6 +2224,98 @@ function instalarCSS(){
   document.head.appendChild(s);
 }
 
+
+function firmaEventosAgenda(lista){
+  return (lista || []).map(function(e){
+    return [
+      String(e.id || ""),
+      String(e.origen_id || ""),
+      String(e.fecha_inicio || ""),
+      String(e.hora_inicio || ""),
+      String(e.hora_fin || ""),
+      String(e.estado || ""),
+      String(e.updated_at || "")
+    ].join(":");
+  }).sort().join("|");
+}
+
+function detenerMonitorAgenda(){
+  if(ZX_AGENDA_LIVE_POLL){
+    clearInterval(ZX_AGENDA_LIVE_POLL);
+    ZX_AGENDA_LIVE_POLL=null;
+  }
+  if(ZX_AGENDA_LIVE_REFRESH){
+    clearTimeout(ZX_AGENDA_LIVE_REFRESH);
+    ZX_AGENDA_LIVE_REFRESH=null;
+  }
+  if(ZX_AGENDA_LIVE_CHANNEL && sb()){
+    try{sb().removeChannel(ZX_AGENDA_LIVE_CHANNEL)}catch(e){}
+  }
+  ZX_AGENDA_LIVE_CHANNEL=null;
+  ZX_AGENDA_LIVE_FIRMA="";
+}
+
+function programarRecargaAgenda(){
+  if(!agendaMontada()) return;
+  if(ZX_AGENDA_LIVE_REFRESH) clearTimeout(ZX_AGENDA_LIVE_REFRESH);
+
+  ZX_AGENDA_LIVE_REFRESH=setTimeout(async function(){
+    ZX_AGENDA_LIVE_REFRESH=null;
+    if(!agendaMontada()) return;
+
+    const scrollY=window.scrollY || document.documentElement.scrollTop || 0;
+    try{
+      await cargarEventos({forzar:true,pintarCache:false});
+      ZX_AGENDA_LIVE_FIRMA=firmaEventosAgenda(ZX_AGENDA_CACHE);
+      solicitarRepintado();
+      requestAnimationFrame(function(){window.scrollTo(0,scrollY)});
+    }catch(e){}
+  },180);
+}
+
+async function comprobarCambiosAgenda(){
+  if(!agendaMontada() || document.hidden || !navigator.onLine || !sb()) return;
+  try{
+    const r=await sb().from(TABLA)
+      .select("id,origen_id,fecha_inicio,hora_inicio,hora_fin,estado,updated_at")
+      .order("fecha_inicio",{ascending:true})
+      .limit(3000);
+
+    if(r.error) return;
+
+    const firma=firmaEventosAgenda(r.data || []);
+    if(ZX_AGENDA_LIVE_FIRMA && firma!==ZX_AGENDA_LIVE_FIRMA){
+      ZX_AGENDA_LIVE_FIRMA=firma;
+      programarRecargaAgenda();
+    }else{
+      ZX_AGENDA_LIVE_FIRMA=firma;
+    }
+  }catch(e){}
+}
+
+function iniciarMonitorAgenda(){
+  detenerMonitorAgenda();
+  ZX_AGENDA_LIVE_FIRMA=firmaEventosAgenda(ZX_AGENDA_CACHE);
+
+  if(sb() && typeof sb().channel==="function"){
+    try{
+      ZX_AGENDA_LIVE_CHANNEL=sb()
+        .channel("zx-agenda-"+Math.random().toString(36).slice(2))
+        .on(
+          "postgres_changes",
+          {event:"*",schema:"public",table:TABLA},
+          function(){programarRecargaAgenda()}
+        )
+        .subscribe();
+    }catch(e){
+      ZX_AGENDA_LIVE_CHANNEL=null;
+    }
+  }
+
+  ZX_AGENDA_LIVE_POLL=setInterval(comprobarCambiosAgenda,3000);
+}
+
+
 window.ZX_agenda=async function(){
   ZX_AGENDA_ACTIVA=true;
   cancelarTrabajoPendiente();
@@ -2246,6 +2342,7 @@ window.ZX_agenda=async function(){
     ZX_AGENDA_TIMER_CARGA=null;
     await cargarEventos({pintarCache:false});
     solicitarRepintado();
+    iniciarMonitorAgenda();
   },0);
 };
 
@@ -2269,14 +2366,22 @@ if(window.__ZX_AGENDA_ONLINE_HANDLER__){
   window.removeEventListener("online",window.__ZX_AGENDA_ONLINE_HANDLER__);
 }
 window.__ZX_AGENDA_ONLINE_HANDLER__=manejarAgendaOnline;
-window.addEventListener("zentryx:agenda:actualizar",async function(){
-  try{
-    await cargarEventos({forzar:true,pintarCache:false});
-    solicitarRepintado();
-  }catch(e){
-    console.warn("Agenda: no se pudo refrescar tras un cambio de jornada",e);
-  }
-});
+
+if(window.__ZX_AGENDA_UPDATE_HANDLER__){
+  window.removeEventListener("zentryx:agenda:actualizar",window.__ZX_AGENDA_UPDATE_HANDLER__);
+}
+window.__ZX_AGENDA_UPDATE_HANDLER__=function(){
+  if(agendaMontada()) programarRecargaAgenda();
+};
+window.addEventListener("zentryx:agenda:actualizar",window.__ZX_AGENDA_UPDATE_HANDLER__);
+
+if(window.__ZX_AGENDA_VISIBILITY_HANDLER__){
+  document.removeEventListener("visibilitychange",window.__ZX_AGENDA_VISIBILITY_HANDLER__);
+}
+window.__ZX_AGENDA_VISIBILITY_HANDLER__=function(){
+  if(!document.hidden && agendaMontada()) comprobarCambiosAgenda();
+};
+document.addEventListener("visibilitychange",window.__ZX_AGENDA_VISIBILITY_HANDLER__);
 
 window.addEventListener("online",manejarAgendaOnline);
 
