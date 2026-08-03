@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3201 - MENU DE PARTE, COMPARTIR, PDF Y LISTAS COMPACTAS
+// V3202 - GESTION PROFESIONAL DE MATERIALES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3201";
+const ZX_VERSION="3202";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3650,6 +3650,47 @@ async function subirImagenMaterial(file,trabajoId){
 }
 
 
+
+const ZX_MATERIAL_USADO_RE=/\[\[ZX_MAT_USED:([0-9]+(?:\.[0-9]+)?)\]\]/;
+
+function cantidadUsadaMaterial(material){
+  const notas=String((material && material.notas) || "");
+  const m=notas.match(ZX_MATERIAL_USADO_RE);
+  if(m) return Math.max(0,Number(m[1] || 0));
+  if(material && material.utilizado===true) return Number(material.cantidad || 0);
+  return 0;
+}
+
+function notasConUsado(notas,cantidad){
+  const base=String(notas || "").replace(ZX_MATERIAL_USADO_RE,"").trim();
+  const valor=Math.max(0,Number(cantidad || 0));
+  return [base,`[[ZX_MAT_USED:${valor}]]`].filter(Boolean).join("\n");
+}
+
+function categoriaMaterial(material){
+  const texto=normalizar([material?.nombre,material?.material,material?.alias,material?.referencia,material?.fabricante].filter(Boolean).join(" "));
+  const reglas=[
+    ["Electricidad",["cable","magnetotermico","diferencial","enchufe","interruptor","cuadro","borne","fusible"]],
+    ["Tuberías",["tubo","multicapa","cobre","pex","polietileno","pvc","desague","manguera"]],
+    ["Accesorios",["codo","te","manguito","racor","reduccion","adaptador","enlace","remate","canaleta"]],
+    ["Válvulas",["valvula","llave","detentor","termostatica","antirretorno","filtro"]],
+    ["Climatización",["aerotermia","bomba de calor","split","unidad exterior","unidad interior","refrigerante"]],
+    ["Suelo radiante",["colector","actuador","termostato","suelo radiante","placa tetones","banda perimetral"]],
+    ["Fijación",["tornillo","taco","abrazadera","grapa","brida","silicona","sellador","adhesivo"]],
+    ["Herramientas",["broca","disco","herramienta","llave inglesa","alicate","destornillador"]]
+  ];
+  for(const [categoria,palabras] of reglas){
+    if(palabras.some(p=>texto.includes(normalizar(p)))) return categoria;
+  }
+  return "Otros";
+}
+
+function estadoUsoMaterial(material){
+  const total=Math.max(0,Number(material?.cantidad || 0));
+  const usado=Math.min(total,Math.max(0,cantidadUsadaMaterial(material)));
+  return {total,usado,pendiente:Math.max(0,total-usado),clave:usado<=0?"sin_usar":usado>=total&&total>0?"utilizado":"uso_parcial"};
+}
+
 function cantidadPreparadaMaterial(material){
   const notas=String((material && material.notas) || "");
   const match=notas.match(ZX_MATERIAL_PREPARADO_RE);
@@ -3703,7 +3744,10 @@ async function establecerPreparacionMaterial(trabajoId,material,modo){
     }
   }
 
-  const notas=notasConPreparado(notasVisiblesMaterial(material),nueva,imagenMaterial(material));
+  const notas=notasConUsado(
+    notasConPreparado(notasVisiblesMaterial(material),nueva,imagenMaterial(material)),
+    cantidadUsadaMaterial(material)
+  );
   const r=await actualizarMaterialCompatible(material.id,{
     notas:notas,
     preparado:nueva>=total && total>0
@@ -3843,7 +3887,12 @@ async function cambiarCantidadMaterial(trabajoId,material,cambio){
     return eliminarMaterial(trabajoId,material.id);
   }
   const preparada=Math.min(nueva,cantidadPreparadaMaterial(material));
-  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasConPreparado(notasVisiblesMaterial(material),preparada,imagenMaterial(material)),preparado:preparada>=nueva&&nueva>0});
+  const usado=Math.min(nueva,cantidadUsadaMaterial(material));
+  const notasActualizadas=notasConUsado(
+    notasConPreparado(notasVisiblesMaterial(material),preparada,imagenMaterial(material)),
+    usado
+  );
+  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasActualizadas,preparado:preparada>=nueva&&nueva>0});
   if(r && r.error){alert("No se pudo cambiar la cantidad.\n\n"+mensajeError(r.error));return}
   await registrarHistorial(trabajoId,"material","Cantidad modificada: "+(material.nombre||material.material||"Material")+" ("+actual+" → "+nueva+" "+(material.unidad||"ud")+")",{material_id:material.id,cantidad_anterior:actual,cantidad:nueva,unidad:material.unidad||"ud"});
   await abrirListaMateriales(trabajoId);
@@ -3866,98 +3915,191 @@ async function establecerCantidadMaterial(trabajoId,material){
     return eliminarMaterial(trabajoId,material.id);
   }
   const preparada=Math.min(nueva,cantidadPreparadaMaterial(material));
-  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasConPreparado(notasVisiblesMaterial(material),preparada,imagenMaterial(material)),preparado:preparada>=nueva&&nueva>0});
+  const usado=Math.min(nueva,cantidadUsadaMaterial(material));
+  const notasActualizadas=notasConUsado(
+    notasConPreparado(notasVisiblesMaterial(material),preparada,imagenMaterial(material)),
+    usado
+  );
+  const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasActualizadas,preparado:preparada>=nueva&&nueva>0});
   if(r && r.error){alert("No se pudo cambiar la cantidad.\n\n"+mensajeError(r.error));return}
   await registrarHistorial(trabajoId,"material","Cantidad fijada: "+nombre+" ("+actual+" → "+nueva+" "+(material.unidad||"ud")+")",{material_id:material.id,cantidad_anterior:actual,cantidad:nueva,unidad:material.unidad||"ud",edicion_directa:true});
   await abrirListaMateriales(trabajoId);
 }
 
+
+async function establecerUsoMaterial(trabajoId,material,modo){
+  const total=Math.max(0,Number(material.cantidad || 0));
+  const actual=Math.min(total,Math.max(0,cantidadUsadaMaterial(material)));
+  let nueva=actual;
+
+  if(modo==="ninguno") nueva=0;
+  else if(modo==="todo") nueva=total;
+  else{
+    const entrada=prompt("Cantidad utilizada de "+(material.nombre||material.material||"Material")+" (total: "+total+" "+(material.unidad||"ud")+"):",String(actual));
+    if(entrada===null) return;
+    nueva=Number(String(entrada).trim().replace(",","."));
+    if(!Number.isFinite(nueva) || nueva<0 || nueva>total){
+      alert("Introduce una cantidad entre 0 y "+total+".");
+      return;
+    }
+  }
+  if(nueva===actual) return;
+
+  const notas=notasConUsado(
+    notasConPreparado(notasVisiblesMaterial(material),cantidadPreparadaMaterial(material),imagenMaterial(material)),
+    nueva
+  );
+  const r=await actualizarMaterialCompatible(material.id,{notas:notas,utilizado:nueva>=total&&total>0});
+  if(r && r.error){alert("No se pudo actualizar el uso del material.\n\n"+mensajeError(r.error));return}
+
+  const jornadaActual=jornadaSeleccionadaAgenda(await cargarJornadasAgendaTrabajo(trabajoId));
+  await registrarHistorial(trabajoId,"material",
+    (nueva===0?"Material marcado como no utilizado: ":nueva>=total?"Material utilizado completamente: ":"Uso parcial de material: ")+
+    (material.nombre||material.material||"Material")+" ("+nueva+" de "+total+" "+(material.unidad||"ud")+")",
+    {material_id:material.id,jornada_id:jornadaActual?.id||"",fecha_jornada:jornadaActual?.fecha_inicio||"",cantidad_total:total,cantidad_utilizada:nueva,cantidad_pendiente:Math.max(0,total-nueva)}
+  );
+  await abrirListaMateriales(trabajoId);
+}
+
+function abrirUsoMaterial(trabajoId,material){
+  const uso=estadoUsoMaterial(material);
+  modal(`
+    <h2>Material utilizado</h2>
+    <div class="zx_tr_material_prepare_summary">
+      <strong>${limpiar(material.nombre||material.material||"Material")}</strong>
+      <span>Necesario: ${limpiar(uso.total)} ${limpiar(material.unidad||"ud")}</span>
+      <span>Utilizado: ${limpiar(uso.usado)} ${limpiar(material.unidad||"ud")}</span>
+      <span>Pendiente: ${limpiar(uso.pendiente)} ${limpiar(material.unidad||"ud")}</span>
+    </div>
+    <button class="zx_btn_big zx_gris" id="tr_mat_used_none">No utilizado</button>
+    <button class="zx_btn_big zx_azul" id="tr_mat_used_partial">Indicar cantidad</button>
+    <button class="zx_btn_big zx_verde" id="tr_mat_used_all">Todo utilizado</button>
+    <button class="zx_btn_big zx_gris" id="tr_mat_used_cancel">Cancelar</button>
+  `);
+  document.getElementById("tr_mat_used_none").onclick=function(){establecerUsoMaterial(trabajoId,material,"ninguno")};
+  document.getElementById("tr_mat_used_partial").onclick=function(){establecerUsoMaterial(trabajoId,material,"parcial")};
+  document.getElementById("tr_mat_used_all").onclick=function(){establecerUsoMaterial(trabajoId,material,"todo")};
+  document.getElementById("tr_mat_used_cancel").onclick=function(){abrirListaMateriales(trabajoId)};
+}
+
 async function abrirListaMateriales(trabajoId){
   modal(`
     <div class="zx_tr_materials_header">
-      <div>
-        <h2>Materiales</h2>
-        <p>Gestiona cantidades y preparación. Pulsa Pendiente, Parcial o Listo para cambiarlo.</p>
-      </div>
-      ${puedeGestionar() ? `<button type="button" class="zx_tr_add_material" id="tr_material_add">＋ Añadir</button>` : ""}
+      <div><h2>Materiales</h2><p>Controla lo necesario, lo preparado y lo utilizado.</p></div>
+      ${puedeGestionar()?`<button type="button" class="zx_tr_add_material" id="tr_material_add">＋ Añadir</button>`:""}
     </div>
+    <div class="zx_tr_material_toolbar">
+      <input id="tr_material_search" type="search" placeholder="Buscar material, referencia o proveedor">
+      <select id="tr_material_filter">
+        <option value="">Todos</option><option value="pendiente">Pendientes de preparar</option>
+        <option value="parcial">Preparación parcial</option><option value="listo">Preparados</option>
+        <option value="sin_usar">Sin utilizar</option><option value="uso_parcial">Uso parcial</option>
+        <option value="utilizado">Utilizados</option>
+      </select>
+      <select id="tr_material_category"><option value="">Todas las categorías</option></select>
+      <button type="button" id="tr_material_clear">Limpiar</button>
+    </div>
+    <div id="tr_material_summary" class="zx_tr_material_summary"></div>
     <div id="tr_material_list"><div class="zx_tr_loading">Cargando materiales...</div></div>
     <button class="zx_btn_big zx_gris" id="tr_material_back">Volver al trabajo</button>
   `);
 
-  const back=document.getElementById("tr_material_back");
-  if(back) back.onclick=function(){abrirFicha(trabajoId)};
+  document.getElementById("tr_material_back").onclick=function(){abrirFicha(trabajoId)};
   const add=document.getElementById("tr_material_add");
   if(add) add.onclick=function(){abrirMaterial(trabajoId,null)};
 
   let lista=await cargarMateriales(trabajoId);
   lista=await consolidarMaterialesDuplicados(trabajoId,lista);
+  lista=lista.slice().sort(function(a,b){
+    const orden={pendiente:0,parcial:1,listo:2};
+    const d=(orden[estadoPreparacionMaterial(a).clave]??9)-(orden[estadoPreparacionMaterial(b).clave]??9);
+    if(d) return d;
+    return categoriaMaterial(a).localeCompare(categoriaMaterial(b),"es") ||
+      String(a.nombre||a.material||"").localeCompare(String(b.nombre||b.material||""),"es");
+  });
+
   const box=document.getElementById("tr_material_list");
-  if(!box) return;
+  const summary=document.getElementById("tr_material_summary");
+  const search=document.getElementById("tr_material_search");
+  const filter=document.getElementById("tr_material_filter");
+  const category=document.getElementById("tr_material_category");
+  const clear=document.getElementById("tr_material_clear");
 
-  if(!lista.length){
-    box.innerHTML=`<div class="zx_tr_empty_card">No hay materiales añadidos.</div>`;
-    return;
-  }
+  const categorias=[...new Set(lista.map(categoriaMaterial))].sort((a,b)=>a.localeCompare(b,"es"));
+  category.innerHTML='<option value="">Todas las categorías</option>'+categorias.map(c=>`<option value="${limpiar(normalizar(c))}">${limpiar(c)}</option>`).join("");
 
-  box.innerHTML=lista.map(function(m){
-    const nombre=m.nombre || m.material || "Material";
-    const cantidad=[m.cantidad,m.unidad].filter(Boolean).join(" ");
-    const prep=estadoPreparacionMaterial(m);
-    const notasVisibles=notasVisiblesMaterial(m);
-    return `
-      <article class="zx_tr_material_item zx_tr_material_${prep.clave}">
+  function render(visibles){
+    const preparados=visibles.filter(m=>estadoPreparacionMaterial(m).clave==="listo").length;
+    const usados=visibles.filter(m=>estadoUsoMaterial(m).clave==="utilizado").length;
+    const pendientes=visibles.filter(m=>estadoPreparacionMaterial(m).falta>0).length;
+    summary.innerHTML=`<span><b>${visibles.length}</b> materiales</span><span><b>${pendientes}</b> por preparar</span><span><b>${preparados}</b> preparados</span><span><b>${usados}</b> utilizados</span>`;
+
+    if(!visibles.length){box.innerHTML='<div class="zx_tr_empty_card">No hay materiales que coincidan.</div>';return}
+
+    box.innerHTML=visibles.map(function(m){
+      const nombre=m.nombre||m.material||"Material";
+      const prep=estadoPreparacionMaterial(m), uso=estadoUsoMaterial(m);
+      const detalles=[m.referencia,m.proveedor,m.fabricante].filter(Boolean).join(" · ");
+      return `<article class="zx_tr_material_item zx_tr_material_${prep.clave}">
         <div class="zx_tr_material_head">
-          ${imagenMaterial(m) ? `<img class="zx_tr_material_thumb" src="${limpiar(imagenMaterial(m))}" alt="">` : `<div class="zx_tr_material_thumb zx_tr_material_thumb_empty">📦</div>`}
+          ${imagenMaterial(m)?`<img class="zx_tr_material_thumb" src="${limpiar(imagenMaterial(m))}" alt="">`:`<div class="zx_tr_material_thumb zx_tr_material_thumb_empty">📦</div>`}
           <div class="zx_tr_material_info">
-            <strong>${limpiar(nombre)}</strong>
-            ${cantidad ? `<span>${limpiar(cantidad)}</span>` : ""}
-            ${notasVisibles ? `<small>${limpiar(notasVisibles)}</small>` : ""}
+            <div class="zx_tr_material_title_row"><strong>${limpiar(nombre)}</strong><em>${limpiar(categoriaMaterial(m))}</em></div>
+            <span>${limpiar(m.cantidad??0)} ${limpiar(m.unidad||"ud")}</span>
+            ${detalles?`<small>${limpiar(detalles)}</small>`:""}
+            ${notasVisiblesMaterial(m)?`<small>${limpiar(notasVisiblesMaterial(m))}</small>`:""}
           </div>
         </div>
-        <button type="button" class="zx_tr_material_prepare zx_tr_prepare_${prep.clave}" data-material-prepare="${limpiar(m.id)}">
-          <b>${prep.clave==="listo" ? "✓ Listo" : prep.clave==="parcial" ? "◐ Parcial" : "○ Pendiente"}</b>
-          <span>${limpiar(prep.preparada)} de ${limpiar(prep.total)} ${limpiar(m.unidad||"ud")}${prep.falta>0 ? ` · faltan ${limpiar(prep.falta)}` : ""}</span>
-        </button>
-        ${puedeGestionar() ? `
-          <div class="zx_tr_material_quick">
-            <button type="button" class="zx_tr_qty_btn" data-material-minus="${limpiar(m.id)}" aria-label="Restar cantidad">−</button>
-            <button type="button" class="zx_tr_qty_value" data-material-quantity="${limpiar(m.id)}" aria-label="Cambiar cantidad">${limpiar(m.cantidad ?? 0)} ${limpiar(m.unidad || "ud")}</button>
-            <button type="button" class="zx_tr_qty_btn" data-material-plus="${limpiar(m.id)}" aria-label="Sumar cantidad">＋</button>
-          </div>
-          <div class="zx_tr_material_actions">
-            <button type="button" class="blue" data-edit-material="${limpiar(m.id)}">✏️ Editar</button>
-            <button type="button" class="red" data-delete-material="${limpiar(m.id)}">🗑️ Eliminar</button>
-          </div>
-        ` : ""}
-      </article>
-    `;
-  }).join("");
+        <div class="zx_tr_material_states">
+          <button type="button" class="zx_tr_material_prepare zx_tr_prepare_${prep.clave}" data-material-prepare="${limpiar(m.id)}">
+            <b>${prep.clave==="listo"?"✓ Preparado":prep.clave==="parcial"?"◐ Preparación parcial":"○ Por preparar"}</b>
+            <span>${limpiar(prep.preparada)} de ${limpiar(prep.total)} ${limpiar(m.unidad||"ud")}${prep.falta>0?` · faltan ${limpiar(prep.falta)}`:""}</span>
+          </button>
+          <button type="button" class="zx_tr_material_used zx_tr_used_${uso.clave}" data-material-used="${limpiar(m.id)}">
+            <b>${uso.clave==="utilizado"?"✓ Utilizado":uso.clave==="uso_parcial"?"◐ Uso parcial":"○ Sin utilizar"}</b>
+            <span>${limpiar(uso.usado)} de ${limpiar(uso.total)} ${limpiar(m.unidad||"ud")}${uso.pendiente>0?` · quedan ${limpiar(uso.pendiente)}`:""}</span>
+          </button>
+        </div>
+        ${puedeGestionar()?`<div class="zx_tr_material_quick">
+          <button class="zx_tr_qty_btn" data-material-minus="${limpiar(m.id)}">−</button>
+          <button class="zx_tr_qty_value" data-material-quantity="${limpiar(m.id)}">${limpiar(m.cantidad??0)} ${limpiar(m.unidad||"ud")}</button>
+          <button class="zx_tr_qty_btn" data-material-plus="${limpiar(m.id)}">＋</button>
+        </div>
+        <div class="zx_tr_material_actions">
+          <button class="blue" data-edit-material="${limpiar(m.id)}">✏️ Editar</button>
+          <button class="red" data-delete-material="${limpiar(m.id)}">🗑️ Eliminar</button>
+        </div>`:""}
+      </article>`;
+    }).join("");
 
-  box.querySelectorAll("[data-material-prepare]").forEach(function(btn){
-    btn.onclick=function(){
-      const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPrepare));
-      if(m) abrirEstadoPreparacionMaterial(trabajoId,m);
-    };
-  });
-  box.querySelectorAll("[data-material-minus]").forEach(function(btn){
-    btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialMinus));if(m)cambiarCantidadMaterial(trabajoId,m,-1)};
-  });
-  box.querySelectorAll("[data-material-plus]").forEach(function(btn){
-    btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPlus));if(m)cambiarCantidadMaterial(trabajoId,m,1)};
-  });
-  box.querySelectorAll("[data-material-quantity]").forEach(function(btn){
-    btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialQuantity));if(m)establecerCantidadMaterial(trabajoId,m)};
-  });
-  box.querySelectorAll("[data-edit-material]").forEach(function(btn){
-    btn.onclick=function(){
-      const material=lista.find(function(m){return String(m.id)===String(btn.dataset.editMaterial)});
-      if(material) abrirMaterial(trabajoId,material);
-    };
-  });
-  box.querySelectorAll("[data-delete-material]").forEach(function(btn){
-    btn.onclick=function(){eliminarMaterial(trabajoId,btn.dataset.deleteMaterial)};
-  });
+    box.querySelectorAll("[data-material-prepare]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPrepare));if(m)abrirEstadoPreparacionMaterial(trabajoId,m)});
+    box.querySelectorAll("[data-material-used]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialUsed));if(m)abrirUsoMaterial(trabajoId,m)});
+    box.querySelectorAll("[data-material-minus]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialMinus));if(m)cambiarCantidadMaterial(trabajoId,m,-1)});
+    box.querySelectorAll("[data-material-plus]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPlus));if(m)cambiarCantidadMaterial(trabajoId,m,1)});
+    box.querySelectorAll("[data-material-quantity]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialQuantity));if(m)establecerCantidadMaterial(trabajoId,m)});
+    box.querySelectorAll("[data-edit-material]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.editMaterial));if(m)abrirMaterial(trabajoId,m)});
+    box.querySelectorAll("[data-delete-material]").forEach(btn=>btn.onclick=function(){eliminarMaterial(trabajoId,btn.dataset.deleteMaterial)});
+  }
+
+  function aplicar(){
+    const q=normalizar(search.value||""), f=filter.value||"", c=category.value||"";
+    render(lista.filter(function(m){
+      const prep=estadoPreparacionMaterial(m), uso=estadoUsoMaterial(m);
+      const texto=normalizar([m.nombre,m.material,m.referencia,m.proveedor,m.fabricante,m.alias,notasVisiblesMaterial(m),categoriaMaterial(m)].filter(Boolean).join(" "));
+      const okTexto=!q||texto.includes(q), okCategoria=!c||normalizar(categoriaMaterial(m))===c;
+      let okEstado=true;
+      if(f==="pendiente")okEstado=prep.clave==="pendiente";
+      else if(f==="parcial")okEstado=prep.clave==="parcial";
+      else if(f==="listo")okEstado=prep.clave==="listo";
+      else if(f==="sin_usar")okEstado=uso.clave==="sin_usar";
+      else if(f==="uso_parcial")okEstado=uso.clave==="uso_parcial";
+      else if(f==="utilizado")okEstado=uso.clave==="utilizado";
+      return okTexto&&okCategoria&&okEstado;
+    }));
+  }
+  search.oninput=aplicar;filter.onchange=aplicar;category.onchange=aplicar;
+  clear.onclick=function(){search.value="";filter.value="";category.value="";aplicar()};
+  render(lista);
 }
 
 async function actualizarMaterialCompatible(materialId,data){
@@ -5445,6 +5587,24 @@ function instalarCSS(){
     .zx_tr_block_title{display:flex;align-items:center;justify-content:space-between;gap:12px}.zx_tr_block_title h3{margin:0}.zx_tr_block_title span{color:#2563eb;font-size:13px;font-weight:950}
     .zx_tr_materials_more{margin-top:9px;color:#64748b;font-size:13px;font-weight:900;text-align:right}
     .zx_tr_materials_header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.zx_tr_materials_header h2{margin:0}.zx_tr_materials_header p{margin:5px 0 0;color:#64748b;font-weight:800}
+
+    .zx_tr_material_toolbar{display:grid;grid-template-columns:minmax(220px,1.4fr) minmax(150px,.8fr) minmax(160px,.8fr) auto;gap:8px;margin:12px 0}
+    .zx_tr_material_toolbar input,.zx_tr_material_toolbar select{width:100%;height:44px;border:1px solid #cbd5e1;border-radius:12px;padding:0 11px;background:#fff;color:#0f172a;font-weight:800}
+    .zx_tr_material_toolbar button{border:1px solid #bfdbfe;border-radius:12px;padding:0 13px;background:#eff6ff;color:#1d4ed8;font-weight:900}
+    .zx_tr_material_summary{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+    .zx_tr_material_summary span{border:1px solid #dbeafe;border-radius:999px;padding:6px 9px;background:#eff6ff;color:#475569;font-size:11px;font-weight:850}
+    .zx_tr_material_summary b{color:#1d4ed8}
+    .zx_tr_material_title_row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+    .zx_tr_material_title_row em{font-style:normal;border-radius:999px;padding:4px 7px;background:#f1f5f9;color:#475569;font-size:9px;font-weight:900;white-space:nowrap}
+    .zx_tr_material_states{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .zx_tr_material_used{display:grid;gap:3px;width:100%;border:1px solid #dbe4ef;border-radius:13px;padding:10px;text-align:left}
+    .zx_tr_material_used b{font-size:12px}.zx_tr_material_used span{font-size:10px;font-weight:800;color:#64748b}
+    .zx_tr_used_sin_usar{background:#f8fafc;color:#475569}
+    .zx_tr_used_uso_parcial{background:#fff7ed;border-color:#fdba74;color:#9a3412}
+    .zx_tr_used_utilizado{background:#f0fdf4;border-color:#86efac;color:#166534}
+    @media(max-width:760px){.zx_tr_material_toolbar{grid-template-columns:1fr 1fr}}
+    @media(max-width:520px){.zx_tr_material_toolbar{grid-template-columns:1fr}.zx_tr_material_states{grid-template-columns:1fr}}
+
     .zx_tr_add_material{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:0 0 auto;min-width:128px;min-height:48px;border:0;border-radius:16px;background:#16a34a;color:#fff;padding:11px 16px;font-size:15px;font-weight:950;line-height:1.1;white-space:nowrap;box-shadow:0 5px 14px rgba(22,163,74,.18)}
     #tr_material_list{display:grid;gap:10px;margin:16px 0}.zx_tr_material_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:13px}.zx_tr_material_info{display:grid;gap:4px}.zx_tr_material_info strong{color:#071330;font-size:17px;font-weight:950}.zx_tr_material_info span{color:#2563eb;font-size:14px;font-weight:900}.zx_tr_material_info small{color:#64748b;font-size:13px;font-weight:800;line-height:1.35}
     .zx_tr_material_prepare{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border-radius:16px;border:2px solid transparent;margin-top:10px;text-align:left}
