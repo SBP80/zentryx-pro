@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3204 - PERMISOS DE PRECIOS Y METADATOS LIMPIOS
+// V3205 - USO ACUMULATIVO DE MATERIALES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3204";
+const ZX_VERSION="3205";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3979,18 +3979,69 @@ async function establecerUsoMaterial(trabajoId,material,modo){
   const total=Math.max(0,Number(material.cantidad || 0));
   const actual=Math.min(total,Math.max(0,cantidadUsadaMaterial(material)));
   let nueva=actual;
+  let movimiento=0;
+  let accion="ajuste";
 
-  if(modo==="ninguno") nueva=0;
-  else if(modo==="todo") nueva=total;
-  else{
-    const entrada=prompt("Cantidad utilizada de "+(material.nombre||material.material||"Material")+" (total: "+total+" "+(material.unidad||"ud")+"):",String(actual));
+  if(modo==="ninguno"){
+    if(actual<=0) return;
+    if(!confirm("¿Marcar este material como no utilizado?")) return;
+    nueva=0;
+    movimiento=-actual;
+    accion="reinicio";
+  }else if(modo==="todo"){
+    if(actual>=total) return;
+    nueva=total;
+    movimiento=total-actual;
+    accion="suma";
+  }else if(modo==="restar"){
+    const maximo=actual;
+    const entrada=prompt(
+      "Cantidad que quieres descontar del uso registrado\n\nUtilizado ahora: "+actual+" "+(material.unidad||"ud"),
+      ""
+    );
+    if(entrada===null) return;
+    movimiento=Number(String(entrada).trim().replace(",","."));
+    if(!Number.isFinite(movimiento) || movimiento<=0 || movimiento>maximo){
+      alert("Introduce una cantidad mayor que 0 y no superior a "+maximo+".");
+      return;
+    }
+    nueva=actual-movimiento;
+    movimiento=-movimiento;
+    accion="resta";
+  }else if(modo==="fijar"){
+    const entrada=prompt(
+      "Cantidad total utilizada\n\nUtilizado ahora: "+actual+" de "+total+" "+(material.unidad||"ud"),
+      String(actual)
+    );
     if(entrada===null) return;
     nueva=Number(String(entrada).trim().replace(",","."));
     if(!Number.isFinite(nueva) || nueva<0 || nueva>total){
       alert("Introduce una cantidad entre 0 y "+total+".");
       return;
     }
+    movimiento=nueva-actual;
+    accion="ajuste";
+  }else{
+    const disponible=Math.max(0,total-actual);
+    if(disponible<=0){
+      alert("Ya está registrada toda la cantidad como utilizada.");
+      return;
+    }
+    const entrada=prompt(
+      "Cantidad utilizada ahora\n\nYa registrada: "+actual+" "+(material.unidad||"ud")+
+      "\nDisponible por registrar: "+disponible+" "+(material.unidad||"ud"),
+      ""
+    );
+    if(entrada===null) return;
+    movimiento=Number(String(entrada).trim().replace(",","."));
+    if(!Number.isFinite(movimiento) || movimiento<=0 || movimiento>disponible){
+      alert("Introduce una cantidad mayor que 0 y no superior a "+disponible+".");
+      return;
+    }
+    nueva=actual+movimiento;
+    accion="suma";
   }
+
   if(nueva===actual) return;
 
   const notas=notasConUsado(
@@ -3998,35 +4049,69 @@ async function establecerUsoMaterial(trabajoId,material,modo){
     nueva
   );
   const r=await actualizarMaterialCompatible(material.id,{notas:notas});
-  if(r && r.error){alert("No se pudo actualizar el uso del material.\n\n"+mensajeError(r.error));return}
+  if(r && r.error){
+    alert("No se pudo actualizar el uso del material.\n\n"+mensajeError(r.error));
+    return;
+  }
 
   const jornadaActual=jornadaSeleccionadaAgenda(await cargarJornadasAgendaTrabajo(trabajoId));
-  await registrarHistorial(trabajoId,"material",
-    (nueva===0?"Material marcado como no utilizado: ":nueva>=total?"Material utilizado completamente: ":"Uso parcial de material: ")+
-    (material.nombre||material.material||"Material")+" ("+nueva+" de "+total+" "+(material.unidad||"ud")+")",
-    {material_id:material.id,jornada_id:jornadaActual?.id||"",fecha_jornada:jornadaActual?.fecha_inicio||"",cantidad_total:total,cantidad_utilizada:nueva,cantidad_pendiente:Math.max(0,total-nueva)}
-  );
+  const nombre=material.nombre||material.material||"Material";
+  const unidad=material.unidad||"ud";
+  const texto=accion==="suma"
+    ? "Uso añadido: "+nombre+" (+"+movimiento+" "+unidad+" · total utilizado "+nueva+" de "+total+")"
+    : accion==="resta"
+      ? "Uso corregido: "+nombre+" ("+movimiento+" "+unidad+" · total utilizado "+nueva+" de "+total+")"
+      : accion==="reinicio"
+        ? "Uso reiniciado: "+nombre+" (0 de "+total+" "+unidad+")"
+        : "Uso ajustado: "+nombre+" ("+actual+" → "+nueva+" "+unidad+")";
+
+  await registrarHistorial(trabajoId,"material",texto,{
+    material_id:material.id,
+    jornada_id:jornadaActual?.id||"",
+    fecha_jornada:jornadaActual?.fecha_inicio||"",
+    cantidad_total:total,
+    cantidad_anterior:actual,
+    movimiento:movimiento,
+    cantidad_utilizada:nueva,
+    cantidad_pendiente:Math.max(0,total-nueva),
+    accion:accion
+  });
+
   await abrirListaMateriales(trabajoId);
 }
 
 function abrirUsoMaterial(trabajoId,material){
   const uso=estadoUsoMaterial(material);
   modal(`
-    <h2>Material utilizado</h2>
+    <h2>Registrar uso</h2>
     <div class="zx_tr_material_prepare_summary">
       <strong>${limpiar(material.nombre||material.material||"Material")}</strong>
-      <span>Necesario: ${limpiar(uso.total)} ${limpiar(material.unidad||"ud")}</span>
-      <span>Utilizado: ${limpiar(uso.usado)} ${limpiar(material.unidad||"ud")}</span>
-      <span>Pendiente: ${limpiar(uso.pendiente)} ${limpiar(material.unidad||"ud")}</span>
+      <span>Total necesario: ${limpiar(uso.total)} ${limpiar(material.unidad||"ud")}</span>
+      <span>Ya utilizado: ${limpiar(uso.usado)} ${limpiar(material.unidad||"ud")}</span>
+      <span>Restante: ${limpiar(uso.pendiente)} ${limpiar(material.unidad||"ud")}</span>
     </div>
-    <button class="zx_btn_big zx_gris" id="tr_mat_used_none">No utilizado</button>
-    <button class="zx_btn_big zx_azul" id="tr_mat_used_partial">Indicar cantidad</button>
-    <button class="zx_btn_big zx_verde" id="tr_mat_used_all">Todo utilizado</button>
+    ${uso.pendiente>0 ? `<button class="zx_btn_big zx_azul" id="tr_mat_used_add">＋ Añadir cantidad utilizada</button>` : ""}
+    ${uso.usado>0 ? `<button class="zx_btn_big" id="tr_mat_used_subtract" style="background:#fff!important;color:#9a3412!important;border:2px solid #fdba74!important">− Corregir descontando</button>` : ""}
+    <button class="zx_btn_big" id="tr_mat_used_set" style="background:#fff!important;color:#0f2348!important;border:2px solid #b9d2f3!important">✏️ Fijar total utilizado</button>
+    ${uso.pendiente>0 ? `<button class="zx_btn_big zx_verde" id="tr_mat_used_all">✓ Todo utilizado</button>` : ""}
+    ${uso.usado>0 ? `<button class="zx_btn_big zx_rojo" id="tr_mat_used_none">Reiniciar uso a cero</button>` : ""}
     <button class="zx_btn_big zx_gris" id="tr_mat_used_cancel">Cancelar</button>
   `);
-  document.getElementById("tr_mat_used_none").onclick=function(){establecerUsoMaterial(trabajoId,material,"ninguno")};
-  document.getElementById("tr_mat_used_partial").onclick=function(){establecerUsoMaterial(trabajoId,material,"parcial")};
-  document.getElementById("tr_mat_used_all").onclick=function(){establecerUsoMaterial(trabajoId,material,"todo")};
+
+  const add=document.getElementById("tr_mat_used_add");
+  if(add) add.onclick=function(){establecerUsoMaterial(trabajoId,material,"sumar")};
+
+  const subtract=document.getElementById("tr_mat_used_subtract");
+  if(subtract) subtract.onclick=function(){establecerUsoMaterial(trabajoId,material,"restar")};
+
+  document.getElementById("tr_mat_used_set").onclick=function(){establecerUsoMaterial(trabajoId,material,"fijar")};
+
+  const all=document.getElementById("tr_mat_used_all");
+  if(all) all.onclick=function(){establecerUsoMaterial(trabajoId,material,"todo")};
+
+  const none=document.getElementById("tr_mat_used_none");
+  if(none) none.onclick=function(){establecerUsoMaterial(trabajoId,material,"ninguno")};
+
   document.getElementById("tr_mat_used_cancel").onclick=function(){abrirListaMateriales(trabajoId)};
 }
 
