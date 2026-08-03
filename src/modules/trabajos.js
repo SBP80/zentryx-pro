@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3189 - ACTUALIZACION INMEDIATA AL FINALIZAR JORNADA
+// V3190 - CRONOMETRO POR JORNADA Y ESTADOS INDEPENDIENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3189";
+const ZX_VERSION="3190";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2172,15 +2172,27 @@ function obtenerUbicacionTrabajo(){
   });
 }
 
-function inicioRealTrabajo(hist){
+function datosHistorial(h){
+  const d=h && h.datos;
+  if(!d) return {};
+  if(typeof d==="object") return d;
+  try{return JSON.parse(d)}catch(e){return {}}
+}
+
+function inicioRealTrabajo(hist,jornadaId){
   const lista=Array.isArray(hist) ? hist : [];
+  const jid=String(jornadaId || "");
   const registro=lista.find(function(h){
     const tipo=normalizar(h.tipo || "");
     const nota=normalizar(h.notas || "");
-    return tipo.includes("inicio") || nota.includes("trabajo iniciado");
+    const datos=datosHistorial(h);
+    const coincide=!jid || String(datos.jornada_id || "")===jid;
+    const esInicio=tipo.includes("inicio") || nota.includes("trabajo iniciado") || nota.includes("jornada iniciada");
+    return coincide && esInicio;
   });
   if(!registro) return null;
-  const raw=registro.created_at || registro.fecha;
+  const datos=datosHistorial(registro);
+  const raw=datos.iniciado_at || registro.created_at || registro.fecha;
   if(!raw) return null;
   const d=new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d;
@@ -2205,9 +2217,9 @@ function minutosPlanificadosTrabajo(t,plan){
   return n>0 ? n : 0;
 }
 
-function renderPanelEjecucion(t,plan,hist){
+function renderPanelEjecucion(t,plan,hist,jornada){
   if(String(t.estado || "")!=="en_curso") return "";
-  const inicio=inicioRealTrabajo(hist);
+  const inicio=inicioRealTrabajo(hist,jornada && jornada.id);
   const minutos=minutosPlanificadosTrabajo(t,plan);
   return `<section class="zx_tr_execution_panel">
     <div class="zx_tr_execution_head">
@@ -2225,9 +2237,9 @@ function renderPanelEjecucion(t,plan,hist){
   </section>`;
 }
 
-function iniciarTemporizadorEjecucion(hist){
+function iniciarTemporizadorEjecucion(hist,jornada){
   detenerTemporizadorEjecucion();
-  const inicio=inicioRealTrabajo(hist);
+  const inicio=inicioRealTrabajo(hist,jornada && jornada.id);
   const el=document.getElementById("tr_execution_timer");
   if(!inicio || !el) return;
   const pintar=function(){
@@ -2491,9 +2503,11 @@ async function ejecutarAccionPrincipal(id,accion){
 
     try{
       const ubicacion=await obtenerUbicacionTrabajo();
-      const rJ=await actualizarEstadoJornadaAgenda(jornada.id,"en_curso");
+      let rJ=await actualizarEstadoJornadaAgenda(jornada.id,"en_curso");
       if(rJ && rJ.error) throw rJ.error;
 
+      // Actualizar solo el estado general del trabajo. Las demás jornadas
+      // conservan su estado propio en agenda_eventos.
       const r=await actualizarTrabajo(id,{estado:"en_curso"});
       if(r && r.error) throw r.error;
 
@@ -2616,7 +2630,7 @@ async function abrirFicha(id){
         </div>
       </section>
 
-      ${String(jornadaActual?.estado || t.estado)==="en_curso" ? renderPanelEjecucion(Object.assign({},t,{estado:"en_curso"}),plan,hist) : ""}
+      ${String(jornadaActual?.estado || t.estado)==="en_curso" ? renderPanelEjecucion(Object.assign({},t,{estado:"en_curso"}),plan,hist,jornadaActual) : ""}
 
       ${principal.accion!=="ninguna" ? `
         <button
@@ -2710,7 +2724,7 @@ ${renderPlanificacionPlegable(plan)}
     };
   }
 
-  iniciarTemporizadorEjecucion(hist);
+  iniciarTemporizadorEjecucion(hist,jornadaActual);
 
   const smartMaterials=document.getElementById("tr_smart_material_attach");
   if(smartMaterials) smartMaterials.onclick=function(){adjuntarSugerenciasMateriales(id,sugerenciasMateriales)};
