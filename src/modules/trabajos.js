@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3193 - PARTE DE JORNADA, FOTOS Y FIRMA
+// V3194 - DICTADO SIN REPETICIONES Y BOTON BORRAR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3193";
+const ZX_VERSION="3194";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2356,44 +2356,100 @@ function renderPlanificacionPlegable(plan){
 function iniciarDictadoMientrasPulsa(boton,textarea){
   const SpeechRecognition=window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!boton || !textarea) return;
+
   let reconocimiento=null;
   let activo=false;
+  let textoBase="";
+  let textoFinalSesion="";
+
+  const restaurarBoton=function(){
+    boton.classList.remove("escuchando");
+    boton.textContent="🎙️ Mantén pulsado para dictar";
+  };
 
   const iniciar=function(ev){
     if(ev) ev.preventDefault();
     if(activo) return;
+
     if(!SpeechRecognition){
       textarea.focus();
       return;
     }
+
     activo=true;
+    textoBase=String(textarea.value || "").trim();
+    textoFinalSesion="";
     boton.classList.add("escuchando");
+    boton.textContent="🔴 Escuchando... suelta para parar";
+
     reconocimiento=new SpeechRecognition();
     reconocimiento.lang="es-ES";
     reconocimiento.interimResults=true;
     reconocimiento.continuous=true;
+    reconocimiento.maxAlternatives=1;
+
     reconocimiento.onresult=function(event){
-      let texto="";
+      let provisional="";
+
       for(let i=event.resultIndex;i<event.results.length;i++){
-        texto+=event.results[i][0].transcript;
+        const frase=String(event.results[i][0].transcript || "").trim();
+        if(!frase) continue;
+
+        if(event.results[i].isFinal){
+          const fraseNormal=normalizar(frase);
+          const finalNormal=normalizar(textoFinalSesion);
+
+          if(!finalNormal.includes(fraseNormal)){
+            textoFinalSesion=(textoFinalSesion+" "+frase).trim();
+          }
+        }else{
+          provisional=(provisional+" "+frase).trim();
+        }
       }
-      if(texto){
-        textarea.value=(textarea.value ? textarea.value.trim()+" " : "")+texto.trim();
-      }
+
+      textarea.value=[textoBase,textoFinalSesion,provisional]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g," ")
+        .trim();
     };
+
+    reconocimiento.onerror=function(event){
+      if(event && ["aborted","no-speech"].includes(event.error)) return;
+      console.warn("Dictado:",event && event.error);
+    };
+
     reconocimiento.onend=function(){
+      textarea.value=[textoBase,textoFinalSesion]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g," ")
+        .trim();
+
       activo=false;
-      boton.classList.remove("escuchando");
+      reconocimiento=null;
+      restaurarBoton();
     };
-    try{reconocimiento.start()}catch(e){}
+
+    try{
+      reconocimiento.start();
+    }catch(e){
+      activo=false;
+      reconocimiento=null;
+      restaurarBoton();
+    }
   };
 
   const parar=function(ev){
     if(ev) ev.preventDefault();
     if(!activo) return;
+
     activo=false;
-    boton.classList.remove("escuchando");
-    try{reconocimiento.stop()}catch(e){}
+    restaurarBoton();
+
+    if(reconocimiento){
+      try{reconocimiento.stop()}catch(e){}
+    }
   };
 
   boton.addEventListener("touchstart",iniciar,{passive:false});
@@ -2403,8 +2459,6 @@ function iniciarDictadoMientrasPulsa(boton,textarea){
   boton.addEventListener("mouseup",parar);
   boton.addEventListener("mouseleave",parar);
 }
-
-
 
 function canvasFirmaPreparar(canvas){
   if(!canvas) return null;
@@ -2553,7 +2607,10 @@ async function abrirParteJornada(id){
 
     <label class="zx_tr_label">Trabajo realizado</label>
     <textarea id="tr_parte_texto" rows="6" placeholder="Describe brevemente lo realizado..."></textarea>
-    <button type="button" class="zx_tr_hold_mic" id="tr_parte_micro">🎙️ Mantén pulsado para dictar</button>
+    <div class="zx_tr_dictation_actions">
+      <button type="button" class="zx_tr_hold_mic" id="tr_parte_micro">🎙️ Mantén pulsado para dictar</button>
+      <button type="button" class="zx_tr_clear_text" id="tr_parte_borrar">🗑️ Borrar texto</button>
+    </div>
 
     <label class="zx_tr_label">Fotografías (opcional)</label>
     <div class="zx_tr_part_photo_row">
@@ -2590,6 +2647,14 @@ async function abrirParteJornada(id){
     document.getElementById("tr_parte_micro"),
     texto
   );
+
+  document.getElementById("tr_parte_borrar").onclick=function(){
+    if(!texto.value.trim()) return;
+    if(confirm("¿Borrar todo el texto del parte?")){
+      texto.value="";
+      texto.focus();
+    }
+  };
 
   document.getElementById("tr_parte_cancelar").onclick=function(){abrirFicha(id)};
 
@@ -2683,16 +2748,27 @@ async function registrarNotaRapida(id){
     <h2>Nota rápida</h2>
     <div class="zx_text">Añade una observación breve al historial del trabajo.</div>
     <textarea id="tr_nota_rapida" rows="5" placeholder="Escribe o dicta la nota..."></textarea>
-    <button type="button" class="zx_tr_hold_mic" id="tr_nota_micro">🎙️ Mantén pulsado para dictar</button>
+    <div class="zx_tr_dictation_actions">
+      <button type="button" class="zx_tr_hold_mic" id="tr_nota_micro">🎙️ Mantén pulsado para dictar</button>
+      <button type="button" class="zx_tr_clear_text" id="tr_nota_borrar">🗑️ Borrar texto</button>
+    </div>
     <button class="zx_btn_big zx_verde" id="tr_nota_guardar">Guardar nota</button>
     <button class="zx_btn_big zx_gris" id="tr_nota_cancelar">Cancelar</button>
   `);
 
   document.getElementById("tr_nota_cancelar").onclick=cerrarModal;
+  const notaRapida=document.getElementById("tr_nota_rapida");
   iniciarDictadoMientrasPulsa(
     document.getElementById("tr_nota_micro"),
-    document.getElementById("tr_nota_rapida")
+    notaRapida
   );
+  document.getElementById("tr_nota_borrar").onclick=function(){
+    if(!notaRapida.value.trim()) return;
+    if(confirm("¿Borrar todo el texto de la nota?")){
+      notaRapida.value="";
+      notaRapida.focus();
+    }
+  };
   document.getElementById("tr_nota_guardar").onclick=async function(){
     const nota=valor("tr_nota_rapida");
 
@@ -4549,6 +4625,15 @@ function instalarCSS(){
     }
     .zx_tr_hold_mic{width:100%;border:2px solid #bfdbfe;border-radius:16px;padding:13px;background:#eff6ff;color:#1d4ed8;font-weight:950;margin-bottom:10px}
     .zx_tr_hold_mic.escuchando{background:#fee2e2;border-color:#f87171;color:#b91c1c;transform:scale(.99)}
+
+    .zx_tr_dictation_actions{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:stretch;margin-bottom:10px}
+    .zx_tr_dictation_actions .zx_tr_hold_mic{margin:0}
+    .zx_tr_clear_text{border:1px solid #fecaca;border-radius:16px;padding:12px 14px;background:#fff1f2;color:#b91c1c;font-weight:950;white-space:nowrap}
+    @media(max-width:520px){
+      .zx_tr_dictation_actions{grid-template-columns:1fr}
+      .zx_tr_clear_text{width:100%}
+    }
+
 
     .zx_tr_quick_part{grid-column:1/-1;background:#f5f3ff!important;border-color:#c4b5fd!important;color:#6d28d9!important}
     .zx_tr_part_photo_row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;align-items:center}
