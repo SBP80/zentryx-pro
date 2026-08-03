@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3202 - GESTION PROFESIONAL DE MATERIALES
+// V3203 - MATERIALES LIMPIOS Y MENU DE OPCIONES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3202";
+const ZX_VERSION="3203";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3982,6 +3982,37 @@ function abrirUsoMaterial(trabajoId,material){
   document.getElementById("tr_mat_used_cancel").onclick=function(){abrirListaMateriales(trabajoId)};
 }
 
+
+function abrirOpcionesMaterial(trabajoId,material){
+  const prep=estadoPreparacionMaterial(material);
+  const uso=estadoUsoMaterial(material);
+
+  modal(`
+    <h2>Opciones del material</h2>
+    <div class="zx_tr_material_prepare_summary">
+      <strong>${limpiar(material.nombre || material.material || "Material")}</strong>
+      <span>Total: ${limpiar(material.cantidad || 0)} ${limpiar(material.unidad || "ud")}</span>
+      <span>Preparado: ${limpiar(prep.preparada)} · Utilizado: ${limpiar(uso.usado)}</span>
+    </div>
+    <button class="zx_btn_big zx_azul" id="tr_mat_opt_edit">✏️ Editar</button>
+    <button class="zx_btn_big" id="tr_mat_opt_duplicate" style="background:#fff!important;color:#0f2348!important;border:2px solid #b9d2f3!important">📄 Duplicar</button>
+    <button class="zx_btn_big" id="tr_mat_opt_prepare" style="background:#fff!important;color:#0f2348!important;border:2px solid #b9d2f3!important">📦 Registrar preparación</button>
+    <button class="zx_btn_big" id="tr_mat_opt_used" style="background:#fff!important;color:#0f2348!important;border:2px solid #b9d2f3!important">🔧 Registrar uso</button>
+    <button class="zx_btn_big zx_rojo" id="tr_mat_opt_delete">🗑️ Eliminar</button>
+    <button class="zx_btn_big zx_gris" id="tr_mat_opt_close">Cerrar</button>
+  `);
+
+  document.getElementById("tr_mat_opt_edit").onclick=function(){abrirMaterial(trabajoId,material)};
+  document.getElementById("tr_mat_opt_duplicate").onclick=function(){
+    const copia={...material,__duplicar:true,id:null,cantidad:1,notas:notasVisiblesMaterial(material)};
+    abrirMaterial(trabajoId,copia);
+  };
+  document.getElementById("tr_mat_opt_prepare").onclick=function(){abrirEstadoPreparacionMaterial(trabajoId,material)};
+  document.getElementById("tr_mat_opt_used").onclick=function(){abrirUsoMaterial(trabajoId,material)};
+  document.getElementById("tr_mat_opt_delete").onclick=function(){eliminarMaterial(trabajoId,material.id)};
+  document.getElementById("tr_mat_opt_close").onclick=function(){abrirListaMateriales(trabajoId)};
+}
+
 async function abrirListaMateriales(trabajoId){
   modal(`
     <div class="zx_tr_materials_header">
@@ -4050,24 +4081,26 @@ async function abrirListaMateriales(trabajoId){
             ${notasVisiblesMaterial(m)?`<small>${limpiar(notasVisiblesMaterial(m))}</small>`:""}
           </div>
         </div>
-        <div class="zx_tr_material_states">
+        <div class="zx_tr_material_states zx_tr_material_states_compact">
           <button type="button" class="zx_tr_material_prepare zx_tr_prepare_${prep.clave}" data-material-prepare="${limpiar(m.id)}">
             <b>${prep.clave==="listo"?"✓ Preparado":prep.clave==="parcial"?"◐ Preparación parcial":"○ Por preparar"}</b>
-            <span>${limpiar(prep.preparada)} de ${limpiar(prep.total)} ${limpiar(m.unidad||"ud")}${prep.falta>0?` · faltan ${limpiar(prep.falta)}`:""}</span>
           </button>
           <button type="button" class="zx_tr_material_used zx_tr_used_${uso.clave}" data-material-used="${limpiar(m.id)}">
             <b>${uso.clave==="utilizado"?"✓ Utilizado":uso.clave==="uso_parcial"?"◐ Uso parcial":"○ Sin utilizar"}</b>
-            <span>${limpiar(uso.usado)} de ${limpiar(uso.total)} ${limpiar(m.unidad||"ud")}${uso.pendiente>0?` · quedan ${limpiar(uso.pendiente)}`:""}</span>
           </button>
+        </div>
+        <div class="zx_tr_material_usage_summary">
+          <span><b>Total</b>${limpiar(uso.total)} ${limpiar(m.unidad||"ud")}</span>
+          <span><b>Utilizado</b>${limpiar(uso.usado)} ${limpiar(m.unidad||"ud")}</span>
+          <span><b>Restante</b>${limpiar(uso.pendiente)} ${limpiar(m.unidad||"ud")}</span>
         </div>
         ${puedeGestionar()?`<div class="zx_tr_material_quick">
           <button class="zx_tr_qty_btn" data-material-minus="${limpiar(m.id)}">−</button>
           <button class="zx_tr_qty_value" data-material-quantity="${limpiar(m.id)}">${limpiar(m.cantidad??0)} ${limpiar(m.unidad||"ud")}</button>
           <button class="zx_tr_qty_btn" data-material-plus="${limpiar(m.id)}">＋</button>
         </div>
-        <div class="zx_tr_material_actions">
-          <button class="blue" data-edit-material="${limpiar(m.id)}">✏️ Editar</button>
-          <button class="red" data-delete-material="${limpiar(m.id)}">🗑️ Eliminar</button>
+        <div class="zx_tr_material_actions zx_tr_material_actions_single">
+          <button class="blue" data-options-material="${limpiar(m.id)}">••• Opciones</button>
         </div>`:""}
       </article>`;
     }).join("");
@@ -4077,8 +4110,10 @@ async function abrirListaMateriales(trabajoId){
     box.querySelectorAll("[data-material-minus]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialMinus));if(m)cambiarCantidadMaterial(trabajoId,m,-1)});
     box.querySelectorAll("[data-material-plus]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPlus));if(m)cambiarCantidadMaterial(trabajoId,m,1)});
     box.querySelectorAll("[data-material-quantity]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialQuantity));if(m)establecerCantidadMaterial(trabajoId,m)});
-    box.querySelectorAll("[data-edit-material]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.editMaterial));if(m)abrirMaterial(trabajoId,m)});
-    box.querySelectorAll("[data-delete-material]").forEach(btn=>btn.onclick=function(){eliminarMaterial(trabajoId,btn.dataset.deleteMaterial)});
+    box.querySelectorAll("[data-options-material]").forEach(btn=>btn.onclick=function(){
+      const m=lista.find(x=>String(x.id)===String(btn.dataset.optionsMaterial));
+      if(m) abrirOpcionesMaterial(trabajoId,m);
+    });
   }
 
   function aplicar(){
@@ -4737,8 +4772,10 @@ function marcarFavoritoMaterial(nombre,valor){
 
 async function abrirMaterial(id,material){
   material=material || null;
+  const duplicando=!!(material && material.__duplicar);
+  const editando=!!material && !duplicando;
   modal(`
-    <h2>${material ? "Editar material" : "Nuevo material"}</h2>
+    <h2>${editando ? "Editar material" : duplicando ? "Duplicar material" : "Nuevo material"}</h2>
     <label class="zx_tr_label">Material</label>
     <div class="zx_tr_material_voice_row">
       <div class="zx_tr_autocomplete_wrap">
@@ -4775,7 +4812,7 @@ async function abrirMaterial(id,material){
     </div>
     <label class="zx_tr_label">Notas</label>
     <textarea id="tr_mat_notas" rows="3">${limpiar(material ? notasVisiblesMaterial(material) : "")}</textarea>
-    <button class="zx_btn_big zx_verde" id="tr_mat_guardar">${material ? "Guardar cambios" : "Guardar material"}</button>
+    <button class="zx_btn_big zx_verde" id="tr_mat_guardar">${editando ? "Guardar cambios" : duplicando ? "Guardar copia" : "Guardar material"}</button>
     <button class="zx_btn_big zx_gris" id="tr_mat_cancelar">Cancelar</button>
   `);
 
@@ -4852,7 +4889,7 @@ async function abrirMaterial(id,material){
     if(!nombre){alert("Introduce material.");return}
 
     const similares=biblioteca.filter(x=>normalizar(x.nombre)!==normalizar(nombre) && similitudMaterial(x.nombre,nombre)>=0.72).slice(0,3);
-    if(!material && similares.length){
+    if(!editando && similares.length){
       const aviso="Puede que este material ya exista:\n\n"+similares.map(x=>"• "+x.nombre).join("\n")+"\n\n¿Quieres guardar uno nuevo de todas formas?";
       if(!confirm(aviso)) return;
     }
@@ -4885,7 +4922,7 @@ async function abrirMaterial(id,material){
       let cantidadAnterior=0;
       let cantidadFinal=data.cantidad;
 
-      if(material){
+      if(editando){
         const cambios={
           nombre:nombre,
           material:nombre,
@@ -4937,8 +4974,10 @@ async function abrirMaterial(id,material){
       if(r && r.error) throw r.error;
 
       aprenderMaterial({...data,cantidad:cantidadFinal});
-      const textoHistorial=material
+      const textoHistorial=editando
         ? "Material actualizado: "+nombre
+        : duplicando
+          ? "Material duplicado: "+nombre
         : materialAcumulado
           ? "Cantidad aumentada: "+nombre+" ("+cantidadAnterior+" → "+cantidadFinal+" "+data.unidad+")"
           : "Material añadido: "+nombre;
@@ -4950,7 +4989,7 @@ async function abrirMaterial(id,material){
     }catch(e){
       const detalle=mensajeError(e);
       alert("No se pudo guardar el material."+(detalle ? "\n\n"+detalle : ""));
-      if(boton){boton.disabled=false;boton.textContent=material ? "Guardar cambios" : "Guardar material";}
+      if(boton){boton.disabled=false;boton.textContent=editando ? "Guardar cambios" : duplicando ? "Guardar copia" : "Guardar material";}
     }
   };
 }
@@ -5602,6 +5641,19 @@ function instalarCSS(){
     .zx_tr_used_sin_usar{background:#f8fafc;color:#475569}
     .zx_tr_used_uso_parcial{background:#fff7ed;border-color:#fdba74;color:#9a3412}
     .zx_tr_used_utilizado{background:#f0fdf4;border-color:#86efac;color:#166534}
+
+    .zx_tr_material_states_compact button{min-height:58px;align-content:center;text-align:center}
+    .zx_tr_material_states_compact button span{display:none}
+    .zx_tr_material_usage_summary{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+    .zx_tr_material_usage_summary span{display:grid;gap:3px;border:1px solid #dbe4ef;border-radius:12px;padding:9px;background:#fff;color:#0f2348;font-size:12px;font-weight:900;text-align:center}
+    .zx_tr_material_usage_summary b{color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:.04em}
+    .zx_tr_material_actions_single{grid-template-columns:1fr}
+    .zx_tr_material_actions_single .blue{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+    @media(max-width:420px){
+      .zx_tr_material_usage_summary{grid-template-columns:1fr 1fr 1fr}
+      .zx_tr_material_usage_summary span{padding:7px 4px;font-size:10px}
+    }
+
     @media(max-width:760px){.zx_tr_material_toolbar{grid-template-columns:1fr 1fr}}
     @media(max-width:520px){.zx_tr_material_toolbar{grid-template-columns:1fr}.zx_tr_material_states{grid-template-columns:1fr}}
 
