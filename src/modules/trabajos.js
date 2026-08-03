@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3195 - PARTE A PANTALLA COMPLETA Y FIRMA DENTRO DEL PARTE
+// V3196 - FICHA COMPLETA EN TABLET Y FIRMAS SOLO EN PARTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3195";
+const ZX_VERSION="3196";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3098,7 +3098,7 @@ async function abrirFicha(id){
 
   modal(`
     <div class="zx_tr_full_header">
-      ${modoTrabajoUnico() ? `<button type="button" class="zx_tr_back_agenda" id="tr_back_agenda">‹ Agenda</button>` : ""}
+      <button type="button" class="zx_tr_back_agenda" id="tr_back_agenda">${modoTrabajoUnico() ? "‹ Agenda" : "‹ Trabajos"}</button>
       <h2>${limpiar(t.titulo || "Trabajo")}</h2>
       <span class="zx_tr_full_state ${claseEstado(t.estado)}" id="tr_full_header_state">${limpiar(estadoTexto(t.estado))}</span>
     </div>
@@ -3109,13 +3109,15 @@ async function abrirFicha(id){
   `);
 
   const modalTrabajo=document.getElementById("zx_modal_trabajo");
-  if(modoTrabajoUnico() && modalTrabajo){
+  if(modalTrabajo){
     modalTrabajo.classList.add("zx_tr_fullscreen");
   }
 
   const volverAgendaDesdeTrabajo=function(){
     cerrarModal();
-    if(modoTrabajoUnico()) salirTrabajoUnico();
+    if(modoTrabajoUnico()){
+      salirTrabajoUnico();
+    }
   };
 
   document.getElementById("tr_ficha_cerrar").onclick=volverAgendaDesdeTrabajo;
@@ -3895,6 +3897,11 @@ function iconoArchivo(a){
 }
 
 function renderArchivos(lista,trabajoId){
+  const archivosVisibles=(lista || []).filter(function(a){
+    const nombre=normalizar(a.nombre || a.filename || "");
+    return !nombre.startsWith("firma ");
+  });
+
   return `
     <div class="zx_tr_block">
       <div class="zx_tr_block_title">
@@ -3902,8 +3909,8 @@ function renderArchivos(lista,trabajoId){
         ${trabajoId ? `<button type="button" class="zx_doc_library_open" id="tr_open_doc_library">📚 Buscar en biblioteca</button>` : ""}
       </div>
       ${
-        lista.length
-        ? `<div class="zx_tr_files_list">${lista.map(a=>{
+        archivosVisibles.length
+        ? `<div class="zx_tr_files_list">${archivosVisibles.map(a=>{
             const nombre=a.nombre || a.filename || "Archivo";
             const fecha=fechaArchivoVisible(a);
             const hora=horaArchivoVisible(a);
@@ -4621,6 +4628,35 @@ function instalarCSS(){
     .zx_tr_full_state{border-radius:999px;padding:7px 10px;font-size:12px;font-weight:950;white-space:nowrap}
     #zx_modal_trabajo.zx_tr_fullscreen{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;padding:0!important;margin:0!important;align-items:stretch!important;justify-content:stretch!important;background:#fff!important;z-index:999999!important}
     #zx_modal_trabajo.zx_tr_fullscreen .zx_modal_caja{width:100vw!important;max-width:none!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))!important;box-shadow:none!important;overflow-y:auto!important;overflow-x:hidden!important}
+
+    body:has(#zx_modal_trabajo.zx_tr_fullscreen){overflow:hidden!important}
+    #zx_modal_trabajo.zx_tr_fullscreen>.zx_modal_caja,
+    #zx_modal_trabajo.zx_tr_fullscreen .zx_modal_caja{
+      position:fixed!important;
+      inset:0!important;
+      box-sizing:border-box!important;
+      transform:none!important;
+      min-width:100vw!important;
+      min-height:100dvh!important;
+    }
+    @media(min-width:600px){
+      #zx_modal_trabajo.zx_tr_fullscreen{
+        display:block!important;
+        overflow:hidden!important;
+      }
+      #zx_modal_trabajo.zx_tr_fullscreen .zx_modal_caja{
+        left:0!important;
+        top:0!important;
+        right:0!important;
+        bottom:0!important;
+        width:100vw!important;
+        height:100dvh!important;
+        max-width:100vw!important;
+        max-height:100dvh!important;
+        border-radius:0!important;
+      }
+    }
+
     @media(min-width:900px){
       #zx_modal_trabajo.zx_tr_fullscreen .zx_modal_caja{padding-left:max(28px,env(safe-area-inset-left))!important;padding-right:max(28px,env(safe-area-inset-right))!important}
       #zx_modal_trabajo.zx_tr_fullscreen .zx_tr_operativo{max-width:1180px;margin:0 auto}
