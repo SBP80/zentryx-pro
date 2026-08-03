@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3191 - CRONOMETRO DE JORNADA CORREGIDO - CRONOMETRO POR JORNADA Y ESTADOS INDEPENDIENTES
+// V3192 - SINCRONIZACION AUTOMATICA ENTRE DISPOSITIVOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3191";
+const ZX_VERSION="3192";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -155,6 +155,28 @@ function telefonoLimpio(tel){
 }
 
 let ZX_TR_EXEC_TIMER=null;
+let ZX_TR_LIVE_CHANNEL=null;
+let ZX_TR_LIVE_POLL=null;
+let ZX_TR_LIVE_REFRESH=null;
+let ZX_TR_LIVE_SIGNATURE="";
+let ZX_TR_LIVE_ID="";
+
+function detenerMonitorTrabajo(){
+  if(ZX_TR_LIVE_POLL){
+    clearInterval(ZX_TR_LIVE_POLL);
+    ZX_TR_LIVE_POLL=null;
+  }
+  if(ZX_TR_LIVE_REFRESH){
+    clearTimeout(ZX_TR_LIVE_REFRESH);
+    ZX_TR_LIVE_REFRESH=null;
+  }
+  if(ZX_TR_LIVE_CHANNEL && sb()){
+    try{sb().removeChannel(ZX_TR_LIVE_CHANNEL)}catch(e){}
+  }
+  ZX_TR_LIVE_CHANNEL=null;
+  ZX_TR_LIVE_SIGNATURE="";
+  ZX_TR_LIVE_ID="";
+}
 
 function detenerTemporizadorEjecucion(){
   if(ZX_TR_EXEC_TIMER){
@@ -165,6 +187,7 @@ function detenerTemporizadorEjecucion(){
 
 function cerrarModal(){
   detenerTemporizadorEjecucion();
+  detenerMonitorTrabajo();
   const m=document.getElementById("zx_modal_trabajo");
   if(m) m.remove();
   document.body.classList.remove("zx_modal_abierto");
@@ -2599,6 +2622,123 @@ async function ejecutarAccionPrincipal(id,accion){
   }
 }
 
+
+function firmaEstadoTrabajo(t,jornadas){
+  const js=(jornadas || []).map(function(j){
+    return [
+      String(j.id || ""),
+      String(j.fecha_inicio || ""),
+      String(j.hora_inicio || ""),
+      String(j.hora_fin || ""),
+      String(j.estado || "")
+    ].join(":");
+  }).join("|");
+  return [
+    String(t && t.estado || ""),
+    String(t && t.updated_at || ""),
+    js
+  ].join("##");
+}
+
+async function leerFirmaEstadoTrabajo(id){
+  if(!navigator.onLine || !sb()) return "";
+  try{
+    const [rt,rj]=await Promise.all([
+      sb().from(TABLA).select("id,estado,updated_at").eq("id",String(id)).maybeSingle(),
+      sb().from("agenda_eventos")
+        .select("id,fecha_inicio,hora_inicio,hora_fin,estado")
+        .eq("origen","trabajos")
+        .eq("origen_id",String(id))
+        .order("fecha_inicio",{ascending:true})
+        .order("hora_inicio",{ascending:true})
+    ]);
+    if(rt.error || rj.error) return "";
+    return firmaEstadoTrabajo(rt.data || {},rj.data || []);
+  }catch(e){
+    return "";
+  }
+}
+
+function programarRefrescoTrabajo(id){
+  if(String(id || "")!==String(ZX_TR_LIVE_ID || "")) return;
+  if(ZX_TR_LIVE_REFRESH) clearTimeout(ZX_TR_LIVE_REFRESH);
+
+  ZX_TR_LIVE_REFRESH=setTimeout(async function(){
+    ZX_TR_LIVE_REFRESH=null;
+    if(String(id || "")!==String(ZX_TR_LIVE_ID || "")) return;
+    if(!document.getElementById("zx_modal_trabajo")) return;
+
+    const caja=document.querySelector("#zx_modal_trabajo .zx_modal_caja");
+    const scrollTop=caja ? caja.scrollTop : 0;
+
+    ZX_TR_CACHE=ZX_TR_CACHE.filter(function(x){
+      return String(x.id)!==String(id);
+    });
+    guardarCache(ZX_TR_CACHE);
+
+    try{
+      await abrirFicha(id);
+      const nuevaCaja=document.querySelector("#zx_modal_trabajo .zx_modal_caja");
+      if(nuevaCaja) nuevaCaja.scrollTop=scrollTop;
+    }catch(e){}
+  },180);
+}
+
+async function iniciarMonitorTrabajo(id,t,jornadas){
+  detenerMonitorTrabajo();
+
+  ZX_TR_LIVE_ID=String(id || "");
+  ZX_TR_LIVE_SIGNATURE=firmaEstadoTrabajo(t,jornadas);
+
+  const comprobar=async function(){
+    if(String(id || "")!==String(ZX_TR_LIVE_ID || "")) return;
+    if(document.hidden || !navigator.onLine) return;
+
+    const firma=await leerFirmaEstadoTrabajo(id);
+    if(!firma) return;
+
+    if(ZX_TR_LIVE_SIGNATURE && firma!==ZX_TR_LIVE_SIGNATURE){
+      ZX_TR_LIVE_SIGNATURE=firma;
+      programarRefrescoTrabajo(id);
+    }else{
+      ZX_TR_LIVE_SIGNATURE=firma;
+    }
+  };
+
+  // Supabase Realtime: actualización inmediata cuando está disponible.
+  if(sb() && typeof sb().channel==="function"){
+    try{
+      ZX_TR_LIVE_CHANNEL=sb()
+        .channel("zx-trabajo-"+String(id)+"-"+Math.random().toString(36).slice(2))
+        .on(
+          "postgres_changes",
+          {event:"*",schema:"public",table:"agenda_eventos",filter:"origen_id=eq."+String(id)},
+          function(){programarRefrescoTrabajo(id)}
+        )
+        .on(
+          "postgres_changes",
+          {event:"*",schema:"public",table:TABLA,filter:"id=eq."+String(id)},
+          function(){programarRefrescoTrabajo(id)}
+        )
+        .subscribe();
+    }catch(e){
+      ZX_TR_LIVE_CHANNEL=null;
+    }
+  }
+
+  // Respaldo: consulta ligera cada 3 segundos.
+  ZX_TR_LIVE_POLL=setInterval(comprobar,3000);
+
+  const alVolver=async function(){
+    if(!document.hidden && String(id || "")===String(ZX_TR_LIVE_ID || "")){
+      await comprobar();
+    }
+  };
+  document.addEventListener("visibilitychange",alVolver,{once:true});
+  window.addEventListener("focus",alVolver,{once:true});
+}
+
+
 async function abrirFicha(id){
   const t=await cargarTrabajo(id);
   if(!t){alert("Trabajo no encontrado.");return}
@@ -2773,6 +2913,7 @@ ${renderPlanificacionPlegable(plan)}
   }
 
   iniciarTemporizadorEjecucion(hist,jornadaActual,id);
+  iniciarMonitorTrabajo(id,t,jornadasAgenda);
 
   const smartMaterials=document.getElementById("tr_smart_material_attach");
   if(smartMaterials) smartMaterials.onclick=function(){adjuntarSugerenciasMateriales(id,sugerenciasMateriales)};
