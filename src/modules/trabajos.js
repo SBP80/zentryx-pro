@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3203 - MATERIALES LIMPIOS Y MENU DE OPCIONES
+// V3204 - PERMISOS DE PRECIOS Y METADATOS LIMPIOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3203";
+const ZX_VERSION="3204";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -76,6 +76,48 @@ function rol(){return normalizar(sesion().rol || "")}
 function usuario(){return normalizar(sesion().usuario || "")}
 function esAdmin(){return rol()==="administrador" || usuario()==="admin"}
 function puedeEntrar(){return rol()!=="invitado" && rol()!==""}
+
+function permisosSesion(){
+  const candidatos=[
+    window.ZX_PERMISOS,
+    window.ZX_USER_PERMISSIONS,
+    window.usuarioActual?.permisos,
+    window.ZX_USUARIO?.permisos,
+    window.APP?.usuario?.permisos
+  ];
+  for(const p of candidatos){
+    if(Array.isArray(p)) return new Set(p.map(x=>normalizar(x)));
+    if(p && typeof p==="object"){
+      return new Set(Object.entries(p).filter(([,v])=>!!v).map(([k])=>normalizar(k)));
+    }
+  }
+  return new Set();
+}
+
+function rolSesion(){
+  return normalizar(
+    window.usuarioActual?.rol ||
+    window.ZX_USUARIO?.rol ||
+    window.APP?.usuario?.rol ||
+    window.ZX_ROLE ||
+    ""
+  );
+}
+
+function tienePermisoMaterial(nombre){
+  const permisos=permisosSesion();
+  const clave=normalizar(nombre);
+  if(permisos.has(clave)) return true;
+  const rol=rolSesion();
+  return ["administrador","admin","desarrollador","compras","administracion","responsable de obra","encargado"].some(r=>rol.includes(r));
+}
+
+function puedeVerPrecioCompraMaterial(){ return tienePermisoMaterial("ver_precios_compra"); }
+function puedeVerPrecioVentaMaterial(){ return tienePermisoMaterial("ver_precios_venta"); }
+function puedeEditarPreciosMaterial(){ return tienePermisoMaterial("editar_precios"); }
+function puedeVerCosteTrabajoMaterial(){ return tienePermisoMaterial("ver_coste_trabajo"); }
+function puedeGestionarComprasMaterial(){ return tienePermisoMaterial("gestionar_compras"); }
+
 function puedeGestionar(){return puedeEntrar()}
 function puedeBorrar(){return esAdmin()}
 
@@ -3583,12 +3625,19 @@ function imagenMaterial(material){
   return match ? String(match[1] || "").trim() : "";
 }
 
-function notasSinMetadatosMaterial(material){
-  return String((material && material.notas) || "")
-    .replace(ZX_MATERIAL_PREPARADO_RE,"")
-    .replace(ZX_MATERIAL_IMAGEN_RE,"")
+
+function limpiarMetadatosInternosMaterial(texto){
+  return String(texto || "")
+    .replace(/\[\[ZX_MAT_USED:[^\]]*\]\]/gi,"")
+    .replace(/\[\[ZX_MAT_PREP:[^\]]*\]\]/gi,"")
+    .replace(/\[\[ZX_MAT_IMG:[^\]]*\]\]/gi,"")
+    .replace(/\[\[ZX_[A-Z0-9_]+:[^\]]*\]\]/gi,"")
     .replace(/\n{3,}/g,"\n\n")
     .trim();
+}
+
+function notasSinMetadatosMaterial(material){
+  return limpiarMetadatosInternosMaterial((material && material.notas) || "");
 }
 
 function construirNotasMaterial(notas,cantidadPreparada,urlImagen){
@@ -3657,12 +3706,11 @@ function cantidadUsadaMaterial(material){
   const notas=String((material && material.notas) || "");
   const m=notas.match(ZX_MATERIAL_USADO_RE);
   if(m) return Math.max(0,Number(m[1] || 0));
-  if(material && material.utilizado===true) return Number(material.cantidad || 0);
   return 0;
 }
 
 function notasConUsado(notas,cantidad){
-  const base=String(notas || "").replace(ZX_MATERIAL_USADO_RE,"").trim();
+  const base=limpiarMetadatosInternosMaterial(notas);
   const valor=Math.max(0,Number(cantidad || 0));
   return [base,`[[ZX_MAT_USED:${valor}]]`].filter(Boolean).join("\n");
 }
@@ -3703,7 +3751,7 @@ function cantidadPreparadaMaterial(material){
 }
 
 function notasVisiblesMaterial(material){
-  return notasSinMetadatosMaterial(material);
+  return limpiarMetadatosInternosMaterial((material && material.notas) || "");
 }
 
 function notasConPreparado(notas,cantidadPreparada,urlImagen){
@@ -3949,7 +3997,7 @@ async function establecerUsoMaterial(trabajoId,material,modo){
     notasConPreparado(notasVisiblesMaterial(material),cantidadPreparadaMaterial(material),imagenMaterial(material)),
     nueva
   );
-  const r=await actualizarMaterialCompatible(material.id,{notas:notas,utilizado:nueva>=total&&total>0});
+  const r=await actualizarMaterialCompatible(material.id,{notas:notas});
   if(r && r.error){alert("No se pudo actualizar el uso del material.\n\n"+mensajeError(r.error));return}
 
   const jornadaActual=jornadaSeleccionadaAgenda(await cargarJornadasAgendaTrabajo(trabajoId));
@@ -4071,6 +4119,13 @@ async function abrirListaMateriales(trabajoId){
       const nombre=m.nombre||m.material||"Material";
       const prep=estadoPreparacionMaterial(m), uso=estadoUsoMaterial(m);
       const detalles=[m.referencia,m.proveedor,m.fabricante].filter(Boolean).join(" · ");
+      const precios=[];
+      if(puedeVerPrecioCompraMaterial() && m.precio_compra!==null && m.precio_compra!==undefined && m.precio_compra!==""){
+        precios.push("Compra: "+Number(m.precio_compra).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €");
+      }
+      if(puedeVerPrecioVentaMaterial() && m.precio_venta!==null && m.precio_venta!==undefined && m.precio_venta!==""){
+        precios.push("Venta: "+Number(m.precio_venta).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €");
+      }
       return `<article class="zx_tr_material_item zx_tr_material_${prep.clave}">
         <div class="zx_tr_material_head">
           ${imagenMaterial(m)?`<img class="zx_tr_material_thumb" src="${limpiar(imagenMaterial(m))}" alt="">`:`<div class="zx_tr_material_thumb zx_tr_material_thumb_empty">📦</div>`}
@@ -4078,6 +4133,7 @@ async function abrirListaMateriales(trabajoId){
             <div class="zx_tr_material_title_row"><strong>${limpiar(nombre)}</strong><em>${limpiar(categoriaMaterial(m))}</em></div>
             <span>${limpiar(m.cantidad??0)} ${limpiar(m.unidad||"ud")}</span>
             ${detalles?`<small>${limpiar(detalles)}</small>`:""}
+            ${precios.length?`<small class="zx_tr_material_prices">${limpiar(precios.join(" · "))}</small>`:""}
             ${notasVisiblesMaterial(m)?`<small>${limpiar(notasVisiblesMaterial(m))}</small>`:""}
           </div>
         </div>
@@ -4120,7 +4176,12 @@ async function abrirListaMateriales(trabajoId){
     const q=normalizar(search.value||""), f=filter.value||"", c=category.value||"";
     render(lista.filter(function(m){
       const prep=estadoPreparacionMaterial(m), uso=estadoUsoMaterial(m);
-      const texto=normalizar([m.nombre,m.material,m.referencia,m.proveedor,m.fabricante,m.alias,notasVisiblesMaterial(m),categoriaMaterial(m)].filter(Boolean).join(" "));
+      const texto=normalizar([
+        m.nombre,m.material,m.referencia,m.proveedor,m.fabricante,m.alias,
+        notasVisiblesMaterial(m),categoriaMaterial(m),
+        puedeVerPrecioCompraMaterial()?m.precio_compra:"",
+        puedeVerPrecioVentaMaterial()?m.precio_venta:""
+      ].filter(Boolean).join(" "));
       const okTexto=!q||texto.includes(q), okCategoria=!c||normalizar(categoriaMaterial(m))===c;
       let okEstado=true;
       if(f==="pendiente")okEstado=prep.clave==="pendiente";
@@ -5635,6 +5696,7 @@ function instalarCSS(){
     .zx_tr_material_summary b{color:#1d4ed8}
     .zx_tr_material_title_row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
     .zx_tr_material_title_row em{font-style:normal;border-radius:999px;padding:4px 7px;background:#f1f5f9;color:#475569;font-size:9px;font-weight:900;white-space:nowrap}
+    .zx_tr_material_prices{color:#7c3aed!important;font-weight:900!important}
     .zx_tr_material_states{display:grid;grid-template-columns:1fr 1fr;gap:8px}
     .zx_tr_material_used{display:grid;gap:3px;width:100%;border:1px solid #dbe4ef;border-radius:13px;padding:10px;text-align:left}
     .zx_tr_material_used b{font-size:12px}.zx_tr_material_used span{font-size:10px;font-weight:800;color:#64748b}
