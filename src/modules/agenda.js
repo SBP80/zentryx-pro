@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3153 - ESTADOS VISUALES DESTACADOS
+// V3154 - ESTADO REAL INDEPENDIENTE POR JORNADA
 // ===============================
 (function(){
 "use strict";
@@ -660,15 +660,39 @@ async function actualizarVehiculosAgenda(eventos){
 
 function combinarEventosAgenda(eventosAgenda,eventosTrabajo){
   const mapa=new Map();
+  const espejosTrabajo=new Map();
 
   (eventosAgenda || []).forEach(function(e){
     const esEspejoTrabajo=String(e.origen||"")==="trabajos" && String(e.origen_id||"");
-    if(esEspejoTrabajo) return;
+    if(esEspejoTrabajo){
+      espejosTrabajo.set(claveEvento(e),e);
+      return;
+    }
     mapa.set(claveEvento(e),e);
   });
 
   (eventosTrabajo || []).forEach(function(e){
-    mapa.set(claveEvento(e),e);
+    const clave=claveEvento(e);
+    const espejo=espejosTrabajo.get(clave);
+    if(espejo){
+      // Mantener los datos completos del trabajo directo, pero usar el ID y
+      // el estado reales de esta jornada guardados en agenda_eventos.
+      e=Object.assign({},e,{
+        id:espejo.id,
+        estado:espejo.estado || e.estado,
+        fecha_inicio:espejo.fecha_inicio || e.fecha_inicio,
+        fecha_fin:espejo.fecha_fin || e.fecha_fin,
+        hora_inicio:espejo.hora_inicio || e.hora_inicio,
+        hora_fin:espejo.hora_fin || e.hora_fin,
+        jornada_real:true
+      });
+    }
+    mapa.set(clave,e);
+  });
+
+  // Si existe una jornada espejo sin equivalente directo, conservarla.
+  espejosTrabajo.forEach(function(e,clave){
+    if(!mapa.has(clave)) mapa.set(clave,e);
   });
 
   return Array.from(mapa.values()).sort(function(a,b){
@@ -2245,6 +2269,15 @@ if(window.__ZX_AGENDA_ONLINE_HANDLER__){
   window.removeEventListener("online",window.__ZX_AGENDA_ONLINE_HANDLER__);
 }
 window.__ZX_AGENDA_ONLINE_HANDLER__=manejarAgendaOnline;
+window.addEventListener("zentryx:agenda:actualizar",async function(){
+  try{
+    await cargarEventos({forzar:true,pintarCache:false});
+    solicitarRepintado();
+  }catch(e){
+    console.warn("Agenda: no se pudo refrescar tras un cambio de jornada",e);
+  }
+});
+
 window.addEventListener("online",manejarAgendaOnline);
 
 window.ZX_abrirAgenda=window.ZX_agenda;
