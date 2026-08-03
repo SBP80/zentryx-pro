@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3194 - DICTADO SIN REPETICIONES Y BOTON BORRAR
+// V3195 - PARTE A PANTALLA COMPLETA Y FIRMA DENTRO DEL PARTE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3194";
+const ZX_VERSION="3195";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2599,10 +2599,12 @@ async function abrirParteJornada(id){
   const fecha=jornada?.fecha_inicio || t.fecha || hoy();
 
   modal(`
-    <h2>Parte de jornada</h2>
-    <div class="zx_text">
-      <b>${limpiar(t.titulo || "Trabajo")}</b><br>
-      ${limpiar(fechaES(fecha))}
+    <div class="zx_tr_part_full_header">
+      <button type="button" class="zx_tr_part_back" id="tr_parte_volver">‹ Trabajo</button>
+      <div>
+        <h2>Parte de jornada</h2>
+        <p>${limpiar(t.titulo || "Trabajo")} · ${limpiar(fechaES(fecha))}</p>
+      </div>
     </div>
 
     <label class="zx_tr_label">Trabajo realizado</label>
@@ -2636,6 +2638,17 @@ async function abrirParteJornada(id){
     <button class="zx_btn_big zx_gris" id="tr_parte_cancelar">Cancelar</button>
   `);
 
+  const modalParte=document.getElementById("zx_modal_trabajo");
+  if(modalParte) modalParte.classList.add("zx_tr_part_fullscreen");
+
+  const volverAlTrabajo=function(){
+    cerrarModal();
+    abrirFicha(id);
+  };
+
+  const volverParte=document.getElementById("tr_parte_volver");
+  if(volverParte) volverParte.onclick=volverAlTrabajo;
+
   const texto=document.getElementById("tr_parte_texto");
   const canvas=document.getElementById("tr_parte_firma");
   const tieneFirma=activarFirmaCanvas(
@@ -2656,7 +2669,7 @@ async function abrirParteJornada(id){
     }
   };
 
-  document.getElementById("tr_parte_cancelar").onclick=function(){abrirFicha(id)};
+  document.getElementById("tr_parte_cancelar").onclick=volverAlTrabajo;
 
   document.getElementById("tr_parte_guardar").onclick=async function(){
     const boton=this;
@@ -2694,15 +2707,6 @@ async function abrirParteJornada(id){
         const nombreArchivo="firma_"+String(id)+"_"+Date.now()+".png";
         const subido=await subirBlobTrabajo(id,blob,nombreArchivo,"image/png");
         firmaUrl=subido.url;
-
-        const guardadoFirma=await insertarArchivoCompatible({
-          trabajo_id:String(id),
-          nombre:`Firma · ${firmante || "Cliente"} · ${fechaES(fecha)}`,
-          url:firmaUrl,
-          tipo:"image/png",
-          tamano:blob.size || 0
-        });
-        if(guardadoFirma.error) throw guardadoFirma.error;
 
         archivosGuardados.push({
           tipo:"firma",
@@ -3324,10 +3328,13 @@ function renderPartesJornada(hist){
         const datos=datosHistorial(h);
         const firmante=datos.firmante || "";
         const firma=datos.firma_url || "";
+        const archivos=Array.isArray(datos.archivos) ? datos.archivos : [];
+        const fotos=archivos.filter(a=>String(a.tipo || "")==="foto" && a.url);
         return `<article class="zx_tr_part_item">
           <p>${limpiar(datos.trabajo_realizado || h.notas || "Parte de jornada")}</p>
-          ${firmante ? `<small>Firmado por: ${limpiar(firmante)}</small>` : ""}
-          ${firma ? `<img src="${limpiar(firma)}" alt="Firma">` : ""}
+          ${fotos.length ? `<div class="zx_tr_part_photos">${fotos.map(a=>`<figure><img src="${limpiar(a.url)}" alt="${limpiar(a.nombre || "Foto del parte")}"><figcaption>${limpiar(a.nombre || "")}</figcaption></figure>`).join("")}</div>` : ""}
+          ${firmante ? `<small class="zx_tr_part_signer">Firmado por: ${limpiar(firmante)}</small>` : ""}
+          ${firma ? `<div class="zx_tr_part_signature"><span>Firma</span><img src="${limpiar(firma)}" alt="Firma de ${limpiar(firmante || "cliente")}"></div>` : ""}
           <small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small>
         </article>`;
       }).join("")}
@@ -4651,6 +4658,25 @@ function instalarCSS(){
     .zx_tr_part_item p{margin:0;font-weight:800;color:#0f172a;white-space:pre-wrap}
     .zx_tr_part_item small{color:#64748b;font-weight:750}
     .zx_tr_part_item img{width:100%;max-height:120px;object-fit:contain;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+
+    #zx_modal_trabajo.zx_tr_part_fullscreen{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;margin:0!important;padding:0!important;align-items:stretch!important;justify-content:stretch!important;background:#fff!important;z-index:1000000!important}
+    #zx_modal_trabajo.zx_tr_part_fullscreen .zx_modal_caja{width:100vw!important;max-width:none!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;border-radius:0!important;box-shadow:none!important;overflow-y:auto!important;overflow-x:hidden!important;padding:calc(12px + env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left))!important}
+    .zx_tr_part_full_header{position:sticky;top:0;z-index:30;display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:center;padding:8px 0 14px;margin-bottom:16px;background:#fff;border-bottom:1px solid #e2e8f0}
+    .zx_tr_part_full_header h2{margin:0!important}
+    .zx_tr_part_full_header p{margin:3px 0 0;color:#64748b;font-weight:800}
+    .zx_tr_part_back{border:1px solid #bfdbfe;border-radius:13px;padding:10px 12px;background:#eff6ff;color:#1d4ed8;font-weight:950;white-space:nowrap}
+    .zx_tr_part_photos{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+    .zx_tr_part_photos figure{margin:0;display:grid;gap:5px}
+    .zx_tr_part_photos img{width:100%;height:150px;max-height:none;object-fit:cover}
+    .zx_tr_part_photos figcaption{font-size:11px;color:#64748b;font-weight:750}
+    .zx_tr_part_signer{font-size:13px;color:#334155!important}
+    .zx_tr_part_signature{display:grid;gap:6px;padding:10px;border:1px solid #dbe4ef;border-radius:13px;background:#f8fafc}
+    .zx_tr_part_signature span{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase}
+    .zx_tr_part_signature img{width:100%;height:110px;max-height:none;object-fit:contain;background:#fff}
+    @media(min-width:900px){
+      #zx_modal_trabajo.zx_tr_part_fullscreen .zx_modal_caja{padding-left:max(32px,env(safe-area-inset-left))!important;padding-right:max(32px,env(safe-area-inset-right))!important}
+    }
+
     @media(max-width:520px){.zx_tr_part_photo_row{grid-template-columns:1fr}}
 
     @media(max-width:480px){
