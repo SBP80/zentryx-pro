@@ -1,15 +1,16 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
-// V1003 - BUSCADOR DE MATERIALES Y CATALOGO
+// V1004 - BUSQUEDA EN CATALOGO, BIBLIOTECA Y MATERIALES DE TRABAJOS
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1003";
+const ZX_VERSION="1004";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
+const T_TRABAJOS_MATERIALES="trabajos_materiales";
 const T_UBICACIONES="almacen_ubicaciones";
 const T_EXISTENCIAS="almacen_existencias";
 const T_RESERVAS="almacen_reservas";
@@ -19,6 +20,7 @@ const V_STOCK="almacen_stock_disponible";
 let ZX_AL_TAB="stock";
 let ZX_AL_MATERIALES=[];
 let ZX_AL_CATALOGO=[];
+let ZX_AL_TRABAJOS_MATERIALES=[];
 let ZX_AL_SUGERENCIAS=[];
 let ZX_AL_UBICACIONES=[];
 let ZX_AL_STOCK=[];
@@ -219,6 +221,7 @@ async function cargarTodo(){
   const resultados=await Promise.all([
     sb().from(T_MATERIALES).select("*").eq("activo",true).order("nombre",{ascending:true}),
     sb().from(T_CATALOGO).select("*").order("veces_usado",{ascending:false}).order("nombre",{ascending:true}),
+    sb().from(T_TRABAJOS_MATERIALES).select("material,unidad,created_at").not("material","is",null).limit(2000),
     sb().from(T_UBICACIONES).select("*").eq("empresa_id",empresa).eq("activa",true).order("tipo").order("nombre"),
     sb().from(V_STOCK).select("*").eq("empresa_id",empresa).order("material"),
     sb().from(T_RESERVAS).select("*").eq("empresa_id",empresa).order("created_at",{ascending:false}).limit(300),
@@ -233,12 +236,13 @@ async function cargarTodo(){
 
   ZX_AL_MATERIALES=resultados[0].data || [];
   ZX_AL_CATALOGO=resultados[1].data || [];
-  ZX_AL_UBICACIONES=resultados[2].data || [];
-  ZX_AL_STOCK=resultados[3].data || [];
-  ZX_AL_RESERVAS=resultados[4].data || [];
-  ZX_AL_MOVIMIENTOS=resultados[5].data || [];
-  ZX_AL_TRABAJOS=resultados[6].data || [];
-  ZX_AL_VEHICULOS=resultados[7].data || [];
+  ZX_AL_TRABAJOS_MATERIALES=resultados[2].data || [];
+  ZX_AL_UBICACIONES=resultados[3].data || [];
+  ZX_AL_STOCK=resultados[4].data || [];
+  ZX_AL_RESERVAS=resultados[5].data || [];
+  ZX_AL_MOVIMIENTOS=resultados[6].data || [];
+  ZX_AL_TRABAJOS=resultados[7].data || [];
+  ZX_AL_VEHICULOS=resultados[8].data || [];
   reconstruirSugerenciasMateriales();
 
   if(!ZX_AL_UBICACIONES.some(u=>u.tipo==="almacen")){
@@ -251,25 +255,126 @@ function claveMaterial(nombre,unidad){
 }
 function reconstruirSugerenciasMateriales(){
   const mapa=new Map();
-  for(const m of ZX_AL_MATERIALES){
-    const key=claveMaterial(m.nombre,m.unidad);
-    mapa.set(key,{origen:"materiales",id:m.id,nombre:m.nombre,unidad:m.unidad||"ud",referencia:m.referencia||"",categoria:m.familia||m.categoria||"",veces_usado:numero(m.veces_usado)});
-  }
-  for(const c of ZX_AL_CATALOGO){
-    const key=claveMaterial(c.nombre,c.unidad);
-    if(!mapa.has(key)){
-      mapa.set(key,{origen:"catalogo",id:c.id,nombre:c.nombre,unidad:c.unidad||"ud",referencia:"",categoria:c.categoria||"",veces_usado:numero(c.veces_usado)});
+
+  function añadir(item){
+    const nombre=String(item.nombre||"").trim();
+    if(!nombre) return;
+    const unidad=String(item.unidad||"ud").trim()||"ud";
+    const key=claveMaterial(nombre,unidad);
+    const anterior=mapa.get(key);
+
+    if(!anterior){
+      mapa.set(key,Object.assign({},item,{nombre,unidad}));
+      return;
     }
+
+    // Se conserva siempre la fuente con material_id real.
+    if(anterior.origen!=="materiales" && item.origen==="materiales"){
+      mapa.set(key,Object.assign({},item,{
+        veces_usado:Math.max(numero(anterior.veces_usado),numero(item.veces_usado))
+      }));
+      return;
+    }
+
+    anterior.veces_usado=Math.max(numero(anterior.veces_usado),numero(item.veces_usado));
+    anterior.referencia=anterior.referencia||item.referencia||"";
+    anterior.codigo_interno=anterior.codigo_interno||item.codigo_interno||"";
+    anterior.codigo_barras=anterior.codigo_barras||item.codigo_barras||"";
+    anterior.categoria=anterior.categoria||item.categoria||"";
   }
+
+  for(const m of ZX_AL_MATERIALES){
+    añadir({
+      origen:"materiales",
+      id:m.id,
+      nombre:m.nombre,
+      unidad:m.unidad||"ud",
+      referencia:m.referencia||"",
+      codigo_interno:m.codigo_interno||"",
+      codigo_barras:m.codigo_barras||"",
+      categoria:m.familia||m.categoria||"",
+      veces_usado:numero(m.veces_usado)
+    });
+  }
+
+  for(const c of ZX_AL_CATALOGO){
+    añadir({
+      origen:"catalogo",
+      id:c.id,
+      nombre:c.nombre,
+      unidad:c.unidad||"ud",
+      referencia:"",
+      codigo_interno:"",
+      codigo_barras:"",
+      categoria:c.categoria||"",
+      veces_usado:numero(c.veces_usado)
+    });
+  }
+
+  const frecuencia=new Map();
+  for(const tm of ZX_AL_TRABAJOS_MATERIALES){
+    const nombre=String(tm.material||"").trim();
+    if(!nombre) continue;
+    const unidad=String(tm.unidad||"ud").trim()||"ud";
+    const key=claveMaterial(nombre,unidad);
+    frecuencia.set(key,(frecuencia.get(key)||0)+1);
+  }
+
+  for(const tm of ZX_AL_TRABAJOS_MATERIALES){
+    const nombre=String(tm.material||"").trim();
+    if(!nombre) continue;
+    const unidad=String(tm.unidad||"ud").trim()||"ud";
+    const key=claveMaterial(nombre,unidad);
+    añadir({
+      origen:"trabajos",
+      id:key,
+      nombre,
+      unidad,
+      referencia:"",
+      codigo_interno:"",
+      codigo_barras:"",
+      categoria:"",
+      veces_usado:frecuencia.get(key)||1
+    });
+  }
+
   ZX_AL_SUGERENCIAS=[...mapa.values()].sort((a,b)=>{
     const uso=numero(b.veces_usado)-numero(a.veces_usado);
     return uso || String(a.nombre).localeCompare(String(b.nombre),"es",{sensitivity:"base"});
   });
 }
+
+function puntuacionBusqueda(material,q){
+  const nombre=normalizar(material.nombre);
+  const referencia=normalizar(material.referencia);
+  const codigo=normalizar(material.codigo_interno);
+  const barras=normalizar(material.codigo_barras);
+  const categoria=normalizar(material.categoria);
+  const unidad=normalizar(material.unidad);
+
+  if(nombre===q) return 1000;
+  if(nombre.startsWith(q)) return 800;
+  if(nombre.includes(q)) return 650;
+  if(referencia.startsWith(q)||codigo.startsWith(q)||barras.startsWith(q)) return 550;
+  if(referencia.includes(q)||codigo.includes(q)||barras.includes(q)) return 450;
+  if(categoria.includes(q)||unidad.includes(q)) return 250;
+  return 0;
+}
+
 function buscarSugerenciasMaterial(texto){
   const q=normalizar(texto);
   if(!q) return ZX_AL_SUGERENCIAS.slice(0,20);
-  return ZX_AL_SUGERENCIAS.filter(x=>normalizar([x.nombre,x.unidad,x.referencia,x.categoria].join(" ")).includes(q)).slice(0,30);
+
+  return ZX_AL_SUGERENCIAS
+    .map(x=>({x,puntuacion:puntuacionBusqueda(x,q)}))
+    .filter(item=>item.puntuacion>0)
+    .sort((a,b)=>
+      b.puntuacion-a.puntuacion ||
+      numero(b.x.veces_usado)-numero(a.x.veces_usado) ||
+      String(a.x.nombre).localeCompare(String(b.x.nombre),"es",{sensitivity:"base"})
+    )
+    .slice(0,30)
+    .map(item=>item.x);
 }
 async function asegurarMaterialPrincipal(sugerencia){
   if(!sugerencia) throw new Error("Selecciona un material.");
@@ -294,7 +399,7 @@ function instalarBuscadorMaterial(){
   if(!input||!hidden||!results||!selected) return;
   const pintar=function(){
     const lista=buscarSugerenciasMaterial(input.value);
-    results.innerHTML=lista.length?lista.map((x,i)=>`<button type="button" class="zx_al_suggestion" data-mat-index="${i}"><b>${limpiar(x.nombre)}</b><small>${limpiar([x.unidad,x.categoria,x.referencia,x.origen==="catalogo"?"Biblioteca aprendida":"Catálogo principal"].filter(Boolean).join(" · "))}</small></button>`).join(""):`<div class="zx_al_suggestion empty">No se han encontrado materiales.</div>`;
+    results.innerHTML=lista.length?lista.map((x,i)=>`<button type="button" class="zx_al_suggestion" data-mat-index="${i}"><b>${limpiar(x.nombre)}</b><small>${limpiar([x.unidad,x.categoria,x.referencia,x.origen==="catalogo"?"Biblioteca aprendida":x.origen==="trabajos"?"Usado en trabajos":"Catálogo principal"].filter(Boolean).join(" · "))}</small></button>`).join(""):`<div class="zx_al_suggestion empty">No se han encontrado materiales.</div>`;
     results.classList.add("show");
     results.querySelectorAll("[data-mat-index]").forEach(btn=>btn.onclick=function(){
       const elegido=lista[Number(btn.dataset.matIndex)];
