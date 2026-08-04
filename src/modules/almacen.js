@@ -1,14 +1,15 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
-// V1002 - REGISTRO NATIVO DEL MODULO
+// V1003 - BUSCADOR DE MATERIALES Y CATALOGO
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1002";
+const ZX_VERSION="1003";
 
 const T_MATERIALES="materiales";
+const T_CATALOGO="materiales_catalogo";
 const T_UBICACIONES="almacen_ubicaciones";
 const T_EXISTENCIAS="almacen_existencias";
 const T_RESERVAS="almacen_reservas";
@@ -17,6 +18,8 @@ const V_STOCK="almacen_stock_disponible";
 
 let ZX_AL_TAB="stock";
 let ZX_AL_MATERIALES=[];
+let ZX_AL_CATALOGO=[];
+let ZX_AL_SUGERENCIAS=[];
 let ZX_AL_UBICACIONES=[];
 let ZX_AL_STOCK=[];
 let ZX_AL_RESERVAS=[];
@@ -160,6 +163,14 @@ function instalarCSS(){
     .zx_al_form2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .zx_al_modal_summary{display:grid;gap:5px;border:1px solid #dbe4ef;border-radius:14px;padding:12px;background:#f8fafc;color:#334155}
     .zx_al_modal_summary strong{font-size:17px;color:#071330}
+    .zx_al_material_search{position:relative;display:grid;gap:7px}
+    .zx_al_material_selected{display:none;border:1px solid #86efac;border-radius:12px;padding:11px;background:#f0fdf4;color:#166534;font-weight:850}
+    .zx_al_material_selected.show{display:block}
+    .zx_al_suggestions{display:none;position:absolute;left:0;right:0;top:100%;z-index:20;max-height:260px;overflow:auto;border:1px solid #cbd5e1;border-radius:13px;background:#fff;box-shadow:0 16px 35px rgba(15,23,42,.18)}
+    .zx_al_suggestions.show{display:grid}
+    .zx_al_suggestion{border:0;border-bottom:1px solid #e2e8f0;background:#fff;padding:11px 12px;text-align:left;color:#0f172a}
+    .zx_al_suggestion:last-child{border-bottom:0}.zx_al_suggestion b{display:block;font-size:14px}.zx_al_suggestion small{display:block;margin-top:2px;color:#64748b;font-weight:750}
+    .zx_al_suggestion.empty{color:#64748b;font-weight:800}
     .zx_al_full_btn{width:100%;border-radius:13px;padding:12px;font-weight:950;margin-top:7px}
     .zx_al_save{background:#16a34a;color:#fff;border:0}.zx_al_cancel{background:#f1f5f9;color:#334155;border:0}
     .zx_al_danger{background:#fff1f2;color:#be123c;border:1px solid #fecdd3}
@@ -207,6 +218,7 @@ async function cargarTodo(){
 
   const resultados=await Promise.all([
     sb().from(T_MATERIALES).select("*").eq("activo",true).order("nombre",{ascending:true}),
+    sb().from(T_CATALOGO).select("*").order("veces_usado",{ascending:false}).order("nombre",{ascending:true}),
     sb().from(T_UBICACIONES).select("*").eq("empresa_id",empresa).eq("activa",true).order("tipo").order("nombre"),
     sb().from(V_STOCK).select("*").eq("empresa_id",empresa).order("material"),
     sb().from(T_RESERVAS).select("*").eq("empresa_id",empresa).order("created_at",{ascending:false}).limit(300),
@@ -220,17 +232,89 @@ async function cargarTodo(){
   }
 
   ZX_AL_MATERIALES=resultados[0].data || [];
-  ZX_AL_UBICACIONES=resultados[1].data || [];
-  ZX_AL_STOCK=resultados[2].data || [];
-  ZX_AL_RESERVAS=resultados[3].data || [];
-  ZX_AL_MOVIMIENTOS=resultados[4].data || [];
-  ZX_AL_TRABAJOS=resultados[5].data || [];
-  ZX_AL_VEHICULOS=resultados[6].data || [];
+  ZX_AL_CATALOGO=resultados[1].data || [];
+  ZX_AL_UBICACIONES=resultados[2].data || [];
+  ZX_AL_STOCK=resultados[3].data || [];
+  ZX_AL_RESERVAS=resultados[4].data || [];
+  ZX_AL_MOVIMIENTOS=resultados[5].data || [];
+  ZX_AL_TRABAJOS=resultados[6].data || [];
+  ZX_AL_VEHICULOS=resultados[7].data || [];
+  reconstruirSugerenciasMateriales();
 
   if(!ZX_AL_UBICACIONES.some(u=>u.tipo==="almacen")){
     await asegurarAlmacenPrincipal();
   }
 }
+
+function claveMaterial(nombre,unidad){
+  return normalizar(nombre)+"|"+normalizar(unidad||"ud");
+}
+function reconstruirSugerenciasMateriales(){
+  const mapa=new Map();
+  for(const m of ZX_AL_MATERIALES){
+    const key=claveMaterial(m.nombre,m.unidad);
+    mapa.set(key,{origen:"materiales",id:m.id,nombre:m.nombre,unidad:m.unidad||"ud",referencia:m.referencia||"",categoria:m.familia||m.categoria||"",veces_usado:numero(m.veces_usado)});
+  }
+  for(const c of ZX_AL_CATALOGO){
+    const key=claveMaterial(c.nombre,c.unidad);
+    if(!mapa.has(key)){
+      mapa.set(key,{origen:"catalogo",id:c.id,nombre:c.nombre,unidad:c.unidad||"ud",referencia:"",categoria:c.categoria||"",veces_usado:numero(c.veces_usado)});
+    }
+  }
+  ZX_AL_SUGERENCIAS=[...mapa.values()].sort((a,b)=>{
+    const uso=numero(b.veces_usado)-numero(a.veces_usado);
+    return uso || String(a.nombre).localeCompare(String(b.nombre),"es",{sensitivity:"base"});
+  });
+}
+function buscarSugerenciasMaterial(texto){
+  const q=normalizar(texto);
+  if(!q) return ZX_AL_SUGERENCIAS.slice(0,20);
+  return ZX_AL_SUGERENCIAS.filter(x=>normalizar([x.nombre,x.unidad,x.referencia,x.categoria].join(" ")).includes(q)).slice(0,30);
+}
+async function asegurarMaterialPrincipal(sugerencia){
+  if(!sugerencia) throw new Error("Selecciona un material.");
+  if(sugerencia.origen==="materiales") return sugerencia.id;
+  const nombre=String(sugerencia.nombre||"").trim();
+  const unidad=String(sugerencia.unidad||"ud").trim()||"ud";
+  const existente=ZX_AL_MATERIALES.find(m=>claveMaterial(m.nombre,m.unidad)===claveMaterial(nombre,unidad));
+  if(existente) return existente.id;
+  const payload={nombre,unidad,activo:true,veces_usado:numero(sugerencia.veces_usado),created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+  if(sugerencia.categoria) payload.familia=sugerencia.categoria;
+  const r=await sb().from(T_MATERIALES).insert([payload]).select().single();
+  if(r.error) throw r.error;
+  ZX_AL_MATERIALES.push(r.data);
+  reconstruirSugerenciasMateriales();
+  return r.data.id;
+}
+function instalarBuscadorMaterial(){
+  const input=document.getElementById("al_material_search");
+  const hidden=document.getElementById("al_material_value");
+  const results=document.getElementById("al_material_results");
+  const selected=document.getElementById("al_material_selected");
+  if(!input||!hidden||!results||!selected) return;
+  const pintar=function(){
+    const lista=buscarSugerenciasMaterial(input.value);
+    results.innerHTML=lista.length?lista.map((x,i)=>`<button type="button" class="zx_al_suggestion" data-mat-index="${i}"><b>${limpiar(x.nombre)}</b><small>${limpiar([x.unidad,x.categoria,x.referencia,x.origen==="catalogo"?"Biblioteca aprendida":"Catálogo principal"].filter(Boolean).join(" · "))}</small></button>`).join(""):`<div class="zx_al_suggestion empty">No se han encontrado materiales.</div>`;
+    results.classList.add("show");
+    results.querySelectorAll("[data-mat-index]").forEach(btn=>btn.onclick=function(){
+      const elegido=lista[Number(btn.dataset.matIndex)];
+      hidden.value=JSON.stringify(elegido);
+      input.value=elegido.nombre;
+      selected.textContent=`Seleccionado: ${elegido.nombre} · ${elegido.unidad||"ud"}`;
+      selected.classList.add("show");
+      results.classList.remove("show");
+    });
+  };
+  input.onfocus=pintar;
+  input.oninput=function(){hidden.value="";selected.classList.remove("show");pintar()};
+  setTimeout(()=>document.addEventListener("click",function cerrar(e){if(!input.closest(".zx_al_material_search")?.contains(e.target)) results.classList.remove("show")},{once:false}),0);
+}
+function materialElegidoFormulario(){
+  const raw=document.getElementById("al_material_value")?.value||"";
+  if(!raw) return null;
+  try{return JSON.parse(raw)}catch(e){return null}
+}
+
 function materialPorId(id){
   return ZX_AL_MATERIALES.find(x=>String(x.id)===String(id));
 }
@@ -629,7 +713,12 @@ async function actualizarExistencia(materialId,ubicacionId,nuevaCantidad,extras=
 }
 function abrirEntradaNueva(){
   modal(`<h2>Añadir stock</h2><div class="zx_al_form">
-    <label>Material<select id="al_material"><option value="">Selecciona material</option>${opcionesMateriales()}</select></label>
+    <label>Material<div class="zx_al_material_search">
+      <input id="al_material_search" type="search" autocomplete="off" placeholder="Escribe para buscar material">
+      <input id="al_material_value" type="hidden">
+      <div id="al_material_selected" class="zx_al_material_selected"></div>
+      <div id="al_material_results" class="zx_al_suggestions"></div>
+    </div></label>
     <label>Ubicación<select id="al_location"><option value="">Selecciona ubicación</option>${opcionesUbicaciones()}</select></label>
     <div class="zx_al_form2">
       <label>Cantidad<input id="al_qty" type="number" min="0.001" step="0.001"></label>
@@ -641,13 +730,15 @@ function abrirEntradaNueva(){
     <button class="zx_al_full_btn zx_al_cancel" id="al_cancel">Cancelar</button>
   </div>`);
   document.getElementById("al_cancel").onclick=cerrarModal;
+  instalarBuscadorMaterial();
   document.getElementById("al_save").onclick=async function(){
-    const materialId=document.getElementById("al_material").value;
+    const sugerencia=materialElegidoFormulario();
     const ubicacionId=document.getElementById("al_location").value;
     const qty=numero(document.getElementById("al_qty").value);
-    if(!materialId||!ubicacionId||qty<=0){alert("Selecciona material, ubicación y cantidad.");return}
+    if(!sugerencia||!ubicacionId||qty<=0){alert("Selecciona material, ubicación y cantidad.");return}
     this.disabled=true;
     try{
+      const materialId=await asegurarMaterialPrincipal(sugerencia);
       const anterior=await obtenerExistencia(materialId,ubicacionId);
       const previo=numero(anterior?.cantidad);
       const nuevo=previo+qty;
