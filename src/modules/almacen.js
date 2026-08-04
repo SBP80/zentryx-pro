@@ -1,12 +1,12 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
-// V1007 - INVENTARIO GUIADO POR UBICACION
+// V1008 - CONTROL DE RECUENTOS, CONFIRMACIONES Y AVISOS
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1007";
+const ZX_VERSION="1008";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
@@ -29,6 +29,7 @@ let ZX_AL_RESERVAS=[];
 let ZX_AL_MOVIMIENTOS=[];
 let ZX_AL_TRABAJOS=[];
 let ZX_AL_VEHICULOS=[];
+let ZX_AL_INVENTARIO_SESION={};
 
 function sb(){return window.sb || window.supabaseClient || null}
 function app(){return document.getElementById("app")}
@@ -185,6 +186,17 @@ function instalarCSS(){
     .zx_al_inventory_expected{border-radius:12px;padding:9px 11px;background:#f8fafc;text-align:center;min-width:92px}.zx_al_inventory_expected small{display:block;color:#64748b;font-weight:900;text-transform:uppercase;font-size:9px}.zx_al_inventory_expected b{display:block;color:#071330;font-size:17px;margin-top:2px}
     .zx_al_inventory_btn{width:100%;border:1px solid #bfdbfe;border-radius:12px;padding:11px;background:#eff6ff;color:#1d4ed8;font-weight:950}
     .zx_al_difference{border-radius:12px;padding:10px;text-align:center;font-weight:900}.zx_al_difference.ok{background:#dcfce7;color:#166534}.zx_al_difference.warn{background:#ffedd5;color:#9a3412}.zx_al_difference.bad{background:#fee2e2;color:#991b1b}
+    .zx_al_inventory_stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .zx_al_inventory_stats span{border:1px solid #dbe4ef;border-radius:12px;padding:9px;text-align:center;background:#f8fafc}
+    .zx_al_inventory_stats small{display:block;color:#64748b;font-size:9px;font-weight:900;text-transform:uppercase}
+    .zx_al_inventory_stats b{display:block;margin-top:2px;color:#071330;font-size:16px}
+    .zx_al_inventory_status{display:inline-flex;align-items:center;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:950}
+    .zx_al_inventory_status.pending{background:#f1f5f9;color:#475569}
+    .zx_al_inventory_status.ok{background:#dcfce7;color:#166534}
+    .zx_al_inventory_status.difference{background:#fee2e2;color:#991b1b}
+    .zx_al_toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1000002;max-width:min(560px,calc(100% - 28px));border-radius:14px;padding:13px 16px;background:#0f766e;color:#fff;font-weight:900;box-shadow:0 18px 45px rgba(15,23,42,.28);text-align:center}
+    .zx_al_toast.bad{background:#b91c1c}
+
 
     .zx_al_move b{display:block;color:#071330}.zx_al_move small{color:#64748b;font-weight:750}
     @media(max-width:840px){.zx_al_summary{grid-template-columns:1fr 1fr}.zx_al_grid{grid-template-columns:1fr}.zx_al_tools{grid-template-columns:1fr 1fr}}
@@ -206,6 +218,15 @@ function modal(html){
 }
 function mensajeError(e){
   return String(e?.message || e?.error_description || e || "Error desconocido");
+}
+function aviso(texto,tipo="ok"){
+  document.getElementById("zx_al_toast")?.remove();
+  const el=document.createElement("div");
+  el.id="zx_al_toast";
+  el.className="zx_al_toast"+(tipo==="bad"?" bad":"");
+  el.textContent=texto;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),3200);
 }
 async function asegurarAlmacenPrincipal(){
   const empresa=usuarioActual().empresa_id;
@@ -748,6 +769,7 @@ function pintarMovimientos(){
         <span class="zx_al_badge info">${limpiar(m.tipo)}</span>
       </div>
       <div class="zx_al_row_meta">${limpiar([origen?.nombre,destino?.nombre,m.motivo].filter(Boolean).join(" → "))}</div>
+      ${["ajuste","inventario"].includes(String(m.tipo||""))?`<div class="zx_al_row_meta">Anterior: ${formatoNumero(m.stock_origen_anterior)} · Nuevo: ${formatoNumero(m.stock_origen_nuevo)} ${limpiar(mat?.unidad||"ud")}</div>`:""}
     </article>`;
   }).join("");
 }
@@ -896,6 +918,27 @@ function existenciaVistaPorId(id){
   return ZX_AL_STOCK.find(x=>String(x.existencia_id)===String(id));
 }
 
+function ultimoMovimientoInventario(existencia){
+  const materialId=String(existencia.material_id||"");
+  const ubicacionId=String(existencia.ubicacion_id||"");
+  return ZX_AL_MOVIMIENTOS.find(m=>
+    String(m.material_id||"")===materialId &&
+    String(m.ubicacion_origen_id||m.ubicacion_destino_id||"")===ubicacionId &&
+    ["ajuste","inventario"].includes(String(m.tipo||""))
+  ) || null;
+}
+function estadoInventario(existencia){
+  const local=ZX_AL_INVENTARIO_SESION[String(existencia.existencia_id)];
+  if(local) return local;
+  const ultimo=ultimoMovimientoInventario(existencia);
+  if(!ultimo) return {estado:"pending",texto:"Pendiente",diferencia:null};
+  const anterior=numero(ultimo.stock_origen_anterior);
+  const nuevo=numero(ultimo.stock_origen_nuevo);
+  const diferencia=nuevo-anterior;
+  return diferencia===0
+    ? {estado:"ok",texto:"Contado sin diferencia",diferencia:0,fecha:ultimo.created_at}
+    : {estado:"difference",texto:"Contado con diferencia",diferencia,fecha:ultimo.created_at};
+}
 function renderInventario(){
   const content=document.getElementById("zx_al_content");
   const ubicaciones=ZX_AL_UBICACIONES.map(u=>`<option value="${limpiar(u.id)}">${limpiar(u.nombre)}</option>`).join("");
@@ -909,7 +952,9 @@ function renderInventario(){
       <select id="zx_al_filter">
         <option value="">Todo el inventario</option>
         <option value="pending">Pendientes de contar</option>
-        <option value="difference">Con diferencia</option>
+        <option value="counted">Ya contados</option>
+        <option value="difference">Con diferencias</option>
+        <option value="ok">Sin diferencias</option>
       </select>
       <button id="zx_al_clear">Limpiar</button>
     </section>
@@ -919,30 +964,50 @@ function renderInventario(){
   const pintar=()=>{
     const q=normalizar(document.getElementById("zx_al_search").value);
     const ubicacion=document.getElementById("zx_al_location").value;
+    const filtro=document.getElementById("zx_al_filter").value;
+
     const lista=ZX_AL_STOCK.filter(x=>{
       const texto=normalizar([x.material,x.ubicacion,x.ubicacion_interna,x.referencia].join(" "));
-      return (!q||texto.includes(q)) && (!ubicacion||String(x.ubicacion_id)===String(ubicacion));
+      const estado=estadoInventario(x);
+      const coincideFiltro=
+        !filtro ||
+        (filtro==="pending" && estado.estado==="pending") ||
+        (filtro==="counted" && estado.estado!=="pending") ||
+        (filtro==="difference" && estado.estado==="difference") ||
+        (filtro==="ok" && estado.estado==="ok");
+      return (!q||texto.includes(q)) &&
+        (!ubicacion||String(x.ubicacion_id)===String(ubicacion)) &&
+        coincideFiltro;
     });
+
     const box=document.getElementById("zx_al_inventory_list");
     if(!lista.length){
       box.innerHTML=`<div class="zx_al_empty">No hay existencias que coincidan.</div>`;
       return;
     }
-    box.innerHTML=lista.map(x=>`
+
+    box.innerHTML=lista.map(x=>{
+      const estado=estadoInventario(x);
+      const textoDiferencia=estado.diferencia===null || estado.diferencia===undefined
+        ? ""
+        : ` · ${estado.diferencia>0?"+":""}${formatoNumero(estado.diferencia)} ${limpiar(x.unidad||"ud")}`;
+      return `
       <article class="zx_al_inventory_row">
         <div class="zx_al_inventory_main">
           <div>
             <h3>${limpiar(x.material)}</h3>
             <p>${limpiar(x.ubicacion)}${x.ubicacion_interna?" · "+limpiar(x.ubicacion_interna):""}</p>
+            <span class="zx_al_inventory_status ${estado.estado}">${limpiar(estado.texto)}${textoDiferencia}</span>
           </div>
           <div class="zx_al_inventory_expected">
             <small>Esperado</small>
             <b>${formatoNumero(x.stock_fisico)} ${limpiar(x.unidad||"ud")}</b>
           </div>
         </div>
-        <button class="zx_al_inventory_btn" data-inventory-count="${limpiar(x.existencia_id)}">Contar material</button>
-      </article>
-    `).join("");
+        <button class="zx_al_inventory_btn" data-inventory-count="${limpiar(x.existencia_id)}">${estado.estado==="pending"?"Contar material":"Recontar material"}</button>
+      </article>`;
+    }).join("");
+
     box.querySelectorAll("[data-inventory-count]").forEach(btn=>{
       btn.onclick=()=>abrirRecuentoInventario(btn.dataset.inventoryCount);
     });
@@ -964,12 +1029,19 @@ function abrirRecuentoInventario(existenciaId){
   const vista=existenciaVistaPorId(existenciaId);
   if(!vista) return;
   const esperado=numero(vista.stock_fisico);
+
   modal(`<h2>Recuento de inventario</h2><div class="zx_al_form">
     <div class="zx_al_modal_summary">
       <strong>${limpiar(vista.material)}</strong>
       <span>${limpiar(vista.ubicacion)}${vista.ubicacion_interna?" · "+limpiar(vista.ubicacion_interna):""}</span>
-      <span>Stock esperado: ${formatoNumero(esperado)} ${limpiar(vista.unidad||"ud")}</span>
     </div>
+
+    <div class="zx_al_inventory_stats">
+      <span><small>Esperado</small><b>${formatoNumero(esperado)} ${limpiar(vista.unidad||"ud")}</b></span>
+      <span><small>Contado</small><b id="al_inventory_counted">${formatoNumero(esperado)} ${limpiar(vista.unidad||"ud")}</b></span>
+      <span><small>Diferencia</small><b id="al_inventory_delta">0 ${limpiar(vista.unidad||"ud")}</b></span>
+    </div>
+
     <label>Cantidad física contada
       <input id="al_inventory_real" type="number" min="0" step="0.001" inputmode="decimal" value="${limpiar(esperado)}">
     </label>
@@ -983,24 +1055,46 @@ function abrirRecuentoInventario(existenciaId){
 
   const input=document.getElementById("al_inventory_real");
   const diferencia=document.getElementById("al_inventory_difference");
+  const contado=document.getElementById("al_inventory_counted");
+  const delta=document.getElementById("al_inventory_delta");
+
   const actualizarDiferencia=()=>{
     const real=numero(input.value);
     const dif=real-esperado;
+    contado.textContent=`${formatoNumero(real)} ${vista.unidad||"ud"}`;
+    delta.textContent=`${dif>0?"+":""}${formatoNumero(dif)} ${vista.unidad||"ud"}`;
     diferencia.className="zx_al_difference "+(dif===0?"ok":Math.abs(dif)<=1?"warn":"bad");
     diferencia.textContent=dif===0
       ?"Sin diferencia"
       :`${dif>0?"+":""}${formatoNumero(dif)} ${vista.unidad||"ud"} respecto al sistema`;
   };
+
   input.oninput=actualizarDiferencia;
-  input.focus();
-  input.select();
+  setTimeout(()=>{
+    input.focus({preventScroll:false});
+    input.select();
+    input.scrollIntoView({block:"center",behavior:"smooth"});
+  },80);
 
   document.getElementById("al_inventory_cancel").onclick=cerrarModal;
   document.getElementById("al_inventory_save").onclick=async function(){
     const real=numero(input.value);
     if(real<0){alert("La cantidad no puede ser negativa.");return}
+
     const diferenciaValor=real-esperado;
     const notas=document.getElementById("al_inventory_notes").value.trim();
+
+    const diferenciaGrande=
+      Math.abs(diferenciaValor)>=10 ||
+      (esperado>0 && Math.abs(diferenciaValor)/esperado>=0.5);
+
+    if(diferenciaGrande){
+      const aceptar=confirm(
+        `La diferencia es elevada.\n\nEsperado: ${formatoNumero(esperado)} ${vista.unidad||"ud"}\nContado: ${formatoNumero(real)} ${vista.unidad||"ud"}\nDiferencia: ${diferenciaValor>0?"+":""}${formatoNumero(diferenciaValor)} ${vista.unidad||"ud"}\n\n¿Guardar el recuento?`
+      );
+      if(!aceptar) return;
+    }
+
     this.disabled=true;
     try{
       if(diferenciaValor!==0){
@@ -1027,12 +1121,24 @@ function abrirRecuentoInventario(existenciaId){
           motivo:`Inventario correcto${notas?" · "+notas:""}`
         });
       }
+
+      ZX_AL_INVENTARIO_SESION[String(vista.existencia_id)]=diferenciaValor===0
+        ? {estado:"ok",texto:"Contado sin diferencia",diferencia:0,fecha:new Date().toISOString()}
+        : {estado:"difference",texto:"Contado con diferencia",diferencia:diferenciaValor,fecha:new Date().toISOString()};
+
       cerrarModal();
       await recargar();
       ZX_AL_TAB="inventario";
       render();
+
+      aviso(
+        diferenciaValor===0
+          ? "Inventario guardado. No hay diferencias."
+          : `Inventario actualizado. Ajuste: ${diferenciaValor>0?"+":""}${formatoNumero(diferenciaValor)} ${vista.unidad||"ud"}.`
+      );
     }catch(e){
       this.disabled=false;
+      aviso("No se pudo guardar el recuento.","bad");
       alert("No se pudo guardar el recuento.\n\n"+mensajeError(e));
     }
   };
