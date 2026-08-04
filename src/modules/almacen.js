@@ -1,12 +1,12 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
-// V1006 - COLAS DE RESERVAS Y CANTIDADES OPERATIVAS
+// V1007 - INVENTARIO GUIADO POR UBICACION
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1006";
+const ZX_VERSION="1007";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
@@ -178,6 +178,14 @@ function instalarCSS(){
     .zx_al_save{background:#16a34a;color:#fff;border:0}.zx_al_cancel{background:#f1f5f9;color:#334155;border:0}
     .zx_al_danger{background:#fff1f2;color:#be123c;border:1px solid #fecdd3}
     .zx_al_history{display:grid;gap:8px}.zx_al_res_history{display:grid;gap:8px;margin-top:4px}.zx_al_res_history h3{margin:4px 0 0;color:#071330;font-size:15px}.zx_al_res_event{border:1px solid #e2e8f0;border-radius:12px;padding:10px;background:#fff}.zx_al_res_event b{display:block;color:#071330}.zx_al_res_event small{display:block;margin-top:3px;color:#64748b;font-weight:750}.zx_al_move{border:1px solid #e2e8f0;border-radius:13px;padding:11px;background:#f8fafc}
+    .zx_al_inventory_intro{border:1px solid #bfdbfe;border-radius:16px;padding:13px;background:#eff6ff;color:#1e3a8a;font-weight:800;line-height:1.45;margin-bottom:12px}
+    .zx_al_inventory_row{border:1px solid #dbe4ef;border-radius:16px;padding:13px;background:#fff;display:grid;gap:10px}
+    .zx_al_inventory_main{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    .zx_al_inventory_main h3{margin:0;color:#071330;font-size:18px}.zx_al_inventory_main p{margin:4px 0 0;color:#64748b;font-weight:750}
+    .zx_al_inventory_expected{border-radius:12px;padding:9px 11px;background:#f8fafc;text-align:center;min-width:92px}.zx_al_inventory_expected small{display:block;color:#64748b;font-weight:900;text-transform:uppercase;font-size:9px}.zx_al_inventory_expected b{display:block;color:#071330;font-size:17px;margin-top:2px}
+    .zx_al_inventory_btn{width:100%;border:1px solid #bfdbfe;border-radius:12px;padding:11px;background:#eff6ff;color:#1d4ed8;font-weight:950}
+    .zx_al_difference{border-radius:12px;padding:10px;text-align:center;font-weight:900}.zx_al_difference.ok{background:#dcfce7;color:#166534}.zx_al_difference.warn{background:#ffedd5;color:#9a3412}.zx_al_difference.bad{background:#fee2e2;color:#991b1b}
+
     .zx_al_move b{display:block;color:#071330}.zx_al_move small{color:#64748b;font-weight:750}
     @media(max-width:840px){.zx_al_summary{grid-template-columns:1fr 1fr}.zx_al_grid{grid-template-columns:1fr}.zx_al_tools{grid-template-columns:1fr 1fr}}
     @media(max-width:540px){.zx_al_head{align-items:stretch;flex-direction:column}.zx_al_head_actions{display:grid;grid-template-columns:1fr 1fr}.zx_al_summary,.zx_al_tools,.zx_al_form2{grid-template-columns:1fr}.zx_al_actions{grid-template-columns:1fr}.zx_al_stock{grid-template-columns:1fr 1fr 1fr}}
@@ -454,6 +462,7 @@ function tabsHTML(){
     ["stock","Stock"],
     ["reservas","Reservas"],
     ["movimientos","Movimientos"],
+    ["inventario","Inventario"],
     ["ubicaciones","Ubicaciones"]
   ];
   return `<nav class="zx_al_tabs">${tabs.map(([id,texto])=>`
@@ -494,6 +503,7 @@ function render(){
 
   if(ZX_AL_TAB==="reservas") renderReservas();
   else if(ZX_AL_TAB==="movimientos") renderMovimientos();
+  else if(ZX_AL_TAB==="inventario") renderInventario();
   else if(ZX_AL_TAB==="ubicaciones") renderUbicaciones();
   else renderStock();
 }
@@ -690,7 +700,7 @@ function renderMovimientos(){
         <option value="">Todos los movimientos</option>
         <option value="entrada">Entradas</option>
         <option value="salida">Salidas</option>
-        <option value="transferencia">Transferencias</option>
+        <option value="transferencia">Transferencias</option><option value="inventario">Inventarios</option>
         <option value="reserva">Reservas</option>
         <option value="consumo">Consumos</option>
         <option value="devolucion">Devoluciones</option>
@@ -885,6 +895,149 @@ function abrirEntradaNueva(){
 function existenciaVistaPorId(id){
   return ZX_AL_STOCK.find(x=>String(x.existencia_id)===String(id));
 }
+
+function renderInventario(){
+  const content=document.getElementById("zx_al_content");
+  const ubicaciones=ZX_AL_UBICACIONES.map(u=>`<option value="${limpiar(u.id)}">${limpiar(u.nombre)}</option>`).join("");
+  content.innerHTML=`
+    <div class="zx_al_inventory_intro">
+      Recuento guiado: selecciona una ubicación, cuenta el material físico y registra únicamente las diferencias. Cada corrección queda guardada en Movimientos.
+    </div>
+    <section class="zx_al_tools">
+      <input id="zx_al_search" type="search" placeholder="Buscar material o ubicación">
+      <select id="zx_al_location"><option value="">Todas las ubicaciones</option>${ubicaciones}</select>
+      <select id="zx_al_filter">
+        <option value="">Todo el inventario</option>
+        <option value="pending">Pendientes de contar</option>
+        <option value="difference">Con diferencia</option>
+      </select>
+      <button id="zx_al_clear">Limpiar</button>
+    </section>
+    <section class="zx_al_list" id="zx_al_inventory_list"></section>
+  `;
+
+  const pintar=()=>{
+    const q=normalizar(document.getElementById("zx_al_search").value);
+    const ubicacion=document.getElementById("zx_al_location").value;
+    const lista=ZX_AL_STOCK.filter(x=>{
+      const texto=normalizar([x.material,x.ubicacion,x.ubicacion_interna,x.referencia].join(" "));
+      return (!q||texto.includes(q)) && (!ubicacion||String(x.ubicacion_id)===String(ubicacion));
+    });
+    const box=document.getElementById("zx_al_inventory_list");
+    if(!lista.length){
+      box.innerHTML=`<div class="zx_al_empty">No hay existencias que coincidan.</div>`;
+      return;
+    }
+    box.innerHTML=lista.map(x=>`
+      <article class="zx_al_inventory_row">
+        <div class="zx_al_inventory_main">
+          <div>
+            <h3>${limpiar(x.material)}</h3>
+            <p>${limpiar(x.ubicacion)}${x.ubicacion_interna?" · "+limpiar(x.ubicacion_interna):""}</p>
+          </div>
+          <div class="zx_al_inventory_expected">
+            <small>Esperado</small>
+            <b>${formatoNumero(x.stock_fisico)} ${limpiar(x.unidad||"ud")}</b>
+          </div>
+        </div>
+        <button class="zx_al_inventory_btn" data-inventory-count="${limpiar(x.existencia_id)}">Contar material</button>
+      </article>
+    `).join("");
+    box.querySelectorAll("[data-inventory-count]").forEach(btn=>{
+      btn.onclick=()=>abrirRecuentoInventario(btn.dataset.inventoryCount);
+    });
+  };
+
+  document.getElementById("zx_al_search").oninput=pintar;
+  document.getElementById("zx_al_location").onchange=pintar;
+  document.getElementById("zx_al_filter").onchange=pintar;
+  document.getElementById("zx_al_clear").onclick=()=>{
+    document.getElementById("zx_al_search").value="";
+    document.getElementById("zx_al_location").value="";
+    document.getElementById("zx_al_filter").value="";
+    pintar();
+  };
+  pintar();
+}
+
+function abrirRecuentoInventario(existenciaId){
+  const vista=existenciaVistaPorId(existenciaId);
+  if(!vista) return;
+  const esperado=numero(vista.stock_fisico);
+  modal(`<h2>Recuento de inventario</h2><div class="zx_al_form">
+    <div class="zx_al_modal_summary">
+      <strong>${limpiar(vista.material)}</strong>
+      <span>${limpiar(vista.ubicacion)}${vista.ubicacion_interna?" · "+limpiar(vista.ubicacion_interna):""}</span>
+      <span>Stock esperado: ${formatoNumero(esperado)} ${limpiar(vista.unidad||"ud")}</span>
+    </div>
+    <label>Cantidad física contada
+      <input id="al_inventory_real" type="number" min="0" step="0.001" inputmode="decimal" value="${limpiar(esperado)}">
+    </label>
+    <div id="al_inventory_difference" class="zx_al_difference ok">Sin diferencia</div>
+    <label>Observaciones
+      <textarea id="al_inventory_notes" rows="3" placeholder="Rotura, pérdida, material localizado..."></textarea>
+    </label>
+    <button class="zx_al_full_btn zx_al_save" id="al_inventory_save">Guardar recuento</button>
+    <button class="zx_al_full_btn zx_al_cancel" id="al_inventory_cancel">Cancelar</button>
+  </div>`);
+
+  const input=document.getElementById("al_inventory_real");
+  const diferencia=document.getElementById("al_inventory_difference");
+  const actualizarDiferencia=()=>{
+    const real=numero(input.value);
+    const dif=real-esperado;
+    diferencia.className="zx_al_difference "+(dif===0?"ok":Math.abs(dif)<=1?"warn":"bad");
+    diferencia.textContent=dif===0
+      ?"Sin diferencia"
+      :`${dif>0?"+":""}${formatoNumero(dif)} ${vista.unidad||"ud"} respecto al sistema`;
+  };
+  input.oninput=actualizarDiferencia;
+  input.focus();
+  input.select();
+
+  document.getElementById("al_inventory_cancel").onclick=cerrarModal;
+  document.getElementById("al_inventory_save").onclick=async function(){
+    const real=numero(input.value);
+    if(real<0){alert("La cantidad no puede ser negativa.");return}
+    const diferenciaValor=real-esperado;
+    const notas=document.getElementById("al_inventory_notes").value.trim();
+    this.disabled=true;
+    try{
+      if(diferenciaValor!==0){
+        await actualizarExistencia(vista.material_id,vista.ubicacion_id,real);
+        await insertarMovimiento({
+          material_id:vista.material_id,
+          tipo:"ajuste",
+          cantidad:Math.abs(diferenciaValor),
+          ubicacion_origen_id:vista.ubicacion_id,
+          ubicacion_destino_id:vista.ubicacion_id,
+          stock_origen_anterior:esperado,
+          stock_origen_nuevo:real,
+          motivo:`Inventario${notas?" · "+notas:""}`
+        });
+      }else{
+        await insertarMovimiento({
+          material_id:vista.material_id,
+          tipo:"inventario",
+          cantidad:0.001,
+          ubicacion_origen_id:vista.ubicacion_id,
+          ubicacion_destino_id:vista.ubicacion_id,
+          stock_origen_anterior:esperado,
+          stock_origen_nuevo:real,
+          motivo:`Inventario correcto${notas?" · "+notas:""}`
+        });
+      }
+      cerrarModal();
+      await recargar();
+      ZX_AL_TAB="inventario";
+      render();
+    }catch(e){
+      this.disabled=false;
+      alert("No se pudo guardar el recuento.\n\n"+mensajeError(e));
+    }
+  };
+}
+
 function abrirMovimientoExistencia(existenciaId,tipo){
   const vista=existenciaVistaPorId(existenciaId);
   if(!vista) return;
@@ -1128,7 +1281,8 @@ function textoMovimientoReserva(tipo){
     preparacion:"Material preparado",
     consumo:"Consumo registrado",
     devolucion:"Devolución registrada",
-    liberacion_reserva:"Reserva cancelada"
+    liberacion_reserva:"Reserva cancelada",
+    inventario:"Inventario verificado"
   };
   return mapa[String(tipo||"")] || String(tipo||"Movimiento");
 }
