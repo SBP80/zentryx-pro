@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - STORE CORE
-// V3106
+// V3107 - ALMACEN REGISTRADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3106";
+const ZX_VERSION="3107";
 const STORAGE_KEY="zentryx_state";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
@@ -32,6 +32,7 @@ const DEFAULT_STATE={
     agenda:true,
     clientes:true,
     trabajos:true,
+    almacen:true,
     usuarios:true,
     vehiculos:true,
     horas_extra:true,
