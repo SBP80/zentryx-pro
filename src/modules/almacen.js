@@ -1,12 +1,12 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
-// V1009 - CIERRE VISUAL Y DATOS DE INVENTARIO
+// V1010 - CURSOR NATURAL EN RECUENTO IPHONE
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1009";
+const ZX_VERSION="1010";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
@@ -1075,8 +1075,19 @@ function abrirRecuentoInventario(existenciaId){
   const contado=document.getElementById("al_inventory_counted");
   const delta=document.getElementById("al_inventory_delta");
 
+  const guardarBtn=document.getElementById("al_inventory_save");
   const actualizarDiferencia=()=>{
-    const real=numero(input.value);
+    const texto=String(input.value??"").trim();
+    const valido=texto!=="" && Number.isFinite(Number(texto)) && Number(texto)>=0;
+    guardarBtn.disabled=!valido;
+    if(!valido){
+      contado.textContent=`— ${vista.unidad||"ud"}`;
+      delta.textContent=`— ${vista.unidad||"ud"}`;
+      diferencia.className="zx_al_difference warn";
+      diferencia.textContent="Introduce una cantidad válida";
+      return;
+    }
+    const real=Number(texto);
     const dif=real-esperado;
     contado.textContent=`${formatoNumero(real)} ${vista.unidad||"ud"}`;
     delta.textContent=`${dif>0?"+":""}${formatoNumero(dif)} ${vista.unidad||"ud"}`;
@@ -1087,14 +1098,16 @@ function abrirRecuentoInventario(existenciaId){
   };
 
   input.oninput=actualizarDiferencia;
+  actualizarDiferencia();
   setTimeout(()=>{
     input.focus({preventScroll:false});
-    input.select();
+    const pos=String(input.value||"").length;
+    try{ input.setSelectionRange(pos,pos); }catch(_e){}
     input.scrollIntoView({block:"center",behavior:"smooth"});
   },80);
 
   document.getElementById("al_inventory_cancel").onclick=cerrarModal;
-  document.getElementById("al_inventory_save").onclick=async function(){
+  guardarBtn.onclick=async function(){
     const real=numero(input.value);
     if(real<0){alert("La cantidad no puede ser negativa.");return}
 
