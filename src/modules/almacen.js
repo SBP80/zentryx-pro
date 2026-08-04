@@ -1,12 +1,12 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
-// V1005 - RESERVAS ACTIVAS, HISTORIAL Y AJUSTES IPHONE
+// V1006 - COLAS DE RESERVAS Y CANTIDADES OPERATIVAS
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1005";
+const ZX_VERSION="1006";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
@@ -18,7 +18,7 @@ const T_MOVIMIENTOS="almacen_movimientos";
 const V_STOCK="almacen_stock_disponible";
 
 let ZX_AL_TAB="stock";
-let ZX_AL_FILTRO_RESERVAS="activas";
+let ZX_AL_FILTRO_RESERVAS="pendientes";
 let ZX_AL_MATERIALES=[];
 let ZX_AL_CATALOGO=[];
 let ZX_AL_TRABAJOS_MATERIALES=[];
@@ -587,16 +587,11 @@ function renderReservas(){
     <section class="zx_al_tools">
       <input id="zx_al_search" type="search" placeholder="Buscar trabajo o material">
       <select id="zx_al_filter">
-        <option value="activas">Reservas activas</option>
-        <option value="">Todas</option>
-        <option value="reservado">Reservado</option>
-        <option value="preparacion_parcial">Preparación parcial</option>
-        <option value="preparado">Preparado</option>
-        <option value="uso_parcial">Uso parcial</option>
+        <option value="pendientes">Pendientes de preparar</option>
+        <option value="preparadas">Preparadas</option>
+        <option value="ejecucion">En ejecución</option>
         <option value="finalizadas">Finalizadas</option>
-        <option value="utilizado">Utilizadas</option>
-        <option value="devuelto">Devueltas</option>
-        <option value="cancelado">Canceladas</option>
+        <option value="">Todas</option>
       </select>
       <select id="zx_al_location"><option value="">Todas las ubicaciones</option>${ubicaciones}</select>
       <button id="zx_al_clear">Limpiar</button>
@@ -617,8 +612,8 @@ function renderReservas(){
   });
   document.getElementById("zx_al_clear").onclick=function(){
     document.getElementById("zx_al_search").value="";
-    ZX_AL_FILTRO_RESERVAS="activas";
-    document.getElementById("zx_al_filter").value="activas";
+    ZX_AL_FILTRO_RESERVAS="pendientes";
+    document.getElementById("zx_al_filter").value="pendientes";
     document.getElementById("zx_al_location").value="";
     pintarReservas();
   };
@@ -645,12 +640,14 @@ function pintarReservas(){
     const mat=materialPorId(r.material_id);
     const trabajo=trabajoPorId(r.trabajo_id);
     const texto=normalizar([mat?.nombre,trabajo?.titulo,trabajo?.cliente,r.notas].filter(Boolean).join(" "));
-    const esFinalizada=["utilizado","devuelto","cancelado"].includes(String(r.estado||""));
+    const estadoActual=String(r.estado||"reservado");
+    const esFinalizada=["utilizado","devuelto","cancelado"].includes(estadoActual);
     const coincideEstado=
       !estado ||
-      (estado==="activas" && !esFinalizada) ||
-      (estado==="finalizadas" && esFinalizada) ||
-      r.estado===estado;
+      (estado==="pendientes" && ["reservado","preparacion_parcial"].includes(estadoActual)) ||
+      (estado==="preparadas" && estadoActual==="preparado") ||
+      (estado==="ejecucion" && estadoActual==="uso_parcial") ||
+      (estado==="finalizadas" && esFinalizada);
     return (!q||texto.includes(q)) && coincideEstado && (!ubicacion||String(r.ubicacion_id)===ubicacion);
   });
 
@@ -665,16 +662,16 @@ function pintarReservas(){
     const trabajo=trabajoPorId(r.trabajo_id);
     const ubi=ubicacionPorId(r.ubicacion_id);
     const restante=Math.max(0,numero(r.cantidad_reservada)-numero(r.cantidad_utilizada)-numero(r.cantidad_devuelta));
-    const clase=["utilizado","devuelto"].includes(r.estado)?"ok":["uso_parcial","preparacion_parcial"].includes(r.estado)?"warn":"info";
+    const clase=["utilizado","devuelto"].includes(r.estado)?"ok":["uso_parcial","preparacion_parcial"].includes(r.estado)?"warn":r.estado==="cancelado"?"danger":"info";
     return `<article class="zx_al_row">
       <div class="zx_al_row_head">
         <div><b>${limpiar(mat?.nombre || "Material")}</b><div class="zx_al_row_meta">${limpiar(trabajo?.titulo || "Trabajo")} · ${limpiar(ubi?.nombre || "Sin ubicación")}</div></div>
         <span class="zx_al_badge ${clase}">${limpiar(estadoReservaTexto(r.estado))}</span>
       </div>
       <div class="zx_al_stock">
-        <span><small>Reservado</small><b>${formatoNumero(r.cantidad_reservada)} ${limpiar(mat?.unidad||"ud")}</b></span>
-        <span><small>Utilizado</small><b>${formatoNumero(r.cantidad_utilizada)} ${limpiar(mat?.unidad||"ud")}</b></span>
-        <span><small>Restante</small><b>${formatoNumero(restante)} ${limpiar(mat?.unidad||"ud")}</b></span>
+        <span><small>Pendiente</small><b>${formatoNumero(restante)} ${limpiar(mat?.unidad||"ud")}</b></span>
+        <span><small>Consumido</small><b>${formatoNumero(r.cantidad_utilizada)} ${limpiar(mat?.unidad||"ud")}</b></span>
+        <span><small>Total reservado</small><b>${formatoNumero(r.cantidad_reservada)} ${limpiar(mat?.unidad||"ud")}</b></span>
       </div>
       ${puedeGestionarStock()?`<div class="zx_al_row_actions">
         <button class="zx_al_opt" data-res-options="${limpiar(r.id)}">••• Gestionar reserva</button>
@@ -1161,7 +1158,7 @@ function abrirOpcionesReserva(id){
       <span>${limpiar(trabajo?.titulo||"Trabajo")}</span>
       <span>Ubicación: ${limpiar(ubi?.nombre||"Sin ubicación")}${existencia?.ubicacion_interna?" · "+limpiar(existencia.ubicacion_interna):""}</span>
       <span>Estado: ${limpiar(estadoReservaTexto(r.estado))}</span>
-      <span>Reservado ${formatoNumero(r.cantidad_reservada)} · Utilizado ${formatoNumero(r.cantidad_utilizada)} · Restante ${formatoNumero(restante)} ${limpiar(mat?.unidad||"ud")}</span>
+      <span>Pendiente ${formatoNumero(restante)} · Consumido ${formatoNumero(r.cantidad_utilizada)} · Total reservado ${formatoNumero(r.cantidad_reservada)} ${limpiar(mat?.unidad||"ud")}</span>
       ${r.reservado_por?`<span>Reservado por ${limpiar(r.reservado_por)}${r.reservado_at?" · "+limpiar(fechaHora(r.reservado_at)):""}</span>`:""}
       ${r.notas?`<span>Notas: ${limpiar(r.notas)}</span>`:""}
     </div>
