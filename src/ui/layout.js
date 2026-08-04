@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3147 - MODULO ALMACEN DEFINITIVO
+// V3148 - ALMACEN EN MENU Y FAVORITOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3147";
+const ZX_VERSION="3148";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
