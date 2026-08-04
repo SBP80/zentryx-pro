@@ -1,12 +1,12 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
-// V1001 - STOCK POR UBICACIÓN, RESERVAS Y MOVIMIENTOS
+// V1002 - REGISTRO NATIVO DEL MODULO
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1001";
+const ZX_VERSION="1002";
 
 const T_MATERIALES="materiales";
 const T_UBICACIONES="almacen_ubicaciones";
@@ -1092,6 +1092,14 @@ window.ZX_almacen=async function(){
   }
 };
 window.ZX_abrirAlmacen=window.ZX_almacen;
+
+if(window.ZENTRYX && typeof window.ZENTRYX.registrarModulo==="function"){
+  window.ZENTRYX.registrarModulo("almacen",{
+    nombre:"Almacén",
+    activo:true,
+    version:ZX_VERSION
+  });
+}
 
 console.log("ZENTRYX almacen.js V"+ZX_VERSION+" cargado");
 })();
