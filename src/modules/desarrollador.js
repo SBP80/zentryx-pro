@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - PANEL DESARROLLADOR
-// V3123 - PANEL DEV AMPLIADO
+// V3124 - ALMACEN REGISTRADO
 // ===============================
 (function(){
 "use strict";
@@ -296,6 +296,7 @@ function renderAccesos(){
     ["Agenda","ZX_abrirAgenda"],
     ["Clientes","ZX_abrirClientes"],
     ["Trabajos","ZX_abrirTrabajos"],
+    ["Almacén","ZX_abrirAlmacen"],
     ["Usuarios","ZX_usuarios"],
     ["Horas","ZX_abrirHorasExtra"],
     ["Control","ZX_abrirControlFichajes"],
@@ -314,13 +315,14 @@ function renderAccesos(){
 }
 
 function modulos(){
-  const nombres=["inicio","fichaje","agenda","clientes","trabajos","usuarios","horas_extra","control_fichajes","vehiculos","configuracion","desarrollador"];
+  const nombres=["inicio","fichaje","agenda","clientes","trabajos","almacen","usuarios","horas_extra","control_fichajes","vehiculos","configuracion","desarrollador"];
   const funciones={
     inicio:"ZENTRYX_UI_inicio",
     fichaje:"ZX_fichaje_real",
     agenda:"ZX_agenda",
     clientes:"ZX_clientes",
     trabajos:"ZX_trabajos",
+    almacen:"ZX_almacen",
     usuarios:"ZENTRYX_UI_usuarios",
     horas_extra:"ZX_horas_extra",
     control_fichajes:"ZX_control_fichajes",
