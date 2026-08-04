@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3146 - ROUTER ESTABLE Y NAVEGACION SIN DUPLICADOS
+// V3147 - MODULO ALMACEN DEFINITIVO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3146";
+const ZX_VERSION="3147";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -2322,6 +2322,7 @@ const MODULOS=[
   {id:"agenda",texto:"Agenda",icono:"📅",color:"#7c3aed",bg:"#f3e8ff",admin:false},
   {id:"clientes",texto:"Clientes",icono:"👥",color:"#f97316",bg:"#ffedd5",admin:false},
   {id:"trabajos",texto:"Trabajos",icono:"🛠️",color:"#2563eb",bg:"#dbeafe",admin:false},
+  {id:"almacen",texto:"Almacén",icono:"📦",color:"#0f766e",bg:"#ccfbf1",admin:true},
   {id:"usuarios",texto:"Usuarios",icono:"👤",color:"#0891b2",bg:"#cffafe",admin:true},
   {id:"horas_extra",texto:"Horas",icono:"➕",color:"#f59e0b",bg:"#fef3c7",admin:true},
   {id:"control_fichajes",texto:"Control",icono:"✅",color:"#22c55e",bg:"#dcfce7",admin:true},
@@ -3333,6 +3334,7 @@ function zxRouterEjecutarModulo(id){
     agenda:window.ZX_abrirAgenda,
     clientes:window.ZX_abrirClientes,
     trabajos:window.ZX_abrirTrabajos,
+    almacen:window.ZX_abrirAlmacen || window.ZX_almacen,
     usuarios:window.ZX_usuarios,
     horas_extra:window.ZX_abrirHorasExtra,
     control_fichajes:window.ZX_abrirControlFichajes,
@@ -3660,6 +3662,7 @@ function instalarRutas(){
   const modAgenda=window.ZX_agenda;
   const modClientes=window.ZX_clientes;
   const modTrabajos=window.ZX_trabajos;
+  const modAlmacen=window.ZX_almacen;
   const modUsuarios=window.ZENTRYX_UI_usuarios || window.ZX_usuarios;
   const modHoras=window.ZX_horas_extra || window.ZENTRYX_UI_horas_extra;
   const modControl=window.ZX_control_fichajes || window.ZX_controlFichajes;
@@ -3699,6 +3702,13 @@ function instalarRutas(){
     abrirModulo("trabajos",function(){
       if(typeof modTrabajos==="function"){modTrabajos();return}
       app().innerHTML=`<div class="zx_card"><h2>Trabajos</h2><div class="zx_text">No se ha cargado trabajos.js.</div></div>`;
+    });
+  };
+
+  window.ZX_abrirAlmacen=function(){
+    abrirModulo("almacen",function(){
+      if(typeof modAlmacen==="function"){modAlmacen();return}
+      app().innerHTML=`<div class="zx_card"><h2>Almacén</h2><div class="zx_text">No se ha cargado almacen.js.</div></div>`;
     });
   };
 
