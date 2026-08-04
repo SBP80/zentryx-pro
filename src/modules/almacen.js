@@ -1,12 +1,12 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
-// V1004 - BUSQUEDA EN CATALOGO, BIBLIOTECA Y MATERIALES DE TRABAJOS
+// V1005 - RESERVAS ACTIVAS, HISTORIAL Y AJUSTES IPHONE
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1004";
+const ZX_VERSION="1005";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
@@ -18,6 +18,7 @@ const T_MOVIMIENTOS="almacen_movimientos";
 const V_STOCK="almacen_stock_disponible";
 
 let ZX_AL_TAB="stock";
+let ZX_AL_FILTRO_RESERVAS="activas";
 let ZX_AL_MATERIALES=[];
 let ZX_AL_CATALOGO=[];
 let ZX_AL_TRABAJOS_MATERIALES=[];
@@ -135,7 +136,7 @@ function instalarCSS(){
     .zx_al_stat{border:1px solid #dbe4ef;border-radius:17px;padding:14px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.045)}
     .zx_al_stat small{display:block;color:#64748b;font-weight:800}.zx_al_stat b{display:block;margin-top:4px;font-size:23px;color:#071330}
     .zx_al_tools{display:grid;grid-template-columns:minmax(230px,1.35fr) minmax(165px,.75fr) minmax(165px,.75fr) auto;gap:8px;margin-bottom:14px}
-    .zx_al_tools input,.zx_al_tools select{height:45px;border:1px solid #cbd5e1;border-radius:13px;padding:0 12px;background:#fff;color:#0f172a;font-weight:800}
+    .zx_al_tools input,.zx_al_tools select{height:45px;border:1px solid #cbd5e1;border-radius:13px;padding:0 12px;background:#fff;color:#0f172a;font-weight:800;font-size:16px}
     .zx_al_tools button{border:1px solid #bfdbfe;border-radius:13px;background:#eff6ff;color:#1d4ed8;font-weight:900}
     .zx_al_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .zx_al_card{border:1px solid #dbe4ef;border-radius:18px;padding:14px;background:#fff;display:grid;gap:11px;box-shadow:0 3px 12px rgba(15,23,42,.035)}
@@ -161,7 +162,7 @@ function instalarCSS(){
     .zx_al_modal_box{width:min(680px,100%);max-height:94dvh;overflow:auto;border-radius:20px;padding:20px;background:#fff;box-shadow:0 25px 70px rgba(15,23,42,.25)}
     .zx_al_modal_box h2{margin:0 0 14px;color:#071330}.zx_al_form{display:grid;gap:11px}
     .zx_al_form label{display:grid;gap:5px;color:#334155;font-weight:850;font-size:12px}
-    .zx_al_form input,.zx_al_form select,.zx_al_form textarea{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:12px;padding:12px;background:#fff;font:inherit}
+    .zx_al_form input,.zx_al_form select,.zx_al_form textarea{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:12px;padding:12px;background:#fff;font:inherit;font-size:16px}
     .zx_al_form2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .zx_al_modal_summary{display:grid;gap:5px;border:1px solid #dbe4ef;border-radius:14px;padding:12px;background:#f8fafc;color:#334155}
     .zx_al_modal_summary strong{font-size:17px;color:#071330}
@@ -176,7 +177,7 @@ function instalarCSS(){
     .zx_al_full_btn{width:100%;border-radius:13px;padding:12px;font-weight:950;margin-top:7px}
     .zx_al_save{background:#16a34a;color:#fff;border:0}.zx_al_cancel{background:#f1f5f9;color:#334155;border:0}
     .zx_al_danger{background:#fff1f2;color:#be123c;border:1px solid #fecdd3}
-    .zx_al_history{display:grid;gap:8px}.zx_al_move{border:1px solid #e2e8f0;border-radius:13px;padding:11px;background:#f8fafc}
+    .zx_al_history{display:grid;gap:8px}.zx_al_res_history{display:grid;gap:8px;margin-top:4px}.zx_al_res_history h3{margin:4px 0 0;color:#071330;font-size:15px}.zx_al_res_event{border:1px solid #e2e8f0;border-radius:12px;padding:10px;background:#fff}.zx_al_res_event b{display:block;color:#071330}.zx_al_res_event small{display:block;margin-top:3px;color:#64748b;font-weight:750}.zx_al_move{border:1px solid #e2e8f0;border-radius:13px;padding:11px;background:#f8fafc}
     .zx_al_move b{display:block;color:#071330}.zx_al_move small{color:#64748b;font-weight:750}
     @media(max-width:840px){.zx_al_summary{grid-template-columns:1fr 1fr}.zx_al_grid{grid-template-columns:1fr}.zx_al_tools{grid-template-columns:1fr 1fr}}
     @media(max-width:540px){.zx_al_head{align-items:stretch;flex-direction:column}.zx_al_head_actions{display:grid;grid-template-columns:1fr 1fr}.zx_al_summary,.zx_al_tools,.zx_al_form2{grid-template-columns:1fr}.zx_al_actions{grid-template-columns:1fr}.zx_al_stock{grid-template-columns:1fr 1fr 1fr}}
@@ -560,7 +561,7 @@ function pintarStock(){
           <h3>${limpiar(x.material)}</h3>
           <div class="zx_al_meta">${limpiar([x.referencia,x.ubicacion,x.ubicacion_interna].filter(Boolean).join(" · "))}</div>
         </div>
-        <em>${limpiar(x.tipo_ubicacion || "almacén")}</em>
+        <em>${limpiar(({almacen:"Almacén",vehiculo:"Vehículo",obra:"Obra",otro:"Otro"})[x.tipo_ubicacion] || x.tipo_ubicacion || "Almacén")}</em>
       </div>
       <div class="zx_al_stock">
         <span><small>Físico</small><b>${formatoNumero(x.stock_fisico)} ${limpiar(x.unidad||"ud")}</b></span>
@@ -586,13 +587,16 @@ function renderReservas(){
     <section class="zx_al_tools">
       <input id="zx_al_search" type="search" placeholder="Buscar trabajo o material">
       <select id="zx_al_filter">
-        <option value="">Todos los estados</option>
+        <option value="activas">Reservas activas</option>
+        <option value="">Todas</option>
         <option value="reservado">Reservado</option>
         <option value="preparacion_parcial">Preparación parcial</option>
         <option value="preparado">Preparado</option>
         <option value="uso_parcial">Uso parcial</option>
-        <option value="utilizado">Utilizado</option>
-        <option value="devuelto">Devuelto</option>
+        <option value="finalizadas">Finalizadas</option>
+        <option value="utilizado">Utilizadas</option>
+        <option value="devuelto">Devueltas</option>
+        <option value="cancelado">Canceladas</option>
       </select>
       <select id="zx_al_location"><option value="">Todas las ubicaciones</option>${ubicaciones}</select>
       <button id="zx_al_clear">Limpiar</button>
@@ -602,13 +606,19 @@ function renderReservas(){
 
   const nueva=document.getElementById("zx_al_new_reservation");
   if(nueva) nueva.onclick=abrirNuevaReserva;
+  const filtroReservas=document.getElementById("zx_al_filter");
+  if(filtroReservas) filtroReservas.value=ZX_AL_FILTRO_RESERVAS;
   ["zx_al_search","zx_al_filter","zx_al_location"].forEach(id=>{
     const el=document.getElementById(id);
-    el[id==="zx_al_search"?"oninput":"onchange"]=pintarReservas;
+    el[id==="zx_al_search"?"oninput":"onchange"]=function(){
+      if(id==="zx_al_filter") ZX_AL_FILTRO_RESERVAS=this.value;
+      pintarReservas();
+    };
   });
   document.getElementById("zx_al_clear").onclick=function(){
     document.getElementById("zx_al_search").value="";
-    document.getElementById("zx_al_filter").value="";
+    ZX_AL_FILTRO_RESERVAS="activas";
+    document.getElementById("zx_al_filter").value="activas";
     document.getElementById("zx_al_location").value="";
     pintarReservas();
   };
@@ -620,7 +630,7 @@ function estadoReservaTexto(estado){
     preparacion_parcial:"Preparación parcial",
     preparado:"Preparado",
     uso_parcial:"Uso parcial",
-    utilizado:"Utilizado",
+    utilizado:"Finalizada",
     devuelto:"Devuelto",
     cancelado:"Cancelado"
   };
@@ -635,7 +645,13 @@ function pintarReservas(){
     const mat=materialPorId(r.material_id);
     const trabajo=trabajoPorId(r.trabajo_id);
     const texto=normalizar([mat?.nombre,trabajo?.titulo,trabajo?.cliente,r.notas].filter(Boolean).join(" "));
-    return (!q||texto.includes(q)) && (!estado||r.estado===estado) && (!ubicacion||String(r.ubicacion_id)===ubicacion);
+    const esFinalizada=["utilizado","devuelto","cancelado"].includes(String(r.estado||""));
+    const coincideEstado=
+      !estado ||
+      (estado==="activas" && !esFinalizada) ||
+      (estado==="finalizadas" && esFinalizada) ||
+      r.estado===estado;
+    return (!q||texto.includes(q)) && coincideEstado && (!ubicacion||String(r.ubicacion_id)===ubicacion);
   });
 
   const box=document.getElementById("zx_al_reservations_list");
@@ -758,6 +774,7 @@ function renderUbicaciones(){
 }
 async function recargar(){
   await cargarTodo();
+  await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
   render();
 }
 function opcionesMateriales(selected=""){
@@ -1103,22 +1120,59 @@ function abrirNuevaReserva(){
 function reservaPorId(id){
   return ZX_AL_RESERVAS.find(x=>String(x.id)===String(id));
 }
+function movimientosReserva(id){
+  return ZX_AL_MOVIMIENTOS
+    .filter(m=>String(m.reserva_id||"")===String(id))
+    .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+}
+function textoMovimientoReserva(tipo){
+  const mapa={
+    reserva:"Reserva creada",
+    preparacion:"Material preparado",
+    consumo:"Consumo registrado",
+    devolucion:"Devolución registrada",
+    liberacion_reserva:"Reserva cancelada"
+  };
+  return mapa[String(tipo||"")] || String(tipo||"Movimiento");
+}
 function abrirOpcionesReserva(id){
   const r=reservaPorId(id);
   if(!r) return;
   const mat=materialPorId(r.material_id);
   const trabajo=trabajoPorId(r.trabajo_id);
+  const ubi=ubicacionPorId(r.ubicacion_id);
+  const existencia=ZX_AL_STOCK.find(x=>
+    String(x.material_id)===String(r.material_id) &&
+    String(x.ubicacion_id)===String(r.ubicacion_id)
+  );
   const restante=Math.max(0,numero(r.cantidad_reservada)-numero(r.cantidad_utilizada)-numero(r.cantidad_devuelta));
+  const historial=movimientosReserva(r.id);
+  const historialHtml=historial.length
+    ? historial.map(m=>`<div class="zx_al_res_event">
+        <b>${limpiar(textoMovimientoReserva(m.tipo))} · ${formatoNumero(m.cantidad)} ${limpiar(mat?.unidad||"ud")}</b>
+        <small>${limpiar(fechaHora(m.created_at))}${m.usuario_nombre?" · "+limpiar(m.usuario_nombre):""}</small>
+        ${m.motivo?`<small>${limpiar(m.motivo)}</small>`:""}
+      </div>`).join("")
+    : `<div class="zx_al_res_event"><small>Sin operaciones registradas.</small></div>`;
+
   modal(`<h2>Gestionar reserva</h2><div class="zx_al_form">
     <div class="zx_al_modal_summary">
       <strong>${limpiar(mat?.nombre||"Material")}</strong>
       <span>${limpiar(trabajo?.titulo||"Trabajo")}</span>
+      <span>Ubicación: ${limpiar(ubi?.nombre||"Sin ubicación")}${existencia?.ubicacion_interna?" · "+limpiar(existencia.ubicacion_interna):""}</span>
+      <span>Estado: ${limpiar(estadoReservaTexto(r.estado))}</span>
       <span>Reservado ${formatoNumero(r.cantidad_reservada)} · Utilizado ${formatoNumero(r.cantidad_utilizada)} · Restante ${formatoNumero(restante)} ${limpiar(mat?.unidad||"ud")}</span>
+      ${r.reservado_por?`<span>Reservado por ${limpiar(r.reservado_por)}${r.reservado_at?" · "+limpiar(fechaHora(r.reservado_at)):""}</span>`:""}
+      ${r.notas?`<span>Notas: ${limpiar(r.notas)}</span>`:""}
     </div>
     ${restante>0?`<button class="zx_al_full_btn zx_al_btn_secondary" id="al_prepare">📦 Registrar preparación</button>`:""}
     ${restante>0?`<button class="zx_al_full_btn zx_al_btn_secondary" id="al_consume">🔧 Registrar consumo</button>`:""}
     ${numero(r.cantidad_preparada)>numero(r.cantidad_utilizada)?`<button class="zx_al_full_btn zx_al_btn_secondary" id="al_return">↩ Registrar devolución</button>`:""}
     ${!["utilizado","devuelto","cancelado"].includes(r.estado)?`<button class="zx_al_full_btn zx_al_danger" id="al_cancel_res">Cancelar reserva</button>`:""}
+    <section class="zx_al_res_history">
+      <h3>Historial de la reserva</h3>
+      ${historialHtml}
+    </section>
     <button class="zx_al_full_btn zx_al_cancel" id="al_close">Cerrar</button>
   </div>`);
   document.getElementById("al_close").onclick=cerrarModal;
