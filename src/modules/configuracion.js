@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AJUSTES
-// V3114 - CENTRO DE AJUSTES RESPONSIVE
+// V3115 - ALMACEN EN MODULOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3114";
+const ZX_VERSION="3115";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
 const CONFIG_KEY="zentryx_config";
@@ -58,6 +58,7 @@ function configBase(){
       agenda:true,
       clientes:true,
       trabajos:true,
+      almacen:true,
       usuarios:true,
       vehiculos:true,
       horas_extra:true,
@@ -271,6 +272,7 @@ function seccionModulos(cfg){
     agenda:"Agenda",
     clientes:"Clientes",
     trabajos:"Trabajos",
+    almacen:"Almacén",
     usuarios:"Usuarios",
     vehiculos:"Vehículos",
     horas_extra:"Horas",
