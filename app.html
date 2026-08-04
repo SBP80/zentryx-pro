@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V3244</title>
+<title>Zentryx PRO V3245</title>
 
 <link rel="manifest" href="manifest.json?v=3191">
 <meta name="theme-color" content="#2563eb">
@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3244";
+window.ZX_VERSION="3245";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -20,22 +20,18 @@ window.ZX_VERSION="3244";
 <script>
 (function(){
 "use strict";
-
 if(!window.supabase || typeof window.supabase.createClient!=="function"){
   document.documentElement.setAttribute("data-zx-startup-error","supabase");
   return;
 }
-
 window.sb=window.supabase.createClient(
   "https://idtaamivqbiuxtjywuux.supabase.co",
   "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
 );
-
 window.supabaseClient=window.sb;
 })();
 </script>
 </head>
-
 <body>
 
 <div id="app"></div>
@@ -57,6 +53,7 @@ window.supabaseClient=window.sb;
 <script src="src/modules/fichaje.js?v=3153"></script>
 <script src="src/modules/horas_extra.js?v=3153"></script>
 <script src="src/modules/desarrollador.js?v=3153"></script>
+<script src="src/modules/desarrollador_patch.js?v=1001&build=20260805a"></script>
 <script src="src/modules/agenda.js?v=3155&build=20260803c"></script>
 <script src="src/modules/clientes.js?v=3110"></script>
 <script src="src/modules/trabajos.js?v=3205&build=20260804e"></script>
@@ -68,13 +65,11 @@ window.supabaseClient=window.sb;
 <script>
 (function(){
 "use strict";
-
 let iniciado=false;
 
 function mostrarErrorArranque(){
   const app=document.getElementById("app");
   if(!app) return;
-
   app.innerHTML=""+
     "<main style='min-height:100vh;display:grid;place-items:center;padding:24px;font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;color:#0f172a'>"+
       "<section style='width:min(430px,100%);padding:24px;border:1px solid #e2e8f0;border-radius:18px;background:white;box-shadow:0 12px 35px rgba(15,23,42,.08);text-align:center'>"+
@@ -87,32 +82,21 @@ function mostrarErrorArranque(){
 
 function iniciar(){
   if(iniciado) return;
-
   if(typeof window.ZENTRYX_sessionValid!=="function" || !window.ZENTRYX_sessionValid()){
-    if(typeof window.ZENTRYX_logout==="function"){
-      window.ZENTRYX_logout();
-    }else{
-      location.replace("index.html?v="+window.ZX_VERSION);
-    }
+    if(typeof window.ZENTRYX_logout==="function") window.ZENTRYX_logout();
+    else location.replace("index.html?v="+window.ZX_VERSION);
     return;
   }
-
   if(!window.sb || !window.ZENTRYX_UI_LAYOUT || typeof window.ZENTRYX_UI_LAYOUT.iniciar!=="function"){
     mostrarErrorArranque();
     return;
   }
-
   iniciado=true;
   window.ZENTRYX_UI_LAYOUT.iniciar();
-
-  if(typeof window.ZX_inicio==="function"){
-    window.ZX_inicio();
-  }
-
+  if(typeof window.ZX_inicio==="function") window.ZX_inicio();
   if(window.ZENTRYX && typeof window.ZENTRYX.actualizarEstadoConexion==="function"){
     window.ZENTRYX.actualizarEstadoConexion();
   }
-
   if(typeof window.ZENTRYX_updateActivity==="function"){
     window.ZENTRYX_updateActivity(true);
   }
@@ -125,6 +109,5 @@ if(document.readyState==="loading"){
 }
 })();
 </script>
-
 </body>
 </html>
