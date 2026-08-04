@@ -528,6 +528,7 @@ function configBase(){
       agenda:true,
       clientes:true,
       trabajos:true,
+      almacen:true,
       usuarios:true,
       vehiculos:true,
       horas_extra:true,
