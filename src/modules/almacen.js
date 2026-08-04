@@ -1,12 +1,12 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
-// V1008 - CONTROL DE RECUENTOS, CONFIRMACIONES Y AVISOS
+// V1009 - CIERRE VISUAL Y DATOS DE INVENTARIO
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1008";
+const ZX_VERSION="1009";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
@@ -194,6 +194,13 @@ function instalarCSS(){
     .zx_al_inventory_status.pending{background:#f1f5f9;color:#475569}
     .zx_al_inventory_status.ok{background:#dcfce7;color:#166534}
     .zx_al_inventory_status.difference{background:#fee2e2;color:#991b1b}
+    .zx_al_inventory_data{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+    .zx_al_inventory_data span{display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;background:#f1f5f9;color:#475569;font-size:10px;font-weight:900}
+    .zx_al_inventory_last{margin-top:8px;border-top:1px dashed #dbe4ef;padding-top:8px;color:#64748b;font-size:11px;font-weight:800;line-height:1.4}
+    .zx_al_tabs{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .zx_al_tabs::-webkit-scrollbar{display:none}
+    .zx_al_tabs button{flex:0 0 auto}
+
     .zx_al_toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1000002;max-width:min(560px,calc(100% - 28px));border-radius:14px;padding:13px 16px;background:#0f766e;color:#fff;font-weight:900;box-shadow:0 18px 45px rgba(15,23,42,.28);text-align:center}
     .zx_al_toast.bad{background:#b91c1c}
 
@@ -998,6 +1005,12 @@ function renderInventario(){
             <h3>${limpiar(x.material)}</h3>
             <p>${limpiar(x.ubicacion)}${x.ubicacion_interna?" · "+limpiar(x.ubicacion_interna):""}</p>
             <span class="zx_al_inventory_status ${estado.estado}">${limpiar(estado.texto)}${textoDiferencia}</span>
+            <div class="zx_al_inventory_data">
+              ${x.referencia?`<span>Ref. ${limpiar(x.referencia)}</span>`:""}
+              ${x.codigo_barras?`<span>EAN ${limpiar(x.codigo_barras)}</span>`:""}
+              ${x.proveedor?`<span>${limpiar(x.proveedor)}</span>`:""}
+            </div>
+            ${estado.fecha?`<div class="zx_al_inventory_last">Último recuento: ${limpiar(fechaHora(estado.fecha))}</div>`:""}
           </div>
           <div class="zx_al_inventory_expected">
             <small>Esperado</small>
@@ -1034,6 +1047,10 @@ function abrirRecuentoInventario(existenciaId){
     <div class="zx_al_modal_summary">
       <strong>${limpiar(vista.material)}</strong>
       <span>${limpiar(vista.ubicacion)}${vista.ubicacion_interna?" · "+limpiar(vista.ubicacion_interna):""}</span>
+      ${vista.referencia?`<span>Referencia: ${limpiar(vista.referencia)}</span>`:""}
+      ${vista.codigo_barras?`<span>Código de barras: ${limpiar(vista.codigo_barras)}</span>`:""}
+      ${vista.proveedor?`<span>Proveedor: ${limpiar(vista.proveedor)}</span>`:""}
+      ${ultimoMovimientoInventario(vista)?`<span>Último recuento: ${limpiar(fechaHora(ultimoMovimientoInventario(vista).created_at))}${ultimoMovimientoInventario(vista).usuario_nombre?" · "+limpiar(ultimoMovimientoInventario(vista).usuario_nombre):""}</span>`:""}
     </div>
 
     <div class="zx_al_inventory_stats">
@@ -1133,8 +1150,8 @@ function abrirRecuentoInventario(existenciaId){
 
       aviso(
         diferenciaValor===0
-          ? "Inventario guardado. No hay diferencias."
-          : `Inventario actualizado. Ajuste: ${diferenciaValor>0?"+":""}${formatoNumero(diferenciaValor)} ${vista.unidad||"ud"}.`
+          ? "Inventario guardado correctamente. Sin diferencias."
+          : `Inventario actualizado. Movimiento registrado. Ajuste: ${diferenciaValor>0?"+":""}${formatoNumero(diferenciaValor)} ${vista.unidad||"ud"}.`
       );
     }catch(e){
       this.disabled=false;
