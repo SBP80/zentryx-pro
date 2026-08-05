@@ -1,13 +1,14 @@
 // ===============================
 // ZENTRYX PRO - PANEL DESARROLLADOR
-// V3124 - ALMACEN REGISTRADO
+// V3125 - DIAGNÓSTICO DE COLA, META Y LOGS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_DEV_VERSION="3123";
+const ZX_DEV_VERSION="3125";
 const LOG_KEY="zentryx_dev_logs";
-const MAX_LOGS=250;
+const MAX_LOGS=180;
+const MAX_LOG_DAYS=14;
 
 function app(){
   return document.getElementById("app");
@@ -76,7 +77,14 @@ function esDesarrollador(){
 
 function logs(){
   const l=leerJSON(LOG_KEY,[]);
-  return Array.isArray(l) ? l : [];
+  if(!Array.isArray(l)) return [];
+  const limit=Date.now()-MAX_LOG_DAYS*86400000;
+  const clean=l.filter(function(x){
+    const t=Date.parse(x && x.fecha || "");
+    return !Number.isFinite(t) || t>=limit;
+  }).slice(0,MAX_LOGS);
+  if(clean.length!==l.length) guardarJSON(LOG_KEY,clean);
+  return clean;
 }
 
 function guardarLog(tipo,mensaje,extra){
@@ -230,7 +238,7 @@ function almacenamiento(){
 function versionApp(){
   const out={
     title:document.title || "",
-    url:location.href,
+    url:location.origin+location.pathname+" · despliegue "+(window.ZX_VERSION||"sin versión"),
     backend:window.ZENTRYX_BACKEND ? (window.ZENTRYX_BACKEND.version || "cargado") : "no cargado",
     panel_dev:ZX_DEV_VERSION
   };
@@ -346,7 +354,7 @@ function dispositivo(){
     userAgent:navigator.userAgent,
     idioma:navigator.language,
     online:navigator.onLine,
-    url:location.href,
+    url:location.origin+location.pathname+" · despliegue "+(window.ZX_VERSION||"sin versión"),
     ancho:window.innerWidth,
     alto:window.innerHeight,
     plataforma:navigator.platform || "",
@@ -521,7 +529,7 @@ function tablaObjeto(obj){
         return `
           <tr>
             <td><b>${limpiar(k)}</b></td>
-            <td>${limpiar(typeof obj[k]==="object" ? JSON.stringify(obj[k]) : obj[k])}</td>
+            <td>${limpiar(typeof obj[k]==="object" ? (k==="meta" ? Object.keys(obj[k]||{}).map(function(t){var m=obj[k][t]||{};return t+": "+(m.items||0)+" reg. · "+(m.updated_at||"sin fecha");}).join(" | ") : JSON.stringify(obj[k])) : obj[k])}</td>
           </tr>
         `;
       }).join("")}
@@ -691,6 +699,23 @@ window.ZX_dev_exportar_logs=function(){
 };
 
 
+window.ZX_dev_mantener_cola=function(){
+  if(!esDesarrollador()) return alert("Solo desarrollador.");
+  if(!window.ZENTRYX_BACKEND || !window.ZENTRYX_BACKEND.queue) return alert("Cola no disponible.");
+  const r=window.ZENTRYX_BACKEND.queue.prune ? window.ZENTRYX_BACKEND.queue.prune() : null;
+  guardarLog("mantenimiento","Cola offline depurada",r);
+  alert(r ? ("Cola revisada. Duplicados eliminados: "+r.duplicates+". Sincronizados antiguos: "+r.removed_synced) : "Cola revisada.");
+  window.ZX_desarrollador();
+};
+
+window.ZX_dev_reintentar_errores=function(){
+  if(!esDesarrollador()) return alert("Solo desarrollador.");
+  const q=window.ZENTRYX_BACKEND && window.ZENTRYX_BACKEND.queue;
+  const n=q && q.retryErrors ? q.retryErrors() : 0;
+  alert("Operaciones reactivadas: "+n);
+  window.ZX_dev_forzar_sync();
+};
+
 window.ZX_dev_recargar=function(){
   if(!esDesarrollador()){
     alert("Solo desarrollador.");
@@ -813,6 +838,8 @@ window.ZX_desarrollador=function(){
           <button class="zx_dev_btn gray" onclick="ZX_dev_limpiar_logs()">Limpiar logs</button>
           <button class="zx_dev_btn" onclick="ZX_dev_copiar_informe()">Copiar informe</button>
           <button class="zx_dev_btn gray" onclick="ZX_dev_recargar()">Recargar</button>
+          <button class="zx_dev_btn orange" onclick="ZX_dev_mantener_cola()">Depurar cola</button>
+          <button class="zx_dev_btn" onclick="ZX_dev_reintentar_errores()">Reintentar errores</button>
         </div>
       </div>
 
