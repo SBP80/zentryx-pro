@@ -1,9 +1,9 @@
 // ZENTRYX PRO - desarrollador_diagnostico.js
-// V1001 - DIAGNÓSTICO AUTOMÁTICO DE MÓDULOS, CACHÉ, ALMACENAMIENTO Y LOGS
+// V1002 - DIAGNÓSTICO FIABLE DE COLA, SINCRONIZACIÓN, VERSIÓN, CACHÉ Y SALUD
 (function(){
 "use strict";
 
-const VERSION="1001";
+const VERSION="1002";
 const QUEUE_KEY="zentryx_backend_queue";
 const LOG_KEY="zentryx_dev_logs";
 
@@ -37,15 +37,53 @@ function bytesLocales(){
   return {claves:claves,caracteres:caracteres,kb:Math.round(caracteres/1024)};
 }
 
-function colaPendiente(){
+function estadoCola(){
+  const resultado={
+    backend_status:null,
+    backend_pending:null,
+    api_pending:null,
+    local_pending:null,
+    efectivo:0,
+    discrepancia:false,
+    detalle:""
+  };
+
+  try{
+    if(window.ZENTRYX_BACKEND&&typeof window.ZENTRYX_BACKEND.status==="function"){
+      const st=window.ZENTRYX_BACKEND.status()||{};
+      resultado.backend_status=st;
+      if(Number.isFinite(Number(st.pending))) resultado.backend_pending=Math.max(0,Number(st.pending));
+    }
+  }catch(e){}
+
   try{
     if(window.ZENTRYX_BACKEND&&window.ZENTRYX_BACKEND.queue&&typeof window.ZENTRYX_BACKEND.queue.pending==="function"){
       const q=window.ZENTRYX_BACKEND.queue.pending();
-      return Array.isArray(q)?q:[];
+      if(Array.isArray(q)) resultado.api_pending=q.filter(function(x){return x&&x.status==="pending";}).length;
     }
   }catch(e){}
-  const q=leerJSON(QUEUE_KEY,[]);
-  return Array.isArray(q)?q.filter(function(x){return x&&String(x.status||"pending")==="pending";}):[];
+
+  const local=leerJSON(QUEUE_KEY,[]);
+  if(Array.isArray(local)){
+    resultado.local_pending=local.filter(function(x){return x&&x.status==="pending";}).length;
+  }
+
+  const valores=[resultado.backend_pending,resultado.api_pending,resultado.local_pending]
+    .filter(function(v){return Number.isFinite(v);});
+
+  // La cifra oficial es status().pending. Solo se recurre a la API o a localStorage
+  // cuando el backend todavía no ha terminado de cargar.
+  if(Number.isFinite(resultado.backend_pending)) resultado.efectivo=resultado.backend_pending;
+  else if(Number.isFinite(resultado.api_pending)) resultado.efectivo=resultado.api_pending;
+  else if(Number.isFinite(resultado.local_pending)) resultado.efectivo=resultado.local_pending;
+
+  resultado.discrepancia=valores.length>1&&new Set(valores).size>1;
+  if(resultado.discrepancia){
+    resultado.detalle="Backend: "+String(resultado.backend_pending??"—")+
+      " · API: "+String(resultado.api_pending??"—")+
+      " · almacenamiento local: "+String(resultado.local_pending??"—");
+  }
+  return resultado;
 }
 
 function modulosEsperados(){
@@ -118,7 +156,7 @@ function logsRecientes(){
 function revisar(){
   const modulos=modulosEsperados();
   const modulosMal=modulos.filter(function(x){return !x.correcto;});
-  const cola=colaPendiente();
+  const colaEstado=estadoCola();
   const duplicados=scriptsDuplicados();
   const cacheAntigua=cachesVersionadas();
   const errores24h=logsRecientes();
@@ -126,22 +164,33 @@ function revisar(){
   const backendOk=!!(window.ZENTRYX_BACKEND&&typeof window.ZENTRYX_BACKEND.status==="function");
   const supabaseOk=!!(window.sb&&typeof window.sb.from==="function");
   const online=navigator.onLine!==false;
+  const versionVisible=String(window.ZX_VERSION||"");
+  const titleVersion=(document.title.match(/V(\d+)/i)||[])[1]||"";
+  const versionOk=!!versionVisible&&versionVisible===titleVersion;
+  const red=leerJSON("zentryx_network_status",null)||leerJSON("zentryx_backend_network",null)||{};
+  const latencia=Number(red.latencia_ms);
 
   const avisos=[];
   if(!online) avisos.push({nivel:"error",titulo:"Sin conexión",detalle:"El dispositivo no tiene acceso a Internet."});
   if(!backendOk) avisos.push({nivel:"error",titulo:"Backend no disponible",detalle:"No se encuentra ZENTRYX_BACKEND.status()."});
   if(!supabaseOk) avisos.push({nivel:"error",titulo:"Supabase no disponible",detalle:"El cliente de base de datos no está cargado."});
+  if(!versionOk) avisos.push({nivel:"aviso",titulo:"Versión incoherente",detalle:"Título V"+(titleVersion||"—")+" y despliegue "+(versionVisible||"—")+" no coinciden."});
   modulosMal.forEach(function(m){
     avisos.push({nivel:"error",titulo:"Módulo incorrecto: "+m.nombre,detalle:m.esperado?"No se ha cargado "+m.funcion:"La copia antigua "+m.funcion+" está activa."});
   });
-  if(cola.length) avisos.push({nivel:"aviso",titulo:"Cola pendiente",detalle:cola.length+" operaciones esperan sincronización."});
+  if(colaEstado.efectivo>0) avisos.push({nivel:"aviso",titulo:"Cola pendiente",detalle:colaEstado.efectivo+" operaciones esperan sincronización."});
+  if(colaEstado.discrepancia) avisos.push({nivel:"aviso",titulo:"Datos de cola desiguales",detalle:colaEstado.detalle});
   if(duplicados.length) avisos.push({nivel:"aviso",titulo:"Scripts repetidos",detalle:duplicados.length+" archivos JavaScript aparecen más de una vez."});
   if(cacheAntigua.length) avisos.push({nivel:"aviso",titulo:"Caché antigua",detalle:cacheAntigua.length+" claves versionadas antiguas pueden eliminarse."});
   if(errores24h.length) avisos.push({nivel:"aviso",titulo:"Errores recientes",detalle:errores24h.length+" errores técnicos registrados durante las últimas 24 horas."});
   if(almacenamiento.kb>3500) avisos.push({nivel:"aviso",titulo:"Almacenamiento local alto",detalle:"Zentryx ocupa aproximadamente "+almacenamiento.kb+" KB en este dispositivo."});
+  if(Number.isFinite(latencia)&&latencia>1500) avisos.push({nivel:"aviso",titulo:"Conexión lenta",detalle:"La última latencia registrada fue de "+latencia+" ms."});
 
-  const estado=avisos.some(function(x){return x.nivel==="error";})?"Atención":avisos.length?"Revisión":"Correcto";
-  return {estado,avisos,modulos,cola,duplicados,cacheAntigua,errores24h,almacenamiento,backendOk,supabaseOk,online};
+  const errores=avisos.filter(function(x){return x.nivel==="error";}).length;
+  const advertencias=avisos.filter(function(x){return x.nivel==="aviso";}).length;
+  const puntuacion=Math.max(0,100-(errores*25)-(advertencias*7));
+  const estado=errores?"Atención":advertencias?"Revisión":"Correcto";
+  return {estado,puntuacion,avisos,modulos,colaEstado,duplicados,cacheAntigua,errores24h,almacenamiento,backendOk,supabaseOk,online,versionOk,versionVisible,titleVersion,latencia};
 }
 
 function colorEstado(estado){
@@ -173,9 +222,9 @@ function crearCard(d){
     <h2>Diagnóstico automático</h2>
     <div class="zx_dev_text">Comprobación local de carga, sincronización, caché, almacenamiento y errores recientes.</div>
     <div class="zx_diag_kpis">
-      <div><b style="color:${colorEstado(d.estado)}">${esc(d.estado)}</b><span>Estado</span></div>
+      <div><b style="color:${colorEstado(d.estado)}">${esc(d.estado)}</b><span>Estado · ${d.puntuacion}/100</span></div>
       <div><b>${d.avisos.length}</b><span>Avisos</span></div>
-      <div><b>${d.cola.length}</b><span>Cola</span></div>
+      <div><b>${d.colaEstado.efectivo}</b><span>Cola real</span></div>
       <div><b>${d.almacenamiento.kb} KB</b><span>Datos locales</span></div>
     </div>
     <div class="zx_diag_checks">
@@ -183,8 +232,16 @@ function crearCard(d){
       <div><span>Backend</span>${filaEstado(d.backendOk,"Disponible","No cargado")}</div>
       <div><span>Supabase</span>${filaEstado(d.supabaseOk,"Disponible","No cargado")}</div>
       <div><span>Módulos</span>${filaEstado(d.modulos.every(function(x){return x.correcto;}),"Correctos","Revisar")}</div>
+      <div><span>Versión</span>${filaEstado(d.versionOk,"V"+d.versionVisible,"Revisar")}</div>
+      <div><span>Sincronización</span>${filaEstado(d.colaEstado.efectivo===0,"Al día",d.colaEstado.efectivo+" pendientes")}</div>
     </div>
     <div class="zx_diag_avisos">${avisos}</div>
+    <details class="zx_dev_details"><summary>Ver comprobación de cola</summary><div><ul>
+      <li>Backend: ${esc(d.colaEstado.backend_pending??"No disponible")}</li>
+      <li>API de cola: ${esc(d.colaEstado.api_pending??"No disponible")}</li>
+      <li>Almacenamiento local: ${esc(d.colaEstado.local_pending??"No disponible")}</li>
+      <li>Valor usado: ${esc(d.colaEstado.efectivo)}</li>
+    </ul></div></details>
     <details class="zx_dev_details"><summary>Ver comprobación de módulos</summary><div><table class="zx_dev_table">${modulos}</table></div></details>
     <details class="zx_dev_details"><summary>Ver scripts repetidos</summary><div><ul>${scripts}</ul></div></details>
     <details class="zx_dev_details"><summary>Ver caché antigua</summary><div><ul>${caches}</ul></div></details>
