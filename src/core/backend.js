@@ -1,14 +1,15 @@
 // ===============================
 // ZENTRYX PRO - BACKEND MANAGER
-// V3121 - SINCRONIZACIÓN SEGURA, CACHE CONSISTENTE Y SIN DUPLICADOS
+// V3122 - COLA DIAGNOSTICADA, REINTENTOS Y MANTENIMIENTO SEGURO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_BACKEND_VERSION="3121";
+const ZX_BACKEND_VERSION="3122";
 const RUNTIME_KEY="__zentryx_backend_runtime";
 const MAX_SYNCED_QUEUE_ITEMS=100;
 const MAX_QUEUE_ATTEMPTS=8;
+const STALE_QUEUE_DAYS=14;
 const CACHE_PREFIX="zentryx_backend_cache_";
 const QUEUE_KEY="zentryx_backend_queue";
 const META_KEY="zentryx_backend_meta";
@@ -260,6 +261,63 @@ function queuePending(){
   return queueGet().filter(function(x){
     return x && x.status==="pending";
   });
+}
+
+
+function queueDiagnostics(){
+  const list=queueGet();
+  const nowMs=Date.now();
+  const out={total:list.length,pending:0,synced:0,error:0,stale:0,oldest_pending:null,by_action:{insert:0,upsert:0,update:0,delete:0,other:0},by_table:{}};
+  list.forEach(function(item){
+    if(!item) return;
+    const status=String(item.status||"pending");
+    if(status==="pending") out.pending++; else if(status==="synced") out.synced++; else if(status==="error") out.error++;
+    const action=String(item.action||"other").toLowerCase();
+    if(Object.prototype.hasOwnProperty.call(out.by_action,action)) out.by_action[action]++; else out.by_action.other++;
+    const table=String(item.table||"sin_tabla");
+    out.by_table[table]=(out.by_table[table]||0)+1;
+    if(status==="pending"){
+      const created=Date.parse(item.created_at||"");
+      if(Number.isFinite(created)){
+        if(!out.oldest_pending || created<Date.parse(out.oldest_pending)) out.oldest_pending=item.created_at;
+        if(nowMs-created>STALE_QUEUE_DAYS*86400000) out.stale++;
+      }
+    }
+  });
+  return out;
+}
+
+function queuePrune(){
+  const list=queueGet();
+  const seen=new Set();
+  const cleaned=[];
+  let duplicates=0, removedSynced=0;
+  list.forEach(function(item){
+    if(!item) return;
+    if(item.status==="synced"){
+      const t=Date.parse(item.synced_at||item.created_at||"");
+      if(Number.isFinite(t) && Date.now()-t>7*86400000){ removedSynced++; return; }
+    }
+    const key=[item.status||"pending",item.table||"",item.action||"",item.field||"id",String(item.value||""),JSON.stringify(item.data||null)].join("|");
+    if((item.status||"pending")==="pending" && seen.has(key)){ duplicates++; return; }
+    seen.add(key);
+    cleaned.push(item);
+  });
+  queueSet(cleaned);
+  return {duplicates:duplicates,removed_synced:removedSynced,total:cleaned.length};
+}
+
+function queueRetryErrors(){
+  const list=queueGet();
+  let changed=0;
+  list.forEach(function(item){
+    if(item && item.status==="error"){
+      item.status="pending"; item.attempts=0; item.error=""; delete item.failed_at; changed++;
+    }
+  });
+  queueSet(list);
+  notify();
+  return changed;
 }
 
 function queueAdd(op){
@@ -667,7 +725,10 @@ const Backend={
   queue:{
     get:queueGet,
     pending:queuePending,
-    add:queueAdd
+    add:queueAdd,
+    diagnostics:queueDiagnostics,
+    prune:queuePrune,
+    retryErrors:queueRetryErrors
   },
   utils:{
     online:isOnline,
@@ -684,10 +745,11 @@ window.ZENTRYX.Backend=Backend;
 window.ZENTRYX.backend=Backend;
 
 onlineHandler=function(){
-  setTimeout(sync,800);
+  setTimeout(function(){ queuePrune(); sync(); },800);
 };
 
 window.addEventListener("online",onlineHandler);
+setTimeout(function(){ queuePrune(); if(isOnline()) sync(); },1200);
 
 window[RUNTIME_KEY]={
   version:ZX_BACKEND_VERSION,
