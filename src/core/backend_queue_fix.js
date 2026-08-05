@@ -1,9 +1,9 @@
 // ZENTRYX PRO - backend_queue_fix.js
-// V1002 - REPARACIÓN FINAL DE COLA GPS Y MATERIALES
+// V1003 - REPARACIÓN DE COLA GPS Y MATERIALES ANTIGUOS
 (function(){
 "use strict";
 
-const FIX_VERSION="1002";
+const FIX_VERSION="1003";
 const QUEUE_KEY="zentryx_backend_queue";
 let sincronizacionAutomaticaLanzada=false;
 
@@ -27,6 +27,9 @@ function texto(v){
 function materialLimpio(obj){
   if(!obj || typeof obj!=="object" || Array.isArray(obj)) return obj;
 
+  // La tabla real trabajos_materiales de esta instalación conserva
+  // únicamente los campos básicos. Las propiedades comerciales antiguas
+  // pertenecen a la biblioteca local de materiales y no deben enviarse aquí.
   const material=texto(obj.material||obj.nombre).trim();
   const limpio={
     trabajo_id:obj.trabajo_id,
@@ -34,19 +37,12 @@ function materialLimpio(obj){
     cantidad:Number(obj.cantidad||0),
     unidad:texto(obj.unidad||"ud").trim()||"ud",
     notas:texto(obj.notas).trim(),
-    referencia:texto(obj.referencia).trim(),
-    proveedor:texto(obj.proveedor).trim(),
-    precio_compra:obj.precio_compra===null||obj.precio_compra===""?null:Number(obj.precio_compra),
-    precio_venta:obj.precio_venta===null||obj.precio_venta===""?null:Number(obj.precio_venta),
     preparado:Boolean(obj.preparado)
   };
 
   if(obj.id) limpio.id=obj.id;
   if(obj.created_at) limpio.created_at=obj.created_at;
-
   if(!Number.isFinite(limpio.cantidad)) limpio.cantidad=0;
-  if(!Number.isFinite(limpio.precio_compra)) limpio.precio_compra=null;
-  if(!Number.isFinite(limpio.precio_venta)) limpio.precio_venta=null;
 
   return limpio;
 }
@@ -202,7 +198,7 @@ async function sincronizarTrasReparar(backend){
   try{
     await backend.sync();
   }catch(e){
-    console.warn("Zentryx V1002: sincronización automática pendiente.",e);
+    console.warn("Zentryx V1003: sincronización automática pendiente.",e);
   }finally{
     emitirEstado();
   }
@@ -222,27 +218,27 @@ function instalar(){
   const syncOriginal=typeof backend.sync==="function" ? backend.sync.bind(backend) : null;
   const addOriginal=typeof backend.queue.add==="function" ? backend.queue.add.bind(backend.queue) : null;
 
-  if(insertOriginal && !backend.insert.__zxV1002){
+  if(insertOriginal && !backend.insert.__zxV1003){
     const fn=function(tabla,data,opciones){
       return insertOriginal(tabla,corregirDato(tabla,data),opciones);
     };
-    fn.__zxV1002=true;
+    fn.__zxV1003=true;
     backend.insert=fn;
   }
 
-  if(upsertOriginal && !backend.upsert.__zxV1002){
+  if(upsertOriginal && !backend.upsert.__zxV1003){
     const fn=function(tabla,data,opciones){
       return upsertOriginal(tabla,corregirDato(tabla,data),opciones);
     };
-    fn.__zxV1002=true;
+    fn.__zxV1003=true;
     backend.upsert=fn;
   }
 
-  if(updateOriginal && !backend.update.__zxV1002){
+  if(updateOriginal && !backend.update.__zxV1003){
     const fn=function(tabla,data,opciones){
       return updateOriginal(tabla,corregirDato(tabla,data),opciones);
     };
-    fn.__zxV1002=true;
+    fn.__zxV1003=true;
     backend.update=fn;
   }
 
