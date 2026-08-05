@@ -1,10 +1,11 @@
 // ZENTRYX PRO - backend_queue_fix.js
-// V1001 - CORRECCIÓN DE COLA, DATOS GPS Y MATERIALES
+// V1002 - REPARACIÓN FINAL DE COLA GPS Y MATERIALES
 (function(){
 "use strict";
 
-const FIX_VERSION="1001";
+const FIX_VERSION="1002";
 const QUEUE_KEY="zentryx_backend_queue";
+let sincronizacionAutomaticaLanzada=false;
 
 function leerCola(){
   try{
@@ -19,65 +20,92 @@ function guardarCola(lista){
   localStorage.setItem(QUEUE_KEY,JSON.stringify(Array.isArray(lista)?lista:[]));
 }
 
-function limpiarObjetoMaterial(obj){
+function texto(v){
+  return v===null||v===undefined?"":String(v);
+}
+
+function materialLimpio(obj){
   if(!obj || typeof obj!=="object" || Array.isArray(obj)) return obj;
 
+  const material=texto(obj.material||obj.nombre).trim();
+  const limpio={
+    trabajo_id:obj.trabajo_id,
+    material:material,
+    cantidad:Number(obj.cantidad||0),
+    unidad:texto(obj.unidad||"ud").trim()||"ud",
+    notas:texto(obj.notas).trim(),
+    referencia:texto(obj.referencia).trim(),
+    proveedor:texto(obj.proveedor).trim(),
+    precio_compra:obj.precio_compra===null||obj.precio_compra===""?null:Number(obj.precio_compra),
+    precio_venta:obj.precio_venta===null||obj.precio_venta===""?null:Number(obj.precio_venta),
+    preparado:Boolean(obj.preparado)
+  };
+
+  if(obj.id) limpio.id=obj.id;
+  if(obj.created_at) limpio.created_at=obj.created_at;
+
+  if(!Number.isFinite(limpio.cantidad)) limpio.cantidad=0;
+  if(!Number.isFinite(limpio.precio_compra)) limpio.precio_compra=null;
+  if(!Number.isFinite(limpio.precio_venta)) limpio.precio_venta=null;
+
+  return limpio;
+}
+
+function puntoGpsLimpio(obj){
+  if(!obj || typeof obj!=="object" || Array.isArray(obj)) return obj;
   const limpio={...obj};
 
-  // Columnas confirmadas en la tabla actual.
-  const permitidas=new Set([
-    "id","trabajo_id","material","cantidad","unidad","notas",
-    "referencia","proveedor","precio_compra","precio_venta",
-    "preparado","created_at"
-  ]);
+  if(limpio.origen==="gps_alta_precision") limpio.origen="gps";
+  if(!["gps","cache_offline","manual"].includes(texto(limpio.origen))){
+    limpio.origen=navigator.onLine===false?"cache_offline":"gps";
+  }
 
-  Object.keys(limpio).forEach(function(k){
-    if(!permitidas.has(k)) delete limpio[k];
-  });
+  if(limpio.usuario_id===null || limpio.usuario_id===undefined){
+    limpio.usuario_id="";
+  }
 
-  if(!limpio.material && obj.nombre) limpio.material=String(obj.nombre);
   return limpio;
 }
 
 function corregirDato(tabla,data){
-  const nombre=String(tabla||"").toLowerCase();
+  const nombre=texto(tabla).toLowerCase();
 
   if(nombre==="rutas_vehiculos_puntos"){
-    const corregir=function(x){
-      if(!x || typeof x!=="object") return x;
-      const y={...x};
-
-      if(y.origen==="gps_alta_precision") y.origen="gps";
-      if(!["gps","cache_offline","manual"].includes(String(y.origen||""))){
-        y.origen=navigator.onLine===false?"cache_offline":"gps";
-      }
-
-      // La base exige usuario_id; no se inventa un usuario distinto.
-      if(y.usuario_id===null || y.usuario_id===undefined) y.usuario_id="";
-      return y;
-    };
-    return Array.isArray(data)?data.map(corregir):corregir(data);
+    return Array.isArray(data)?data.map(puntoGpsLimpio):puntoGpsLimpio(data);
   }
 
   if(nombre==="trabajos_materiales"){
-    return Array.isArray(data)
-      ? data.map(limpiarObjetoMaterial)
-      : limpiarObjetoMaterial(data);
+    return Array.isArray(data)?data.map(materialLimpio):materialLimpio(data);
   }
 
   return data;
 }
 
+function esErrorReparable(item){
+  const err=texto(item&&item.error).toLowerCase();
+  const tabla=texto(item&&item.table).toLowerCase();
+
+  return (
+    tabla==="rutas_vehiculos_puntos" ||
+    tabla==="trabajos_materiales" ||
+    err.includes("origen_check") ||
+    err.includes("schema cache") ||
+    err.includes("could not find the")
+  );
+}
+
 function corregirOperacion(item){
   if(!item || typeof item!=="object") return item;
+
   const copia={...item};
   copia.data=corregirDato(copia.table,copia.data);
 
-  // Permite que vuelva a probarse aunque hubiera agotado intentos.
-  if(copia.status==="pending" || copia.status==="error"){
+  if(esErrorReparable(copia) || copia.status==="error"){
     copia.status="pending";
     copia.attempts=0;
+    copia.reason="";
     copia.error="";
+    copia.last_attempt_at="";
     delete copia.failed_at;
   }
 
@@ -96,23 +124,29 @@ function repararColaCompleta(){
   });
 
   guardarCola(nueva);
-
-  try{
-    window.dispatchEvent(new CustomEvent("zentryx:backend",{
-      detail:{pending:nueva.filter(x=>x&&x.status==="pending").length}
-    }));
-  }catch(e){}
+  emitirEstado();
 
   return {
     total:nueva.length,
     corregidas:corregidas,
-    pendientes:nueva.filter(x=>x&&x.status==="pending").length
+    pendientes:nueva.filter(x=>x&&(x.status||"pending")==="pending").length
   };
+}
+
+function claveOperacion(item){
+  return [
+    item.status||"pending",
+    item.table||"",
+    item.action||"",
+    item.field||"id",
+    texto(item.value),
+    JSON.stringify(corregirDato(item.table,item.data))
+  ].join("|");
 }
 
 function deduplicarCola(){
   const lista=leerCola().map(corregirOperacion);
-  const vistos=new Set();
+  const vistas=new Set();
   const limpia=[];
   let duplicados=0;
   let sincronizadosAntiguos=0;
@@ -128,25 +162,18 @@ function deduplicarCola(){
       }
     }
 
-    const clave=[
-      item.status||"pending",
-      item.table||"",
-      item.action||"",
-      item.field||"id",
-      String(item.value||""),
-      JSON.stringify(item.data||null)
-    ].join("|");
-
-    if((item.status||"pending")==="pending" && vistos.has(clave)){
+    const clave=claveOperacion(item);
+    if((item.status||"pending")==="pending" && vistas.has(clave)){
       duplicados++;
       return;
     }
 
-    vistos.add(clave);
+    vistas.add(clave);
     limpia.push(item);
   });
 
   guardarCola(limpia);
+  emitirEstado();
 
   return {
     duplicates:duplicados,
@@ -156,11 +183,37 @@ function deduplicarCola(){
   };
 }
 
+function emitirEstado(){
+  try{
+    const backend=window.ZENTRYX_BACKEND;
+    window.dispatchEvent(new CustomEvent("zentryx:backend",{
+      detail:backend&&typeof backend.status==="function"
+        ?backend.status()
+        :{pending:leerCola().filter(x=>x&&(x.status||"pending")==="pending").length}
+    }));
+  }catch(e){}
+}
+
+async function sincronizarTrasReparar(backend){
+  if(sincronizacionAutomaticaLanzada || navigator.onLine===false) return;
+  if(!backend || typeof backend.sync!=="function") return;
+
+  sincronizacionAutomaticaLanzada=true;
+  try{
+    await backend.sync();
+  }catch(e){
+    console.warn("Zentryx V1002: sincronización automática pendiente.",e);
+  }finally{
+    emitirEstado();
+  }
+}
+
 function instalar(){
   const backend=window.ZENTRYX_BACKEND;
-  if(!backend || backend.__zxQueueFixInstalled) return false;
+  if(!backend) return false;
+  if(backend.__zxQueueFixVersion===FIX_VERSION) return true;
 
-  backend.__zxQueueFixInstalled=true;
+  backend.__zxQueueFixVersion=FIX_VERSION;
   backend.queue=backend.queue||{};
 
   const insertOriginal=typeof backend.insert==="function" ? backend.insert.bind(backend) : null;
@@ -169,22 +222,28 @@ function instalar(){
   const syncOriginal=typeof backend.sync==="function" ? backend.sync.bind(backend) : null;
   const addOriginal=typeof backend.queue.add==="function" ? backend.queue.add.bind(backend.queue) : null;
 
-  if(insertOriginal){
-    backend.insert=function(tabla,data,opciones){
+  if(insertOriginal && !backend.insert.__zxV1002){
+    const fn=function(tabla,data,opciones){
       return insertOriginal(tabla,corregirDato(tabla,data),opciones);
     };
+    fn.__zxV1002=true;
+    backend.insert=fn;
   }
 
-  if(upsertOriginal){
-    backend.upsert=function(tabla,data,opciones){
+  if(upsertOriginal && !backend.upsert.__zxV1002){
+    const fn=function(tabla,data,opciones){
       return upsertOriginal(tabla,corregirDato(tabla,data),opciones);
     };
+    fn.__zxV1002=true;
+    backend.upsert=fn;
   }
 
-  if(updateOriginal){
-    backend.update=function(tabla,data,opciones){
+  if(updateOriginal && !backend.update.__zxV1002){
+    const fn=function(tabla,data,opciones){
       return updateOriginal(tabla,corregirDato(tabla,data),opciones);
     };
+    fn.__zxV1002=true;
+    backend.update=fn;
   }
 
   if(addOriginal){
@@ -195,56 +254,43 @@ function instalar(){
     };
   }
 
-  backend.queue.prune=function(){
-    const resultado=deduplicarCola();
-    if(typeof backend.status==="function"){
-      try{
-        window.dispatchEvent(new CustomEvent("zentryx:backend",{detail:backend.status()}));
-      }catch(e){}
-    }
-    return resultado;
-  };
+  backend.queue.prune=deduplicarCola;
 
   backend.queue.retryErrors=function(){
-    const lista=leerCola();
+    const antes=leerCola();
     let reactivadas=0;
-
-    const nueva=lista.map(function(item){
-      if(!item) return item;
-      const antes=JSON.stringify(item);
-      const despues=corregirOperacion(item);
-      if(JSON.stringify(despues)!==antes) reactivadas++;
-      return despues;
+    const nueva=antes.map(function(item){
+      const corregida=corregirOperacion(item);
+      if(JSON.stringify(item)!==JSON.stringify(corregida)) reactivadas++;
+      return corregida;
     });
-
     guardarCola(nueva);
-
-    try{
-      window.dispatchEvent(new CustomEvent("zentryx:backend",{
-        detail:typeof backend.status==="function"?backend.status():{}
-      }));
-    }catch(e){}
-
+    emitirEstado();
     return reactivadas;
   };
 
   if(syncOriginal){
     backend.sync=async function(){
       repararColaCompleta();
-      return syncOriginal();
+      const resultado=await syncOriginal();
+      emitirEstado();
+      return resultado;
     };
   }
 
   window.ZENTRYX=window.ZENTRYX||{};
   window.ZENTRYX.Backend=backend;
   window.ZENTRYX.backend=backend;
+  window.ZENTRYX.repararCola=function(){
+    const reparada=repararColaCompleta();
+    const depurada=deduplicarCola();
+    return {...reparada,...depurada};
+  };
 
   const inicial=repararColaCompleta();
-  console.log(
-    "Zentryx backend_queue_fix V"+FIX_VERSION+" cargado.",
-    "Operaciones corregidas:",inicial.corregidas
-  );
+  console.log("Zentryx backend_queue_fix V"+FIX_VERSION+" cargado.",inicial);
 
+  setTimeout(function(){sincronizarTrasReparar(backend)},1200);
   return true;
 }
 
@@ -252,5 +298,6 @@ if(!instalar()){
   document.addEventListener("DOMContentLoaded",instalar,{once:true});
   setTimeout(instalar,100);
   setTimeout(instalar,500);
+  setTimeout(instalar,1200);
 }
 })();
