@@ -1,9 +1,9 @@
 // ZENTRYX PRO - desarrollador_patch.js
-// V1001 - TABLAS MOVIL, CACHE Y ESTADOS
+// V1002 - TABLAS MÓVIL, CACHÉ Y ESTADOS
 (function(){
 "use strict";
 
-const PATCH_VERSION="1001";
+const PATCH_VERSION="1002";
 const VERSION_CACHE_KEEP=2;
 
 function esClaveCache(k){
