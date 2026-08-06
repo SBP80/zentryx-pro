@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3164 - HISTORIAL CON TIMEOUT Y RECUPERACIÓN
+// V3165 - FICHA INMEDIATA SIN BLOQUEO DE RED
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3164";
+const ZX_VERSION="3165";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -863,53 +863,38 @@ async function cargarUsosYRecuperaciones(){
 }
 
 async function cargarDetalleVehiculo(id){
-  const out={usos:[],transferencias:[],puntos:[],errores:[]};
   const vehId=String(id);
+  const out={usos:[],transferencias:[],puntos:[],errores:[]};
 
-  function conTimeout(promesa,ms,nombre){
-    return Promise.race([
-      Promise.resolve(promesa),
-      new Promise(function(_,reject){
-        setTimeout(function(){reject(new Error("Tiempo agotado al cargar "+nombre));},ms);
-      })
-    ]);
-  }
-
-  async function cargar(nombre,tabla,opciones,procesar){
+  function filasCache(tabla){
     try{
-      const r=await conTimeout(zxGet(tabla,opciones),9000,nombre);
-      if(r&&r.error) throw r.error;
-      return procesar((r&&r.data)||[]);
+      const data=cacheBackend(tabla);
+      return Array.isArray(data)?data:[];
     }catch(e){
-      out.errores.push(nombre+": "+String(e&&e.message||e||"Error"));
       return [];
     }
   }
 
-  const resultados=await Promise.all([
-    cargar("usos","usos_vehiculos",{
-      query:q=>q.eq("vehiculo_id",vehId).order("inicio_at",{ascending:false}).limit(30)
-    },function(data){
-      return data.filter(x=>String(x.vehiculo_id||"")===vehId)
-        .sort((a,b)=>new Date(b.inicio_at||0)-new Date(a.inicio_at||0)).slice(0,30);
-    }),
-    cargar("cambios de responsable","transferencias_vehiculos",{
-      query:q=>q.eq("vehiculo_id",vehId).order("created_at",{ascending:false}).limit(30)
-    },function(data){
-      return data.filter(x=>String(x.vehiculo_id||"")===vehId)
-        .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,30);
-    }),
-    cargar("ruta GPS","rutas_vehiculos_puntos",{
-      query:q=>q.eq("vehiculo_id",vehId).order("registrado_at",{ascending:true}).limit(500)
-    },function(data){
-      return data.filter(x=>String(x.vehiculo_id||"")===vehId)
-        .sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0)).slice(0,500);
-    })
-  ]);
+  // La ficha se abre siempre con la información local ya disponible.
+  // No espera consultas remotas, porque en Safari/iOS una petición retenida
+  // podía dejar el modal bloqueado indefinidamente en “Cargando historial”.
+  out.usos=filasCache("usos_vehiculos")
+    .filter(x=>String(x.vehiculo_id||"")===vehId)
+    .sort((a,b)=>new Date(b.inicio_at||0)-new Date(a.inicio_at||0)).slice(0,30);
 
-  out.usos=resultados[0]||[];
-  out.transferencias=resultados[1]||[];
-  out.puntos=resultados[2]||[];
+  out.transferencias=filasCache("transferencias_vehiculos")
+    .filter(x=>String(x.vehiculo_id||"")===vehId)
+    .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,30);
+
+  out.puntos=filasCache("rutas_vehiculos_puntos")
+    .filter(x=>String(x.vehiculo_id||"")===vehId)
+    .sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0)).slice(0,500);
+
+  // Si no hay caché de usos, se conserva al menos el uso abierto conocido
+  // que ya fue cargado al preparar el listado de vehículos.
+  const actual=ZX_USOS_ACTUALES[vehId];
+  if(!out.usos.length && actual) out.usos=[actual];
+
   return out;
 }
 
