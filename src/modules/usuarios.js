@@ -1,7 +1,7 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS
 // V3111 - OFFLINE INSTANTANEO PRO
-// V3154 - VALIDACIÓN PIN SEGURA
+// V3155 - VALIDACIÓN PIN SEGURA
 // ===============================
 (function(){
 "use strict";
@@ -484,12 +484,25 @@ async function pedirPinConPermiso(accion,callback){
       return;
     }
 
+    const seguridad=window.ZENTRYX_SECURITY;
+    if(!seguridad || typeof seguridad.verifyPin!=="function"){
+      alert("No se pudo cargar el sistema de seguridad del PIN.");
+      return;
+    }
+
+    let hashGuardado=String(u.pin_hash || "");
+    try{
+      const usuarioLocal=JSON.parse(localStorage.getItem("usuario") || "null");
+      if(usuarioLocal && String(usuarioLocal.id || "")===String(u.id || "") && usuarioLocal.pin_hash){
+        hashGuardado=String(usuarioLocal.pin_hash);
+      }
+    }catch(e){}
+
     let verificacion=null;
     try{
-      if(window.ZENTRYX_SECURITY && typeof window.ZENTRYX_SECURITY.verifyPin==="function"){
-        verificacion=await window.ZENTRYX_SECURITY.verifyPin(pin,u.pin_hash);
-      }else{
-        verificacion={ok:hashPin(pin)===String(u.pin_hash||"")};
+      verificacion=await seguridad.verifyPin(pin,hashGuardado);
+      if((!verificacion || !verificacion.ok) && hashGuardado!==String(u.pin_hash || "")){
+        verificacion=await seguridad.verifyPin(pin,String(u.pin_hash || ""));
       }
     }catch(e){
       verificacion={ok:false};
