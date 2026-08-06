@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3160 - PIN ADMIN Y ELIMINACIÓN CORREGIDOS
+// V3161 - ELIMINACIÓN VERIFICADA EN SUPABASE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3160";
+const ZX_VERSION="3161";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -2737,11 +2737,22 @@ async function eliminarVehiculo(id){
   if(!await validarPinAdministrador()) return;
   try{
     await registrarAuditoriaVehiculo("eliminar_vehiculo",v,motivo,{eliminacion_definitiva:true});
-    let r;
-    if(zx() && typeof zx().remove==="function") r=await zx().remove(TABLA,"id",id);
-    else r=await sb().from(TABLA).delete().eq("id",String(id));
-    if(r && r.error) throw r.error;
+
+    const cliente=sb();
+    const borrado=await cliente.from(TABLA).delete().eq("id",String(id)).select("id");
+    if(borrado.error) throw borrado.error;
+
+    const comprobacion=await cliente.from(TABLA).select("id").eq("id",String(id)).maybeSingle();
+    if(comprobacion.error && String(comprobacion.error.code||"")!=="PGRST116") throw comprobacion.error;
+    if(comprobacion.data){
+      alert("El vehículo no se ha eliminado. Supabase ha rechazado el borrado por permisos o políticas RLS.");
+      return;
+    }
+
+    try{if(zx() && typeof zx().cacheDelete==="function") zx().cacheDelete(TABLA,id,"id")}catch(e){}
+    ZX_VEH_CACHE=ZX_VEH_CACHE.filter(function(item){return String(item.id)!==String(id)});
     cerrarModal();
+    alert("Vehículo eliminado definitivamente.");
     await window.ZX_vehiculos();
   }catch(e){alert("No se pudo eliminar el vehículo: "+(e.message||"Error"))}
 }
