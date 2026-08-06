@@ -1,7 +1,7 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS
 // V3111 - OFFLINE INSTANTANEO PRO
-// V3136 - OPERARIO VE SUS PRECIOS SIN EDITAR
+// V3154 - VALIDACIÓN PIN SEGURA
 // ===============================
 (function(){
 "use strict";
@@ -484,7 +484,18 @@ async function pedirPinConPermiso(accion,callback){
       return;
     }
 
-    if(hashPin(pin)!==u.pin_hash){
+    let verificacion=null;
+    try{
+      if(window.ZENTRYX_SECURITY && typeof window.ZENTRYX_SECURITY.verifyPin==="function"){
+        verificacion=await window.ZENTRYX_SECURITY.verifyPin(pin,u.pin_hash);
+      }else{
+        verificacion={ok:hashPin(pin)===String(u.pin_hash||"")};
+      }
+    }catch(e){
+      verificacion={ok:false};
+    }
+
+    if(!verificacion || !verificacion.ok){
       alert("PIN incorrecto.");
       return;
     }
