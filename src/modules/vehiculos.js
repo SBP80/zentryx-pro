@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3155 - VALIDACIÓN PIN SEGURA
+// V3156 - VALIDACIÓN PIN SEGURA
 // ===============================
 (function(){
 "use strict";
@@ -367,12 +367,25 @@ async function validarPinAdministrador(){
     if(r.error || !r.data){alert("No se pudo validar el PIN.");return false}
     if(normalizar(r.data.rol)!=="administrador" && normalizar(r.data.usuario)!=="admin"){alert("Solo administrador.");return false}
     if(r.data.debe_crear_pin || !r.data.pin_hash){alert("El administrador no tiene PIN activo.");return false}
+    const seguridad=window.ZENTRYX_SECURITY;
+    if(!seguridad || typeof seguridad.verifyPin!=="function"){
+      alert("No se pudo cargar el sistema de seguridad del PIN.");
+      return false;
+    }
+
+    let hashGuardado=String(r.data.pin_hash || "");
+    try{
+      const usuarioLocal=JSON.parse(localStorage.getItem("usuario") || "null");
+      if(usuarioLocal && String(usuarioLocal.id || "")===String(r.data.id || "") && usuarioLocal.pin_hash){
+        hashGuardado=String(usuarioLocal.pin_hash);
+      }
+    }catch(e){}
+
     let verificacion=null;
     try{
-      if(window.ZENTRYX_SECURITY && typeof window.ZENTRYX_SECURITY.verifyPin==="function"){
-        verificacion=await window.ZENTRYX_SECURITY.verifyPin(String(pin).trim(),r.data.pin_hash);
-      }else{
-        verificacion={ok:hashPin(String(pin).trim())===String(r.data.pin_hash||"")};
+      verificacion=await seguridad.verifyPin(String(pin).trim(),hashGuardado);
+      if((!verificacion || !verificacion.ok) && hashGuardado!==String(r.data.pin_hash || "")){
+        verificacion=await seguridad.verifyPin(String(pin).trim(),String(r.data.pin_hash || ""));
       }
     }catch(e){
       verificacion={ok:false};
