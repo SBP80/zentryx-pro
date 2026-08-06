@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3161 - ELIMINACIÓN VERIFICADA EN SUPABASE
+// V3162 - CIERRE FUNCIONAL DE VEHÍCULOS
 // ===============================
 (function(){
 "use strict";
@@ -2291,11 +2291,8 @@ function abrirFormulario(v){
 
       <div class="zx_veh_grid2">
         <div>
-          <label class="zx_veh_label" for="veh_activo">Estado</label>
-          <select id="veh_activo">
-            <option value="true" ${v.activo!==false && v.activo!=="false" ? "selected" : ""}>Activo</option>
-            <option value="false" ${v.activo===false || v.activo==="false" ? "selected" : ""}>Inactivo</option>
-          </select>
+          <label class="zx_veh_label">Estado</label>
+          <div class="zx_veh_readonly">${v.id ? limpiar(estadoTexto(v)) : "Activo"}</div>
         </div>
         <div>
           <label class="zx_veh_label" for="veh_gps">Seguimiento GPS</label>
@@ -2305,7 +2302,7 @@ function abrirFormulario(v){
           </select>
         </div>
       </div>
-      <div class="zx_veh_nota_form">La asignación y el uso son conceptos separados. La ficha no modifica quién utiliza el vehículo.</div>
+      <div class="zx_veh_nota_form">La activación y desactivación se gestionan desde <b>Administración</b>, con PIN y motivo.</div>
 
       <h3>Revisiones y documentación</h3>
       <div class="zx_veh_grid2">
@@ -2399,14 +2396,22 @@ async function guardarVehiculo(id,docActual,nombreDocActual){
   if(km<0){alert("Los km no pueden ser negativos.");return}
 
   const file=(document.getElementById("veh_doc")?.files || [])[0] || null;
+  if(file){
+    const permitido=/^(image\/|application\/pdf$|application\/msword$|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document$)/i.test(String(file.type||""));
+    if(!permitido){alert("Formato de documento no permitido.");return}
+    if(Number(file.size||0)>15*1024*1024){alert("El documento supera el límite de 15 MB.");return}
+  }
+  const boton=document.getElementById("veh_guardar");
+  if(boton){boton.disabled=true;boton.textContent="Guardando..."}
   const docUrl=await subirDocumento(file,matricula);
+  if(file && !docUrl){if(boton){boton.disabled=false;boton.textContent="Guardar"}return}
 
   const data={
     matricula:matricula,
     marca:valor("veh_marca"),
     modelo:valor("veh_modelo"),
     km_actual:km,
-    activo:valor("veh_activo")==="true",
+    activo:id ? (vehiculoPorId(id)?.activo!==false && vehiculoPorId(id)?.activo!=="false") : true,
     seguimiento_gps_habilitado:valor("veh_gps")==="true",
     itv_fecha:valor("veh_itv") || null,
     seguro_fecha:valor("veh_seguro") || null,
@@ -2429,9 +2434,12 @@ async function guardarVehiculo(id,docActual,nombreDocActual){
 
     if(r && r.error) throw r.error;
 
+    const guardado=Object.assign({},vehiculoPorId(id)||{},data,{id:id||((r&&r.data&&r.data[0]&&r.data[0].id)||"")});
+    await registrarAuditoriaVehiculo(id?"editar_vehiculo":"crear_vehiculo",guardado,id?"Edición de ficha":"Alta de vehículo",{campos:Object.keys(data)});
     cerrarModal();
     await window.ZX_vehiculos();
   }catch(e){
+    if(boton){boton.disabled=false;boton.textContent="Guardar"}
     alert("Error guardando vehículo: "+(e.message || "Error"));
   }
 }
@@ -2757,6 +2765,27 @@ async function eliminarVehiculo(id){
   }catch(e){alert("No se pudo eliminar el vehículo: "+(e.message||"Error"))}
 }
 
+async function clasificarUsoVehiculo(usoId,vehiculoId,tipo){
+  tipo=tipo==="personal"?"personal":"laboral";
+  const v=vehiculoPorId(vehiculoId);
+  if(!v) return;
+  const detalle=await cargarDetalleVehiculo(vehiculoId);
+  const uso=(detalle.usos||[]).find(function(x){return String(x.id)===String(usoId)});
+  if(!uso){alert("Uso no encontrado.");return}
+  const actual=identidadActual();
+  const permitido=esAdmin() || (actual.id && String(uso.usuario_id||"")===actual.id);
+  if(!permitido){alert("Solo el usuario del uso o un administrador puede clasificarlo.");return}
+  if(!confirm("¿Clasificar este recorrido como "+(tipo==="personal"?"personal":"laboral")+"?")) return;
+  try{
+    const r=await zxUpdate("usos_vehiculos",{tipo_uso:tipo,clasificacion:tipo,actualizado_por:actual.id,updated_at:ahoraISO()},"id",usoId);
+    if(r&&r.error) throw r.error;
+    await registrarAuditoriaVehiculo("clasificar_uso",v,"Clasificación de recorrido",{uso_id:String(usoId),clasificacion:tipo});
+    cerrarModal();
+    await window.ZX_vehiculos();
+    await abrirFicha(vehiculoId,"historial");
+  }catch(e){alert("No se pudo clasificar el recorrido: "+(e.message||"Error"))}
+}
+
 async function abrirFicha(id,tabInicial){
   tabInicial=tabInicial || "datos";
   const v=vehiculoPorId(id);
@@ -2796,7 +2825,9 @@ async function abrirFicha(id,tabInicial){
   const usoHtml=usos.length ? usos.map(function(u){
     const kmTxt=(u.km_inicio!=null ? u.km_inicio : "-")+" → "+(u.km_fin!=null ? u.km_fin : "-");
     const km=kmUso(u);
-    return `<div class="zx_veh_hist_item"><b>${limpiar(u.nombre_usuario||u.usuario||"Usuario")} · ${limpiar(textoTipoUso(u))}</b><span>${limpiar(fechaHoraES(u.inicio_at))} · ${limpiar(u.estado||"")}</span><small>Km ${limpiar(kmTxt)}${km ? " · "+limpiar(km)+" km" : ""}</small></div>`;
+    const puedeClasificar=esAdmin() || (identidadActual().id && String(u.usuario_id||"")===identidadActual().id);
+    const acciones=puedeClasificar && u.km_fin!=null ? `<div class="zx_veh_clasificar"><button data-uso-clasificar="laboral" data-uso-id="${limpiar(u.id)}">🚗 Laboral</button><button data-uso-clasificar="personal" data-uso-id="${limpiar(u.id)}">🏠 Personal</button></div>` : "";
+    return `<div class="zx_veh_hist_item"><b>${limpiar(u.nombre_usuario||u.usuario||"Usuario")} · ${limpiar(textoTipoUso(u))}</b><span>${limpiar(fechaHoraES(u.inicio_at))} · ${limpiar(u.estado||"")}</span><small>Km ${limpiar(kmTxt)}${km ? " · "+limpiar(km)+" km" : ""}</small>${acciones}</div>`;
   }).join("") : `<div class="zx_veh_empty">Todavía no hay usos registrados.</div>`;
 
   function primerValor(obj,claves){
@@ -2975,6 +3006,9 @@ async function abrirFicha(id,tabInicial){
   if(grua) grua.onclick=function(){abrirAvisoGrua(id)};
   const editar=document.getElementById("veh_ficha_editar");
   if(editar) editar.onclick=function(){editarVehiculo(id)};
+  document.querySelectorAll("[data-uso-clasificar]").forEach(function(btn){
+    btn.onclick=function(){clasificarUsoVehiculo(btn.dataset.usoId,v.id,btn.dataset.usoClasificar)};
+  });
   const doc=document.getElementById("veh_ficha_doc");
   if(doc) doc.onclick=function(){window.open(v.documento_url,"_blank")};
   document.getElementById("veh_ficha_cerrar").onclick=cerrarModal;
@@ -3079,7 +3113,7 @@ function instalarCSS(){
     .zx_veh_more_panel .green,.zx_veh_actions .green{background:#16a34a}.zx_veh_more_panel .blue,.zx_veh_actions .blue{background:#2563eb}.zx_veh_more_panel .purple,.zx_veh_actions .purple{background:#7c3aed}.zx_veh_more_panel .orange,.zx_veh_actions .orange{background:#f97316}.zx_veh_more_panel .gray,.zx_veh_actions .gray{background:#64748b}.zx_veh_more_panel .red,.zx_veh_actions .red{background:#dc2626}
     .zx_veh_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
     .zx_veh_aviso{margin:12px 0;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:16px;padding:13px;font-weight:850;line-height:1.35}.zx_veh_file_wrap{width:100%;overflow:hidden}.zx_veh_file_wrap input[type="file"]{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;font-size:14px}
-    .zx_veh_nota_form{margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:14px;padding:11px;font-size:13px;font-weight:800}.zx_veh_empty{color:#64748b;font-size:16px;font-weight:850;padding:12px 0}
+    .zx_veh_nota_form{margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:14px;padding:11px;font-size:13px;font-weight:800}.zx_veh_readonly{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:900;color:#071330;background:#eef2f7}.zx_veh_clasificar{display:flex;gap:7px;margin-top:9px}.zx_veh_clasificar button{flex:1;border:0;border-radius:11px;padding:9px 7px;font-weight:900;background:#e8eef8;color:#15233d}.zx_veh_clasificar button:first-child{background:#dbeafe;color:#1d4ed8}.zx_veh_clasificar button:last-child{background:#fef3c7;color:#92400e}.zx_veh_empty{color:#64748b;font-size:16px;font-weight:850;padding:12px 0}
     .zx_veh_form h3{margin:20px 0 8px;color:#071330;font-size:22px;font-weight:950}
     .zx_veh_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
     .zx_veh_form input,.zx_veh_form select,.zx_veh_form textarea,#zx_modal_vehiculo input,#zx_modal_vehiculo select,#zx_modal_vehiculo textarea{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}
