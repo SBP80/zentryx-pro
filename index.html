@@ -84,7 +84,7 @@ window.supabaseClient=window.sb;
 </script>
 
 <script src="src/app.js?v=3151"></script>
-<script src="src/core/security.js?v=3151"></script>
+<script src="src/core/security.js?v=3154"></script>
 <script src="src/core/session.js?v=3151"></script>
 
 <script>
@@ -888,6 +888,10 @@ async function entrar(){
     usuarioActual.pin_intentos=0;
     usuarioActual.pin_bloqueado_hasta=null;
     usuarioActual.ultimo_login=new Date().toISOString();
+
+    if(ZENTRYX_SECURITY && typeof ZENTRYX_SECURITY.rememberSessionPin==="function"){
+      await ZENTRYX_SECURITY.rememberSessionPin(pin);
+    }
 
     await registrarDispositivoSeguro();
     guardarSesion();
