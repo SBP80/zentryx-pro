@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3158 - MATRÍCULA ÚNICA
+// V3159 - MATRÍCULA ÚNICA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3158";
+const ZX_VERSION="3159";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -93,14 +93,25 @@ async function existeMatriculaDuplicada(matricula,idActual){
     });
   };
 
-  if(comprobar(ZX_VEH_CACHE)) return true;
+  // Comprobación local inmediata.
+  if(comprobar(ZX_VEH_CACHE) || comprobar(cacheBackend(TABLA)) || comprobar(leerCache())) return true;
 
-  try{
-    const r=await zxGet(TABLA,{});
-    if(comprobar(r?.data)) return true;
-  }catch(e){}
+  // La comprobación decisiva se hace contra toda la tabla, sin depender
+  // del filtro visible ni de la caché del adaptador.
+  if(sb()){
+    try{
+      const r=await sb().from(TABLA).select("id,matricula");
+      if(r && r.error) throw r.error;
+      if(comprobar(r && r.data)) return true;
+    }catch(e){
+      console.error("No se pudo comprobar matrícula duplicada",e);
+      throw new Error("No se pudo comprobar si la matrícula ya existe. Revisa la conexión e inténtalo de nuevo.");
+    }
+  }else{
+    throw new Error("No se puede crear el vehículo sin comprobar antes la matrícula.");
+  }
 
-  return comprobar(cacheBackend(TABLA)) || comprobar(leerCache());
+  return false;
 }
 
 function hoy(){
