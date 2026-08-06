@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3159 - MATRÍCULA ÚNICA
+// V3160 - PIN ADMIN Y ELIMINACIÓN CORREGIDOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3159";
+const ZX_VERSION="3160";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -416,9 +416,7 @@ async function validarPinAdministrador(){
       : {ok:false,available:false};
 
     if(pruebaSesion && pruebaSesion.ok){
-      cerrarModal();
-      if(typeof callback==="function") await callback();
-      return;
+      return true;
     }
 
     let hashGuardado=String(r.data.pin_hash || "");
