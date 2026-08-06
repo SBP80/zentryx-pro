@@ -1,7 +1,7 @@
 // ===============================
 // ZENTRYX PRO - USUARIOS
 // V3111 - OFFLINE INSTANTANEO PRO
-// V3155 - VALIDACIÓN PIN SEGURA
+// V3156 - VALIDACIÓN PIN SEGURA
 // ===============================
 (function(){
 "use strict";
@@ -490,6 +490,16 @@ async function pedirPinConPermiso(accion,callback){
       return;
     }
 
+    const pruebaSesion=typeof seguridad.verifySessionPin==="function"
+      ? await seguridad.verifySessionPin(pin)
+      : {ok:false,available:false};
+
+    if(pruebaSesion && pruebaSesion.ok){
+      cerrarModal();
+      if(typeof callback==="function") await callback();
+      return;
+    }
+
     let hashGuardado=String(u.pin_hash || "");
     try{
       const usuarioLocal=JSON.parse(localStorage.getItem("usuario") || "null");
@@ -509,7 +519,7 @@ async function pedirPinConPermiso(accion,callback){
     }
 
     if(!verificacion || !verificacion.ok){
-      alert("PIN incorrecto.");
+      alert(pruebaSesion && pruebaSesion.available ? "PIN incorrecto." : "Vuelve a iniciar sesión una vez para validar el PIN con el sistema actualizado.");
       return;
     }
 
