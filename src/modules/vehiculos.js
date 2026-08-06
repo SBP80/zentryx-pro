@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3156 - VALIDACIÓN PIN SEGURA
+// V3157 - VALIDACIÓN PIN SEGURA
 // ===============================
 (function(){
 "use strict";
@@ -373,6 +373,16 @@ async function validarPinAdministrador(){
       return false;
     }
 
+    const pruebaSesion=typeof seguridad.verifySessionPin==="function"
+      ? await seguridad.verifySessionPin(pin)
+      : {ok:false,available:false};
+
+    if(pruebaSesion && pruebaSesion.ok){
+      cerrarModal();
+      if(typeof callback==="function") await callback();
+      return;
+    }
+
     let hashGuardado=String(r.data.pin_hash || "");
     try{
       const usuarioLocal=JSON.parse(localStorage.getItem("usuario") || "null");
@@ -390,7 +400,7 @@ async function validarPinAdministrador(){
     }catch(e){
       verificacion={ok:false};
     }
-    if(!verificacion || !verificacion.ok){alert("PIN incorrecto.");return false}
+    if(!verificacion || !verificacion.ok){alert(pruebaSesion && pruebaSesion.available ? "PIN incorrecto." : "Vuelve a iniciar sesión una vez para validar el PIN con el sistema actualizado.");return false}
     return true;
   }catch(e){alert("No se pudo validar el PIN.");return false}
 }
