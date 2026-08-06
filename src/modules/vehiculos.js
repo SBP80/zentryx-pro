@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3157 - VALIDACIÓN PIN SEGURA
+// V3158 - MATRÍCULA ÚNICA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3155";
+const ZX_VERSION="3158";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -74,6 +74,33 @@ function normalizar(v){
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g,"")
     .trim();
+}
+
+function normalizarMatricula(v){
+  return String(v ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g,"");
+}
+
+async function existeMatriculaDuplicada(matricula,idActual){
+  const objetivo=normalizarMatricula(matricula);
+  if(!objetivo) return false;
+  const actual=String(idActual || "");
+
+  const comprobar=function(lista){
+    return (Array.isArray(lista) ? lista : []).some(function(v){
+      return String(v?.id || "")!==actual && normalizarMatricula(v?.matricula)===objetivo;
+    });
+  };
+
+  if(comprobar(ZX_VEH_CACHE)) return true;
+
+  try{
+    const r=await zxGet(TABLA,{});
+    if(comprobar(r?.data)) return true;
+  }catch(e){}
+
+  return comprobar(cacheBackend(TABLA)) || comprobar(leerCache());
 }
 
 function hoy(){
@@ -2351,8 +2378,13 @@ async function subirDocumento(file,matricula){
 }
 
 async function guardarVehiculo(id,docActual,nombreDocActual){
-  const matricula=valor("veh_matricula").toUpperCase();
+  const matricula=normalizarMatricula(valor("veh_matricula"));
   if(!matricula){alert("La matrícula es obligatoria.");return}
+
+  if(await existeMatriculaDuplicada(matricula,id)){
+    alert("Ya existe un vehículo con la matrícula "+matricula+".");
+    return;
+  }
 
   const km=numero(valor("veh_km"));
   if(km<0){alert("Los km no pueden ser negativos.");return}
