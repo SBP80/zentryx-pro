@@ -628,7 +628,7 @@ async function asignarVehiculoRapido(v,info,km,ocupado,motivo){
 
   const uso={
     id:nuevoId,empresa_id:u.empresa_id,vehiculo_id:String(v.id),vehiculo_matricula:v.matricula||null,
-    usuario_id:u.id,usuario:u.usuario,nombre_usuario:u.nombre,estado:"en_uso",inicio_at:now,
+    usuario_id:u.id,usuario:u.usuario,nombre_usuario:u.nombre,estado:"en_uso",tipo_uso:"laboral",clasificacion:"laboral",inicio_at:now,
     km_inicio:kmFinal,lat_inicio:pos.lat,lng_inicio:pos.lng,
     motivo_inicio:motivo||(ocupado?"Cambio de responsable desde Fichaje":"Uso rápido desde Fichaje"),
     dispositivo_inicio:navigator.userAgent||"",uso_anterior_id:anterior,
