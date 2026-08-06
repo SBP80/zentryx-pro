@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3162 - CIERRE FUNCIONAL DE VEHÍCULOS
+// V3163 - DETALLE Y CIERRE SEGURO DE USOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3161";
+const ZX_VERSION="3163";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -2765,6 +2765,103 @@ async function eliminarVehiculo(id){
   }catch(e){alert("No se pudo eliminar el vehículo: "+(e.message||"Error"))}
 }
 
+
+
+async function cerrarUsoPendiente(vehiculoId,usoId){
+  const v=vehiculoPorId(vehiculoId);
+  if(!v) return;
+  const detalle=await cargarDetalleVehiculo(vehiculoId);
+  const uso=(detalle.usos||[]).find(function(x){return String(x.id||"")===String(usoId||"")});
+  if(!uso){alert("Uso no encontrado.");return}
+  if(!["en_uso","pendiente_devolucion"].includes(String(uso.estado||""))){alert("Este uso ya está cerrado.");return}
+  if(!esAdmin()){alert("Solo un administrador puede cerrar un uso antiguo pendiente.");return}
+  const kmDefecto=Math.max(numero(v.km_actual),numero(uso.km_inicio));
+  const kmTexto=prompt("Kilómetros finales del vehículo.",String(kmDefecto));
+  if(kmTexto===null) return;
+  const kmFin=numero(kmTexto);
+  if(kmFin<numero(uso.km_inicio)){alert("Los kilómetros finales no pueden ser inferiores a los iniciales.");return}
+  const motivo=pedirMotivoObligatorio("Motivo del cierre manual del uso pendiente.");
+  if(!motivo) return;
+  if(!await validarPinAdministrador()) return;
+  try{
+    const actual=identidadActual();
+    const ahora=ahoraISO();
+    const r=await zxUpdate("usos_vehiculos",{
+      estado:"devuelto",
+      fin_at:ahora,
+      km_fin:kmFin,
+      motivo_fin:motivo,
+      cierre_manual:true,
+      actualizado_por:actual.id||null,
+      updated_at:ahora
+    },"id",usoId);
+    if(r&&r.error) throw r.error;
+    if(String(v.uso_actual_id||"")===String(usoId||"")){
+      const rv=await zxUpdate(TABLA,{
+        uso_actual_id:null,
+        en_uso:false,
+        estado_flota:esAsignacionHabitual(v)?"asignado":"libre",
+        km_actual:Math.max(numero(v.km_actual),kmFin),
+        updated_at:ahora
+      },"id",vehiculoId);
+      if(rv&&rv.error) throw rv.error;
+    }
+    await registrarAuditoriaVehiculo("cerrar_uso_pendiente",v,motivo,{uso_id:String(usoId),km_fin:kmFin});
+    alert("Uso pendiente cerrado correctamente.");
+    cerrarModal();
+    await window.ZX_vehiculos();
+    await abrirFicha(vehiculoId,"historial");
+  }catch(e){alert("No se pudo cerrar el uso pendiente: "+(e.message||"Error"))}
+}
+
+async function abrirDetalleUso(vehiculoId,usoId){
+  const v=vehiculoPorId(vehiculoId);
+  if(!v) return;
+  const detalle=await cargarDetalleVehiculo(vehiculoId);
+  const uso=(detalle.usos||[]).find(function(x){return String(x.id||"")===String(usoId||"")});
+  if(!uso){alert("Uso no encontrado.");return}
+  const puntos=(detalle.puntos||[]).filter(function(p){return String(p.uso_vehiculo_id||"")===String(usoId||"")});
+  const abierto=["en_uso","pendiente_devolucion"].includes(String(uso.estado||""));
+  const tipo=textoTipoUso(uso);
+  const recorrido=kmUso(uso);
+  function campo(nombre,valor){
+    if(valor===undefined||valor===null||String(valor).trim()==="") valor="-";
+    return `<p><b>${limpiar(nombre)}</b><span>${limpiar(valor)}</span></p>`;
+  }
+  modal(`
+    <h2>Detalle del uso</h2>
+    <div class="zx_veh_badges"><span class="${abierto?"warning":"ok"}">${abierto?"En curso":"Finalizado"}</span></div>
+    <div class="zx_veh_info ficha">
+      ${campo("Vehículo",nombreVehiculo(v))}
+      ${campo("Responsable",uso.nombre_usuario||uso.usuario||"Usuario")}
+      ${campo("Clasificación",tipo)}
+      ${campo("Estado",uso.estado||"-")}
+      ${campo("Inicio",fechaHoraES(uso.inicio_at))}
+      ${campo("Fin",uso.fin_at?fechaHoraES(uso.fin_at):"Pendiente")}
+      ${campo("Km iniciales",uso.km_inicio)}
+      ${campo("Km finales",uso.km_fin!=null?uso.km_fin:"Pendiente")}
+      ${campo("Recorrido",uso.km_fin!=null?recorrido+" km":"Pendiente")}
+      ${campo("Motivo de inicio",uso.motivo_inicio||"-")}
+      ${campo("Motivo de fin",uso.motivo_fin||"-")}
+      ${campo("Ubicación inicial",uso.direccion_inicio||uso.ubicacion_inicio||((uso.lat_inicio!=null&&uso.lng_inicio!=null)?uso.lat_inicio+", "+uso.lng_inicio:"-"))}
+      ${campo("Ubicación final",uso.direccion_fin||uso.ubicacion_fin||((uso.lat_fin!=null&&uso.lng_fin!=null)?uso.lat_fin+", "+uso.lng_fin:"-"))}
+      ${campo("Dispositivo de inicio",uso.dispositivo_inicio||"-")}
+      ${campo("Dispositivo de fin",uso.dispositivo_fin||"-")}
+      ${campo("Puntos GPS",puntos.length)}
+      ${campo("ID del uso",uso.id||"-")}
+    </div>
+    <div class="zx_veh_actions ficha_actions">
+      ${abierto&&esAdmin()?`<button class="orange" id="zx_cerrar_uso_pendiente">Cerrar uso pendiente</button>`:""}
+      <button class="blue" id="zx_volver_usos">Volver a usos</button>
+      <button class="gray" id="zx_cerrar_detalle_uso">Cerrar</button>
+    </div>
+  `);
+  const cerrarPendiente=document.getElementById("zx_cerrar_uso_pendiente");
+  if(cerrarPendiente) cerrarPendiente.onclick=function(){cerrarUsoPendiente(vehiculoId,usoId)};
+  document.getElementById("zx_volver_usos").onclick=function(){abrirFicha(vehiculoId,"historial")};
+  document.getElementById("zx_cerrar_detalle_uso").onclick=cerrarModal;
+}
+
 async function clasificarUsoVehiculo(usoId,vehiculoId,tipo){
   tipo=tipo==="personal"?"personal":"laboral";
   const v=vehiculoPorId(vehiculoId);
@@ -2825,9 +2922,12 @@ async function abrirFicha(id,tabInicial){
   const usoHtml=usos.length ? usos.map(function(u){
     const kmTxt=(u.km_inicio!=null ? u.km_inicio : "-")+" → "+(u.km_fin!=null ? u.km_fin : "-");
     const km=kmUso(u);
+    const tipoNormal=tipoUsoNormalizado(u);
+    const abierto=["en_uso","pendiente_devolucion"].includes(String(u.estado||""));
+    const filtro=abierto?"en_curso":(tipoNormal==="personal"?"personal":"laboral");
     const puedeClasificar=esAdmin() || (identidadActual().id && String(u.usuario_id||"")===identidadActual().id);
     const acciones=puedeClasificar && u.km_fin!=null ? `<div class="zx_veh_clasificar"><button data-uso-clasificar="laboral" data-uso-id="${limpiar(u.id)}">🚗 Laboral</button><button data-uso-clasificar="personal" data-uso-id="${limpiar(u.id)}">🏠 Personal</button></div>` : "";
-    return `<div class="zx_veh_hist_item"><b>${limpiar(u.nombre_usuario||u.usuario||"Usuario")} · ${limpiar(textoTipoUso(u))}</b><span>${limpiar(fechaHoraES(u.inicio_at))} · ${limpiar(u.estado||"")}</span><small>Km ${limpiar(kmTxt)}${km ? " · "+limpiar(km)+" km" : ""}</small>${acciones}</div>`;
+    return `<div class="zx_veh_hist_item zx_veh_uso_click" data-uso-detalle="${limpiar(u.id)}" data-uso-filtro="${filtro}"><b>${limpiar(u.nombre_usuario||u.usuario||"Usuario")} · ${limpiar(textoTipoUso(u))}</b><span>${limpiar(fechaHoraES(u.inicio_at))} · ${limpiar(u.estado||"")}</span><small>Km ${limpiar(kmTxt)}${km ? " · "+limpiar(km)+" km" : ""}</small><em>Ver detalle ›</em>${acciones}</div>`;
   }).join("") : `<div class="zx_veh_empty">Todavía no hay usos registrados.</div>`;
 
   function primerValor(obj,claves){
@@ -2945,7 +3045,7 @@ async function abrirFicha(id,tabInicial){
       </div>
     </div>
 
-    <div class="zx_veh_tab ${tabInicial==="historial" ? "on" : ""}" data-veh-panel="historial"><div class="zx_veh_hist">${usoHtml}</div></div>
+    <div class="zx_veh_tab ${tabInicial==="historial" ? "on" : ""}" data-veh-panel="historial"><div class="zx_veh_uso_filtros"><button class="on" data-uso-filtro-btn="todos">Todos</button><button data-uso-filtro-btn="laboral">Laborales</button><button data-uso-filtro-btn="personal">Personales</button><button data-uso-filtro-btn="en_curso">En curso</button></div><div class="zx_veh_hist">${usoHtml}</div></div>
     <div class="zx_veh_tab ${tabInicial==="movimientos" ? "on" : ""}" data-veh-panel="movimientos"><div class="zx_veh_hist">${movimientosHtml}</div></div>
     <div class="zx_veh_tab ${tabInicial==="transferencias" ? "on" : ""}" data-veh-panel="transferencias"><div class="zx_veh_hist">${transHtml}</div></div>
     <div class="zx_veh_tab ${tabInicial==="ruta" ? "on" : ""}" data-veh-panel="ruta">
@@ -3009,6 +3109,22 @@ async function abrirFicha(id,tabInicial){
   document.querySelectorAll("[data-uso-clasificar]").forEach(function(btn){
     btn.onclick=function(){clasificarUsoVehiculo(btn.dataset.usoId,v.id,btn.dataset.usoClasificar)};
   });
+  document.querySelectorAll("[data-uso-detalle]").forEach(function(card){
+    card.onclick=function(ev){
+      if(ev.target&&ev.target.closest&&ev.target.closest("button")) return;
+      abrirDetalleUso(v.id,card.dataset.usoDetalle);
+    };
+  });
+  document.querySelectorAll("[data-uso-filtro-btn]").forEach(function(btn){
+    btn.onclick=function(){
+      const filtro=btn.dataset.usoFiltroBtn;
+      document.querySelectorAll("[data-uso-filtro-btn]").forEach(function(x){x.classList.toggle("on",x===btn)});
+      document.querySelectorAll("[data-uso-filtro]").forEach(function(card){
+        card.style.display=(filtro==="todos"||card.dataset.usoFiltro===filtro)?"":"none";
+      });
+    };
+  });
+
   const doc=document.getElementById("veh_ficha_doc");
   if(doc) doc.onclick=function(){window.open(v.documento_url,"_blank")};
   document.getElementById("veh_ficha_cerrar").onclick=cerrarModal;
@@ -3113,6 +3229,7 @@ function instalarCSS(){
     .zx_veh_more_panel .green,.zx_veh_actions .green{background:#16a34a}.zx_veh_more_panel .blue,.zx_veh_actions .blue{background:#2563eb}.zx_veh_more_panel .purple,.zx_veh_actions .purple{background:#7c3aed}.zx_veh_more_panel .orange,.zx_veh_actions .orange{background:#f97316}.zx_veh_more_panel .gray,.zx_veh_actions .gray{background:#64748b}.zx_veh_more_panel .red,.zx_veh_actions .red{background:#dc2626}
     .zx_veh_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
     .zx_veh_aviso{margin:12px 0;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:16px;padding:13px;font-weight:850;line-height:1.35}.zx_veh_file_wrap{width:100%;overflow:hidden}.zx_veh_file_wrap input[type="file"]{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;font-size:14px}
+    .zx_veh_uso_filtros{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px}.zx_veh_uso_filtros button{border:0;border-radius:999px;padding:9px 12px;background:#eef2f7;color:#334155;font-weight:900;white-space:nowrap}.zx_veh_uso_filtros button.on{background:#2563eb;color:#fff}.zx_veh_uso_click{cursor:pointer;position:relative}.zx_veh_uso_click>em{display:block;margin-top:7px;color:#2563eb;font-style:normal;font-size:13px;font-weight:950}.zx_veh_uso_click:active{transform:scale(.995)}
     .zx_veh_nota_form{margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:14px;padding:11px;font-size:13px;font-weight:800}.zx_veh_readonly{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:900;color:#071330;background:#eef2f7}.zx_veh_clasificar{display:flex;gap:7px;margin-top:9px}.zx_veh_clasificar button{flex:1;border:0;border-radius:11px;padding:9px 7px;font-weight:900;background:#e8eef8;color:#15233d}.zx_veh_clasificar button:first-child{background:#dbeafe;color:#1d4ed8}.zx_veh_clasificar button:last-child{background:#fef3c7;color:#92400e}.zx_veh_empty{color:#64748b;font-size:16px;font-weight:850;padding:12px 0}
     .zx_veh_form h3{margin:20px 0 8px;color:#071330;font-size:22px;font-weight:950}
     .zx_veh_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
