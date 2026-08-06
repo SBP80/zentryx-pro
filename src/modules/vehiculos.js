@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3163 - DETALLE Y CIERRE SEGURO DE USOS
+// V3164 - HISTORIAL CON TIMEOUT Y RECUPERACIÓN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3163";
+const ZX_VERSION="3164";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -863,33 +863,53 @@ async function cargarUsosYRecuperaciones(){
 }
 
 async function cargarDetalleVehiculo(id){
-  const out={usos:[],transferencias:[],puntos:[]};
+  const out={usos:[],transferencias:[],puntos:[],errores:[]};
   const vehId=String(id);
 
-  try{
-    const r=await zxGet("usos_vehiculos",{
+  function conTimeout(promesa,ms,nombre){
+    return Promise.race([
+      Promise.resolve(promesa),
+      new Promise(function(_,reject){
+        setTimeout(function(){reject(new Error("Tiempo agotado al cargar "+nombre));},ms);
+      })
+    ]);
+  }
+
+  async function cargar(nombre,tabla,opciones,procesar){
+    try{
+      const r=await conTimeout(zxGet(tabla,opciones),9000,nombre);
+      if(r&&r.error) throw r.error;
+      return procesar((r&&r.data)||[]);
+    }catch(e){
+      out.errores.push(nombre+": "+String(e&&e.message||e||"Error"));
+      return [];
+    }
+  }
+
+  const resultados=await Promise.all([
+    cargar("usos","usos_vehiculos",{
       query:q=>q.eq("vehiculo_id",vehId).order("inicio_at",{ascending:false}).limit(30)
-    });
-    out.usos=(r.data||[]).filter(x=>String(x.vehiculo_id||"")===vehId)
-      .sort((a,b)=>new Date(b.inicio_at||0)-new Date(a.inicio_at||0)).slice(0,30);
-  }catch(e){}
-
-  try{
-    const r=await zxGet("transferencias_vehiculos",{
+    },function(data){
+      return data.filter(x=>String(x.vehiculo_id||"")===vehId)
+        .sort((a,b)=>new Date(b.inicio_at||0)-new Date(a.inicio_at||0)).slice(0,30);
+    }),
+    cargar("cambios de responsable","transferencias_vehiculos",{
       query:q=>q.eq("vehiculo_id",vehId).order("created_at",{ascending:false}).limit(30)
-    });
-    out.transferencias=(r.data||[]).filter(x=>String(x.vehiculo_id||"")===vehId)
-      .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,30);
-  }catch(e){}
-
-  try{
-    const r=await zxGet("rutas_vehiculos_puntos",{
+    },function(data){
+      return data.filter(x=>String(x.vehiculo_id||"")===vehId)
+        .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,30);
+    }),
+    cargar("ruta GPS","rutas_vehiculos_puntos",{
       query:q=>q.eq("vehiculo_id",vehId).order("registrado_at",{ascending:true}).limit(500)
-    });
-    out.puntos=(r.data||[]).filter(x=>String(x.vehiculo_id||"")===vehId)
-      .sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0)).slice(0,500);
-  }catch(e){}
+    },function(data){
+      return data.filter(x=>String(x.vehiculo_id||"")===vehId)
+        .sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0)).slice(0,500);
+    })
+  ]);
 
+  out.usos=resultados[0]||[];
+  out.transferencias=resultados[1]||[];
+  out.puntos=resultados[2]||[];
   return out;
 }
 
@@ -2895,7 +2915,19 @@ async function abrirFicha(id,tabInicial){
   `);
   document.getElementById("veh_ficha_cerrar").onclick=cerrarModal;
 
-  const detalle=await cargarDetalleVehiculo(id);
+  let detalle;
+  try{
+    detalle=await cargarDetalleVehiculo(id);
+  }catch(e){
+    modal(`
+      <h2>${limpiar(nombreVehiculo(v))}</h2>
+      <div class="zx_veh_empty">No se pudo cargar la ficha del vehículo.</div>
+      <p class="zx_veh_error">${limpiar(e&&e.message||"Error de carga")}</p>
+      <button class="zx_btn_big zx_gris" id="veh_ficha_cerrar_error">Cerrar</button>
+    `);
+    document.getElementById("veh_ficha_cerrar_error").onclick=cerrarModal;
+    return;
+  }
   const usos=detalle.usos||[];
   const transferencias=detalle.transferencias||[];
   const todosPuntos=detalle.puntos||[];
@@ -3013,8 +3045,13 @@ async function abrirFicha(id,tabInicial){
     return `<div class="zx_veh_hist_item"><b>${limpiar(t.nombre_anterior||"Sin responsable")} → ${limpiar(t.nombre_nuevo||"Usuario")}</b><span>${limpiar(fechaHoraES(t.created_at))}</span><small>${limpiar(t.motivo||"Cambio de responsable")}</small></div>`;
   }).join("") : `<div class="zx_veh_empty">No hay transferencias registradas.</div>`;
 
+  const avisoCarga=(detalle.errores&&detalle.errores.length)
+    ? `<div class="zx_veh_notice warning">Parte del historial no respondió. Puedes seguir usando la ficha y volver a intentarlo más tarde.</div>`
+    : "";
+
   modal(`
     <h2>${limpiar(nombreVehiculo(v))}</h2>
+    ${avisoCarga}
     <div class="zx_veh_badges">${badge(v)}</div>
     ${renderAvisos(v)}
 
