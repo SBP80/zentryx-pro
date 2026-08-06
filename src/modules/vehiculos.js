@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3154 - CIERRE DE AUDITORÍA, SEGURIDAD Y BAJA SEGURA
+// V3155 - VALIDACIÓN PIN SEGURA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3154";
+const ZX_VERSION="3155";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -367,7 +367,17 @@ async function validarPinAdministrador(){
     if(r.error || !r.data){alert("No se pudo validar el PIN.");return false}
     if(normalizar(r.data.rol)!=="administrador" && normalizar(r.data.usuario)!=="admin"){alert("Solo administrador.");return false}
     if(r.data.debe_crear_pin || !r.data.pin_hash){alert("El administrador no tiene PIN activo.");return false}
-    if(hashPin(String(pin).trim())!==String(r.data.pin_hash||"")){alert("PIN incorrecto.");return false}
+    let verificacion=null;
+    try{
+      if(window.ZENTRYX_SECURITY && typeof window.ZENTRYX_SECURITY.verifyPin==="function"){
+        verificacion=await window.ZENTRYX_SECURITY.verifyPin(String(pin).trim(),r.data.pin_hash);
+      }else{
+        verificacion={ok:hashPin(String(pin).trim())===String(r.data.pin_hash||"")};
+      }
+    }catch(e){
+      verificacion={ok:false};
+    }
+    if(!verificacion || !verificacion.ok){alert("PIN incorrecto.");return false}
     return true;
   }catch(e){alert("No se pudo validar el PIN.");return false}
 }
