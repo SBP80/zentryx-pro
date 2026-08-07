@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3184 - MODO OPERATIVO PARA USUARIOS SIN ACCESO ADMINISTRATIVO
+// V3185 - CONSERVA MODO OPERATIVO TRAS ACCIONES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3184";
+const ZX_VERSION="3185";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -2524,7 +2524,7 @@ async function guardarVehiculo(id,docActual,nombreDocActual){
     const guardado=Object.assign({},vehiculoPorId(id)||{},data,{id:id||((r&&r.data&&r.data[0]&&r.data[0].id)||"")});
     await registrarAuditoriaVehiculo(id?"editar_vehiculo":"crear_vehiculo",guardado,id?"Edición de ficha":"Alta de vehículo",{campos:Object.keys(data)});
     cerrarModal();
-    await window.ZX_vehiculos();
+    await recargarVehiculosActual();
   }catch(e){
     if(boton){boton.disabled=false;boton.textContent="Guardar"}
     alert("Error guardando vehículo: "+(e.message || "Error"));
@@ -2540,7 +2540,7 @@ async function actualizarVehiculo(id,data){
       r=await sb().from(TABLA).update(data).eq("id",String(id));
     }
     if(r && r.error) throw r.error;
-    await window.ZX_vehiculos();
+    await recargarVehiculosActual();
   }catch(e){
     alert("No se pudo actualizar el vehículo.");
   }
@@ -2639,7 +2639,7 @@ async function gestionarAsignacionVehiculo(id){
         throw new Error("No se registró el historial. El cambio se ha cancelado.");
       }
       cerrarModal();
-      await window.ZX_vehiculos();
+      await recargarVehiculosActual();
     }catch(e){
       btn.disabled=false; btn.textContent=actualId?"Guardar cambio":"Asignar vehículo";
       alert("No se pudo cambiar el responsable: "+(e.message||"Error"));
@@ -2674,7 +2674,7 @@ async function gestionarAsignacionVehiculo(id){
         throw new Error("No se registró el historial. El cambio se ha cancelado.");
       }
       cerrarModal();
-      await window.ZX_vehiculos();
+      await recargarVehiculosActual();
     }catch(e){
       retirar.disabled=false; retirar.textContent="Dejar sin responsable";
       alert("No se pudo retirar el responsable: "+(e.message||"Error"));
@@ -2811,7 +2811,7 @@ async function tomarVehiculo(id){
       }
 
       cerrarModal();
-      await window.ZX_vehiculos();
+      await recargarVehiculosActual();
     }catch(e){
       btn.disabled=false;
       btn.textContent=ocupado ? "Sí, utilizarlo" : "Confirmar uso";
@@ -2901,7 +2901,7 @@ async function devolverVehiculo(id){
 
       detenerSeguimientoGPS();
       cerrarModal();
-      await window.ZX_vehiculos();
+      await recargarVehiculosActual();
     }catch(e){
       btn.disabled=false;
       btn.textContent="Confirmar devolución";
@@ -2981,7 +2981,7 @@ async function eliminarVehiculo(id){
     ZX_VEH_CACHE=ZX_VEH_CACHE.filter(function(item){return String(item.id)!==String(id)});
     cerrarModal();
     alert("Vehículo eliminado definitivamente.");
-    await window.ZX_vehiculos();
+    await recargarVehiculosActual();
   }catch(e){alert("No se pudo eliminar el vehículo: "+(e.message||"Error"))}
 }
 
@@ -3028,7 +3028,7 @@ async function cerrarUsoPendiente(vehiculoId,usoId){
     await registrarAuditoriaVehiculo("cerrar_uso_pendiente",v,motivo,{uso_id:String(usoId),km_fin:kmFin});
     alert("Uso pendiente cerrado correctamente.");
     cerrarModal();
-    await window.ZX_vehiculos();
+    await recargarVehiculosActual();
     await abrirFicha(vehiculoId,"historial");
   }catch(e){alert("No se pudo cerrar el uso pendiente: "+(e.message||"Error"))}
 }
@@ -3106,7 +3106,7 @@ async function clasificarUsoVehiculo(usoId,vehiculoId,tipo){
       throw new Error("No se registró el historial. El cambio se ha cancelado para no dejar datos sin trazabilidad.");
     }
     cerrarModal();
-    await window.ZX_vehiculos();
+    await recargarVehiculosActual();
     await abrirFicha(vehiculoId,"historial");
   }catch(e){alert("No se pudo clasificar el recorrido: "+(e.message||"Error"))}
 }
@@ -3644,6 +3644,10 @@ function instalarCSS(){
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
   document.head.appendChild(s);
+}
+
+async function recargarVehiculosActual(){
+  return abrirVehiculosBase(ZX_VEH_MODO_OPERATIVO);
 }
 
 async function abrirVehiculosBase(modoOperativo){
