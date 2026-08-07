@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3176";
+const ZX_VERSION="3177";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -939,7 +939,11 @@ async function cargarDetalleVehiculo(id){
       const filas=(r&&Array.isArray(r.data)?r.data:[]).filter(filtro).sort(orden).slice(0,limite);
       out[clave]=filas;
     }catch(e){
-      out.errores.push(tabla+": "+(e&&e.message?e.message:"Error"));
+      out.errores.push({
+        tabla:tabla,
+        clave:clave,
+        mensaje:(e&&e.message?e.message:"Error")
+      });
     }
   }
 
@@ -3075,6 +3079,17 @@ async function abrirFicha(id,tabInicial){
     </article>`;
   }
 
+  function cabeceraDiaMovimiento(fecha){
+    try{
+      const d=new Date(fecha);
+      if(Number.isNaN(d.getTime())) return fechaES(fecha)||"Sin fecha";
+      const dia=new Intl.DateTimeFormat("es-ES",{weekday:"long"}).format(d).toUpperCase();
+      return dia+" · "+fechaES(d);
+    }catch(e){
+      return fechaES(fecha)||"Sin fecha";
+    }
+  }
+
   function renderMovimientosAgrupados(lista){
     if(!lista.length) return `<div class="zx_veh_empty">No hay movimientos registrados.</div>`;
     const grupos=new Map();
@@ -3084,7 +3099,8 @@ async function abrirFicha(id,tabInicial){
       grupos.get(clave).push(m);
     });
     return Array.from(grupos.entries()).map(function(par){
-      return `<section class="zx_mov_dia"><div class="zx_mov_dia_titulo"><span>${limpiar(par[0])}</span></div>${par[1].map(renderMovimiento).join("")}</section>`;
+      const primera=par[1]&&par[1][0]?par[1][0].fecha:null;
+      return `<section class="zx_mov_dia"><div class="zx_mov_dia_titulo"><span>${limpiar(cabeceraDiaMovimiento(primera))}</span></div>${par[1].map(renderMovimiento).join("")}</section>`;
     }).join("");
   }
 
@@ -3152,8 +3168,12 @@ async function abrirFicha(id,tabInicial){
     return `<div class="zx_veh_hist_item"><b>${limpiar(t.nombre_anterior||"Sin responsable")} → ${limpiar(t.nombre_nuevo||"Usuario")}</b><span>${limpiar(fechaHoraES(t.created_at))}</span><small>${limpiar(t.motivo||"Cambio de responsable")}</small></div>`;
   }).join("") : `<div class="zx_veh_empty">No hay transferencias registradas.</div>`;
 
-  const avisoCarga=(detalle.errores&&detalle.errores.length)
-    ? `<div class="zx_veh_notice warning">Parte del historial no respondió. Puedes seguir usando la ficha y volver a intentarlo más tarde.</div>`
+  const falloUsos=(detalle.errores||[]).some(function(e){
+    if(typeof e==="string") return e.indexOf("usos_vehiculos:")===0;
+    return e && (e.clave==="usos" || e.tabla==="usos_vehiculos");
+  });
+  const avisoCarga=(falloUsos && !usos.length)
+    ? `<div class="zx_veh_notice warning">No se pudo cargar el historial de usos. Puedes seguir usando la ficha y volver a intentarlo más tarde.</div>`
     : "";
 
   modal(`
@@ -3421,6 +3441,7 @@ function instalarCSS(){
     .zx_veh_hist{display:grid;gap:10px}.zx_veh_hist_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px}
     .zx_veh_hist_item b,.zx_veh_hist_item span,.zx_veh_hist_item small{display:block}.zx_veh_hist_item b{color:#071330;font-size:15px}.zx_veh_hist_item span{color:#475569;font-size:13px;font-weight:850;margin-top:4px}.zx_veh_hist_item small{color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
     .zx_veh_mov{background:#f8fafc;border:1px solid #dbe3ef;border-left:6px solid #94a3b8;border-radius:18px;padding:14px;box-shadow:0 5px 14px rgba(15,23,42,.04)}
+    .zx_mov_dia{margin:0 0 18px}.zx_mov_dia_titulo{margin:16px 0 10px;padding:8px 0;border-top:2px solid #dbe3ef;border-bottom:2px solid #dbe3ef;background:#fff;color:#071330;font-weight:950}.zx_mov_dia_titulo span{display:inline-block;background:#eef2f7;border-radius:10px;padding:7px 11px;letter-spacing:.02em}
     .zx_veh_mov header{display:flex;align-items:flex-start;gap:10px}.zx_veh_mov header i{font-style:normal;font-size:21px;line-height:1}.zx_veh_mov header strong,.zx_veh_mov header time{display:block}.zx_veh_mov header strong{color:#071330;font-size:16px;line-height:1.15}.zx_veh_mov header time{color:#64748b;font-size:12px;font-weight:900;margin-top:5px}
     .zx_mov_grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_mov_grid>div{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:9px 10px;min-width:0}.zx_mov_grid span,.zx_mov_grid b{display:block}.zx_mov_grid span{color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.zx_mov_grid b{color:#16233d;font-size:12px;line-height:1.25;margin-top:3px;overflow-wrap:anywhere}.zx_mov_grid .zx_mov_wide{grid-column:1/-1}
     .zx_mov_inicio{border-left-color:#22c55e}.zx_mov_fin{border-left-color:#ef4444}.zx_mov_transferencia{border-left-color:#7c3aed}.zx_mov_laboral{border-left-color:#2563eb}.zx_mov_personal{border-left-color:#f59e0b}.zx_mov_otro{border-left-color:#64748b}
