@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3182 - MOTIVO OBLIGATORIO EN CAMBIO DE RESPONSABLE
+// V3183 - CORRECCIÓN CAMBIO RESPONSABLE Y MOTIVO OBLIGATORIO
 // ===============================
 (function(){
 "use strict";
@@ -2584,7 +2584,7 @@ async function gestionarAsignacionVehiculo(id){
       ${usuarios.map(u=>`<option value="${limpiar(u.id)}" ${u.id===actualId?"selected":""}>${limpiar(u.nombre)}${u.usuario&&u.usuario!==u.nombre?" · "+limpiar(u.usuario):""}</option>`).join("")}
     </select>
     <label class="zx_veh_label" for="veh_asignacion_motivo">Motivo / observación</label>
-    <textarea id="veh_asignacion_motivo" rows="3" placeholder=motivo></textarea>
+    <textarea id="veh_asignacion_motivo" rows="3" placeholder="Indica el motivo del cambio"></textarea>
     <button class="zx_btn_big zx_verde" id="veh_asignar_ok">${actualId?"Guardar cambio":"Asignar vehículo"}</button>
     ${actualId ? `<button class="zx_btn_big zx_naranja" id="veh_retirar_asignacion">Dejar sin responsable</button>` : ""}
     <button class="zx_btn_big zx_gris" id="veh_asignar_cancelar">Cancelar</button>
@@ -2597,17 +2597,18 @@ async function gestionarAsignacionVehiculo(id){
     const nuevo=usuarios.find(u=>u.id===nuevoId);
     if(!nuevo){alert("Selecciona un usuario.");return}
     if(nuevo.id===actualId){alert("Ese usuario ya es el responsable habitual.");return}
+    const motivo=String(valor("veh_asignacion_motivo")||"").trim();
+    if(!motivo){
+      alert("Debes indicar el motivo del cambio de responsable.");
+      document.getElementById("veh_asignacion_motivo")?.focus();
+      return;
+    }
     if(!confirm((actualId?"¿Cambiar":"¿Asignar")+" el responsable habitual a "+nuevo.nombre+"?")) return;
 
     const btn=document.getElementById("veh_asignar_ok");
     btn.disabled=true; btn.textContent="Guardando...";
     const anteriorId=actualId||"";
     const anteriorNombre=asignadoNombre(v)||"Sin responsable";
-    const motivo=valor("veh_asignacion_motivo")||motivo;
-  if(!String(motivo||"").trim()){
-    alert("Debes indicar el motivo del cambio de responsable.");
-    return;
-  }
     try{
       const r=await zxUpdate(TABLA,{
         usuario_id:nuevo.id,
@@ -2642,8 +2643,13 @@ async function gestionarAsignacionVehiculo(id){
 
   const retirar=document.getElementById("veh_retirar_asignacion");
   if(retirar) retirar.onclick=async function(){
+    const motivo=String(valor("veh_asignacion_motivo")||"").trim();
+    if(!motivo){
+      alert("Debes indicar el motivo para dejar el vehículo sin responsable.");
+      document.getElementById("veh_asignacion_motivo")?.focus();
+      return;
+    }
     if(!confirm("¿Dejar este vehículo sin responsable habitual?")) return;
-    const motivo=valor("veh_asignacion_motivo")||"Retirada de responsable";
     retirar.disabled=true; retirar.textContent="Guardando...";
     try{
       const anteriorId=asignadoId(v);
