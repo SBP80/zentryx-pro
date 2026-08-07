@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3177";
+const ZX_VERSION="3178";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -3084,7 +3084,7 @@ async function abrirFicha(id,tabInicial){
       const d=new Date(fecha);
       if(Number.isNaN(d.getTime())) return fechaES(fecha)||"Sin fecha";
       const dia=new Intl.DateTimeFormat("es-ES",{weekday:"long"}).format(d).toUpperCase();
-      return dia+" · "+fechaES(d);
+      return dia+" · "+String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear();
     }catch(e){
       return fechaES(fecha)||"Sin fecha";
     }
