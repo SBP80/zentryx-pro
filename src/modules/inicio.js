@@ -669,6 +669,10 @@ function renderEstadoJornada(j){
 }
 
 function abrirVehiculosSeguro(){
+  if(typeof window.ZX_vehiculos_operativo==="function"){
+    window.ZX_vehiculos_operativo();
+    return;
+  }
   if(typeof window.ZX_vehiculos==="function"){
     window.ZX_vehiculos();
     return;
@@ -677,7 +681,7 @@ function abrirVehiculosSeguro(){
     window.ZENTRYX_UI_abrirVehiculos();
     return;
   }
-  alert("No se ha podido abrir el módulo Vehículos.");
+  alert("No se ha podido abrir Vehículos.");
 }
 
 function renderVehiculo(v,jornada){
