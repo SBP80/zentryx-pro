@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3165";
+const ZX_VERSION="3167";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -870,31 +870,52 @@ async function cargarDetalleVehiculo(id){
     try{
       const data=cacheBackend(tabla);
       return Array.isArray(data)?data:[];
-    }catch(e){
-      return [];
-    }
+    }catch(e){return []}
+  }
+  function conTimeout(promesa,ms,etiqueta){
+    return Promise.race([
+      promesa,
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error("Tiempo agotado: "+etiqueta)),ms))
+    ]);
   }
 
-  // La ficha se abre siempre con la información local ya disponible.
-  // No espera consultas remotas, porque en Safari/iOS una petición retenida
-  // podía dejar el modal bloqueado indefinidamente en “Cargando historial”.
-  out.usos=filasCache("usos_vehiculos")
+  // Primero dejamos preparados datos locales para que siempre exista respaldo.
+  const cacheUsos=filasCache("usos_vehiculos")
     .filter(x=>String(x.vehiculo_id||"")===vehId)
     .sort((a,b)=>new Date(b.inicio_at||0)-new Date(a.inicio_at||0)).slice(0,30);
-
-  out.transferencias=filasCache("transferencias_vehiculos")
+  const cacheTransferencias=filasCache("transferencias_vehiculos")
     .filter(x=>String(x.vehiculo_id||"")===vehId)
     .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,30);
-
-  out.puntos=filasCache("rutas_vehiculos_puntos")
+  const cachePuntos=filasCache("rutas_vehiculos_puntos")
     .filter(x=>String(x.vehiculo_id||"")===vehId)
     .sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0)).slice(0,500);
 
-  // Si no hay caché de usos, se conserva al menos el uso abierto conocido
-  // que ya fue cargado al preparar el listado de vehículos.
+  async function cargar(tabla,consulta,filtro,orden,limite,clave){
+    try{
+      const r=await conTimeout(zxGet(tabla,{query:consulta}),5500,tabla);
+      if(r&&r.error) throw r.error;
+      const filas=(r&&Array.isArray(r.data)?r.data:[]).filter(filtro).sort(orden).slice(0,limite);
+      out[clave]=filas;
+    }catch(e){
+      out.errores.push(tabla+": "+(e&&e.message?e.message:"Error"));
+    }
+  }
+
+  await Promise.all([
+    cargar("usos_vehiculos",q=>q.eq("vehiculo_id",vehId).order("inicio_at",{ascending:false}).limit(30),
+      x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(b.inicio_at||0)-new Date(a.inicio_at||0),30,"usos"),
+    cargar("transferencias_vehiculos",q=>q.eq("vehiculo_id",vehId).order("created_at",{ascending:false}).limit(30),
+      x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0),30,"transferencias"),
+    cargar("rutas_vehiculos_puntos",q=>q.eq("vehiculo_id",vehId).order("registrado_at",{ascending:true}).limit(500),
+      x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0),500,"puntos")
+  ]);
+
+  if(!out.usos.length) out.usos=cacheUsos;
+  if(!out.transferencias.length) out.transferencias=cacheTransferencias;
+  if(!out.puntos.length) out.puntos=cachePuntos;
+
   const actual=ZX_USOS_ACTUALES[vehId];
   if(!out.usos.length && actual) out.usos=[actual];
-
   return out;
 }
 
@@ -2900,6 +2921,7 @@ async function abrirFicha(id,tabInicial){
   `);
   document.getElementById("veh_ficha_cerrar").onclick=cerrarModal;
 
+  try{
   let detalle;
   try{
     detalle=await cargarDetalleVehiculo(id);
@@ -3150,6 +3172,17 @@ async function abrirFicha(id,tabInicial){
   const doc=document.getElementById("veh_ficha_doc");
   if(doc) doc.onclick=function(){window.open(v.documento_url,"_blank")};
   document.getElementById("veh_ficha_cerrar").onclick=cerrarModal;
+  }catch(e){
+    console.error("Error abriendo ficha de vehículo",e);
+    modal(`
+      <h2>${limpiar(nombreVehiculo(v))}</h2>
+      <div class="zx_veh_empty">No se pudo mostrar el historial.</div>
+      <p class="zx_veh_error">${limpiar(e&&e.message||String(e)||"Error desconocido")}</p>
+      <button class="zx_btn_big zx_gris" id="veh_ficha_cerrar_render">Cerrar</button>
+    `);
+    const b=document.getElementById("veh_ficha_cerrar_render");
+    if(b) b.onclick=cerrarModal;
+  }
 }
 
 function instalarCSS(){
