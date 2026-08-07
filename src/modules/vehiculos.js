@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3185 - CONSERVA MODO OPERATIVO TRAS ACCIONES
+// V3186 - MODO OPERATIVO RESTRINGIDO Y BOTÓN CORRECTO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3185";
+const ZX_VERSION="3186";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -1712,7 +1712,9 @@ function renderVehiculo(v){
       : (v.__recuperacion && estado==="libre")
         ? `<button class="purple zx_veh_main_action" data-veh-recuperar="${limpiar(v.id)}">↩️ Volver a utilizar</button>`
         : (estado!=="inactivo" && !["averia","taller","fuera_servicio"].includes(estado))
-          ? `<button class="green zx_veh_main_action" data-veh-tomar="${limpiar(v.id)}">${estado==="uso" ? "🔄 Asumir vehículo" : "🚗 Utilizar vehículo"}</button>`
+          ? (estado==="uso" && esResponsableActual(v)
+              ? `<button class="green zx_veh_main_action" type="button" disabled>🚗 Tu vehículo en uso</button>`
+              : `<button class="green zx_veh_main_action" data-veh-tomar="${limpiar(v.id)}">${estado==="uso" ? "🔄 Asumir vehículo" : "🚗 Utilizar vehículo"}</button>`)
           : "";
 
   const estadoRuta = gpsHabilitado && gpsActivo
@@ -1750,15 +1752,22 @@ function renderVehiculo(v){
 
       <button class="zx_veh_more" type="button" data-veh-more="${limpiar(v.id)}">••• Más opciones</button>
       <div class="zx_veh_more_panel" data-veh-more-panel="${limpiar(v.id)}" hidden>
-        <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha completa</button>
-        <button class="orange" data-veh-grua="${limpiar(v.id)}">🚨 Aviso grúa</button>
-        <button class="purple" data-veh-history="${limpiar(v.id)}">🧾 Historial de uso</button>
-        <button class="gray" data-veh-movements="${limpiar(v.id)}">🧭 Movimientos</button>
-        <button class="gray" data-veh-changes="${limpiar(v.id)}">🔄 Cambios de responsable</button>
-        ${gpsHabilitado ? `<button class="gray" data-veh-route="${limpiar(v.id)}">🛰️ Historial GPS</button>` : ""}
-        ${!ZX_VEH_MODO_OPERATIVO && puedeGestionar() ? `<button class="gray" data-veh-asignar="${limpiar(v.id)}">${asignado ? "👤 Cambiar responsable" : "👤 Asignar responsable"}</button><button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar ficha</button>` : ""}
-        ${enUso && (esResponsableActual(v) || puedeGestionar()) ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar uso</button>` : ""}
-        ${!ZX_VEH_MODO_OPERATIVO && esAdmin() ? `<details class="zx_veh_admin_actions"><summary>🔐 Administración</summary>${estado!=="inactivo" ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar vehículo</button>` : `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar vehículo</button><button class="red" data-veh-eliminar="${limpiar(v.id)}">🗑️ Eliminar definitivamente</button>`}</details>` : ""}
+        ${ZX_VEH_MODO_OPERATIVO
+          ? `
+            <button class="orange" data-veh-grua="${limpiar(v.id)}">🚨 Aviso grúa</button>
+            ${enUso && esResponsableActual(v) ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar uso</button>` : ""}
+          `
+          : `
+            <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha completa</button>
+            <button class="orange" data-veh-grua="${limpiar(v.id)}">🚨 Aviso grúa</button>
+            <button class="purple" data-veh-history="${limpiar(v.id)}">🧾 Historial de uso</button>
+            <button class="gray" data-veh-movements="${limpiar(v.id)}">🧭 Movimientos</button>
+            <button class="gray" data-veh-changes="${limpiar(v.id)}">🔄 Cambios de responsable</button>
+            ${gpsHabilitado ? `<button class="gray" data-veh-route="${limpiar(v.id)}">🛰️ Historial GPS</button>` : ""}
+            ${puedeGestionar() ? `<button class="gray" data-veh-asignar="${limpiar(v.id)}">${asignado ? "👤 Cambiar responsable" : "👤 Asignar responsable"}</button><button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar ficha</button>` : ""}
+            ${enUso && (esResponsableActual(v) || puedeGestionar()) ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar uso</button>` : ""}
+            ${esAdmin() ? `<details class="zx_veh_admin_actions"><summary>🔐 Administración</summary>${estado!=="inactivo" ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar vehículo</button>` : `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar vehículo</button><button class="red" data-veh-eliminar="${limpiar(v.id)}">🗑️ Eliminar definitivamente</button>`}</details>` : ""}
+          `}
       </div>
     </article>
   `;
