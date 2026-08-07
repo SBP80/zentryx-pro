@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3140 - USOS VEHÍCULOS COMPATIBLES CON SQL ACTUAL
+// V3141 - TIPO DE USO LABORAL COMPATIBLE CON SQL ACTUAL
 // ===============================
 (function(){
 "use strict";
@@ -621,7 +621,7 @@ async function asignarVehiculoRapido(v,info,km,ocupado,motivo){
   if(ocupado && anterior){
     const rc=await sb().from("usos_vehiculos").update({
       estado:"transferido",fin_at:now,km_fin:kmFinal,lat_fin:pos.lat,lng_fin:pos.lng,
-      motivo_fin:"Transferido a "+u.nombre,actualizado_por:u.id
+      motivo_fin:"Transferido a "+u.nombre,actualizado_por:u.id,updated_at:now
     }).eq("id",String(anterior));
     if(rc.error) throw rc.error;
   }
@@ -734,7 +734,7 @@ async function devolverVehiculoRapido(info){
     try{
       const u=identidadVehiculoRapido(); const pos=await posicionVehiculoRapido(); const now=ahora();
       if(v.uso_actual_id){
-        const ru=await sb().from("usos_vehiculos").update({estado:"devuelto",fin_at:now,km_fin:km,lat_fin:pos.lat,lng_fin:pos.lng,motivo_fin:"Devolución rápida desde Fichaje",dispositivo_fin:navigator.userAgent||"",actualizado_por:u.id}).eq("id",String(v.uso_actual_id));
+        const ru=await sb().from("usos_vehiculos").update({estado:"devuelto",fin_at:now,km_fin:km,lat_fin:pos.lat,lng_fin:pos.lng,motivo_fin:"Devolución rápida desde Fichaje",dispositivo_fin:navigator.userAgent||"",actualizado_por:u.id,updated_at:now}).eq("id",String(v.uso_actual_id));
         if(ru.error) throw ru.error;
       }
       const rv=await sb().from("vehiculos").update({uso_actual_id:null,usuario_actual_id:null,usuario_actual_nombre:null,uso_iniciado_at:null,estado_flota:"libre",km_actual:km,en_uso:false,usuario_asignado:""}).eq("id",String(v.id));
