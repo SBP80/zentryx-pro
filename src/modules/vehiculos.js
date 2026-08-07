@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3179 - AUDITORÍA REAL DE RECLASIFICACIÓN
+// V3180 - VEHICULOS_AUDITORIA REAL
 // ===============================
 (function(){
 "use strict";
@@ -477,12 +477,16 @@ function pedirMotivoObligatorio(texto){
 async function registrarAuditoriaVehiculo(accion,v,motivo,extra){
   const s=sesion();
   const fila={
-    id:uuid(),usuario_id:String(s.id||""),usuario:s.usuario||"",nombre:s.nombre||s.nombre_completo||"",
-    modulo:"vehiculos",accion:String(accion||""),
-    detalle:JSON.stringify(Object.assign({vehiculo_id:String(v?.id||""),matricula:v?.matricula||"",motivo:String(motivo||"")},extra||{})),
-    created_at:ahoraISO()
+    id:uuid(),
+    vehiculo_id:String(v?.id||""),
+    matricula:v?.matricula||"",
+    accion:String(accion||""),
+    usuario_id:String(s.id||""),
+    usuario:s.nombre||s.nombre_completo||s.usuario||"",
+    fecha:ahoraISO(),
+    datos:Object.assign({motivo:String(motivo||"")},extra||{})
   };
-  const r=await zxInsert("auditoria",fila);
+  const r=await zxInsert("vehiculos_auditoria",fila);
   if(r&&r.error) throw r.error;
   return r;
 }
@@ -918,20 +922,18 @@ async function cargarDetalleVehiculo(id){
     .filter(x=>String(x.vehiculo_id||"")===vehId)
     .sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0)).slice(0,500);
 
-  function detalleAuditoria(a){
+  function datosAuditoria(a){
     try{
       if(!a) return {};
-      if(a.detalle && typeof a.detalle==="object") return a.detalle;
-      return JSON.parse(a.detalle||"{}")||{};
+      if(a.datos && typeof a.datos==="object") return a.datos;
+      return JSON.parse(a.datos||"{}")||{};
     }catch(e){return {}}
   }
-  const cacheAuditoria=filasCache("auditoria")
+  const cacheAuditoria=filasCache("vehiculos_auditoria")
     .filter(function(a){
-      if(String(a.modulo||"")!=="vehiculos") return false;
-      const d=detalleAuditoria(a);
-      return String(d.vehiculo_id||"")===vehId;
+      return String(a.vehiculo_id||"")===vehId;
     })
-    .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,100);
+    .sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0)).slice(0,100);
 
   async function cargar(tabla,consulta,filtro,orden,limite,clave){
     try{
@@ -955,9 +957,9 @@ async function cargarDetalleVehiculo(id){
       x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0),30,"transferencias"),
     cargar("rutas_vehiculos_puntos",q=>q.eq("vehiculo_id",vehId).order("registrado_at",{ascending:true}).limit(500),
       x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0),500,"puntos"),
-    cargar("auditoria",q=>q.eq("modulo","vehiculos").order("created_at",{ascending:false}).limit(200),
-      function(a){const d=detalleAuditoria(a);return String(d.vehiculo_id||"")===vehId},
-      (a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0),100,"auditoria")
+    cargar("vehiculos_auditoria",q=>q.eq("vehiculo_id",vehId).order("fecha",{ascending:false}).limit(200),
+      function(a){return String(a.vehiculo_id||"")===vehId},
+      (a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0),100,"auditoria")
   ]);
 
   if(!out.usos.length) out.usos=cacheUsos;
@@ -3158,14 +3160,14 @@ async function abrirFicha(id,tabInicial){
   auditoriaVehiculo.forEach(function(a){
     if(String(a.accion||"")!=="clasificar_uso") return;
     let d={};
-    try{d=(a.detalle&&typeof a.detalle==="object")?a.detalle:JSON.parse(a.detalle||"{}")}catch(e){}
+    try{d=(a.datos&&typeof a.datos==="object")?a.datos:JSON.parse(a.datos||"{}")}catch(e){}
     const nueva=d.tipo_uso==="personal"?"Personal":d.tipo_uso==="laboral"?"Laboral":"Sin clasificar";
     const anterior=d.tipo_anterior==="personal"?"Personal":d.tipo_anterior==="laboral"?"Laboral":d.tipo_anterior==="sin_clasificar"?"Sin clasificar":"";
     movimientos.push({
-      fecha:a.created_at,
+      fecha:a.fecha,
       titulo:"Clasificación modificada",
       tipo:"clasificacion",
-      responsable:a.nombre||a.usuario||"Usuario",
+      responsable:a.usuario||"Usuario",
       clasificacion:nueva,
       observaciones:(anterior?anterior+" → ":"")+nueva
     });
