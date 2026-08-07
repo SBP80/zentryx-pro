@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3183 - CORRECCIÓN CAMBIO RESPONSABLE Y MOTIVO OBLIGATORIO
+// V3184 - MODO OPERATIVO PARA USUARIOS SIN ACCESO ADMINISTRATIVO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3178";
+const ZX_VERSION="3184";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -16,6 +16,7 @@ let ZX_VEH_CACHE=[];
 let ZX_VEH_BUSQUEDA="";
 let ZX_VEH_FILTRO="activos";
 let ZX_VEH_CARGANDO=false;
+let ZX_VEH_MODO_OPERATIVO=false;
 let ZX_USOS_ACTUALES={};
 let ZX_RECUPERACIONES={};
 let ZX_GPS_WATCH_ID=null;
@@ -1623,7 +1624,11 @@ function resumen(){
 }
 
 function toolbar(total){
-  const filtros=[
+  const filtros=ZX_VEH_MODO_OPERATIVO ? [
+    ["activos","Disponibles"],
+    ["libres","Libres"],
+    ["uso","En uso / asignados"]
+  ] : [
     ["activos","Activos"],
     ["libres","Libres"],
     ["uso","Asignados"],
@@ -1751,9 +1756,9 @@ function renderVehiculo(v){
         <button class="gray" data-veh-movements="${limpiar(v.id)}">🧭 Movimientos</button>
         <button class="gray" data-veh-changes="${limpiar(v.id)}">🔄 Cambios de responsable</button>
         ${gpsHabilitado ? `<button class="gray" data-veh-route="${limpiar(v.id)}">🛰️ Historial GPS</button>` : ""}
-        ${puedeGestionar() ? `<button class="gray" data-veh-asignar="${limpiar(v.id)}">${asignado ? "👤 Cambiar responsable" : "👤 Asignar responsable"}</button><button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar ficha</button>` : ""}
+        ${!ZX_VEH_MODO_OPERATIVO && puedeGestionar() ? `<button class="gray" data-veh-asignar="${limpiar(v.id)}">${asignado ? "👤 Cambiar responsable" : "👤 Asignar responsable"}</button><button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar ficha</button>` : ""}
         ${enUso && (esResponsableActual(v) || puedeGestionar()) ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar uso</button>` : ""}
-        ${esAdmin() ? `<details class="zx_veh_admin_actions"><summary>🔐 Administración</summary>${estado!=="inactivo" ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar vehículo</button>` : `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar vehículo</button><button class="red" data-veh-eliminar="${limpiar(v.id)}">🗑️ Eliminar definitivamente</button>`}</details>` : ""}
+        ${!ZX_VEH_MODO_OPERATIVO && esAdmin() ? `<details class="zx_veh_admin_actions"><summary>🔐 Administración</summary>${estado!=="inactivo" ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar vehículo</button>` : `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar vehículo</button><button class="red" data-veh-eliminar="${limpiar(v.id)}">🗑️ Eliminar definitivamente</button>`}</details>` : ""}
       </div>
     </article>
   `;
@@ -1774,8 +1779,8 @@ function pintarShell(lista){
           ${navigator.onLine ? "" : `<div class="zx_veh_offline">🟡 Sin conexión · los cambios se guardarán pendientes</div>`}
         </div>
         <div class="zx_veh_header_actions">
-          ${(esAdmin() || ["gerente","supervisor","encargado"].includes(rol())) ? `<button class="zx_veh_live_btn" id="btn_mapa_flota">📍 Flota en directo</button>` : ""}
-          ${puedeGestionar() ? `<button class="zx_veh_new" id="btn_nuevo_vehiculo">＋ Crear</button>` : ""}
+          ${!ZX_VEH_MODO_OPERATIVO && (esAdmin() || ["gerente","supervisor","encargado"].includes(rol())) ? `<button class="zx_veh_live_btn" id="btn_mapa_flota">📍 Flota en directo</button>` : ""}
+          ${!ZX_VEH_MODO_OPERATIVO && puedeGestionar() ? `<button class="zx_veh_new" id="btn_nuevo_vehiculo">＋ Crear</button>` : ""}
         </div>
       </section>
 
@@ -3641,7 +3646,9 @@ function instalarCSS(){
   document.head.appendChild(s);
 }
 
-window.ZX_vehiculos=async function(){
+async function abrirVehiculosBase(modoOperativo){
+  ZX_VEH_MODO_OPERATIVO=!!modoOperativo;
+  if(ZX_VEH_MODO_OPERATIVO && ["inactivos","avisos","todos"].includes(ZX_VEH_FILTRO)) ZX_VEH_FILTRO="activos";
   instalarCSS();
 
   if(zx() && typeof zx().marcarModuloActivo==="function"){
@@ -3674,6 +3681,15 @@ window.ZX_vehiculos=async function(){
     iniciarRelojDuraciones();
     iniciarSeguimientoGPSActual();
   },20);
+
+}
+
+window.ZX_vehiculos=async function(){
+  return abrirVehiculosBase(false);
+};
+
+window.ZX_vehiculos_operativo=async function(){
+  return abrirVehiculosBase(true);
 };
 
 window.ZENTRYX_UI_abrirVehiculos=window.ZX_vehiculos;
