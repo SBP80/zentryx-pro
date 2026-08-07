@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3187 - SEGURO SINCRONIZADO ENTRE DISPOSITIVOS
+// V3188 - SEGURO SINCRONIZADO ENTRE DISPOSITIVOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3187";
+const ZX_VERSION="3188";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -1441,6 +1441,30 @@ async function zxUpdate(tabla,data,campo,valor){
   return sb().from(tabla).update(data).eq(campo,String(valor));
 }
 
+async function zxVehiculoServidor(id){
+  const cliente=sb();
+  if(!cliente || !navigator.onLine) return {data:null,error:new Error("Sin conexión con Supabase")};
+  try{
+    const r=await cliente.from(TABLA).select("*").eq("id",String(id)).maybeSingle();
+    return r || {data:null,error:null};
+  }catch(e){
+    return {data:null,error:e};
+  }
+}
+
+async function zxGuardarVehiculoServidor(id,data){
+  const cliente=sb();
+  if(!cliente || !navigator.onLine) return {data:null,error:new Error("Sin conexión con Supabase")};
+  try{
+    const r=await cliente.from(TABLA).update(data).eq("id",String(id)).select("*").maybeSingle();
+    if(r && r.error) return r;
+    if(!r || !r.data) return {data:null,error:new Error("Supabase no confirmó la actualización del vehículo")};
+    return r;
+  }catch(e){
+    return {data:null,error:e};
+  }
+}
+
 async function zxGet(tabla,options){
   const b=backend();
   if(b && typeof b.get==="function") return b.get(tabla,options||{});
@@ -1960,7 +1984,20 @@ function abrirWhatsAppConTexto(texto,telefono){
 
 async function abrirAvisoGrua(id){
   await activarPantallaEmergencia();
-  const v=vehiculoPorId(id);
+  let v=vehiculoPorId(id);
+  if(navigator.onLine && sb()) {
+    const remoto=await zxVehiculoServidor(id);
+    if(remoto && remoto.data){
+      const fresco=prepararVehiculo(Object.assign({},remoto.data,{
+        __uso_actual:ZX_USOS_ACTUALES[String(id)] || null,
+        __recuperacion:ZX_RECUPERACIONES[String(id)] || null
+      }));
+      const idx=ZX_VEH_CACHE.findIndex(x=>String(x.id)===String(id));
+      if(idx>=0) ZX_VEH_CACHE[idx]=fresco; else ZX_VEH_CACHE.push(fresco);
+      guardarCache(ZX_VEH_CACHE);
+      v=fresco;
+    }
+  }
   if(!v){alert("Vehículo no encontrado.");return}
   const seg=datosAsistencia(v);
 
@@ -2380,21 +2417,42 @@ function editarAsistencia(v){
     };
     btn.disabled=true; btn.textContent="Guardando...";
     try{
-      const r=await zxUpdate(TABLA,data,"id",v.id);
+      const r=await zxGuardarVehiculoServidor(v.id,data);
       if(r && r.error) throw r.error;
+      const remoto=r && r.data ? r.data : null;
+      if(!remoto) throw new Error("Supabase no devolvió el vehículo actualizado");
+
+      const comprobaciones=[
+        ["seguro_compania",data.seguro_compania],
+        ["seguro_poliza",data.seguro_poliza],
+        ["seguro_telefono_asistencia",data.seguro_telefono_asistencia],
+        ["seguro_telefono_alternativo",data.seguro_telefono_alternativo],
+        ["seguro_fecha",data.seguro_fecha],
+        ["seguro_cobertura",data.seguro_cobertura],
+        ["seguro_instrucciones",data.seguro_instrucciones]
+      ];
+      const distinto=comprobaciones.find(([k,esperado])=>String(remoto[k]??"")!==String(esperado??""));
+      if(distinto) throw new Error("Supabase no confirmó correctamente el campo "+distinto[0]);
+
       guardarAsistenciaLocal(v.id,{
-        compania:data.seguro_compania||"",
-        poliza:data.seguro_poliza||"",
-        telefono:data.seguro_telefono_asistencia||"",
-        telefonoAlternativo:data.seguro_telefono_alternativo||"",
-        cobertura:data.seguro_cobertura||"",
-        instrucciones:data.seguro_instrucciones||""
+        compania:remoto.seguro_compania||"",
+        poliza:remoto.seguro_poliza||"",
+        telefono:remoto.seguro_telefono_asistencia||"",
+        telefonoAlternativo:remoto.seguro_telefono_alternativo||"",
+        cobertura:remoto.seguro_cobertura||"",
+        instrucciones:remoto.seguro_instrucciones||""
       });
-      await cargarVehiculos();
-      const actualizado=vehiculoPorId(v.id)||Object.assign({},v,data);
-      abrirAvisoGrua(actualizado.id);
+
+      const fresco=prepararVehiculo(Object.assign({},remoto,{
+        __uso_actual:ZX_USOS_ACTUALES[String(v.id)] || null,
+        __recuperacion:ZX_RECUPERACIONES[String(v.id)] || null
+      }));
+      const idx=ZX_VEH_CACHE.findIndex(x=>String(x.id)===String(v.id));
+      if(idx>=0) ZX_VEH_CACHE[idx]=fresco; else ZX_VEH_CACHE.push(fresco);
+      guardarCache(ZX_VEH_CACHE);
+      await abrirAvisoGrua(v.id);
     }catch(e){
-      alert("No se pudo guardar el seguro en la empresa: "+String(e?.message||e||"Error desconocido"));
+      alert("No se pudo guardar el seguro en Supabase: "+String(e?.message||e||"Error desconocido"));
       btn.disabled=false; btn.textContent="Guardar configuración";
     }
   };
