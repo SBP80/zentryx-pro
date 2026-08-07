@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3180 - VEHICULOS_AUDITORIA REAL
+// V3181 - ASIGNACIÓN PERMANENTE DE RESPONSABLE
 // ===============================
 (function(){
 "use strict";
@@ -299,9 +299,7 @@ function estadoVehiculo(v){
 }
 
 function esAsignacionHabitual(v){
-  if(estadoVehiculo(v)!=="uso") return false;
-  if(normalizar(v.estado_flota)==="pendiente_devolucion") return false;
-  return !!(responsableId(v) || responsableNombre(v));
+  return !!(asignadoId(v) || asignadoNombre(v));
 }
 
 function tipoAsignacion(v){
@@ -336,6 +334,7 @@ function estadoTexto(v){
   if(e==="taller") return "Taller";
   if(e==="fuera_servicio") return "Fuera de servicio";
   if(e==="inactivo") return "Inactivo";
+  if(esAsignacionHabitual(v)) return "Asignado";
   return "Libre";
 }
 
@@ -349,7 +348,9 @@ function identidadActual(){
   };
 }
 
-function responsableId(v){return String(v.usuario_actual_id || "")}
+function asignadoId(v){return String(v.usuario_id || "")}
+function asignadoNombre(v){return String(v.usuario_asignado || "")}
+function responsableId(v){return String(v.usuario_actual_id || v.usuario_id || "")}
 function responsableNombre(v){return String(v.usuario_actual_nombre || v.usuario_asignado || "")}
 
 function tipoUsoRegistro(u){
@@ -1538,8 +1539,8 @@ function filtrarVehiculos(){
   let lista=ZX_VEH_CACHE || [];
 
   if(ZX_VEH_FILTRO==="activos") lista=lista.filter(v=>estadoVehiculo(v)!=="inactivo");
-  if(ZX_VEH_FILTRO==="libres") lista=lista.filter(v=>estadoVehiculo(v)==="libre");
-  if(ZX_VEH_FILTRO==="uso") lista=lista.filter(v=>estadoVehiculo(v)==="uso");
+  if(ZX_VEH_FILTRO==="libres") lista=lista.filter(v=>estadoVehiculo(v)==="libre" && !esAsignacionHabitual(v));
+  if(ZX_VEH_FILTRO==="uso") lista=lista.filter(v=>estadoVehiculo(v)==="uso" || esAsignacionHabitual(v));
   if(ZX_VEH_FILTRO==="inactivos") lista=lista.filter(v=>estadoVehiculo(v)==="inactivo");
   if(ZX_VEH_FILTRO==="avisos") lista=lista.filter(tieneAvisos);
 
@@ -1601,7 +1602,7 @@ function resumen(){
   const total=ZX_VEH_CACHE.length;
   const activos=ZX_VEH_CACHE.filter(v=>estadoVehiculo(v)!=="inactivo").length;
   const inactivos=total-activos;
-  const libres=ZX_VEH_CACHE.filter(v=>estadoVehiculo(v)==="libre").length;
+  const libres=ZX_VEH_CACHE.filter(v=>estadoVehiculo(v)==="libre" && !esAsignacionHabitual(v)).length;
   const asignados=ZX_VEH_CACHE.filter(v=>esAsignacionHabitual(v)).length;
   const avisos=resumenAvisos();
 
@@ -1655,6 +1656,7 @@ function badge(v){
   if(e==="uso") return `<span class="uso">${limpiar(estadoTexto(v))}</span>`;
   if(["averia","taller","fuera_servicio"].includes(e)) return `<span class="off">${limpiar(estadoTexto(v))}</span>`;
   if(e==="reservado") return `<span class="orange">Reservado</span>`;
+  if(esAsignacionHabitual(v)) return `<span class="uso">Asignado</span>`;
   return `<span class="libre">Libre</span>`;
 }
 
@@ -1749,8 +1751,8 @@ function renderVehiculo(v){
         <button class="gray" data-veh-movements="${limpiar(v.id)}">🧭 Movimientos</button>
         <button class="gray" data-veh-changes="${limpiar(v.id)}">🔄 Cambios de responsable</button>
         ${gpsHabilitado ? `<button class="gray" data-veh-route="${limpiar(v.id)}">🛰️ Historial GPS</button>` : ""}
-        ${puedeGestionar() ? `<button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar ficha</button>` : ""}
-        ${asignado && puedeGestionar() ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar asignación</button>` : ""}
+        ${puedeGestionar() ? `<button class="gray" data-veh-asignar="${limpiar(v.id)}">${asignado ? "👤 Cambiar responsable" : "👤 Asignar responsable"}</button><button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar ficha</button>` : ""}
+        ${enUso && (esResponsableActual(v) || puedeGestionar()) ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar uso</button>` : ""}
         ${esAdmin() ? `<details class="zx_veh_admin_actions"><summary>🔐 Administración</summary>${estado!=="inactivo" ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar vehículo</button>` : `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar vehículo</button><button class="red" data-veh-eliminar="${limpiar(v.id)}">🗑️ Eliminar definitivamente</button>`}</details>` : ""}
       </div>
     </article>
@@ -1855,6 +1857,7 @@ function conectarEventos(){
   document.querySelectorAll("[data-veh-movements]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehMovements,"movimientos")}});
   document.querySelectorAll("[data-veh-changes]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehChanges,"transferencias")}});
   document.querySelectorAll("[data-veh-edit]").forEach(btn=>{btn.onclick=function(){editarVehiculo(btn.dataset.vehEdit)}});
+  document.querySelectorAll("[data-veh-asignar]").forEach(btn=>{btn.onclick=function(){gestionarAsignacionVehiculo(btn.dataset.vehAsignar)}});
   document.querySelectorAll("[data-veh-tomar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehTomar)}});
   document.querySelectorAll("[data-veh-recuperar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehRecuperar)}});
   document.querySelectorAll("[data-veh-devolver]").forEach(btn=>{btn.onclick=function(){devolverVehiculo(btn.dataset.vehDevolver)}});
@@ -2538,6 +2541,132 @@ async function actualizarVehiculo(id,data){
   }
 }
 
+
+async function cargarUsuariosActivosVehiculo(){
+  if(!sb()) throw new Error("No hay conexión con la base de datos.");
+  const r=await sb().from("usuarios").select("*").eq("activo",true).order("nombre",{ascending:true});
+  if(r.error) throw r.error;
+  return (r.data||[]).map(function(u){
+    return {
+      id:String(u.id||""),
+      nombre:String(u.nombre_completo||u.nombre||u.usuario||"Usuario"),
+      usuario:String(u.usuario||"")
+    };
+  }).filter(u=>u.id);
+}
+
+async function gestionarAsignacionVehiculo(id){
+  const v=vehiculoPorId(id);
+  if(!v){alert("Vehículo no encontrado.");return}
+  if(!puedeGestionar()){alert("No tienes permiso para cambiar el responsable.");return}
+  if(estadoVehiculo(v)==="inactivo"){alert("No se puede asignar un vehículo inactivo.");return}
+
+  let usuarios=[];
+  try{
+    usuarios=await cargarUsuariosActivosVehiculo();
+  }catch(e){
+    alert("No se pudieron cargar los usuarios activos: "+(e.message||"Error"));
+    return;
+  }
+  if(!usuarios.length){alert("No hay usuarios activos disponibles.");return}
+
+  const actualId=asignadoId(v);
+  modal(`
+    <h2>${actualId ? "Cambiar responsable" : "Asignar responsable"}</h2>
+    <div class="zx_veh_info ficha">
+      <p><b>Vehículo</b><span>${limpiar(nombreVehiculo(v))}</span></p>
+      <p><b>Responsable habitual</b><span>${limpiar(asignadoNombre(v)||"Sin asignar")}</span></p>
+      ${v.usuario_actual_nombre ? `<p><b>Usuario actual</b><span>${limpiar(v.usuario_actual_nombre)}</span></p>` : ""}
+    </div>
+    <label class="zx_veh_label" for="veh_responsable_asignado">Nuevo responsable</label>
+    <select id="veh_responsable_asignado">
+      <option value="">Selecciona un usuario</option>
+      ${usuarios.map(u=>`<option value="${limpiar(u.id)}" ${u.id===actualId?"selected":""}>${limpiar(u.nombre)}${u.usuario&&u.usuario!==u.nombre?" · "+limpiar(u.usuario):""}</option>`).join("")}
+    </select>
+    <label class="zx_veh_label" for="veh_asignacion_motivo">Motivo / observación</label>
+    <textarea id="veh_asignacion_motivo" rows="3" placeholder="Asignación habitual"></textarea>
+    <button class="zx_btn_big zx_verde" id="veh_asignar_ok">${actualId?"Guardar cambio":"Asignar vehículo"}</button>
+    ${actualId ? `<button class="zx_btn_big zx_naranja" id="veh_retirar_asignacion">Dejar sin responsable</button>` : ""}
+    <button class="zx_btn_big zx_gris" id="veh_asignar_cancelar">Cancelar</button>
+  `);
+
+  document.getElementById("veh_asignar_cancelar").onclick=cerrarModal;
+
+  document.getElementById("veh_asignar_ok").onclick=async function(){
+    const nuevoId=valor("veh_responsable_asignado");
+    const nuevo=usuarios.find(u=>u.id===nuevoId);
+    if(!nuevo){alert("Selecciona un usuario.");return}
+    if(nuevo.id===actualId){alert("Ese usuario ya es el responsable habitual.");return}
+    if(!confirm((actualId?"¿Cambiar":"¿Asignar")+" el responsable habitual a "+nuevo.nombre+"?")) return;
+
+    const btn=document.getElementById("veh_asignar_ok");
+    btn.disabled=true; btn.textContent="Guardando...";
+    const anteriorId=actualId||"";
+    const anteriorNombre=asignadoNombre(v)||"Sin responsable";
+    const motivo=valor("veh_asignacion_motivo")||"Asignación habitual";
+    try{
+      const r=await zxUpdate(TABLA,{
+        usuario_id:nuevo.id,
+        usuario_asignado:nuevo.nombre,
+        updated_at:ahoraISO()
+      },"id",id);
+      if(r&&r.error) throw r.error;
+
+      try{
+        await registrarAuditoriaVehiculo(actualId?"cambiar_responsable":"asignar_responsable",v,motivo,{
+          usuario_anterior_id:anteriorId||null,
+          nombre_anterior:anteriorNombre,
+          usuario_nuevo_id:nuevo.id,
+          nombre_nuevo:nuevo.nombre
+        });
+      }catch(auditError){
+        const rollback=await zxUpdate(TABLA,{
+          usuario_id:anteriorId||null,
+          usuario_asignado:actualId?anteriorNombre:"",
+          updated_at:ahoraISO()
+        },"id",id);
+        if(rollback&&rollback.error) throw new Error("Falló el historial y tampoco se pudo restaurar la asignación anterior.");
+        throw new Error("No se registró el historial. El cambio se ha cancelado.");
+      }
+      cerrarModal();
+      await window.ZX_vehiculos();
+    }catch(e){
+      btn.disabled=false; btn.textContent=actualId?"Guardar cambio":"Asignar vehículo";
+      alert("No se pudo cambiar el responsable: "+(e.message||"Error"));
+    }
+  };
+
+  const retirar=document.getElementById("veh_retirar_asignacion");
+  if(retirar) retirar.onclick=async function(){
+    if(!confirm("¿Dejar este vehículo sin responsable habitual?")) return;
+    const motivo=valor("veh_asignacion_motivo")||"Retirada de responsable";
+    retirar.disabled=true; retirar.textContent="Guardando...";
+    try{
+      const anteriorId=asignadoId(v);
+      const anteriorNombre=asignadoNombre(v)||"Sin responsable";
+      const r=await zxUpdate(TABLA,{usuario_id:null,usuario_asignado:"",updated_at:ahoraISO()},"id",id);
+      if(r&&r.error) throw r.error;
+      try{
+        await registrarAuditoriaVehiculo("retirar_responsable",v,motivo,{
+          usuario_anterior_id:anteriorId||null,
+          nombre_anterior:anteriorNombre,
+          usuario_nuevo_id:null,
+          nombre_nuevo:"Sin responsable"
+        });
+      }catch(auditError){
+        const rollback=await zxUpdate(TABLA,{usuario_id:anteriorId||null,usuario_asignado:anteriorNombre,updated_at:ahoraISO()},"id",id);
+        if(rollback&&rollback.error) throw new Error("Falló el historial y tampoco se pudo restaurar el responsable.");
+        throw new Error("No se registró el historial. El cambio se ha cancelado.");
+      }
+      cerrarModal();
+      await window.ZX_vehiculos();
+    }catch(e){
+      retirar.disabled=false; retirar.textContent="Dejar sin responsable";
+      alert("No se pudo retirar el responsable: "+(e.message||"Error"));
+    }
+  };
+}
+
 async function tomarVehiculo(id){
   const v=vehiculoPorId(id);
   if(!v){alert("Vehículo no encontrado.");return}
@@ -2608,8 +2737,8 @@ async function tomarVehiculo(id){
         motivo_inicio:valor("veh_motivo_uso") || (ocupado ? "Cambio de responsable" : "Uso directo"),
         dispositivo_inicio:navigator.userAgent || "",
         uso_anterior_id:usoAnteriorId,
-        usuario_anterior_id:ocupado ? responsableId(v) || null : null,
-        usuario_anterior_nombre:ocupado ? actual || null : null,
+        usuario_anterior_id:ocupado ? String(v.usuario_actual_id||"") || null : null,
+        usuario_anterior_nombre:ocupado ? String(v.usuario_actual_nombre||actual||"") || null : null,
         tomado_sin_liberacion:ocupado,
         seguimiento_gps_activo:v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true",
         creado_por:u.id
@@ -2626,7 +2755,7 @@ async function tomarVehiculo(id){
           vehiculo_matricula:v.matricula || null,
           uso_anterior_id:usoAnteriorId,
           uso_nuevo_id:nuevoUsoId,
-          usuario_anterior_id:responsableId(v) || null,
+          usuario_anterior_id:String(v.usuario_actual_id||"") || null,
           nombre_anterior:actual || null,
           usuario_nuevo_id:u.id,
           usuario_nuevo:u.usuario || null,
@@ -2658,8 +2787,7 @@ async function tomarVehiculo(id){
         uso_iniciado_at:now,
         estado_flota:"en_uso",
         km_actual:km,
-        en_uso:true,
-        usuario_asignado:u.nombre
+        en_uso:true
       },"id",id);
       if(rVeh && rVeh.error) throw rVeh.error;
 
@@ -2733,8 +2861,7 @@ async function devolverVehiculo(id){
         uso_iniciado_at:null,
         estado_flota:"libre",
         km_actual:km,
-        en_uso:false,
-        usuario_asignado:""
+        en_uso:false
       },"id",id);
       if(rVeh && rVeh.error) throw rVeh.error;
 
@@ -3175,9 +3302,30 @@ async function abrirFicha(id,tabInicial){
   movimientos.sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0));
   const movimientosHtml=renderMovimientosAgrupados(movimientos);
 
-  const transHtml=transferencias.length ? transferencias.map(function(t){
-    return `<div class="zx_veh_hist_item"><b>${limpiar(t.nombre_anterior||"Sin responsable")} → ${limpiar(t.nombre_nuevo||"Usuario")}</b><span>${limpiar(fechaHoraES(t.created_at))}</span><small>${limpiar(t.motivo||"Cambio de responsable")}</small></div>`;
-  }).join("") : `<div class="zx_veh_empty">No hay transferencias registradas.</div>`;
+  const cambiosAsignacion=auditoriaVehiculo.filter(function(a){
+    return ["asignar_responsable","cambiar_responsable","retirar_responsable"].includes(String(a.accion||""));
+  }).map(function(a){
+    let d={}; try{d=(a.datos&&typeof a.datos==="object")?a.datos:JSON.parse(a.datos||"{}")}catch(e){}
+    return {
+      fecha:a.fecha,
+      anterior:d.nombre_anterior||"Sin responsable",
+      nuevo:d.nombre_nuevo||"Sin responsable",
+      motivo:d.motivo||"Cambio de responsable",
+      realizado:a.usuario||"Usuario"
+    };
+  });
+  const cambiosResponsable=transferencias.map(function(t){
+    return {
+      fecha:t.confirmado_at||t.created_at,
+      anterior:t.nombre_anterior||"Sin responsable",
+      nuevo:t.nombre_nuevo||"Usuario",
+      motivo:t.motivo||"Cambio durante el uso",
+      realizado:t.usuario_nuevo||t.nombre_nuevo||"Usuario"
+    };
+  }).concat(cambiosAsignacion).sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0));
+  const transHtml=cambiosResponsable.length ? cambiosResponsable.map(function(t){
+    return `<div class="zx_veh_hist_item"><b>${limpiar(t.anterior)} → ${limpiar(t.nuevo)}</b><span>${limpiar(fechaHoraES(t.fecha))}</span><small>${limpiar(t.motivo)} · Realizado por ${limpiar(t.realizado)}</small></div>`;
+  }).join("") : `<div class="zx_veh_empty">No hay cambios de responsable registrados.</div>`;
 
   const falloUsos=(detalle.errores||[]).some(function(e){
     if(typeof e==="string") return e.indexOf("usos_vehiculos:")===0;
@@ -3197,7 +3345,7 @@ async function abrirFicha(id,tabInicial){
       <button class="${tabInicial==="datos" ? "on" : ""}" data-veh-tab="datos">Datos</button>
       <button class="${tabInicial==="historial" ? "on" : ""}" data-veh-tab="historial">Usos (${usos.length})</button>
       <button class="${tabInicial==="movimientos" ? "on" : ""}" data-veh-tab="movimientos">Movimientos (${movimientos.length})</button>
-      <button class="${tabInicial==="transferencias" ? "on" : ""}" data-veh-tab="transferencias">Cambios (${transferencias.length})</button>
+      <button class="${tabInicial==="transferencias" ? "on" : ""}" data-veh-tab="transferencias">Cambios (${cambiosResponsable.length})</button>
       <button class="${tabInicial==="ruta" ? "on" : ""}" data-veh-tab="ruta">Ruta (${puntos.length})</button>
     </div>
 
@@ -3210,8 +3358,8 @@ async function abrirFicha(id,tabInicial){
         <p><b>Km laborales</b><span>${limpiar(resumenKm.laboral)} km</span></p>
         <p><b>Km personales</b><span>${limpiar(resumenKm.personal)} km</span></p>
         ${resumenKm.sin_clasificar?`<p><b>Pendientes de clasificar</b><span>${limpiar(resumenKm.sin_clasificar)} km</span></p>`:""}
-        <p><b>${esAsignacionHabitual(v) ? "Asignado a" : "Responsable actual"}</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
-        ${esAsignacionHabitual(v) ? `<p><b>Tipo de asignación</b><span>${limpiar(tipoAsignacionTexto(v))}</span></p><p><b>Uso personal</b><span>${permiteUsoPersonal(v) ? "Permitido" : "No configurado"}</span></p>` : `<p><b>Inicio del uso</b><span>${limpiar(fechaHoraES(v.uso_iniciado_at))}</span></p><p><b>Tiempo de uso</b><span>${limpiar(duracionDesde(v.uso_iniciado_at))}</span></p>`}
+        <p><b>Responsable habitual</b><span>${limpiar(asignadoNombre(v) || "Sin asignar")}</span></p>
+        ${v.usuario_actual_nombre ? `<p><b>Usuario actual</b><span>${limpiar(v.usuario_actual_nombre)}</span></p><p><b>Inicio del uso</b><span>${limpiar(fechaHoraES(v.uso_iniciado_at))}</span></p><p><b>Tiempo de uso</b><span>${limpiar(duracionDesde(v.uso_iniciado_at))}</span></p>` : ""}
         <p><b>ITV</b><span>${limpiar(fechaES(v.itv_fecha) || "-")}</span></p>
         <p><b>Seguro</b><span>${limpiar(fechaES(v.seguro_fecha) || "-")}</span></p>
         <p><b>Revisión</b><span>${limpiar(fechaES(v.proxima_revision_fecha) || "-")}</span></p>
