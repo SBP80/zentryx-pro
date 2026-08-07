@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3188 - SEGURO SINCRONIZADO ENTRE DISPOSITIVOS
+// V3189 - DATOS COMPLETOS PARA ASISTENCIA EN CARRETERA
 // ===============================
 (function(){
 "use strict";
@@ -222,16 +222,27 @@ async function direccionDesdeCoordenadas(lat,lng){
 function textoAvisoGrua(v,seg,pos,dir,pkManual,carreteraManual){
   const carretera=String(carreteraManual||dir?.carretera||"").trim();
   const pk=String(pkManual||"").trim();
+  const color=String(v.color||"").trim();
+  const combustible=String(v.combustible||v.tipo_combustible||"").trim();
+  const tipoVehiculo=String(v.tipo||v.tipo_vehiculo||"").trim();
+  const propietario=String(v.empresa_propietaria||v.propietario||"").trim();
   return [
     "ASISTENCIA EN CARRETERA - ZENTRYX PRO",
     "Vehículo: "+nombreVehiculo(v),
     "Matrícula: "+(v.matricula||"-"),
+    color?"Color: "+color:"",
+    combustible?"Combustible: "+combustible:"",
+    tipoVehiculo?"Tipo: "+tipoVehiculo:"",
+    propietario?"Propietario: "+propietario:"",
     "Kilómetros: "+(v.km_actual??"-"),
     "Responsable: "+(responsableNombre(v)||"Sin responsable"),
     "Solicitante: "+(identidadActual().nombre||"-"),
     "Aseguradora: "+(seg.compania||"No configurada"),
     "Póliza: "+(seg.poliza||"No configurada"),
     "Teléfono asistencia: "+(seg.telefono||"No configurado"),
+    seg.telefonoAlternativo?"Teléfono alternativo: "+seg.telefonoAlternativo:"",
+    seg.vencimiento?"Vencimiento seguro: "+fechaES(seg.vencimiento):"",
+    seg.cobertura?"Cobertura: "+seg.cobertura:"",
     "Dirección: "+(dir?.completa||"No disponible"),
     carretera?"Carretera: "+carretera:"",
     pk?"Punto kilométrico: "+pk:"",
@@ -2125,7 +2136,9 @@ async function abrirAvisoGrua(id){
   }
 
   function textoActual(){
+    const fechaGPS=fechaES(pos?.hora||new Date().toISOString())||fechaES(new Date().toISOString());
     return textoAvisoGrua(v,seg,pos,dir,valor("zx_grua_pk"),valor("zx_grua_carretera"))
+      +"\nFecha GPS: "+fechaGPS
       +"\nHora GPS: "+horaGPS();
   }
 
