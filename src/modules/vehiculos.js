@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3175";
+const ZX_VERSION="3176";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -400,7 +400,7 @@ function textoEstadoUso(estado){
   const e=normalizar(estado||"");
   if(e==="en_uso") return "En curso";
   if(e==="pendiente_devolucion") return "Pendiente de devolución";
-  if(e==="devuelto") return "Devuelto";
+  if(e==="devuelto") return "Finalizado";
   if(e==="transferido") return "Transferido";
   if(e==="cancelado") return "Cancelado";
   return estado ? String(estado).replaceAll("_"," ") : "-";
@@ -891,7 +891,7 @@ async function cargarUsosYRecuperaciones(){
 
 async function cargarDetalleVehiculo(id){
   const vehId=String(id);
-  const out={usos:[],transferencias:[],puntos:[],errores:[]};
+  const out={usos:[],transferencias:[],puntos:[],auditoria:[],errores:[]};
 
   function filasCache(tabla){
     try{
@@ -917,6 +917,21 @@ async function cargarDetalleVehiculo(id){
     .filter(x=>String(x.vehiculo_id||"")===vehId)
     .sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0)).slice(0,500);
 
+  function detalleAuditoria(a){
+    try{
+      if(!a) return {};
+      if(a.detalle && typeof a.detalle==="object") return a.detalle;
+      return JSON.parse(a.detalle||"{}")||{};
+    }catch(e){return {}}
+  }
+  const cacheAuditoria=filasCache("auditoria")
+    .filter(function(a){
+      if(String(a.modulo||"")!=="vehiculos") return false;
+      const d=detalleAuditoria(a);
+      return String(d.vehiculo_id||"")===vehId;
+    })
+    .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,100);
+
   async function cargar(tabla,consulta,filtro,orden,limite,clave){
     try{
       const r=await conTimeout(zxGet(tabla,{query:consulta}),5500,tabla);
@@ -934,12 +949,16 @@ async function cargarDetalleVehiculo(id){
     cargar("transferencias_vehiculos",q=>q.eq("vehiculo_id",vehId).order("created_at",{ascending:false}).limit(30),
       x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0),30,"transferencias"),
     cargar("rutas_vehiculos_puntos",q=>q.eq("vehiculo_id",vehId).order("registrado_at",{ascending:true}).limit(500),
-      x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0),500,"puntos")
+      x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0),500,"puntos"),
+    cargar("auditoria",q=>q.eq("modulo","vehiculos").order("created_at",{ascending:false}).limit(200),
+      function(a){const d=detalleAuditoria(a);return String(d.vehiculo_id||"")===vehId},
+      (a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0),100,"auditoria")
   ]);
 
   if(!out.usos.length) out.usos=cacheUsos;
   if(!out.transferencias.length) out.transferencias=cacheTransferencias;
   if(!out.puntos.length) out.puntos=cachePuntos;
+  if(!out.auditoria.length) out.auditoria=cacheAuditoria;
 
   const actual=ZX_USOS_ACTUALES[vehId];
   if(!out.usos.length && actual) out.usos=[actual];
@@ -2928,7 +2947,7 @@ async function clasificarUsoVehiculo(usoId,vehiculoId,tipo){
   try{
     const r=await zxUpdate("usos_vehiculos",{tipo_uso:tipo,actualizado_por:actual.id,updated_at:ahoraISO()},"id",usoId);
     if(r&&r.error) throw r.error;
-    await registrarAuditoriaVehiculo("clasificar_uso",v,"Clasificación de recorrido",{uso_id:String(usoId),tipo_uso:tipo});
+    await registrarAuditoriaVehiculo("clasificar_uso",v,"Clasificación de recorrido",{uso_id:String(usoId),tipo_anterior:tipoUsoRegistro(uso),tipo_uso:tipo});
     cerrarModal();
     await window.ZX_vehiculos();
     await abrirFicha(vehiculoId,"historial");
@@ -2964,6 +2983,7 @@ async function abrirFicha(id,tabInicial){
   const usos=detalle.usos||[];
   const transferencias=detalle.transferencias||[];
   const todosPuntos=detalle.puntos||[];
+  const auditoriaVehiculo=detalle.auditoria||[];
   const usoActual=v.__uso_actual||null;
   let usoRutaId=usoActual&&usoActual.id?String(usoActual.id):"";
   if(!usoRutaId && todosPuntos.length){
@@ -3010,7 +3030,7 @@ async function abrirFicha(id,tabInicial){
       </div>
       <div class="zx_uso_meta">
         <span>${limpiar(textoEstadoUso(u.estado))}</span>
-        <b>Km ${limpiar(kmTxt)}${u.km_fin!=null?" · "+limpiar(km)+" km":""}</b>
+        <b>${u.km_fin!=null && km===0 ? "Sin desplazamiento · Km "+limpiar(kmTxt) : "Km "+limpiar(kmTxt)+(u.km_fin!=null?" · "+limpiar(km)+" km":"")}</b>
       </div>
       <button type="button" class="zx_uso_detalle" data-uso-detalle-boton="${limpiar(u.id)}">Ver detalle ›</button>
       ${controles}
@@ -3034,7 +3054,7 @@ async function abrirFicha(id,tabInicial){
     return primerValor(obj,["dispositivo","device","device_name","nombre_dispositivo"]);
   }
   function iconoMovimiento(tipo){
-    return tipo==="inicio"?"🟢":tipo==="fin"?"🔴":tipo==="transferencia"?"🔄":tipo==="laboral"?"🚗":tipo==="personal"?"🏠":"📍";
+    return tipo==="inicio"?"🟢":tipo==="fin"?"🔴":tipo==="transferencia"?"🔄":tipo==="clasificacion"?"🏷️":tipo==="laboral"?"🚗":tipo==="personal"?"🏠":"📍";
   }
   function claseMovimiento(tipo){
     return "zx_mov_"+(tipo||"otro");
@@ -3053,6 +3073,19 @@ async function abrirFicha(id,tabInicial){
       <header><i>${iconoMovimiento(m.tipo)}</i><div><strong>${limpiar(m.titulo)}</strong><time>${limpiar(fechaHoraES(m.fecha))}</time></div></header>
       ${filas.length?`<div class="zx_mov_grid">${filas.join("")}</div>`:""}
     </article>`;
+  }
+
+  function renderMovimientosAgrupados(lista){
+    if(!lista.length) return `<div class="zx_veh_empty">No hay movimientos registrados.</div>`;
+    const grupos=new Map();
+    lista.forEach(function(m){
+      const clave=fechaES(m.fecha)||"Sin fecha";
+      if(!grupos.has(clave)) grupos.set(clave,[]);
+      grupos.get(clave).push(m);
+    });
+    return Array.from(grupos.entries()).map(function(par){
+      return `<section class="zx_mov_dia"><div class="zx_mov_dia_titulo"><span>${limpiar(par[0])}</span></div>${par[1].map(renderMovimiento).join("")}</section>`;
+    }).join("");
   }
 
   const movimientos=[];
@@ -3096,8 +3129,24 @@ async function abrirFicha(id,tabInicial){
       observaciones:primerValor(t,["motivo","observaciones","notas"])||"Cambio de responsable"
     });
   });
+
+  auditoriaVehiculo.forEach(function(a){
+    if(String(a.accion||"")!=="clasificar_uso") return;
+    let d={};
+    try{d=(a.detalle&&typeof a.detalle==="object")?a.detalle:JSON.parse(a.detalle||"{}")}catch(e){}
+    const nueva=d.tipo_uso==="personal"?"Personal":d.tipo_uso==="laboral"?"Laboral":"Sin clasificar";
+    const anterior=d.tipo_anterior==="personal"?"Personal":d.tipo_anterior==="laboral"?"Laboral":d.tipo_anterior==="sin_clasificar"?"Sin clasificar":"";
+    movimientos.push({
+      fecha:a.created_at,
+      titulo:"Clasificación modificada",
+      tipo:"clasificacion",
+      responsable:a.nombre||a.usuario||"Usuario",
+      clasificacion:nueva,
+      observaciones:(anterior?anterior+" → ":"")+nueva
+    });
+  });
   movimientos.sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0));
-  const movimientosHtml=movimientos.length?movimientos.map(renderMovimiento).join(""):`<div class="zx_veh_empty">No hay movimientos registrados.</div>`;
+  const movimientosHtml=renderMovimientosAgrupados(movimientos);
 
   const transHtml=transferencias.length ? transferencias.map(function(t){
     return `<div class="zx_veh_hist_item"><b>${limpiar(t.nombre_anterior||"Sin responsable")} → ${limpiar(t.nombre_nuevo||"Usuario")}</b><span>${limpiar(fechaHoraES(t.created_at))}</span><small>${limpiar(t.motivo||"Cambio de responsable")}</small></div>`;
