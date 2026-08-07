@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3189 - DATOS COMPLETOS PARA ASISTENCIA EN CARRETERA
+// V3190 - INCIDENCIAS DE VEHÍCULOS SINCRONIZADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3188";
+const ZX_VERSION="3190";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -1791,11 +1791,13 @@ function renderVehiculo(v){
         ${ZX_VEH_MODO_OPERATIVO
           ? `
             <button class="orange" data-veh-grua="${limpiar(v.id)}">🚨 Aviso grúa</button>
+            <button class="gray" data-veh-incidencias="${limpiar(v.id)}">⚠️ Incidencias</button>
             ${enUso && esResponsableActual(v) ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar uso</button>` : ""}
           `
           : `
             <button class="blue" data-veh-open="${limpiar(v.id)}">📄 Ficha completa</button>
             <button class="orange" data-veh-grua="${limpiar(v.id)}">🚨 Aviso grúa</button>
+            <button class="gray" data-veh-incidencias="${limpiar(v.id)}">⚠️ Incidencias</button>
             <button class="purple" data-veh-history="${limpiar(v.id)}">🧾 Historial de uso</button>
             <button class="gray" data-veh-movements="${limpiar(v.id)}">🧭 Movimientos</button>
             <button class="gray" data-veh-changes="${limpiar(v.id)}">🔄 Cambios de responsable</button>
@@ -1902,6 +1904,7 @@ function conectarEventos(){
 
   document.querySelectorAll("[data-veh-open]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehOpen,"datos")}});
   document.querySelectorAll("[data-veh-grua]").forEach(btn=>{btn.onclick=function(){abrirAvisoGrua(btn.dataset.vehGrua)}});
+  document.querySelectorAll("[data-veh-incidencias]").forEach(btn=>{btn.onclick=function(){abrirIncidenciasVehiculo(btn.dataset.vehIncidencias)}});
   document.querySelectorAll("[data-veh-route]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehRoute,"ruta")}});
   document.querySelectorAll("[data-veh-history]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehHistory,"historial")}});
   document.querySelectorAll("[data-veh-movements]").forEach(btn=>{btn.onclick=function(){abrirFicha(btn.dataset.vehMovements,"movimientos")}});
@@ -2217,19 +2220,165 @@ function guardarIncidenciaLocal(inc){
   }catch(e){return false}
 }
 
+function textoTipoIncidencia(tipo){
+  const t=normalizar(tipo||"");
+  const mapa={
+    averia:"Avería",
+    accidente:"Accidente",
+    pinchazo:"Pinchazo",
+    golpe:"Golpe / daños",
+    mecanica:"Mecánica",
+    electrica:"Eléctrica / batería",
+    documentacion:"Documentación",
+    otro:"Otro"
+  };
+  return mapa[t]||String(tipo||"Incidencia").replaceAll("_"," ");
+}
+
+function textoEstadoIncidencia(estado){
+  const e=normalizar(estado||"");
+  const mapa={
+    abierta:"Abierta",
+    en_revision:"En revisión",
+    resuelta:"Resuelta",
+    cerrada:"Cerrada",
+    cancelada:"Cancelada"
+  };
+  return mapa[e]||String(estado||"-").replaceAll("_"," ");
+}
+
+function claseIncidencia(estado,severidad){
+  const e=normalizar(estado||"");
+  const s=normalizar(severidad||"");
+  if(e==="cerrada"||e==="resuelta") return "resuelta";
+  if(s==="critica"||s==="alta") return "alta";
+  return "abierta";
+}
+
+async function cargarIncidenciasVehiculo(vehiculoId){
+  try{
+    const r=await zxGet("vehiculos_incidencias",{
+      query:function(q){
+        return q.eq("vehiculo_id",String(vehiculoId)).order("created_at",{ascending:false}).limit(100);
+      }
+    });
+    if(r&&r.error) throw r.error;
+    return Array.isArray(r?.data)?r.data:[];
+  }catch(e){
+    console.error("No se pudieron cargar incidencias del vehículo",e);
+    return [];
+  }
+}
+
+async function abrirIncidenciasVehiculo(vehiculoId){
+  const v=ZX_VEH_CACHE.find(x=>String(x.id)===String(vehiculoId));
+  if(!v){alert("Vehículo no encontrado.");return}
+
+  modal(`
+    <h2>⚠️ Incidencias del vehículo</h2>
+    <div class="zx_veh_nota_form">Cargando incidencias sincronizadas…</div>
+    <div id="zx_veh_incidencias_lista"></div>
+    <button class="zx_btn_big zx_naranja" id="zx_veh_incidencia_nueva">＋ Registrar incidencia</button>
+    <button class="zx_btn_big zx_gris" id="zx_veh_incidencias_cerrar">Cerrar</button>
+  `);
+
+  document.getElementById("zx_veh_incidencias_cerrar").onclick=function(){cerrarModal()};
+  document.getElementById("zx_veh_incidencia_nueva").onclick=function(){abrirAvisoGrua(v.id)};
+
+  const lista=await cargarIncidenciasVehiculo(v.id);
+  const box=document.getElementById("zx_veh_incidencias_lista");
+  const nota=document.querySelector("#zx_modal_vehiculo .zx_veh_nota_form");
+  if(nota) nota.textContent=lista.length
+    ? lista.length+" incidencia(s) registrada(s) en este vehículo."
+    : "No hay incidencias registradas para este vehículo.";
+
+  if(!box) return;
+  if(!lista.length){
+    box.innerHTML=`<div class="zx_veh_empty">Sin incidencias.</div>`;
+    return;
+  }
+
+  box.innerHTML=lista.map(function(i){
+    const km=i.km!=null ? `${limpiar(i.km)} km` : "";
+    const ubic=i.direccion ? `<div><small>UBICACIÓN</small><b>${limpiar(i.direccion)}</b></div>` : "";
+    const seguro=i.aseguradora||i.poliza ? `<div><small>SEGURO</small><b>${limpiar([i.aseguradora,i.poliza].filter(Boolean).join(" · "))}</b></div>` : "";
+    return `<article class="zx_veh_incident_card ${claseIncidencia(i.estado,i.severidad)}">
+      <div class="zx_veh_incident_head">
+        <strong>${limpiar(textoTipoIncidencia(i.tipo))}</strong>
+        <span>${limpiar(textoEstadoIncidencia(i.estado))}</span>
+      </div>
+      <time>${limpiar(fechaHoraES(i.created_at))}</time>
+      <p>${limpiar(i.descripcion||i.titulo||"Sin descripción")}</p>
+      <div class="zx_veh_incident_grid">
+        <div><small>REGISTRADA POR</small><b>${limpiar(i.nombre_usuario||i.usuario||"-")}</b></div>
+        <div><small>KILÓMETROS</small><b>${km||"-"}</b></div>
+        ${ubic}
+        ${seguro}
+      </div>
+    </article>`;
+  }).join("");
+}
+
+async function guardarIncidenciaCentral(v,seg,pos,dir,pk,carretera,tipo,descripcion){
+  const u=identidadActual();
+  if(!u.id) throw new Error("No se pudo identificar al usuario.");
+
+  const uso=ZX_USOS_ACTUALES[String(v.id)] || v.__uso_actual || null;
+  const carreteraTxt=String(carretera||dir?.carretera||"").trim();
+  const pkTxt=String(pk||"").trim();
+  const partesDireccion=[
+    String(dir?.completa||"").trim(),
+    carreteraTxt ? "Vía: "+carreteraTxt : "",
+    pkTxt ? "PK: "+pkTxt : ""
+  ].filter(Boolean);
+
+  const fila={
+    id:uuid(),
+    empresa_id:u.empresa_id||null,
+    vehiculo_id:String(v.id),
+    vehiculo_matricula:v.matricula||null,
+    uso_vehiculo_id:uso?.id||null,
+    usuario_id:u.id,
+    usuario:u.usuario||null,
+    nombre_usuario:u.nombre||null,
+    tipo:String(tipo||"otro"),
+    estado:"abierta",
+    severidad:"media",
+    titulo:textoTipoIncidencia(tipo)+" · "+(v.matricula||"Vehículo"),
+    descripcion:String(descripcion||"").trim()||"Sin descripción",
+    km:v.km_actual!=null?Number(v.km_actual):null,
+    lat:Number.isFinite(Number(pos?.lat))?Number(pos.lat):null,
+    lng:Number.isFinite(Number(pos?.lng))?Number(pos.lng):null,
+    direccion:partesDireccion.join(" · ")||null,
+    precision_metros:Number.isFinite(Number(pos?.precision))?Number(pos.precision):null,
+    aseguradora:seg.compania||null,
+    poliza:seg.poliza||null,
+    telefono_asistencia:seg.telefono||null,
+    creado_por:u.id,
+    dispositivo:navigator.userAgent||"",
+    created_at:ahoraISO(),
+    updated_at:ahoraISO()
+  };
+
+  const r=await zxInsert("vehiculos_incidencias",fila);
+  if(r&&r.error) throw r.error;
+  return fila;
+}
+
 function abrirRegistroIncidencia(v,seg,pos,dir,pk,carretera){
   modal(`
     <h2>📋 Registrar incidencia</h2>
-    <div class="zx_veh_nota_form">Quedará guardada en este dispositivo. La sincronización central se añadirá después de revisar la estructura SQL existente.</div>
+    <div class="zx_veh_nota_form">La incidencia quedará sincronizada para poder consultarla desde los dispositivos autorizados.</div>
     <div class="zx_veh_form">
       <label class="zx_veh_label" for="zx_inc_tipo">Tipo</label>
       <select id="zx_inc_tipo">
         <option value="averia">Avería</option>
         <option value="accidente">Accidente</option>
         <option value="pinchazo">Pinchazo</option>
-        <option value="bateria">Batería</option>
-        <option value="combustible">Falta de combustible</option>
-        <option value="danos">Daños</option>
+        <option value="golpe">Golpe / daños</option>
+        <option value="mecanica">Mecánica</option>
+        <option value="electrica">Eléctrica / batería</option>
+        <option value="documentacion">Documentación</option>
         <option value="otro">Otro</option>
       </select>
       <label class="zx_veh_label" for="zx_inc_descripcion">Descripción</label>
@@ -2240,33 +2389,50 @@ function abrirRegistroIncidencia(v,seg,pos,dir,pk,carretera){
   `);
 
   document.getElementById("zx_inc_cancelar").onclick=function(){abrirAvisoGrua(v.id)};
-  document.getElementById("zx_inc_guardar").onclick=function(){
-    const inc={
-      id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),
-      vehiculo_id:v.id,
-      matricula:v.matricula||"",
-      usuario_id:identidadActual().id||"",
-      usuario_nombre:responsableNombre(v)||identidadActual().nombre||"",
-      tipo:valor("zx_inc_tipo")||"otro",
-      descripcion:valor("zx_inc_descripcion"),
-      fecha:new Date().toISOString(),
-      km:v.km_actual??null,
-      lat:pos?.lat??null,
-      lng:pos?.lng??null,
-      precision:pos?.precision??null,
-      direccion:dir?.completa||"",
-      carretera:carretera||dir?.carretera||"",
-      punto_km:pk||"",
-      aseguradora:seg.compania||"",
-      poliza:seg.poliza||"",
-      estado:"registrada_local"
-    };
-    if(!guardarIncidenciaLocal(inc)){alert("No se pudo guardar la incidencia.");return}
-    alert("Incidencia registrada en el dispositivo.");
-    abrirAvisoGrua(v.id);
+  document.getElementById("zx_inc_guardar").onclick=async function(){
+    const btn=this;
+    const tipo=valor("zx_inc_tipo")||"otro";
+    const descripcion=valor("zx_inc_descripcion");
+    if(!descripcion){alert("Escribe una descripción breve de la incidencia.");return}
+
+    btn.disabled=true;
+    btn.textContent="Guardando…";
+
+    try{
+      const fila=await guardarIncidenciaCentral(v,seg,pos,dir,pk,carretera,tipo,descripcion);
+      try{
+        const locales=leerIncidenciasLocales().filter(x=>String(x.id||"")!==String(fila.id));
+        localStorage.setItem(INCIDENCIAS_KEY,JSON.stringify(locales.slice(0,250)));
+      }catch(e){}
+      alert("Incidencia registrada y sincronizada.");
+      abrirIncidenciasVehiculo(v.id);
+    }catch(e){
+      const local={
+        id:uuid(),
+        vehiculo_id:String(v.id),
+        matricula:v.matricula||"",
+        usuario_id:identidadActual().id||"",
+        usuario_nombre:identidadActual().nombre||"",
+        tipo,
+        descripcion,
+        fecha:ahoraISO(),
+        km:v.km_actual??null,
+        lat:pos?.lat??null,
+        lng:pos?.lng??null,
+        precision:pos?.precision??null,
+        direccion:dir?.completa||"",
+        carretera:carretera||dir?.carretera||"",
+        punto_km:pk||"",
+        aseguradora:seg.compania||"",
+        poliza:seg.poliza||"",
+        estado:"pendiente_sincronizar"
+      };
+      guardarIncidenciaLocal(local);
+      alert("No se pudo sincronizar la incidencia ahora. Ha quedado guardada en este dispositivo como pendiente.");
+      abrirAvisoGrua(v.id);
+    }
   };
 }
-
 
 function leerFotosAccidente(input){
   return new Promise((resolve)=>{
