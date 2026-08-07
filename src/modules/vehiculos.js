@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3165 - FICHA INMEDIATA SIN BLOQUEO DE RED
+// V3166 - FICHA INMEDIATA SIN BLOQUEO DE RED
 // ===============================
 (function(){
 "use strict";
@@ -2939,7 +2939,7 @@ async function abrirFicha(id,tabInicial){
   const usoHtml=usos.length ? usos.map(function(u){
     const kmTxt=(u.km_inicio!=null ? u.km_inicio : "-")+" → "+(u.km_fin!=null ? u.km_fin : "-");
     const km=kmUso(u);
-    const tipoNormal=tipoUsoNormalizado(u);
+    const tipoNormal=tipoUsoRegistro(u);
     const abierto=["en_uso","pendiente_devolucion"].includes(String(u.estado||""));
     const filtro=abierto?"en_curso":(tipoNormal==="personal"?"personal":"laboral");
     const puedeClasificar=esAdmin() || (identidadActual().id && String(u.usuario_id||"")===identidadActual().id);
