@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3166 - FICHA INMEDIATA SIN BLOQUEO DE RED
+// V3171 - CLASIFICACIÓN LABORAL/PERSONAL CON SQL REAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3170";
+const ZX_VERSION="3171";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -353,11 +353,15 @@ function responsableId(v){return String(v.usuario_actual_id || "")}
 function responsableNombre(v){return String(v.usuario_actual_nombre || v.usuario_asignado || "")}
 
 function tipoUsoRegistro(u){
-  const t=normalizar(u?.tipo_uso || u?.uso_tipo || u?.clasificacion || u?.categoria || "");
-  if(t.includes("personal")||t.includes("privado")) return "personal";
-  if(t.includes("laboral")||t.includes("trabajo")||t.includes("profesional")) return "laboral";
+  const t=normalizar(u?.tipo_uso || "");
+  if(t==="personal") return "personal";
+  if(t==="laboral") return "laboral";
+  // Compatibilidad con históricos creados antes de existir tipo_uso.
+  // Solo inferimos laboral cuando hay una relación objetiva con jornada/trabajo
+  // o cuando el propio motivo indica explícitamente que viene de Fichaje.
+  if(u?.jornada_id || u?.trabajo_id) return "laboral";
   const motivo=normalizar(u?.motivo_inicio || "");
-  if(motivo.includes("fichaje") || motivo.includes("trabajo") || motivo.includes("uso directo") || motivo.includes("vehiculo elegido")) return "laboral";
+  if(motivo.includes("fichaje") || motivo.includes("trabajo")) return "laboral";
   return "sin_clasificar";
 }
 function kmUso(u){
@@ -2816,7 +2820,8 @@ async function cerrarUsoPendiente(vehiculoId,usoId){
       fin_at:ahora,
       km_fin:kmFin,
       motivo_fin:"Cierre manual: "+motivo,
-      actualizado_por:actual.id||null
+      actualizado_por:actual.id||null,
+      updated_at:ahora
     },"id",usoId);
     if(r&&r.error) throw r.error;
     if(String(v.uso_actual_id||"")===String(usoId||"")){
@@ -2897,9 +2902,9 @@ async function clasificarUsoVehiculo(usoId,vehiculoId,tipo){
   if(!permitido){alert("Solo el usuario del uso o un administrador puede clasificarlo.");return}
   if(!confirm("¿Clasificar este recorrido como "+(tipo==="personal"?"personal":"laboral")+"?")) return;
   try{
-    const r=await zxUpdate("usos_vehiculos",{tipo_uso:tipo,actualizado_por:actual.id},"id",usoId);
+    const r=await zxUpdate("usos_vehiculos",{tipo_uso:tipo,actualizado_por:actual.id,updated_at:ahoraISO()},"id",usoId);
     if(r&&r.error) throw r.error;
-    await registrarAuditoriaVehiculo("clasificar_uso",v,"Clasificación de recorrido",{uso_id:String(usoId),clasificacion:tipo});
+    await registrarAuditoriaVehiculo("clasificar_uso",v,"Clasificación de recorrido",{uso_id:String(usoId),tipo_uso:tipo});
     cerrarModal();
     await window.ZX_vehiculos();
     await abrirFicha(vehiculoId,"historial");
@@ -2960,7 +2965,7 @@ async function abrirFicha(id,tabInicial){
     const km=kmUso(u);
     const tipoNormal=tipoUsoRegistro(u);
     const abierto=["en_uso","pendiente_devolucion"].includes(String(u.estado||""));
-    const filtro=abierto?"en_curso":(tipoNormal==="personal"?"personal":"laboral");
+    const filtro=abierto?"en_curso":tipoNormal;
     const puedeClasificar=esAdmin() || (identidadActual().id && String(u.usuario_id||"")===identidadActual().id);
     const acciones=puedeClasificar && u.km_fin!=null ? `<div class="zx_veh_clasificar"><button data-uso-clasificar="laboral" data-uso-id="${limpiar(u.id)}">🚗 Laboral</button><button data-uso-clasificar="personal" data-uso-id="${limpiar(u.id)}">🏠 Personal</button></div>` : "";
     return `<div class="zx_veh_hist_item zx_veh_uso_click" data-uso-detalle="${limpiar(u.id)}" data-uso-filtro="${filtro}"><b>${limpiar(u.nombre_usuario||u.usuario||"Usuario")} · ${limpiar(textoTipoUso(u))}</b><span>${limpiar(fechaHoraES(u.inicio_at))} · ${limpiar(u.estado||"")}</span><small>Km ${limpiar(kmTxt)}${km ? " · "+limpiar(km)+" km" : ""}</small><em>Ver detalle ›</em>${acciones}</div>`;
@@ -3086,7 +3091,7 @@ async function abrirFicha(id,tabInicial){
       </div>
     </div>
 
-    <div class="zx_veh_tab ${tabInicial==="historial" ? "on" : ""}" data-veh-panel="historial"><div class="zx_veh_uso_filtros"><button class="on" data-uso-filtro-btn="todos">Todos</button><button data-uso-filtro-btn="laboral">Laborales</button><button data-uso-filtro-btn="personal">Personales</button><button data-uso-filtro-btn="en_curso">En curso</button></div><div class="zx_veh_hist">${usoHtml}</div></div>
+    <div class="zx_veh_tab ${tabInicial==="historial" ? "on" : ""}" data-veh-panel="historial"><div class="zx_veh_uso_filtros"><button class="on" data-uso-filtro-btn="todos">Todos</button><button data-uso-filtro-btn="laboral">Laborales</button><button data-uso-filtro-btn="personal">Personales</button><button data-uso-filtro-btn="sin_clasificar">Sin clasificar</button><button data-uso-filtro-btn="en_curso">En curso</button></div><div class="zx_veh_hist">${usoHtml}</div></div>
     <div class="zx_veh_tab ${tabInicial==="movimientos" ? "on" : ""}" data-veh-panel="movimientos"><div class="zx_veh_hist">${movimientosHtml}</div></div>
     <div class="zx_veh_tab ${tabInicial==="transferencias" ? "on" : ""}" data-veh-panel="transferencias"><div class="zx_veh_hist">${transHtml}</div></div>
     <div class="zx_veh_tab ${tabInicial==="ruta" ? "on" : ""}" data-veh-panel="ruta">
