@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3174";
+const ZX_VERSION="3175";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -394,6 +394,16 @@ function resumenTiposUsos(usos){
 function textoTipoUso(u){
   const t=tipoUsoRegistro(u);
   return t==="laboral"?"Laboral":t==="personal"?"Personal":"Sin clasificar";
+}
+
+function textoEstadoUso(estado){
+  const e=normalizar(estado||"");
+  if(e==="en_uso") return "En curso";
+  if(e==="pendiente_devolucion") return "Pendiente de devolución";
+  if(e==="devuelto") return "Devuelto";
+  if(e==="transferido") return "Transferido";
+  if(e==="cancelado") return "Cancelado";
+  return estado ? String(estado).replaceAll("_"," ") : "-";
 }
 function esResponsableActual(v){
   const u=identidadActual();
@@ -2973,6 +2983,7 @@ async function abrirFicha(id,tabInicial){
   }).sort((a,b)=>new Date(b.ultima||0)-new Date(a.ultima||0));
   const rutaEnDirecto=!!(usoActual&&usoRutaId&&estadoVehiculo(v)==="uso");
 
+  usos.sort((a,b)=>new Date(b.inicio_at||b.created_at||0)-new Date(a.inicio_at||a.created_at||0));
   const resumenKm=resumenKmUsos(usos);
   const resumenTipos=resumenTiposUsos(usos);
 
@@ -2998,7 +3009,7 @@ async function abrirFicha(id,tabInicial){
         <span class="zx_uso_tipo ${claseTipoUso(tipoNormal)}">${limpiar(tipoTexto)}</span>
       </div>
       <div class="zx_uso_meta">
-        <span>${limpiar(u.estado||"-")}</span>
+        <span>${limpiar(textoEstadoUso(u.estado))}</span>
         <b>Km ${limpiar(kmTxt)}${u.km_fin!=null?" · "+limpiar(km)+" km":""}</b>
       </div>
       <button type="button" class="zx_uso_detalle" data-uso-detalle-boton="${limpiar(u.id)}">Ver detalle ›</button>
@@ -3133,9 +3144,9 @@ async function abrirFicha(id,tabInicial){
       <section class="zx_usos_resumen_wrap">
         <h3>Resumen de kilómetros</h3>
         <div class="zx_veh_uso_resumen">
-          <div class="laboral"><strong>${limpiar(resumenKm.laboral)} km</strong><small>Laborales</small></div>
-          <div class="personal"><strong>${limpiar(resumenKm.personal)} km</strong><small>Personales</small></div>
-          <div class="sin"><strong>${limpiar(resumenKm.sin_clasificar)} km</strong><small>Sin clasificar</small></div>
+          <div class="laboral"><strong>${limpiar(resumenKm.laboral)} km</strong><small>${resumenTipos.laboral} uso${resumenTipos.laboral===1?"":"s"} · Laborales</small></div>
+          <div class="personal"><strong>${limpiar(resumenKm.personal)} km</strong><small>${resumenTipos.personal} uso${resumenTipos.personal===1?"":"s"} · Personales</small></div>
+          <div class="sin"><strong>${limpiar(resumenKm.sin_clasificar)} km</strong><small>${resumenTipos.sin_clasificar} uso${resumenTipos.sin_clasificar===1?"":"s"} · Sin clasificar</small></div>
         </div>
       </section>
       <div class="zx_veh_uso_filtros">
@@ -3348,7 +3359,7 @@ function instalarCSS(){
     .zx_veh_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
     .zx_veh_aviso{margin:12px 0;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:16px;padding:13px;font-weight:850;line-height:1.35}.zx_veh_file_wrap{width:100%;overflow:hidden}.zx_veh_file_wrap input[type="file"]{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;font-size:14px}
     .zx_veh_uso_filtros{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px}.zx_veh_uso_filtros button{border:0;border-radius:999px;padding:9px 12px;background:#eef2f7;color:#334155;font-weight:900;white-space:nowrap}.zx_veh_uso_filtros button.on{background:#2563eb;color:#fff}.zx_veh_uso_click{cursor:pointer;position:relative}.zx_veh_uso_click>em{display:block;margin-top:7px;color:#2563eb;font-style:normal;font-size:13px;font-weight:950}.zx_veh_uso_click:active{transform:scale(.995)}
-    .zx_veh_nota_form{margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:14px;padding:11px;font-size:13px;font-weight:800}.zx_veh_readonly{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:900;color:#071330;background:#eef2f7}.zx_veh_uso_resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 14px}.zx_veh_uso_resumen>div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:14px;padding:10px;text-align:center}.zx_veh_uso_resumen strong{display:block;font-size:20px;color:#071330}.zx_veh_uso_resumen small{display:block;margin-top:3px;color:#64748b;font-weight:850;font-size:11px}.zx_veh_clasificar{display:flex;gap:7px;margin-top:9px}.zx_veh_clasificar button{flex:1;border:2px solid transparent;border-radius:11px;padding:9px 7px;font-weight:900;background:#eef2f7;color:#64748b}.zx_veh_clasificar button:first-child.seleccionado{background:#2563eb;color:#fff;border-color:#1d4ed8;box-shadow:0 0 0 2px rgba(37,99,235,.12)}.zx_veh_clasificar button:last-child.seleccionado{background:#f59e0b;color:#fff;border-color:#d97706;box-shadow:0 0 0 2px rgba(245,158,11,.12)}.zx_usos_resumen_wrap{margin:2px 0 14px}.zx_usos_resumen_wrap h3{margin:0 0 9px;font-size:15px;color:#334155}.zx_veh_uso_resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}.zx_veh_uso_resumen>div{background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:10px 7px;text-align:center}.zx_veh_uso_resumen>div.laboral{border-color:#bfdbfe;background:#eff6ff}.zx_veh_uso_resumen>div.personal{border-color:#fde68a;background:#fffbeb}.zx_veh_uso_resumen>div.sin{border-color:#cbd5e1;background:#f8fafc}.zx_veh_uso_resumen strong{display:block;font-size:18px;color:#071330;white-space:nowrap}.zx_veh_uso_resumen small{display:block;margin-top:3px;color:#64748b;font-weight:850;font-size:10px}.zx_veh_hist_usos{display:grid;gap:12px}.zx_uso_card{border:2px solid #dbe3ef;border-left-width:7px;border-radius:18px;padding:14px;background:#fff}.zx_uso_card.laboral{border-left-color:#2563eb}.zx_uso_card.personal{border-left-color:#f59e0b}.zx_uso_card.sin_clasificar{border-left-color:#94a3b8}.zx_uso_card_top{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}.zx_uso_card_top>div{min-width:0}.zx_uso_card_top strong{display:block;color:#071330;font-size:16px;line-height:1.15}.zx_uso_card_top time{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:4px}.zx_uso_tipo{flex:0 0 auto;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:950}.zx_uso_tipo.laboral{background:#dbeafe;color:#1d4ed8}.zx_uso_tipo.personal{background:#fef3c7;color:#92400e}.zx_uso_tipo.sin_clasificar{background:#e2e8f0;color:#475569}.zx_uso_meta{display:flex;justify-content:space-between;gap:8px;margin-top:11px;color:#64748b;font-size:12px;font-weight:850}.zx_uso_meta b{color:#334155;text-align:right}.zx_uso_detalle{display:block;border:0;background:transparent;color:#2563eb;font-weight:950;font-size:14px;padding:10px 0 3px;text-align:left}.zx_uso_selector{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.zx_uso_selector button{border:2px solid #e2e8f0;border-radius:12px;padding:10px 7px;font-weight:950;background:#f8fafc;color:#64748b}.zx_uso_selector button.activo.laboral{background:#2563eb;color:#fff;border-color:#1d4ed8}.zx_uso_selector button.activo.personal{background:#f59e0b;color:#fff;border-color:#d97706}@media(max-width:430px){.zx_veh_uso_resumen strong{font-size:16px}.zx_veh_uso_resumen small{font-size:9px}.zx_uso_card_top{align-items:center}.zx_uso_tipo{max-width:110px;text-align:center}}.zx_veh_empty{color:#64748b;font-size:16px;font-weight:850;padding:12px 0}
+    .zx_veh_nota_form{margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:14px;padding:11px;font-size:13px;font-weight:800}.zx_veh_readonly{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:900;color:#071330;background:#eef2f7}.zx_veh_uso_resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 14px}.zx_veh_uso_resumen>div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:14px;padding:10px;text-align:center}.zx_veh_uso_resumen strong{display:block;font-size:20px;color:#071330}.zx_veh_uso_resumen small{display:block;margin-top:3px;color:#64748b;font-weight:850;font-size:11px}.zx_veh_clasificar{display:flex;gap:7px;margin-top:9px}.zx_veh_clasificar button{flex:1;border:2px solid transparent;border-radius:11px;padding:9px 7px;font-weight:900;background:#eef2f7;color:#64748b}.zx_veh_clasificar button:first-child.seleccionado{background:#2563eb;color:#fff;border-color:#1d4ed8;box-shadow:0 0 0 2px rgba(37,99,235,.12)}.zx_veh_clasificar button:last-child.seleccionado{background:#f59e0b;color:#fff;border-color:#d97706;box-shadow:0 0 0 2px rgba(245,158,11,.12)}.zx_usos_resumen_wrap{margin:2px 0 14px}.zx_usos_resumen_wrap h3{margin:0 0 9px;font-size:15px;color:#334155}.zx_veh_uso_resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}.zx_veh_uso_resumen>div{background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:10px 7px;text-align:center}.zx_veh_uso_resumen>div.laboral{border-color:#bfdbfe;background:#eff6ff}.zx_veh_uso_resumen>div.personal{border-color:#fde68a;background:#fffbeb}.zx_veh_uso_resumen>div.sin{border-color:#cbd5e1;background:#f8fafc}.zx_veh_uso_resumen strong{display:block;font-size:18px;color:#071330;white-space:nowrap}.zx_veh_uso_resumen small{display:block;margin-top:3px;color:#64748b;font-weight:850;font-size:10px}.zx_veh_hist_usos{display:grid;gap:12px}.zx_uso_card{border:2px solid #dbe3ef;border-left-width:7px;border-radius:18px;padding:14px;background:#fff}.zx_uso_card.laboral{border-left-color:#2563eb}.zx_uso_card.personal{border-left-color:#f59e0b}.zx_uso_card.sin_clasificar{border-left-color:#94a3b8}.zx_uso_card_top{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}.zx_uso_card_top>div{min-width:0}.zx_uso_card_top strong{display:block;color:#071330;font-size:16px;line-height:1.15}.zx_uso_card_top time{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:4px}.zx_uso_tipo{flex:0 0 auto;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:950}.zx_uso_tipo.laboral{background:#dbeafe;color:#1d4ed8}.zx_uso_tipo.personal{background:#fef3c7;color:#92400e}.zx_uso_tipo.sin_clasificar{background:#e2e8f0;color:#475569}.zx_uso_meta{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;color:#64748b;font-size:12px;font-weight:850}.zx_uso_meta span{background:#f1f5f9;border-radius:999px;padding:5px 8px;white-space:nowrap}.zx_uso_meta b{color:#334155;text-align:right}.zx_uso_detalle{display:block;border:0;background:transparent;color:#2563eb;font-weight:950;font-size:14px;padding:10px 0 3px;text-align:left}.zx_uso_selector{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.zx_uso_selector button{border:2px solid #e2e8f0;border-radius:12px;padding:10px 7px;font-weight:950;background:#f8fafc;color:#64748b}.zx_uso_selector button.activo.laboral{background:#2563eb;color:#fff;border-color:#1d4ed8}.zx_uso_selector button.activo.personal{background:#f59e0b;color:#fff;border-color:#d97706}@media(max-width:430px){.zx_veh_uso_resumen strong{font-size:16px}.zx_veh_uso_resumen small{font-size:9px}.zx_uso_card_top{align-items:center}.zx_uso_tipo{max-width:110px;text-align:center}}.zx_veh_empty{color:#64748b;font-size:16px;font-weight:850;padding:12px 0}
     .zx_veh_form h3{margin:20px 0 8px;color:#071330;font-size:22px;font-weight:950}
     .zx_veh_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
     .zx_veh_form input,.zx_veh_form select,.zx_veh_form textarea,#zx_modal_vehiculo input,#zx_modal_vehiculo select,#zx_modal_vehiculo textarea{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}
