@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3181 - ASIGNACIÓN PERMANENTE DE RESPONSABLE
+// V3182 - MOTIVO OBLIGATORIO EN CAMBIO DE RESPONSABLE
 // ===============================
 (function(){
 "use strict";
@@ -2584,7 +2584,7 @@ async function gestionarAsignacionVehiculo(id){
       ${usuarios.map(u=>`<option value="${limpiar(u.id)}" ${u.id===actualId?"selected":""}>${limpiar(u.nombre)}${u.usuario&&u.usuario!==u.nombre?" · "+limpiar(u.usuario):""}</option>`).join("")}
     </select>
     <label class="zx_veh_label" for="veh_asignacion_motivo">Motivo / observación</label>
-    <textarea id="veh_asignacion_motivo" rows="3" placeholder="Asignación habitual"></textarea>
+    <textarea id="veh_asignacion_motivo" rows="3" placeholder=motivo></textarea>
     <button class="zx_btn_big zx_verde" id="veh_asignar_ok">${actualId?"Guardar cambio":"Asignar vehículo"}</button>
     ${actualId ? `<button class="zx_btn_big zx_naranja" id="veh_retirar_asignacion">Dejar sin responsable</button>` : ""}
     <button class="zx_btn_big zx_gris" id="veh_asignar_cancelar">Cancelar</button>
@@ -2603,7 +2603,11 @@ async function gestionarAsignacionVehiculo(id){
     btn.disabled=true; btn.textContent="Guardando...";
     const anteriorId=actualId||"";
     const anteriorNombre=asignadoNombre(v)||"Sin responsable";
-    const motivo=valor("veh_asignacion_motivo")||"Asignación habitual";
+    const motivo=valor("veh_asignacion_motivo")||motivo;
+  if(!String(motivo||"").trim()){
+    alert("Debes indicar el motivo del cambio de responsable.");
+    return;
+  }
     try{
       const r=await zxUpdate(TABLA,{
         usuario_id:nuevo.id,
