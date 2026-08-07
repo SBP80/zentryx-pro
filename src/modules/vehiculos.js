@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3186 - MODO OPERATIVO RESTRINGIDO Y BOTÓN CORRECTO
+// V3187 - SEGURO SINCRONIZADO ENTRE DISPOSITIVOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3186";
+const ZX_VERSION="3187";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -227,7 +227,8 @@ function textoAvisoGrua(v,seg,pos,dir,pkManual,carreteraManual){
     "Vehículo: "+nombreVehiculo(v),
     "Matrícula: "+(v.matricula||"-"),
     "Kilómetros: "+(v.km_actual??"-"),
-    "Conductor: "+(responsableNombre(v)||identidadActual().nombre||"-"),
+    "Responsable: "+(responsableNombre(v)||"Sin responsable"),
+    "Solicitante: "+(identidadActual().nombre||"-"),
     "Aseguradora: "+(seg.compania||"No configurada"),
     "Póliza: "+(seg.poliza||"No configurada"),
     "Teléfono asistencia: "+(seg.telefono||"No configurado"),
@@ -1934,7 +1935,8 @@ function mensajeAsistencia(v,seg,pos,dir,pk,carretera){
     "🚨 ASISTENCIA VEHÍCULO",
     "Matrícula: "+(v.matricula||"-"),
     "Vehículo: "+([v.marca,v.modelo].filter(Boolean).join(" ")||"-"),
-    "Responsable: "+(responsableNombre(v)||identidadActual().nombre||"-"),
+    "Responsable: "+(responsableNombre(v)||"Sin responsable"),
+    "Solicitante: "+(identidadActual().nombre||"-"),
     "Kilómetros: "+(v.km_actual??"-"),
     "Aseguradora: "+(seg.compania||"-"),
     "Póliza: "+(seg.poliza||"-"),
@@ -1985,7 +1987,7 @@ async function abrirAvisoGrua(id){
         <div><small>Tipo</small><b>${limpiar(v.tipo||v.tipo_vehiculo||"-")}</b></div>
         <div><small>Propietario</small><b>${limpiar(v.empresa_propietaria||v.propietario||"-")}</b></div>
         <div><small>Kilómetros</small><b>${limpiar(v.km_actual??"-")}</b></div>
-        <div><small>Responsable</small><b>${limpiar(responsableNombre(v)||identidadActual().nombre||"-")}</b></div>
+        <div><small>Responsable</small><b>${limpiar(responsableNombre(v)||"Sin responsable")}</b></div>
         <div class="wide"><small>Última revisión</small><b>${limpiar(fechaES(v.fecha_revision||v.ultima_revision)||"-")}</b></div>
       </div>
     </div>
@@ -2351,6 +2353,7 @@ function editarAsistencia(v){
       ${input("zx_as_poliza","Número de póliza",d.poliza)}
       ${input("zx_as_telefono","Teléfono de asistencia",d.telefono,"tel")}
       ${input("zx_as_telefono2","Teléfono alternativo",d.telefonoAlternativo,"tel")}
+      ${input("zx_as_vencimiento","Vencimiento del seguro",d.vencimiento,"date")}
       ${input("zx_as_cobertura","Cobertura",d.cobertura)}
       <label class="zx_veh_label" for="zx_as_instrucciones">Instrucciones especiales</label>
       <textarea id="zx_as_instrucciones" rows="4" placeholder="Asistencia desde km 0, franquicia, pasos especiales…">${limpiar(d.instrucciones)}</textarea>
@@ -2359,13 +2362,41 @@ function editarAsistencia(v){
     <button class="zx_btn_big zx_gris" id="zx_as_cancelar">Cancelar</button>
   `);
   document.getElementById("zx_as_cancelar").onclick=function(){abrirAvisoGrua(v.id)};
-  document.getElementById("zx_as_guardar").onclick=function(){
-    const ok=guardarAsistenciaLocal(v.id,{
-      compania:valor("zx_as_compania"),poliza:valor("zx_as_poliza"),telefono:valor("zx_as_telefono"),
-      telefonoAlternativo:valor("zx_as_telefono2"),cobertura:valor("zx_as_cobertura"),instrucciones:valor("zx_as_instrucciones")
-    });
-    if(!ok){alert("No se pudo guardar la configuración en este dispositivo.");return}
-    abrirAvisoGrua(v.id);
+  document.getElementById("zx_as_guardar").onclick=async function(){
+    if(!navigator.onLine || !sb()){
+      alert("Necesitas conexión para guardar los datos del seguro y compartirlos con todos los dispositivos.");
+      return;
+    }
+    const btn=document.getElementById("zx_as_guardar");
+    const data={
+      seguro_compania:valor("zx_as_compania")||null,
+      seguro_poliza:valor("zx_as_poliza")||null,
+      seguro_telefono_asistencia:valor("zx_as_telefono")||null,
+      seguro_telefono_alternativo:valor("zx_as_telefono2")||null,
+      seguro_fecha:valor("zx_as_vencimiento")||null,
+      seguro_cobertura:valor("zx_as_cobertura")||null,
+      seguro_instrucciones:valor("zx_as_instrucciones")||null,
+      updated_at:ahoraISO()
+    };
+    btn.disabled=true; btn.textContent="Guardando...";
+    try{
+      const r=await zxUpdate(TABLA,data,"id",v.id);
+      if(r && r.error) throw r.error;
+      guardarAsistenciaLocal(v.id,{
+        compania:data.seguro_compania||"",
+        poliza:data.seguro_poliza||"",
+        telefono:data.seguro_telefono_asistencia||"",
+        telefonoAlternativo:data.seguro_telefono_alternativo||"",
+        cobertura:data.seguro_cobertura||"",
+        instrucciones:data.seguro_instrucciones||""
+      });
+      await cargarVehiculos();
+      const actualizado=vehiculoPorId(v.id)||Object.assign({},v,data);
+      abrirAvisoGrua(actualizado.id);
+    }catch(e){
+      alert("No se pudo guardar el seguro en la empresa: "+String(e?.message||e||"Error desconocido"));
+      btn.disabled=false; btn.textContent="Guardar configuración";
+    }
   };
 }
 
