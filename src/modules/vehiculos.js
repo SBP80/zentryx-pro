@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3168";
+const ZX_VERSION="3169";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -2824,7 +2824,7 @@ async function cerrarUsoPendiente(vehiculoId,usoId){
       const rv=await zxUpdate(TABLA,{
         uso_actual_id:null,
         en_uso:false,
-        estado_flota:esAsignacionHabitual(v)?"asignado":"libre",
+        estado_flota:"libre",
         km_actual:Math.max(numero(v.km_actual),kmFin),
         updated_at:ahora
       },"id",vehiculoId);
