@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3171 - CLASIFICACIÓN LABORAL/PERSONAL CON SQL REAL
+// V3179 - AUDITORÍA REAL DE RECLASIFICACIÓN
 // ===============================
 (function(){
 "use strict";
@@ -475,15 +475,16 @@ function pedirMotivoObligatorio(texto){
 }
 
 async function registrarAuditoriaVehiculo(accion,v,motivo,extra){
-  try{
-    const s=sesion();
-    await sb().from("auditoria").insert([{
-      id:uuid(),usuario_id:String(s.id||""),usuario:s.usuario||"",nombre:s.nombre||s.nombre_completo||"",
-      modulo:"vehiculos",accion:String(accion||""),
-      detalle:JSON.stringify(Object.assign({vehiculo_id:String(v?.id||""),matricula:v?.matricula||"",motivo:String(motivo||"")},extra||{})),
-      created_at:ahoraISO()
-    }]);
-  }catch(e){}
+  const s=sesion();
+  const fila={
+    id:uuid(),usuario_id:String(s.id||""),usuario:s.usuario||"",nombre:s.nombre||s.nombre_completo||"",
+    modulo:"vehiculos",accion:String(accion||""),
+    detalle:JSON.stringify(Object.assign({vehiculo_id:String(v?.id||""),matricula:v?.matricula||"",motivo:String(motivo||"")},extra||{})),
+    created_at:ahoraISO()
+  };
+  const r=await zxInsert("auditoria",fila);
+  if(r&&r.error) throw r.error;
+  return r;
 }
 
 
@@ -2948,10 +2949,18 @@ async function clasificarUsoVehiculo(usoId,vehiculoId,tipo){
   if(!permitido){alert("Solo el usuario del uso o un administrador puede clasificarlo.");return}
   if(tipoUsoRegistro(uso)===tipo){alert("Este recorrido ya está clasificado como "+(tipo==="personal"?"personal":"laboral")+".");return}
   if(!confirm("¿Clasificar este recorrido como "+(tipo==="personal"?"personal":"laboral")+"?")) return;
+  const tipoAnterior=tipoUsoRegistro(uso);
   try{
     const r=await zxUpdate("usos_vehiculos",{tipo_uso:tipo,actualizado_por:actual.id,updated_at:ahoraISO()},"id",usoId);
     if(r&&r.error) throw r.error;
-    await registrarAuditoriaVehiculo("clasificar_uso",v,"Clasificación de recorrido",{uso_id:String(usoId),tipo_anterior:tipoUsoRegistro(uso),tipo_uso:tipo});
+    try{
+      await registrarAuditoriaVehiculo("clasificar_uso",v,"Clasificación de recorrido",{uso_id:String(usoId),tipo_anterior:tipoAnterior,tipo_uso:tipo});
+    }catch(auditError){
+      const valorAnterior=tipoAnterior==="sin_clasificar"?null:tipoAnterior;
+      const rollback=await zxUpdate("usos_vehiculos",{tipo_uso:valorAnterior,actualizado_por:actual.id,updated_at:ahoraISO()},"id",usoId);
+      if(rollback&&rollback.error) throw new Error("No se registró el historial y tampoco se pudo restaurar la clasificación anterior.");
+      throw new Error("No se registró el historial. El cambio se ha cancelado para no dejar datos sin trazabilidad.");
+    }
     cerrarModal();
     await window.ZX_vehiculos();
     await abrirFicha(vehiculoId,"historial");
