@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3167";
+const ZX_VERSION="3168";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -2816,10 +2816,8 @@ async function cerrarUsoPendiente(vehiculoId,usoId){
       estado:"devuelto",
       fin_at:ahora,
       km_fin:kmFin,
-      motivo_fin:motivo,
-      cierre_manual:true,
-      actualizado_por:actual.id||null,
-      updated_at:ahora
+      motivo_fin:"Cierre manual: "+motivo,
+      actualizado_por:actual.id||null
     },"id",usoId);
     if(r&&r.error) throw r.error;
     if(String(v.uso_actual_id||"")===String(usoId||"")){
@@ -2900,7 +2898,7 @@ async function clasificarUsoVehiculo(usoId,vehiculoId,tipo){
   if(!permitido){alert("Solo el usuario del uso o un administrador puede clasificarlo.");return}
   if(!confirm("¿Clasificar este recorrido como "+(tipo==="personal"?"personal":"laboral")+"?")) return;
   try{
-    const r=await zxUpdate("usos_vehiculos",{tipo_uso:tipo,clasificacion:tipo,actualizado_por:actual.id,updated_at:ahoraISO()},"id",usoId);
+    const r=await zxUpdate("usos_vehiculos",{tipo_uso:tipo,clasificacion:tipo,actualizado_por:actual.id},"id",usoId);
     if(r&&r.error) throw r.error;
     await registrarAuditoriaVehiculo("clasificar_uso",v,"Clasificación de recorrido",{uso_id:String(usoId),clasificacion:tipo});
     cerrarModal();
