@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3201 - CORRECCIÓN MATRÍCULA DUPLICADA AL EDITAR
+// V3202 - CORRECCIÓN HISTÓRICO GPS: RECUPERAR RECORRIDOS RECIENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3201";
+const ZX_VERSION="3202";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -979,7 +979,7 @@ async function cargarDetalleVehiculo(id){
     .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,30);
   const cachePuntos=filasCache("rutas_vehiculos_puntos")
     .filter(x=>String(x.vehiculo_id||"")===vehId)
-    .sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0)).slice(0,500);
+    .sort((a,b)=>new Date(b.registrado_at||0)-new Date(a.registrado_at||0)).slice(0,2000).sort((a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0));
 
   function datosAuditoria(a){
     try{
@@ -1014,8 +1014,8 @@ async function cargarDetalleVehiculo(id){
       x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(b.inicio_at||0)-new Date(a.inicio_at||0),30,"usos"),
     cargar("transferencias_vehiculos",q=>q.eq("vehiculo_id",vehId).order("created_at",{ascending:false}).limit(30),
       x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0),30,"transferencias"),
-    cargar("rutas_vehiculos_puntos",q=>q.eq("vehiculo_id",vehId).order("registrado_at",{ascending:true}).limit(500),
-      x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0),500,"puntos"),
+    cargar("rutas_vehiculos_puntos",q=>q.eq("vehiculo_id",vehId).order("registrado_at",{ascending:false}).limit(2000),
+      x=>String(x.vehiculo_id||"")===vehId,(a,b)=>new Date(a.registrado_at||0)-new Date(b.registrado_at||0),2000,"puntos"),
     cargar("vehiculos_auditoria",q=>q.eq("vehiculo_id",vehId).order("fecha",{ascending:false}).limit(200),
       function(a){return String(a.vehiculo_id||"")===vehId},
       (a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0),100,"auditoria")
