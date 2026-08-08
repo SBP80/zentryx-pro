@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3204 - ALTA DIRECTA DE INCIDENCIAS + SEVERIDAD
+// V3205 - ACCIONES SUPERIORES EN VISTAS LARGAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3204";
+const ZX_VERSION="3205";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -305,8 +305,15 @@ function modal(html){
   const d=document.createElement("div");
   d.id="zx_modal_vehiculo";
   d.className="zx_modal_fondo";
-  d.innerHTML=`<div class="zx_modal_caja">${html}</div>`;
+  d.innerHTML=`<div class="zx_modal_caja">
+    <div class="zx_modal_top_actions">
+      <button type="button" class="zx_modal_top_close" id="zx_modal_cerrar_arriba">✕ Cerrar</button>
+    </div>
+    ${html}
+  </div>`;
   document.body.appendChild(d);
+  const cerrarArriba=document.getElementById("zx_modal_cerrar_arriba");
+  if(cerrarArriba) cerrarArriba.onclick=cerrarModal;
 }
 
 function estadoVehiculo(v){
@@ -2470,7 +2477,10 @@ async function abrirDetalleIncidencia(vehiculoId,incidenciaId){
   }).join("") : `<div class="zx_veh_empty">Sin seguimientos todavía.</div>`;
 
   modal(`
-    <h2>⚠️ ${limpiar(textoTipoIncidencia(inc.tipo))}</h2>
+    <div class="zx_veh_view_head">
+      <h2>⚠️ ${limpiar(textoTipoIncidencia(inc.tipo))}</h2>
+      <button class="zx_view_action blue" id="zx_inc_det_volver_arriba">← Volver</button>
+    </div>
     <div class="zx_inc_detail_head">
       <span class="zx_inc_status">${limpiar(textoEstadoIncidencia(inc.estado))}</span>
       <span class="zx_inc_severity">Severidad: ${limpiar(String(inc.severidad||"media"))}</span>
@@ -2518,6 +2528,10 @@ async function abrirDetalleIncidencia(vehiculoId,incidenciaId){
   `);
 
   document.getElementById("zx_inc_det_volver").onclick=function(){
+    abrirIncidenciasVehiculo(v.id);
+  };
+  const volverIncArriba=document.getElementById("zx_inc_det_volver_arriba");
+  if(volverIncArriba) volverIncArriba.onclick=function(){
     abrirIncidenciasVehiculo(v.id);
   };
 
@@ -3998,7 +4012,10 @@ async function abrirDetalleUso(vehiculoId,usoId){
     return `<p><b>${limpiar(nombre)}</b><span>${limpiar(valor)}</span></p>`;
   }
   modal(`
-    <h2>Detalle del uso</h2>
+    <div class="zx_veh_view_head">
+      <h2>Detalle del uso</h2>
+      <button class="zx_view_action blue" id="zx_volver_usos_arriba">← Volver</button>
+    </div>
     <div class="zx_veh_badges"><span class="${abierto?"warning":"ok"}">${abierto?"En curso":"Finalizado"}</span></div>
     <div class="zx_veh_info ficha">
       ${campo("Vehículo",nombreVehiculo(v))}
@@ -4028,6 +4045,8 @@ async function abrirDetalleUso(vehiculoId,usoId){
   const cerrarPendiente=document.getElementById("zx_cerrar_uso_pendiente");
   if(cerrarPendiente) cerrarPendiente.onclick=function(){cerrarUsoPendiente(vehiculoId,usoId)};
   document.getElementById("zx_volver_usos").onclick=function(){abrirFicha(vehiculoId,"historial")};
+  const volverArriba=document.getElementById("zx_volver_usos_arriba");
+  if(volverArriba) volverArriba.onclick=function(){abrirFicha(vehiculoId,"historial")};
   document.getElementById("zx_cerrar_detalle_uso").onclick=cerrarModal;
 }
 
@@ -4067,11 +4086,16 @@ async function abrirFicha(id,tabInicial){
   if(!v){alert("Vehículo no encontrado.");return}
 
   modal(`
-    <h2>${limpiar(nombreVehiculo(v))}</h2>
+    <div class="zx_veh_view_head">
+      <h2>${limpiar(nombreVehiculo(v))}</h2>
+      ${puedeGestionar()?`<button class="zx_view_action blue" id="veh_ficha_editar_arriba">✏️ Editar</button>`:""}
+    </div>
     <div class="zx_veh_loading">Cargando historial...</div>
     <button class="zx_btn_big zx_gris" id="veh_ficha_cerrar">Cerrar</button>
   `);
   document.getElementById("veh_ficha_cerrar").onclick=cerrarModal;
+  const editarArribaCarga=document.getElementById("veh_ficha_editar_arriba");
+  if(editarArribaCarga) editarArribaCarga.onclick=function(){editarVehiculo(id)};
 
   try{
   let detalle;
@@ -4346,7 +4370,10 @@ async function abrirFicha(id,tabInicial){
     : "";
 
   modal(`
-    <h2>${limpiar(nombreVehiculo(v))}</h2>
+    <div class="zx_veh_view_head">
+      <h2>${limpiar(nombreVehiculo(v))}</h2>
+      ${puedeGestionar()?`<button class="zx_view_action blue" id="veh_ficha_editar_arriba">✏️ Editar</button>`:""}
+    </div>
     ${avisoCarga}
     <div class="zx_veh_badges">${badge(v)}</div>
     ${renderAvisos(v)}
@@ -4456,6 +4483,8 @@ async function abrirFicha(id,tabInicial){
   if(grua) grua.onclick=function(){abrirAvisoGrua(id)};
   const editar=document.getElementById("veh_ficha_editar");
   if(editar) editar.onclick=function(){editarVehiculo(id)};
+  const editarArriba=document.getElementById("veh_ficha_editar_arriba");
+  if(editarArriba) editarArriba.onclick=function(){editarVehiculo(id)};
   document.querySelectorAll("[data-uso-clasificar]").forEach(function(btn){
     btn.onclick=function(){clasificarUsoVehiculo(btn.dataset.usoId,v.id,btn.dataset.usoClasificar)};
   });
@@ -4648,6 +4677,14 @@ function instalarCSS(){
     .zx_inc_manage label{display:block;font-weight:800;margin:8px 0}.zx_inc_manage select,.zx_inc_manage textarea{width:100%;box-sizing:border-box;margin-top:6px}
     .zx_inc_audit_list{display:grid;gap:10px}.zx_inc_audit_item{border:1px solid #e2e8f0;border-radius:14px;padding:12px;background:#fff}.zx_inc_audit_top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
     .zx_inc_audit_top time{color:#64748b;font-weight:700;font-size:.85rem}.zx_inc_audit_user{color:#64748b;font-weight:700;margin-top:3px}.zx_inc_audit_change{margin-top:8px;font-weight:900}.zx_inc_audit_item p{margin:8px 0 0;line-height:1.35}
+
+
+    .zx_modal_top_actions{position:sticky;top:0;z-index:80;display:flex;justify-content:flex-end;padding:6px 0 9px;margin:-4px 0 6px;background:linear-gradient(#fff 78%,rgba(255,255,255,.94))}
+    .zx_modal_top_close{appearance:none;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;border-radius:12px;padding:9px 13px;font-weight:900;cursor:pointer}
+    .zx_veh_view_head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px}
+    .zx_veh_view_head h2{margin:0;min-width:0}
+    .zx_view_action{appearance:none;border:0;border-radius:12px;padding:9px 12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0}
+    .zx_view_action.blue{background:#2563eb;color:#fff}
 
     @media(max-width:560px){.zx_veh_incident_grid,.zx_inc_detail_grid,.zx_inc_manage_grid{grid-template-columns:1fr}.zx_veh_incident_grid .wide,.zx_inc_detail_grid .wide{grid-column:auto}.zx_inc_audit_top{display:block}}
     @media(max-width:390px){.zx_veh_header{grid-template-columns:1fr}.zx_veh_header_actions{grid-template-columns:1fr 1fr}.zx_flota_head{display:grid}.zx_flota_stats{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
