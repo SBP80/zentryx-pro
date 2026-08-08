@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3195 - REFRESCO VISUAL DE RUTA GPS
+// V3196 - TRANSFERENCIA ROBUSTA Y RECUPERACIÓN PARCIAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3195";
+const ZX_VERSION="3196";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -3289,7 +3289,6 @@ async function tomarVehiculo(id){
       const u=identidadActual();
       if(!u.id) throw new Error("No se ha podido identificar al usuario.");
       const pos=await obtenerPosicion();
-      const nuevoUsoId=uuid();
       const now=ahoraISO();
       const usoAnteriorId=v.uso_actual_id || null;
 
@@ -3538,80 +3537,126 @@ async function devolverVehiculo(id){
       const pos=await obtenerPosicion();
       const now=ahoraISO();
       const usoAnteriorId=String(v.uso_actual_id||"")||null;
-      const nuevoUsoId=uuid();
       const anteriorId=String(v.usuario_actual_id||responsableId(v)||"")||null;
       const anteriorNombre=responsableNombre(v)||null;
 
       if(!usoAnteriorId) throw new Error("No se ha encontrado el uso activo que debe cerrarse.");
 
-      const rCerrar=await zxUpdate("usos_vehiculos",{
-        estado:"transferido",
-        fin_at:now,
-        km_fin:km,
-        lat_fin:pos.lat,
-        lng_fin:pos.lng,
-        direccion_fin:null,
-        motivo_fin:"Transferido a "+nuevo.nombre+" · "+motivo,
-        dispositivo_fin:navigator.userAgent||"",
-        actualizado_por:u.id||null
-      },"id",usoAnteriorId);
-      if(rCerrar&&rCerrar.error) throw rCerrar.error;
+      // Si un intento anterior quedó a medias, reutilizamos el uso nuevo ya creado
+      // en vez de duplicarlo. Esto permite completar la transferencia con seguridad.
+      let nuevoUsoId=null;
+      let usoNuevoExistente=null;
+      try{
+        const cliente=sb();
+        if(cliente && navigator.onLine!==false){
+          const q=await cliente
+            .from("usos_vehiculos")
+            .select("*")
+            .eq("uso_anterior_id",usoAnteriorId)
+            .eq("usuario_id",nuevo.id)
+            .in("estado",["en_uso","pendiente_devolucion"])
+            .order("inicio_at",{ascending:false})
+            .limit(1);
+          if(q&&q.error) throw q.error;
+          if(Array.isArray(q?.data)&&q.data.length) usoNuevoExistente=q.data[0];
+        }
+      }catch(e){
+        // Si no puede comprobarse, seguimos con el flujo normal y las protecciones locales.
+      }
 
-      const nuevoUso={
-        id:nuevoUsoId,
-        empresa_id:u.empresa_id||null,
-        vehiculo_id:String(v.id),
-        vehiculo_matricula:v.matricula||null,
-        usuario_id:nuevo.id,
-        usuario:nuevo.usuario||null,
-        nombre_usuario:nuevo.nombre,
-        estado:"en_uso",
-        tipo_uso:"laboral",
-        inicio_at:now,
-        km_inicio:km,
-        lat_inicio:pos.lat,
-        lng_inicio:pos.lng,
-        motivo_inicio:"Transferencia recibida de "+(anteriorNombre||"otro trabajador")+" · "+motivo,
-        dispositivo_inicio:navigator.userAgent||"",
-        uso_anterior_id:usoAnteriorId,
-        usuario_anterior_id:anteriorId,
-        usuario_anterior_nombre:anteriorNombre,
-        tomado_sin_liberacion:false,
-        seguimiento_gps_activo:false,
-        creado_por:u.id||null
-      };
-      const rNuevo=await zxInsert("usos_vehiculos",nuevoUso);
-      if(rNuevo&&rNuevo.error) throw rNuevo.error;
+      if(usoNuevoExistente&&usoNuevoExistente.id){
+        nuevoUsoId=String(usoNuevoExistente.id);
+      }else{
+        const rCerrar=await zxUpdate("usos_vehiculos",{
+          estado:"transferido",
+          fin_at:now,
+          km_fin:km,
+          lat_fin:pos.lat,
+          lng_fin:pos.lng,
+          direccion_fin:null,
+          motivo_fin:"Transferido a "+nuevo.nombre+" · "+motivo,
+          dispositivo_fin:navigator.userAgent||"",
+          actualizado_por:u.id||null
+        },"id",usoAnteriorId);
+        if(rCerrar&&rCerrar.error) throw rCerrar.error;
 
-      const transferenciaId=uuid();
-      const rTransfer=await zxInsert("transferencias_vehiculos",{
-        id:transferenciaId,
-        empresa_id:u.empresa_id||null,
-        vehiculo_id:String(v.id),
-        vehiculo_matricula:v.matricula||null,
-        uso_anterior_id:usoAnteriorId,
-        uso_nuevo_id:nuevoUsoId,
-        usuario_anterior_id:anteriorId,
-        usuario_anterior:v.usuario_actual||null,
-        nombre_anterior:anteriorNombre,
-        usuario_nuevo_id:nuevo.id,
-        usuario_nuevo:nuevo.usuario||null,
-        nombre_nuevo:nuevo.nombre,
-        estado:"confirmada",
-        km_transferencia:km,
-        lat:pos.lat,
-        lng:pos.lng,
-        direccion:null,
-        mensaje_usuario_anterior:"Vehículo transferido a "+nuevo.nombre,
-        avisar_al_liberar:false,
-        aviso_liberacion_enviado:false,
-        respuesta_usuario_anterior:"transferido",
-        motivo:motivo,
-        dispositivo:navigator.userAgent||"",
-        confirmado_por:u.id||null,
-        confirmado_at:now
-      });
-      if(rTransfer&&rTransfer.error) throw rTransfer.error;
+        nuevoUsoId=uuid();
+        const nuevoUso={
+          id:nuevoUsoId,
+          empresa_id:u.empresa_id||null,
+          vehiculo_id:String(v.id),
+          vehiculo_matricula:v.matricula||null,
+          usuario_id:nuevo.id,
+          usuario:nuevo.usuario||null,
+          nombre_usuario:nuevo.nombre,
+          estado:"en_uso",
+          tipo_uso:"laboral",
+          inicio_at:now,
+          km_inicio:km,
+          lat_inicio:pos.lat,
+          lng_inicio:pos.lng,
+          motivo_inicio:"Transferencia recibida de "+(anteriorNombre||"otro trabajador")+" · "+motivo,
+          dispositivo_inicio:navigator.userAgent||"",
+          uso_anterior_id:usoAnteriorId,
+          usuario_anterior_id:anteriorId,
+          usuario_anterior_nombre:anteriorNombre,
+          tomado_sin_liberacion:false,
+          seguimiento_gps_activo:false,
+          creado_por:u.id||null
+        };
+        const rNuevo=await zxInsert("usos_vehiculos",nuevoUso);
+        if(rNuevo&&rNuevo.error) throw rNuevo.error;
+      }
+
+      // Evita duplicar el registro de transferencia si el intento anterior lo creó.
+      let transferenciaExistente=false;
+      try{
+        const cliente=sb();
+        if(cliente && navigator.onLine!==false){
+          const q=await cliente
+            .from("transferencias_vehiculos")
+            .select("id")
+            .eq("uso_anterior_id",usoAnteriorId)
+            .eq("uso_nuevo_id",nuevoUsoId)
+            .eq("usuario_nuevo_id",nuevo.id)
+            .limit(1);
+          if(q&&q.error) throw q.error;
+          transferenciaExistente=Array.isArray(q?.data)&&q.data.length>0;
+        }
+      }catch(e){}
+
+      if(!transferenciaExistente){
+        const transferenciaId=uuid();
+        const rTransfer=await zxInsert("transferencias_vehiculos",{
+          id:transferenciaId,
+          empresa_id:u.empresa_id||null,
+          vehiculo_id:String(v.id),
+          vehiculo_matricula:v.matricula||null,
+          uso_anterior_id:usoAnteriorId,
+          uso_nuevo_id:nuevoUsoId,
+          usuario_anterior_id:anteriorId,
+          usuario_anterior:v.usuario_actual||null,
+          nombre_anterior:anteriorNombre,
+          usuario_nuevo_id:nuevo.id,
+          usuario_nuevo:nuevo.usuario||null,
+          nombre_nuevo:nuevo.nombre,
+          estado:"confirmada",
+          km_transferencia:km,
+          lat:pos.lat,
+          lng:pos.lng,
+          direccion:null,
+          mensaje_usuario_anterior:"Vehículo transferido a "+nuevo.nombre,
+          avisar_al_liberar:false,
+          aviso_liberacion_enviado:false,
+          // respuesta_usuario_anterior se deja NULL: la transferencia ya fue confirmada
+          // por quien tiene el vehículo y no requiere respuesta posterior.
+          motivo:motivo,
+          dispositivo:navigator.userAgent||"",
+          confirmado_por:u.id||null,
+          confirmado_at:now
+        });
+        if(rTransfer&&rTransfer.error) throw rTransfer.error;
+      }
 
       const rVeh=await zxUpdate(TABLA,{
         uso_actual_id:nuevoUsoId,
