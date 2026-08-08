@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3191 - GESTIÓN Y SEGUIMIENTO DE INCIDENCIAS
+// V3192 - CORRECCIÓN GUARDADO DE INCIDENCIAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3191";
+const ZX_VERSION="3192";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -2448,9 +2448,7 @@ async function abrirDetalleIncidencia(vehiculoId,incidenciaId){
           cambios.cerrado_en=null;
         }
 
-        const r=await zxUpdate("vehiculos_incidencias",cambios,function(q){
-          return q.eq("id",String(inc.id));
-        });
+        const r=await zxUpdate("vehiculos_incidencias",cambios,"id",inc.id);
         if(r&&r.error) throw r.error;
 
         let accion="incidencia_actualizada";
