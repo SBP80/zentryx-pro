@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3197 - AUTOR REAL EN CAMBIOS DE RESPONSABLE
+// V3200 - CORRECCIÓN NUEVO USO + AUTOR TRANSFERENCIA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3199";
+const ZX_VERSION="3200";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -3291,6 +3291,7 @@ async function tomarVehiculo(id){
       const pos=await obtenerPosicion();
       const now=ahoraISO();
       const usoAnteriorId=v.uso_actual_id || null;
+      const nuevoUsoId=uuid();
 
       if(ocupado && usoAnteriorId){
         const rCerrar=await zxUpdate("usos_vehiculos",{
