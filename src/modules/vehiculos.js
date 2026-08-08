@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3194 - REFRESCO VISUAL DE RUTA GPS
+// V3195 - REFRESCO VISUAL DE RUTA GPS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3194";
+const ZX_VERSION="3195";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -3395,25 +3395,64 @@ async function devolverVehiculo(id){
   const v=vehiculoPorId(id);
   if(!v){alert("Vehículo no encontrado.");return}
   if(!esResponsableActual(v) && !puedeGestionar()){
-    alert("Solo el responsable actual o un administrador puede devolverlo.");
+    alert("Solo el responsable actual o un administrador puede finalizar este uso.");
     return;
   }
 
+  let usuariosTransferencia=[];
+  try{
+    usuariosTransferencia=await cargarUsuariosActivosVehiculo();
+  }catch(e){
+    usuariosTransferencia=[];
+  }
+  const responsableActualId=String(v.usuario_actual_id||responsableId(v)||"");
+  usuariosTransferencia=usuariosTransferencia.filter(x=>String(x.id)!==responsableActualId);
+
   modal(`
-    <h2>Devolver vehículo</h2>
+    <h2>Finalizar uso</h2>
     <div class="zx_veh_info ficha">
       <p><b>Vehículo</b><span>${limpiar(nombreVehiculo(v))}</span></p>
       <p><b>Responsable</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
     </div>
-    <label class="zx_veh_label" for="veh_km_salida">Kilómetros finales</label>
+    <label class="zx_veh_label" for="veh_km_salida">Kilómetros actuales</label>
     <input id="veh_km_salida" type="number" inputmode="decimal" value="${limpiar(v.km_actual ?? 0)}">
     <label class="zx_veh_label" for="veh_observacion_salida">Incidencia u observación</label>
     <textarea id="veh_observacion_salida" rows="3" placeholder="Déjalo vacío si todo está correcto"></textarea>
-    <button class="zx_btn_big zx_verde" id="veh_devolver_ok">Confirmar devolución</button>
+
+    <div class="zx_veh_fin_acciones">
+      <button class="zx_btn_big zx_verde" id="veh_devolver_ok">📥 Devolver y dejar libre</button>
+      ${usuariosTransferencia.length ? `<button class="zx_btn_big zx_azul" id="veh_transferir_abrir">🔄 Transferir a otro trabajador</button>` : ""}
+    </div>
+
+    <div id="veh_transferir_panel" style="display:none;margin-top:14px;padding:14px;border:1px solid #dbe4ef;border-radius:18px;background:#f8fbff">
+      <h3 style="margin-top:0">Transferir vehículo</h3>
+      <label class="zx_veh_label" for="veh_transferir_usuario">Nuevo responsable</label>
+      <select id="veh_transferir_usuario">
+        <option value="">Selecciona un trabajador</option>
+        ${usuariosTransferencia.map(u=>`<option value="${limpiar(u.id)}">${limpiar(u.nombre)}${u.usuario&&u.usuario!==u.nombre?" · "+limpiar(u.usuario):""}</option>`).join("")}
+      </select>
+      <label class="zx_veh_label" for="veh_transferir_motivo">Motivo</label>
+      <textarea id="veh_transferir_motivo" rows="3" placeholder="Entrega, cambio de turno, sustitución..."></textarea>
+      <button class="zx_btn_big zx_verde" id="veh_transferir_ok">Confirmar transferencia</button>
+      <button class="zx_btn_big zx_gris" id="veh_transferir_cancelar">Cancelar transferencia</button>
+    </div>
+
     <button class="zx_btn_big zx_gris" id="veh_devolver_cancelar">Cancelar</button>
   `);
 
   document.getElementById("veh_devolver_cancelar").onclick=cerrarModal;
+  const abrirTransfer=document.getElementById("veh_transferir_abrir");
+  const panelTransfer=document.getElementById("veh_transferir_panel");
+  if(abrirTransfer) abrirTransfer.onclick=function(){
+    panelTransfer.style.display="block";
+    abrirTransfer.style.display="none";
+  };
+  const cancelarTransfer=document.getElementById("veh_transferir_cancelar");
+  if(cancelarTransfer) cancelarTransfer.onclick=function(){
+    panelTransfer.style.display="none";
+    if(abrirTransfer) abrirTransfer.style.display="";
+  };
+
   document.getElementById("veh_devolver_ok").onclick=async function(){
     const km=numero(valor("veh_km_salida"));
     if(km<numero(v.km_actual)){alert("Los kilómetros finales no pueden ser inferiores a los actuales.");return}
@@ -3475,8 +3514,143 @@ async function devolverVehiculo(id){
       await recargarVehiculosActual();
     }catch(e){
       btn.disabled=false;
-      btn.textContent="Confirmar devolución";
+      btn.textContent="📥 Devolver y dejar libre";
       alert("No se pudo devolver el vehículo: "+(e.message || "Error"));
+    }
+  };
+
+  const btnTransfer=document.getElementById("veh_transferir_ok");
+  if(btnTransfer) btnTransfer.onclick=async function(){
+    const km=numero(valor("veh_km_salida"));
+    if(km<numero(v.km_actual)){alert("Los kilómetros no pueden ser inferiores a los actuales.");return}
+    const nuevoId=String(valor("veh_transferir_usuario")||"");
+    const nuevo=usuariosTransferencia.find(x=>String(x.id)===nuevoId);
+    if(!nuevo){alert("Selecciona el trabajador que recibe el vehículo.");return}
+    const motivo=String(valor("veh_transferir_motivo")||valor("veh_observacion_salida")||"").trim();
+    if(!motivo){alert("Indica el motivo de la transferencia.");return}
+    if(!confirm("¿Transferir el vehículo a "+nuevo.nombre+"?")) return;
+
+    btnTransfer.disabled=true;
+    btnTransfer.textContent="Transfiriendo...";
+
+    try{
+      const u=identidadActual();
+      const pos=await obtenerPosicion();
+      const now=ahoraISO();
+      const usoAnteriorId=String(v.uso_actual_id||"")||null;
+      const nuevoUsoId=uuid();
+      const anteriorId=String(v.usuario_actual_id||responsableId(v)||"")||null;
+      const anteriorNombre=responsableNombre(v)||null;
+
+      if(!usoAnteriorId) throw new Error("No se ha encontrado el uso activo que debe cerrarse.");
+
+      const rCerrar=await zxUpdate("usos_vehiculos",{
+        estado:"transferido",
+        fin_at:now,
+        km_fin:km,
+        lat_fin:pos.lat,
+        lng_fin:pos.lng,
+        direccion_fin:null,
+        motivo_fin:"Transferido a "+nuevo.nombre+" · "+motivo,
+        dispositivo_fin:navigator.userAgent||"",
+        actualizado_por:u.id||null
+      },"id",usoAnteriorId);
+      if(rCerrar&&rCerrar.error) throw rCerrar.error;
+
+      const nuevoUso={
+        id:nuevoUsoId,
+        empresa_id:u.empresa_id||null,
+        vehiculo_id:String(v.id),
+        vehiculo_matricula:v.matricula||null,
+        usuario_id:nuevo.id,
+        usuario:nuevo.usuario||null,
+        nombre_usuario:nuevo.nombre,
+        estado:"en_uso",
+        tipo_uso:"laboral",
+        inicio_at:now,
+        km_inicio:km,
+        lat_inicio:pos.lat,
+        lng_inicio:pos.lng,
+        motivo_inicio:"Transferencia recibida de "+(anteriorNombre||"otro trabajador")+" · "+motivo,
+        dispositivo_inicio:navigator.userAgent||"",
+        uso_anterior_id:usoAnteriorId,
+        usuario_anterior_id:anteriorId,
+        usuario_anterior_nombre:anteriorNombre,
+        tomado_sin_liberacion:false,
+        seguimiento_gps_activo:false,
+        creado_por:u.id||null
+      };
+      const rNuevo=await zxInsert("usos_vehiculos",nuevoUso);
+      if(rNuevo&&rNuevo.error) throw rNuevo.error;
+
+      const transferenciaId=uuid();
+      const rTransfer=await zxInsert("transferencias_vehiculos",{
+        id:transferenciaId,
+        empresa_id:u.empresa_id||null,
+        vehiculo_id:String(v.id),
+        vehiculo_matricula:v.matricula||null,
+        uso_anterior_id:usoAnteriorId,
+        uso_nuevo_id:nuevoUsoId,
+        usuario_anterior_id:anteriorId,
+        usuario_anterior:v.usuario_actual||null,
+        nombre_anterior:anteriorNombre,
+        usuario_nuevo_id:nuevo.id,
+        usuario_nuevo:nuevo.usuario||null,
+        nombre_nuevo:nuevo.nombre,
+        estado:"confirmada",
+        km_transferencia:km,
+        lat:pos.lat,
+        lng:pos.lng,
+        direccion:null,
+        mensaje_usuario_anterior:"Vehículo transferido a "+nuevo.nombre,
+        avisar_al_liberar:false,
+        aviso_liberacion_enviado:false,
+        respuesta_usuario_anterior:"transferido",
+        motivo:motivo,
+        dispositivo:navigator.userAgent||"",
+        confirmado_por:u.id||null,
+        confirmado_at:now
+      });
+      if(rTransfer&&rTransfer.error) throw rTransfer.error;
+
+      const rVeh=await zxUpdate(TABLA,{
+        uso_actual_id:nuevoUsoId,
+        usuario_actual_id:nuevo.id,
+        usuario_actual_nombre:nuevo.nombre,
+        uso_iniciado_at:now,
+        estado_flota:"en_uso",
+        km_actual:km,
+        en_uso:true
+      },"id",id);
+      if(rVeh&&rVeh.error) throw rVeh.error;
+
+      try{
+        await registrarAuditoriaVehiculo("transferir_vehiculo",v,motivo,{
+          uso_anterior_id:usoAnteriorId,
+          uso_nuevo_id:nuevoUsoId,
+          usuario_anterior_id:anteriorId,
+          nombre_anterior:anteriorNombre,
+          usuario_nuevo_id:nuevo.id,
+          nombre_nuevo:nuevo.nombre,
+          km_transferencia:km
+        });
+      }catch(e){}
+
+      try{
+        await insertarNotificacion(
+          nuevo.id,
+          "Vehículo transferido",
+          (anteriorNombre||u.nombre||"Un usuario")+" te ha transferido el vehículo "+(v.matricula||"")+" a "+km+" km."
+        );
+      }catch(e){}
+
+      detenerSeguimientoGPS();
+      cerrarModal();
+      await recargarVehiculosActual();
+    }catch(e){
+      btnTransfer.disabled=false;
+      btnTransfer.textContent="Confirmar transferencia";
+      alert("No se pudo transferir el vehículo: "+(e.message||"Error"));
     }
   };
 }
