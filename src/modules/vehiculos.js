@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3193 - ASOCIACIÓN GPS AL USO ACTIVO REAL
+// V3194 - REFRESCO VISUAL DE RUTA GPS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3193";
+const ZX_VERSION="3194";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -1110,9 +1110,20 @@ function actualizarResumenRuta(){
   const n=document.getElementById("zx_ruta_num_puntos");
   const d=document.getElementById("zx_ruta_distancia");
   const h=document.getElementById("zx_ruta_ultima_hora");
+  const cab=document.getElementById("zx_ruta_cab_estado");
+  const tab=document.getElementById("zx_ruta_tab_btn");
+  const selector=document.getElementById("zx_ruta_selector");
   if(n) n.textContent=String(p.length);
   if(d) d.textContent=textoDistancia(distanciaRuta(p));
   if(h) h.textContent=p.length?fechaHoraES(p[p.length-1].registrado_at):"-";
+  if(cab) cab.textContent=p.length ? "Línea trazada con los puntos registrados por Zentryx." : "Todavía no hay posiciones para este uso.";
+  if(tab) tab.textContent="Ruta ("+p.length+")";
+  if(selector && selector.selectedOptions && selector.selectedOptions[0]){
+    const op=selector.selectedOptions[0];
+    const usoTxt=op.dataset.usoNombre||"Usuario";
+    const fechaTxt=p.length?fechaHoraES(p[p.length-1].registrado_at):(op.dataset.fechaBase||"");
+    op.textContent=fechaTxt+" · "+usoTxt+" · "+p.length+" puntos";
+  }
 }
 
 function dibujarRutaExacta(ajustar){
@@ -3931,7 +3942,7 @@ async function abrirFicha(id,tabInicial){
       <button class="${tabInicial==="historial" ? "on" : ""}" data-veh-tab="historial">Usos (${usos.length})</button>
       <button class="${tabInicial==="movimientos" ? "on" : ""}" data-veh-tab="movimientos">Movimientos (${movimientos.length})</button>
       <button class="${tabInicial==="transferencias" ? "on" : ""}" data-veh-tab="transferencias">Cambios (${cambiosResponsable.length})</button>
-      <button class="${tabInicial==="ruta" ? "on" : ""}" data-veh-tab="ruta">Ruta (${puntos.length})</button>
+      <button id="zx_ruta_tab_btn" class="${tabInicial==="ruta" ? "on" : ""}" data-veh-tab="ruta">Ruta (${puntos.length})</button>
     </div>
 
     <div class="zx_veh_tab ${tabInicial==="datos" ? "on" : ""}" data-veh-panel="datos">
@@ -3976,10 +3987,10 @@ async function abrirFicha(id,tabInicial){
     <div class="zx_veh_tab ${tabInicial==="ruta" ? "on" : ""}" data-veh-panel="ruta">
       <div class="zx_veh_route_box">
         <div class="zx_veh_route_head">
-          <div><b>Recorrido GPS exacto</b><span>${puntos.length ? "Línea trazada con los puntos registrados por Zentryx." : "Todavía no hay posiciones para este uso."}</span></div>
+          <div><b>Recorrido GPS exacto</b><span id="zx_ruta_cab_estado">${puntos.length ? "Línea trazada con los puntos registrados por Zentryx." : "Todavía no hay posiciones para este uso."}</span></div>
           ${rutaEnDirecto&&esAdmin()?`<em>● EN DIRECTO</em>`:""}
         </div>
-        ${rutasDisponibles.length>1?`<label class="zx_veh_route_select"><span>Recorrido</span><select id="zx_ruta_selector">${rutasDisponibles.map(function(r,i){const nombre=r.uso?(r.uso.nombre_usuario||r.uso.usuario||"Usuario"):"Sesión";return `<option value="${limpiar(r.id)}" ${r.id===usoRutaId?"selected":""}>${limpiar(fechaHoraES(r.ultima))} · ${limpiar(nombre)} · ${r.puntos.length} puntos</option>`}).join("")}</select></label>`:""}
+        ${rutasDisponibles.length>1?`<label class="zx_veh_route_select"><span>Recorrido</span><select id="zx_ruta_selector">${rutasDisponibles.map(function(r,i){const nombre=r.uso?(r.uso.nombre_usuario||r.uso.usuario||"Usuario"):"Sesión";const fechaBase=fechaHoraES(r.ultima);return `<option value="${limpiar(r.id)}" data-uso-nombre="${limpiar(nombre)}" data-fecha-base="${limpiar(fechaBase)}" ${r.id===usoRutaId?"selected":""}>${limpiar(fechaBase)} · ${limpiar(nombre)} · ${r.puntos.length} puntos</option>`}).join("")}</select></label>`:""}
         <div class="zx_veh_route_stats">
           <div><strong id="zx_ruta_num_puntos">${puntos.length}</strong><small>Puntos</small></div>
           <div><strong id="zx_ruta_distancia">${textoDistancia(distanciaRuta(puntos))}</strong><small>Recorrido</small></div>
