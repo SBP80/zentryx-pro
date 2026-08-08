@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3190 - INCIDENCIAS DE VEHÍCULOS SINCRONIZADAS
+// V3191 - GESTIÓN Y SEGUIMIENTO DE INCIDENCIAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3190";
+const ZX_VERSION="3191";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -2270,6 +2270,227 @@ async function cargarIncidenciasVehiculo(vehiculoId){
   }
 }
 
+async function cargarAuditoriaIncidencia(v,incidenciaId){
+  try{
+    const r=await zxGet("vehiculos_auditoria",{
+      query:function(q){
+        return q.eq("vehiculo_id",String(v.id)).order("fecha",{ascending:false}).limit(250);
+      }
+    });
+    if(r&&r.error) throw r.error;
+    const filas=Array.isArray(r?.data)?r.data:[];
+    return filas.filter(function(a){
+      const d=a&&a.datos&&typeof a.datos==="object" ? a.datos : {};
+      return String(d.incidencia_id||"")===String(incidenciaId||"");
+    });
+  }catch(e){
+    console.error("No se pudo cargar la auditoría de la incidencia",e);
+    return [];
+  }
+}
+
+function opcionesEstadoIncidencia(actual){
+  return [
+    ["abierta","Abierta"],
+    ["en_revision","En revisión"],
+    ["resuelta","Resuelta"],
+    ["cerrada","Cerrada"],
+    ["cancelada","Cancelada"]
+  ].map(function(x){
+    return `<option value="${x[0]}" ${String(actual)===x[0]?"selected":""}>${x[1]}</option>`;
+  }).join("");
+}
+
+function opcionesSeveridadIncidencia(actual){
+  return [
+    ["baja","Baja"],
+    ["media","Media"],
+    ["alta","Alta"],
+    ["critica","Crítica"]
+  ].map(function(x){
+    return `<option value="${x[0]}" ${String(actual)===x[0]?"selected":""}>${x[1]}</option>`;
+  }).join("");
+}
+
+function textoAccionAuditoriaIncidencia(a){
+  const acc=String(a?.accion||"");
+  const mapa={
+    incidencia_creada:"Incidencia registrada",
+    incidencia_actualizada:"Cambios guardados",
+    incidencia_seguimiento:"Seguimiento añadido",
+    incidencia_resuelta:"Incidencia resuelta",
+    incidencia_cerrada:"Incidencia cerrada",
+    incidencia_reabierta:"Incidencia reabierta",
+    incidencia_cancelada:"Incidencia cancelada"
+  };
+  return mapa[acc]||acc.replaceAll("_"," ");
+}
+
+async function abrirDetalleIncidencia(vehiculoId,incidenciaId){
+  const v=ZX_VEH_CACHE.find(x=>String(x.id)===String(vehiculoId));
+  if(!v){alert("Vehículo no encontrado.");return}
+
+  const lista=await cargarIncidenciasVehiculo(v.id);
+  const inc=lista.find(x=>String(x.id)===String(incidenciaId));
+  if(!inc){alert("Incidencia no encontrada.");return}
+
+  const puede=puedeGestionar();
+  const auditoria=await cargarAuditoriaIncidencia(v,inc.id);
+
+  const historial=auditoria.length ? auditoria.map(function(a){
+    const d=a&&a.datos&&typeof a.datos==="object" ? a.datos : {};
+    const comentario=String(d.comentario||d.seguimiento||d.motivo||"").trim();
+    const cambio=(d.estado_anterior||d.estado_nuevo)
+      ? `<div class="zx_inc_audit_change">${limpiar(d.estado_anterior||"-")} → ${limpiar(d.estado_nuevo||"-")}</div>`
+      : "";
+    return `<div class="zx_inc_audit_item">
+      <div class="zx_inc_audit_top">
+        <strong>${limpiar(textoAccionAuditoriaIncidencia(a))}</strong>
+        <time>${limpiar(fechaHoraES(a.fecha))}</time>
+      </div>
+      <div class="zx_inc_audit_user">${limpiar(a.usuario||"-")}</div>
+      ${cambio}
+      ${comentario?`<p>${limpiar(comentario)}</p>`:""}
+    </div>`;
+  }).join("") : `<div class="zx_veh_empty">Sin seguimientos todavía.</div>`;
+
+  modal(`
+    <h2>⚠️ ${limpiar(textoTipoIncidencia(inc.tipo))}</h2>
+    <div class="zx_inc_detail_head">
+      <span class="zx_inc_status">${limpiar(textoEstadoIncidencia(inc.estado))}</span>
+      <span class="zx_inc_severity">Severidad: ${limpiar(String(inc.severidad||"media"))}</span>
+    </div>
+
+    <div class="zx_inc_detail_grid">
+      <div><small>FECHA</small><b>${limpiar(fechaHoraES(inc.created_at))}</b></div>
+      <div><small>REGISTRADA POR</small><b>${limpiar(inc.nombre_usuario||inc.usuario||"-")}</b></div>
+      <div><small>KILÓMETROS</small><b>${inc.km!=null?limpiar(inc.km)+" km":"-"}</b></div>
+      <div><small>VEHÍCULO</small><b>${limpiar(inc.vehiculo_matricula||v.matricula||"-")}</b></div>
+      ${inc.direccion?`<div class="wide"><small>UBICACIÓN</small><b>${limpiar(inc.direccion)}</b></div>`:""}
+      ${inc.aseguradora||inc.poliza?`<div class="wide"><small>SEGURO</small><b>${limpiar([inc.aseguradora,inc.poliza].filter(Boolean).join(" · "))}</b></div>`:""}
+    </div>
+
+    <div class="zx_inc_description">
+      <small>DESCRIPCIÓN</small>
+      <p>${limpiar(inc.descripcion||"Sin descripción")}</p>
+    </div>
+
+    ${puede?`
+      <div class="zx_inc_manage">
+        <h3>Gestionar incidencia</h3>
+        <div class="zx_inc_manage_grid">
+          <label>Estado
+            <select id="zx_inc_det_estado">${opcionesEstadoIncidencia(inc.estado)}</select>
+          </label>
+          <label>Severidad
+            <select id="zx_inc_det_severidad">${opcionesSeveridadIncidencia(inc.severidad)}</select>
+          </label>
+        </div>
+        <label>Seguimiento / comentario
+          <textarea id="zx_inc_det_comentario" rows="4" placeholder="Añade una actuación, diagnóstico, llamada, reparación pendiente..."></textarea>
+        </label>
+        <label>Solución
+          <textarea id="zx_inc_det_solucion" rows="3" placeholder="Indica la solución cuando corresponda">${limpiar(inc.solucion||"")}</textarea>
+        </label>
+        <button class="zx_btn_big zx_verde" id="zx_inc_det_guardar">Guardar cambios</button>
+      </div>
+    `:""}
+
+    <h3>Historial</h3>
+    <div class="zx_inc_audit_list">${historial}</div>
+
+    <button class="zx_btn_big zx_gris" id="zx_inc_det_volver">Volver a incidencias</button>
+  `);
+
+  document.getElementById("zx_inc_det_volver").onclick=function(){
+    abrirIncidenciasVehiculo(v.id);
+  };
+
+  if(puede){
+    document.getElementById("zx_inc_det_guardar").onclick=async function(){
+      const btn=this;
+      const estadoNuevo=valor("zx_inc_det_estado")||inc.estado||"abierta";
+      const severidadNueva=valor("zx_inc_det_severidad")||inc.severidad||"media";
+      const comentario=valor("zx_inc_det_comentario");
+      const solucion=valor("zx_inc_det_solucion");
+      const estadoAnterior=String(inc.estado||"abierta");
+      const severidadAnterior=String(inc.severidad||"media");
+      const ahora=ahoraISO();
+      const s=sesion();
+
+      if(estadoNuevo==="cerrada" && !String(solucion||"").trim()){
+        alert("Para cerrar la incidencia indica la solución.");
+        return;
+      }
+
+      btn.disabled=true;
+      btn.textContent="Guardando…";
+
+      try{
+        const cambios={
+          estado:estadoNuevo,
+          severidad:severidadNueva,
+          updated_at:ahora,
+          solucion:String(solucion||"").trim()||null
+        };
+
+        if(String(comentario||"").trim()){
+          cambios.comentario_revision=String(comentario).trim();
+          cambios.revisado_por=String(s.id||s.usuario||"");
+          cambios.revisado_en=ahora;
+        }
+
+        if(estadoNuevo==="cerrada"){
+          cambios.cerrado_por=String(s.id||s.usuario||"");
+          cambios.cerrado_en=ahora;
+        }else if(estadoAnterior==="cerrada" && estadoNuevo!=="cerrada"){
+          cambios.cerrado_por=null;
+          cambios.cerrado_en=null;
+        }
+
+        const r=await zxUpdate("vehiculos_incidencias",cambios,function(q){
+          return q.eq("id",String(inc.id));
+        });
+        if(r&&r.error) throw r.error;
+
+        let accion="incidencia_actualizada";
+        if(estadoAnterior!==estadoNuevo){
+          if(estadoNuevo==="resuelta") accion="incidencia_resuelta";
+          else if(estadoNuevo==="cerrada") accion="incidencia_cerrada";
+          else if(estadoNuevo==="cancelada") accion="incidencia_cancelada";
+          else if(estadoAnterior==="cerrada"||estadoAnterior==="resuelta"||estadoAnterior==="cancelada") accion="incidencia_reabierta";
+        }else if(String(comentario||"").trim()){
+          accion="incidencia_seguimiento";
+        }
+
+        await registrarAuditoriaVehiculo(
+          accion,
+          v,
+          String(comentario||"").trim(),
+          {
+            incidencia_id:String(inc.id),
+            tipo:inc.tipo,
+            estado_anterior:estadoAnterior,
+            estado_nuevo:estadoNuevo,
+            severidad_anterior:severidadAnterior,
+            severidad_nueva:severidadNueva,
+            comentario:String(comentario||"").trim(),
+            solucion:String(solucion||"").trim()
+          }
+        );
+
+        alert("Incidencia actualizada.");
+        abrirDetalleIncidencia(v.id,inc.id);
+      }catch(e){
+        console.error(e);
+        alert("No se pudieron guardar los cambios de la incidencia.");
+        btn.disabled=false;
+        btn.textContent="Guardar cambios";
+      }
+    };
+  }
+}
+
 async function abrirIncidenciasVehiculo(vehiculoId){
   const v=ZX_VEH_CACHE.find(x=>String(x.id)===String(vehiculoId));
   if(!v){alert("Vehículo no encontrado.");return}
@@ -2299,10 +2520,8 @@ async function abrirIncidenciasVehiculo(vehiculoId){
   }
 
   box.innerHTML=lista.map(function(i){
-    const km=i.km!=null ? `${limpiar(i.km)} km` : "";
-    const ubic=i.direccion ? `<div><small>UBICACIÓN</small><b>${limpiar(i.direccion)}</b></div>` : "";
-    const seguro=i.aseguradora||i.poliza ? `<div><small>SEGURO</small><b>${limpiar([i.aseguradora,i.poliza].filter(Boolean).join(" · "))}</b></div>` : "";
-    return `<article class="zx_veh_incident_card ${claseIncidencia(i.estado,i.severidad)}">
+    const km=i.km!=null ? `${limpiar(i.km)} km` : "-";
+    return `<button type="button" class="zx_veh_incident_card ${claseIncidencia(i.estado,i.severidad)}" data-inc-open="${limpiar(i.id)}">
       <div class="zx_veh_incident_head">
         <strong>${limpiar(textoTipoIncidencia(i.tipo))}</strong>
         <span>${limpiar(textoEstadoIncidencia(i.estado))}</span>
@@ -2311,12 +2530,19 @@ async function abrirIncidenciasVehiculo(vehiculoId){
       <p>${limpiar(i.descripcion||i.titulo||"Sin descripción")}</p>
       <div class="zx_veh_incident_grid">
         <div><small>REGISTRADA POR</small><b>${limpiar(i.nombre_usuario||i.usuario||"-")}</b></div>
-        <div><small>KILÓMETROS</small><b>${km||"-"}</b></div>
-        ${ubic}
-        ${seguro}
+        <div><small>KILÓMETROS</small><b>${km}</b></div>
+        ${i.direccion?`<div class="wide"><small>UBICACIÓN</small><b>${limpiar(i.direccion)}</b></div>`:""}
+        ${i.aseguradora||i.poliza?`<div class="wide"><small>SEGURO</small><b>${limpiar([i.aseguradora,i.poliza].filter(Boolean).join(" · "))}</b></div>`:""}
       </div>
-    </article>`;
+      <div class="zx_inc_open_hint">Ver y gestionar ›</div>
+    </button>`;
   }).join("");
+
+  box.querySelectorAll("[data-inc-open]").forEach(function(btn){
+    btn.onclick=function(){
+      abrirDetalleIncidencia(v.id,btn.dataset.incOpen);
+    };
+  });
 }
 
 async function guardarIncidenciaCentral(v,seg,pos,dir,pk,carretera,tipo,descripcion){
@@ -2362,6 +2588,24 @@ async function guardarIncidenciaCentral(v,seg,pos,dir,pk,carretera,tipo,descripc
 
   const r=await zxInsert("vehiculos_incidencias",fila);
   if(r&&r.error) throw r.error;
+
+  try{
+    await registrarAuditoriaVehiculo(
+      "incidencia_creada",
+      v,
+      fila.descripcion,
+      {
+        incidencia_id:String(fila.id),
+        tipo:fila.tipo,
+        estado_nuevo:fila.estado,
+        severidad_nueva:fila.severidad,
+        comentario:fila.descripcion
+      }
+    );
+  }catch(e){
+    console.warn("La incidencia se guardó, pero no se pudo registrar su auditoría.",e);
+  }
+
   return fila;
 }
 
@@ -3916,6 +4160,22 @@ function instalarCSS(){
     .zx_grua_location{grid-template-columns:1fr 1fr}.zx_grua_location .wide{grid-column:1/-1}.zx_location_row{background:rgba(255,255,255,.65);border:1px solid #dbeafe;border-radius:12px;padding:9px}.zx_location_row span,.zx_location_row b{display:block}.zx_location_row span{font-size:10px;color:#64748b;font-weight:950;text-transform:uppercase}.zx_location_row b{margin-top:3px;color:#1e3a8a;font-size:12px;overflow-wrap:anywhere}
     .zx_grua_actions .apple{background:#334155}.zx_grua_actions .softblue{background:#0f766e}
 .zx_grua_actions .disabled{grid-column:1/-1;background:#94a3b8}.zx_grua_actions .blue{background:#2563eb}.zx_grua_actions .purple{background:#7c3aed}.zx_grua_actions .maps{background:#111827}.zx_grua_actions .orange{background:#f97316}.zx_grua_actions .gray{background:#64748b}
+
+    .zx_veh_incident_card{width:100%;display:block;text-align:left;border:1px solid #d9e2ec;border-left:7px solid #94a3b8;border-radius:18px;padding:16px;margin:12px 0;background:#fff;color:#0f172a;box-sizing:border-box;cursor:pointer}
+    .zx_veh_incident_card.alta{border-left-color:#ef4444}.zx_veh_incident_card.abierta{border-left-color:#f59e0b}.zx_veh_incident_card.resuelta{border-left-color:#22c55e}
+    .zx_veh_incident_head{display:flex;justify-content:space-between;gap:12px;align-items:center}.zx_veh_incident_head strong{font-size:1.08rem}.zx_veh_incident_head span{font-size:.82rem;font-weight:800;background:#eef2f7;padding:6px 10px;border-radius:999px}
+    .zx_veh_incident_card time{display:block;color:#64748b;font-weight:700;margin-top:5px}.zx_veh_incident_card p{font-weight:700;margin:12px 0;line-height:1.35}
+    .zx_veh_incident_grid,.zx_inc_detail_grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.zx_veh_incident_grid>div,.zx_inc_detail_grid>div{border:1px solid #e2e8f0;border-radius:13px;padding:11px;min-width:0;background:#fff}
+    .zx_veh_incident_grid .wide,.zx_inc_detail_grid .wide{grid-column:1/-1}.zx_veh_incident_grid small,.zx_inc_detail_grid small,.zx_inc_description small{display:block;color:#64748b;font-weight:800;font-size:.72rem;line-height:1.2;margin-bottom:5px}
+    .zx_veh_incident_grid b,.zx_inc_detail_grid b{display:block;font-size:.96rem;line-height:1.3;overflow-wrap:anywhere}.zx_inc_open_hint{margin-top:12px;color:#2563eb;font-weight:900}
+    .zx_inc_detail_head{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 14px}.zx_inc_status,.zx_inc_severity{background:#eef2f7;border-radius:999px;padding:7px 11px;font-weight:800}
+    .zx_inc_description{border:1px solid #e2e8f0;border-radius:14px;padding:12px;margin:12px 0}.zx_inc_description p{margin:0;font-weight:700;line-height:1.4}
+    .zx_inc_manage{border:1px solid #dbeafe;background:#f8fbff;border-radius:16px;padding:14px;margin:15px 0}.zx_inc_manage h3{margin-top:0}.zx_inc_manage_grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .zx_inc_manage label{display:block;font-weight:800;margin:8px 0}.zx_inc_manage select,.zx_inc_manage textarea{width:100%;box-sizing:border-box;margin-top:6px}
+    .zx_inc_audit_list{display:grid;gap:10px}.zx_inc_audit_item{border:1px solid #e2e8f0;border-radius:14px;padding:12px;background:#fff}.zx_inc_audit_top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .zx_inc_audit_top time{color:#64748b;font-weight:700;font-size:.85rem}.zx_inc_audit_user{color:#64748b;font-weight:700;margin-top:3px}.zx_inc_audit_change{margin-top:8px;font-weight:900}.zx_inc_audit_item p{margin:8px 0 0;line-height:1.35}
+
+    @media(max-width:560px){.zx_veh_incident_grid,.zx_inc_detail_grid,.zx_inc_manage_grid{grid-template-columns:1fr}.zx_veh_incident_grid .wide,.zx_inc_detail_grid .wide{grid-column:auto}.zx_inc_audit_top{display:block}}
     @media(max-width:390px){.zx_veh_header{grid-template-columns:1fr}.zx_veh_header_actions{grid-template-columns:1fr 1fr}.zx_flota_head{display:grid}.zx_flota_stats{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(5,minmax(0,1fr))}.zx_veh_kpi_alert{grid-column:auto}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
