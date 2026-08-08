@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3200 - CORRECCIÓN NUEVO USO + AUTOR TRANSFERENCIA
+// V3201 - CORRECCIÓN MATRÍCULA DUPLICADA AL EDITAR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3200";
+const ZX_VERSION="3201";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -96,8 +96,12 @@ async function existeMatriculaDuplicada(matricula,idActual){
     });
   };
 
-  // Comprobación local inmediata.
-  if(comprobar(ZX_VEH_CACHE) || comprobar(cacheBackend(TABLA)) || comprobar(leerCache())) return true;
+  // Al crear, la caché sirve como aviso inmediato. Al editar no debe bloquear:
+  // una copia local antigua del propio vehículo puede conservar la misma matrícula
+  // con un id incompleto o desactualizado. En edición manda la comprobación remota.
+  if(!actual){
+    if(comprobar(ZX_VEH_CACHE) || comprobar(cacheBackend(TABLA)) || comprobar(leerCache())) return true;
+  }
 
   // La comprobación decisiva se hace contra toda la tabla, sin depender
   // del filtro visible ni de la caché del adaptador.
