@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3192 - CORRECCIÓN GUARDADO DE INCIDENCIAS
+// V3193 - ASOCIACIÓN GPS AL USO ACTIVO REAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3192";
+const ZX_VERSION="3193";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -30,6 +30,8 @@ let ZX_GPS_ULTIMO_REGISTRO="";
 let ZX_GPS_POLL_TIMER=null;
 let ZX_GPS_GUARDANDO=false;
 let ZX_GPS_ULTIMA_PRECISION=null;
+let ZX_GPS_USO_RESUELTO=null;
+let ZX_GPS_USO_RESUELTO_AT=0;
 let ZX_RUTA_MAPA=null;
 let ZX_RUTA_LINEA=null;
 let ZX_RUTA_MARCADORES=[];
@@ -569,10 +571,47 @@ function detenerSeguimientoGPS(){
   ZX_GPS_ULTIMO_ENVIO=0;
   ZX_GPS_ULTIMA_PRECISION=null;
   ZX_GPS_GUARDANDO=false;
+  ZX_GPS_USO_RESUELTO=null;
+  ZX_GPS_USO_RESUELTO_AT=0;
+}
+
+async function resolverUsoGPSVigente(v,usoPropuesto){
+  if(!v) return usoPropuesto||null;
+  const ahora=Date.now();
+  const vehiculoId=String(v.id||"");
+  if(ZX_GPS_USO_RESUELTO && ahora-ZX_GPS_USO_RESUELTO_AT<12000 && String(ZX_GPS_USO_RESUELTO.vehiculo_id||"")===vehiculoId){
+    return ZX_GPS_USO_RESUELTO;
+  }
+  const u=identidadActual();
+  if(!u.id) return usoPropuesto||null;
+  try{
+    const cliente=sb();
+    if(cliente && navigator.onLine!==false){
+      const r=await cliente.from("usos_vehiculos").select("*")
+        .eq("vehiculo_id",vehiculoId).eq("usuario_id",String(u.id))
+        .in("estado",["en_uso","pendiente_devolucion"])
+        .order("inicio_at",{ascending:false}).limit(1);
+      if(r&&r.error) throw r.error;
+      const vigente=Array.isArray(r?.data)&&r.data.length ? r.data[0] : null;
+      if(vigente&&vigente.id){
+        ZX_GPS_USO_RESUELTO=vigente; ZX_GPS_USO_RESUELTO_AT=ahora;
+        ZX_GPS_USO_ID=String(vigente.id); ZX_USOS_ACTUALES[vehiculoId]=vigente;
+        if(v&&typeof v==="object") v.__uso_actual=vigente;
+        return vigente;
+      }
+      ZX_GPS_USO_RESUELTO=null; ZX_GPS_USO_RESUELTO_AT=ahora; return null;
+    }
+  }catch(e){ ZX_GPS_ULTIMO_ERROR=String(e&&e.message||e||"No se pudo comprobar el uso GPS vigente"); }
+  if(usoPropuesto&&usoPropuesto.id){ ZX_GPS_USO_RESUELTO=usoPropuesto; ZX_GPS_USO_RESUELTO_AT=ahora; }
+  return usoPropuesto||null;
 }
 
 async function guardarPuntoGPS(v,uso,pos){
   if(!v || !uso || !pos || !pos.coords || ZX_GPS_GUARDANDO) return;
+
+  const usoVigente=await resolverUsoGPSVigente(v,uso);
+  if(!usoVigente || !usoVigente.id) return;
+  uso=usoVigente;
 
   const lat=Number(pos.coords.latitude);
   const lng=Number(pos.coords.longitude);
@@ -699,6 +738,8 @@ function iniciarWatchGPS(v,uso){
 
   detenerSeguimientoGPS();
   ZX_GPS_USO_ID=usoId;
+  ZX_GPS_USO_RESUELTO=uso;
+  ZX_GPS_USO_RESUELTO_AT=0;
 
   ZX_GPS_WATCH_ID=navigator.geolocation.watchPosition(
     function(pos){
@@ -3676,7 +3717,17 @@ async function abrirFicha(id,tabInicial){
     const pts=ordenarPuntos(gruposRuta[k]);
     const uso=usos.find(u=>String(u.id||"")===k)||null;
     return {id:k,puntos:pts,uso:uso,ultima:pts.length?pts[pts.length-1].registrado_at:null};
-  }).sort((a,b)=>new Date(b.ultima||0)-new Date(a.ultima||0));
+  });
+  if(usoActual&&usoActual.id&&!rutasDisponibles.some(r=>String(r.id)===String(usoActual.id))){
+    rutasDisponibles.push({id:String(usoActual.id),puntos:[],uso:usoActual,ultima:usoActual.inicio_at||usoActual.created_at||null});
+  }
+  rutasDisponibles.sort(function(a,b){
+    const aActivo=usoActual&&String(a.id)===String(usoActual.id);
+    const bActivo=usoActual&&String(b.id)===String(usoActual.id);
+    if(aActivo&&!bActivo) return -1;
+    if(bActivo&&!aActivo) return 1;
+    return new Date(b.ultima||0)-new Date(a.ultima||0);
+  });
   const rutaEnDirecto=!!(usoActual&&usoRutaId&&estadoVehiculo(v)==="uso");
 
   usos.sort((a,b)=>new Date(b.inicio_at||b.created_at||0)-new Date(a.inicio_at||a.created_at||0));
