@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3196 - TRANSFERENCIA ROBUSTA Y RECUPERACIÓN PARCIAL
+// V3197 - AUTOR REAL EN CAMBIOS DE RESPONSABLE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3196";
+const ZX_VERSION="3197";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -3929,6 +3929,23 @@ async function abrirFicha(id,tabInicial){
   }
   const usos=detalle.usos||[];
   const transferencias=detalle.transferencias||[];
+
+  // Resuelve el usuario que ejecutó realmente cada transferencia.
+  // confirmado_por guarda el ID del usuario autenticado que confirmó la acción;
+  // usuario_nuevo es el receptor del vehículo y no debe mostrarse como autor.
+  const autoresTransferencia={};
+  try{
+    const idsAutor=[...new Set(transferencias.map(t=>String(t.confirmado_por||"")).filter(Boolean))];
+    if(idsAutor.length && sb() && navigator.onLine!==false){
+      const ru=await sb().from("usuarios").select("id,nombre_completo,nombre,usuario").in("id",idsAutor);
+      if(ru && !ru.error && Array.isArray(ru.data)){
+        ru.data.forEach(function(x){
+          autoresTransferencia[String(x.id)]=String(x.nombre_completo||x.nombre||x.usuario||"Usuario");
+        });
+      }
+    }
+  }catch(e){}
+
   const todosPuntos=detalle.puntos||[];
   const auditoriaVehiculo=detalle.auditoria||[];
   const usoActual=v.__uso_actual||null;
@@ -4135,7 +4152,7 @@ async function abrirFicha(id,tabInicial){
       anterior:t.nombre_anterior||"Sin responsable",
       nuevo:t.nombre_nuevo||"Usuario",
       motivo:t.motivo||"Cambio durante el uso",
-      realizado:t.usuario_nuevo||t.nombre_nuevo||"Usuario"
+      realizado:autoresTransferencia[String(t.confirmado_por||"")]||"Usuario"
     };
   }).concat(cambiosAsignacion).sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0));
   const transHtml=cambiosResponsable.length ? cambiosResponsable.map(function(t){
