@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3202 - CORRECCIÓN HISTÓRICO GPS: RECUPERAR RECORRIDOS RECIENTES
+// V3203 - INCIDENCIAS ACTIVAS CONECTADAS A AVISOS Y USO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3202";
+const ZX_VERSION="3203";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -32,6 +32,7 @@ let ZX_GPS_GUARDANDO=false;
 let ZX_GPS_ULTIMA_PRECISION=null;
 let ZX_GPS_USO_RESUELTO=null;
 let ZX_GPS_USO_RESUELTO_AT=0;
+let ZX_VEH_INCIDENCIAS_ACTIVAS={};
 let ZX_RUTA_MAPA=null;
 let ZX_RUTA_LINEA=null;
 let ZX_RUTA_MARCADORES=[];
@@ -1608,6 +1609,17 @@ function avisosVehiculo(v){
   if(["averia","taller","fuera_servicio"].includes(estado)){
     avisos.push({nivel:"critico",texto:estadoTexto(v),detalle:"No disponible"});
   }
+
+  const incidencias=Array.isArray(v.__incidencias_activas)?v.__incidencias_activas:incidenciasActivasVehiculo(v);
+  incidencias.forEach(function(i){
+    const sev=normalizar(i.severidad||"media");
+    avisos.push({
+      nivel:["alta","critica"].includes(sev)?"critico":"aviso",
+      texto:"Incidencia "+textoTipoIncidencia(i.tipo),
+      detalle:textoEstadoIncidencia(i.estado)+" · "+(sev==="critica"?"Crítica":sev.charAt(0).toUpperCase()+sev.slice(1))
+    });
+  });
+
   return avisos;
 }
 
@@ -1656,6 +1668,7 @@ async function cargarVehiculos(){
 
   try{
     await cargarUsosYRecuperaciones();
+    await cargarIncidenciasActivasFlota();
     const r=await zxGet(TABLA,{
       query:function(q){return q.order("matricula",{ascending:true});}
     });
@@ -1673,6 +1686,7 @@ async function cargarVehiculos(){
       const copia=Object.assign({},v);
       copia.__uso_actual=ZX_USOS_ACTUALES[String(copia.id)] || null;
       copia.__recuperacion=ZX_RECUPERACIONES[String(copia.id)] || null;
+      copia.__incidencias_activas=incidenciasActivasVehiculo(copia);
       return prepararVehiculo(copia);
     });
     guardarCache(ZX_VEH_CACHE);
@@ -1682,6 +1696,7 @@ async function cargarVehiculos(){
       const copia=Object.assign({},v);
       copia.__uso_actual=ZX_USOS_ACTUALES[String(copia.id)] || null;
       copia.__recuperacion=ZX_RECUPERACIONES[String(copia.id)] || null;
+      copia.__incidencias_activas=incidenciasActivasVehiculo(copia);
       return prepararVehiculo(copia);
     });
   }finally{
@@ -2324,6 +2339,50 @@ async function cargarIncidenciasVehiculo(vehiculoId){
     console.error("No se pudieron cargar incidencias del vehículo",e);
     return [];
   }
+}
+
+
+async function cargarIncidenciasActivasFlota(){
+  const mapa={};
+  try{
+    const r=await zxGet("vehiculos_incidencias",{
+      query:function(q){
+        return q.in("estado",["abierta","en_revision"]).order("created_at",{ascending:false}).limit(500);
+      }
+    });
+    if(r&&r.error) throw r.error;
+    (Array.isArray(r?.data)?r.data:[]).forEach(function(i){
+      const id=String(i.vehiculo_id||"");
+      if(!id) return;
+      if(!mapa[id]) mapa[id]=[];
+      mapa[id].push(i);
+    });
+  }catch(e){
+    console.warn("No se pudieron cargar las incidencias activas de la flota.",e);
+  }
+  ZX_VEH_INCIDENCIAS_ACTIVAS=mapa;
+  return mapa;
+}
+
+function incidenciasActivasVehiculo(v){
+  return ZX_VEH_INCIDENCIAS_ACTIVAS[String(v?.id||"")]||[];
+}
+
+function nivelMaximoIncidencias(lista){
+  const orden={baja:1,media:2,alta:3,critica:4};
+  let max="baja",valor=0;
+  (lista||[]).forEach(function(i){
+    const s=normalizar(i.severidad||"media");
+    const n=orden[s]||2;
+    if(n>valor){valor=n;max=s}
+  });
+  return lista&&lista.length?max:"";
+}
+
+function resumenIncidenciasParaUso(lista){
+  return (lista||[]).map(function(i){
+    return "• "+textoTipoIncidencia(i.tipo)+" · "+textoEstadoIncidencia(i.estado)+" · "+String(i.severidad||"media").toUpperCase()+"\n  "+String(i.descripcion||"Sin descripción");
+  }).join("\n");
 }
 
 async function cargarAuditoriaIncidencia(v,incidenciaId){
@@ -3265,9 +3324,29 @@ async function tomarVehiculo(id){
   const actual=responsableNombre(v);
   const ocupado=estadoVehiculo(v)==="uso" && !esResponsableActual(v);
 
+  let incidenciasActivas=[];
+  try{
+    incidenciasActivas=(await cargarIncidenciasVehiculo(v.id)).filter(function(i){
+      return ["abierta","en_revision"].includes(normalizar(i.estado||""));
+    });
+  }catch(e){incidenciasActivas=[]}
+
+  const nivelIncidencia=nivelMaximoIncidencias(incidenciasActivas);
+  const incidenciaBloqueante=["alta","critica"].includes(nivelIncidencia);
+  const avisoIncidencias=incidenciasActivas.length
+    ? `<div class="zx_veh_aviso ${incidenciaBloqueante?"danger":""}">
+        <b>⚠️ ${incidenciasActivas.length} incidencia(s) activa(s)</b>
+        <small>${limpiar(resumenIncidenciasParaUso(incidenciasActivas)).replaceAll("\n","<br>")}</small>
+        ${incidenciaBloqueante
+          ? `<strong>Severidad ${nivelIncidencia==="critica"?"crítica":"alta"}: requiere autorización de administrador para utilizar el vehículo.</strong>`
+          : `<strong>Debes confirmar que conoces estas incidencias antes de continuar.</strong>`}
+      </div>`
+    : "";
+
   modal(`
     <h2>${ocupado ? "Cambiar responsable" : "Utilizar vehículo"}</h2>
     ${ocupado ? `<div class="zx_veh_aviso">Este vehículo está asignado ahora mismo a <b>${limpiar(actual || "otro usuario")}</b>. ¿Quieres utilizarlo?</div>` : ""}
+    ${avisoIncidencias}
     <div class="zx_veh_info ficha">
       <p><b>Vehículo</b><span>${limpiar(nombreVehiculo(v))}</span></p>
       <p><b>Km registrados</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
@@ -3284,6 +3363,25 @@ async function tomarVehiculo(id){
   document.getElementById("veh_tomar_ok").onclick=async function(){
     const km=numero(valor("veh_km_inicio_uso"));
     if(km<numero(v.km_actual)){alert("Los kilómetros no pueden ser inferiores a los registrados.");return}
+
+    let autorizacionIncidencia=false;
+    if(incidenciasActivas.length){
+      const resumen=resumenIncidenciasParaUso(incidenciasActivas);
+
+      if(incidenciaBloqueante){
+        if(!esAdmin()){
+          alert("Este vehículo tiene una incidencia de severidad "+(nivelIncidencia==="critica"?"crítica":"alta")+" y no puede utilizarse sin autorización de administrador.");
+          return;
+        }
+        if(!confirm("El vehículo tiene incidencias de severidad "+(nivelIncidencia==="critica"?"CRÍTICA":"ALTA")+":\n\n"+resumen+"\n\n¿Solicitar autorización de administrador para continuar?")) return;
+        const pinOk=await validarPinAdministrador();
+        if(!pinOk) return;
+        autorizacionIncidencia=true;
+      }else{
+        if(!confirm("Este vehículo tiene incidencias activas:\n\n"+resumen+"\n\n¿Confirmas que las conoces y quieres continuar?")) return;
+        autorizacionIncidencia=true;
+      }
+    }
 
     const btn=document.getElementById("veh_tomar_ok");
     btn.disabled=true;
@@ -3383,6 +3481,26 @@ async function tomarVehiculo(id){
 
       if(v.__recuperacion && v.__recuperacion.id){
         try{await zxUpdate("transferencias_vehiculos",{respuesta_usuario_anterior:"volver_a_usar"},"id",v.__recuperacion.id)}catch(e){}
+      }
+
+      if(autorizacionIncidencia){
+        try{
+          await registrarAuditoriaVehiculo(
+            incidenciaBloqueante?"uso_con_incidencia_autorizado":"uso_con_incidencia_advertida",
+            v,
+            "Uso iniciado con incidencias activas conocidas",
+            {
+              uso_id:String(nuevoUsoId),
+              incidencias:incidenciasActivas.map(function(i){
+                return {id:String(i.id),tipo:i.tipo,estado:i.estado,severidad:i.severidad,descripcion:i.descripcion||""};
+              }),
+              nivel_maximo:nivelIncidencia,
+              autorizado_por:identidadActual().nombre||identidadActual().usuario||"Usuario"
+            }
+          );
+        }catch(e){
+          console.warn("No se pudo registrar la aceptación de incidencias.",e);
+        }
       }
 
       cerrarModal();
