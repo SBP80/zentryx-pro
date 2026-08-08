@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3198";
+const ZX_VERSION="3199";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -491,14 +491,14 @@ function pedirMotivoObligatorio(texto){
 }
 
 async function registrarAuditoriaVehiculo(accion,v,motivo,extra){
-  const s=sesion();
+  const actor=identidadActual();
   const fila={
     id:uuid(),
     vehiculo_id:String(v?.id||""),
     matricula:v?.matricula||"",
     accion:String(accion||""),
-    usuario_id:String(s.id||""),
-    usuario:s.nombre||s.nombre_completo||s.usuario||"",
+    usuario_id:String(actor.id||""),
+    usuario:String(actor.nombre||actor.usuario||"Usuario"),
     fecha:ahoraISO(),
     datos:Object.assign({motivo:String(motivo||"")},extra||{})
   };
@@ -3652,7 +3652,9 @@ async function devolverVehiculo(id){
           // por quien tiene el vehículo y no requiere respuesta posterior.
           motivo:motivo,
           dispositivo:navigator.userAgent||"",
-          confirmado_por:u.id||null,
+          // Guardamos el nombre visible del usuario que ejecuta la transferencia.
+          // confirmado_por es TEXT y así la auditoría no depende de resolver IDs después.
+          confirmado_por:String(u.nombre||u.usuario||u.id||"Usuario"),
           confirmado_at:now
         });
         if(rTransfer&&rTransfer.error) throw rTransfer.error;
@@ -4161,13 +4163,16 @@ async function abrirFicha(id,tabInicial){
   const cambiosResponsable=transferencias.map(function(t){
     const clave=[String(t.uso_anterior_id||""),String(t.uso_nuevo_id||""),String(t.usuario_nuevo_id||"")].join("|");
     const autorAuditoria=autoresAuditoriaTransferencia[clave]||"";
-    const autorUsuario=autoresTransferencia[String(t.confirmado_por||"")]||"";
+    const confirmadoRaw=String(t.confirmado_por||"").trim();
+    const autorUsuario=autoresTransferencia[confirmadoRaw]||"";
+    const pareceId=/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(confirmadoRaw) || /^zx_/i.test(confirmadoRaw);
+    const autorGuardado=confirmadoRaw && !pareceId ? confirmadoRaw : "";
     return {
       fecha:t.confirmado_at||t.created_at,
       anterior:t.nombre_anterior||"Sin responsable",
       nuevo:t.nombre_nuevo||"Usuario",
       motivo:t.motivo||"Cambio durante el uso",
-      realizado:autorAuditoria||autorUsuario||"Usuario"
+      realizado:autorAuditoria||autorUsuario||autorGuardado||"Usuario"
     };
   }).concat(cambiosAsignacion).sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0));
   const transHtml=cambiosResponsable.length ? cambiosResponsable.map(function(t){
