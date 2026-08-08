@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3197";
+const ZX_VERSION="3198";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -4146,13 +4146,28 @@ async function abrirFicha(id,tabInicial){
       realizado:a.usuario||"Usuario"
     };
   });
+  // Para transferencias creadas desde la app, la auditoría conserva el nombre
+  // visible del usuario que ejecutó la acción. La usamos también como respaldo
+  // para históricos donde confirmado_por no coincide con usuarios.id.
+  const autoresAuditoriaTransferencia={};
+  auditoriaVehiculo.filter(function(a){
+    return String(a.accion||"")==="transferir_vehiculo";
+  }).forEach(function(a){
+    let d={}; try{d=(a.datos&&typeof a.datos==="object")?a.datos:JSON.parse(a.datos||"{}")}catch(e){}
+    const clave=[String(d.uso_anterior_id||""),String(d.uso_nuevo_id||""),String(d.usuario_nuevo_id||"")].join("|");
+    if(clave!=="||") autoresAuditoriaTransferencia[clave]=String(a.usuario||"Usuario");
+  });
+
   const cambiosResponsable=transferencias.map(function(t){
+    const clave=[String(t.uso_anterior_id||""),String(t.uso_nuevo_id||""),String(t.usuario_nuevo_id||"")].join("|");
+    const autorAuditoria=autoresAuditoriaTransferencia[clave]||"";
+    const autorUsuario=autoresTransferencia[String(t.confirmado_por||"")]||"";
     return {
       fecha:t.confirmado_at||t.created_at,
       anterior:t.nombre_anterior||"Sin responsable",
       nuevo:t.nombre_nuevo||"Usuario",
       motivo:t.motivo||"Cambio durante el uso",
-      realizado:autoresTransferencia[String(t.confirmado_por||"")]||"Usuario"
+      realizado:autorAuditoria||autorUsuario||"Usuario"
     };
   }).concat(cambiosAsignacion).sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0));
   const transHtml=cambiosResponsable.length ? cambiosResponsable.map(function(t){
