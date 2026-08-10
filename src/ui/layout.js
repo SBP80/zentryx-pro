@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3148 - ALMACEN EN MENU Y FAVORITOS
+// V3149 - MANUAL DE USO SEGUN ROL
 // ===============================
 (function(){
 "use strict";
@@ -2018,6 +2018,7 @@ function topbar(){
               <div class="zx_user_menu_name">${limpiar(u.nombre || u.usuario || "Usuario")}</div>
               <div class="zx_user_menu_role">${limpiar(u.rol || "Sin rol")}</div>
             </div>
+            <button class="zx_user_menu_item" id="zx_menu_manual" type="button">📖 <span>Manual de uso</span></button>
             <button class="zx_user_menu_item" id="zx_menu_ajustes" type="button">⚙️ <span>Ajustes</span></button>
             <button class="zx_user_menu_item" id="zx_menu_cambiar" type="button">👥 <span>Cambiar usuario</span></button>
             <button class="zx_user_menu_item zx_danger" id="zx_menu_salir" type="button">↪️ <span>Cerrar sesión</span></button>
@@ -2087,6 +2088,10 @@ function topbar(){
   };
 
   escuchar(document,"click",cerrarMenuUsuario);
+
+  $("zx_menu_manual").onclick=function(){
+    abrirModuloDesdeMenu("manual");
+  };
 
   $("zx_menu_ajustes").onclick=function(){
     abrirModuloDesdeMenu("ajustes");
@@ -2327,6 +2332,7 @@ const MODULOS=[
   {id:"horas_extra",texto:"Horas",icono:"➕",color:"#f59e0b",bg:"#fef3c7",admin:true},
   {id:"control_fichajes",texto:"Control",icono:"✅",color:"#22c55e",bg:"#dcfce7",admin:true},
   {id:"vehiculos",texto:"Vehículos",icono:"🚗",color:"#3b82f6",bg:"#dbeafe",admin:true},
+  {id:"manual",texto:"Manual",icono:"📖",color:"#2563eb",bg:"#dbeafe",admin:false},
   {id:"desarrollador",texto:"Dev",icono:"🛠️",color:"#0f172a",bg:"#e2e8f0",admin:true,dev:true},
   {id:"configuracion",texto:"Ajustes",icono:"⚙️",color:"#7c3aed",bg:"#f3e8ff",admin:true}
 ];
@@ -3339,6 +3345,7 @@ function zxRouterEjecutarModulo(id){
     horas_extra:window.ZX_abrirHorasExtra,
     control_fichajes:window.ZX_abrirControlFichajes,
     vehiculos:window.ZX_vehiculos,
+    manual:window.ZX_abrirManual || window.ZX_manual,
     desarrollador:window.ZX_abrirDesarrollador,
     configuracion:window.ZX_configuracion
   };
