@@ -5,8 +5,8 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1002";
-const BASE_KEY="zentryx_asistente_v1002";
+const ZX_VERSION="1003";
+const BASE_KEY="zentryx_asistente_v1003";
 const SESSION_SHOWN_KEY="zentryx_asistente_mostrado_sesion";
 const SNOOZE_HOURS=6;
 
@@ -33,6 +33,20 @@ function nombrePila(){
 function saludo(){
   const n=nombrePila();
   return n ? "Hola, "+n+". ¿Qué necesitas?" : "¿Qué necesitas?";
+}
+
+
+function clavePosicion(){
+  return "zentryx_asistente_pos_"+usuario().id;
+}
+function leerPosicion(){
+  try{return JSON.parse(localStorage.getItem(clavePosicion())||"null")}catch(e){return null}
+}
+function guardarPosicion(pos){
+  try{localStorage.setItem(clavePosicion(),JSON.stringify(pos))}catch(e){}
+}
+function esPantallaGrande(){
+  return window.matchMedia("(min-width: 760px)").matches;
 }
 
 function clave(){
@@ -312,6 +326,8 @@ function marcar(id,tipo){
 function quitarPanel(){
   const p=document.getElementById("zx_assistant_panel");
   if(p) p.remove();
+  const b=document.getElementById("zx_assistant_backdrop");
+  if(b) b.remove();
 }
 function instalarCSS(){
   if(document.getElementById("zx_assistant_css")) return;
@@ -320,24 +336,35 @@ function instalarCSS(){
   s.textContent=`
     #zx_assistant_button{
       position:fixed;right:18px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:99965;
-      width:54px;height:54px;border:0;border-radius:50%;background:#2563eb;color:white;
-      box-shadow:0 12px 34px rgba(37,99,235,.34);font-size:24px;display:grid;place-items:center;
+      width:56px;height:56px;border:0;border-radius:50%;background:#2563eb;color:white;
+      box-shadow:0 14px 38px rgba(37,99,235,.38);font-size:25px;display:grid;place-items:center;
       cursor:pointer
     }
     #zx_assistant_button.has-tip::after{
-      content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;background:#f59e0b;
+      content:"";position:absolute;right:1px;top:1px;width:13px;height:13px;background:#f59e0b;
       border:3px solid white;border-radius:50%
     }
-    #zx_assistant_panel{
-      position:fixed;right:14px;bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:99966;
-      width:min(360px,calc(100vw - 28px));background:white;border:1px solid #dbe4ef;border-radius:22px;
-      box-shadow:0 24px 70px rgba(15,23,42,.24);padding:16px;color:#0f172a
+    #zx_assistant_backdrop{
+      position:fixed;inset:0;z-index:99964;background:rgba(15,23,42,.46);
+      backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)
     }
+    #zx_assistant_panel{
+      position:fixed;z-index:99966;background:#fff;border:1px solid #dbe4ef;
+      box-shadow:0 26px 80px rgba(15,23,42,.34);color:#0f172a;overflow:auto;
+      -webkit-overflow-scrolling:touch
+    }
+    .zx_as_drag{
+      display:none;align-items:center;justify-content:center;gap:7px;
+      color:#64748b;font-size:.78rem;font-weight:850;padding:3px 0 10px;
+      cursor:move;user-select:none;-webkit-user-select:none
+    }
+    .zx_as_drag::before{content:"⋮⋮";font-size:1.05rem;letter-spacing:-2px}
     .zx_as_head{display:flex;gap:12px;align-items:flex-start}
     .zx_as_icon{width:44px;height:44px;border-radius:14px;background:#dbeafe;display:grid;place-items:center;font-size:23px;flex:0 0 auto}
     .zx_as_copy{min-width:0;flex:1}
     .zx_as_title{font-size:1.05rem;font-weight:950;line-height:1.25}
     .zx_as_text{margin-top:5px;color:#64748b;font-weight:650;line-height:1.4}
+    .zx_as_head{padding-bottom:12px;border-bottom:1px solid #e2e8f0}
     .zx_as_close{border:0;background:#f1f5f9;width:32px;height:32px;border-radius:10px;font-weight:900;cursor:pointer}
     .zx_as_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
     .zx_as_primary{grid-column:1/-1;border:0;border-radius:13px;background:#2563eb;color:#fff;padding:11px 13px;font-weight:900;cursor:pointer}
@@ -350,9 +377,20 @@ function instalarCSS(){
     .zx_as_ask_go{border:0;border-radius:12px;background:#0f172a;color:#fff;padding:10px 13px;font-weight:900;cursor:pointer}
     .zx_as_mic{border:1px solid #cbd5e1;border-radius:12px;background:#fff;padding:10px 12px;font-weight:900;cursor:pointer}
     .zx_as_hint{margin-top:7px;color:#64748b;font-size:.82rem;font-weight:650;line-height:1.35}
-    @media(max-width:560px){
+    @media(max-width:759px){
       #zx_assistant_button{right:14px;bottom:calc(82px + env(safe-area-inset-bottom,0px))}
-      #zx_assistant_panel{bottom:calc(143px + env(safe-area-inset-bottom,0px))}
+      #zx_assistant_panel{
+        left:12px;right:12px;bottom:calc(18px + env(safe-area-inset-bottom,0px));
+        width:auto;max-height:min(78vh,720px);border-radius:24px;padding:16px 16px 18px
+      }
+      .zx_as_ask_box{margin-top:12px}
+    }
+    @media(min-width:760px){
+      #zx_assistant_panel{
+        right:22px;bottom:120px;width:min(390px,calc(100vw - 44px));max-height:min(72vh,760px);
+        border-radius:22px;padding:12px 17px 17px
+      }
+      .zx_as_drag{display:flex}
     }
   `;
   document.head.appendChild(s);
@@ -392,6 +430,7 @@ function mostrar(automatico){
   const p=document.createElement("div");
   p.id="zx_assistant_panel";
   p.innerHTML=`
+    <div class="zx_as_drag">Mover asistente</div>
     <div class="zx_as_head">
       <div class="zx_as_icon">${x.icono||"💡"}</div>
       <div class="zx_as_copy">
@@ -399,11 +438,6 @@ function mostrar(automatico){
         <div class="zx_as_text">${x.texto}</div>
       </div>
       <button class="zx_as_close" type="button" aria-label="Cerrar">✕</button>
-    </div>
-    <div class="zx_as_actions">
-      <button class="zx_as_primary" type="button">${x.accion||"Ir ahora"}</button>
-      <button class="zx_as_secondary" type="button" data-act="later">Más tarde</button>
-      <button class="zx_as_secondary" type="button" data-act="never">No mostrar</button>
     </div>
     <div class="zx_as_ask_box">
       <div class="zx_as_ask_title">${saludo()}</div>
@@ -414,8 +448,56 @@ function mostrar(automatico){
       </div>
       <div class="zx_as_hint">Si existe una acción directa, te llevaré a ella. Si no, buscaré esa petición en el Manual.</div>
     </div>
+    <div class="zx_as_actions">
+      <button class="zx_as_primary" type="button">${x.accion||"Ir ahora"}</button>
+      <button class="zx_as_secondary" type="button" data-act="later">Más tarde</button>
+      <button class="zx_as_secondary" type="button" data-act="never">No mostrar</button>
+    </div>
   `;
+  if(!esPantallaGrande()){
+    const bd=document.createElement("div");
+    bd.id="zx_assistant_backdrop";
+    bd.onclick=quitarPanel;
+    document.body.appendChild(bd);
+  }
   document.body.appendChild(p);
+
+  if(esPantallaGrande()){
+    const pos=leerPosicion();
+    if(pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)){
+      p.style.left=Math.max(8,Math.min(pos.left,window.innerWidth-p.offsetWidth-8))+"px";
+      p.style.top=Math.max(8,Math.min(pos.top,window.innerHeight-p.offsetHeight-8))+"px";
+      p.style.right="auto";
+      p.style.bottom="auto";
+    }
+    const drag=p.querySelector(".zx_as_drag");
+    if(drag){
+      let moviendo=false,dx=0,dy=0;
+      const iniciar=function(cx,cy){
+        const r=p.getBoundingClientRect();
+        moviendo=true;dx=cx-r.left;dy=cy-r.top;
+        p.style.left=r.left+"px";p.style.top=r.top+"px";p.style.right="auto";p.style.bottom="auto";
+      };
+      const mover=function(cx,cy){
+        if(!moviendo) return;
+        const left=Math.max(8,Math.min(cx-dx,window.innerWidth-p.offsetWidth-8));
+        const top=Math.max(8,Math.min(cy-dy,window.innerHeight-p.offsetHeight-8));
+        p.style.left=left+"px";p.style.top=top+"px";
+      };
+      const terminar=function(){
+        if(!moviendo) return; moviendo=false;
+        const r=p.getBoundingClientRect();
+        guardarPosicion({left:r.left,top:r.top});
+      };
+      drag.addEventListener("pointerdown",function(ev){
+        ev.preventDefault(); drag.setPointerCapture?.(ev.pointerId); iniciar(ev.clientX,ev.clientY);
+      });
+      drag.addEventListener("pointermove",function(ev){mover(ev.clientX,ev.clientY)});
+      drag.addEventListener("pointerup",terminar);
+      drag.addEventListener("pointercancel",terminar);
+    }
+  }
+
   p.querySelector(".zx_as_close").onclick=quitarPanel;
   p.querySelector(".zx_as_primary").onclick=function(){
     marcar(x.id,"completada");
