@@ -5,8 +5,8 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1001";
-const BASE_KEY="zentryx_asistente_v1001";
+const ZX_VERSION="1002";
+const BASE_KEY="zentryx_asistente_v1002";
 const SESSION_SHOWN_KEY="zentryx_asistente_mostrado_sesion";
 const SNOOZE_HOURS=6;
 
@@ -25,6 +25,16 @@ function usuario(){
     rol:String(s.rol||"usuario")
   };
 }
+function nombrePila(){
+  const n=String(usuario().nombre||usuario().usuario||"").trim();
+  if(!n) return "";
+  return n.split(/\s+/)[0];
+}
+function saludo(){
+  const n=nombrePila();
+  return n ? "Hola, "+n+". ¿Qué necesitas?" : "¿Qué necesitas?";
+}
+
 function clave(){
   const u=usuario();
   return BASE_KEY+"_"+u.id;
@@ -102,6 +112,81 @@ function abrirManual(busqueda){
     return true;
   });
 }
+
+function abrirAccion(modulo, ids){
+  const candidatos=Array.isArray(ids)?ids:[ids];
+  routerAbrir(modulo,function(){
+    for(const id of candidatos){
+      if(id && clickId(id)) return true;
+    }
+    return false;
+  });
+}
+function interpretarPeticion(texto){
+  const q=normalizar(texto);
+  if(!q) return null;
+
+  const contiene=(...xs)=>xs.some(x=>q.includes(normalizar(x)));
+
+  if(contiene("crear usuario","nuevo usuario","alta usuario","añadir usuario","anadir usuario")){
+    if(!(esAdmin()||esDev())) return {tipo:"manual",busqueda:texto};
+    return {tipo:"accion",modulo:"usuarios",ids:["btn_crear_usuario","btn_nuevo_usuario"],mensaje:"Voy a abrir el alta de usuario."};
+  }
+  if(contiene("crear vehículo","crear vehiculo","nuevo vehículo","nuevo vehiculo","añadir vehículo","anadir vehiculo")){
+    if(!(esAdmin()||esDev())) return {tipo:"manual",busqueda:texto};
+    return {tipo:"accion",modulo:"vehiculos",ids:["btn_nuevo_vehiculo"],mensaje:"Voy a abrir el alta de vehículo."};
+  }
+  if(contiene("crear cliente","nuevo cliente","alta cliente","añadir cliente","anadir cliente")){
+    if(!(esAdmin()||esDev()||esEncargado())) return {tipo:"manual",busqueda:texto};
+    return {tipo:"accion",modulo:"clientes",ids:["btn_nuevo_cliente"],mensaje:"Voy a abrir el alta de cliente."};
+  }
+  if(contiene("crear trabajo","nuevo trabajo","alta trabajo","añadir trabajo","anadir trabajo")){
+    if(!(esAdmin()||esDev()||esEncargado())) return {tipo:"manual",busqueda:texto};
+    return {tipo:"accion",modulo:"trabajos",ids:["btn_nuevo_trabajo"],mensaje:"Voy a abrir un nuevo trabajo."};
+  }
+  if(contiene("agenda","calendario","planificación","planificacion")){
+    return {tipo:"modulo",modulo:"agenda",mensaje:"Voy a abrir Agenda."};
+  }
+  if(contiene("fichar","fichaje","jornada","entrada","salida")){
+    return {tipo:"modulo",modulo:"fichaje",mensaje:"Voy a abrir Fichaje."};
+  }
+  if(contiene("vehículo","vehiculo","flota","itv","seguro","kilómetros","kilometros")){
+    return {tipo:"modulo",modulo:"vehiculos",mensaje:"Voy a abrir Vehículos."};
+  }
+  if(contiene("cliente","clientes")){
+    return {tipo:"modulo",modulo:"clientes",mensaje:"Voy a abrir Clientes."};
+  }
+  if(contiene("usuario","usuarios","trabajador","empleado")){
+    if(!(esAdmin()||esDev()||esEncargado())) return {tipo:"manual",busqueda:texto};
+    return {tipo:"modulo",modulo:"usuarios",mensaje:"Voy a abrir Usuarios."};
+  }
+  if(contiene("trabajo","trabajos","obra","servicio")){
+    return {tipo:"modulo",modulo:"trabajos",mensaje:"Voy a abrir Trabajos."};
+  }
+  if(contiene("configuración","configuracion","ajustes","empresa","módulos","modulos")){
+    if(!(esAdmin()||esDev())) return {tipo:"manual",busqueda:texto};
+    return {tipo:"modulo",modulo:"configuracion",mensaje:"Voy a abrir Ajustes."};
+  }
+  if(contiene("manual","ayuda","cómo","como","explica","qué es","que es")){
+    return {tipo:"manual",busqueda:texto};
+  }
+  return {tipo:"manual",busqueda:texto};
+}
+function ejecutarPeticion(texto){
+  const r=interpretarPeticion(texto);
+  if(!r) return;
+  quitarPanel();
+  if(r.tipo==="accion"){
+    abrirAccion(r.modulo,r.ids);
+    return;
+  }
+  if(r.tipo==="modulo"){
+    routerAbrir(r.modulo);
+    return;
+  }
+  abrirManual(r.busqueda||texto);
+}
+
 function recomendaciones(){
   const u=usuario();
   const d=leer();
@@ -257,6 +342,14 @@ function instalarCSS(){
     .zx_as_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
     .zx_as_primary{grid-column:1/-1;border:0;border-radius:13px;background:#2563eb;color:#fff;padding:11px 13px;font-weight:900;cursor:pointer}
     .zx_as_secondary{border:1px solid #dbe4ef;border-radius:12px;background:#fff;color:#334155;padding:10px;font-weight:800;cursor:pointer}
+    .zx_as_ask_box{margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0}
+    .zx_as_ask_title{font-weight:950;font-size:1rem;margin-bottom:8px}
+    .zx_as_ask_input{width:100%;min-height:82px;resize:vertical;border:1px solid #cbd5e1;border-radius:14px;padding:12px 13px;font:inherit;font-weight:700;color:#0f172a;background:#fff;box-sizing:border-box}
+    .zx_as_ask_input:focus{outline:3px solid rgba(37,99,235,.16);border-color:#2563eb}
+    .zx_as_ask_actions{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px}
+    .zx_as_ask_go{border:0;border-radius:12px;background:#0f172a;color:#fff;padding:10px 13px;font-weight:900;cursor:pointer}
+    .zx_as_mic{border:1px solid #cbd5e1;border-radius:12px;background:#fff;padding:10px 12px;font-weight:900;cursor:pointer}
+    .zx_as_hint{margin-top:7px;color:#64748b;font-size:.82rem;font-weight:650;line-height:1.35}
     @media(max-width:560px){
       #zx_assistant_button{right:14px;bottom:calc(82px + env(safe-area-inset-bottom,0px))}
       #zx_assistant_panel{bottom:calc(143px + env(safe-area-inset-bottom,0px))}
@@ -284,18 +377,25 @@ function mostrar(automatico){
   const lista=recomendaciones();
   const b=asegurarBoton();
   b.classList.toggle("has-tip",lista.length>0);
-  if(!lista.length) return;
   if(automatico && sessionStorage.getItem(SESSION_SHOWN_KEY)==="1") return;
+  if(automatico && !lista.length) return;
 
   quitarPanel();
-  const x=lista[0];
+  const x=lista[0] || {
+    id:"consulta_libre",
+    icono:"💡",
+    titulo:"¿Qué quieres hacer?",
+    texto:"Escribe lo que necesitas y buscaré la mejor ruta dentro de Zentryx.",
+    accion:"Abrir Manual",
+    run:function(){routerAbrir("manual")}
+  };
   const p=document.createElement("div");
   p.id="zx_assistant_panel";
   p.innerHTML=`
     <div class="zx_as_head">
       <div class="zx_as_icon">${x.icono||"💡"}</div>
       <div class="zx_as_copy">
-        <div class="zx_as_title">${x.titulo}</div>
+        <div class="zx_as_title">${nombrePila()?nombrePila()+", ":""}${x.titulo}</div>
         <div class="zx_as_text">${x.texto}</div>
       </div>
       <button class="zx_as_close" type="button" aria-label="Cerrar">✕</button>
@@ -304,6 +404,15 @@ function mostrar(automatico){
       <button class="zx_as_primary" type="button">${x.accion||"Ir ahora"}</button>
       <button class="zx_as_secondary" type="button" data-act="later">Más tarde</button>
       <button class="zx_as_secondary" type="button" data-act="never">No mostrar</button>
+    </div>
+    <div class="zx_as_ask_box">
+      <div class="zx_as_ask_title">${saludo()}</div>
+      <textarea class="zx_as_ask_input" id="zx_asistente_pregunta" placeholder="Escribe lo que quieres hacer..."></textarea>
+      <div class="zx_as_ask_actions">
+        <button class="zx_as_ask_go" type="button">Ir</button>
+        <button class="zx_as_mic" type="button" title="Dictar" style="display:none">🎤 Dictar</button>
+      </div>
+      <div class="zx_as_hint">Si existe una acción directa, te llevaré a ella. Si no, buscaré esa petición en el Manual.</div>
     </div>
   `;
   document.body.appendChild(p);
@@ -320,6 +429,48 @@ function mostrar(automatico){
   p.querySelector('[data-act="never"]').onclick=function(){
     marcar(x.id,"descartada");quitarPanel();actualizar();
   };
+
+  const pregunta=p.querySelector("#zx_asistente_pregunta");
+  const ir=p.querySelector(".zx_as_ask_go");
+  const mic=p.querySelector(".zx_as_mic");
+  function enviarPregunta(){
+    const texto=String(pregunta?.value||"").trim();
+    if(!texto) return;
+    ejecutarPeticion(texto);
+  }
+  if(ir) ir.onclick=enviarPregunta;
+  if(pregunta){
+    pregunta.addEventListener("keydown",function(ev){
+      if(ev.key==="Enter" && !ev.shiftKey){
+        ev.preventDefault();
+        enviarPregunta();
+      }
+    });
+  }
+
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(SR && mic && pregunta){
+    mic.style.display="";
+    mic.onclick=function(){
+      try{
+        const rec=new SR();
+        rec.lang="es-ES";
+        rec.interimResults=false;
+        rec.maxAlternatives=1;
+        mic.textContent="🎙️ Escuchando";
+        rec.onresult=function(ev){
+          const t=ev.results?.[0]?.[0]?.transcript||"";
+          pregunta.value=t;
+          mic.textContent="🎤 Dictar";
+          pregunta.focus();
+        };
+        rec.onerror=function(){mic.textContent="🎤 Dictar"};
+        rec.onend=function(){mic.textContent="🎤 Dictar"};
+        rec.start();
+      }catch(e){mic.textContent="🎤 Dictar"}
+    };
+  }
+
   if(automatico) sessionStorage.setItem(SESSION_SHOWN_KEY,"1");
 }
 function actualizar(){
