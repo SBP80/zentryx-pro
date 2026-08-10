@@ -5,8 +5,8 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1004";
-const BASE_KEY="zentryx_asistente_v1004";
+const ZX_VERSION="1005";
+const BASE_KEY="zentryx_asistente_v1005";
 const SESSION_SHOWN_KEY="zentryx_asistente_mostrado_sesion";
 const SNOOZE_HOURS=6;
 
@@ -545,59 +545,114 @@ function mostrar(automatico){
   if(SR && mic && pregunta){
     mic.style.display="";
     let rec=null;
-    let escuchando=false;
+    let pulsado=false;
     let textoAntes="";
+    let textoFinal="";
+    let textoTemporal="";
+    let reinicioPendiente=false;
 
     function estadoMic(on){
-      escuchando=!!on;
-      mic.classList.toggle("is-listening",escuchando);
-      mic.textContent=escuchando ? "🎙️ Escuchando…" : "🎤 Dictar";
-      mic.setAttribute("aria-pressed",escuchando?"true":"false");
+      mic.classList.toggle("is-listening",!!on);
+      mic.textContent=on ? "🎙️ Escuchando…" : "🎤 Dictar";
+      mic.setAttribute("aria-pressed",on?"true":"false");
     }
-    function iniciarDictado(ev){
-      if(escuchando) return;
-      if(ev){
-        ev.preventDefault();
-        try{mic.setPointerCapture?.(ev.pointerId)}catch(e){}
-      }
+    function escribirReconocido(){
+      const t=(textoFinal+" "+textoTemporal).replace(/\s+/g," ").trim();
+      pregunta.value=(textoAntes && t ? textoAntes+" " : textoAntes||"")+t;
+    }
+    function crearReconocimiento(){
+      const r=new SR();
+      r.lang="es-ES";
+      r.interimResults=true;
+      // En Safari/iOS resulta más fiable en sesiones cortas.
+      r.continuous=false;
+      r.maxAlternatives=1;
+
+      r.onresult=function(e){
+        textoTemporal="";
+        for(let i=0;i<e.results.length;i++){
+          const trozo=String(e.results[i]?.[0]?.transcript||"").trim();
+          if(!trozo) continue;
+          if(e.results[i].isFinal){
+            textoFinal+=(textoFinal?" ":"")+trozo;
+          }else{
+            textoTemporal+=(textoTemporal?" ":"")+trozo;
+          }
+        }
+        escribirReconocido();
+      };
+
+      r.onerror=function(e){
+        const err=String(e?.error||"");
+        if(err!=="aborted" && err!=="no-speech"){
+          console.warn("[Zentryx Asistente] Dictado:",err);
+        }
+      };
+
+      r.onend=function(){
+        // El resultado final puede llegar al detener la escucha.
+        escribirReconocido();
+        rec=null;
+
+        // Si Safari cierra una sesión corta mientras el dedo sigue pulsado,
+        // inicia otra para que continúe escuchando únicamente mientras se pulsa.
+        if(pulsado && !reinicioPendiente){
+          reinicioPendiente=true;
+          setTimeout(function(){
+            reinicioPendiente=false;
+            if(pulsado) iniciarSesion();
+          },80);
+        }else if(!pulsado){
+          estadoMic(false);
+          pregunta.focus();
+        }
+      };
+      return r;
+    }
+    function iniciarSesion(){
+      if(!pulsado || rec) return;
       try{
-        rec=new SR();
-        rec.lang="es-ES";
-        rec.interimResults=true;
-        rec.continuous=true;
-        rec.maxAlternatives=1;
-        textoAntes=String(pregunta.value||"").trim();
-        estadoMic(true);
-        rec.onresult=function(e){
-          let t="";
-          for(let i=e.resultIndex||0;i<e.results.length;i++){
-            t+=(e.results[i]?.[0]?.transcript||"")+" ";
-          }
-          t=t.trim();
-          if(t){
-            pregunta.value=(textoAntes ? textoAntes+" " : "")+t;
-          }
-        };
-        rec.onerror=function(){estadoMic(false)};
-        rec.onend=function(){estadoMic(false);rec=null};
+        rec=crearReconocimiento();
         rec.start();
       }catch(e){
         rec=null;
         estadoMic(false);
       }
     }
+    function iniciarDictado(ev){
+      if(pulsado) return;
+      if(ev){
+        ev.preventDefault();
+        try{mic.setPointerCapture?.(ev.pointerId)}catch(e){}
+      }
+      pulsado=true;
+      textoAntes=String(pregunta.value||"").trim();
+      textoFinal="";
+      textoTemporal="";
+      estadoMic(true);
+      iniciarSesion();
+    }
     function pararDictado(ev){
       if(ev) ev.preventDefault();
-      if(!escuchando) return;
+      if(!pulsado) return;
+      pulsado=false;
       estadoMic(false);
+
+      // stop() pide al navegador cerrar la frase y entregar el resultado final.
+      // No anulamos la sesión: así Safari puede devolver el texto después de soltar.
       try{rec?.stop()}catch(e){}
-      pregunta.focus();
+      setTimeout(function(){
+        escribirReconocido();
+        pregunta.focus();
+      },250);
     }
 
     mic.addEventListener("pointerdown",iniciarDictado);
     mic.addEventListener("pointerup",pararDictado);
     mic.addEventListener("pointercancel",pararDictado);
-    mic.addEventListener("lostpointercapture",pararDictado);
+    mic.addEventListener("lostpointercapture",function(ev){
+      if(pulsado) pararDictado(ev);
+    });
     mic.addEventListener("contextmenu",function(ev){ev.preventDefault()});
     mic.onclick=function(ev){ev.preventDefault()};
   }
