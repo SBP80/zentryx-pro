@@ -1,12 +1,12 @@
 // ===============================
 // ZENTRYX PRO - ASISTENTE CONTEXTUAL
-// V1001 - RECOMENDACIONES POR ROL Y USO
+// V1004 - RECOMENDACIONES + CONSULTA + DICTADO MANTENER PULSADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1003";
-const BASE_KEY="zentryx_asistente_v1003";
+const ZX_VERSION="1004";
+const BASE_KEY="zentryx_asistente_v1004";
 const SESSION_SHOWN_KEY="zentryx_asistente_mostrado_sesion";
 const SNOOZE_HOURS=6;
 
@@ -141,6 +141,16 @@ function interpretarPeticion(texto){
   if(!q) return null;
 
   const contiene=(...xs)=>xs.some(x=>q.includes(normalizar(x)));
+  const empieza=(...xs)=>xs.some(x=>q.startsWith(normalizar(x)));
+
+  // Las preguntas de uso deben consultar el Manual antes de intentar abrir un módulo.
+  // Ej.: "Cómo finalizo un trabajo" no debe convertirse en "Abrir Trabajos".
+  const pideAyuda =
+    empieza("como ","cómo ","donde ","dónde ","que es ","qué es ","cual ","cuál ","cuando ","cuándo ","por que ","por qué ") ||
+    contiene("como puedo","cómo puedo","como hago","cómo hago","como se ","cómo se ","explicame","explícame","ayudame","ayúdame","manual","instrucciones");
+  if(pideAyuda){
+    return {tipo:"manual",busqueda:texto};
+  }
 
   if(contiene("crear usuario","nuevo usuario","alta usuario","añadir usuario","anadir usuario")){
     if(!(esAdmin()||esDev())) return {tipo:"manual",busqueda:texto};
@@ -375,7 +385,8 @@ function instalarCSS(){
     .zx_as_ask_input:focus{outline:3px solid rgba(37,99,235,.16);border-color:#2563eb}
     .zx_as_ask_actions{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px}
     .zx_as_ask_go{border:0;border-radius:12px;background:#0f172a;color:#fff;padding:10px 13px;font-weight:900;cursor:pointer}
-    .zx_as_mic{border:1px solid #cbd5e1;border-radius:12px;background:#fff;padding:10px 12px;font-weight:900;cursor:pointer}
+    .zx_as_mic{border:1px solid #cbd5e1;border-radius:12px;background:#fff;padding:10px 12px;font-weight:900;cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none}
+    .zx_as_mic.is-listening{background:#fee2e2;border-color:#ef4444;color:#991b1b;box-shadow:0 0 0 3px rgba(239,68,68,.12)}
     .zx_as_hint{margin-top:7px;color:#64748b;font-size:.82rem;font-weight:650;line-height:1.35}
     @media(max-width:759px){
       #zx_assistant_button{right:14px;bottom:calc(82px + env(safe-area-inset-bottom,0px))}
@@ -533,24 +544,62 @@ function mostrar(automatico){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(SR && mic && pregunta){
     mic.style.display="";
-    mic.onclick=function(){
+    let rec=null;
+    let escuchando=false;
+    let textoAntes="";
+
+    function estadoMic(on){
+      escuchando=!!on;
+      mic.classList.toggle("is-listening",escuchando);
+      mic.textContent=escuchando ? "🎙️ Escuchando…" : "🎤 Dictar";
+      mic.setAttribute("aria-pressed",escuchando?"true":"false");
+    }
+    function iniciarDictado(ev){
+      if(escuchando) return;
+      if(ev){
+        ev.preventDefault();
+        try{mic.setPointerCapture?.(ev.pointerId)}catch(e){}
+      }
       try{
-        const rec=new SR();
+        rec=new SR();
         rec.lang="es-ES";
-        rec.interimResults=false;
+        rec.interimResults=true;
+        rec.continuous=true;
         rec.maxAlternatives=1;
-        mic.textContent="🎙️ Escuchando";
-        rec.onresult=function(ev){
-          const t=ev.results?.[0]?.[0]?.transcript||"";
-          pregunta.value=t;
-          mic.textContent="🎤 Dictar";
-          pregunta.focus();
+        textoAntes=String(pregunta.value||"").trim();
+        estadoMic(true);
+        rec.onresult=function(e){
+          let t="";
+          for(let i=e.resultIndex||0;i<e.results.length;i++){
+            t+=(e.results[i]?.[0]?.transcript||"")+" ";
+          }
+          t=t.trim();
+          if(t){
+            pregunta.value=(textoAntes ? textoAntes+" " : "")+t;
+          }
         };
-        rec.onerror=function(){mic.textContent="🎤 Dictar"};
-        rec.onend=function(){mic.textContent="🎤 Dictar"};
+        rec.onerror=function(){estadoMic(false)};
+        rec.onend=function(){estadoMic(false);rec=null};
         rec.start();
-      }catch(e){mic.textContent="🎤 Dictar"}
-    };
+      }catch(e){
+        rec=null;
+        estadoMic(false);
+      }
+    }
+    function pararDictado(ev){
+      if(ev) ev.preventDefault();
+      if(!escuchando) return;
+      estadoMic(false);
+      try{rec?.stop()}catch(e){}
+      pregunta.focus();
+    }
+
+    mic.addEventListener("pointerdown",iniciarDictado);
+    mic.addEventListener("pointerup",pararDictado);
+    mic.addEventListener("pointercancel",pararDictado);
+    mic.addEventListener("lostpointercapture",pararDictado);
+    mic.addEventListener("contextmenu",function(ev){ev.preventDefault()});
+    mic.onclick=function(ev){ev.preventDefault()};
   }
 
   if(automatico) sessionStorage.setItem(SESSION_SHOWN_KEY,"1");
