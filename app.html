@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V3300</title>
+<title>Zentryx PRO V3301</title>
 
 <link rel="manifest" href="manifest.json?v=3191">
 <meta name="theme-color" content="#2563eb">
@@ -112,5 +112,160 @@ if(document.readyState==="loading"){
 }
 })();
 </script>
+
+<!-- ZENTRYX PRO V3301 - ACCIONES SUPERIORES GLOBALES EN VISTAS LARGAS -->
+<style id="zx-global-top-actions-style">
+  .zx_global_top_actions{
+    position:sticky;
+    top:0;
+    z-index:2147483000;
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    padding:8px 4px 10px;
+    margin:-2px 0 8px;
+    background:linear-gradient(#fff 82%,rgba(255,255,255,.94));
+    border-bottom:1px solid rgba(226,232,240,.82);
+  }
+  .zx_global_top_actions button{
+    appearance:none;
+    border:1px solid #cbd5e1;
+    border-radius:12px;
+    padding:9px 12px;
+    background:#f8fafc;
+    color:#0f172a;
+    font:inherit;
+    font-size:.9rem;
+    font-weight:850;
+    line-height:1.15;
+    cursor:pointer;
+    white-space:nowrap;
+    box-shadow:0 2px 8px rgba(15,23,42,.06);
+  }
+  .zx_global_top_actions button[data-zx-global-action="editar"]{
+    border-color:#bfdbfe;
+    background:#2563eb;
+    color:#fff;
+  }
+  .zx_global_top_actions button[data-zx-global-action="volver"]{
+    border-color:#cbd5e1;
+    background:#fff;
+  }
+  @media(max-width:560px){
+    .zx_global_top_actions{padding-top:5px;gap:6px}
+    .zx_global_top_actions button{padding:8px 10px;font-size:.84rem}
+  }
+</style>
+<script>
+(function(){
+  "use strict";
+
+  const ROOT_SELECTOR=[
+    "#zx_modal_agenda",
+    "#zx_modal_cliente",
+    "#zx_modal_trabajo",
+    "#zx_modal_fichaje",
+    "#zx_modal_festivo",
+    "#zx_modal",
+    "#zx_al_modal",
+    ".zx_modal_fondo",
+    ".zx_al_modal",
+    ".zx_md_map_modal"
+  ].join(",");
+
+  function texto(el){
+    return String((el && (el.innerText || el.textContent)) || "")
+      .replace(/\\s+/g," ")
+      .trim();
+  }
+
+  function tipoAccion(t){
+    const s=String(t||"").toLowerCase();
+    if(/\\bcerrar\\b|^✕|^×/.test(s)) return "cerrar";
+    if(/\\bvolver\\b|^←/.test(s)) return "volver";
+    if(/\\beditar\\b|^✏/.test(s)) return "editar";
+    return "";
+  }
+
+  function cajaDe(root){
+    if(!root) return null;
+    return root.querySelector(":scope > .zx_modal_caja, :scope > .zx_al_modal_box, .zx_modal_caja, .zx_al_modal_box") || root.firstElementChild || root;
+  }
+
+  function instalarEn(root){
+    if(!root || !root.isConnected) return;
+    if(root.id==="zx_modal_vehiculo" || root.querySelector(".zx_modal_top_actions")) return;
+
+    const caja=cajaDe(root);
+    if(!caja || caja.querySelector(":scope > .zx_global_top_actions")) return;
+
+    const candidatos=Array.from(caja.querySelectorAll("button,a,[role='button']"))
+      .filter(function(el){
+        if(el.closest(".zx_global_top_actions")) return false;
+        const tipo=tipoAccion(texto(el));
+        return !!tipo;
+      });
+
+    const porTipo={};
+    candidatos.forEach(function(el){
+      const tipo=tipoAccion(texto(el));
+      if(tipo && !porTipo[tipo]) porTipo[tipo]=el;
+    });
+
+    const orden=["volver","editar","cerrar"];
+    const disponibles=orden.filter(function(k){return !!porTipo[k]});
+    if(!disponibles.length) return;
+
+    const bar=document.createElement("div");
+    bar.className="zx_global_top_actions";
+    bar.setAttribute("data-zx-global-actions","1");
+
+    disponibles.forEach(function(tipo){
+      const original=porTipo[tipo];
+      const b=document.createElement("button");
+      b.type="button";
+      b.setAttribute("data-zx-global-action",tipo);
+      b.textContent=texto(original) || (tipo==="cerrar"?"Cerrar":tipo==="volver"?"Volver":"Editar");
+      b.onclick=function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        if(original && original.isConnected){ original.click(); return; }
+        const reemplazo=Array.from(caja.querySelectorAll("button,a,[role='button']"))
+          .find(function(x){return tipoAccion(texto(x))===tipo && !x.closest(".zx_global_top_actions")});
+        if(reemplazo) reemplazo.click();
+      };
+      bar.appendChild(b);
+    });
+
+    caja.insertBefore(bar,caja.firstChild);
+  }
+
+  function revisar(){
+    document.querySelectorAll(ROOT_SELECTOR).forEach(instalarEn);
+  }
+
+  let pendiente=false;
+  function programar(){
+    if(pendiente) return;
+    pendiente=true;
+    requestAnimationFrame(function(){
+      pendiente=false;
+      revisar();
+    });
+  }
+
+  const obs=new MutationObserver(programar);
+  obs.observe(document.documentElement,{childList:true,subtree:true});
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",revisar,{once:true});
+  }else{
+    revisar();
+  }
+})();
+</script>
+
 </body>
 </html>
