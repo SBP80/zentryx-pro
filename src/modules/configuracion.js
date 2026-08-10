@@ -61,6 +61,7 @@ function configBase(){
       almacen:true,
       usuarios:true,
       vehiculos:true,
+      manual:true,
       horas_extra:true,
       control_fichajes:true,
       configuracion:true
