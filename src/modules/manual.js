@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1001 - BUSCADOR + CONTENIDO SEGUN ROL/PERMISOS
+// V1002 - BUSCADOR INTELIGENTE + CONTENIDO SEGUN ROL/PERMISOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1001";
+const ZX_VERSION="1002";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -22,6 +22,31 @@ function normalizar(v){
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g,"")
     .trim();
+}
+const ZX_STOPWORDS=new Set(["a","al","algo","como","con","de","del","el","en","es","esta","este","hacer","la","las","lo","los","me","mi","para","por","puedo","que","se","un","una","y"]);
+function raizManual(p){
+  p=normalizar(p).replace(/[^a-z0-9ñ]+/g,"");
+  if(p.length<=4) return p;
+  const finales=["amientos","imiento","aciones","acion","ando","iendo","ados","adas","ado","ada","idos","idas","ido","ida","mente","es","os","as","o","a"];
+  for(const f of finales){if(p.length-f.length>=4 && p.endsWith(f)){p=p.slice(0,-f.length);break}}
+  return p;
+}
+function tokensManual(v){
+  const alias={finalizo:"finalizar",finalice:"finalizar",finalizar:"finalizar",termino:"finalizar",terminar:"finalizar",cierro:"finalizar",cerrar:"finalizar",completo:"finalizar",completar:"finalizar",obra:"trabajo",servicio:"trabajo"};
+  return normalizar(v).replace(/[^a-z0-9ñ]+/g," ").split(/\s+/).filter(Boolean).map(x=>alias[x]||x).filter(x=>!ZX_STOPWORDS.has(x)).map(raizManual).filter(Boolean);
+}
+function coincideManual(texto,consulta){
+  const q=tokensManual(consulta);
+  if(!q.length) return true;
+  const t=tokensManual(texto);
+  const set=new Set(t);
+  let aciertos=0;
+  for(const x of q){
+    if(set.has(x) || t.some(y=>y.startsWith(x)||x.startsWith(y))) aciertos++;
+  }
+  // Una pregunta natural puede contener palabras que no forman parte del título.
+  // Exigimos los términos útiles principales, pero toleramos una palabra no coincidente.
+  return aciertos>=Math.max(1,q.length-1);
 }
 function sesion(){
   try{
@@ -96,9 +121,11 @@ const BASE=[
       "Comprueba cliente, dirección, estado, equipo y planificación.",
       "Consulta materiales, archivos, notas e historial cuando sea necesario.",
       "Si el trabajo está en curso, utiliza las acciones disponibles para registrar su avance.",
+      "Para terminar una jornada de trabajo, abre el trabajo en curso y pulsa Finalizar jornada. Confirma los datos solicitados antes de guardar.",
+      "Cuando ya no queden jornadas pendientes y el servicio esté terminado, revisa el estado del trabajo y déjalo como realizado/finalizado según las acciones disponibles.",
       "Usa Volver o Editar desde la parte superior."
     ],
-    palabras:"trabajo obra cliente material archivo foto nota historial equipo planificación estado"
+    palabras:"trabajo obra servicio cliente material archivo foto nota historial equipo planificación estado finalizar finalizo finalice terminar termino cerrar cierro completar realizado finalizado finalizar jornada"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
@@ -290,10 +317,10 @@ function render(){
   const info=document.getElementById("zx_manual_resultados");
   const vacio=document.getElementById("zx_manual_vacio");
   buscar.oninput=function(){
-    const q=normalizar(buscar.value);
+    const q=buscar.value;
     let visibles=0;
     cont.querySelectorAll(".zx_manual_card").forEach(function(card){
-      const ok=!q || normalizar(card.dataset.search || "").includes(q);
+      const ok=!normalizar(q) || coincideManual(card.dataset.search || "",q);
       card.hidden=!ok;
       if(ok) visibles++;
     });
