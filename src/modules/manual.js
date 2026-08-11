@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1003 - RELEVANCIA + RESPUESTA DESTACADA + DISEÑO DIFERENCIADO
+// V1004 - RESPUESTAS CONCRETAS + SALIR + IR A FUNCION
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1003";
+const ZX_VERSION="1004";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -102,6 +102,190 @@ function moduloActivo(id){
     if(zx && typeof zx.moduloActivo==="function") return zx.moduloActivo(id)!==false;
   }catch(e){}
   return true;
+}
+
+
+function abrirModuloManual(id){
+  try{
+    if(window.ZX_ROUTER && typeof window.ZX_ROUTER.open==="function"){
+      return window.ZX_ROUTER.open(id,{source:"manual"});
+    }
+  }catch(e){}
+  const btn=document.querySelector('.zx_nav_btn[data-modulo="'+String(id||"")+'"]');
+  if(btn){btn.click();return true}
+  return false;
+}
+function salirManual(){
+  try{
+    if(window.ZX_ROUTER && typeof window.ZX_ROUTER.back==="function"){
+      return window.ZX_ROUTER.back();
+    }
+  }catch(e){}
+  return abrirModuloManual("inicio");
+}
+
+const AYUDAS_DIRECTAS=[
+  {
+    id:"finalizar_trabajo",
+    modulo:"trabajos",
+    titulo:"Finalizar un trabajo",
+    consulta:"finalizar trabajo terminar trabajo cerrar trabajo completar trabajo finalizar jornada trabajo",
+    resumen:"Pasos para cerrar correctamente un trabajo que está en curso.",
+    pasos:[
+      "Abre el trabajo que está en curso.",
+      "Si todavía hay una jornada activa, pulsa Finalizar jornada y confirma los datos que Zentryx solicite.",
+      "Comprueba que no queden jornadas pendientes y revisa que materiales, notas, fotos o datos del servicio estén guardados.",
+      "Cuando el servicio haya terminado, cambia el estado del trabajo a Realizado/Finalizado mediante la acción disponible en la ficha."
+    ]
+  },
+  {
+    id:"finalizar_jornada_trabajo",
+    modulo:"trabajos",
+    titulo:"Finalizar una jornada de trabajo",
+    consulta:"finalizar jornada trabajo terminar jornada trabajo cerrar jornada trabajo",
+    resumen:"Cierra la jornada actual sin dar por terminado necesariamente todo el trabajo.",
+    pasos:[
+      "Abre el trabajo en curso.",
+      "Pulsa Finalizar jornada.",
+      "Revisa y confirma la información que Zentryx solicite antes de guardar.",
+      "El trabajo puede seguir pendiente si tiene más jornadas planificadas."
+    ]
+  },
+  {
+    id:"crear_trabajo",
+    modulo:"trabajos",
+    titulo:"Crear un trabajo",
+    consulta:"crear trabajo nuevo trabajo dar alta trabajo",
+    resumen:"Abre el alta de un nuevo trabajo y completa sus datos principales.",
+    pasos:[
+      "Entra en Trabajos y pulsa Crear.",
+      "Indica título, estado, prioridad, cliente y responsable principal.",
+      "Selecciona las personas que acudirán al trabajo y completa la planificación necesaria.",
+      "Guarda el trabajo y comprueba que aparece en Trabajos y Agenda cuando corresponda."
+    ]
+  },
+  {
+    id:"crear_cliente",
+    modulo:"clientes",
+    titulo:"Crear un cliente",
+    consulta:"crear cliente nuevo cliente dar alta cliente",
+    resumen:"Registra un cliente nuevo desde el módulo Clientes.",
+    pasos:[
+      "Entra en Clientes y pulsa Crear.",
+      "Selecciona el tipo de cliente y completa sus datos principales.",
+      "Añade los datos de contacto y direcciones que correspondan.",
+      "Guarda y comprueba que aparece en el listado."
+    ]
+  },
+  {
+    id:"crear_usuario",
+    modulo:"usuarios",
+    titulo:"Crear un usuario",
+    consulta:"crear usuario nuevo usuario trabajador empleado dar alta usuario",
+    resumen:"Da de alta un usuario nuevo respetando los controles administrativos.",
+    pasos:[
+      "Entra en Usuarios y pulsa Crear.",
+      "Confirma el PIN de administrador cuando Zentryx lo solicite.",
+      "Completa los datos personales, de contacto y laborales necesarios.",
+      "Asigna el rol y los permisos que correspondan antes de guardar."
+    ]
+  },
+  {
+    id:"usar_vehiculo",
+    modulo:"vehiculos",
+    titulo:"Comenzar a utilizar un vehículo",
+    consulta:"usar vehiculo utilizar vehiculo recoger vehiculo empezar vehiculo",
+    resumen:"Registra correctamente el inicio de uso de un vehículo disponible.",
+    pasos:[
+      "Abre Vehículos y selecciona el vehículo disponible.",
+      "Pulsa Utilizar vehículo.",
+      "Comprueba las incidencias activas, si existen, e indica los kilómetros al recogerlo.",
+      "Confirma el uso. Zentryx registrará el responsable y el inicio."
+    ]
+  },
+  {
+    id:"devolver_vehiculo",
+    modulo:"vehiculos",
+    titulo:"Devolver un vehículo",
+    consulta:"devolver vehiculo finalizar uso vehiculo dejar libre vehiculo",
+    resumen:"Cierra el uso actual y deja el vehículo disponible.",
+    pasos:[
+      "Abre el vehículo que tienes en uso.",
+      "Pulsa Finalizar uso.",
+      "Indica los kilómetros actuales y cualquier incidencia u observación necesaria.",
+      "Pulsa Devolver y dejar libre."
+    ]
+  },
+  {
+    id:"incidencia_vehiculo",
+    modulo:"vehiculos",
+    titulo:"Registrar una incidencia de vehículo",
+    consulta:"incidencia vehiculo averia vehiculo problema vehiculo registrar incidencia",
+    resumen:"Registra una avería o incidencia asociada al vehículo.",
+    pasos:[
+      "Abre Vehículos y pulsa Incidencias en el vehículo correspondiente.",
+      "Pulsa Registrar incidencia.",
+      "Selecciona el tipo y la gravedad, y describe brevemente lo ocurrido.",
+      "Guarda la incidencia y comprueba que figura en el historial del vehículo."
+    ]
+  },
+  {
+    id:"fichar_entrada",
+    modulo:"fichaje",
+    titulo:"Registrar la entrada",
+    consulta:"fichar entrada comenzar jornada iniciar jornada fichaje entrada",
+    resumen:"Registra el comienzo de tu jornada laboral.",
+    pasos:[
+      "Entra en Fichaje.",
+      "Pulsa Entrada o la acción de inicio que muestre tu estado actual.",
+      "Confirma el fichaje cuando Zentryx lo solicite.",
+      "Si se solicita vehículo o kilometraje, revisa los datos antes de confirmar."
+    ]
+  },
+  {
+    id:"fichar_salida",
+    modulo:"fichaje",
+    titulo:"Registrar la salida",
+    consulta:"fichar salida terminar jornada laboral finalizar jornada laboral fichaje salida",
+    resumen:"Registra el final de la jornada laboral.",
+    pasos:[
+      "Entra en Fichaje.",
+      "Pulsa Salida cuando tu jornada esté activa y el estado permita cerrarla.",
+      "Completa los datos que Zentryx solicite y confirma.",
+      "Consulta Mis jornadas si quieres revisar el registro."
+    ]
+  }
+];
+
+function puntuacionAyudaDirecta(ayuda,consulta){
+  const q=tokensManual(consulta);
+  if(!q.length) return 0;
+  const t=tokensManual([ayuda.titulo,ayuda.consulta,ayuda.resumen,(ayuda.pasos||[]).join(" ")].join(" "));
+  let score=0,aciertos=0;
+  for(const x of q){
+    if(t.some(y=>y===x || y.startsWith(x) || x.startsWith(y))){
+      score+=6;aciertos++;
+    }
+  }
+  if(aciertos<Math.max(1,Math.ceil(q.length*.6))) return 0;
+  const qset=new Set(q);
+  const at=tokensManual(ayuda.titulo+" "+ayuda.consulta);
+  for(const x of qset){
+    if(at.some(y=>y===x || y.startsWith(x) || x.startsWith(y))) score+=7;
+  }
+  return score;
+}
+function ayudaDirectaPara(consulta){
+  const lista=AYUDAS_DIRECTAS
+    .map(x=>({ayuda:x,score:puntuacionAyudaDirecta(x,consulta)}))
+    .filter(x=>x.score>0)
+    .sort((a,b)=>b.score-a.score);
+  if(!lista.length) return null;
+  const primero=lista[0];
+  const segundo=lista[1];
+  // Evita responder con una tarea concreta cuando dos opciones quedan prácticamente empatadas.
+  if(segundo && primero.score-segundo.score<3) return null;
+  return primero.ayuda;
 }
 
 const BASE=[
@@ -279,6 +463,13 @@ function instalarCSS(){
     .zx_manual_answer p{margin:5px 0 0;color:#64748b;font-weight:750}
     .zx_manual_answer ol{margin:14px 0 0;padding-left:23px;color:#172554}
     .zx_manual_answer li{margin:10px 0;line-height:1.42;font-weight:750}
+    .zx_manual_actions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 15px}
+    .zx_manual_actions.bottom{margin:18px 0 0}
+    .zx_manual_action{border:0;border-radius:14px;padding:12px 16px;font-weight:950;font-size:.95rem;cursor:pointer}
+    .zx_manual_action.back{background:#e2e8f0;color:#0f172a}
+    .zx_manual_action.go{background:#2563eb;color:#fff}
+    .zx_manual_answer_query{margin:0 0 12px;padding:10px 12px;border-radius:13px;background:#eff6ff;color:#1e3a8a;font-weight:850}
+
     .zx_manual_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:12px}
     .zx_manual_card{border:1px solid #dbeafe;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 7px 24px rgba(15,23,42,.05)}
     .zx_manual_card[hidden]{display:none!important}
@@ -358,6 +549,22 @@ function render(){
   const vacio=document.getElementById("zx_manual_vacio");
   const respuesta=document.getElementById("zx_manual_respuesta");
 
+  function botonesRespuesta(modulo){
+    return `
+      <div class="zx_manual_actions">
+        <button type="button" class="zx_manual_action back" data-manual-salir>← Salir del Manual</button>
+        ${modulo?`<button type="button" class="zx_manual_action go" data-manual-ir="${limpiar(modulo)}">Ir a ${limpiar((items.find(x=>x.id===modulo)||{}).titulo || modulo)}</button>`:""}
+      </div>
+    `;
+  }
+
+  function activarBotonesRespuesta(){
+    respuesta.querySelectorAll("[data-manual-salir]").forEach(btn=>btn.onclick=salirManual);
+    respuesta.querySelectorAll("[data-manual-ir]").forEach(btn=>{
+      btn.onclick=function(){abrirModuloManual(btn.dataset.manualIr)}
+    });
+  }
+
   function aplicarBusqueda(){
     const q=buscar.value;
     const nq=normalizar(q);
@@ -373,12 +580,35 @@ function render(){
       return;
     }
 
+    // Primero busca una tarea concreta. Si existe, responde solo a esa tarea.
+    const directa=ayudaDirectaPara(q);
+    if(directa && visiblePara(u,BASE.find(x=>x.id===directa.modulo) || {roles:["todos"],id:directa.modulo})){
+      cards.forEach(c=>c.hidden=true);
+      vacio.hidden=true;
+      info.textContent="1 respuesta concreta";
+      const acciones=botonesRespuesta(directa.modulo);
+      respuesta.innerHTML=`
+        ${acciones}
+        <div class="zx_manual_answer_query">Tu pregunta: ${limpiar(q)}</div>
+        <div class="zx_manual_answer_label">Respuesta</div>
+        <h2>✅ ${limpiar(directa.titulo)}</h2>
+        <p>${limpiar(directa.resumen)}</p>
+        <ol>${(directa.pasos||[]).map(p=>`<li>${limpiar(p)}</li>`).join("")}</ol>
+        <div class="zx_manual_actions bottom">
+          <button type="button" class="zx_manual_action back" data-manual-salir>← Salir del Manual</button>
+          <button type="button" class="zx_manual_action go" data-manual-ir="${limpiar(directa.modulo)}">Ir a ${limpiar((items.find(x=>x.id===directa.modulo)||{}).titulo || directa.modulo)}</button>
+        </div>
+      `;
+      respuesta.hidden=false;
+      activarBotonesRespuesta();
+      return;
+    }
+
     const resultados=items
       .map(item=>({item,score:puntuacionManual(item,q)}))
       .filter(x=>x.score>0)
       .sort((a,b)=>b.score-a.score);
 
-    // Evita llenar la pantalla con coincidencias débiles.
     const mejor=resultados[0]?.score||0;
     const utiles=resultados.filter(x=>x.score>=Math.max(8,mejor*.42)).slice(0,4);
     const ids=new Set(utiles.map(x=>x.item.id));
@@ -395,16 +625,25 @@ function render(){
 
     if(utiles.length){
       const principal=utiles[0].item;
+      // La tarjeta del mismo módulo no se repite debajo de la respuesta.
       const card=cont.querySelector('[data-manual-id="'+CSS.escape(principal.id)+'"]');
-      if(card) card.classList.add("is-best");
+      if(card) card.hidden=true;
+      const acciones=botonesRespuesta(principal.id);
       respuesta.innerHTML=`
-        <div class="zx_manual_answer_label">Respuesta recomendada</div>
+        ${acciones}
+        <div class="zx_manual_answer_query">Tu pregunta: ${limpiar(q)}</div>
+        <div class="zx_manual_answer_label">Respuesta relacionada</div>
         <h2>${principal.icono} ${limpiar(principal.titulo)}</h2>
         <p>${limpiar(principal.resumen)}</p>
         <ol>${(principal.pasos||[]).map(p=>`<li>${limpiar(p)}</li>`).join("")}</ol>
         ${principal.aviso?`<div class="zx_manual_notice">${limpiar(principal.aviso)}</div>`:""}
+        <div class="zx_manual_actions bottom">
+          <button type="button" class="zx_manual_action back" data-manual-salir>← Salir del Manual</button>
+          <button type="button" class="zx_manual_action go" data-manual-ir="${limpiar(principal.id)}">Ir a ${limpiar(principal.titulo)}</button>
+        </div>
       `;
       respuesta.hidden=false;
+      activarBotonesRespuesta();
     }else{
       respuesta.hidden=true;
       respuesta.innerHTML="";
