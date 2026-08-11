@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1004 - RESPUESTAS CONCRETAS + SALIR + IR A FUNCION
+// V1005 - INTENCIONES CONCRETAS PRIORIZADAS + SALIR + IR A FUNCION
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1004";
+const ZX_VERSION="1005";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -132,10 +132,11 @@ const AYUDAS_DIRECTAS=[
     consulta:"finalizar trabajo terminar trabajo cerrar trabajo completar trabajo finalizar jornada trabajo",
     resumen:"Pasos para cerrar correctamente un trabajo que está en curso.",
     pasos:[
-      "Abre el trabajo que está en curso.",
-      "Si todavía hay una jornada activa, pulsa Finalizar jornada y confirma los datos que Zentryx solicite.",
-      "Comprueba que no queden jornadas pendientes y revisa que materiales, notas, fotos o datos del servicio estén guardados.",
-      "Cuando el servicio haya terminado, cambia el estado del trabajo a Realizado/Finalizado mediante la acción disponible en la ficha."
+      "Pulsa Ir a Trabajos y abre el trabajo que quieres terminar.",
+      "Si hay una jornada activa, pulsa Finalizar jornada y confirma los datos solicitados. Esto cierra esa jornada, no necesariamente todo el trabajo.",
+      "Comprueba que no queden jornadas pendientes y que notas, materiales, fotos y demás datos necesarios estén guardados.",
+      "Cuando el servicio esté realmente terminado, cambia el estado del trabajo a Realizado/Finalizado desde la ficha del trabajo.",
+      "Comprueba que el trabajo ya figure como terminado y que no quede ninguna jornada activa."
     ]
   },
   {
@@ -276,14 +277,52 @@ function puntuacionAyudaDirecta(ayuda,consulta){
   return score;
 }
 function ayudaDirectaPara(consulta){
+  const q=tokensManual(consulta);
+  const set=new Set(q);
+  const tiene=(raiz)=>[...set].some(x=>x===raiz || x.startsWith(raiz) || raiz.startsWith(x));
+  const porId=(id)=>AYUDAS_DIRECTAS.find(x=>x.id===id) || null;
+
+  // Prioridades explícitas para evitar que una pregunta concreta caiga en el
+  // apartado general por empate entre tareas muy parecidas.
+  if(tiene("finalizar") && tiene("trabaj")){
+    if(tiene("jornad") || tiene("dia") || tiene("visita")){
+      return porId("finalizar_jornada_trabajo");
+    }
+    return porId("finalizar_trabajo");
+  }
+  if((tiene("crear") || tiene("nuevo") || tiene("alta")) && tiene("trabaj")){
+    return porId("crear_trabajo");
+  }
+  if((tiene("crear") || tiene("nuevo") || tiene("alta")) && tiene("client")){
+    return porId("crear_cliente");
+  }
+  if((tiene("crear") || tiene("nuevo") || tiene("alta")) && tiene("usuari")){
+    return porId("crear_usuario");
+  }
+  if((tiene("crear") || tiene("nuevo") || tiene("alta")) && tiene("vehicul")){
+    return porId("crear_vehiculo");
+  }
+  if((tiene("devolv") || tiene("finalizar")) && tiene("vehicul")){
+    return porId("devolver_vehiculo");
+  }
+  if(tiene("fich") && (tiene("salid") || tiene("finalizar"))){
+    return porId("fichar_salida");
+  }
+  if(tiene("fich") && (tiene("entrad") || tiene("iniciar"))){
+    return porId("fichar_entrada");
+  }
+
   const lista=AYUDAS_DIRECTAS
     .map(x=>({ayuda:x,score:puntuacionAyudaDirecta(x,consulta)}))
     .filter(x=>x.score>0)
     .sort((a,b)=>b.score-a.score);
+
   if(!lista.length) return null;
   const primero=lista[0];
   const segundo=lista[1];
-  // Evita responder con una tarea concreta cuando dos opciones quedan prácticamente empatadas.
+
+  // Para consultas no cubiertas por las prioridades anteriores conservamos
+  // una protección frente a respuestas ambiguas.
   if(segundo && primero.score-segundo.score<3) return null;
   return primero.ayuda;
 }
