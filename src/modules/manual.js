@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1002 - BUSCADOR INTELIGENTE + CONTENIDO SEGUN ROL/PERMISOS
+// V1003 - RELEVANCIA + RESPUESTA DESTACADA + DISEÑO DIFERENCIADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1002";
+const ZX_VERSION="1003";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -35,19 +35,43 @@ function tokensManual(v){
   const alias={finalizo:"finalizar",finalice:"finalizar",finalizar:"finalizar",termino:"finalizar",terminar:"finalizar",cierro:"finalizar",cerrar:"finalizar",completo:"finalizar",completar:"finalizar",obra:"trabajo",servicio:"trabajo"};
   return normalizar(v).replace(/[^a-z0-9ñ]+/g," ").split(/\s+/).filter(Boolean).map(x=>alias[x]||x).filter(x=>!ZX_STOPWORDS.has(x)).map(raizManual).filter(Boolean);
 }
-function coincideManual(texto,consulta){
+function puntuacionManual(item,consulta){
   const q=tokensManual(consulta);
-  if(!q.length) return true;
-  const t=tokensManual(texto);
-  const set=new Set(t);
+  if(!q.length) return 1;
+
+  const titulo=tokensManual(item.titulo||"");
+  const palabras=tokensManual(item.palabras||"");
+  const resumen=tokensManual(item.resumen||"");
+  const pasos=tokensManual((item.pasos||[]).join(" "));
+  const todos=new Set([...titulo,...palabras,...resumen,...pasos]);
+
+  let score=0;
   let aciertos=0;
   for(const x of q){
-    if(set.has(x) || t.some(y=>y.startsWith(x)||x.startsWith(y))) aciertos++;
+    let peso=0;
+    if(titulo.some(y=>y===x || y.startsWith(x) || x.startsWith(y))) peso=9;
+    else if(palabras.some(y=>y===x || y.startsWith(x) || x.startsWith(y))) peso=6;
+    else if(resumen.some(y=>y===x || y.startsWith(x) || x.startsWith(y))) peso=4;
+    else if(pasos.some(y=>y===x || y.startsWith(x) || x.startsWith(y))) peso=2;
+    if(peso){score+=peso;aciertos++}
   }
-  // Una pregunta natural puede contener palabras que no forman parte del título.
-  // Exigimos los términos útiles principales, pero toleramos una palabra no coincidente.
-  return aciertos>=Math.max(1,q.length-1);
+
+  // La consulta debe compartir al menos la mitad de sus términos útiles.
+  if(aciertos<Math.max(1,Math.ceil(q.length/2))) return 0;
+
+  const tq=new Set(q);
+  if(tq.has("trabaj") && item.id==="trabajos") score+=24;
+  if(tq.has("finaliz") && item.id==="trabajos") score+=24;
+  if(tq.has("vehicul") && item.id==="vehiculos") score+=18;
+  if(tq.has("fich") && item.id==="fichaje") score+=18;
+  if(tq.has("client") && item.id==="clientes") score+=18;
+  if(tq.has("agenda") && item.id==="agenda") score+=18;
+  if(tq.has("usuari") && item.id==="usuarios") score+=18;
+  if(tq.has("configur") && item.id==="configuracion") score+=18;
+
+  return score;
 }
+
 function sesion(){
   try{
     if(window.ZENTRYX_readSession) return window.ZENTRYX_readSession() || {};
@@ -238,30 +262,45 @@ function instalarCSS(){
   const s=document.createElement("style");
   s.id="zx_manual_css";
   s.textContent=`
-    .zx_manual_wrap{max-width:980px;margin:0 auto;padding:4px 0 80px}
-    .zx_manual_head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:18px}
-    .zx_manual_head h1{margin:0;font-size:clamp(1.75rem,5vw,2.45rem);line-height:1.02;color:#0f172a}
-    .zx_manual_head p{margin:8px 0 0;color:#64748b;font-weight:700}
-    .zx_manual_role{background:#eef2ff;color:#3730a3;border-radius:999px;padding:8px 12px;font-weight:900;white-space:nowrap}
-    .zx_manual_search{position:sticky;top:8px;z-index:20;background:rgba(255,255,255,.96);padding:8px 0 12px;backdrop-filter:blur(8px)}
-    .zx_manual_search input{width:100%;box-sizing:border-box;border:2px solid #dbeafe;border-radius:18px;padding:15px 16px;font-size:1rem;font-weight:750;color:#0f172a;background:#fff;outline:none}
-    .zx_manual_search input:focus{border-color:#3b82f6;box-shadow:0 0 0 4px rgba(59,130,246,.10)}
-    .zx_manual_hint{margin:8px 2px 0;color:#64748b;font-size:.9rem;font-weight:700}
+    .zx_manual_wrap{max-width:1040px;margin:0 auto;padding:14px 14px 90px;border-radius:28px;background:linear-gradient(180deg,#eef6ff 0,#f8fbff 48%,#f3f0ff 100%);border:2px solid #bfdbfe;box-shadow:inset 0 1px 0 #fff,0 14px 40px rgba(30,64,175,.08)}
+    .zx_manual_head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding:20px;border-radius:22px;background:linear-gradient(135deg,#172554,#1d4ed8);box-shadow:0 10px 28px rgba(30,64,175,.20);margin-bottom:16px}
+    .zx_manual_head h1{margin:0;font-size:clamp(1.75rem,5vw,2.45rem);line-height:1.02;color:#fff}
+    .zx_manual_head p{margin:8px 0 0;color:#dbeafe;font-weight:750}
+    .zx_manual_role{background:#fff;color:#3730a3;border-radius:999px;padding:8px 12px;font-weight:900;white-space:nowrap;box-shadow:0 3px 12px rgba(15,23,42,.12)}
+    .zx_manual_search{position:sticky;top:8px;z-index:20;background:#fff;padding:14px;border:2px solid #93c5fd;border-radius:20px;box-shadow:0 9px 24px rgba(30,64,175,.10);margin-bottom:16px}
+    .zx_manual_search:before{content:"🔎 Buscar en la ayuda";display:block;color:#1e3a8a;font-weight:950;margin:0 0 9px 2px}
+    .zx_manual_search input{width:100%;box-sizing:border-box;border:2px solid #dbeafe;border-radius:16px;padding:15px 16px;font-size:1rem;font-weight:800;color:#0f172a;background:#f8fbff;outline:none}
+    .zx_manual_search input:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.10);background:#fff}
+    .zx_manual_hint{margin:9px 2px 0;color:#475569;font-size:.9rem;font-weight:800}
+    .zx_manual_answer{margin:0 0 16px;padding:18px;border-radius:22px;background:#fff;border:3px solid #2563eb;box-shadow:0 12px 30px rgba(37,99,235,.14)}
+    .zx_manual_answer[hidden]{display:none!important}
+    .zx_manual_answer_label{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:#2563eb;font-weight:1000;margin-bottom:5px}
+    .zx_manual_answer h2{margin:0;color:#0f172a;font-size:1.35rem}
+    .zx_manual_answer p{margin:5px 0 0;color:#64748b;font-weight:750}
+    .zx_manual_answer ol{margin:14px 0 0;padding-left:23px;color:#172554}
+    .zx_manual_answer li{margin:10px 0;line-height:1.42;font-weight:750}
     .zx_manual_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:12px}
-    .zx_manual_card{border:1px solid #e2e8f0;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 7px 24px rgba(15,23,42,.05)}
+    .zx_manual_card{border:1px solid #dbeafe;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 7px 24px rgba(15,23,42,.05)}
     .zx_manual_card[hidden]{display:none!important}
+    .zx_manual_card.is-best{border:2px solid #60a5fa}
     .zx_manual_btn{width:100%;border:0;background:#fff;text-align:left;padding:18px;display:flex;align-items:center;gap:13px;cursor:pointer;color:#0f172a}
-    .zx_manual_icon{width:46px;height:46px;display:grid;place-items:center;border-radius:15px;background:#f1f5f9;font-size:1.45rem;flex:0 0 auto}
+    .zx_manual_icon{width:46px;height:46px;display:grid;place-items:center;border-radius:15px;background:#eaf3ff;font-size:1.45rem;flex:0 0 auto}
     .zx_manual_btn strong{display:block;font-size:1.08rem}
     .zx_manual_btn span{display:block;color:#64748b;font-weight:650;margin-top:3px;line-height:1.3}
-    .zx_manual_arrow{margin-left:auto;font-weight:1000;color:#64748b;font-size:1.2rem}
-    .zx_manual_body{padding:0 18px 18px;border-top:1px solid #f1f5f9}
+    .zx_manual_arrow{margin-left:auto;font-weight:1000;color:#2563eb;font-size:1.2rem}
+    .zx_manual_body{padding:0 18px 18px;border-top:1px solid #dbeafe;background:#f8fbff}
     .zx_manual_body[hidden]{display:none!important}
     .zx_manual_body ol{margin:14px 0 0;padding-left:22px;color:#1e293b}
     .zx_manual_body li{margin:10px 0;line-height:1.42;font-weight:650}
     .zx_manual_notice{margin-top:14px;padding:12px 14px;border-radius:14px;background:#fff7ed;color:#9a3412;font-weight:800;border:1px solid #fed7aa}
-    .zx_manual_empty{grid-column:1/-1;padding:28px;text-align:center;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:18px;color:#64748b;font-weight:800}
-    @media(max-width:700px){.zx_manual_grid{grid-template-columns:1fr}.zx_manual_head{display:block}.zx_manual_role{display:inline-block;margin-top:12px}.zx_manual_search{top:0}}
+    .zx_manual_empty{grid-column:1/-1;padding:28px;text-align:center;background:#fff;border:2px dashed #93c5fd;border-radius:18px;color:#64748b;font-weight:800}
+    @media(max-width:700px){
+      .zx_manual_wrap{margin:8px 8px 0;padding:10px 10px 80px;border-radius:22px}
+      .zx_manual_grid{grid-template-columns:1fr}
+      .zx_manual_head{display:block;padding:17px}
+      .zx_manual_role{display:inline-block;margin-top:12px}
+      .zx_manual_search{top:0}
+    }
   `;
   document.head.appendChild(s);
 }
@@ -284,6 +323,7 @@ function render(){
         <input id="zx_manual_buscar" type="search" placeholder="Buscar: fichaje, vehículo, trabajo, vacaciones…" autocomplete="off">
         <div class="zx_manual_hint" id="zx_manual_resultados">${items.length} apartado(s) disponibles</div>
       </div>
+      <section class="zx_manual_answer" id="zx_manual_respuesta" hidden></section>
       <div class="zx_manual_grid" id="zx_manual_grid">
         ${items.map(function(x){return `
           <article class="zx_manual_card" data-manual-id="${limpiar(x.id)}" data-search="${limpiar(normalizar([x.titulo,x.resumen,x.palabras,(x.pasos||[]).join(" ")].join(" ")))}">
@@ -316,17 +356,67 @@ function render(){
   const buscar=document.getElementById("zx_manual_buscar");
   const info=document.getElementById("zx_manual_resultados");
   const vacio=document.getElementById("zx_manual_vacio");
-  buscar.oninput=function(){
+  const respuesta=document.getElementById("zx_manual_respuesta");
+
+  function aplicarBusqueda(){
     const q=buscar.value;
-    let visibles=0;
-    cont.querySelectorAll(".zx_manual_card").forEach(function(card){
-      const ok=!normalizar(q) || coincideManual(card.dataset.search || "",q);
-      card.hidden=!ok;
-      if(ok) visibles++;
+    const nq=normalizar(q);
+    const cards=[...cont.querySelectorAll(".zx_manual_card")];
+    cards.forEach(c=>c.classList.remove("is-best"));
+
+    if(!nq){
+      cards.forEach(c=>{c.hidden=false;c.style.order=""});
+      info.textContent=items.length+" apartado(s) disponibles";
+      vacio.hidden=true;
+      respuesta.hidden=true;
+      respuesta.innerHTML="";
+      return;
+    }
+
+    const resultados=items
+      .map(item=>({item,score:puntuacionManual(item,q)}))
+      .filter(x=>x.score>0)
+      .sort((a,b)=>b.score-a.score);
+
+    // Evita llenar la pantalla con coincidencias débiles.
+    const mejor=resultados[0]?.score||0;
+    const utiles=resultados.filter(x=>x.score>=Math.max(8,mejor*.42)).slice(0,4);
+    const ids=new Set(utiles.map(x=>x.item.id));
+
+    cards.forEach(function(card){
+      const id=card.dataset.manualId;
+      card.hidden=!ids.has(id);
+      const pos=utiles.findIndex(x=>x.item.id===id);
+      card.style.order=pos<0?"":String(pos);
     });
-    info.textContent=visibles+" apartado(s) encontrado(s)";
-    vacio.hidden=visibles!==0;
-  };
+
+    info.textContent=utiles.length+" resultado(s) relevante(s)";
+    vacio.hidden=utiles.length!==0;
+
+    if(utiles.length){
+      const principal=utiles[0].item;
+      const card=cont.querySelector('[data-manual-id="'+CSS.escape(principal.id)+'"]');
+      if(card) card.classList.add("is-best");
+      respuesta.innerHTML=`
+        <div class="zx_manual_answer_label">Respuesta recomendada</div>
+        <h2>${principal.icono} ${limpiar(principal.titulo)}</h2>
+        <p>${limpiar(principal.resumen)}</p>
+        <ol>${(principal.pasos||[]).map(p=>`<li>${limpiar(p)}</li>`).join("")}</ol>
+        ${principal.aviso?`<div class="zx_manual_notice">${limpiar(principal.aviso)}</div>`:""}
+      `;
+      respuesta.hidden=false;
+    }else{
+      respuesta.hidden=true;
+      respuesta.innerHTML="";
+    }
+  }
+
+  buscar.oninput=aplicarBusqueda;
+
+  // El Asistente puede abrir el Manual con una búsqueda ya escrita.
+  setTimeout(function(){
+    if(String(buscar.value||"").trim()) aplicarBusqueda();
+  },0);
 }
 
 window.ZX_manual=render;
