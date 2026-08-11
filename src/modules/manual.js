@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1006 - BIBLIOTECA AMPLIADA DE RESPUESTAS CONCRETAS
+// V1007 - COBERTURA FUNCIONAL AMPLIADA + NAVEGACION MANUAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1006";
+const ZX_VERSION="1007";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -106,13 +106,37 @@ function moduloActivo(id){
 
 
 function abrirModuloManual(id){
+  const modulo=String(id||"");
   try{
     if(window.ZX_ROUTER && typeof window.ZX_ROUTER.open==="function"){
-      return window.ZX_ROUTER.open(id,{source:"manual"});
+      const r=window.ZX_ROUTER.open(modulo,{source:"manual"});
+      if(r!==false) return r;
     }
   }catch(e){}
-  const btn=document.querySelector('.zx_nav_btn[data-modulo="'+String(id||"")+'"]');
+
+  const btn=document.querySelector('.zx_nav_btn[data-modulo="'+modulo+'"]');
   if(btn){btn.click();return true}
+
+  const directos={
+    solicitudes:"ZX_solicitudes",
+    monitor:"ZX_monitor_oficina",
+    horas_extra:"ZX_horas_extra",
+    almacen:"ZX_almacen",
+    control_fichajes:"ZX_control_fichajes",
+    configuracion:"ZX_configuracion",
+    usuarios:"ZX_usuarios",
+    vehiculos:"ZX_vehiculos",
+    clientes:"ZX_clientes",
+    agenda:"ZX_agenda",
+    trabajos:"ZX_trabajos",
+    fichaje:"ZX_fichaje_real",
+    inicio:"ZX_inicio"
+  };
+  const fn=directos[modulo];
+  if(fn && typeof window[fn]==="function"){
+    window[fn]();
+    return true;
+  }
   return false;
 }
 function salirManual(){
@@ -406,6 +430,290 @@ const AYUDAS_DIRECTAS=[
     resumen:"Accede a la documentación personal permitida para ese usuario.",
     pasos:["Abre Usuarios y selecciona la persona.","Entra en Documentos.","Consulta o añade archivos según tus permisos.","La documentación personal puede estar limitada al administrador o al propio usuario."]
   }
+,
+  {
+    id:"comenzar_dia", modulo:"fichaje", titulo:"Comenzar mi día",
+    consulta:"comenzar mi dia empezar jornada iniciar jornada comenzar jornada",
+    resumen:"Desde Inicio puedes pasar directamente a Fichaje para registrar la entrada.",
+    pasos:[
+      "En Inicio pulsa Comenzar mi día.",
+      "Zentryx abrirá Fichaje.",
+      "Revisa el vehículo si corresponde y confirma la entrada.",
+      "Comprueba que la jornada queda como Trabajando."
+    ]
+  },
+  {
+    id:"abrir_trabajo_inicio", modulo:"inicio", titulo:"Abrir un trabajo desde Inicio",
+    consulta:"abrir trabajo inicio trabajo de hoy mi dia",
+    resumen:"Accede desde Inicio al trabajo previsto para hoy.",
+    pasos:[
+      "En Inicio localiza el trabajo previsto.",
+      "Pulsa Abrir trabajo.",
+      "Revisa dirección, equipo, planificación y estado antes de actuar."
+    ]
+  },
+  {
+    id:"crear_solicitud", modulo:"solicitudes", titulo:"Enviar una solicitud laboral",
+    consulta:"crear solicitud enviar solicitud vacaciones permiso ausencia asuntos propios justificante",
+    resumen:"Envía una solicitud de vacaciones, permiso, ausencia u otro tipo disponible.",
+    pasos:[
+      "Abre Solicitudes.",
+      "En Nueva solicitud selecciona el tipo.",
+      "Indica fecha de inicio y fin; añade horas cuando corresponda.",
+      "Escribe el motivo y adjunta justificante si es necesario.",
+      "Pulsa Enviar solicitud y consulta después su estado."
+    ]
+  },
+  {
+    id:"aprobar_solicitud", modulo:"solicitudes", titulo:"Aprobar una solicitud",
+    consulta:"aprobar solicitud aceptar vacaciones aprobar permiso administrador",
+    resumen:"Un administrador puede aprobar una solicitud pendiente.",
+    pasos:[
+      "Abre Solicitudes con un usuario administrador.",
+      "Localiza la solicitud pendiente.",
+      "Pulsa Aprobar.",
+      "Escribe el comentario de aprobación si procede y confirma.",
+      "Comprueba que el estado cambia a aprobada."
+    ]
+  },
+  {
+    id:"rechazar_solicitud", modulo:"solicitudes", titulo:"Rechazar una solicitud",
+    consulta:"rechazar solicitud denegar vacaciones rechazar permiso administrador",
+    resumen:"Un administrador puede rechazar una solicitud pendiente dejando el motivo.",
+    pasos:[
+      "Abre Solicitudes con un usuario administrador.",
+      "Localiza la solicitud pendiente.",
+      "Pulsa Rechazar.",
+      "Indica el motivo del rechazo y confirma.",
+      "Comprueba que el estado queda actualizado."
+    ]
+  },
+  {
+    id:"borrar_solicitud", modulo:"solicitudes", titulo:"Eliminar una solicitud",
+    consulta:"borrar solicitud eliminar solicitud cancelar solicitud",
+    resumen:"Elimina una solicitud cuando la opción esté disponible para tu usuario.",
+    pasos:[
+      "Abre Solicitudes.",
+      "Localiza la solicitud.",
+      "Pulsa Borrar.",
+      "Confirma la eliminación cuando Zentryx lo solicite."
+    ]
+  },
+  {
+    id:"entrada_almacen", modulo:"almacen", titulo:"Registrar una entrada de almacén",
+    consulta:"entrada almacen añadir stock recibir material stock almacen",
+    resumen:"Registra material que entra en una ubicación del almacén.",
+    pasos:[
+      "Abre Almacén.",
+      "Pulsa Añadir stock o Entrada según el punto desde el que trabajes.",
+      "Selecciona material, ubicación y cantidad.",
+      "Completa los datos solicitados y guarda la entrada.",
+      "Comprueba que la existencia se ha actualizado."
+    ]
+  },
+  {
+    id:"salida_almacen", modulo:"almacen", titulo:"Registrar una salida de almacén",
+    consulta:"salida almacen sacar material descontar stock consumo almacen",
+    resumen:"Descuenta material de una ubicación dejando trazabilidad.",
+    pasos:[
+      "Abre Almacén y localiza la existencia.",
+      "Pulsa Salida.",
+      "Indica cantidad y los datos solicitados.",
+      "Guarda y comprueba el nuevo stock."
+    ]
+  },
+  {
+    id:"transferir_stock", modulo:"almacen", titulo:"Transferir material entre ubicaciones",
+    consulta:"transferir stock material otra ubicacion mover almacen",
+    resumen:"Mueve existencias de una ubicación del almacén a otra.",
+    pasos:[
+      "Abre Almacén y localiza el material.",
+      "Abre Opciones.",
+      "Pulsa Transferir a otra ubicación.",
+      "Selecciona destino y cantidad.",
+      "Confirma la transferencia y revisa ambas existencias."
+    ]
+  },
+  {
+    id:"ajustar_stock", modulo:"almacen", titulo:"Corregir el stock físico",
+    consulta:"ajustar stock fisico recuento almacen corregir existencia",
+    resumen:"Corrige una diferencia entre el stock registrado y el stock contado.",
+    pasos:[
+      "Abre Almacén y localiza la existencia.",
+      "Abre Opciones.",
+      "Pulsa Ajustar stock físico.",
+      "Indica la cantidad real y el motivo cuando corresponda.",
+      "Guarda el ajuste."
+    ]
+  },
+  {
+    id:"stock_minimo", modulo:"almacen", titulo:"Cambiar el stock mínimo",
+    consulta:"stock minimo almacen aviso minimo material",
+    resumen:"Define el nivel a partir del cual el material necesita reposición.",
+    pasos:[
+      "Abre Almacén y localiza el material.",
+      "Abre Opciones.",
+      "Pulsa Cambiar stock mínimo.",
+      "Introduce el nuevo valor y guarda."
+    ]
+  },
+  {
+    id:"crear_reserva_almacen", modulo:"almacen", titulo:"Crear una reserva de material",
+    consulta:"crear reserva almacen reservar material trabajo",
+    resumen:"Reserva material para evitar que quede disponible para otros usos.",
+    pasos:[
+      "Abre Almacén y entra en Reservas.",
+      "Pulsa Nueva reserva.",
+      "Selecciona trabajo, material, ubicación y cantidad según aparezca en el formulario.",
+      "Confirma la reserva."
+    ]
+  },
+  {
+    id:"gestionar_reserva_almacen", modulo:"almacen", titulo:"Gestionar una reserva de material",
+    consulta:"gestionar reserva almacen preparar consumir devolver cancelar reserva",
+    resumen:"Actualiza una reserva cuando preparas, consumes, devuelves o cancelas material.",
+    pasos:[
+      "Abre Almacén y entra en Reservas.",
+      "Localiza la reserva y pulsa Gestionar reserva.",
+      "Elige Registrar preparación, Registrar consumo, Registrar devolución o Cancelar reserva según corresponda.",
+      "Confirma los datos solicitados."
+    ]
+  },
+  {
+    id:"modificar_fichaje_admin", modulo:"control_fichajes", titulo:"Modificar un fichaje",
+    consulta:"modificar fichaje corregir fichaje editar fichaje administrador",
+    resumen:"Corrige un fichaje desde las herramientas administrativas dejando registro del cambio.",
+    pasos:[
+      "Abre Control de fichajes o el panel administrativo de Fichaje.",
+      "Busca la jornada y el fichaje.",
+      "Pulsa Modificar.",
+      "Introduce la autorización solicitada y el motivo del cambio.",
+      "Guarda y comprueba que la modificación queda identificada."
+    ]
+  },
+  {
+    id:"borrar_fichaje_admin", modulo:"control_fichajes", titulo:"Borrar un fichaje",
+    consulta:"borrar fichaje eliminar fichaje administrador",
+    resumen:"Elimina un fichaje con las confirmaciones administrativas correspondientes.",
+    pasos:[
+      "Abre Control de fichajes o el panel administrativo.",
+      "Busca el fichaje.",
+      "Pulsa Borrar.",
+      "Confirma la acción, introduce la autorización y deja el motivo cuando Zentryx lo solicite."
+    ]
+  },
+  {
+    id:"validar_horas_extra", modulo:"horas_extra", titulo:"Validar horas extra",
+    consulta:"validar horas extra aprobar horas extra",
+    resumen:"Valida las horas extra pendientes según el nivel de autorización.",
+    pasos:[
+      "Abre Horas extra.",
+      "Localiza el registro pendiente.",
+      "Pulsa Validar horas cuando corresponda.",
+      "Si requiere validación administrativa, utiliza Validar admin con un usuario autorizado.",
+      "Comprueba que el estado de validación se actualiza."
+    ]
+  },
+  {
+    id:"pagar_horas_extra", modulo:"horas_extra", titulo:"Marcar horas extra como pagadas",
+    consulta:"pagar horas extra marcar pagadas horas extra",
+    resumen:"Registra que unas horas extra validadas ya han sido pagadas.",
+    pasos:[
+      "Abre Horas extra.",
+      "Localiza las horas que correspondan.",
+      "Pulsa Marcar pagadas.",
+      "Confirma la operación y revisa que dejan de figurar como pendientes de pago."
+    ]
+  },
+  {
+    id:"cobrar_horas_extra", modulo:"horas_extra", titulo:"Marcar horas extra como cobradas",
+    consulta:"cobrar horas extra marcar cobradas trabajador",
+    resumen:"Registra la confirmación de cobro de las horas extra.",
+    pasos:[
+      "Abre Horas extra.",
+      "Localiza el registro correspondiente.",
+      "Pulsa Marcar cobradas cuando la acción esté disponible.",
+      "Comprueba que el estado queda actualizado."
+    ]
+  },
+  {
+    id:"config_empresa", modulo:"configuracion", titulo:"Cambiar los datos de empresa",
+    consulta:"configurar empresa nombre empresa sector logo ajustes empresa",
+    resumen:"Modifica los datos generales mostrados por Zentryx.",
+    pasos:[
+      "Abre Ajustes.",
+      "Entra en Empresa.",
+      "Modifica únicamente los datos necesarios.",
+      "Pulsa Guardar y comprueba el resultado."
+    ]
+  },
+  {
+    id:"config_apariencia", modulo:"configuracion", titulo:"Cambiar la apariencia de Zentryx",
+    consulta:"cambiar apariencia tema colores configuracion apariencia",
+    resumen:"Modifica las opciones visuales disponibles de la aplicación.",
+    pasos:[
+      "Abre Ajustes.",
+      "Entra en Apariencia.",
+      "Selecciona las opciones deseadas.",
+      "Pulsa Guardar."
+    ]
+  },
+  {
+    id:"config_modulos", modulo:"configuracion", titulo:"Activar o desactivar módulos",
+    consulta:"activar modulo desactivar modulo configuracion modulos",
+    resumen:"Gestiona qué módulos están habilitados para la empresa.",
+    pasos:[
+      "Abre Ajustes.",
+      "Entra en Módulos.",
+      "Cambia únicamente los módulos que deban estar disponibles.",
+      "Guarda los ajustes.",
+      "Comprueba el acceso con los perfiles afectados antes de darlo por terminado."
+    ]
+  },
+  {
+    id:"config_laboral", modulo:"configuracion", titulo:"Abrir la configuración laboral",
+    consulta:"configuracion laboral convenio vacaciones asuntos propios horario laboral",
+    resumen:"Accede a los parámetros laborales utilizados por jornadas, vacaciones y horas.",
+    pasos:[
+      "Abre Ajustes.",
+      "Entra en Laboral o pulsa Abrir configuración laboral.",
+      "Revisa los parámetros del usuario o empresa que corresponda.",
+      "Guarda únicamente después de comprobar los valores."
+    ]
+  },
+  {
+    id:"monitor_oficina", modulo:"monitor", titulo:"Abrir el Monitor de oficina",
+    consulta:"monitor oficina pantalla grande trabajos vehiculos incidencias agenda",
+    resumen:"Muestra en una pantalla grande el estado operativo disponible de Zentryx.",
+    pasos:[
+      "Desde Trabajos pulsa Monitor de oficina.",
+      "Revisa Agenda de hoy, próximos trabajos, estados e incidencias mostradas.",
+      "Pulsa Pantalla completa para usarlo como panel de oficina.",
+      "Pulsa Salir para volver a Zentryx."
+    ]
+  },
+  {
+    id:"dev_forzar_sync", modulo:"desarrollador", titulo:"Forzar sincronización",
+    consulta:"forzar sync sincronizacion desarrollador cola pendiente",
+    resumen:"Solicita un nuevo intento de sincronización desde las herramientas técnicas.",
+    pasos:[
+      "Abre Desarrollador con el perfil técnico.",
+      "Revisa primero el estado de red y la cola pendiente.",
+      "Pulsa Forzar sync.",
+      "Comprueba el resultado antes de repetir la acción."
+    ]
+  },
+  {
+    id:"dev_limpiar_cache", modulo:"desarrollador", titulo:"Limpiar caché técnica",
+    consulta:"limpiar cache desarrollador borrar cache",
+    resumen:"Borra la caché desde el panel técnico cuando sea necesario para diagnóstico.",
+    pasos:[
+      "Abre Desarrollador.",
+      "Comprueba antes que no haya trabajo pendiente que dependa de datos guardados localmente.",
+      "Pulsa Limpiar caché.",
+      "Recarga y verifica el funcionamiento."
+    ]
+  }
 
 ];
 
@@ -489,6 +797,39 @@ function ayudaDirectaPara(consulta){
   if(tiene("usuari") && tiene("edit")) return porId("editar_usuario");
   if(tiene("usuari") && tiene("labor")) return porId("laboral_usuario");
   if(tiene("usuari") && (tiene("document") || tiene("archiv"))) return porId("documentos_usuario");
+
+  if((tiene("comenz") || tiene("empez") || tiene("inici")) && (tiene("dia") || tiene("jornad"))) return porId("comenzar_dia");
+  if(tiene("inicio") && tiene("trabaj") && (tiene("abr") || tiene("ver"))) return porId("abrir_trabajo_inicio");
+
+  if(tiene("solic") && (tiene("crear") || tiene("envi") || tiene("vacacion") || tiene("permiso") || tiene("ausenc"))) return porId("crear_solicitud");
+  if(tiene("solic") && (tiene("aprob") || tiene("acept"))) return porId("aprobar_solicitud");
+  if(tiene("solic") && (tiene("rechaz") || tiene("deneg"))) return porId("rechazar_solicitud");
+  if(tiene("solic") && (tiene("borr") || tiene("elimin") || tiene("cancel"))) return porId("borrar_solicitud");
+
+  if(tiene("almacen") && (tiene("entrad") || tiene("anad") || tiene("recib"))) return porId("entrada_almacen");
+  if(tiene("almacen") && (tiene("salid") || tiene("sac") || tiene("descont"))) return porId("salida_almacen");
+  if(tiene("almacen") && tiene("transfer")) return porId("transferir_stock");
+  if(tiene("almacen") && (tiene("ajust") || tiene("recuent") || tiene("fisic"))) return porId("ajustar_stock");
+  if(tiene("almacen") && tiene("minim")) return porId("stock_minimo");
+  if(tiene("reserv") && (tiene("crear") || tiene("nuev"))) return porId("crear_reserva_almacen");
+  if(tiene("reserv") && (tiene("gestion") || tiene("prepar") || tiene("consum") || tiene("devolv") || tiene("cancel"))) return porId("gestionar_reserva_almacen");
+
+  if(tiene("fich") && (tiene("modific") || tiene("correg") || tiene("edit")) && (tiene("admin") || tiene("control"))) return porId("modificar_fichaje_admin");
+  if(tiene("fich") && (tiene("borr") || tiene("elimin")) && (tiene("admin") || tiene("control"))) return porId("borrar_fichaje_admin");
+
+  if(tiene("extra") && tiene("hora") && (tiene("valid") || tiene("aprob"))) return porId("validar_horas_extra");
+  if(tiene("extra") && tiene("hora") && (tiene("pag") || tiene("pagar"))) return porId("pagar_horas_extra");
+  if(tiene("extra") && tiene("hora") && (tiene("cobr") || tiene("cobrar"))) return porId("cobrar_horas_extra");
+
+  if(tiene("configur") && tiene("empresa")) return porId("config_empresa");
+  if((tiene("configur") || tiene("ajust")) && (tiene("aparien") || tiene("tema") || tiene("color"))) return porId("config_apariencia");
+  if((tiene("configur") || tiene("ajust")) && tiene("modul")) return porId("config_modulos");
+  if((tiene("configur") || tiene("ajust")) && (tiene("labor") || tiene("conven") || tiene("vacacion") || tiene("horario"))) return porId("config_laboral");
+
+  if(tiene("monitor") && (tiene("oficin") || tiene("pantall"))) return porId("monitor_oficina");
+
+  if(tiene("sync") && (tiene("forz") || tiene("sincron"))) return porId("dev_forzar_sync");
+  if(tiene("cache") && (tiene("limpi") || tiene("borr"))) return porId("dev_limpiar_cache");
 
   const lista=AYUDAS_DIRECTAS
     .map(x=>({ayuda:x,score:puntuacionAyudaDirecta(x,consulta)}))
@@ -634,6 +975,16 @@ const BASE=[
       "Evita cambiar módulos o permisos mientras otros usuarios estén trabajando si el cambio puede afectarles."
     ],
     palabras:"configuracion ajustes empresa laboral convenio vacaciones permisos modulo"
+  },
+  {
+    id:"monitor",icono:"🖥️",titulo:"Monitor de oficina",roles:["admin","encargado"],
+    resumen:"Panel operativo para pantalla grande con agenda, trabajos, vehículos e incidencias.",
+    pasos:[
+      "Ábrelo desde Trabajos cuando necesites una vista general de oficina.",
+      "Utiliza Pantalla completa para mostrarlo en un monitor.",
+      "Pulsa Salir para regresar a Zentryx."
+    ],
+    palabras:"monitor oficina pantalla grande agenda trabajos vehiculos incidencias"
   },
   {
     id:"desarrollador",icono:"🛠️",titulo:"Desarrollador",roles:["dev"],
