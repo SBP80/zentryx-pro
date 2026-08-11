@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1005 - INTENCIONES CONCRETAS PRIORIZADAS + SALIR + IR A FUNCION
+// V1006 - BIBLIOTECA AMPLIADA DE RESPUESTAS CONCRETAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1005";
+const ZX_VERSION="1006";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -255,7 +255,158 @@ const AYUDAS_DIRECTAS=[
       "Completa los datos que Zentryx solicite y confirma.",
       "Consulta Mis jornadas si quieres revisar el registro."
     ]
+  },
+  {
+    id:"editar_trabajo", modulo:"trabajos", titulo:"Editar un trabajo",
+    consulta:"editar trabajo modificar trabajo cambiar datos trabajo",
+    resumen:"Abre un trabajo existente y modifica sus datos.",
+    pasos:["Pulsa Ir a Trabajos y abre el trabajo que quieras modificar.","Pulsa Editar trabajo en la parte superior.","Cambia únicamente los datos necesarios.","Guarda los cambios y comprueba que la ficha muestra la información nueva."]
+  },
+  {
+    id:"planificar_trabajo", modulo:"trabajos", titulo:"Planificar un trabajo",
+    consulta:"planificar trabajo fecha horario responsable participantes equipo jornadas",
+    resumen:"Asigna fecha, horario y personas al trabajo.",
+    pasos:["Abre el trabajo desde Trabajos.","Entra en Editar trabajo.","Selecciona el responsable principal y las personas que acudirán.","Añade o modifica la planificación con fecha y horario.","Guarda y comprueba que aparece correctamente en Agenda."]
+  },
+  {
+    id:"materiales_trabajo", modulo:"trabajos", titulo:"Gestionar materiales de un trabajo",
+    consulta:"materiales trabajo añadir material borrar material editar material lista compra",
+    resumen:"Consulta y modifica los materiales asociados a un trabajo.",
+    pasos:["Abre el trabajo correspondiente.","Ve al apartado Materiales.","Añade, edita o elimina los materiales necesarios.","Guarda los cambios y revisa que el listado quede actualizado."]
+  },
+  {
+    id:"archivos_trabajo", modulo:"trabajos", titulo:"Añadir archivos o fotos a un trabajo",
+    consulta:"archivo trabajo foto trabajo subir archivo documento trabajo adjuntar",
+    resumen:"Guarda fotos y documentos asociados al trabajo.",
+    pasos:["Abre el trabajo.","Ve al apartado Archivos.","Selecciona el archivo o foto que quieras subir.","Añade nombre o notas si corresponde y confirma la subida.","Comprueba que aparece en la ficha del trabajo."]
+  },
+  {
+    id:"notas_trabajo", modulo:"trabajos", titulo:"Añadir una nota a un trabajo",
+    consulta:"nota trabajo comentario trabajo historial trabajo seguimiento trabajo",
+    resumen:"Registra información de seguimiento dentro del trabajo.",
+    pasos:["Abre el trabajo.","Ve al apartado de notas o historial.","Escribe la información que quieras dejar registrada.","Guarda y comprueba que queda asociada al trabajo."]
+  },
+  {
+    id:"abrir_trabajo_agenda", modulo:"agenda", titulo:"Abrir un trabajo desde Agenda",
+    consulta:"abrir trabajo agenda ver trabajo desde agenda",
+    resumen:"Accede a la ficha del trabajo desde su evento de Agenda.",
+    pasos:["Pulsa Ir a Agenda.","Abre el día y el evento vinculado al trabajo.","Pulsa Abrir trabajo.","Zentryx abrirá la ficha del trabajo correspondiente."]
+  },
+  {
+    id:"crear_evento_agenda", modulo:"agenda", titulo:"Crear un evento en Agenda",
+    consulta:"crear evento agenda nuevo evento cita agenda recordatorio agenda",
+    resumen:"Añade un evento nuevo al calendario.",
+    pasos:["Pulsa Ir a Agenda.","Selecciona el día en el calendario.","Pulsa la opción para crear un nuevo evento.","Completa tipo, horario, participantes, dirección y demás datos necesarios.","Guarda el evento."]
+  },
+  {
+    id:"editar_evento_agenda", modulo:"agenda", titulo:"Editar un evento de Agenda",
+    consulta:"editar evento agenda modificar evento agenda cambiar cita agenda",
+    resumen:"Modifica un evento existente del calendario.",
+    pasos:["Abre Agenda y selecciona el evento.","Pulsa Editar evento.","Cambia los datos necesarios y guarda.","Si el evento está vinculado a un trabajo, realiza los cambios importantes desde Trabajos."]
+  },
+  {
+    id:"eliminar_evento_agenda", modulo:"agenda", titulo:"Eliminar un evento de Agenda",
+    consulta:"eliminar evento agenda borrar evento agenda",
+    resumen:"Borra un evento respetando las protecciones de Zentryx.",
+    pasos:["Abre el evento desde Agenda.","Pulsa Eliminar.","Confirma la acción.","Si Zentryx solicita PIN de administrador, introdúcelo para completar el borrado.","Los eventos vinculados a trabajos pueden requerir gestionarse desde Trabajos."]
+  },
+  {
+    id:"crear_vehiculo", modulo:"vehiculos", titulo:"Crear un vehículo",
+    consulta:"crear vehiculo nuevo vehiculo alta vehiculo añadir vehiculo",
+    resumen:"Da de alta un vehículo nuevo en la flota.",
+    pasos:["Pulsa Ir a Vehículos.","Pulsa Crear.","Completa matrícula, marca, modelo, kilómetros y el resto de datos necesarios.","Guarda y comprueba que aparece en el listado."]
+  },
+  {
+    id:"transferir_vehiculo", modulo:"vehiculos", titulo:"Transferir un vehículo a otro trabajador",
+    consulta:"transferir vehiculo otro trabajador cambiar responsable vehiculo entregar vehiculo",
+    resumen:"Entrega el vehículo en uso a otro trabajador sin dejarlo libre.",
+    pasos:["Abre el vehículo que tienes en uso.","Pulsa Finalizar uso.","Selecciona Transferir a otro trabajador.","Elige el nuevo responsable e indica el motivo.","Confirma la transferencia."]
+  },
+  {
+    id:"asignar_responsable_vehiculo", modulo:"vehiculos", titulo:"Asignar responsable habitual a un vehículo",
+    consulta:"asignar responsable vehiculo cambiar responsable habitual vehiculo",
+    resumen:"Asocia un responsable habitual al vehículo.",
+    pasos:["Abre Vehículos y despliega Más opciones en el vehículo.","Pulsa Asignar responsable o Cambiar responsable.","Selecciona el usuario correspondiente.","Confirma el cambio y comprueba que aparece como responsable."]
+  },
+  {
+    id:"ver_ruta_vehiculo", modulo:"vehiculos", titulo:"Consultar la ruta GPS de un vehículo",
+    consulta:"ruta gps vehiculo historial gps recorrido vehiculo localizar vehiculo",
+    resumen:"Consulta los puntos GPS registrados durante un uso.",
+    pasos:["Abre Vehículos.","En el vehículo correspondiente pulsa Ver ruta GPS o Historial GPS.","Selecciona el recorrido que quieras consultar.","Revisa los puntos y el trazado mostrados en el mapa."]
+  },
+  {
+    id:"aviso_grua", modulo:"vehiculos", titulo:"Pedir asistencia o aviso de grúa",
+    consulta:"grua asistencia carretera averia llamar asistencia seguro vehiculo",
+    resumen:"Abre el centro de emergencia con los datos del vehículo y del seguro.",
+    pasos:["Abre el vehículo correspondiente.","Pulsa Aviso grúa.","Mantén la pantalla abierta para tener visibles vehículo, póliza y ubicación.","Pulsa Llamar a asistencia cuando necesites contactar con el seguro.","Si procede, registra también la incidencia."]
+  },
+  {
+    id:"gestionar_incidencia_vehiculo", modulo:"vehiculos", titulo:"Gestionar una incidencia de vehículo",
+    consulta:"gestionar incidencia vehiculo cerrar incidencia cambiar gravedad incidencia",
+    resumen:"Actualiza estado, gravedad, seguimiento y solución de una incidencia.",
+    pasos:["Abre Vehículos y entra en Incidencias.","Pulsa Ver y gestionar en la incidencia correspondiente.","Actualiza Estado o Severidad si es necesario.","Añade seguimiento o comentario y la solución cuando corresponda.","Guarda los cambios."]
+  },
+  {
+    id:"fichaje_descanso", modulo:"fichaje", titulo:"Registrar un descanso",
+    consulta:"descanso fichaje iniciar descanso terminar descanso pausa fichaje",
+    resumen:"Registra el inicio y el fin de un descanso dentro de la jornada.",
+    pasos:["Entra en Fichaje con la jornada iniciada.","Pulsa Elegir acción y selecciona el inicio de descanso.","Cuando termines, vuelve a Fichaje y pulsa Finalizar descanso.","Comprueba que ambos movimientos aparecen registrados."]
+  },
+  {
+    id:"fichaje_comida", modulo:"fichaje", titulo:"Registrar la comida",
+    consulta:"comida fichaje iniciar comida terminar comida pausa comida",
+    resumen:"Registra correctamente el periodo de comida.",
+    pasos:["Entra en Fichaje con la jornada iniciada.","Pulsa Elegir acción y selecciona el inicio de comida.","Al volver, pulsa Finalizar comida.","Comprueba que los dos movimientos quedan registrados."]
+  },
+  {
+    id:"mis_jornadas", modulo:"fichaje", titulo:"Consultar Mis jornadas",
+    consulta:"mis jornadas ver jornadas horas trabajadas historial fichaje",
+    resumen:"Consulta tus jornadas y fichajes anteriores.",
+    pasos:["Pulsa Ir a Fichaje.","Abre Ver mis jornadas.","Selecciona la jornada que quieras revisar.","Consulta horas, movimientos y demás información registrada."]
+  },
+  {
+    id:"panel_admin_fichaje", modulo:"fichaje", titulo:"Abrir el panel de administración de Fichaje",
+    consulta:"panel admin fichaje jornadas trabajadores revisar fichajes administrador",
+    resumen:"Consulta y administra las jornadas de los usuarios.",
+    pasos:["Entra en Fichaje con un usuario autorizado.","Pulsa Ver panel admin.","Busca o selecciona el usuario y la jornada que quieras revisar.","Usa las acciones administrativas disponibles respetando PIN y motivos cuando Zentryx los solicite."]
+  },
+  {
+    id:"editar_cliente", modulo:"clientes", titulo:"Editar un cliente",
+    consulta:"editar cliente modificar cliente cambiar datos cliente",
+    resumen:"Modifica los datos guardados de un cliente.",
+    pasos:["Pulsa Ir a Clientes.","Abre el cliente.","Pulsa Editar.","Cambia los datos necesarios y guarda."]
+  },
+  {
+    id:"documentos_cliente", modulo:"clientes", titulo:"Gestionar documentos de un cliente",
+    consulta:"documentos cliente archivo cliente subir documento cliente",
+    resumen:"Consulta o añade documentación asociada al cliente.",
+    pasos:["Abre el cliente correspondiente.","Entra en Documentos.","Selecciona el archivo que quieras subir si tienes permiso.","Guarda y comprueba que queda asociado al cliente."]
+  },
+  {
+    id:"eliminar_cliente", modulo:"clientes", titulo:"Eliminar un cliente",
+    consulta:"eliminar cliente borrar cliente",
+    resumen:"Elimina un cliente usando la protección administrativa.",
+    pasos:["Abre Clientes y selecciona el cliente.","Pulsa Eliminar.","Confirma la acción.","Introduce el PIN de administrador cuando Zentryx lo solicite."]
+  },
+  {
+    id:"editar_usuario", modulo:"usuarios", titulo:"Editar un usuario",
+    consulta:"editar usuario modificar usuario cambiar datos trabajador",
+    resumen:"Modifica los datos de un usuario existente.",
+    pasos:["Pulsa Ir a Usuarios.","Abre el usuario.","Pulsa Editar si tu rol lo permite.","Modifica los datos necesarios y guarda."]
+  },
+  {
+    id:"laboral_usuario", modulo:"usuarios", titulo:"Consultar o editar datos laborales de un usuario",
+    consulta:"laboral usuario horario vacaciones convenio horas usuario",
+    resumen:"Accede a la información laboral del usuario.",
+    pasos:["Abre Usuarios y selecciona la persona.","Entra en Laboral.","Consulta horarios y demás datos disponibles.","Si eres administrador, modifica únicamente los campos necesarios y guarda."]
+  },
+  {
+    id:"documentos_usuario", modulo:"usuarios", titulo:"Consultar documentos de un usuario",
+    consulta:"documentos usuario archivos trabajador dni contrato usuario",
+    resumen:"Accede a la documentación personal permitida para ese usuario.",
+    pasos:["Abre Usuarios y selecciona la persona.","Entra en Documentos.","Consulta o añade archivos según tus permisos.","La documentación personal puede estar limitada al administrador o al propio usuario."]
   }
+
 ];
 
 function puntuacionAyudaDirecta(ayuda,consulta){
@@ -311,6 +462,33 @@ function ayudaDirectaPara(consulta){
   if(tiene("fich") && (tiene("entrad") || tiene("iniciar"))){
     return porId("fichar_entrada");
   }
+  if(tiene("trabaj") && tiene("edit")) return porId("editar_trabajo");
+  if(tiene("trabaj") && (tiene("planific") || tiene("horari") || tiene("participant"))) return porId("planificar_trabajo");
+  if(tiene("trabaj") && tiene("material")) return porId("materiales_trabajo");
+  if(tiene("trabaj") && (tiene("archiv") || tiene("foto") || tiene("document"))) return porId("archivos_trabajo");
+  if(tiene("trabaj") && (tiene("nota") || tiene("coment") || tiene("seguim"))) return porId("notas_trabajo");
+
+  if(tiene("agenda") && (tiene("crear") || tiene("nuevo"))) return porId("crear_evento_agenda");
+  if(tiene("agenda") && tiene("edit")) return porId("editar_evento_agenda");
+  if(tiene("agenda") && (tiene("elimin") || tiene("borr"))) return porId("eliminar_evento_agenda");
+
+  if(tiene("vehicul") && tiene("transfer")) return porId("transferir_vehiculo");
+  if(tiene("vehicul") && tiene("respons")) return porId("asignar_responsable_vehiculo");
+  if(tiene("vehicul") && (tiene("ruta") || tiene("gps") || tiene("recorr"))) return porId("ver_ruta_vehiculo");
+  if(tiene("grua") || (tiene("asist") && tiene("vehicul"))) return porId("aviso_grua");
+  if(tiene("incid") && tiene("vehicul") && (tiene("gestion") || tiene("cerr") || tiene("solucion"))) return porId("gestionar_incidencia_vehiculo");
+
+  if(tiene("fich") && (tiene("descans") || tiene("paus"))) return porId("fichaje_descanso");
+  if(tiene("fich") && tiene("comid")) return porId("fichaje_comida");
+  if(tiene("jornad") && tiene("mis")) return porId("mis_jornadas");
+
+  if(tiene("client") && tiene("edit")) return porId("editar_cliente");
+  if(tiene("client") && (tiene("document") || tiene("archiv"))) return porId("documentos_cliente");
+  if(tiene("client") && (tiene("elimin") || tiene("borr"))) return porId("eliminar_cliente");
+
+  if(tiene("usuari") && tiene("edit")) return porId("editar_usuario");
+  if(tiene("usuari") && tiene("labor")) return porId("laboral_usuario");
+  if(tiene("usuari") && (tiene("document") || tiene("archiv"))) return porId("documentos_usuario");
 
   const lista=AYUDAS_DIRECTAS
     .map(x=>({ayuda:x,score:puntuacionAyudaDirecta(x,consulta)}))
