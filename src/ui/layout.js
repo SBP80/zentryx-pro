@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3149 - MANUAL DE USO SEGUN ROL
+// V3150 - APERTURA FIABLE DE MODULOS DESDE MENU
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3148";
+const ZX_VERSION="3150";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -2068,12 +2068,38 @@ function topbar(){
 
   function abrirModuloDesdeMenu(id){
     cerrarMenuUsuario();
+
+    // Primero usar el router real, aunque el módulo no tenga botón visible
+    // en la barra principal.
+    try{
+      if(window.ZX_ROUTER && typeof window.ZX_ROUTER.open==="function"){
+        const ok=window.ZX_ROUTER.open(id,{source:"menu_usuario",force:true});
+        if(ok!==false) return true;
+      }
+    }catch(e){
+      console.warn("[Zentryx Layout] Router menú:",e);
+    }
+
+    // Respaldo con botón visible si existe.
     const btn=document.querySelector(`.zx_nav_btn[data-modulo="${id}"]`);
     if(btn){
       btn.click();
-      return;
+      return true;
     }
-    if(id==="ajustes" && window.ZX_ajustes) window.ZX_ajustes();
+
+    // Respaldo directo para módulos accesibles desde el menú.
+    const directos={
+      manual:window.ZX_abrirManual || window.ZX_manual,
+      ajustes:window.ZX_ajustes || window.ZX_configuracion,
+      configuracion:window.ZX_configuracion
+    };
+    const fn=directos[id];
+    if(typeof fn==="function"){
+      fn();
+      return true;
+    }
+
+    return false;
   }
 
   userBtn.onclick=function(ev){
