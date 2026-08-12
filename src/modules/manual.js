@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1007 - COBERTURA FUNCIONAL AMPLIADA + NAVEGACION MANUAL
+// V1008 - PRIORIDAD DE ACCION + OBJETO EN CONSULTAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1007";
+const ZX_VERSION="1008";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -741,96 +741,115 @@ function ayudaDirectaPara(consulta){
   const tiene=(raiz)=>[...set].some(x=>x===raiz || x.startsWith(raiz) || raiz.startsWith(x));
   const porId=(id)=>AYUDAS_DIRECTAS.find(x=>x.id===id) || null;
 
-  // Prioridades explícitas para evitar que una pregunta concreta caiga en el
-  // apartado general por empate entre tareas muy parecidas.
-  if(tiene("finalizar") && tiene("trabaj")){
-    if(tiene("jornad") || tiene("dia") || tiene("visita")){
-      return porId("finalizar_jornada_trabajo");
+  // 1) ACCIONES FUERTES: tienen prioridad sobre el tipo de objeto.
+  // Solicitudes
+  if(tiene("solic")){
+    if(tiene("aprob") || tiene("acept") || tiene("valid")) return porId("aprobar_solicitud");
+    if(tiene("rechaz") || tiene("deneg")) return porId("rechazar_solicitud");
+    if(tiene("borr") || tiene("elimin") || tiene("cancel")) return porId("borrar_solicitud");
+    if(tiene("crear") || tiene("envi") || tiene("nuev") || tiene("vacacion") || tiene("permiso") || tiene("ausenc")) return porId("crear_solicitud");
+  }
+
+  // Trabajos
+  if(tiene("trabaj")){
+    if(tiene("finaliz") || tiene("termin") || tiene("cerr")){
+      if(tiene("jornad") || tiene("dia") || tiene("visita")) return porId("finalizar_jornada_trabajo");
+      return porId("finalizar_trabajo");
     }
-    return porId("finalizar_trabajo");
+    if(tiene("edit") || tiene("modific") || tiene("cambi")) return porId("editar_trabajo");
+    if(tiene("planific") || tiene("horari") || tiene("participant") || tiene("respons")) return porId("planificar_trabajo");
+    if(tiene("material")) return porId("materiales_trabajo");
+    if(tiene("archiv") || tiene("foto") || tiene("document")) return porId("archivos_trabajo");
+    if(tiene("nota") || tiene("coment") || tiene("seguim")) return porId("notas_trabajo");
+    if(tiene("crear") || tiene("nuevo") || tiene("alta") || tiene("anad")) return porId("crear_trabajo");
   }
-  if((tiene("crear") || tiene("nuevo") || tiene("alta")) && tiene("trabaj")){
-    return porId("crear_trabajo");
-  }
-  if((tiene("crear") || tiene("nuevo") || tiene("alta")) && tiene("client")){
-    return porId("crear_cliente");
-  }
-  if((tiene("crear") || tiene("nuevo") || tiene("alta")) && tiene("usuari")){
-    return porId("crear_usuario");
-  }
-  if((tiene("crear") || tiene("nuevo") || tiene("alta")) && tiene("vehicul")){
-    return porId("crear_vehiculo");
-  }
-  if((tiene("devolv") || tiene("finalizar")) && tiene("vehicul")){
-    return porId("devolver_vehiculo");
-  }
-  if(tiene("fich") && (tiene("salid") || tiene("finalizar"))){
-    return porId("fichar_salida");
-  }
-  if(tiene("fich") && (tiene("entrad") || tiene("iniciar"))){
-    return porId("fichar_entrada");
-  }
-  if(tiene("trabaj") && tiene("edit")) return porId("editar_trabajo");
-  if(tiene("trabaj") && (tiene("planific") || tiene("horari") || tiene("participant"))) return porId("planificar_trabajo");
-  if(tiene("trabaj") && tiene("material")) return porId("materiales_trabajo");
-  if(tiene("trabaj") && (tiene("archiv") || tiene("foto") || tiene("document"))) return porId("archivos_trabajo");
-  if(tiene("trabaj") && (tiene("nota") || tiene("coment") || tiene("seguim"))) return porId("notas_trabajo");
 
-  if(tiene("agenda") && (tiene("crear") || tiene("nuevo"))) return porId("crear_evento_agenda");
-  if(tiene("agenda") && tiene("edit")) return porId("editar_evento_agenda");
-  if(tiene("agenda") && (tiene("elimin") || tiene("borr"))) return porId("eliminar_evento_agenda");
+  // Agenda
+  if(tiene("agenda") || tiene("evento") || tiene("cita")){
+    if(tiene("elimin") || tiene("borr")) return porId("eliminar_evento_agenda");
+    if(tiene("edit") || tiene("modific") || tiene("cambi")) return porId("editar_evento_agenda");
+    if(tiene("crear") || tiene("nuevo") || tiene("anad")) return porId("crear_evento_agenda");
+    if(tiene("abr") && tiene("trabaj")) return porId("abrir_trabajo_agenda");
+  }
 
-  if(tiene("vehicul") && tiene("transfer")) return porId("transferir_vehiculo");
-  if(tiene("vehicul") && tiene("respons")) return porId("asignar_responsable_vehiculo");
-  if(tiene("vehicul") && (tiene("ruta") || tiene("gps") || tiene("recorr"))) return porId("ver_ruta_vehiculo");
-  if(tiene("grua") || (tiene("asist") && tiene("vehicul"))) return porId("aviso_grua");
-  if(tiene("incid") && tiene("vehicul") && (tiene("gestion") || tiene("cerr") || tiene("solucion"))) return porId("gestionar_incidencia_vehiculo");
+  // Vehículos
+  if(tiene("vehicul") || tiene("coche") || tiene("furgon")){
+    if(tiene("transfer") || tiene("entreg")) return porId("transferir_vehiculo");
+    if(tiene("devolv") || tiene("finaliz") || tiene("dej") && tiene("libre")) return porId("devolver_vehiculo");
+    if(tiene("respons") || tiene("asign")) return porId("asignar_responsable_vehiculo");
+    if(tiene("ruta") || tiene("gps") || tiene("recorr") || tiene("localiz")) return porId("ver_ruta_vehiculo");
+    if(tiene("grua") || tiene("asist") || tiene("seguro")) return porId("aviso_grua");
+    if(tiene("incid") && (tiene("gestion") || tiene("cerr") || tiene("solucion") || tiene("edit"))) return porId("gestionar_incidencia_vehiculo");
+    if(tiene("crear") || tiene("nuevo") || tiene("alta") || tiene("anad")) return porId("crear_vehiculo");
+  }
 
-  if(tiene("fich") && (tiene("descans") || tiene("paus"))) return porId("fichaje_descanso");
-  if(tiene("fich") && tiene("comid")) return porId("fichaje_comida");
-  if(tiene("jornad") && tiene("mis")) return porId("mis_jornadas");
+  // Fichaje y control de fichajes
+  if(tiene("fich") || tiene("jornad")){
+    if(tiene("borr") || tiene("elimin")){
+      if(tiene("admin") || tiene("control")) return porId("borrar_fichaje_admin");
+    }
+    if(tiene("modific") || tiene("correg") || tiene("edit")){
+      if(tiene("admin") || tiene("control")) return porId("modificar_fichaje_admin");
+    }
+    if(tiene("descans") || tiene("paus")) return porId("fichaje_descanso");
+    if(tiene("comid")) return porId("fichaje_comida");
+    if(tiene("salid") || tiene("finaliz")) return porId("fichar_salida");
+    if(tiene("entrad") || tiene("iniciar") || tiene("comenz")) return porId("fichar_entrada");
+    if(tiene("mis") && tiene("jornad")) return porId("mis_jornadas");
+  }
 
-  if(tiene("client") && tiene("edit")) return porId("editar_cliente");
-  if(tiene("client") && (tiene("document") || tiene("archiv"))) return porId("documentos_cliente");
-  if(tiene("client") && (tiene("elimin") || tiene("borr"))) return porId("eliminar_cliente");
+  // Horas extra
+  if(tiene("extra") && tiene("hora")){
+    if(tiene("pag") || tiene("pagar")) return porId("pagar_horas_extra");
+    if(tiene("cobr") || tiene("cobrar")) return porId("cobrar_horas_extra");
+    if(tiene("valid") || tiene("aprob")) return porId("validar_horas_extra");
+  }
 
-  if(tiene("usuari") && tiene("edit")) return porId("editar_usuario");
-  if(tiene("usuari") && tiene("labor")) return porId("laboral_usuario");
-  if(tiene("usuari") && (tiene("document") || tiene("archiv"))) return porId("documentos_usuario");
+  // Almacén / reservas
+  if(tiene("almacen") || tiene("stock") || tiene("reserv")){
+    if(tiene("reserv")){
+      if(tiene("gestion") || tiene("prepar") || tiene("consum") || tiene("devolv") || tiene("cancel")) return porId("gestionar_reserva_almacen");
+      if(tiene("crear") || tiene("nuev") || tiene("reserv")) return porId("crear_reserva_almacen");
+    }
+    if(tiene("transfer") || tiene("mover")) return porId("transferir_stock");
+    if(tiene("ajust") || tiene("recuent") || tiene("fisic") || tiene("correg")) return porId("ajustar_stock");
+    if(tiene("minim")) return porId("stock_minimo");
+    if(tiene("salid") || tiene("sac") || tiene("descont") || tiene("consum")) return porId("salida_almacen");
+    if(tiene("entrad") || tiene("anad") || tiene("recib") || tiene("sumar")) return porId("entrada_almacen");
+  }
 
+  // Clientes
+  if(tiene("client")){
+    if(tiene("elimin") || tiene("borr")) return porId("eliminar_cliente");
+    if(tiene("edit") || tiene("modific") || tiene("cambi")) return porId("editar_cliente");
+    if(tiene("document") || tiene("archiv")) return porId("documentos_cliente");
+    if(tiene("crear") || tiene("nuevo") || tiene("alta") || tiene("anad")) return porId("crear_cliente");
+  }
+
+  // Usuarios
+  if(tiene("usuari") || tiene("trabajador") || tiene("emplead")){
+    if(tiene("edit") || tiene("modific") || tiene("cambi")) return porId("editar_usuario");
+    if(tiene("labor") || tiene("horario") || tiene("vacacion") || tiene("conven")) return porId("laboral_usuario");
+    if(tiene("document") || tiene("archiv")) return porId("documentos_usuario");
+    if(tiene("crear") || tiene("nuevo") || tiene("alta") || tiene("anad")) return porId("crear_usuario");
+  }
+
+  // Configuración
+  if(tiene("configur") || tiene("ajust")){
+    if(tiene("empresa")) return porId("config_empresa");
+    if(tiene("aparien") || tiene("tema") || tiene("color")) return porId("config_apariencia");
+    if(tiene("modul")) return porId("config_modulos");
+    if(tiene("labor") || tiene("conven") || tiene("vacacion") || tiene("horario")) return porId("config_laboral");
+  }
+
+  // Inicio / Monitor / Desarrollo
   if((tiene("comenz") || tiene("empez") || tiene("inici")) && (tiene("dia") || tiene("jornad"))) return porId("comenzar_dia");
   if(tiene("inicio") && tiene("trabaj") && (tiene("abr") || tiene("ver"))) return porId("abrir_trabajo_inicio");
-
-  if(tiene("solic") && (tiene("crear") || tiene("envi") || tiene("vacacion") || tiene("permiso") || tiene("ausenc"))) return porId("crear_solicitud");
-  if(tiene("solic") && (tiene("aprob") || tiene("acept"))) return porId("aprobar_solicitud");
-  if(tiene("solic") && (tiene("rechaz") || tiene("deneg"))) return porId("rechazar_solicitud");
-  if(tiene("solic") && (tiene("borr") || tiene("elimin") || tiene("cancel"))) return porId("borrar_solicitud");
-
-  if(tiene("almacen") && (tiene("entrad") || tiene("anad") || tiene("recib"))) return porId("entrada_almacen");
-  if(tiene("almacen") && (tiene("salid") || tiene("sac") || tiene("descont"))) return porId("salida_almacen");
-  if(tiene("almacen") && tiene("transfer")) return porId("transferir_stock");
-  if(tiene("almacen") && (tiene("ajust") || tiene("recuent") || tiene("fisic"))) return porId("ajustar_stock");
-  if(tiene("almacen") && tiene("minim")) return porId("stock_minimo");
-  if(tiene("reserv") && (tiene("crear") || tiene("nuev"))) return porId("crear_reserva_almacen");
-  if(tiene("reserv") && (tiene("gestion") || tiene("prepar") || tiene("consum") || tiene("devolv") || tiene("cancel"))) return porId("gestionar_reserva_almacen");
-
-  if(tiene("fich") && (tiene("modific") || tiene("correg") || tiene("edit")) && (tiene("admin") || tiene("control"))) return porId("modificar_fichaje_admin");
-  if(tiene("fich") && (tiene("borr") || tiene("elimin")) && (tiene("admin") || tiene("control"))) return porId("borrar_fichaje_admin");
-
-  if(tiene("extra") && tiene("hora") && (tiene("valid") || tiene("aprob"))) return porId("validar_horas_extra");
-  if(tiene("extra") && tiene("hora") && (tiene("pag") || tiene("pagar"))) return porId("pagar_horas_extra");
-  if(tiene("extra") && tiene("hora") && (tiene("cobr") || tiene("cobrar"))) return porId("cobrar_horas_extra");
-
-  if(tiene("configur") && tiene("empresa")) return porId("config_empresa");
-  if((tiene("configur") || tiene("ajust")) && (tiene("aparien") || tiene("tema") || tiene("color"))) return porId("config_apariencia");
-  if((tiene("configur") || tiene("ajust")) && tiene("modul")) return porId("config_modulos");
-  if((tiene("configur") || tiene("ajust")) && (tiene("labor") || tiene("conven") || tiene("vacacion") || tiene("horario"))) return porId("config_laboral");
-
   if(tiene("monitor") && (tiene("oficin") || tiene("pantall"))) return porId("monitor_oficina");
-
   if(tiene("sync") && (tiene("forz") || tiene("sincron"))) return porId("dev_forzar_sync");
   if(tiene("cache") && (tiene("limpi") || tiene("borr"))) return porId("dev_limpiar_cache");
 
+  // 2) Fallback por puntuación solo cuando no hay una acción inequívoca.
   const lista=AYUDAS_DIRECTAS
     .map(x=>({ayuda:x,score:puntuacionAyudaDirecta(x,consulta)}))
     .filter(x=>x.score>0)
@@ -839,165 +858,9 @@ function ayudaDirectaPara(consulta){
   if(!lista.length) return null;
   const primero=lista[0];
   const segundo=lista[1];
-
-  // Para consultas no cubiertas por las prioridades anteriores conservamos
-  // una protección frente a respuestas ambiguas.
   if(segundo && primero.score-segundo.score<3) return null;
   return primero.ayuda;
 }
-
-const BASE=[
-  {
-    id:"inicio",icono:"🏠",titulo:"Inicio",roles:["todos"],
-    resumen:"Tu pantalla diaria: jornada, vehículo y trabajos previstos.",
-    pasos:[
-      "Comprueba el estado de tu jornada al entrar.",
-      "Revisa el vehículo que tengas asignado, si aparece.",
-      "Consulta los trabajos del día y abre Agenda cuando necesites ver próximas fechas."
-    ],
-    palabras:"inicio jornada hoy vehículo asignado agenda trabajos"
-  },
-  {
-    id:"fichaje",icono:"⏱️",titulo:"Fichaje",roles:["todos"],
-    resumen:"Registro de entrada, descansos, comida y salida.",
-    pasos:[
-      "Pulsa la acción correspondiente al estado de tu jornada.",
-      "Confirma el fichaje cuando Zentryx lo solicite.",
-      "Si utilizas vehículo, revisa los kilómetros solicitados al inicio o al cierre.",
-      "Consulta Mis jornadas para revisar tus registros."
-    ],
-    palabras:"fichar entrada salida descanso comida jornada horas ubicación gps"
-  },
-  {
-    id:"agenda",icono:"📅",titulo:"Agenda",roles:["todos"],
-    resumen:"Calendario de eventos, trabajos, horarios y participantes.",
-    pasos:[
-      "Selecciona el día que quieras consultar.",
-      "Abre un evento o trabajo para ver su información.",
-      "Usa el botón superior Volver para regresar sin recorrer toda la pantalla.",
-      "Si tienes permiso de edición, utiliza Editar desde la parte superior."
-    ],
-    palabras:"agenda calendario evento cita horario participante responsable dirección"
-  },
-  {
-    id:"trabajos",icono:"🛠️",titulo:"Trabajos",roles:["todos"],
-    resumen:"Consulta y ejecución de trabajos, materiales, archivos e historial.",
-    pasos:[
-      "Abre el trabajo que tengas que realizar.",
-      "Comprueba cliente, dirección, estado, equipo y planificación.",
-      "Consulta materiales, archivos, notas e historial cuando sea necesario.",
-      "Si el trabajo está en curso, utiliza las acciones disponibles para registrar su avance.",
-      "Para terminar una jornada de trabajo, abre el trabajo en curso y pulsa Finalizar jornada. Confirma los datos solicitados antes de guardar.",
-      "Cuando ya no queden jornadas pendientes y el servicio esté terminado, revisa el estado del trabajo y déjalo como realizado/finalizado según las acciones disponibles.",
-      "Usa Volver o Editar desde la parte superior."
-    ],
-    palabras:"trabajo obra servicio cliente material archivo foto nota historial equipo planificación estado finalizar finalizo finalice terminar termino cerrar cierro completar realizado finalizado finalizar jornada"
-  },
-  {
-    id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
-    resumen:"Datos y documentación de clientes.",
-    pasos:[
-      "Busca por los datos disponibles del cliente.",
-      "Abre su ficha cuando esté disponible el modo consulta.",
-      "La edición debe utilizarse solo cuando necesites modificar datos."
-    ],
-    aviso:"Pendiente: permitir abrir la ficha del cliente en modo consulta sin entrar directamente en Editar.",
-    palabras:"cliente contacto teléfono email dirección documentos buscar"
-  },
-  {
-    id:"vehiculos",icono:"🚗",titulo:"Vehículos",roles:["todos"],
-    resumen:"Uso, devolución, incidencias, asistencia e historial de vehículos.",
-    pasos:[
-      "Pulsa Utilizar vehículo cuando esté libre y confirma los kilómetros.",
-      "Si existen incidencias activas, confirma que las conoces antes de continuar.",
-      "Durante el uso puedes consultar la ruta GPS, registrar incidencias o pedir asistencia.",
-      "Al terminar, indica los kilómetros finales y devuelve el vehículo o transfiérelo a otro trabajador.",
-      "La clasificación Laboral/Personal puede consultarse en el historial de uso cuando tengas permiso."
-    ],
-    palabras:"vehículo coche furgoneta usar devolver transferir kilometros km incidencia grua asistencia gps ruta laboral personal"
-  },
-  {
-    id:"solicitudes",icono:"📝",titulo:"Solicitudes",roles:["todos"],
-    resumen:"Vacaciones, permisos, ausencias y justificantes cuando estén habilitados.",
-    pasos:[
-      "Selecciona el tipo de solicitud.",
-      "Indica las fechas y añade justificante cuando corresponda.",
-      "Consulta posteriormente su estado."
-    ],
-    palabras:"solicitud vacaciones permiso ausencia justificante"
-  },
-  {
-    id:"almacen",icono:"📦",titulo:"Almacén",roles:["admin","encargado"],
-    resumen:"Gestión de existencias y movimientos de material.",
-    pasos:[
-      "Consulta existencias antes de registrar movimientos.",
-      "Registra entradas o salidas con la información solicitada.",
-      "Revisa el historial cuando necesites comprobar un movimiento."
-    ],
-    palabras:"almacen stock material existencia entrada salida"
-  },
-  {
-    id:"usuarios",icono:"👤",titulo:"Usuarios",roles:["admin"],
-    resumen:"Gestión de trabajadores, datos, documentación y configuración laboral.",
-    pasos:[
-      "Busca el usuario que quieras consultar o modificar.",
-      "Revisa datos personales, contacto, documentos y datos laborales.",
-      "Comprueba los permisos antes de conceder acceso a funciones administrativas."
-    ],
-    palabras:"usuario trabajador empleado permisos laboral documento horario"
-  },
-  {
-    id:"control_fichajes",icono:"✅",titulo:"Control de fichajes",roles:["admin","encargado"],
-    resumen:"Revisión administrativa de jornadas y fichajes.",
-    pasos:[
-      "Busca al trabajador o la fecha que necesites revisar.",
-      "Comprueba los registros antes de modificarlos.",
-      "Las acciones protegidas requieren autorización y deben conservar el motivo del cambio."
-    ],
-    palabras:"control fichaje jornada modificar borrar pin motivo administrador"
-  },
-  {
-    id:"horas_extra",icono:"➕",titulo:"Horas extra",roles:["admin","encargado"],
-    resumen:"Consulta y gestión de horas adicionales registradas.",
-    pasos:[
-      "Comprueba las horas pendientes del trabajador.",
-      "Valida las horas cuando corresponda.",
-      "Registra el pago o compensación únicamente cuando proceda."
-    ],
-    palabras:"hora extra validar pagar compensar trabajador"
-  },
-  {
-    id:"configuracion",icono:"⚙️",titulo:"Configuración",roles:["admin"],
-    resumen:"Ajustes generales, laborales y módulos disponibles.",
-    pasos:[
-      "Modifica únicamente los parámetros que correspondan a la empresa.",
-      "Revisa horarios, vacaciones, convenio y reglas laborales antes de guardar.",
-      "Evita cambiar módulos o permisos mientras otros usuarios estén trabajando si el cambio puede afectarles."
-    ],
-    palabras:"configuracion ajustes empresa laboral convenio vacaciones permisos modulo"
-  },
-  {
-    id:"monitor",icono:"🖥️",titulo:"Monitor de oficina",roles:["admin","encargado"],
-    resumen:"Panel operativo para pantalla grande con agenda, trabajos, vehículos e incidencias.",
-    pasos:[
-      "Ábrelo desde Trabajos cuando necesites una vista general de oficina.",
-      "Utiliza Pantalla completa para mostrarlo en un monitor.",
-      "Pulsa Salir para regresar a Zentryx."
-    ],
-    palabras:"monitor oficina pantalla grande agenda trabajos vehiculos incidencias"
-  },
-  {
-    id:"desarrollador",icono:"🛠️",titulo:"Desarrollador",roles:["dev"],
-    resumen:"Diagnóstico, salud del sistema y herramientas técnicas.",
-    pasos:[
-      "Revisa primero el diagnóstico y el estado de salud.",
-      "No ejecutes cambios técnicos sobre datos reales sin copia de seguridad.",
-      "Conserva registro de cada modificación de estructura, archivo o servicio."
-    ],
-    palabras:"desarrollador diagnostico salud sistema auditoria tecnico"
-  }
-];
-
 function visiblePara(u,item){
   if(item.roles.includes("todos")) return moduloActivo(item.id);
   if(item.roles.includes("dev") && esDev(u)) return moduloActivo(item.id);
