@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1008 - PRIORIDAD DE ACCION + OBJETO EN CONSULTAS
+// V1009 - REGISTRO COMO MODULO ACTIVO + CONSULTA PENDIENTE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1008";
+const ZX_VERSION="1009";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -926,7 +926,27 @@ function instalarCSS(){
   `;
   document.head.appendChild(s);
 }
+
+function marcarManualActivo(){
+  try{
+    window.ZX_MODULO_ACTUAL="manual";
+    sessionStorage.setItem("zentryx_last_module","manual");
+    localStorage.setItem("zentryx_last_module","manual");
+  }catch(e){}
+
+  try{
+    document.querySelectorAll(".zx_nav_btn").forEach(function(b){
+      b.classList.remove("zx_activo");
+    });
+    const manualBtn=document.querySelector('.zx_nav_btn[data-modulo="manual"]');
+    if(manualBtn) manualBtn.classList.add("zx_activo");
+    const more=document.getElementById("zx_nav_more");
+    if(more) more.classList.add("zx_activo");
+  }catch(e){}
+}
+
 function render(){
+  marcarManualActivo();
   instalarCSS();
   const u=usuario();
   const items=contenidos();
@@ -1083,9 +1103,18 @@ function render(){
 
   buscar.oninput=aplicarBusqueda;
 
-  // El Asistente puede abrir el Manual con una búsqueda ya escrita.
+  // El Asistente puede dejar preparada una consulta antes de abrir el Manual.
+  const pendiente=String(window.ZX_MANUAL_PENDING_QUERY||"").trim();
+  if(pendiente){
+    buscar.value=pendiente;
+    window.ZX_MANUAL_PENDING_QUERY="";
+  }
+
   setTimeout(function(){
-    if(String(buscar.value||"").trim()) aplicarBusqueda();
+    if(String(buscar.value||"").trim()){
+      aplicarBusqueda();
+      try{buscar.focus()}catch(e){}
+    }
   },0);
 }
 
