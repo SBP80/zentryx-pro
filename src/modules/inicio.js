@@ -981,3 +981,4 @@ if(zx() && typeof zx().registrarModulo==="function"){
 console.log("ZENTRYX inicio.js V"+ZX_VERSION+" cargado");
 })();
 
+
