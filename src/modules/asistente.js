@@ -5,8 +5,8 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1008";
-const BASE_KEY="zentryx_asistente_v1008";
+const ZX_VERSION="1009";
+const BASE_KEY="zentryx_asistente_v1009";
 const SESSION_SHOWN_KEY="zentryx_asistente_mostrado_sesion";
 const SNOOZE_HOURS=6;
 
@@ -700,7 +700,11 @@ function iniciar(){
     registrarVisita(ev?.detail?.modulo||"");
   });
 
-  setTimeout(function(){mostrar(true)},1800);
+  setTimeout(function(){
+    if(String(window.ZX_MODULO_ACTUAL||"")==="manual") return;
+    if(document.querySelector(".zx_manual_wrap")) return;
+    mostrar(true);
+  },1800);
 }
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",iniciar,{once:true});
 else iniciar();
