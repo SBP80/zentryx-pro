@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3151 - APERTURA DIRECTA Y DIAGNOSTICA DEL MANUAL
+// V3152 - MANUAL DESDE MENU DE APLICACIONES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3151";
+const ZX_VERSION="3152";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -3537,8 +3537,48 @@ function restaurarModuloActual(){
 
 function abrirModuloPorId(id,opciones){
   if(String(id||"")==="manual"){
-    return abrirManualDirecto();
+    cerrarMenuModulos();
+
+    try{sessionStorage.setItem("zentryx_asistente_mostrado_sesion","1")}catch(e){}
+
+    const fn=window.ZX_abrirManual || window.ZX_manual;
+    if(typeof fn==="function"){
+      try{
+        fn();
+        activo("manual");
+        guardarModuloActual("manual");
+        zxRouterGuardarRutaActual("manual",{source:"menu_aplicaciones"});
+        document.dispatchEvent(new CustomEvent("zentryx:navigation",{
+          detail:{modulo:"manual",opciones:{source:"menu_aplicaciones"},ruta:{modulo:"manual"}}
+        }));
+        return true;
+      }catch(e){
+        console.error("[Zentryx Layout] Manual desde aplicaciones:",e);
+        app().innerHTML=`
+          <div class="zx_card">
+            <h2>📖 Manual de uso</h2>
+            <div class="zx_text">El Manual está cargado pero ha fallado al abrirse.</div>
+            <div class="zx_text" style="margin-top:10px;word-break:break-word;">${limpiar(String(e && (e.stack || e.message) || e))}</div>
+          </div>
+        `;
+        activo("manual");
+        guardarModuloActual("manual");
+        return false;
+      }
+    }
+
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>📖 Manual de uso</h2>
+        <div class="zx_text">No se ha encontrado la función del Manual.</div>
+        <div class="zx_text" style="margin-top:10px;">Versión detectada: ${limpiar(String(window.ZX_MANUAL_VERSION || "no cargado"))}</div>
+      </div>
+    `;
+    activo("manual");
+    guardarModuloActual("manual");
+    return false;
   }
+
   return ZXRouter.open(id,opciones || {});
 }
 
