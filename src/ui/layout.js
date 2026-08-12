@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3150 - APERTURA FIABLE DE MODULOS DESDE MENU
+// V3151 - APERTURA DIRECTA Y DIAGNOSTICA DEL MANUAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3150";
+const ZX_VERSION="3151";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -2066,11 +2066,58 @@ function topbar(){
     userBtn.setAttribute("aria-expanded","false");
   }
 
+  function abrirManualDirecto(){
+    cerrarMenuUsuario();
+    try{cerrarMenuModulos()}catch(e){}
+
+    // Evita que una recomendación automática tape el Manual justo al abrirlo.
+    try{sessionStorage.setItem("zentryx_asistente_mostrado_sesion","1")}catch(e){}
+
+    const fn=window.ZX_abrirManual || window.ZX_manual;
+    if(typeof fn==="function"){
+      try{
+        fn();
+        activo("manual");
+        guardarModuloActual("manual");
+        zxRouterGuardarRutaActual("manual",{source:"manual_directo"});
+        document.dispatchEvent(new CustomEvent("zentryx:navigation",{
+          detail:{modulo:"manual",opciones:{source:"manual_directo"},ruta:{modulo:"manual"}}
+        }));
+        return true;
+      }catch(e){
+        console.error("[Zentryx Layout] Error al abrir Manual:",e);
+        app().innerHTML=`
+          <div class="zx_card">
+            <h2>📖 Manual de uso</h2>
+            <div class="zx_text">El Manual está cargado pero ha fallado al abrirse.</div>
+            <div class="zx_text" style="margin-top:10px;word-break:break-word;">${limpiar(String(e && (e.stack || e.message) || e))}</div>
+          </div>
+        `;
+        activo("manual");
+        return false;
+      }
+    }
+
+    app().innerHTML=`
+      <div class="zx_card">
+        <h2>📖 Manual de uso</h2>
+        <div class="zx_text">El archivo manual.js no ha expuesto ZX_abrirManual / ZX_manual.</div>
+        <div class="zx_text" style="margin-top:10px;">Manual detectado: ${limpiar(String(window.ZX_MANUAL_VERSION || "no cargado"))}</div>
+      </div>
+    `;
+    activo("manual");
+    guardarModuloActual("manual");
+    return false;
+  }
+
   function abrirModuloDesdeMenu(id){
     cerrarMenuUsuario();
 
-    // Primero usar el router real, aunque el módulo no tenga botón visible
-    // en la barra principal.
+    if(String(id||"")==="manual"){
+      return abrirManualDirecto();
+    }
+
+    // Para el resto de módulos se mantiene el router general.
     try{
       if(window.ZX_ROUTER && typeof window.ZX_ROUTER.open==="function"){
         const ok=window.ZX_ROUTER.open(id,{source:"menu_usuario",force:true});
@@ -3489,6 +3536,9 @@ function restaurarModuloActual(){
 }
 
 function abrirModuloPorId(id,opciones){
+  if(String(id||"")==="manual"){
+    return abrirManualDirecto();
+  }
   return ZXRouter.open(id,opciones || {});
 }
 
