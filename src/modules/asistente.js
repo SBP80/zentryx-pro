@@ -5,8 +5,8 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1006";
-const BASE_KEY="zentryx_asistente_v1006";
+const ZX_VERSION="1007";
+const BASE_KEY="zentryx_asistente_v1007";
 const SESSION_SHOWN_KEY="zentryx_asistente_mostrado_sesion";
 const SNOOZE_HOURS=6;
 
@@ -118,35 +118,59 @@ function clickId(id){
 }
 function abrirManual(busqueda){
   quitarPanel();
+
+  const texto=String(busqueda||"");
+  let abierto=false;
+
+  // El Manual debe abrirse a través del router real para que Zentryx
+  // registre el cambio de pantalla y no vuelva inmediatamente a Inicio.
   try{
-    if(typeof window.ZX_manual==="function"){
-      window.ZX_manual();
-    }else{
-      // Respaldo únicamente si el módulo todavía no está disponible.
-      const btn=document.querySelector('.zx_nav_btn[data-modulo="manual"]');
-      if(btn) btn.click();
+    if(window.ZX_ROUTER && typeof window.ZX_ROUTER.open==="function"){
+      abierto=window.ZX_ROUTER.open("manual",{
+        source:"asistente",
+        force:true,
+        restore:false
+      }) !== false;
     }
   }catch(e){
-    console.warn("[Zentryx Asistente] No se pudo abrir el Manual:",e);
+    console.warn("[Zentryx Asistente] Router Manual:",e);
   }
 
+  // Respaldo: si por cualquier motivo el router aún no estuviera disponible,
+  // abrimos el módulo directamente.
+  if(!abierto){
+    try{
+      const fn=window.ZX_abrirManual || window.ZX_manual;
+      if(typeof fn==="function"){
+        fn();
+        abierto=true;
+      }
+    }catch(e){
+      console.warn("[Zentryx Asistente] Manual directo:",e);
+    }
+  }
+
+  // Esperar a que el Manual termine de dibujarse y entonces pasar la consulta.
   let intentos=0;
   const timer=setInterval(function(){
     intentos++;
     try{
       const input=document.getElementById("zx_manual_buscar");
       if(input){
-        input.value=busqueda||"";
+        input.value=texto;
         input.dispatchEvent(new Event("input",{bubbles:true}));
-        input.focus();
+        input.dispatchEvent(new Event("change",{bubbles:true}));
+        try{input.focus()}catch(e){}
         clearInterval(timer);
         return;
       }
     }catch(e){}
-    if(intentos>30) clearInterval(timer);
-  },80);
+    if(intentos>=40){
+      clearInterval(timer);
+      console.warn("[Zentryx Asistente] El buscador del Manual no apareció.");
+    }
+  },100);
 }
-
 function abrirAccion(modulo, ids){
   const candidatos=Array.isArray(ids)?ids:[ids];
   routerAbrir(modulo,function(){
