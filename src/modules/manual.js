@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1012 - FORMAS VERBALES DE ACCIONES EN BUSCADOR
+// V1013 - DISTINCION TRABAJO/TRABAJADOR + FICHAJES ADMIN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1012";
+const ZX_VERSION="1013";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -596,7 +596,7 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"modificar_fichaje_admin", modulo:"control_fichajes", titulo:"Modificar un fichaje",
-    consulta:"modificar fichaje corregir fichaje editar fichaje administrador",
+    consulta:"modificar fichaje corregir fichaje editar fichaje administrador trabajador empleado usuario",
     resumen:"Corrige un fichaje desde las herramientas administrativas dejando registro del cambio.",
     pasos:[
       "Abre Control de fichajes o el panel administrativo de Fichaje.",
@@ -753,7 +753,11 @@ function puntuacionAyudaDirecta(ayuda,consulta){
 function ayudaDirectaPara(consulta){
   const q=tokensManual(consulta);
   const set=new Set(q);
-  const tiene=(raiz)=>[...set].some(x=>x===raiz || x.startsWith(raiz) || raiz.startsWith(x));
+  const tiene=(raiz)=>[...set].some(function(x){
+    // "trabajador" no debe activar "trabajo".
+    if(raiz==="trabaj" && (x.startsWith("trabajador") || x.startsWith("emplead") || x.startsWith("usuari"))) return false;
+    return x===raiz || x.startsWith(raiz) || raiz.startsWith(x);
+  });
   const porId=(id)=>AYUDAS_DIRECTAS.find(x=>x.id===id) || null;
 
   // 1) ACCIONES FUERTES: tienen prioridad sobre el tipo de objeto.
@@ -801,10 +805,10 @@ function ayudaDirectaPara(consulta){
   // Fichaje y control de fichajes
   if(tiene("fich") || tiene("jornad")){
     if(tiene("borr") || tiene("elimin")){
-      if(tiene("admin") || tiene("control")) return porId("borrar_fichaje_admin");
+      return porId("borrar_fichaje_admin");
     }
     if(tiene("modific") || tiene("correg") || tiene("edit")){
-      if(tiene("admin") || tiene("control")) return porId("modificar_fichaje_admin");
+      return porId("modificar_fichaje_admin");
     }
     if(tiene("descans") || tiene("paus")) return porId("fichaje_descanso");
     if(tiene("comid")) return porId("fichaje_comida");
