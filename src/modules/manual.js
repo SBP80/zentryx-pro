@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1009 - REGISTRO COMO MODULO ACTIVO + CONSULTA PENDIENTE
+// V1011 - BASE RESTAURADA + FORZADO DE CARGA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1009";
+const ZX_VERSION="1011";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -861,6 +861,159 @@ function ayudaDirectaPara(consulta){
   if(segundo && primero.score-segundo.score<3) return null;
   return primero.ayuda;
 }
+
+const BASE=[
+  {
+    id:"inicio",icono:"🏠",titulo:"Inicio",roles:["todos"],
+    resumen:"Tu pantalla diaria: jornada, vehículo y trabajos previstos.",
+    pasos:[
+      "Comprueba el estado de tu jornada al entrar.",
+      "Revisa el vehículo que tengas asignado, si aparece.",
+      "Consulta los trabajos del día y abre Agenda cuando necesites ver próximas fechas."
+    ],
+    palabras:"inicio jornada hoy vehículo asignado agenda trabajos"
+  },
+  {
+    id:"fichaje",icono:"⏱️",titulo:"Fichaje",roles:["todos"],
+    resumen:"Registro de entrada, descansos, comida y salida.",
+    pasos:[
+      "Pulsa la acción correspondiente al estado de tu jornada.",
+      "Confirma el fichaje cuando Zentryx lo solicite.",
+      "Si utilizas vehículo, revisa los kilómetros solicitados al inicio o al cierre.",
+      "Consulta Mis jornadas para revisar tus registros."
+    ],
+    palabras:"fichar entrada salida descanso comida jornada horas ubicación gps"
+  },
+  {
+    id:"agenda",icono:"📅",titulo:"Agenda",roles:["todos"],
+    resumen:"Calendario de eventos, trabajos, horarios y participantes.",
+    pasos:[
+      "Selecciona el día que quieras consultar.",
+      "Abre un evento o trabajo para ver su información.",
+      "Usa el botón superior Volver para regresar sin recorrer toda la pantalla.",
+      "Si tienes permiso de edición, utiliza Editar desde la parte superior."
+    ],
+    palabras:"agenda calendario evento cita horario participante responsable dirección"
+  },
+  {
+    id:"trabajos",icono:"🛠️",titulo:"Trabajos",roles:["todos"],
+    resumen:"Consulta y ejecución de trabajos, materiales, archivos e historial.",
+    pasos:[
+      "Abre el trabajo que tengas que realizar.",
+      "Comprueba cliente, dirección, estado, equipo y planificación.",
+      "Consulta materiales, archivos, notas e historial cuando sea necesario.",
+      "Si el trabajo está en curso, utiliza las acciones disponibles para registrar su avance.",
+      "Para terminar una jornada de trabajo, abre el trabajo en curso y pulsa Finalizar jornada. Confirma los datos solicitados antes de guardar.",
+      "Cuando ya no queden jornadas pendientes y el servicio esté terminado, revisa el estado del trabajo y déjalo como realizado/finalizado según las acciones disponibles.",
+      "Usa Volver o Editar desde la parte superior."
+    ],
+    palabras:"trabajo obra servicio cliente material archivo foto nota historial equipo planificación estado finalizar finalizo finalice terminar termino cerrar cierro completar realizado finalizado finalizar jornada"
+  },
+  {
+    id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
+    resumen:"Datos y documentación de clientes.",
+    pasos:[
+      "Busca por los datos disponibles del cliente.",
+      "Abre su ficha cuando esté disponible el modo consulta.",
+      "La edición debe utilizarse solo cuando necesites modificar datos."
+    ],
+    aviso:"Pendiente: permitir abrir la ficha del cliente en modo consulta sin entrar directamente en Editar.",
+    palabras:"cliente contacto teléfono email dirección documentos buscar"
+  },
+  {
+    id:"vehiculos",icono:"🚗",titulo:"Vehículos",roles:["todos"],
+    resumen:"Uso, devolución, incidencias, asistencia e historial de vehículos.",
+    pasos:[
+      "Pulsa Utilizar vehículo cuando esté libre y confirma los kilómetros.",
+      "Si existen incidencias activas, confirma que las conoces antes de continuar.",
+      "Durante el uso puedes consultar la ruta GPS, registrar incidencias o pedir asistencia.",
+      "Al terminar, indica los kilómetros finales y devuelve el vehículo o transfiérelo a otro trabajador.",
+      "La clasificación Laboral/Personal puede consultarse en el historial de uso cuando tengas permiso."
+    ],
+    palabras:"vehículo coche furgoneta usar devolver transferir kilometros km incidencia grua asistencia gps ruta laboral personal"
+  },
+  {
+    id:"solicitudes",icono:"📝",titulo:"Solicitudes",roles:["todos"],
+    resumen:"Vacaciones, permisos, ausencias y justificantes cuando estén habilitados.",
+    pasos:[
+      "Selecciona el tipo de solicitud.",
+      "Indica las fechas y añade justificante cuando corresponda.",
+      "Consulta posteriormente su estado."
+    ],
+    palabras:"solicitud vacaciones permiso ausencia justificante"
+  },
+  {
+    id:"almacen",icono:"📦",titulo:"Almacén",roles:["admin","encargado"],
+    resumen:"Gestión de existencias y movimientos de material.",
+    pasos:[
+      "Consulta existencias antes de registrar movimientos.",
+      "Registra entradas o salidas con la información solicitada.",
+      "Revisa el historial cuando necesites comprobar un movimiento."
+    ],
+    palabras:"almacen stock material existencia entrada salida"
+  },
+  {
+    id:"usuarios",icono:"👤",titulo:"Usuarios",roles:["admin"],
+    resumen:"Gestión de trabajadores, datos, documentación y configuración laboral.",
+    pasos:[
+      "Busca el usuario que quieras consultar o modificar.",
+      "Revisa datos personales, contacto, documentos y datos laborales.",
+      "Comprueba los permisos antes de conceder acceso a funciones administrativas."
+    ],
+    palabras:"usuario trabajador empleado permisos laboral documento horario"
+  },
+  {
+    id:"control_fichajes",icono:"✅",titulo:"Control de fichajes",roles:["admin","encargado"],
+    resumen:"Revisión administrativa de jornadas y fichajes.",
+    pasos:[
+      "Busca al trabajador o la fecha que necesites revisar.",
+      "Comprueba los registros antes de modificarlos.",
+      "Las acciones protegidas requieren autorización y deben conservar el motivo del cambio."
+    ],
+    palabras:"control fichaje jornada modificar borrar pin motivo administrador"
+  },
+  {
+    id:"horas_extra",icono:"➕",titulo:"Horas extra",roles:["admin","encargado"],
+    resumen:"Consulta y gestión de horas adicionales registradas.",
+    pasos:[
+      "Comprueba las horas pendientes del trabajador.",
+      "Valida las horas cuando corresponda.",
+      "Registra el pago o compensación únicamente cuando proceda."
+    ],
+    palabras:"hora extra validar pagar compensar trabajador"
+  },
+  {
+    id:"configuracion",icono:"⚙️",titulo:"Configuración",roles:["admin"],
+    resumen:"Ajustes generales, laborales y módulos disponibles.",
+    pasos:[
+      "Modifica únicamente los parámetros que correspondan a la empresa.",
+      "Revisa horarios, vacaciones, convenio y reglas laborales antes de guardar.",
+      "Evita cambiar módulos o permisos mientras otros usuarios estén trabajando si el cambio puede afectarles."
+    ],
+    palabras:"configuracion ajustes empresa laboral convenio vacaciones permisos modulo"
+  },
+  {
+    id:"monitor",icono:"🖥️",titulo:"Monitor de oficina",roles:["admin","encargado"],
+    resumen:"Panel operativo para pantalla grande con agenda, trabajos, vehículos e incidencias.",
+    pasos:[
+      "Ábrelo desde Trabajos cuando necesites una vista general de oficina.",
+      "Utiliza Pantalla completa para mostrarlo en un monitor.",
+      "Pulsa Salir para regresar a Zentryx."
+    ],
+    palabras:"monitor oficina pantalla grande agenda trabajos vehiculos incidencias"
+  },
+  {
+    id:"desarrollador",icono:"🛠️",titulo:"Desarrollador",roles:["dev"],
+    resumen:"Diagnóstico, salud del sistema y herramientas técnicas.",
+    pasos:[
+      "Revisa primero el diagnóstico y el estado de salud.",
+      "No ejecutes cambios técnicos sobre datos reales sin copia de seguridad.",
+      "Conserva registro de cada modificación de estructura, archivo o servicio."
+    ],
+    palabras:"desarrollador diagnostico salud sistema auditoria tecnico"
+  }
+];
+
 function visiblePara(u,item){
   if(item.roles.includes("todos")) return moduloActivo(item.id);
   if(item.roles.includes("dev") && esDev(u)) return moduloActivo(item.id);
