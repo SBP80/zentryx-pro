@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1011 - BASE RESTAURADA + FORZADO DE CARGA
+// V1012 - FORMAS VERBALES DE ACCIONES EN BUSCADOR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1011";
+const ZX_VERSION="1012";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -32,7 +32,22 @@ function raizManual(p){
   return p;
 }
 function tokensManual(v){
-  const alias={finalizo:"finalizar",finalice:"finalizar",finalizar:"finalizar",termino:"finalizar",terminar:"finalizar",cierro:"finalizar",cerrar:"finalizar",completo:"finalizar",completar:"finalizar",obra:"trabajo",servicio:"trabajo"};
+  const alias={
+    finalizo:"finalizar",finalice:"finalizar",finaliza:"finalizar",finalizar:"finalizar",finalizado:"finalizar",
+    termino:"finalizar",termina:"finalizar",terminar:"finalizar",
+    cierro:"finalizar",cierra:"finalizar",cerrar:"finalizar",
+    completo:"finalizar",completa:"finalizar",completar:"finalizar",
+    apruebo:"aprobar",aprueba:"aprobar",apruebe:"aprobar",aprobar:"aprobar",aprobado:"aprobar",aprobada:"aprobar",
+    rechazo:"rechazar",rechaza:"rechazar",rechace:"rechazar",rechazar:"rechazar",rechazado:"rechazar",rechazada:"rechazar",
+    deniego:"denegar",deniega:"denegar",denegar:"denegar",denegado:"denegar",denegada:"denegar",
+    elimino:"eliminar",elimina:"eliminar",eliminar:"eliminar",eliminado:"eliminar",eliminada:"eliminar",
+    borro:"borrar",borra:"borrar",borrar:"borrar",borrado:"borrar",borrada:"borrar",
+    cancelo:"cancelar",cancela:"cancelar",cancelar:"cancelar",cancelado:"cancelar",cancelada:"cancelar",
+    transfiero:"transferir",transfiere:"transferir",transferir:"transferir",transferido:"transferir",
+    modifico:"modificar",modifica:"modificar",modificar:"modificar",modificado:"modificar",
+    edito:"editar",edita:"editar",editar:"editar",editado:"editar",
+    obra:"trabajo",servicio:"trabajo"
+  };
   return normalizar(v).replace(/[^a-z0-9ñ]+/g," ").split(/\s+/).filter(Boolean).map(x=>alias[x]||x).filter(x=>!ZX_STOPWORDS.has(x)).map(raizManual).filter(Boolean);
 }
 function puntuacionManual(item,consulta){
