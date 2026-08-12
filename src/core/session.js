@@ -377,3 +377,4 @@ startActivityControl();
 console.log("Zentryx session.js V"+ZX_VERSION+" cargado");
 
 })();
+
