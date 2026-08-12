@@ -5,8 +5,8 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1005";
-const BASE_KEY="zentryx_asistente_v1005";
+const ZX_VERSION="1006";
+const BASE_KEY="zentryx_asistente_v1006";
 const SESSION_SHOWN_KEY="zentryx_asistente_mostrado_sesion";
 const SNOOZE_HOURS=6;
 
@@ -117,14 +117,34 @@ function clickId(id){
   return true;
 }
 function abrirManual(busqueda){
-  routerAbrir("manual",function(){
-    const input=document.getElementById("zx_manual_buscar");
-    if(!input) return false;
-    input.value=busqueda||"";
-    input.dispatchEvent(new Event("input",{bubbles:true}));
-    input.focus();
-    return true;
-  });
+  quitarPanel();
+  try{
+    if(typeof window.ZX_manual==="function"){
+      window.ZX_manual();
+    }else{
+      // Respaldo únicamente si el módulo todavía no está disponible.
+      const btn=document.querySelector('.zx_nav_btn[data-modulo="manual"]');
+      if(btn) btn.click();
+    }
+  }catch(e){
+    console.warn("[Zentryx Asistente] No se pudo abrir el Manual:",e);
+  }
+
+  let intentos=0;
+  const timer=setInterval(function(){
+    intentos++;
+    try{
+      const input=document.getElementById("zx_manual_buscar");
+      if(input){
+        input.value=busqueda||"";
+        input.dispatchEvent(new Event("input",{bubbles:true}));
+        input.focus();
+        clearInterval(timer);
+        return;
+      }
+    }catch(e){}
+    if(intentos>30) clearInterval(timer);
+  },80);
 }
 
 function abrirAccion(modulo, ids){
@@ -306,7 +326,7 @@ function recomendaciones(){
       titulo:"¿Quieres conocer Zentryx?",
       texto:"El Manual está adaptado a tu rol y tiene buscador.",
       accion:"Abrir Manual",
-      run:function(){routerAbrir("manual")}
+      run:function(){abrirManual("")}
     });
   }
 
@@ -436,7 +456,7 @@ function mostrar(automatico){
     titulo:"¿Qué quieres hacer?",
     texto:"Escribe lo que necesitas y buscaré la mejor ruta dentro de Zentryx.",
     accion:"Abrir Manual",
-    run:function(){routerAbrir("manual")}
+    run:function(){abrirManual("")}
   };
   const p=document.createElement("div");
   p.id="zx_assistant_panel";
