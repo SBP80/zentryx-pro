@@ -1,12 +1,12 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3159 - RUTA INTELIGENTE Y DIRECCIONES DE CLIENTES
+// V3161 - PROTECCION CONTRA RENDER ASINCRONO OBSOLETO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3159";
-const CACHE_PREFIX="zentryx_mi_dia_v3159";
+const ZX_VERSION="3161";
+const CACHE_PREFIX="zentryx_mi_dia_v3161";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
 let ZX_MI_DIA_RENDER=0;
@@ -906,10 +906,18 @@ window.ZENTRYX_UI_inicio=async function(){
   `;
 
   const data=await cargarMiDia();
+
+  // Si el usuario ha abierto otro módulo mientras Inicio esperaba datos,
+  // esta carga antigua no puede volver a pintar Inicio encima de esa pantalla.
   if(renderId!==ZX_MI_DIA_RENDER) return;
+  if(!contenedor.querySelector(".zx_md")) return;
+  if(window.ZX_MODULO_ACTUAL && String(window.ZX_MODULO_ACTUAL)!=="inicio") return;
 
   const actual=proximoTrabajo(data.trabajos);
   const hoyCount=(data.trabajos || []).filter(t=>fechaTrabajo(t)===hoy()).length;
+
+  if(!contenedor.querySelector(".zx_md")) return;
+  if(window.ZX_MODULO_ACTUAL && String(window.ZX_MODULO_ACTUAL)!=="inicio") return;
 
   contenedor.innerHTML=`
     <div class="zx_md">
