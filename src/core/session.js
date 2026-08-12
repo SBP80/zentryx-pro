@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3319";
+const ZX_VERSION="3321";
 
 const SESSION_KEY="zentryx_session";
 const USER_KEY="usuario";
@@ -377,4 +377,3 @@ startActivityControl();
 console.log("Zentryx session.js V"+ZX_VERSION+" cargado");
 
 })();
-
