@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1028 - DIRECCIONES DE CLIENTES
+// V1029 - TELEFONOS Y EMAILS DE CLIENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1028";
+const ZX_VERSION="1029";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -892,6 +892,15 @@ function puntuacionAyudaDirecta(ayuda,consulta){
 }
 function ayudaDirectaPara(consulta){
   const textoNormalizado=normalizar(consulta||"").replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
+
+  // Teléfonos y emails de cliente: resolver antes que "crear cliente".
+  if(
+    /\b(cliente|clientes)\b/.test(textoNormalizado) &&
+    /\b(telefono|telefonos|movil|moviles|email|emails|correo|correos)\b/.test(textoNormalizado) &&
+    /\b(anado|añado|anadir|añadir|agrego|agregar|cambio|cambiar|modifico|modificar|edito|editar)\b/.test(textoNormalizado)
+  ){
+    return AYUDAS_DIRECTAS.find(x=>x.id==="editar_cliente") || null;
+  }
 
   // Direcciones de cliente: resolver antes que "crear cliente".
   if(
