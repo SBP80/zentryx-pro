@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1013 - DISTINCION TRABAJO/TRABAJADOR + FICHAJES ADMIN
+// V1014 - PRIORIDAD DE PLANIFICACION EN TRABAJOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1013";
+const ZX_VERSION="1014";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -303,7 +303,7 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"planificar_trabajo", modulo:"trabajos", titulo:"Planificar un trabajo",
-    consulta:"planificar trabajo fecha horario responsable participantes equipo jornadas",
+    consulta:"planificar trabajo fecha cambiar fecha horario cambiar horario responsable cambiar responsable participantes añadir participantes quitar participantes equipo jornadas",
     resumen:"Asigna fecha, horario y personas al trabajo.",
     pasos:["Abre el trabajo desde Trabajos.","Entra en Editar trabajo.","Selecciona el responsable principal y las personas que acudirán.","Añade o modifica la planificación con fecha y horario.","Guarda y comprueba que aparece correctamente en Agenda."]
   },
@@ -775,8 +775,20 @@ function ayudaDirectaPara(consulta){
       if(tiene("jornad") || tiene("dia") || tiene("visita")) return porId("finalizar_jornada_trabajo");
       return porId("finalizar_trabajo");
     }
+
+    // Fecha, horario, responsable, participantes, equipo y jornadas son
+    // planificación aunque la consulta use verbos genéricos como cambiar/modificar.
+    if(
+      tiene("planific") ||
+      tiene("fecha") ||
+      tiene("horari") ||
+      tiene("participant") ||
+      tiene("respons") ||
+      tiene("equipo") ||
+      tiene("jornad")
+    ) return porId("planificar_trabajo");
+
     if(tiene("edit") || tiene("modific") || tiene("cambi")) return porId("editar_trabajo");
-    if(tiene("planific") || tiene("horari") || tiene("participant") || tiene("respons")) return porId("planificar_trabajo");
     if(tiene("material")) return porId("materiales_trabajo");
     if(tiene("archiv") || tiene("foto") || tiene("document")) return porId("archivos_trabajo");
     if(tiene("nota") || tiene("coment") || tiene("seguim")) return porId("notas_trabajo");
