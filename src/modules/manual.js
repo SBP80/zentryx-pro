@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1024 - CONSULTA ESPECIFICA DE TRABAJOS
+// V1025 - CONSULTA DE TRABAJOS BLINDADA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1024";
+const ZX_VERSION="1025";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -879,6 +879,18 @@ function puntuacionAyudaDirecta(ayuda,consulta){
   return score;
 }
 function ayudaDirectaPara(consulta){
+  const textoNormalizado=normalizar(consulta||"").replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
+
+  // Consulta de trabajo: comprobación directa antes del sistema general.
+  // Evita que "consulto/ver/abrir un trabajo" caiga en la tarjeta genérica de Trabajos.
+  if(
+    /\b(consulto|consultar|veo|ver|abro|abrir|reviso|revisar)\b/.test(textoNormalizado) &&
+    /\b(trabajo|obra|servicio)\b/.test(textoNormalizado) &&
+    !/\b(nota|notas|historial|material|materiales|archivo|archivos|foto|fotos|documento|documentos)\b/.test(textoNormalizado)
+  ){
+    return AYUDAS_DIRECTAS.find(x=>x.id==="consultar_trabajo") || null;
+  }
+
   const q=tokensManual(consulta);
   const set=new Set(q);
   const tiene=(raiz)=>[...set].some(function(x){
