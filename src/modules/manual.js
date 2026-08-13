@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1032 - CREAR CLIENTE EMPRESA
+// V1033 - CONTENIDO CLIENTE EMPRESA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1032";
+const ZX_VERSION="1033";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -294,13 +294,14 @@ const AYUDAS_DIRECTAS=[
     id:"crear_cliente",
     modulo:"clientes",
     titulo:"Crear un cliente",
-    consulta:"crear cliente nuevo cliente dar alta cliente",
-    resumen:"Registra un cliente nuevo desde el módulo Clientes.",
+    consulta:"crear cliente nuevo cliente dar alta cliente crear cliente empresa alta empresa cliente",
+    resumen:"Registra un cliente nuevo, ya sea una persona o una empresa.",
     pasos:[
       "Entra en Clientes y pulsa Crear.",
-      "Selecciona el tipo de cliente y completa sus datos principales.",
-      "Añade los datos de contacto y direcciones que correspondan.",
-      "Guarda y comprueba que aparece en el listado."
+      "Selecciona el tipo de cliente: Persona o Empresa.",
+      "Si eliges Empresa, completa los datos fiscales y de identificación que correspondan, además de la persona de contacto cuando proceda.",
+      "Añade teléfonos, emails y direcciones.",
+      "Guarda y comprueba que el cliente aparece en el listado."
     ]
   },
   {
