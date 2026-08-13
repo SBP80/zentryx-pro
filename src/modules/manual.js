@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1030 - BUSCAR CLIENTES
+// V1031 - BUSCAR CLIENTES / RECARGA FORZADA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1030";
+const ZX_VERSION="1031";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
