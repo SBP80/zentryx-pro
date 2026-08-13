@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1018 - ACCIONES ESPECIFICAS PARA ARCHIVOS Y FOTOS DE TRABAJO
+// V1019 - NORMALIZACION VER/CONSULTAR ARCHIVOS Y FOTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1018";
+const ZX_VERSION="1019";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -50,6 +50,11 @@ function tokensManual(v){
     agrego:"anadir",agrega:"anadir",agregar:"anadir",
     incorporo:"anadir",incorpora:"anadir",incorporar:"anadir",
     quito:"quitar",quita:"quitar",quitar:"quitar",quitado:"quitar",
+    veo:"ver",ve:"ver",ver:"ver",visto:"ver",
+    consulto:"consultar",consulta:"consultar",consultar:"consultar",
+    abro:"abrir",abre:"abrir",abrir:"abrir",
+    visualizo:"ver",visualiza:"ver",visualizar:"ver",
+    muestro:"ver",muestra:"ver",mostrar:"ver",
     obra:"trabajo",servicio:"trabajo"
   };
   return normalizar(v).replace(/[^a-z0-9ñ]+/g," ").split(/\s+/).filter(Boolean).map(x=>alias[x]||x).filter(x=>!ZX_STOPWORDS.has(x)).map(raizManual).filter(Boolean);
