@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1033 - CONTENIDO CLIENTE EMPRESA
+// V1034 - USUARIOS COMPLETO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1033";
+const ZX_VERSION="1034";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -302,6 +302,131 @@ const AYUDAS_DIRECTAS=[
       "Si eliges Empresa, completa los datos fiscales y de identificación que correspondan, además de la persona de contacto cuando proceda.",
       "Añade teléfonos, emails y direcciones.",
       "Guarda y comprueba que el cliente aparece en el listado."
+    ]
+  },
+  {
+    id:"consultar_usuario",
+    modulo:"usuarios",
+    titulo:"Consultar un usuario",
+    consulta:"consultar usuario ver usuario abrir usuario ficha usuario",
+    resumen:"Abre la ficha de un usuario para consultar sus datos.",
+    pasos:[
+      "Entra en Usuarios.",
+      "Localiza el usuario que quieras consultar.",
+      "Abre su ficha.",
+      "Revisa sus datos personales, de contacto, laborales, documentos, rol y permisos.",
+      "Usa Editar solo si necesitas modificar algún dato."
+    ]
+  },
+  {
+    id:"buscar_usuario",
+    modulo:"usuarios",
+    titulo:"Buscar un usuario",
+    consulta:"buscar usuario localizar usuario encontrar usuario buscar trabajador buscar empleado",
+    resumen:"Localiza un usuario desde el buscador del módulo Usuarios.",
+    pasos:[
+      "Entra en Usuarios.",
+      "Usa el buscador del listado.",
+      "Escribe alguno de los datos disponibles del usuario.",
+      "Revisa los resultados y abre el usuario que corresponda."
+    ]
+  },
+  {
+    id:"eliminar_usuario",
+    modulo:"usuarios",
+    titulo:"Eliminar un usuario",
+    consulta:"eliminar usuario borrar usuario eliminar trabajador borrar empleado",
+    resumen:"Elimina un usuario mediante la protección administrativa correspondiente.",
+    pasos:[
+      "Entra en Usuarios y abre el usuario.",
+      "Pulsa Eliminar o la acción equivalente cuando esté disponible.",
+      "Confirma la acción.",
+      "Introduce la autorización administrativa que Zentryx solicite.",
+      "Indica el motivo si se solicita y confirma el borrado."
+    ]
+  },
+  {
+    id:"anadir_documento_usuario",
+    modulo:"usuarios",
+    titulo:"Añadir un documento a un usuario",
+    consulta:"añadir documento usuario anadir documento usuario subir documento usuario adjuntar archivo usuario",
+    resumen:"Añade documentación a la ficha de un usuario.",
+    pasos:[
+      "Abre Usuarios y selecciona la persona.",
+      "Entra en Documentos.",
+      "Pulsa la opción para añadir o subir un archivo.",
+      "Selecciona el documento y completa los datos necesarios.",
+      "Guarda y comprueba que aparece asociado al usuario."
+    ]
+  },
+  {
+    id:"consultar_documento_usuario",
+    modulo:"usuarios",
+    titulo:"Consultar un documento de un usuario",
+    consulta:"consultar documento usuario ver documento usuario abrir documento usuario revisar archivo usuario",
+    resumen:"Consulta un documento guardado en la ficha de un usuario.",
+    pasos:[
+      "Abre Usuarios y selecciona la persona.",
+      "Entra en Documentos.",
+      "Localiza el documento que quieras consultar.",
+      "Ábrelo o usa la vista disponible para revisarlo."
+    ]
+  },
+  {
+    id:"eliminar_documento_usuario",
+    modulo:"usuarios",
+    titulo:"Eliminar un documento de un usuario",
+    consulta:"eliminar documento usuario borrar documento usuario quitar documento usuario eliminar archivo usuario",
+    resumen:"Elimina un documento asociado al usuario sin borrar al usuario.",
+    pasos:[
+      "Abre Usuarios y selecciona la persona.",
+      "Entra en Documentos.",
+      "Localiza el documento que quieras eliminar.",
+      "Pulsa Eliminar o Borrar.",
+      "Confirma la acción cuando Zentryx lo solicite.",
+      "Comprueba que el documento ya no aparece."
+    ]
+  },
+  {
+    id:"desactivar_usuario",
+    modulo:"usuarios",
+    titulo:"Desactivar un usuario",
+    consulta:"desactivar usuario inactivar usuario bloquear usuario deshabilitar usuario",
+    resumen:"Desactiva el acceso de un usuario sin borrar su ficha.",
+    pasos:[
+      "Entra en Usuarios y abre el usuario.",
+      "Pulsa Editar o la acción de estado disponible.",
+      "Cambia su estado a inactivo o desactivado.",
+      "Confirma la autorización administrativa si Zentryx la solicita.",
+      "Guarda y comprueba que el usuario ya no queda activo."
+    ]
+  },
+  {
+    id:"activar_usuario",
+    modulo:"usuarios",
+    titulo:"Volver a activar un usuario",
+    consulta:"activar usuario reactivar usuario volver activar usuario habilitar usuario",
+    resumen:"Devuelve a estado activo un usuario desactivado.",
+    pasos:[
+      "Entra en Usuarios y localiza el usuario desactivado.",
+      "Abre su ficha.",
+      "Usa la acción para activar o cambia su estado a activo.",
+      "Confirma la autorización administrativa si Zentryx la solicita.",
+      "Guarda y comprueba que vuelve a figurar como activo."
+    ]
+  },
+  {
+    id:"cambiar_pin_usuario",
+    modulo:"usuarios",
+    titulo:"Cambiar el PIN de un usuario",
+    consulta:"cambiar pin usuario modificar pin usuario nuevo pin usuario restablecer pin usuario",
+    resumen:"Cambia el PIN de acceso de un usuario mediante los controles administrativos.",
+    pasos:[
+      "Entra en Usuarios y abre el usuario.",
+      "Accede a la opción de edición o seguridad correspondiente.",
+      "Selecciona la opción para cambiar o restablecer el PIN.",
+      "Completa la autorización administrativa que Zentryx solicite.",
+      "Guarda el nuevo PIN y comprueba que el cambio queda aplicado."
     ]
   },
   {
@@ -904,6 +1029,36 @@ function puntuacionAyudaDirecta(ayuda,consulta){
 }
 function ayudaDirectaPara(consulta){
   const textoNormalizado=normalizar(consulta||"").replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
+
+  // Usuarios: resolver antes que Solicitudes, Fichaje, Trabajos y tarjetas generales.
+  if(/\b(usuario|usuarios|trabajador|trabajadores|empleado|empleados)\b/.test(textoNormalizado)){
+    if(/\b(documento|documentos|archivo|archivos)\b/.test(textoNormalizado)){
+      if(/\b(elimino|eliminar|borro|borrar|quito|quitar)\b/.test(textoNormalizado))
+        return AYUDAS_DIRECTAS.find(x=>x.id==="eliminar_documento_usuario") || null;
+      if(/\b(anado|añado|anadir|añadir|subo|subir|adjunto|adjuntar)\b/.test(textoNormalizado))
+        return AYUDAS_DIRECTAS.find(x=>x.id==="anadir_documento_usuario") || null;
+      if(/\b(veo|ver|consulto|consultar|abro|abrir|reviso|revisar)\b/.test(textoNormalizado))
+        return AYUDAS_DIRECTAS.find(x=>x.id==="consultar_documento_usuario") || null;
+    }
+
+    if(/\b(elimino|eliminar|borro|borrar)\b/.test(textoNormalizado))
+      return AYUDAS_DIRECTAS.find(x=>x.id==="eliminar_usuario") || null;
+
+    if(/\b(busco|buscar|localizo|localizar|encuentro|encontrar)\b/.test(textoNormalizado))
+      return AYUDAS_DIRECTAS.find(x=>x.id==="buscar_usuario") || null;
+
+    if(/\b(consulto|consultar|veo|ver|abro|abrir)\b/.test(textoNormalizado))
+      return AYUDAS_DIRECTAS.find(x=>x.id==="consultar_usuario") || null;
+
+    if(/\b(desactivo|desactivar|inactivo|inactivar|bloqueo|bloquear|deshabilito|deshabilitar)\b/.test(textoNormalizado))
+      return AYUDAS_DIRECTAS.find(x=>x.id==="desactivar_usuario") || null;
+
+    if(/\b(reactivo|reactivar|activo|activar|habilito|habilitar)\b/.test(textoNormalizado))
+      return AYUDAS_DIRECTAS.find(x=>x.id==="activar_usuario") || null;
+
+    if(/\b(pin)\b/.test(textoNormalizado) && /\b(cambio|cambiar|modifico|modificar|restablezco|restablecer|nuevo)\b/.test(textoNormalizado))
+      return AYUDAS_DIRECTAS.find(x=>x.id==="cambiar_pin_usuario") || null;
+  }
 
   // Crear cliente empresa: resolver antes de cualquier regla de Trabajos o Configuración.
   if(
