@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1020 - REABRIR O REACTIVAR TRABAJOS TERMINADOS
+// V1021 - ARCHIVAR Y RESTAURAR TRABAJOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1020";
+const ZX_VERSION="1021";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -57,6 +57,9 @@ function tokensManual(v){
     muestro:"ver",muestra:"ver",mostrar:"ver",
     reabro:"reabrir",reabre:"reabrir",reabrir:"reabrir",reabierto:"reabrir",reabierta:"reabrir",
     reactivo:"reabrir",reactiva:"reabrir",reactivar:"reabrir",reactivado:"reabrir",reactivada:"reabrir",
+    archivo:"archivar",archiva:"archivar",archivar:"archivar",archivado:"archivar",archivada:"archivar",
+    restauro:"restaurar",restaura:"restaurar",restaurar:"restaurar",restaurado:"restaurar",restaurada:"restaurar",
+    recupero:"restaurar",recupera:"restaurar",recuperar:"restaurar",
     obra:"trabajo",servicio:"trabajo"
   };
   return normalizar(v).replace(/[^a-z0-9ñ]+/g," ").split(/\s+/).filter(Boolean).map(x=>alias[x]||x).filter(x=>!ZX_STOPWORDS.has(x)).map(raizManual).filter(Boolean);
@@ -200,6 +203,34 @@ const AYUDAS_DIRECTAS=[
       "Pulsa Finalizar jornada.",
       "Revisa y confirma la información que Zentryx solicite antes de guardar.",
       "El trabajo puede seguir pendiente si tiene más jornadas planificadas."
+    ]
+  },
+  {
+    id:"archivar_trabajo",
+    modulo:"trabajos",
+    titulo:"Archivar un trabajo",
+    consulta:"archivar trabajo terminado archivar trabajo finalizado guardar trabajo en archivados mover trabajo a archivados",
+    resumen:"Mueve un trabajo terminado o que ya no necesitas ver entre los trabajos activos al apartado de archivados.",
+    pasos:[
+      "Abre Trabajos y localiza el trabajo que quieras archivar.",
+      "Abre la ficha del trabajo.",
+      "Pulsa Archivar cuando la acción esté disponible.",
+      "Confirma la acción si Zentryx lo solicita.",
+      "Comprueba que el trabajo deja de aparecer entre los activos y queda disponible en Archivados."
+    ]
+  },
+  {
+    id:"restaurar_trabajo",
+    modulo:"trabajos",
+    titulo:"Restaurar un trabajo archivado",
+    consulta:"restaurar trabajo archivado recuperar trabajo archivado sacar trabajo de archivados volver trabajo archivado a activos",
+    resumen:"Devuelve un trabajo archivado al listado normal para poder consultarlo o gestionarlo de nuevo.",
+    pasos:[
+      "Abre Trabajos y entra en Archivados.",
+      "Localiza y abre el trabajo que quieras recuperar.",
+      "Pulsa Restaurar cuando la acción esté disponible.",
+      "Confirma la acción si Zentryx lo solicita.",
+      "Comprueba que el trabajo vuelve a aparecer en el listado correspondiente."
     ]
   },
   {
@@ -841,6 +872,8 @@ function ayudaDirectaPara(consulta){
 
   // Trabajos
   if(tiene("trabaj")){
+    if(tiene("archivar")) return porId("archivar_trabajo");
+    if(tiene("restaurar")) return porId("restaurar_trabajo");
     if(tiene("reabrir")) return porId("reabrir_trabajo");
 
     if(tiene("finaliz") || tiene("termin") || tiene("cerr")){
