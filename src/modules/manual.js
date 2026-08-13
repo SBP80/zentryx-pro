@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1022 - PRIORIDAD RESTAURAR Y ESTADO ARCHIVADO
+// V1023 - BORRADO DEFINITIVO DE TRABAJOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1022";
+const ZX_VERSION="1023";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -203,6 +203,21 @@ const AYUDAS_DIRECTAS=[
       "Pulsa Finalizar jornada.",
       "Revisa y confirma la información que Zentryx solicite antes de guardar.",
       "El trabajo puede seguir pendiente si tiene más jornadas planificadas."
+    ]
+  },
+  {
+    id:"eliminar_trabajo",
+    modulo:"trabajos",
+    titulo:"Eliminar definitivamente un trabajo",
+    consulta:"eliminar definitivamente trabajo borrar definitivamente trabajo eliminar trabajo borrar trabajo destruir trabajo",
+    resumen:"Borra de forma definitiva un trabajo usando la protección administrativa correspondiente.",
+    pasos:[
+      "Abre Trabajos y localiza el trabajo que quieras eliminar definitivamente.",
+      "Abre la ficha del trabajo.",
+      "Pulsa Eliminar o Borrar definitivamente cuando la acción esté disponible.",
+      "Confirma la acción y completa la autorización administrativa que Zentryx solicite.",
+      "Indica el motivo del borrado si se solicita y confirma de nuevo.",
+      "Comprueba que el trabajo ya no aparece en activos ni archivados."
     ]
   },
   {
@@ -872,6 +887,7 @@ function ayudaDirectaPara(consulta){
 
   // Trabajos
   if(tiene("trabaj")){
+    if(tiene("elimin") || tiene("borr")) return porId("eliminar_trabajo");
     if(tiene("restaurar")) return porId("restaurar_trabajo");
     if(tiene("archivar")) return porId("archivar_trabajo");
     if(tiene("reabrir")) return porId("reabrir_trabajo");
