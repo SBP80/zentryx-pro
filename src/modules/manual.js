@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1017 - ACCIONES ESPECIFICAS PARA NOTAS DE TRABAJO
+// V1018 - ACCIONES ESPECIFICAS PARA ARCHIVOS Y FOTOS DE TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1017";
+const ZX_VERSION="1018";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -319,9 +319,33 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"archivos_trabajo", modulo:"trabajos", titulo:"Añadir archivos o fotos a un trabajo",
-    consulta:"archivo trabajo foto trabajo subir archivo documento trabajo adjuntar",
+    consulta:"añadir archivo trabajo añadir foto trabajo subir archivo subir foto adjuntar documento trabajo",
     resumen:"Guarda fotos y documentos asociados al trabajo.",
     pasos:["Abre el trabajo.","Ve al apartado Archivos.","Selecciona el archivo o foto que quieras subir.","Añade nombre o notas si corresponde y confirma la subida.","Comprueba que aparece en la ficha del trabajo."]
+  },
+  {
+    id:"editar_archivo_trabajo", modulo:"trabajos", titulo:"Renombrar o modificar un archivo de un trabajo",
+    consulta:"renombrar archivo trabajo modificar archivo trabajo editar archivo trabajo cambiar nombre foto archivo",
+    resumen:"Cambia el nombre o los datos disponibles de un archivo asociado al trabajo.",
+    pasos:["Abre el trabajo.","Ve al apartado Archivos.","Localiza el archivo o foto que quieras cambiar.","Pulsa Renombrar o Editar según la opción disponible.","Guarda y comprueba que el cambio queda reflejado."]
+  },
+  {
+    id:"eliminar_archivo_trabajo", modulo:"trabajos", titulo:"Eliminar un archivo o foto de un trabajo",
+    consulta:"eliminar archivo trabajo borrar archivo trabajo eliminar foto trabajo borrar foto trabajo quitar documento trabajo",
+    resumen:"Elimina un archivo o una foto asociados al trabajo.",
+    pasos:["Abre el trabajo.","Ve al apartado Archivos.","Localiza el archivo o foto que quieras eliminar.","Pulsa Eliminar y confirma la acción cuando Zentryx lo solicite.","Comprueba que el archivo ya no aparece en la ficha del trabajo."]
+  },
+  {
+    id:"consultar_archivo_trabajo", modulo:"trabajos", titulo:"Consultar archivos o fotos de un trabajo",
+    consulta:"ver archivo trabajo consultar archivo trabajo ver foto trabajo consultar foto trabajo abrir documento trabajo vista previa",
+    resumen:"Consulta los archivos, fotos y documentos asociados al trabajo.",
+    pasos:["Abre el trabajo.","Ve al apartado Archivos.","Localiza el archivo, foto o documento.","Ábrelo o usa la vista previa disponible para consultarlo."]
+  },
+  {
+    id:"compartir_archivo_trabajo", modulo:"trabajos", titulo:"Compartir un archivo de un trabajo",
+    consulta:"compartir archivo trabajo compartir foto trabajo enviar archivo trabajo enviar documento trabajo",
+    resumen:"Comparte un archivo o documento asociado al trabajo usando las opciones disponibles.",
+    pasos:["Abre el trabajo.","Ve al apartado Archivos.","Localiza el archivo que quieras compartir.","Pulsa Compartir.","Elige el destino o aplicación disponible y completa el envío."]
   },
   {
     id:"notas_trabajo", modulo:"trabajos", titulo:"Añadir una nota a un trabajo",
@@ -833,9 +857,16 @@ function ayudaDirectaPara(consulta){
       return porId("notas_trabajo");
     }
 
+    if(tiene("archiv") || tiene("foto") || tiene("document")){
+      if(tiene("elimin") || tiene("borr") || tiene("quitar")) return porId("eliminar_archivo_trabajo");
+      if(tiene("compart") || tiene("enviar")) return porId("compartir_archivo_trabajo");
+      if(tiene("renombr") || tiene("edit") || tiene("modific") || tiene("cambi")) return porId("editar_archivo_trabajo");
+      if(tiene("ver") || tiene("consult") || tiene("abrir") || tiene("vista")) return porId("consultar_archivo_trabajo");
+      return porId("archivos_trabajo");
+    }
+
     if(tiene("edit") || tiene("modific") || tiene("cambi")) return porId("editar_trabajo");
     if(tiene("material")) return porId("materiales_trabajo");
-    if(tiene("archiv") || tiene("foto") || tiene("document")) return porId("archivos_trabajo");
     if(tiene("crear") || tiene("nuevo") || tiene("alta") || tiene("anad")) return porId("crear_trabajo");
   }
 
