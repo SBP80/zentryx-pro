@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1016 - SEPARACION ESTRICTA TRABAJO/TRABAJADOR
+// V1017 - ACCIONES ESPECIFICAS PARA NOTAS DE TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1016";
+const ZX_VERSION="1017";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -325,9 +325,27 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"notas_trabajo", modulo:"trabajos", titulo:"Añadir una nota a un trabajo",
-    consulta:"nota trabajo comentario trabajo historial trabajo seguimiento trabajo",
+    consulta:"añadir nota trabajo nueva nota comentario trabajo registrar nota seguimiento trabajo",
     resumen:"Registra información de seguimiento dentro del trabajo.",
     pasos:["Abre el trabajo.","Ve al apartado de notas o historial.","Escribe la información que quieras dejar registrada.","Guarda y comprueba que queda asociada al trabajo."]
+  },
+  {
+    id:"editar_nota_trabajo", modulo:"trabajos", titulo:"Modificar una nota de un trabajo",
+    consulta:"editar nota trabajo modificar nota trabajo cambiar nota corregir nota",
+    resumen:"Modifica una nota existente asociada a un trabajo.",
+    pasos:["Abre el trabajo.","Ve al apartado de notas o historial.","Localiza la nota que quieras modificar.","Pulsa Editar o Modificar, realiza el cambio y guarda.","Comprueba que la información actualizada queda asociada al trabajo."]
+  },
+  {
+    id:"eliminar_nota_trabajo", modulo:"trabajos", titulo:"Eliminar una nota de un trabajo",
+    consulta:"eliminar nota trabajo borrar nota trabajo quitar nota",
+    resumen:"Elimina una nota existente del trabajo.",
+    pasos:["Abre el trabajo.","Ve al apartado de notas o historial.","Localiza la nota que quieras eliminar.","Pulsa Eliminar y confirma la acción cuando Zentryx lo solicite.","Comprueba que la nota ya no aparece en el apartado correspondiente."]
+  },
+  {
+    id:"consultar_notas_trabajo", modulo:"trabajos", titulo:"Consultar notas e historial de un trabajo",
+    consulta:"ver notas trabajo consultar notas trabajo historial trabajo seguimiento trabajo",
+    resumen:"Consulta la información de seguimiento registrada en el trabajo.",
+    pasos:["Abre el trabajo.","Ve al apartado de notas o historial.","Revisa las notas y registros disponibles.","Usa la información mostrada para consultar el seguimiento del trabajo."]
   },
   {
     id:"abrir_trabajo_agenda", modulo:"agenda", titulo:"Abrir un trabajo desde Agenda",
@@ -807,10 +825,17 @@ function ayudaDirectaPara(consulta){
       tiene("jornad")
     ) return porId("planificar_trabajo");
 
+    // Las acciones sobre notas tienen prioridad sobre la edición general del trabajo.
+    if(tiene("nota") || tiene("coment") || tiene("seguim") || tiene("historial")){
+      if(tiene("elimin") || tiene("borr") || tiene("quitar")) return porId("eliminar_nota_trabajo");
+      if(tiene("edit") || tiene("modific") || tiene("cambi") || tiene("correg")) return porId("editar_nota_trabajo");
+      if(tiene("ver") || tiene("consult") || tiene("historial")) return porId("consultar_notas_trabajo");
+      return porId("notas_trabajo");
+    }
+
     if(tiene("edit") || tiene("modific") || tiene("cambi")) return porId("editar_trabajo");
     if(tiene("material")) return porId("materiales_trabajo");
     if(tiene("archiv") || tiene("foto") || tiene("document")) return porId("archivos_trabajo");
-    if(tiene("nota") || tiene("coment") || tiene("seguim")) return porId("notas_trabajo");
     if(tiene("crear") || tiene("nuevo") || tiene("alta") || tiene("anad")) return porId("crear_trabajo");
   }
 
