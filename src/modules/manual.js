@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1023 - BORRADO DEFINITIVO DE TRABAJOS
+// V1024 - CONSULTA ESPECIFICA DE TRABAJOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1023";
+const ZX_VERSION="1024";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -203,6 +203,21 @@ const AYUDAS_DIRECTAS=[
       "Pulsa Finalizar jornada.",
       "Revisa y confirma la información que Zentryx solicite antes de guardar.",
       "El trabajo puede seguir pendiente si tiene más jornadas planificadas."
+    ]
+  },
+  {
+    id:"consultar_trabajo",
+    modulo:"trabajos",
+    titulo:"Consultar un trabajo",
+    consulta:"consultar trabajo ver trabajo abrir trabajo ficha trabajo revisar trabajo",
+    resumen:"Abre la ficha de un trabajo para consultar sus datos sin modificarlo.",
+    pasos:[
+      "Entra en Trabajos.",
+      "Localiza el trabajo que quieras consultar.",
+      "Abre su ficha.",
+      "Revisa cliente, dirección, estado, responsable, participantes y planificación.",
+      "Consulta materiales, archivos, notas e historial cuando lo necesites.",
+      "Usa Editar solo si realmente necesitas cambiar algún dato."
     ]
   },
   {
@@ -887,6 +902,15 @@ function ayudaDirectaPara(consulta){
 
   // Trabajos
   if(tiene("trabaj")){
+    if(
+      (tiene("consult") || tiene("ver") || tiene("abrir") || tiene("revis")) &&
+      !tiene("nota") &&
+      !tiene("historial") &&
+      !tiene("archiv") &&
+      !tiene("foto") &&
+      !tiene("document") &&
+      !tiene("material")
+    ) return porId("consultar_trabajo");
     if(tiene("elimin") || tiene("borr")) return porId("eliminar_trabajo");
     if(tiene("restaurar")) return porId("restaurar_trabajo");
     if(tiene("archivar")) return porId("archivar_trabajo");
