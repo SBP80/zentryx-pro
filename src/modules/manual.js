@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1027 - ELIMINAR DOCUMENTO DE CLIENTE BLINDADO
+// V1028 - DIRECCIONES DE CLIENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1027";
+const ZX_VERSION="1028";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -892,6 +892,15 @@ function puntuacionAyudaDirecta(ayuda,consulta){
 }
 function ayudaDirectaPara(consulta){
   const textoNormalizado=normalizar(consulta||"").replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
+
+  // Direcciones de cliente: resolver antes que "crear cliente".
+  if(
+    /\b(cliente|clientes)\b/.test(textoNormalizado) &&
+    /\b(direccion|direcciones|domicilio|domicilios)\b/.test(textoNormalizado) &&
+    /\b(anado|añado|anadir|añadir|agrego|agregar|cambio|cambiar|modifico|modificar|edito|editar)\b/.test(textoNormalizado)
+  ){
+    return AYUDAS_DIRECTAS.find(x=>x.id==="editar_cliente") || null;
+  }
 
   // Documentos de cliente: resolver antes que "eliminar cliente".
   if(
