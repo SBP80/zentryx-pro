@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1014 - PRIORIDAD DE PLANIFICACION EN TRABAJOS
+// V1015 - PARTICIPANTES Y EQUIPO PRIORIZAN PLANIFICACION
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1014";
+const ZX_VERSION="1015";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -46,6 +46,10 @@ function tokensManual(v){
     transfiero:"transferir",transfiere:"transferir",transferir:"transferir",transferido:"transferir",
     modifico:"modificar",modifica:"modificar",modificar:"modificar",modificado:"modificar",
     edito:"editar",edita:"editar",editar:"editar",editado:"editar",
+    anado:"anadir",anade:"anadir",anadir:"anadir",anadido:"anadir",
+    agrego:"anadir",agrega:"anadir",agregar:"anadir",
+    incorporo:"anadir",incorpora:"anadir",incorporar:"anadir",
+    quito:"quitar",quita:"quitar",quitar:"quitar",quitado:"quitar",
     obra:"trabajo",servicio:"trabajo"
   };
   return normalizar(v).replace(/[^a-z0-9ñ]+/g," ").split(/\s+/).filter(Boolean).map(x=>alias[x]||x).filter(x=>!ZX_STOPWORDS.has(x)).map(raizManual).filter(Boolean);
@@ -303,7 +307,7 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"planificar_trabajo", modulo:"trabajos", titulo:"Planificar un trabajo",
-    consulta:"planificar trabajo fecha cambiar fecha horario cambiar horario responsable cambiar responsable participantes añadir participantes quitar participantes equipo jornadas",
+    consulta:"planificar trabajo fecha cambiar fecha horario cambiar horario responsable cambiar responsable participantes añadir participantes quitar participantes añadir trabajador quitar trabajador añadir usuario quitar usuario equipo personas jornadas",
     resumen:"Asigna fecha, horario y personas al trabajo.",
     pasos:["Abre el trabajo desde Trabajos.","Entra en Editar trabajo.","Selecciona el responsable principal y las personas que acudirán.","Añade o modifica la planificación con fecha y horario.","Guarda y comprueba que aparece correctamente en Agenda."]
   },
@@ -778,7 +782,19 @@ function ayudaDirectaPara(consulta){
 
     // Fecha, horario, responsable, participantes, equipo y jornadas son
     // planificación aunque la consulta use verbos genéricos como cambiar/modificar.
+    const cambiaPersonas=
+      (tiene("anadir") || tiene("quitar") || tiene("cambi") || tiene("modific")) &&
+      (
+        tiene("trabajador") ||
+        tiene("emplead") ||
+        tiene("usuari") ||
+        tiene("persona") ||
+        tiene("participant") ||
+        tiene("equipo")
+      );
+
     if(
+      cambiaPersonas ||
       tiene("planific") ||
       tiene("fecha") ||
       tiene("horari") ||
