@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1026 - DOCUMENTOS DE CLIENTES
+// V1027 - ELIMINAR DOCUMENTO DE CLIENTE BLINDADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1026";
+const ZX_VERSION="1027";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -892,6 +892,15 @@ function puntuacionAyudaDirecta(ayuda,consulta){
 }
 function ayudaDirectaPara(consulta){
   const textoNormalizado=normalizar(consulta||"").replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
+
+  // Documentos de cliente: resolver antes que "eliminar cliente".
+  if(
+    /\b(elimino|eliminar|borro|borrar|quito|quitar)\b/.test(textoNormalizado) &&
+    /\b(documento|documentos|archivo|archivos)\b/.test(textoNormalizado) &&
+    /\b(cliente|clientes)\b/.test(textoNormalizado)
+  ){
+    return AYUDAS_DIRECTAS.find(x=>x.id==="eliminar_documento_cliente") || null;
+  }
 
   // Consulta de trabajo: comprobación directa antes del sistema general.
   // Evita que "consulto/ver/abrir un trabajo" caiga en la tarjeta genérica de Trabajos.
