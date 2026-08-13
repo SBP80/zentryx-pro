@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1015 - PARTICIPANTES Y EQUIPO PRIORIZAN PLANIFICACION
+// V1016 - SEPARACION ESTRICTA TRABAJO/TRABAJADOR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1015";
+const ZX_VERSION="1016";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -758,8 +758,11 @@ function ayudaDirectaPara(consulta){
   const q=tokensManual(consulta);
   const set=new Set(q);
   const tiene=(raiz)=>[...set].some(function(x){
-    // "trabajador" no debe activar "trabajo".
+    // Separación estricta entre "trabajo" y "trabajador":
+    // - trabajador/empleado/usuario no deben activar "trabajo"
+    // - "trabajo" tampoco debe contar como "trabajador"
     if(raiz==="trabaj" && (x.startsWith("trabajador") || x.startsWith("emplead") || x.startsWith("usuari"))) return false;
+    if((raiz==="trabajador" || raiz.startsWith("trabajador")) && x==="trabaj") return false;
     return x===raiz || x.startsWith(raiz) || raiz.startsWith(x);
   });
   const porId=(id)=>AYUDAS_DIRECTAS.find(x=>x.id===id) || null;
