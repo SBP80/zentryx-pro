@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1031 - BUSCAR CLIENTES / RECARGA FORZADA
+// V1032 - CREAR CLIENTE EMPRESA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1031";
+const ZX_VERSION="1032";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -903,6 +903,15 @@ function puntuacionAyudaDirecta(ayuda,consulta){
 }
 function ayudaDirectaPara(consulta){
   const textoNormalizado=normalizar(consulta||"").replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
+
+  // Crear cliente empresa: resolver antes de cualquier regla de Trabajos o Configuración.
+  if(
+    /\b(creo|crear|nuevo|nueva|alta|anado|añado|anadir|añadir)\b/.test(textoNormalizado) &&
+    /\b(cliente|clientes)\b/.test(textoNormalizado) &&
+    /\b(empresa|sociedad|negocio)\b/.test(textoNormalizado)
+  ){
+    return AYUDAS_DIRECTAS.find(x=>x.id==="crear_cliente") || null;
+  }
 
   // Buscar cliente: resolver antes de la tarjeta general de Clientes.
   if(
