@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1029 - TELEFONOS Y EMAILS DE CLIENTES
+// V1030 - BUSCAR CLIENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1029";
+const ZX_VERSION="1030";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -538,6 +538,17 @@ const AYUDAS_DIRECTAS=[
     pasos:["Entra en Fichaje con un usuario autorizado.","Pulsa Ver panel admin.","Busca o selecciona el usuario y la jornada que quieras revisar.","Usa las acciones administrativas disponibles respetando PIN y motivos cuando Zentryx los solicite."]
   },
   {
+    id:"buscar_cliente", modulo:"clientes", titulo:"Buscar un cliente",
+    consulta:"buscar cliente localizar cliente encontrar cliente buscar clientes",
+    resumen:"Localiza un cliente usando el buscador del módulo Clientes.",
+    pasos:[
+      "Entra en Clientes.",
+      "Usa el buscador del listado.",
+      "Escribe uno de los datos disponibles del cliente.",
+      "Revisa los resultados y abre el cliente que corresponda."
+    ]
+  },
+  {
     id:"editar_cliente", modulo:"clientes", titulo:"Editar un cliente",
     consulta:"editar cliente modificar cliente cambiar datos cliente",
     resumen:"Modifica los datos guardados de un cliente.",
@@ -892,6 +903,14 @@ function puntuacionAyudaDirecta(ayuda,consulta){
 }
 function ayudaDirectaPara(consulta){
   const textoNormalizado=normalizar(consulta||"").replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
+
+  // Buscar cliente: resolver antes de la tarjeta general de Clientes.
+  if(
+    /\b(busco|buscar|localizo|localizar|encuentro|encontrar)\b/.test(textoNormalizado) &&
+    /\b(cliente|clientes)\b/.test(textoNormalizado)
+  ){
+    return AYUDAS_DIRECTAS.find(x=>x.id==="buscar_cliente") || null;
+  }
 
   // Teléfonos y emails de cliente: resolver antes que "crear cliente".
   if(
