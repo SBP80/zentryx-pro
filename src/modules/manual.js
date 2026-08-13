@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1019 - NORMALIZACION VER/CONSULTAR ARCHIVOS Y FOTOS
+// V1020 - REABRIR O REACTIVAR TRABAJOS TERMINADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1019";
+const ZX_VERSION="1020";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -55,6 +55,8 @@ function tokensManual(v){
     abro:"abrir",abre:"abrir",abrir:"abrir",
     visualizo:"ver",visualiza:"ver",visualizar:"ver",
     muestro:"ver",muestra:"ver",mostrar:"ver",
+    reabro:"reabrir",reabre:"reabrir",reabrir:"reabrir",reabierto:"reabrir",reabierta:"reabrir",
+    reactivo:"reabrir",reactiva:"reabrir",reactivar:"reabrir",reactivado:"reabrir",reactivada:"reabrir",
     obra:"trabajo",servicio:"trabajo"
   };
   return normalizar(v).replace(/[^a-z0-9ñ]+/g," ").split(/\s+/).filter(Boolean).map(x=>alias[x]||x).filter(x=>!ZX_STOPWORDS.has(x)).map(raizManual).filter(Boolean);
@@ -198,6 +200,20 @@ const AYUDAS_DIRECTAS=[
       "Pulsa Finalizar jornada.",
       "Revisa y confirma la información que Zentryx solicite antes de guardar.",
       "El trabajo puede seguir pendiente si tiene más jornadas planificadas."
+    ]
+  },
+  {
+    id:"reabrir_trabajo",
+    modulo:"trabajos",
+    titulo:"Reabrir un trabajo terminado",
+    consulta:"reabrir trabajo terminado reactivar trabajo finalizado volver a abrir trabajo reabrir servicio terminado",
+    resumen:"Devuelve un trabajo terminado a un estado activo o pendiente para poder continuar gestionándolo.",
+    pasos:[
+      "Abre Trabajos y localiza el trabajo terminado o finalizado.",
+      "Abre la ficha del trabajo.",
+      "Usa la acción disponible para reabrir, reactivar o cambiar su estado a Pendiente/En curso.",
+      "Confirma el cambio si Zentryx lo solicita.",
+      "Comprueba que el trabajo vuelve a figurar entre los trabajos activos y revisa su planificación antes de continuar."
     ]
   },
   {
@@ -825,6 +841,8 @@ function ayudaDirectaPara(consulta){
 
   // Trabajos
   if(tiene("trabaj")){
+    if(tiene("reabrir")) return porId("reabrir_trabajo");
+
     if(tiene("finaliz") || tiene("termin") || tiene("cerr")){
       if(tiene("jornad") || tiene("dia") || tiene("visita")) return porId("finalizar_jornada_trabajo");
       return porId("finalizar_trabajo");
