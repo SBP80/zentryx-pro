@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1021 - ARCHIVAR Y RESTAURAR TRABAJOS
+// V1022 - PRIORIDAD RESTAURAR Y ESTADO ARCHIVADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1021";
+const ZX_VERSION="1022";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -57,7 +57,7 @@ function tokensManual(v){
     muestro:"ver",muestra:"ver",mostrar:"ver",
     reabro:"reabrir",reabre:"reabrir",reabrir:"reabrir",reabierto:"reabrir",reabierta:"reabrir",
     reactivo:"reabrir",reactiva:"reabrir",reactivar:"reabrir",reactivado:"reabrir",reactivada:"reabrir",
-    archivo:"archivar",archiva:"archivar",archivar:"archivar",archivado:"archivar",archivada:"archivar",
+    archivo:"archivar",archiva:"archivar",archivar:"archivar",archivado:"archivado",archivada:"archivado",
     restauro:"restaurar",restaura:"restaurar",restaurar:"restaurar",restaurado:"restaurar",restaurada:"restaurar",
     recupero:"restaurar",recupera:"restaurar",recuperar:"restaurar",
     obra:"trabajo",servicio:"trabajo"
@@ -872,8 +872,8 @@ function ayudaDirectaPara(consulta){
 
   // Trabajos
   if(tiene("trabaj")){
-    if(tiene("archivar")) return porId("archivar_trabajo");
     if(tiene("restaurar")) return porId("restaurar_trabajo");
+    if(tiene("archivar")) return porId("archivar_trabajo");
     if(tiene("reabrir")) return porId("reabrir_trabajo");
 
     if(tiene("finaliz") || tiene("termin") || tiene("cerr")){
