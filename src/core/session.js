@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3345";
+const ZX_VERSION="3346";
 
 const SESSION_KEY="zentryx_session";
 const USER_KEY="usuario";
