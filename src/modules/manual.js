@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1025 - CONSULTA DE TRABAJOS BLINDADA
+// V1026 - DOCUMENTOS DE CLIENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1025";
+const ZX_VERSION="1026";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -545,9 +545,21 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"documentos_cliente", modulo:"clientes", titulo:"Gestionar documentos de un cliente",
-    consulta:"documentos cliente archivo cliente subir documento cliente",
-    resumen:"Consulta o añade documentación asociada al cliente.",
+    consulta:"añadir documento cliente subir documento cliente adjuntar archivo cliente",
+    resumen:"Añade documentación asociada al cliente.",
     pasos:["Abre el cliente correspondiente.","Entra en Documentos.","Selecciona el archivo que quieras subir si tienes permiso.","Guarda y comprueba que queda asociado al cliente."]
+  },
+  {
+    id:"consultar_documento_cliente", modulo:"clientes", titulo:"Consultar un documento de un cliente",
+    consulta:"consultar documento cliente ver documento cliente abrir documento cliente revisar archivo cliente",
+    resumen:"Consulta un documento guardado dentro de la ficha del cliente.",
+    pasos:["Abre el cliente correspondiente.","Entra en Documentos.","Localiza el documento que quieras consultar.","Ábrelo o usa la vista disponible para revisarlo."]
+  },
+  {
+    id:"eliminar_documento_cliente", modulo:"clientes", titulo:"Eliminar un documento de un cliente",
+    consulta:"eliminar documento cliente borrar documento cliente quitar documento cliente eliminar archivo cliente borrar archivo cliente",
+    resumen:"Elimina un documento asociado al cliente sin borrar el cliente.",
+    pasos:["Abre el cliente correspondiente.","Entra en Documentos.","Localiza el documento que quieras eliminar.","Pulsa Eliminar o Borrar.","Confirma la acción cuando Zentryx lo solicite.","Comprueba que el documento ya no aparece en la ficha del cliente."]
   },
   {
     id:"eliminar_cliente", modulo:"clientes", titulo:"Eliminar un cliente",
@@ -1034,9 +1046,14 @@ function ayudaDirectaPara(consulta){
 
   // Clientes
   if(tiene("client")){
+    if(tiene("document") || tiene("archiv")){
+      if(tiene("elimin") || tiene("borr") || tiene("quitar")) return porId("eliminar_documento_cliente");
+      if(tiene("consult") || tiene("ver") || tiene("abrir") || tiene("revis")) return porId("consultar_documento_cliente");
+      return porId("documentos_cliente");
+    }
+
     if(tiene("elimin") || tiene("borr")) return porId("eliminar_cliente");
     if(tiene("edit") || tiene("modific") || tiene("cambi")) return porId("editar_cliente");
-    if(tiene("document") || tiene("archiv")) return porId("documentos_cliente");
     if(tiene("crear") || tiene("nuevo") || tiene("alta") || tiene("anad")) return porId("crear_cliente");
   }
 
