@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - TRABAJOS
-// V3205 - USO ACUMULATIVO DE MATERIALES
+// V3206 - CONSERVA PREPARACION Y USO AL EDITAR CANTIDAD
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3205";
+const ZX_VERSION="3206";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -5069,12 +5069,25 @@ async function abrirMaterial(id,material){
       let cantidadFinal=data.cantidad;
 
       if(editando){
+        // Conserva los registros operativos ya realizados al editar la ficha.
+        // Cambiar la cantidad necesaria no debe borrar lo preparado/utilizado
+        // ni convertir automáticamente las nuevas unidades en preparadas.
+        const cantidadNueva=Math.max(0,Number(data.cantidad || 0));
+        const preparadaAnterior=Math.max(0,cantidadPreparadaMaterial(material));
+        const usadaAnterior=Math.max(0,cantidadUsadaMaterial(material));
+        const preparadaConservada=Math.min(cantidadNueva,preparadaAnterior);
+        const usadaConservada=Math.min(cantidadNueva,usadaAnterior);
+        const notasConEstado=notasConUsado(
+          notasConPreparado(data.notas,preparadaConservada,imagenMaterial(material)),
+          usadaConservada
+        );
         const cambios={
           nombre:nombre,
           material:nombre,
-          cantidad:data.cantidad,
+          cantidad:cantidadNueva,
           unidad:data.unidad,
-          notas:data.notas,
+          notas:notasConEstado,
+          preparado:preparadaConservada>=cantidadNueva && cantidadNueva>0,
           referencia:data.referencia,proveedor:data.proveedor,precio_compra:data.precio_compra,precio_venta:data.precio_venta
         };
         r=await actualizarMaterialCompatible(material.id,cambios);
