@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V3347</title>
+<title>Zentryx PRO V3348</title>
 
 <link rel="manifest" href="manifest.json?v=3191">
 <meta name="theme-color" content="#2563eb">
@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3347";
+window.ZX_VERSION="3348";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -59,7 +59,7 @@ window.supabaseClient=window.sb;
 <script src="src/modules/desarrollador_diagnostico.js?v=1002&build=20260805c"></script>
 <script src="src/modules/agenda.js?v=3155&build=20260803c"></script>
 <script src="src/modules/clientes.js?v=3110"></script>
-<script src="src/modules/trabajos.js?v=3205&build=20260804e"></script>
+<script src="src/modules/trabajos.js?v=3214&build=20260814a"></script>
 <script src="src/modules/almacen.js?v=1010&build=20260805d"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <!-- control_fichajes.js permanece desactivado: es una copia antigua de fichaje.js y sobrescribe ZX_fichaje_real. -->
@@ -155,6 +155,8 @@ if(document.readyState==="loading"){
     border-color:#cbd5e1;
     background:#fff;
   }
+  #zx_modal_trabajo.zx_tr_fullscreen .zx_global_top_actions,
+  #zx_modal_trabajo:has(.zx_tr_full_header) .zx_global_top_actions{display:none!important}
   @media(max-width:560px){
     .zx_global_top_actions{padding-top:5px;gap:6px}
     .zx_global_top_actions button{padding:8px 10px;font-size:.84rem}
@@ -201,7 +203,17 @@ if(document.readyState==="loading"){
     if(root.id==="zx_modal_vehiculo" || root.querySelector(".zx_modal_top_actions")) return;
 
     const caja=cajaDe(root);
-    if(!caja || caja.querySelector(":scope > .zx_global_top_actions")) return;
+    if(!caja) return;
+
+    // La ficha completa de Trabajos ya tiene su propia cabecera superior contextual
+    // (Agenda/Trabajos + título). No crear un segundo botón Volver global.
+    if(root.id==="zx_modal_trabajo" && caja.querySelector(".zx_tr_full_header")){
+      const previa=caja.querySelector(":scope > .zx_global_top_actions");
+      if(previa) previa.remove();
+      return;
+    }
+
+    if(caja.querySelector(":scope > .zx_global_top_actions")) return;
 
     const candidatos=Array.from(caja.querySelectorAll("button,a,[role='button']"))
       .filter(function(el){
