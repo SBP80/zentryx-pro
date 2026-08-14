@@ -1,5 +1,5 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3210
+// ZENTRYX PRO - TRABAJOS V3211
 // V3206 - CONSERVA PREPARACION Y USO AL EDITAR CANTIDAD
 // ===============================
 (function(){
@@ -4378,14 +4378,36 @@ async function actualizarMaterialCompatible(materialId,data){
 }
 
 async function eliminarMaterial(trabajoId,materialId){
-  if(!confirm("¿Eliminar este material?")) return;
   if(!navigator.onLine || !sb()){alert("Necesitas conexión para eliminar materiales.");return}
   try{
     const actual=await sb().from("trabajos_materiales").select("*").eq("id",String(materialId)).maybeSingle();
+    if(actual && actual.error) throw actual.error;
+
+    const material=actual && actual.data ? actual.data : null;
+    const nombre=material ? (material.nombre || material.material || "Material") : "Material";
+    const unidad=material?.unidad || "ud";
+    const preparada=Math.max(0,Number(cantidadPreparadaMaterial(material) || 0));
+    const usada=Math.max(0,Number(cantidadUsadaMaterial(material) || 0));
+
+    let mensaje="¿Eliminar este material?";
+    if(preparada>0 || usada>0){
+      mensaje=
+        "Este material ya tiene movimientos registrados.\n\n"+
+        "Preparado: "+preparada+" "+unidad+"\n"+
+        "Utilizado: "+usada+" "+unidad+"\n\n"+
+        "Si lo eliminas, desaparecerá de la lista del trabajo.\n"+
+        "¿Quieres eliminarlo de todas formas?";
+    }
+    if(!confirm(mensaje)) return;
+
     const r=await sb().from("trabajos_materiales").delete().eq("id",String(materialId));
     if(r.error) throw r.error;
-    const nombre=actual && actual.data ? (actual.data.nombre || actual.data.material || "Material") : "Material";
-    await registrarHistorial(trabajoId,"material","Material eliminado: "+nombre,{material_id:materialId});
+    await registrarHistorial(
+      trabajoId,
+      "material",
+      "Material eliminado: "+nombre,
+      {material_id:materialId,preparado:preparada,utilizado:usada,unidad:unidad}
+    );
     await abrirListaMateriales(trabajoId);
   }catch(e){
     alert("No se pudo eliminar el material."+(mensajeError(e) ? "\n\n"+mensajeError(e) : ""));
