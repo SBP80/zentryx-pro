@@ -3710,7 +3710,12 @@ function cantidadUsadaMaterial(material){
 }
 
 function notasConUsado(notas,cantidad){
-  const base=limpiarMetadatosInternosMaterial(notas);
+  // Conserva el resto de metadatos internos del material (preparación, imagen, etc.)
+  // y sustituye únicamente el contador de uso.
+  const base=String(notas || "")
+    .replace(/\[\[ZX_MAT_USED:[^\]]*\]\]/gi,"")
+    .replace(/\n{3,}/g,"\n\n")
+    .trim();
   const valor=Math.max(0,Number(cantidad || 0));
   return [base,`[[ZX_MAT_USED:${valor}]]`].filter(Boolean).join("\n");
 }
