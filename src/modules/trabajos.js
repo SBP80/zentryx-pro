@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3215
-// V3215 - JORNADA DE AGENDA FIJA + CIERRE INDEPENDIENTE POR DIA
+// ZENTRYX PRO - TRABAJOS V3216
+// V3216 - ESTADO DEL TRABAJO SEPARADO DEL ESTADO DE LA JORNADA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3215";
+const ZX_VERSION="3216";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2020,13 +2020,14 @@ function estadoJornadaTexto(estado){
 function accionPrincipalJornada(t,jornada,totalJornadas){
   if(!jornada) return accionPrincipalTrabajo(t);
   const estado=String(jornada.estado || "activo");
-  const multi=Number(totalJornadas || 0)>1;
 
+  // Esta acción pertenece siempre a la jornada seleccionada.
+  // El estado general del trabajo se muestra y gestiona por separado.
   if(estado==="en_curso"){
     return {
       clase:"zx_tr_finish",
       icono:"✅",
-      texto:multi ? "Finalizar jornada" : "Finalizar trabajo",
+      texto:"Finalizar jornada",
       accion:"terminar_jornada"
     };
   }
@@ -2034,7 +2035,7 @@ function accionPrincipalJornada(t,jornada,totalJornadas){
     return {
       clase:"zx_tr_done",
       icono:"✓",
-      texto:multi ? "Jornada realizada" : "Trabajo finalizado",
+      texto:"Jornada realizada",
       accion:"ninguna"
     };
   }
@@ -2044,7 +2045,7 @@ function accionPrincipalJornada(t,jornada,totalJornadas){
   return {
     clase:"zx_tr_start",
     icono:"▶",
-    texto:multi ? "Iniciar jornada" : "Iniciar trabajo",
+    texto:"Iniciar jornada",
     accion:"iniciar_jornada"
   };
 }
@@ -3255,9 +3256,9 @@ async function abrirFicha(id){
     cargarHistorial(id),
     cargarJornadasAgendaTrabajo(id)
   ]);
-  const trabajoCerrado=jornadasAgenda.length>0
-    ? jornadasAgenda.every(j=>["completado","cancelado"].includes(String(j.estado || "")))
-    : estadoCanonico(t.estado)==="terminado";
+  // El trabajo está cerrado únicamente por su estado general.
+  // Una jornada realizada no debe hacer que la ficha trate todo el trabajo como finalizado.
+  const trabajoCerrado=estadoCanonico(t.estado)==="terminado";
   let sugerencias=[];
   let sugerenciasMateriales=[];
   if(!trabajoCerrado){
@@ -3273,25 +3274,28 @@ async function abrirFicha(id){
   const jornadaActual=jornadaSeleccionadaAgenda(jornadasAgenda);
   const principal=accionPrincipalJornada(t,jornadaActual,jornadasAgenda.length);
   const horario=tiempoPlanificado(t);
-  const estadoVisible=jornadaActual ? estadoJornadaTexto(jornadaActual.estado) : estadoTexto(t.estado);
+  const estadoTrabajoVisible=estadoTexto(t.estado);
+  const estadoJornadaVisible=jornadaActual ? estadoJornadaTexto(jornadaActual.estado) : "";
   const headerState=document.getElementById("tr_full_header_state");
   if(headerState){
-    headerState.className="zx_tr_full_state "+claseEstado(jornadaActual ? jornadaActual.estado : t.estado);
-    headerState.textContent=estadoVisible;
+    headerState.className="zx_tr_full_state "+claseEstado(t.estado);
+    headerState.textContent=estadoTrabajoVisible;
   }
 
   box.innerHTML=`
     <div class="zx_tr_operativo">
-      <section class="zx_tr_status_card zx_tr_estado_${claseEstado(jornadaActual ? jornadaActual.estado : t.estado)}">
+      <section class="zx_tr_status_card zx_tr_estado_${claseEstado(t.estado)}">
         <div class="zx_tr_status_top">
           <div>
-            <span class="zx_tr_status_label">Estado actual</span>
-            <strong>${limpiar(estadoVisible)}</strong>
+            <span class="zx_tr_status_label">Estado del trabajo</span>
+            <strong>${limpiar(estadoTrabajoVisible)}</strong>
           </div>
           <div class="zx_tr_badges">
             <span class="prio ${clasePrioridad(t.prioridad)}">${limpiar(prioridadTexto(t.prioridad))}</span>
           </div>
         </div>
+
+        ${jornadaActual ? `<div class="zx_tr_jornada_state ${claseEstado(jornadaActual.estado)}"><span>Jornada ${limpiar(fechaES(jornadaActual.fecha_inicio || t.fecha))}</span><b>${limpiar(estadoJornadaVisible)}</b></div>` : ""}
 
         <div class="zx_tr_status_grid">
           ${(jornadaActual?.fecha_inicio || t.fecha) ? `<div><span class="zx_tr_calendar_day" aria-label="Calendario">${limpiar(String((jornadaActual?.fecha_inicio || t.fecha)).slice(8,10))}</span><small>Fecha</small><b>${limpiar(fechaES(jornadaActual?.fecha_inicio || t.fecha))}</b></div>` : ""}
@@ -5751,6 +5755,13 @@ function instalarCSS(){
     .zx_tr_status_card.zx_tr_estado_ok .zx_tr_status_top strong{color:#166534}
     .zx_tr_status_card.zx_tr_estado_rojo .zx_tr_status_top strong{color:#991b1b}
     .zx_tr_status_card .zx_tr_badges .estado{font-size:14px;padding:9px 14px;border:2px solid currentColor}
+    .zx_tr_jornada_state{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 2px;padding:10px 12px;border:1px solid #dbe3ef;border-radius:14px;background:rgba(255,255,255,.78);font-weight:900}
+    .zx_tr_jornada_state span{color:#64748b;font-size:13px}
+    .zx_tr_jornada_state b{font-size:13px;border-radius:999px;padding:6px 10px;white-space:nowrap}
+    .zx_tr_jornada_state.ok b{background:#dcfce7;color:#166534}
+    .zx_tr_jornada_state.curso b{background:#dbeafe;color:#1d4ed8}
+    .zx_tr_jornada_state.pendiente b{background:#fef3c7;color:#92400e}
+    .zx_tr_jornada_state.rojo b{background:#fee2e2;color:#991b1b}
     .zx_tr_execution_panel{border:2px solid #60a5fa;border-radius:20px;padding:15px;background:linear-gradient(135deg,#eff6ff,#dbeafe)}
     .zx_tr_execution_head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
     .zx_tr_execution_head span{display:block;font-size:12px;font-weight:900;color:#1d4ed8;text-transform:uppercase}
