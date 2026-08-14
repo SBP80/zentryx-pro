@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1034 - USUARIOS COMPLETO
+// V1040 - BUSCADOR INTENCIONAL Y RESPUESTAS ESPECÍFICAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1034";
+const ZX_VERSION="1040";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -441,6 +441,190 @@ const AYUDAS_DIRECTAS=[
       "Completa los datos personales, de contacto y laborales necesarios.",
       "Asigna el rol y los permisos que correspondan antes de guardar."
     ]
+  },
+  {
+    id:"permisos_usuario", modulo:"usuarios", titulo:"Permisos de un usuario",
+    consulta:"cambiar permisos usuario modificar permisos usuario permisos trabajador acceso usuario",
+    resumen:"En esta versión los accesos dependen principalmente del rol asignado al usuario; no existe un editor separado de permisos individuales en la ficha.",
+    pasos:[
+      "Entra en Usuarios y abre la ficha del usuario.",
+      "Pulsa Editar.",
+      "Revisa el campo Rol y selecciona el perfil que corresponda.",
+      "Guarda los cambios.",
+      "Si necesitas permisos distintos a los definidos por los roles disponibles, esa configuración individual no está disponible en esta versión."
+    ]
+  },
+  {
+    id:"rol_usuario", modulo:"usuarios", titulo:"Cambiar el rol de un usuario",
+    consulta:"cambiar rol usuario hacer administrador quitar administrador gerente supervisor encargado administrativo comercial tecnico operario oficina invitado",
+    resumen:"Cambia el perfil de acceso del usuario desde el campo Rol.",
+    pasos:[
+      "Entra en Usuarios y abre el usuario.",
+      "Pulsa Editar.",
+      "En el campo Rol elige Administrador, Gerente, Supervisor, Encargado, Administrativo, Comercial, Técnico, Operario, Oficina o Invitado.",
+      "Guarda los cambios y comprueba que el usuario aparece con el nuevo rol."
+    ]
+  },
+  {
+    id:"login_usuario", modulo:"usuarios", titulo:"Cambiar el usuario de inicio de sesión",
+    consulta:"cambiar nombre usuario inicio sesion trabajador login usuario acceso",
+    resumen:"Modifica el identificador que el trabajador escribe para iniciar sesión.",
+    pasos:[
+      "Entra en Usuarios y abre el usuario.",
+      "Pulsa Editar.",
+      "Modifica el campo Usuario.",
+      "Guarda los cambios y usa el nuevo identificador en el siguiente inicio de sesión."
+    ]
+  },
+  {
+    id:"nombre_usuario", modulo:"usuarios", titulo:"Cambiar el nombre de un usuario",
+    consulta:"cambiar nombre apellidos usuario modificar nombre trabajador",
+    resumen:"Modifica el nombre completo mostrado en la ficha del usuario.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Editar.","Modifica el campo Nombre completo.","Guarda los cambios."]
+  },
+  {
+    id:"dni_usuario", modulo:"usuarios", titulo:"Cambiar el DNI o NIE de un usuario",
+    consulta:"cambiar dni nie usuario modificar dni trabajador",
+    resumen:"Actualiza el documento identificativo guardado en la ficha.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Editar.","Modifica el campo DNI / NIE.","Guarda los cambios."]
+  },
+  {
+    id:"telefono_usuario", modulo:"usuarios", titulo:"Cambiar teléfonos de un usuario",
+    consulta:"cambiar telefono movil usuario telefono personal telefono empresa trabajador",
+    resumen:"La ficha dispone de teléfono personal y teléfono de empresa.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Editar.","Modifica Teléfono personal o Teléfono empresa según corresponda.","Guarda los cambios."]
+  },
+  {
+    id:"email_usuario", modulo:"usuarios", titulo:"Cambiar emails de un usuario",
+    consulta:"cambiar email correo usuario email personal email empresa trabajador",
+    resumen:"La ficha dispone de email personal y email de empresa.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Editar.","Modifica Email personal o Email empresa según corresponda.","Guarda los cambios."]
+  },
+  {
+    id:"direccion_usuario", modulo:"usuarios", titulo:"Cambiar la dirección de un usuario",
+    consulta:"cambiar direccion domicilio usuario calle poblacion provincia codigo postal pais",
+    resumen:"Actualiza los campos de dirección de la ficha del usuario.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Editar.","Modifica tipo de vía, calle, número, portal, escalera, piso, puerta, población, provincia, código postal o país según corresponda.","Guarda los cambios."]
+  },
+  {
+    id:"foto_usuario", modulo:"usuarios", titulo:"Cambiar la foto de un usuario",
+    consulta:"cambiar foto usuario modificar foto perfil trabajador imagen usuario",
+    resumen:"Sustituye la foto del usuario desde su formulario de edición.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Editar.","En Foto selecciona una imagen nueva desde el dispositivo.","Guarda los cambios para subir y asociar la nueva foto."]
+  },
+  {
+    id:"eliminar_foto_usuario", modulo:"usuarios", titulo:"Quitar la foto de un usuario",
+    consulta:"eliminar foto usuario borrar foto usuario quitar foto perfil trabajador",
+    resumen:"Esta versión permite sustituir la foto, pero no muestra una acción específica para dejar la ficha sin foto.",
+    pasos:["No uses Eliminar usuario: esa acción afecta a la ficha completa.","Si quieres cambiar la imagen, abre Usuarios, edita la ficha y selecciona otra foto.","La eliminación independiente de la foto no está disponible en esta versión."]
+  },
+  {
+    id:"emergencia_usuario", modulo:"usuarios", titulo:"Cambiar el contacto de emergencia",
+    consulta:"cambiar contacto emergencia usuario nombre relacion telefono email emergencia trabajador",
+    resumen:"Modifica los datos de la persona de contacto para emergencias.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Editar.","En Contacto de emergencia modifica nombre, relación, teléfono, email u observaciones.","Guarda los cambios."]
+  },
+  {
+    id:"telefono_emergencia_usuario", modulo:"usuarios", titulo:"Cambiar el teléfono de emergencia",
+    consulta:"cambiar telefono emergencia usuario trabajador",
+    resumen:"Actualiza solo el teléfono del contacto de emergencia.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Editar.","Ve a Contacto de emergencia y modifica Teléfono emergencia.","Guarda los cambios."]
+  },
+  {
+    id:"email_emergencia_usuario", modulo:"usuarios", titulo:"Cambiar el email de emergencia",
+    consulta:"cambiar email emergencia correo emergencia usuario trabajador",
+    resumen:"Actualiza solo el email del contacto de emergencia.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Editar.","Ve a Contacto de emergencia y modifica Email emergencia.","Guarda los cambios."]
+  },
+  {
+    id:"datos_laborales_usuario", modulo:"usuarios", titulo:"Cambiar datos laborales de un usuario",
+    consulta:"cambiar datos laborales usuario laboral trabajador convenio calendario vacaciones asuntos horas",
+    resumen:"Los datos laborales se gestionan desde la ficha del usuario, en Laboral.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Revisa jornada, días de trabajo, vacaciones, asuntos propios, precios de horas extra, calendario laboral y convenio.","Si eres administrador, modifica los campos necesarios y pulsa Guardar laboral."]
+  },
+  {
+    id:"horario_laboral_usuario", modulo:"usuarios", titulo:"Cambiar el horario laboral de un usuario",
+    consulta:"cambiar horario laboral usuario jornada semanal horas dia horas semana dias trabajo trabajador",
+    resumen:"Ajusta la jornada y los días de trabajo desde el apartado Laboral.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Modifica Horas por día, Horas por semana y los días de trabajo que correspondan.","Pulsa Guardar laboral y completa la autorización administrativa si se solicita."]
+  },
+  {
+    id:"vacaciones_usuario", modulo:"usuarios", titulo:"Cambiar los días de vacaciones de un usuario",
+    consulta:"cambiar dias vacaciones usuario vacaciones anuales trabajador",
+    resumen:"Modifica el número anual de días de vacaciones del usuario.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Modifica Vacaciones anuales en días.","Pulsa Guardar laboral y completa la autorización administrativa si se solicita."]
+  },
+  {
+    id:"asuntos_propios_usuario", modulo:"usuarios", titulo:"Cambiar los asuntos propios de un usuario",
+    consulta:"cambiar asuntos propios usuario dias asuntos horas asuntos trabajador",
+    resumen:"En esta versión los asuntos propios se configuran en horas, no en días.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Modifica Asuntos propios en horas.","Pulsa Guardar laboral y completa la autorización administrativa si se solicita."]
+  },
+  {
+    id:"calendario_laboral_usuario", modulo:"usuarios", titulo:"Cambiar el calendario laboral de un usuario",
+    consulta:"cambiar calendario laboral usuario pais comunidad autonoma provincia localidad festivos trabajador",
+    resumen:"El calendario laboral se configura por usuario en esta versión.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","En Calendario laboral selecciona País, Comunidad autónoma, Provincia y Localidad.","Pulsa Guardar laboral."]
+  },
+  {
+    id:"horario_laboral_no_automatico", modulo:"usuarios", titulo:"Restablecer o asignar un horario laboral",
+    consulta:"restablecer horario laboral usuario asignar horario nuevo usuario horario todos dias horario completo",
+    resumen:"El horario se modifica manualmente desde Laboral; esta versión no incluye un botón para restablecer una plantilla automática.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Ajusta Horas por día, Horas por semana y los días de trabajo.","Pulsa Guardar laboral.","Si quieres volver a un horario anterior, debes introducir de nuevo sus valores; no hay una acción de restablecimiento automático en esta versión."]
+  },
+  {
+    id:"copiar_horario_usuario", modulo:"usuarios", titulo:"Copiar el horario de un usuario a otro",
+    consulta:"copiar horario laboral usuario otro duplicar horario trabajador",
+    resumen:"Esta versión no dispone de una acción para copiar automáticamente el horario entre usuarios.",
+    pasos:["Abre el usuario cuyo horario quieras consultar y entra en Laboral.","Anota Horas por día, Horas por semana y días de trabajo.","Abre el segundo usuario y entra en Laboral.","Introduce los mismos valores y guarda."]
+  },
+  {
+    id:"limite_horas_extra_usuario", modulo:"usuarios", titulo:"Límite de horas extra de un usuario",
+    consulta:"limite horas extra usuario maximo horas extra trabajador",
+    resumen:"En la ficha Laboral actual se pueden configurar precios de horas extra, pero no aparece un campo para fijar un límite individual de horas extra.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral para revisar los campos disponibles.","Puedes cambiar los precios de hora extra normal, nocturna y festiva cuando tu permiso lo permita.","El límite individual de horas extra no es configurable en esta versión."]
+  },
+  {
+    id:"tipo_jornada_usuario", modulo:"usuarios", titulo:"Tipo de jornada de un usuario",
+    consulta:"tipo jornada usuario jornada completa parcial reducir jornada trabajador",
+    resumen:"La ficha Laboral actual no tiene un selector denominado Tipo de jornada.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Configura Horas por día, Horas por semana y los días de trabajo según el horario real.","No existe un campo independiente para elegir jornada completa, parcial u otro tipo en esta versión."]
+  },
+  {
+    id:"calendario_general_usuario", modulo:"usuarios", titulo:"Volver al calendario laboral general",
+    consulta:"calendario laboral general usuario volver asignar calendario general trabajador",
+    resumen:"Esta versión no tiene un calendario laboral general de empresa que pueda reasignarse con un botón; el calendario se guarda por usuario.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Configura País, Comunidad autónoma, Provincia y Localidad con los valores que deba usar esa persona.","Guarda los cambios."]
+  },
+  {
+    id:"config_idioma", modulo:"configuracion", titulo:"Cambiar el idioma de Zentryx",
+    consulta:"cambiar idioma empresa aplicacion español ingles",
+    resumen:"El idioma se selecciona desde Configuración, en Aplicación.",
+    pasos:["Abre Configuración.","Entra en Aplicación.","En Idioma selecciona Español o Inglés.","Guarda la configuración."]
+  },
+  {
+    id:"config_formato_fecha", modulo:"configuracion", titulo:"Cambiar el formato de fecha",
+    consulta:"cambiar formato fecha empresa dd mm aaaa aaaa mm dd",
+    resumen:"El formato de fecha se selecciona desde Configuración, en Aplicación.",
+    pasos:["Abre Configuración.","Entra en Aplicación.","En Formato fecha selecciona DD/MM/AAAA o AAAA-MM-DD.","Guarda la configuración."]
+  },
+  {
+    id:"config_festivos_empresa", modulo:"configuracion", titulo:"Calendario de festivos de empresa",
+    consulta:"festivos empresa calendario festivos nacional autonomico provincial local municipio comunidad provincia pais laboral empresa",
+    resumen:"Esta versión no dispone de un calendario de festivos global único para toda la empresa; el calendario laboral se guarda por usuario.",
+    pasos:["Para cambiar el calendario de una persona, abre Usuarios y entra en su apartado Laboral.","Selecciona País, Comunidad autónoma, Provincia y Localidad.","Los festivos nacionales, autonómicos, provinciales y locales se aplican desde la configuración laboral disponible.","Si necesitas un calendario único global para toda la empresa, esa opción no está disponible en esta versión."]
+  },
+  {
+    id:"config_numeracion", modulo:"configuracion", titulo:"Numeraciones y series",
+    consulta:"numeracion empresa serie series prefijo sufijo numero inicial reiniciar numeracion nuevo año facturas presupuestos albaranes pedidos partes ordenes incidencias clientes proveedores vehiculos usuarios trabajos solicitudes informes documentos contratos nominas fichajes jornadas gastos compras ventas cobros pagos recibos remesas domiciliaciones transferencias devoluciones abonos notas credito debito anticipos depositos reservas inventarios almacen lotes",
+    resumen:"Esta versión no dispone de un panel para editar numeraciones, series, prefijos, sufijos ni el número inicial de documentos o registros.",
+    pasos:["No cambies datos de Trabajos, Usuarios, Clientes, Vehículos o Almacén para intentar modificar una numeración.","La configuración de series, prefijos, sufijos, número inicial y reinicio anual no está disponible en esta versión.","Cuando se añada esta función deberá gestionarse desde Configuración y mostrar claramente qué numeración afecta a cada tipo de registro."]
+  },
+  {
+    id:"config_opcion_no_disponible", modulo:"configuracion", titulo:"Ajuste no disponible en esta versión",
+    consulta:"zona horaria formato hora moneda simbolo moneda iva por defecto empresa",
+    resumen:"El ajuste solicitado no aparece entre las opciones configurables actuales.",
+    pasos:["Abre Configuración para revisar las opciones disponibles.","Actualmente Aplicación permite cambiar Idioma y Formato fecha, además de otros ajustes operativos.","Zona horaria, formato de hora, moneda, símbolo de moneda e IVA por defecto no tienen un campo configurable en esta versión."]
   },
   {
     id:"usar_vehiculo",
@@ -1030,8 +1214,63 @@ function puntuacionAyudaDirecta(ayuda,consulta){
 function ayudaDirectaPara(consulta){
   const textoNormalizado=normalizar(consulta||"").replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
 
+  const porIdRapido=(id)=>AYUDAS_DIRECTAS.find(x=>x.id===id) || null;
+
+  // Configuración: capturar primero las consultas de numeración para que palabras
+  // como trabajo, usuario, reserva, entrada o salida no desvíen la respuesta.
+  if(/\b(numeracion|serie|series|prefijo|sufijo)\b/.test(textoNormalizado) ||
+     (/\b(numero inicial|reinicio|reiniciar)\b/.test(textoNormalizado) && /\b(empresa|factura|presupuesto|documento|registro)\b/.test(textoNormalizado))){
+    return porIdRapido("config_numeracion");
+  }
+
+  // Ajustes de empresa que todavía no existen como campos configurables.
+  if(/\b(zona horaria|formato de hora|moneda|simbolo de moneda|iva por defecto)\b/.test(textoNormalizado)){
+    return porIdRapido("config_opcion_no_disponible");
+  }
+
+  if(/\b(formato de fecha)\b/.test(textoNormalizado)) return porIdRapido("config_formato_fecha");
+  if(/\b(idioma)\b/.test(textoNormalizado) && /\b(empresa|zentryx|aplicacion)\b/.test(textoNormalizado)) return porIdRapido("config_idioma");
+
+  if((/\b(festivo|festivos|calendario de festivos|comunidad autonoma|municipio de festivos|provincia de festivos)\b/.test(textoNormalizado) || /\b(calendario laboral)\b/.test(textoNormalizado)) && /\b(empresa)\b/.test(textoNormalizado)){
+    return porIdRapido("config_festivos_empresa");
+  }
+
   // Usuarios: resolver antes que Solicitudes, Fichaje, Trabajos y tarjetas generales.
   if(/\b(usuario|usuarios|trabajador|trabajadores|empleado|empleados)\b/.test(textoNormalizado)){
+    // La foto es un subobjeto del usuario: quitarla nunca debe convertirse en borrar la ficha.
+    if(/\b(foto|imagen)\b/.test(textoNormalizado)){
+      if(/\b(elimino|eliminar|borro|borrar|quito|quitar)\b/.test(textoNormalizado)) return porIdRapido("eliminar_foto_usuario");
+      if(/\b(cambio|cambiar|modifico|modificar|edito|editar|sustituyo|sustituir)\b/.test(textoNormalizado)) return porIdRapido("foto_usuario");
+    }
+
+    if(/\b(permiso|permisos)\b/.test(textoNormalizado)) return porIdRapido("permisos_usuario");
+    if(/\b(rol|administrador|gerente|supervisor|encargado|administrativo|comercial|tecnico|operario|oficina|invitado)\b/.test(textoNormalizado) && /\b(cambio|cambiar|hago|hacer|quito|quitar|asigno|asignar)\b/.test(textoNormalizado)) return porIdRapido("rol_usuario");
+
+    if(/\b(pin)\b/.test(textoNormalizado) && /\b(cambio|cambiar|modifico|modificar|restablezco|restablecer|nuevo|olvidado|olvido)\b/.test(textoNormalizado)) return porIdRapido("cambiar_pin_usuario");
+
+    if(/\b(telefono de emergencia|telefono emergencia)\b/.test(textoNormalizado)) return porIdRapido("telefono_emergencia_usuario");
+    if(/\b(email de emergencia|email emergencia|correo de emergencia|correo emergencia)\b/.test(textoNormalizado)) return porIdRapido("email_emergencia_usuario");
+    if(/\b(contacto de emergencia|contacto emergencia)\b/.test(textoNormalizado)) return porIdRapido("emergencia_usuario");
+
+    if(/\b(copio|copiar|duplico|duplicar)\b/.test(textoNormalizado) && /\b(horario)\b/.test(textoNormalizado)) return porIdRapido("copiar_horario_usuario");
+    if(/\b(limite|maximo)\b/.test(textoNormalizado) && /\b(horas extra|hora extra)\b/.test(textoNormalizado)) return porIdRapido("limite_horas_extra_usuario");
+    if(/\b(tipo de jornada|jornada completa|jornada parcial|reducida|reduccion de jornada)\b/.test(textoNormalizado)) return porIdRapido("tipo_jornada_usuario");
+    if(/\b(restablezco|restablecer|asigno|asignar)\b/.test(textoNormalizado) && /\b(horario laboral|horario)\b/.test(textoNormalizado)) return porIdRapido("horario_laboral_no_automatico");
+    if(/\b(horario)\b/.test(textoNormalizado) && /\b(todos los dias|completo)\b/.test(textoNormalizado)) return porIdRapido("horario_laboral_usuario");
+    if(/\b(asuntos propios)\b/.test(textoNormalizado)) return porIdRapido("asuntos_propios_usuario");
+    if(/\b(vacacion|vacaciones)\b/.test(textoNormalizado)) return porIdRapido("vacaciones_usuario");
+    if(/\b(horario laboral|jornada semanal|horas por dia|horas por semana|dias de trabajo)\b/.test(textoNormalizado)) return porIdRapido("horario_laboral_usuario");
+    if(/\b(calendario laboral general|calendario general)\b/.test(textoNormalizado)) return porIdRapido("calendario_general_usuario");
+    if(/\b(calendario laboral)\b/.test(textoNormalizado)) return porIdRapido("calendario_laboral_usuario");
+    if(/\b(datos laborales|laboral)\b/.test(textoNormalizado) && /\b(cambio|cambiar|modifico|modificar|edito|editar|consulto|consultar)\b/.test(textoNormalizado)) return porIdRapido("datos_laborales_usuario");
+
+    if(/\b(nombre de usuario|inicio de sesion|login)\b/.test(textoNormalizado)) return porIdRapido("login_usuario");
+    if(/\b(dni|nie)\b/.test(textoNormalizado) && /\b(cambio|cambiar|modifico|modificar|edito|editar)\b/.test(textoNormalizado)) return porIdRapido("dni_usuario");
+    if(/\b(telefono|telefonos|movil|moviles)\b/.test(textoNormalizado) && /\b(cambio|cambiar|modifico|modificar|edito|editar)\b/.test(textoNormalizado)) return porIdRapido("telefono_usuario");
+    if(/\b(email|emails|correo|correos)\b/.test(textoNormalizado) && /\b(cambio|cambiar|modifico|modificar|edito|editar)\b/.test(textoNormalizado)) return porIdRapido("email_usuario");
+    if(/\b(direccion|domicilio|calle|poblacion|provincia|codigo postal)\b/.test(textoNormalizado) && /\b(cambio|cambiar|modifico|modificar|edito|editar)\b/.test(textoNormalizado)) return porIdRapido("direccion_usuario");
+    if(/\b(nombre|apellidos)\b/.test(textoNormalizado) && /\b(cambio|cambiar|modifico|modificar|edito|editar)\b/.test(textoNormalizado)) return porIdRapido("nombre_usuario");
+
     if(/\b(documento|documentos|archivo|archivos)\b/.test(textoNormalizado)){
       if(/\b(elimino|eliminar|borro|borrar|quito|quitar)\b/.test(textoNormalizado))
         return AYUDAS_DIRECTAS.find(x=>x.id==="eliminar_documento_usuario") || null;
