@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3213
-// V3213 - FICHA TECNICO COMPACTA + CABECERA SUPERIOR LIMPIA + BLOQUES SECUNDARIOS PLEGADOS
+// ZENTRYX PRO - TRABAJOS V3214
+// V3214 - FICHA OPERATIVA CORTA + SEGUIMIENTO PLEGADO + CABECERA SIN DOBLE VOLVER
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3213";
+const ZX_VERSION="3214";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3291,14 +3291,23 @@ async function abrirFicha(id){
         </div>
       </details>
 
-${renderPlanificacionPlegable(plan)}
-      ${renderMaterialesResumen(id,mat)}
-      ${renderSugerenciasMateriales(sugerenciasMateriales)}
-      ${renderArchivos(arch,id)}
-      ${renderPartesJornada(hist,arch,t,jornadasAgenda)}
-      ${renderNotasVisibles(hist)}
-      ${renderSugerenciasInteligentes(sugerencias)}
-      ${renderHistorialProfesional(hist)}
+<details class="zx_tr_followup_details">
+        <summary>
+          <span>Información y seguimiento</span>
+          <b>${mat.length} mat. · ${arch.length} arch. · ${hist.length} mov.</b>
+          <em>Planificación, materiales, archivos, partes e historial</em>
+        </summary>
+        <div class="zx_tr_followup_panel">
+          ${renderPlanificacionPlegable(plan)}
+          ${renderMaterialesResumen(id,mat)}
+          ${renderSugerenciasMateriales(sugerenciasMateriales)}
+          ${renderArchivos(arch,id)}
+          ${renderPartesJornada(hist,arch,t,jornadasAgenda)}
+          ${renderNotasVisibles(hist)}
+          ${renderSugerenciasInteligentes(sugerencias)}
+          ${renderHistorialProfesional(hist)}
+        </div>
+      </details>
     </div>
   `;
 
@@ -5994,6 +6003,15 @@ function instalarCSS(){
     .zx_tr_secondary_details[open]>summary{background:#f8fafc;border-bottom:1px solid #e2e8f0}
     .zx_tr_secondary_details[open]>summary em{color:#2563eb}
     .zx_tr_secondary_panel{padding:12px 14px 14px;display:grid;gap:10px}
+    .zx_tr_followup_details{border:1px solid #dbe3ef;border-radius:18px;background:#f8fafc;overflow:hidden}
+    .zx_tr_followup_details>summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;padding:14px 15px;cursor:pointer;color:#0f172a}
+    .zx_tr_followup_details>summary::-webkit-details-marker{display:none}
+    .zx_tr_followup_details>summary span{font-size:17px;font-weight:950;min-width:0}
+    .zx_tr_followup_details>summary b{font-size:11px;color:#2563eb;font-weight:950;white-space:nowrap}
+    .zx_tr_followup_details>summary em{grid-column:1/-1;color:#64748b;font-size:11px;font-style:normal;font-weight:800}
+    .zx_tr_followup_details[open]>summary{background:#fff;border-bottom:1px solid #e2e8f0}
+    .zx_tr_followup_panel{padding:10px;display:grid;gap:10px;background:#fff}
+    .zx_tr_followup_panel>.zx_tr_block{margin:0!important}
     .zx_tr_library_full{width:100%;justify-content:center;min-height:44px}
     .zx_tr_team_details{border-top:1px solid #eef2f7;padding-top:8px}
     .zx_tr_team_details summary{cursor:pointer;color:#475569;font-size:12px;font-weight:900;list-style:none}
