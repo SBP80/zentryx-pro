@@ -5074,16 +5074,22 @@ async function abrirMaterial(id,material){
       let cantidadFinal=data.cantidad;
 
       if(editando){
-        // Conserva los registros operativos ya realizados al editar la ficha.
-        // Cambiar la cantidad necesaria no debe borrar lo preparado/utilizado
-        // ni convertir automáticamente las nuevas unidades en preparadas.
+        // Conserva SIEMPRE el estado operativo real guardado en base de datos.
+        // El objeto abierto en pantalla puede haberse quedado antiguo después
+        // de registrar preparación o uso, por eso se vuelve a leer antes de editar.
+        let materialEstado=material;
+        try{
+          const fresco=await sb().from("trabajos_materiales").select("*").eq("id",String(material.id)).maybeSingle();
+          if(fresco && !fresco.error && fresco.data) materialEstado=fresco.data;
+        }catch(e){}
+
         const cantidadNueva=Math.max(0,Number(data.cantidad || 0));
-        const preparadaAnterior=Math.max(0,cantidadPreparadaMaterial(material));
-        const usadaAnterior=Math.max(0,cantidadUsadaMaterial(material));
+        const preparadaAnterior=Math.max(0,cantidadPreparadaMaterial(materialEstado));
+        const usadaAnterior=Math.max(0,cantidadUsadaMaterial(materialEstado));
         const preparadaConservada=Math.min(cantidadNueva,preparadaAnterior);
         const usadaConservada=Math.min(cantidadNueva,usadaAnterior);
         const notasConEstado=notasConUsado(
-          notasConPreparado(data.notas,preparadaConservada,imagenMaterial(material)),
+          notasConPreparado(data.notas,preparadaConservada,imagenMaterial(materialEstado)),
           usadaConservada
         );
         const cambios={
