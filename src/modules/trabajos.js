@@ -1,5 +1,5 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3209
+// ZENTRYX PRO - TRABAJOS V3210
 // V3206 - CONSERVA PREPARACION Y USO AL EDITAR CANTIDAD
 // ===============================
 (function(){
@@ -3955,10 +3955,59 @@ function validarReduccionCantidadMaterial(material,nueva){
   return true;
 }
 
+async function estadoOperativoMaterialSeguro(material){
+  let fresco=null;
+  try{
+    if(material && material.id && navigator.onLine && sb()){
+      const r=await sb().from("trabajos_materiales").select("*").eq("id",String(material.id)).maybeSingle();
+      if(r && !r.error && r.data) fresco=r.data;
+    }
+  }catch(e){}
+
+  const preparada=Math.max(
+    0,
+    Number(cantidadPreparadaMaterial(material) || 0),
+    Number(cantidadPreparadaMaterial(fresco) || 0)
+  );
+  const usada=Math.max(
+    0,
+    Number(cantidadUsadaMaterial(material) || 0),
+    Number(cantidadUsadaMaterial(fresco) || 0)
+  );
+  return {
+    fresco:fresco || material,
+    preparada,
+    usada,
+    minimo:Math.max(preparada,usada)
+  };
+}
+
+function validarCantidadMaterialSegura(material,nueva,estado){
+  const unidad=material?.unidad || "ud";
+  if(!Number.isFinite(nueva) || nueva<=0){
+    alert("La cantidad del material debe ser mayor que 0 "+unidad+".\n\nSi ya no necesitas este material, utiliza Eliminar.");
+    return false;
+  }
+  const minimo=Math.max(0,Number(estado?.minimo || 0));
+  if(nueva < minimo){
+    const preparada=Math.max(0,Number(estado?.preparada || 0));
+    const usada=Math.max(0,Number(estado?.usada || 0));
+    alert(
+      "No puedes reducir la cantidad a "+nueva+" "+unidad+".\n\n"+
+      "Ya hay "+preparada+" "+unidad+" preparadas y "+usada+" "+unidad+" utilizadas.\n"+
+      "La cantidad mínima permitida es "+minimo+" "+unidad+".\n\n"+
+      "Corrige primero la preparación o el uso si necesitas reducirla más."
+    );
+    return false;
+  }
+  return true;
+}
+
 async function cambiarCantidadMaterial(trabajoId,material,cambio){
   const actual=Number(material.cantidad||0);
   const nueva=actual+Number(cambio||0);
-  if(!validarReduccionCantidadMaterial(material,nueva)) return;
+  const estadoSeguro=await estadoOperativoMaterialSeguro(material);
+  if(!validarCantidadMaterialSegura(material,nueva,estadoSeguro)) return;
   if(nueva<=0){
     if(!confirm("La cantidad quedará a cero. ¿Eliminar este material?")) return;
     return eliminarMaterial(trabajoId,material.id);
@@ -3982,12 +4031,9 @@ async function establecerCantidadMaterial(trabajoId,material){
   if(entrada===null) return;
   const normalizada=String(entrada).trim().replace(",",".");
   const nueva=Number(normalizada);
-  if(!Number.isFinite(nueva) || nueva<0){
-    alert("Introduce una cantidad válida igual o mayor que cero.");
-    return;
-  }
   if(nueva===actual) return;
-  if(!validarReduccionCantidadMaterial(material,nueva)) return;
+  const estadoSeguro=await estadoOperativoMaterialSeguro(material);
+  if(!validarCantidadMaterialSegura(material,nueva,estadoSeguro)) return;
   if(nueva===0){
     if(!confirm("La cantidad quedará a cero. ¿Eliminar este material?")) return;
     return eliminarMaterial(trabajoId,material.id);
@@ -5102,23 +5148,19 @@ async function abrirMaterial(id,material){
         // Conserva SIEMPRE el estado operativo real guardado en base de datos.
         // El objeto abierto en pantalla puede haberse quedado antiguo después
         // de registrar preparación o uso, por eso se vuelve a leer antes de editar.
-        let materialEstado=material;
-        try{
-          const fresco=await sb().from("trabajos_materiales").select("*").eq("id",String(material.id)).maybeSingle();
-          if(fresco && !fresco.error && fresco.data) materialEstado=fresco.data;
-        }catch(e){}
-
-        const cantidadNueva=Math.max(0,Number(data.cantidad || 0));
-        if(!validarReduccionCantidadMaterial(materialEstado,cantidadNueva)){
+        const estadoSeguro=await estadoOperativoMaterialSeguro(material);
+        const materialEstado=estadoSeguro.fresco || material;
+        const cantidadNueva=Number(data.cantidad);
+        if(!validarCantidadMaterialSegura(material,cantidadNueva,estadoSeguro)){
           if(boton){boton.disabled=false;boton.textContent="Guardar cambios";}
           return;
         }
-        const preparadaAnterior=Math.max(0,cantidadPreparadaMaterial(materialEstado));
-        const usadaAnterior=Math.max(0,cantidadUsadaMaterial(materialEstado));
+        const preparadaAnterior=Math.max(0,Number(estadoSeguro.preparada || 0));
+        const usadaAnterior=Math.max(0,Number(estadoSeguro.usada || 0));
         const preparadaConservada=Math.min(cantidadNueva,preparadaAnterior);
         const usadaConservada=Math.min(cantidadNueva,usadaAnterior);
         const notasConEstado=notasConUsado(
-          notasConPreparado(data.notas,preparadaConservada,imagenMaterial(materialEstado)),
+          notasConPreparado(data.notas,preparadaConservada,imagenMaterial(materialEstado) || imagenMaterial(material)),
           usadaConservada
         );
         const cambios={
