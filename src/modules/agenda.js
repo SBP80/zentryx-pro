@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3155 - ACTUALIZACION AUTOMATICA DEL CALENDARIO
+// V3156 - CONSERVA EL DIA EXACTO AL ABRIR UN TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3155";
+const ZX_VERSION="3156";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -905,7 +905,7 @@ function renderCalendario(){
   return html;
 }
 
-function renderEvento(e){
+function renderEvento(e,fechaContexto){
   const trabajo=esTrabajo(e);
   const done=terminado(e);
   const canc=cancelado(e);
@@ -915,7 +915,9 @@ function renderEvento(e){
   let acciones="";
 
   if(trabajo){
-    acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}','${limpiar(e.id)}','${limpiar(e.fecha_inicio || "")}')">🛠️ Abrir trabajo</button>`;
+    const fechaContextoValida=(typeof fechaContexto==="string" && /^\d{4}-\d{2}-\d{2}/.test(fechaContexto)) ? fechaContexto : "";
+    const fechaTrabajo=normalizarFecha(fechaContextoValida || e.fecha_inicio || "");
+    acciones+=`<button class="blue" onclick="ZX_ag_abrirTrabajo('${limpiar(e.origen_id)}','${limpiar(e.id)}','${limpiar(fechaTrabajo)}')">🛠️ Abrir trabajo</button>`;
     acciones+=`<button class="orange" onclick="ZX_ag_editarTrabajo('${limpiar(e.origen_id)}')">✏️ Editar trabajo</button>`;
     acciones+=`<button class="red" onclick="ZX_ag_eliminarTrabajo('${limpiar(e.origen_id)}')">🗑️ Eliminar trabajo</button>`;
     if(e.direccion){
@@ -1803,7 +1805,7 @@ window.ZX_ag_verDia=function(fecha){
 
   modalBase(`
     <h2>${formatoFecha(fecha)}</h2>
-    ${lista.length ? lista.map(renderEvento).join("") : `<div class="zx_text">Sin eventos.</div>`}
+    ${lista.length ? lista.map(function(e){return renderEvento(e,fecha)}).join("") : `<div class="zx_text">Sin eventos.</div>`}
     <button class="zx_btn_big zx_verde" onclick="ZX_ag_nuevo('${limpiar(fecha)}')">Nuevo evento</button>
     <button class="zx_btn_big zx_gris" onclick="document.getElementById('zx_modal_agenda').remove();document.body.classList.remove('zx_modal_abierto')">Cerrar</button>
   `);
