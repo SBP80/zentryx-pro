@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3217
-// V3217 - RESPETA LA JORNADA SELECCIONADA DESDE AGENDA
+// ZENTRYX PRO - TRABAJOS V3218
+// V3218 - REPARA JORNADAS FALTANTES Y RESPETA EL DIA ABIERTO DESDE AGENDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3217";
+const ZX_VERSION="3218";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -1975,15 +1975,104 @@ async function guardarTrabajo(id,clientes,usuarios){
 
 async function cargarJornadasAgendaTrabajo(trabajoId){
   if(!trabajoId || !navigator.onLine || !sb()) return [];
+
+  const id=String(trabajoId);
+
   try{
-    const r=await sb().from("agenda_eventos")
-      .select("*")
-      .eq("origen","trabajos")
-      .eq("origen_id",String(trabajoId))
-      .order("fecha_inicio",{ascending:true})
-      .order("hora_inicio",{ascending:true});
-    if(r.error) throw r.error;
-    return r.data || [];
+    const [rAgenda,rPlan,rTrabajo]=await Promise.all([
+      sb().from("agenda_eventos")
+        .select("*")
+        .eq("origen","trabajos")
+        .eq("origen_id",id)
+        .order("fecha_inicio",{ascending:true})
+        .order("hora_inicio",{ascending:true}),
+      sb().from("trabajos_planificacion")
+        .select("*")
+        .eq("trabajo_id",id)
+        .order("fecha",{ascending:true})
+        .order("hora_inicio",{ascending:true}),
+      sb().from(TABLA)
+        .select("*")
+        .eq("id",id)
+        .maybeSingle()
+    ]);
+
+    if(rAgenda.error) throw rAgenda.error;
+
+    let jornadas=Array.isArray(rAgenda.data) ? rAgenda.data.slice() : [];
+    const planes=(!rPlan.error && Array.isArray(rPlan.data)) ? rPlan.data : [];
+    const t=(!rTrabajo.error && rTrabajo.data) ? rTrabajo.data : null;
+
+    // trabajos_planificacion guarda una fila por técnico. Para la jornada
+    // necesitamos una sola fila por día y horario.
+    const gruposPlan=new Map();
+    planes.forEach(function(p){
+      const fecha=String(p.fecha || "").slice(0,10);
+      if(!fecha) return;
+      const inicio=String(p.hora_inicio || "").slice(0,5);
+      const fin=String(p.hora_fin || "").slice(0,5);
+      const clave=[fecha,inicio,fin].join("|");
+      if(!gruposPlan.has(clave)) gruposPlan.set(clave,p);
+    });
+
+    const clavesAgenda=new Set(jornadas.map(function(j){
+      return [
+        String(j.fecha_inicio || "").slice(0,10),
+        String(j.hora_inicio || "").slice(0,5),
+        String(j.hora_fin || "").slice(0,5)
+      ].join("|");
+    }));
+
+    const faltantes=[];
+    gruposPlan.forEach(function(p,clave){
+      if(clavesAgenda.has(clave)) return;
+
+      const fecha=String(p.fecha || "").slice(0,10);
+      faltantes.push({
+        tipo:"trabajo",
+        titulo:"Trabajo - "+String(t?.titulo || ""),
+        descripcion:String(t?.descripcion || ""),
+        fecha_inicio:fecha,
+        fecha_fin:fecha,
+        hora_inicio:p.hora_inicio || t?.hora_inicio || null,
+        hora_fin:p.hora_fin || t?.hora_fin || null,
+        cliente_id:String(t?.cliente_id || ""),
+        cliente:String(t?.cliente || ""),
+        usuario_id:String(t?.usuario_id || t?.responsable_id || ""),
+        usuario:String(t?.usuario || t?.responsable || ""),
+        direccion:String(t?.direccion_obra || t?.direccion || ""),
+        codigo_postal:String(t?.codigo_postal || ""),
+        poblacion:String(t?.poblacion || ""),
+        provincia:String(t?.provincia || ""),
+        pais:String(t?.pais || "España"),
+        estado:String(t?.estado || "")==="terminado" ? "completado" : "activo",
+        prioridad:String(t?.prioridad || "media"),
+        visible_para:"todos",
+        origen:"trabajos",
+        origen_id:id,
+        creado_por:String(t?.creado_por || "")
+      });
+    });
+
+    // Algunas bases antiguas tenían solo la primera jornada en agenda_eventos,
+    // aunque trabajos_planificacion ya contenía todos los días. Reparar aquí
+    // los espejos que faltan permite seleccionar, iniciar y cerrar cada día.
+    if(faltantes.length){
+      const ins=await sb().from("agenda_eventos").insert(faltantes);
+      if(ins.error){
+        console.warn("No se pudieron crear las jornadas que faltaban en Agenda:",ins.error);
+      }else{
+        const rRecarga=await sb().from("agenda_eventos")
+          .select("*")
+          .eq("origen","trabajos")
+          .eq("origen_id",id)
+          .order("fecha_inicio",{ascending:true})
+          .order("hora_inicio",{ascending:true});
+        if(!rRecarga.error && Array.isArray(rRecarga.data)) jornadas=rRecarga.data;
+      }
+    }
+
+    return jornadas;
   }catch(e){
     console.warn("No se pudieron cargar las jornadas de Agenda:",e);
     return [];
