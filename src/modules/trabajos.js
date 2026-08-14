@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3211
-// V3206 - CONSERVA PREPARACION Y USO AL EDITAR CANTIDAD
+// ZENTRYX PRO - TRABAJOS V3212
+// V3212 - FLUJO OPERATIVO RAPIDO + NAVEGACION SUPERIOR + CORRECCION BORRADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3206";
+const ZX_VERSION="3212";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -241,8 +241,24 @@ function modal(html){
   const d=document.createElement("div");
   d.id="zx_modal_trabajo";
   d.className="zx_modal_fondo";
-  d.innerHTML=`<div class="zx_modal_caja">${html}</div>`;
+  d.innerHTML=`<div class="zx_modal_caja"><div class="zx_tr_modal_topbar"><button type="button" class="zx_tr_modal_topclose" data-zx-modal-topclose>← Volver</button></div>${html}</div>`;
   document.body.appendChild(d);
+
+  const top=d.querySelector("[data-zx-modal-topclose]");
+  if(top){
+    top.onclick=function(){
+      const selector=[
+        '[id$="_back"]','[id$="_volver"]','[id$="_cancelar"]','[id$="_cancel"]',
+        '[id$="_close"]','[id$="_cerrar"]'
+      ].join(',');
+      const destino=d.querySelector(selector);
+      if(destino && destino!==top){
+        destino.click();
+      }else{
+        cerrarModal();
+      }
+    };
+  }
 }
 
 async function pedirPinAdmin(){
@@ -1325,7 +1341,7 @@ function conectarEventos(){
   });
 }
 
-function abrirMapa(dir){
+function abrirMapa(dir,trabajoId){
   if(!dir){alert("Sin dirección.");return}
 
   const q=encodeURIComponent(dir);
@@ -1341,7 +1357,10 @@ function abrirMapa(dir){
   document.getElementById("tr_map_apple").onclick=function(){location.href="https://maps.apple.com/?q="+q};
   document.getElementById("tr_map_google").onclick=function(){location.href="https://www.google.com/maps/search/?api=1&query="+q};
   document.getElementById("tr_map_waze").onclick=function(){location.href="https://waze.com/ul?q="+q};
-  document.getElementById("tr_map_cerrar").onclick=cerrarModal;
+  document.getElementById("tr_map_cerrar").onclick=function(){
+    if(trabajoId) abrirFicha(trabajoId);
+    else cerrarModal();
+  };
 }
 
 function input(id,label,value,type){
@@ -1778,7 +1797,11 @@ async function abrirFormulario(t){
     document.getElementById("tr_pais").value=c.pais || "España";
   };
 
-  document.getElementById("tr_cancelar").onclick=cerrarModal;
+  const cancelarFormulario=function(){
+    if(t.id) abrirFicha(t.id);
+    else cerrarModal();
+  };
+  document.getElementById("tr_cancelar").onclick=cancelarFormulario;
   document.getElementById("tr_guardar").onclick=function(){guardarTrabajo(t.id || null,clientes,usuarios)};
 }
 
@@ -2108,7 +2131,7 @@ async function abrirCambioEstado(id){
     <button class="zx_btn_big zx_gris" id="tr_est_cerrar">Cerrar</button>
   `);
 
-  document.getElementById("tr_est_cerrar").onclick=cerrarModal;
+  document.getElementById("tr_est_cerrar").onclick=function(){abrirFicha(id)};
   document.getElementById("tr_est_pendiente").onclick=function(){aplicarEstado(id,"pendiente")};
   document.getElementById("tr_est_curso").onclick=function(){aplicarEstado(id,"en_curso")};
   document.getElementById("tr_est_terminado").onclick=function(){aplicarEstado(id,"terminado")};
@@ -2134,7 +2157,7 @@ async function aplicarEstado(id,estado){
     await sincronizarAgenda(id,Object.assign({},t,{estado:estado}));
 
     cerrarModal();
-    await window.ZX_trabajos();
+    await abrirFicha(id);
 
   }catch(e){
     alert("No se pudo cambiar el estado.");
@@ -2798,7 +2821,7 @@ async function registrarNotaRapida(id){
     <button class="zx_btn_big zx_gris" id="tr_nota_cancelar">Cancelar</button>
   `);
 
-  document.getElementById("tr_nota_cancelar").onclick=cerrarModal;
+  document.getElementById("tr_nota_cancelar").onclick=function(){abrirFicha(id)};
   const notaRapida=document.getElementById("tr_nota_rapida");
   iniciarDictadoMientrasPulsa(
     document.getElementById("tr_nota_micro"),
@@ -3240,11 +3263,13 @@ async function abrirFicha(id){
       </section>
 
       <div class="zx_tr_quick_actions">
-        ${dir ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_route"><span class="zx_tr_quick_icon">🧭</span><span>Abrir ruta</span></button>` : ""}
+        ${dir ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_route"><span class="zx_tr_quick_icon">🧭</span><span>Ruta</span></button>` : ""}
+        <button type="button" class="zx_tr_quick_btn zx_tr_quick_material" id="tr_quick_materials"><span class="zx_tr_quick_icon">📦</span><span>Materiales</span><b>${mat.length}</b></button>
+        <button type="button" class="zx_tr_quick_btn zx_tr_quick_photo" id="tr_quick_photo"><span class="zx_tr_quick_icon">📷</span><span>Foto rápida</span></button>
+        <button type="button" class="zx_tr_quick_btn" id="tr_quick_note"><span class="zx_tr_quick_icon">📝</span><span>Nota</span></button>
+        <button type="button" class="zx_tr_quick_btn zx_tr_quick_part" id="tr_quick_part"><span class="zx_tr_quick_icon">✍️</span><span>Parte y firma</span></button>
         ${tel ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_call"><span class="zx_tr_quick_icon">📞</span><span>Llamar</span></button>` : ""}
         ${tel ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_whatsapp"><span class="zx_tr_quick_icon">💬</span><span>WhatsApp</span></button>` : ""}
-        <button type="button" class="zx_tr_quick_btn" id="tr_quick_note"><span class="zx_tr_quick_icon">📝</span><span>Añadir nota</span></button>
-        <button type="button" class="zx_tr_quick_btn zx_tr_quick_part" id="tr_quick_part"><span class="zx_tr_quick_icon">✍️</span><span>Parte y firma</span></button>
       </div>
 
       <details class="zx_tr_more">
@@ -3286,7 +3311,13 @@ ${renderPlanificacionPlegable(plan)}
   }
 
   const route=document.getElementById("tr_quick_route");
-  if(route) route.onclick=function(){abrirMapa(dir)};
+  if(route) route.onclick=function(){abrirMapa(dir,id)};
+
+  const quickMaterials=document.getElementById("tr_quick_materials");
+  if(quickMaterials) quickMaterials.onclick=function(){abrirListaMateriales(id)};
+
+  const quickPhoto=document.getElementById("tr_quick_photo");
+  if(quickPhoto) quickPhoto.onclick=function(){subirFotoRapidaTrabajo(id)};
 
   const call=document.getElementById("tr_quick_call");
   if(call) call.onclick=function(){location.href="tel:"+telefonoLimpio(tel)};
@@ -3829,6 +3860,7 @@ async function establecerPreparacionMaterial(trabajoId,material,modo){
 function abrirEstadoPreparacionMaterial(trabajoId,material){
   const estado=estadoPreparacionMaterial(material);
   modal(`
+    <div class="zx_tr_subnav"><button type="button" id="tr_mat_prepare_top_back">‹ Materiales</button></div>
     <h2>Preparación de material</h2>
     <div class="zx_tr_material_prepare_summary">
       <strong>${limpiar(material.nombre||material.material||"Material")}</strong>
@@ -3841,6 +3873,7 @@ function abrirEstadoPreparacionMaterial(trabajoId,material){
     <button class="zx_btn_big zx_verde" id="tr_mat_prepare_ready">✓ Todo listo</button>
     <button class="zx_btn_big zx_gris" id="tr_mat_prepare_cancel">Cancelar</button>
   `);
+  document.getElementById("tr_mat_prepare_top_back").onclick=function(){abrirListaMateriales(trabajoId)};
   document.getElementById("tr_mat_prepare_pending").onclick=function(){establecerPreparacionMaterial(trabajoId,material,"pendiente")};
   document.getElementById("tr_mat_prepare_partial").onclick=function(){establecerPreparacionMaterial(trabajoId,material,"parcial")};
   document.getElementById("tr_mat_prepare_ready").onclick=function(){establecerPreparacionMaterial(trabajoId,material,"listo")};
@@ -4159,6 +4192,7 @@ async function establecerUsoMaterial(trabajoId,material,modo){
 function abrirUsoMaterial(trabajoId,material){
   const uso=estadoUsoMaterial(material);
   modal(`
+    <div class="zx_tr_subnav"><button type="button" id="tr_mat_used_top_back">‹ Materiales</button></div>
     <h2>Registrar uso</h2>
     <div class="zx_tr_material_prepare_summary">
       <strong>${limpiar(material.nombre||material.material||"Material")}</strong>
@@ -4174,6 +4208,7 @@ function abrirUsoMaterial(trabajoId,material){
     <button class="zx_btn_big zx_gris" id="tr_mat_used_cancel">Cancelar</button>
   `);
 
+  document.getElementById("tr_mat_used_top_back").onclick=function(){abrirListaMateriales(trabajoId)};
   const add=document.getElementById("tr_mat_used_add");
   if(add) add.onclick=function(){establecerUsoMaterial(trabajoId,material,"sumar")};
 
@@ -4197,6 +4232,7 @@ function abrirOpcionesMaterial(trabajoId,material){
   const uso=estadoUsoMaterial(material);
 
   modal(`
+    <div class="zx_tr_subnav"><button type="button" id="tr_mat_opt_top_back">‹ Materiales</button></div>
     <h2>Opciones del material</h2>
     <div class="zx_tr_material_prepare_summary">
       <strong>${limpiar(material.nombre || material.material || "Material")}</strong>
@@ -4211,6 +4247,7 @@ function abrirOpcionesMaterial(trabajoId,material){
     <button class="zx_btn_big zx_gris" id="tr_mat_opt_close">Cerrar</button>
   `);
 
+  document.getElementById("tr_mat_opt_top_back").onclick=function(){abrirListaMateriales(trabajoId)};
   document.getElementById("tr_mat_opt_edit").onclick=function(){abrirMaterial(trabajoId,material)};
   document.getElementById("tr_mat_opt_duplicate").onclick=function(){
     const copia={...material,__duplicar:true,id:null,cantidad:1,notas:notasVisiblesMaterial(material)};
@@ -4225,26 +4262,32 @@ function abrirOpcionesMaterial(trabajoId,material){
 async function abrirListaMateriales(trabajoId){
   modal(`
     <div class="zx_tr_materials_header">
-      <div><h2>Materiales</h2><p>Controla lo necesario, lo preparado y lo utilizado.</p></div>
+      <button type="button" class="zx_tr_material_top_back" id="tr_material_top_back">‹ Trabajo</button>
+      <div><h2>Materiales</h2><p>Marca preparación y uso directamente desde cada tarjeta.</p></div>
       ${puedeGestionar()?`<button type="button" class="zx_tr_add_material" id="tr_material_add">＋ Añadir</button>`:""}
     </div>
-    <div class="zx_tr_material_toolbar">
-      <input id="tr_material_search" type="search" placeholder="Buscar material, referencia o proveedor">
-      <select id="tr_material_filter">
-        <option value="">Todos</option><option value="pendiente">Pendientes de preparar</option>
-        <option value="parcial">Preparación parcial</option><option value="listo">Preparados</option>
-        <option value="sin_usar">Sin utilizar</option><option value="uso_parcial">Uso parcial</option>
-        <option value="utilizado">Utilizados</option>
-      </select>
-      <select id="tr_material_category"><option value="">Todas las categorías</option></select>
-      <button type="button" id="tr_material_clear">Limpiar</button>
-    </div>
+    <details class="zx_tr_material_filters">
+      <summary>🔎 Buscar o filtrar</summary>
+      <div class="zx_tr_material_toolbar">
+        <input id="tr_material_search" type="search" placeholder="Buscar material, referencia o proveedor">
+        <select id="tr_material_filter">
+          <option value="">Todos</option><option value="pendiente">Pendientes de preparar</option>
+          <option value="parcial">Preparación parcial</option><option value="listo">Preparados</option>
+          <option value="sin_usar">Sin utilizar</option><option value="uso_parcial">Uso parcial</option>
+          <option value="utilizado">Utilizados</option>
+        </select>
+        <select id="tr_material_category"><option value="">Todas las categorías</option></select>
+        <button type="button" id="tr_material_clear">Limpiar filtros</button>
+      </div>
+    </details>
     <div id="tr_material_summary" class="zx_tr_material_summary"></div>
     <div id="tr_material_list"><div class="zx_tr_loading">Cargando materiales...</div></div>
     <button class="zx_btn_big zx_gris" id="tr_material_back">Volver al trabajo</button>
   `);
 
-  document.getElementById("tr_material_back").onclick=function(){abrirFicha(trabajoId)};
+  const volverTrabajo=function(){abrirFicha(trabajoId)};
+  document.getElementById("tr_material_back").onclick=volverTrabajo;
+  document.getElementById("tr_material_top_back").onclick=volverTrabajo;
   const add=document.getElementById("tr_material_add");
   if(add) add.onclick=function(){abrirMaterial(trabajoId,null)};
 
@@ -4311,6 +4354,10 @@ async function abrirListaMateriales(trabajoId){
           <span><b>Utilizado</b>${limpiar(uso.usado)} ${limpiar(m.unidad||"ud")}</span>
           <span><b>Restante</b>${limpiar(uso.pendiente)} ${limpiar(m.unidad||"ud")}</span>
         </div>
+        ${puedeGestionar() && (prep.clave!=="listo" || uso.clave!=="utilizado") ? `<div class="zx_tr_material_fast_actions">
+          ${prep.clave!=="listo" ? `<button type="button" class="zx_tr_fast_prepare" data-material-fast-prepare="${limpiar(m.id)}">✓ Preparar todo</button>` : ""}
+          ${prep.clave==="listo" && uso.clave!=="utilizado" ? `<button type="button" class="zx_tr_fast_use" data-material-fast-use="${limpiar(m.id)}">🔧 Usar todo</button>` : ""}
+        </div>` : ""}
         ${puedeGestionar()?`<div class="zx_tr_material_quick">
           <button class="zx_tr_qty_btn" data-material-minus="${limpiar(m.id)}">−</button>
           <button class="zx_tr_qty_value" data-material-quantity="${limpiar(m.id)}">${limpiar(m.cantidad??0)} ${limpiar(m.unidad||"ud")}</button>
@@ -4324,6 +4371,14 @@ async function abrirListaMateriales(trabajoId){
 
     box.querySelectorAll("[data-material-prepare]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPrepare));if(m)abrirEstadoPreparacionMaterial(trabajoId,m)});
     box.querySelectorAll("[data-material-used]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialUsed));if(m)abrirUsoMaterial(trabajoId,m)});
+    box.querySelectorAll("[data-material-fast-prepare]").forEach(btn=>btn.onclick=function(){
+      const m=lista.find(x=>String(x.id)===String(btn.dataset.materialFastPrepare));
+      if(m) establecerPreparacionMaterial(trabajoId,m,"listo");
+    });
+    box.querySelectorAll("[data-material-fast-use]").forEach(btn=>btn.onclick=function(){
+      const m=lista.find(x=>String(x.id)===String(btn.dataset.materialFastUse));
+      if(m) establecerUsoMaterial(trabajoId,m,"todo");
+    });
     box.querySelectorAll("[data-material-minus]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialMinus));if(m)cambiarCantidadMaterial(trabajoId,m,-1)});
     box.querySelectorAll("[data-material-plus]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialPlus));if(m)cambiarCantidadMaterial(trabajoId,m,1)});
     box.querySelectorAll("[data-material-quantity]").forEach(btn=>btn.onclick=function(){const m=lista.find(x=>String(x.id)===String(btn.dataset.materialQuantity));if(m)establecerCantidadMaterial(trabajoId,m)});
@@ -4863,7 +4918,7 @@ async function gestionarTrabajo(id){
     <button class="zx_btn_big zx_gris" id="tr_gestion_cerrar">Cancelar</button>
   `);
 
-  document.getElementById("tr_gestion_cerrar").onclick=cerrarModal;
+  document.getElementById("tr_gestion_cerrar").onclick=function(){abrirFicha(id)};
 
   document.getElementById("tr_archivar").onclick=async function(){
     const ok=await pedirPinAdmin();
@@ -4884,17 +4939,6 @@ async function gestionarTrabajo(id){
     if(!confirm("¿Borrar definitivamente este trabajo?")) return;
 
     try{
-      let imagenUrl=material ? imagenMaterial(material) : "";
-      const imagenFile=imagenInput && imagenInput.files ? imagenInput.files[0] : null;
-      if(imagenFile){
-        if(boton) boton.textContent="Subiendo imagen...";
-        imagenUrl=await subirImagenMaterial(imagenFile,id);
-      }
-      data.notas=notasConPreparado(
-        data.notas,
-        material ? cantidadPreparadaMaterial(material) : 0,
-        imagenUrl
-      );
       let r;
 
       if(zx() && typeof zx().remove==="function"){
@@ -5019,6 +5063,7 @@ async function abrirMaterial(id,material){
   const duplicando=!!(material && material.__duplicar);
   const editando=!!material && !duplicando;
   modal(`
+    <div class="zx_tr_subnav"><button type="button" id="tr_mat_form_top_back">‹ Materiales</button></div>
     <h2>${editando ? "Editar material" : duplicando ? "Duplicar material" : "Nuevo material"}</h2>
     <label class="zx_tr_label">Material</label>
     <div class="zx_tr_material_voice_row">
@@ -5047,19 +5092,23 @@ async function abrirMaterial(id,material){
       <div class="zx_tr_grid2"><div><label class="zx_tr_label">Precio compra</label><input id="tr_mat_precio_compra" type="number" step="0.01" value="${limpiar(material && material.precio_compra!=null ? material.precio_compra : "")}"></div><div><label class="zx_tr_label">Precio venta</label><input id="tr_mat_precio_venta" type="number" step="0.01" value="${limpiar(material && material.precio_venta!=null ? material.precio_venta : "")}"></div></div>
       <label class="zx_tr_label">IVA (%)</label><input id="tr_mat_iva" type="number" step="0.01" value="${limpiar(material && material.iva!=null ? material.iva : "")}">
     </details>
-    <label class="zx_tr_label">Imagen del producto (opcional)</label>
-    <div class="zx_tr_material_image_form">
-      <div id="tr_mat_image_preview" class="zx_tr_material_image_preview">
-        ${material && imagenMaterial(material) ? `<img src="${limpiar(imagenMaterial(material))}" alt="">` : `<span>📷 Sin imagen</span>`}
+    <details class="zx_tr_material_extra" ${material && (imagenMaterial(material) || notasVisiblesMaterial(material)) ? "open" : ""}>
+      <summary>Foto y notas (opcional)</summary>
+      <label class="zx_tr_label">Imagen del producto</label>
+      <div class="zx_tr_material_image_form">
+        <div id="tr_mat_image_preview" class="zx_tr_material_image_preview">
+          ${material && imagenMaterial(material) ? `<img src="${limpiar(imagenMaterial(material))}" alt="">` : `<span>📷 Sin imagen</span>`}
+        </div>
+        <input id="tr_mat_imagen" type="file" accept="image/*" capture="environment">
       </div>
-      <input id="tr_mat_imagen" type="file" accept="image/*" capture="environment">
-    </div>
-    <label class="zx_tr_label">Notas</label>
-    <textarea id="tr_mat_notas" rows="3">${limpiar(material ? notasVisiblesMaterial(material) : "")}</textarea>
+      <label class="zx_tr_label">Notas</label>
+      <textarea id="tr_mat_notas" rows="3">${limpiar(material ? notasVisiblesMaterial(material) : "")}</textarea>
+    </details>
     <button class="zx_btn_big zx_verde" id="tr_mat_guardar">${editando ? "Guardar cambios" : duplicando ? "Guardar copia" : "Guardar material"}</button>
     <button class="zx_btn_big zx_gris" id="tr_mat_cancelar">Cancelar</button>
   `);
 
+  document.getElementById("tr_mat_form_top_back").onclick=function(){abrirListaMateriales(id)};
   document.getElementById("tr_mat_cancelar").onclick=function(){abrirListaMateriales(id)};
   const vozBtn=document.getElementById("tr_mat_voz");
   if(vozBtn) vozBtn.onclick=function(){iniciarDictadoMaterial("tr_mat_nombre")};
@@ -5376,7 +5425,7 @@ async function abrirMenuArchivo(archivoId,trabajoId){
     <button class="zx_btn_big zx_rojo" id="tr_file_delete">🗑️ Eliminar</button>
     <button class="zx_btn_big zx_gris" id="tr_file_close">Cerrar</button>
   `);
-  document.getElementById("tr_file_close").onclick=cerrarModal;
+  document.getElementById("tr_file_close").onclick=function(){abrirFicha(archivo.trabajo_id || trabajoId)};
   document.getElementById("tr_file_view").onclick=()=>{
     if(url) window.open(url,"_blank","noopener");
     else alert("Este archivo no tiene una dirección válida.");
@@ -5409,6 +5458,58 @@ async function insertarArchivoCompatible(datos){
   return {data:null,error:ultimoError || new Error("No se pudo registrar el archivo.")};
 }
 
+async function subirFotoRapidaTrabajo(id){
+  if(!navigator.onLine || !sb()){
+    alert("Para subir una foto necesitas conexión.");
+    return;
+  }
+
+  const input=document.createElement("input");
+  input.type="file";
+  input.accept="image/*";
+  input.setAttribute("capture","environment");
+  input.style.position="fixed";
+  input.style.left="-9999px";
+  document.body.appendChild(input);
+
+  input.onchange=async function(){
+    const file=(input.files || [])[0];
+    input.remove();
+    if(!file) return;
+
+    const ext=(file.name.split(".").pop() || "jpg").toLowerCase();
+    const now=new Date();
+    const nombre="Foto "+now.toLocaleDateString("es-ES")+" "+now.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"});
+    const path="trabajos/"+String(id)+"/"+Date.now()+"_foto_rapida."+ext;
+
+    try{
+      if(typeof window.ZX_TOAST==="function") window.ZX_TOAST("Subiendo foto...");
+      const up=await sb().storage.from("zentryx-trabajos").upload(path,file,{upsert:false,contentType:file.type || undefined});
+      if(up.error) throw up.error;
+      const publicData=sb().storage.from("zentryx-trabajos").getPublicUrl(path);
+      const url=publicData && publicData.data ? publicData.data.publicUrl : "";
+      if(!url) throw new Error("No se pudo obtener la dirección de la foto.");
+
+      const guardado=await insertarArchivoCompatible({
+        trabajo_id:String(id),nombre:nombre,url:url,tipo:file.type || "image/jpeg",tamano:file.size || 0
+      });
+      if(guardado && guardado.error){
+        try{await sb().storage.from("zentryx-trabajos").remove([path])}catch(e){}
+        throw guardado.error;
+      }
+
+      await registrarHistorial(id,"archivo","Foto rápida añadida.",{url:url,path:path,nombre:nombre});
+      if(typeof window.ZX_TOAST==="function") window.ZX_TOAST("Foto guardada");
+      await abrirFicha(id);
+    }catch(e){
+      alert("No se pudo subir la foto.\n\n"+mensajeError(e));
+    }
+  };
+
+  input.oncancel=function(){try{input.remove()}catch(e){}};
+  input.click();
+}
+
 async function abrirArchivo(id){
   modal(`
     <h2>Subir archivo</h2>
@@ -5420,7 +5521,7 @@ async function abrirArchivo(id){
     <button class="zx_btn_big zx_gris" id="tr_file_cancelar">Cancelar</button>
   `);
 
-  document.getElementById("tr_file_cancelar").onclick=cerrarModal;
+  document.getElementById("tr_file_cancelar").onclick=function(){abrirFicha(id)};
   const input=document.getElementById("tr_file");
   input.onchange=function(){
     const file=(input.files || [])[0];
@@ -5511,6 +5612,24 @@ function instalarCSS(){
   s.id="zx_trabajos_css_v3114";
   s.innerHTML=`
 
+    .zx_tr_modal_topbar{position:sticky;top:0;z-index:80;display:flex;justify-content:flex-start;align-items:center;margin:-4px 0 10px;padding:4px 0 8px;background:linear-gradient(#fff 72%,rgba(255,255,255,.92));border-bottom:1px solid #eef2f7}
+    .zx_tr_modal_topclose,.zx_tr_subnav button,.zx_tr_material_top_back{border:1px solid #bfdbfe;border-radius:13px;padding:10px 13px;background:#eff6ff;color:#1d4ed8;font-weight:950;font-size:15px;line-height:1}
+    #zx_modal_trabajo.zx_tr_fullscreen .zx_tr_modal_topbar,#zx_modal_trabajo.zx_tr_part_fullscreen .zx_tr_modal_topbar{display:none!important}
+    .zx_tr_subnav{display:flex;justify-content:flex-start;margin:0 0 10px}
+    .zx_tr_materials_header{position:sticky;top:0;z-index:35;display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;background:#fff;padding:6px 0 10px;border-bottom:1px solid #e2e8f0}
+    .zx_tr_materials_header h2{margin:0!important}.zx_tr_materials_header p{margin:2px 0 0!important;font-size:12px!important}
+    .zx_tr_material_filters{margin:12px 0;border:1px solid #dbeafe;border-radius:15px;background:#f8fbff;overflow:hidden}
+    .zx_tr_material_filters>summary{cursor:pointer;padding:12px 14px;font-weight:950;color:#1d4ed8;list-style:none}
+    .zx_tr_material_filters>summary::-webkit-details-marker{display:none}
+    .zx_tr_material_filters[open]>summary{border-bottom:1px solid #dbeafe;background:#eff6ff}
+    .zx_tr_material_filters .zx_tr_material_toolbar{padding:10px}
+    .zx_tr_material_fast_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0}
+    .zx_tr_material_fast_actions:has(>button:only-child){grid-template-columns:1fr}
+    .zx_tr_material_fast_actions button{min-height:52px;border-radius:15px;font-weight:950;font-size:15px;border:2px solid transparent;padding:10px 12px}
+    .zx_tr_fast_prepare{background:#dcfce7;color:#166534;border-color:#86efac!important}
+    .zx_tr_fast_use{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd!important}
+    .zx_tr_quick_btn b{margin-left:auto;display:inline-flex;min-width:24px;height:24px;align-items:center;justify-content:center;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:12px}
+    .zx_tr_quick_photo{background:#f5f3ff!important;border-color:#c4b5fd!important}.zx_tr_quick_material{background:#eff6ff!important;border-color:#93c5fd!important}
     .zx_tr_files_list{display:grid;gap:10px}
     .zx_tr_file_manage{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border:1px solid #dbe5f0;background:#fff;border-radius:16px;padding:13px 14px;color:#0b1b3a;box-shadow:0 2px 7px rgba(15,23,42,.04);font:inherit}
     .zx_tr_file_manage:active{transform:scale(.99);background:#f3f8ff}
