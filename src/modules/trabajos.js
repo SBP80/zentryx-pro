@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3219
-// V3219 - CORRIGE ESTADO GENERAL TRAS FINALIZAR UNA JORNADA
+// ZENTRYX PRO - TRABAJOS V3220
+// V3220 - REPARA ESTADO GENERAL AL ABRIR LA FICHA SEGUN SUS JORNADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3219";
+const ZX_VERSION="3220";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2159,14 +2159,28 @@ async function actualizarEstadoJornadaAgenda(eventoId,estado){
   return await sb().from("agenda_eventos").update({estado:estado}).eq("id",String(eventoId));
 }
 
+function estadoGeneralSegunJornadas(t,jornadas){
+  const estadoActual=estadoCanonico(t && t.estado);
+
+  // Los estados administrativos no se cambian automáticamente desde una jornada.
+  if(estadoActual==="cancelado" || estadoActual==="bloqueado") return estadoActual;
+
+  const validas=(Array.isArray(jornadas) ? jornadas : [])
+    .filter(j=>String(j.estado || "")!=="cancelado");
+
+  if(!validas.length) return estadoActual;
+
+  const todasRealizadas=validas.every(j=>String(j.estado || "")==="completado");
+  const algunaEnCurso=validas.some(j=>String(j.estado || "")==="en_curso");
+
+  // Una jornada realizada no deja el trabajo general en curso.
+  // Si quedan días pendientes y ninguno está en ejecución, el trabajo queda pendiente.
+  return todasRealizadas ? "terminado" : (algunaEnCurso ? "en_curso" : "pendiente");
+}
+
 async function recalcularEstadoGeneralTrabajo(id,t){
   const jornadas=await cargarJornadasAgendaTrabajo(id);
-  const validas=jornadas.filter(j=>String(j.estado || "")!=="cancelado");
-  const todasRealizadas=validas.length>0 && validas.every(j=>String(j.estado || "")==="completado");
-  const algunaEnCurso=validas.some(j=>String(j.estado || "")==="en_curso");
-  // Una jornada ya realizada no mantiene el trabajo general "En curso".
-  // Si quedan jornadas pendientes y ninguna está ejecutándose, el trabajo vuelve a Pendiente.
-  const nuevo=todasRealizadas ? "terminado" : (algunaEnCurso ? "en_curso" : "pendiente");
+  const nuevo=estadoGeneralSegunJornadas(t,jornadas);
 
   const r=await actualizarTrabajo(id,{estado:nuevo});
   if(r && r.error) throw r.error;
@@ -3323,7 +3337,7 @@ async function iniciarMonitorTrabajo(id,t,jornadas){
 
 
 async function abrirFicha(id){
-  const t=await cargarTrabajo(id);
+  let t=await cargarTrabajo(id);
   if(!t){alert("Trabajo no encontrado.");return}
 
   modal(`
@@ -3362,6 +3376,31 @@ async function abrirFicha(id){
     cargarHistorial(id),
     cargarJornadasAgendaTrabajo(id)
   ]);
+
+  // Reparar estados antiguos que quedaron guardados como "en_curso" aunque
+  // la jornada activa ya se hubiera finalizado. La ficha se pinta desde el
+  // estado real de sus jornadas y, si hace falta, se corrige también la tabla trabajos.
+  const estadoRealTrabajo=estadoGeneralSegunJornadas(t,jornadasAgenda);
+  if(estadoRealTrabajo!==estadoCanonico(t.estado)){
+    const anterior=t.estado;
+    t={...t,estado:estadoRealTrabajo};
+    if(navigator.onLine && sb()){
+      try{
+        const rEstado=await actualizarTrabajo(id,{estado:estadoRealTrabajo});
+        if(rEstado && rEstado.error){
+          console.warn("No se pudo reparar el estado general del trabajo:",rEstado.error);
+          t={...t,estado:anterior};
+        }else{
+          ZX_TR_CACHE=ZX_TR_CACHE.filter(function(x){return String(x.id)!==String(id)});
+          guardarCache(ZX_TR_CACHE);
+        }
+      }catch(e){
+        console.warn("No se pudo reparar el estado general del trabajo:",e);
+        t={...t,estado:anterior};
+      }
+    }
+  }
+
   // El trabajo está cerrado únicamente por su estado general.
   // Una jornada realizada no debe hacer que la ficha trate todo el trabajo como finalizado.
   const trabajoCerrado=estadoCanonico(t.estado)==="terminado";
