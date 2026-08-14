@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3214
-// V3214 - FICHA OPERATIVA CORTA + SEGUIMIENTO PLEGADO + CABECERA SIN DOBLE VOLVER
+// ZENTRYX PRO - TRABAJOS V3215
+// V3215 - JORNADA DE AGENDA FIJA + CIERRE INDEPENDIENTE POR DIA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3214";
+const ZX_VERSION="3215";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -121,15 +121,35 @@ function puedeGestionarComprasMaterial(){ return tienePermisoMaterial("gestionar
 function puedeGestionar(){return puedeEntrar()}
 function puedeBorrar(){return esAdmin()}
 
+let ZX_TR_AGENDA_EVENTO_ID="";
+let ZX_TR_AGENDA_EVENTO_FECHA="";
+
 function idTrabajoUnico(){return String(window.ZX_TRABAJO_ABRIR_ID || "").trim()}
 function accionTrabajoDirecta(){return String(window.ZX_TRABAJO_ACCION_DIRECTA || "ver").trim().toLowerCase()}
 function modoTrabajoUnico(){return !!idTrabajoUnico()}
-function idEventoAgendaSeleccionado(){return String(window.ZX_AGENDA_EVENTO_ID || "").trim()}
-function fechaAgendaSeleccionada(){return String(window.ZX_AGENDA_EVENTO_FECHA || "").slice(0,10)}
+
+function guardarContextoAgendaTrabajo(){
+  const id=String(window.ZX_AGENDA_EVENTO_ID || "").trim();
+  const fecha=String(window.ZX_AGENDA_EVENTO_FECHA || "").slice(0,10);
+  if(id) ZX_TR_AGENDA_EVENTO_ID=id;
+  if(fecha) ZX_TR_AGENDA_EVENTO_FECHA=fecha;
+}
+
+function idEventoAgendaSeleccionado(){
+  return String(ZX_TR_AGENDA_EVENTO_ID || window.ZX_AGENDA_EVENTO_ID || "").trim();
+}
+
+function fechaAgendaSeleccionada(){
+  return String(ZX_TR_AGENDA_EVENTO_FECHA || window.ZX_AGENDA_EVENTO_FECHA || "").slice(0,10);
+}
+
 function limpiarContextoAgendaTrabajo(){
+  ZX_TR_AGENDA_EVENTO_ID="";
+  ZX_TR_AGENDA_EVENTO_FECHA="";
   window.ZX_AGENDA_EVENTO_ID="";
   window.ZX_AGENDA_EVENTO_FECHA="";
 }
+
 function salirTrabajoUnico(){
   window.ZX_TRABAJO_ABRIR_ID="";
   window.ZX_TRABAJO_ACCION_DIRECTA="";
@@ -176,9 +196,10 @@ function prioridadTexto(p){
 }
 
 function claseEstado(e){
-  if(e==="terminado") return "ok";
-  if(e==="en_curso") return "curso";
-  if(e==="cancelado" || e==="bloqueado") return "rojo";
+  const estado=String(e || "").toLowerCase();
+  if(estado==="terminado" || estado==="completado") return "ok";
+  if(estado==="en_curso") return "curso";
+  if(estado==="cancelado" || estado==="bloqueado") return "rojo";
   return "pendiente";
 }
 
@@ -2075,6 +2096,8 @@ async function sincronizarAgenda(id,t){
       observaciones:""
     }]);
 
+    const estadoJornadaNueva=jornadas.length>1 ? "activo" : (t.estado==="terminado" ? "completado" : "activo");
+
     const eventos=jornadas.map(function(j){
       return {
         tipo:"trabajo",
@@ -2097,7 +2120,7 @@ async function sincronizarAgenda(id,t){
           String(j.fecha || t.fecha || hoy()).slice(0,10),
           String(j.hora_inicio || "").slice(0,5),
           String(j.hora_fin || "").slice(0,5)
-        ].join("|")) || (t.estado==="terminado" ? "completado" : "activo"),
+        ].join("|")) || estadoJornadaNueva,
         prioridad:t.prioridad || "media",
         visible_para:"todos",
         origen:"trabajos",
@@ -2147,6 +2170,17 @@ async function aplicarEstado(id,estado){
   if(!t) return;
 
   try{
+    const jornadas=await cargarJornadasAgendaTrabajo(id);
+    const multi=jornadas.length>1;
+
+    // En trabajos de varios días el cierre pertenece a cada jornada.
+    // El estado general pasa a Terminado únicamente cuando todas están realizadas.
+    if(multi && estado==="terminado"){
+      alert("Este trabajo tiene varias jornadas. Finaliza cada día desde su jornada en Agenda. El trabajo se marcará como terminado cuando no queden jornadas pendientes.");
+      await abrirFicha(id);
+      return;
+    }
+
     let r;
 
     if(zx() && typeof zx().update==="function"){
@@ -2157,8 +2191,30 @@ async function aplicarEstado(id,estado){
 
     if(r && r.error) throw r.error;
 
+    // Si el administrador reabre un trabajo de varios días como Pendiente,
+    // reabre también sus jornadas no canceladas. Sirve además para corregir
+    // trabajos que se hubieran cerrado completos con una versión anterior.
+    if(multi && estado==="pendiente"){
+      const rr=await sb().from("agenda_eventos")
+        .update({estado:"activo"})
+        .eq("origen","trabajos")
+        .eq("origen_id",String(id))
+        .neq("estado","cancelado");
+      if(rr && rr.error) throw rr.error;
+    }else if(estado==="cancelado"){
+      await sincronizarAgenda(id,Object.assign({},t,{estado:estado}));
+    }
+
     await registrarHistorial(id,"estado","Estado cambiado a "+estadoTexto(estado)+".",{estado:estado});
-    await sincronizarAgenda(id,Object.assign({},t,{estado:estado}));
+
+    try{
+      window.dispatchEvent(new CustomEvent("zentryx:agenda:actualizar",{
+        detail:{origen:"trabajos",trabajo_id:String(id)}
+      }));
+    }catch(e){}
+
+    ZX_TR_CACHE=ZX_TR_CACHE.filter(function(x){return String(x.id)!==String(id)});
+    guardarCache(ZX_TR_CACHE);
 
     cerrarModal();
     await abrirFicha(id);
@@ -3199,9 +3255,9 @@ async function abrirFicha(id){
     cargarHistorial(id),
     cargarJornadasAgendaTrabajo(id)
   ]);
-  const trabajoCerrado=estadoCanonico(t.estado)==="terminado" || (
-    jornadasAgenda.length>0 && jornadasAgenda.every(j=>["completado","cancelado"].includes(String(j.estado || "")))
-  );
+  const trabajoCerrado=jornadasAgenda.length>0
+    ? jornadasAgenda.every(j=>["completado","cancelado"].includes(String(j.estado || "")))
+    : estadoCanonico(t.estado)==="terminado";
   let sugerencias=[];
   let sugerenciasMateriales=[];
   if(!trabajoCerrado){
@@ -6235,6 +6291,11 @@ window.ZX_trabajos=async function(){
   instalarCSS();
 
   const entradaDesdeAgenda=window.ZX_TRABAJO_DESDE_AGENDA===true;
+  if(entradaDesdeAgenda){
+    // Copiar de inmediato la jornada seleccionada antes de cualquier carga asíncrona.
+    // Así la ficha conserva el día exacto aunque haya repintados o refrescos.
+    guardarContextoAgendaTrabajo();
+  }
   window.ZX_TRABAJO_DESDE_AGENDA=false;
   if(!entradaDesdeAgenda && modoTrabajoUnico()){
     salirTrabajoUnico();
