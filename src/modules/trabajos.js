@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3218
-// V3218 - REPARA JORNADAS FALTANTES Y RESPETA EL DIA ABIERTO DESDE AGENDA
+// ZENTRYX PRO - TRABAJOS V3219
+// V3219 - CORRIGE ESTADO GENERAL TRAS FINALIZAR UNA JORNADA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3218";
+const ZX_VERSION="3219";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2163,8 +2163,10 @@ async function recalcularEstadoGeneralTrabajo(id,t){
   const jornadas=await cargarJornadasAgendaTrabajo(id);
   const validas=jornadas.filter(j=>String(j.estado || "")!=="cancelado");
   const todasRealizadas=validas.length>0 && validas.every(j=>String(j.estado || "")==="completado");
-  const algunaIniciada=validas.some(j=>["en_curso","completado"].includes(String(j.estado || "")));
-  const nuevo=todasRealizadas ? "terminado" : (algunaIniciada ? "en_curso" : "pendiente");
+  const algunaEnCurso=validas.some(j=>String(j.estado || "")==="en_curso");
+  // Una jornada ya realizada no mantiene el trabajo general "En curso".
+  // Si quedan jornadas pendientes y ninguna está ejecutándose, el trabajo vuelve a Pendiente.
+  const nuevo=todasRealizadas ? "terminado" : (algunaEnCurso ? "en_curso" : "pendiente");
 
   const r=await actualizarTrabajo(id,{estado:nuevo});
   if(r && r.error) throw r.error;
