@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3220
-// V3220 - REPARA ESTADO GENERAL AL ABRIR LA FICHA SEGUN SUS JORNADAS
+// ZENTRYX PRO - TRABAJOS V3221
+// V3221 - CIERRE TOTAL: REALIZA LA JORNADA ACTUAL Y CANCELA LAS PENDIENTES; RESTAURA BOTONES AL CANCELAR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3220";
+const ZX_VERSION="3221";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3068,24 +3068,44 @@ async function finalizarTrabajoRapido(id){
     const resumen=valor("tr_fin_resumen");
     const btnConfirmar=document.getElementById("tr_fin_confirmar");
     const btnTodo=document.getElementById("tr_fin_todo");
+
+    // La confirmación debe hacerse antes de bloquear los botones. Así, si el
+    // usuario pulsa Cancelar, la pantalla no se queda atrapada en "Guardando...".
+    let jornadasACancelar=[];
+    if(finalizarTodo){
+      const pendientes=jornadas.filter(j=>!["completado","cancelado"].includes(String(j.estado || "")));
+      if(pendientes.length>1){
+        const ok=confirm("Quedan "+pendientes.length+" jornadas sin realizar. ¿Finalizar todo el trabajo igualmente?");
+        if(!ok) return;
+      }
+
+      // Cerrar todo no significa declarar como trabajadas las jornadas que no
+      // se hicieron. La jornada seleccionada sí se completa; las demás que
+      // sigan pendientes/en curso se cancelan por cierre anticipado.
+      jornadasACancelar=jornadas.filter(function(j){
+        return String(j.id)!==String(jornada.id) &&
+          !["completado","cancelado"].includes(String(j.estado || ""));
+      });
+    }
+
     if(btnConfirmar){
       btnConfirmar.disabled=true;
       btnConfirmar.textContent="Guardando...";
     }
     if(btnTodo) btnTodo.disabled=true;
+
     try{
       if(finalizarTodo){
-        const pendientes=jornadas.filter(j=>!["completado","cancelado"].includes(String(j.estado || "")));
-        if(pendientes.length>1){
-          const ok=confirm("Quedan "+pendientes.length+" jornadas sin realizar. ¿Finalizar todo el trabajo igualmente?");
-          if(!ok) return;
+        const rActual=await actualizarEstadoJornadaAgenda(jornada.id,"completado");
+        if(rActual && rActual.error) throw rActual.error;
+
+        const idsCancelar=jornadasACancelar.map(j=>String(j.id)).filter(Boolean);
+        if(idsCancelar.length){
+          const rRestantes=await sb().from("agenda_eventos")
+            .update({estado:"cancelado"})
+            .in("id",idsCancelar);
+          if(rRestantes.error) throw rRestantes.error;
         }
-        const rTodos=await sb().from("agenda_eventos")
-          .update({estado:"completado"})
-          .eq("origen","trabajos")
-          .eq("origen_id",String(id))
-          .neq("estado","cancelado");
-        if(rTodos.error) throw rTodos.error;
       }else{
         const rJ=await actualizarEstadoJornadaAgenda(jornada.id,"completado");
         if(rJ && rJ.error) throw rJ.error;
@@ -3109,6 +3129,7 @@ async function finalizarTrabajoRapido(id){
           jornada_id:jornada.id,
           fecha_jornada:jornada.fecha_inicio,
           resumen:resumen,
+          jornadas_canceladas:finalizarTodo ? jornadasACancelar.length : 0,
           jornadas_pendientes:pendientesRestantes,
           finalizado_at:new Date().toISOString()
         }
