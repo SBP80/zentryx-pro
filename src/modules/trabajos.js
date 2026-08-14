@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3212
-// V3212 - FLUJO OPERATIVO RAPIDO + NAVEGACION SUPERIOR + CORRECCION BORRADO
+// ZENTRYX PRO - TRABAJOS V3213
+// V3213 - FICHA TECNICO COMPACTA + CABECERA SUPERIOR LIMPIA + BLOQUES SECUNDARIOS PLEGADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3212";
+const ZX_VERSION="3213";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -705,12 +705,14 @@ async function cargarSugerenciasMaterialesTrabajo(t,materialesActuales){
 
 function renderSugerenciasMateriales(lista){
   if(!lista || !lista.length) return "";
-  return `<section class="zx_tr_block zx_tr_smart_materials">
-    <div class="zx_tr_block_title"><h3>📦 Materiales sugeridos</h3><span>${lista.length}</span></div>
-    <p class="zx_tr_smart_help">Basados en trabajos similares. Selecciona únicamente los que vayas a utilizar.</p>
-    <div class="zx_tr_smart_list">${lista.map((m,i)=>`<label class="zx_tr_smart_item"><input type="checkbox" data-smart-material="${i}"><span><strong>${limpiar(m.nombre)}</strong><small>${limpiar([m.unidad,m.referencia,m.proveedor].filter(Boolean).join(" · "))}${m._usos ? ` · usado en ${m._usos} trabajo(s)` : ""}</small></span></label>`).join("")}</div>
-    <button type="button" class="zx_btn_big zx_verde" id="tr_smart_material_attach">Añadir materiales seleccionados</button>
-  </section>`;
+  return `<details class="zx_tr_block zx_tr_smart_materials zx_tr_secondary_details">
+    <summary><span>📦 Materiales sugeridos</span><b>${lista.length}</b><em>Ver sugerencias</em></summary>
+    <div class="zx_tr_secondary_panel">
+      <p class="zx_tr_smart_help">Basados en trabajos similares. Marca únicamente los que vayas a utilizar.</p>
+      <div class="zx_tr_smart_list">${lista.map((m,i)=>`<label class="zx_tr_smart_item"><input type="checkbox" data-smart-material="${i}"><span><strong>${limpiar(m.nombre)}</strong><small>${limpiar([m.unidad,m.referencia,m.proveedor].filter(Boolean).join(" · "))}${m._usos ? ` · usado en ${m._usos} trabajo(s)` : ""}</small></span></label>`).join("")}</div>
+      <button type="button" class="zx_btn_big zx_verde" id="tr_smart_material_attach">Añadir seleccionados</button>
+    </div>
+  </details>`;
 }
 
 async function adjuntarSugerenciasMateriales(trabajoId,sugerencias){
@@ -745,12 +747,14 @@ async function adjuntarSugerenciasMateriales(trabajoId,sugerencias){
 
 function renderSugerenciasInteligentes(lista){
   if(!lista || !lista.length) return "";
-  return `<section class="zx_tr_block zx_tr_smart_block">
-    <div class="zx_tr_block_title"><h3>✨ Sugerencias inteligentes</h3><span>${lista.length} documento(s)</span></div>
-    <p class="zx_tr_smart_help">Encontrados por coincidencia con la descripción, marca, modelo o potencia del trabajo. Revísalos antes de añadir.</p>
-    <div class="zx_tr_smart_list">${lista.map(a=>`<label class="zx_tr_smart_item"><input type="checkbox" data-smart-file="${limpiar(a.id)}"><span><strong>${limpiar(a.nombre || a.filename || "Archivo")}</strong><small>${limpiar(tipoArchivoVisible(a))} · ${limpiar(a._origen || "Biblioteca")}</small></span></label>`).join("")}</div>
-    <button type="button" class="zx_btn_big zx_azul" id="tr_smart_attach">Añadir seleccionados al trabajo</button>
-  </section>`;
+  return `<details class="zx_tr_block zx_tr_smart_block zx_tr_secondary_details">
+    <summary><span>✨ Documentos sugeridos</span><b>${lista.length}</b><em>Ver sugerencias</em></summary>
+    <div class="zx_tr_secondary_panel">
+      <p class="zx_tr_smart_help">Coincidencias con la descripción, marca, modelo o potencia del trabajo.</p>
+      <div class="zx_tr_smart_list">${lista.map(a=>`<label class="zx_tr_smart_item"><input type="checkbox" data-smart-file="${limpiar(a.id)}"><span><strong>${limpiar(a.nombre || a.filename || "Archivo")}</strong><small>${limpiar(tipoArchivoVisible(a))} · ${limpiar(a._origen || "Biblioteca")}</small></span></label>`).join("")}</div>
+      <button type="button" class="zx_btn_big zx_azul" id="tr_smart_attach">Añadir seleccionados</button>
+    </div>
+  </details>`;
 }
 
 async function adjuntarSugerencias(trabajoId,sugerencias){
@@ -3161,9 +3165,8 @@ async function abrirFicha(id){
 
   modal(`
     <div class="zx_tr_full_header">
-      <button type="button" class="zx_tr_back_agenda" id="tr_back_agenda">${modoTrabajoUnico() ? "‹ Agenda" : "‹ Trabajos"}</button>
-      <h2>${limpiar(t.titulo || "Trabajo")}</h2>
-      <span class="zx_tr_full_state ${claseEstado(t.estado)}" id="tr_full_header_state">${limpiar(estadoTexto(t.estado))}</span>
+      <button type="button" class="zx_tr_back_agenda" id="tr_back_agenda">${modoTrabajoUnico() ? "← Agenda" : "← Trabajos"}</button>
+      <h2 title="${limpiar(t.titulo || "Trabajo")}">${limpiar(t.titulo || "Trabajo")}</h2>
     </div>
     <div id="tr_ficha_contenido">
       <div class="zx_tr_loading">Cargando ficha...</div>
@@ -3196,10 +3199,17 @@ async function abrirFicha(id){
     cargarHistorial(id),
     cargarJornadasAgendaTrabajo(id)
   ]);
-  const [sugerencias,sugerenciasMateriales]=await Promise.all([
-    cargarSugerenciasDocumentales(t,arch),
-    cargarSugerenciasMaterialesTrabajo(t,mat)
-  ]);
+  const trabajoCerrado=estadoCanonico(t.estado)==="terminado" || (
+    jornadasAgenda.length>0 && jornadasAgenda.every(j=>["completado","cancelado"].includes(String(j.estado || "")))
+  );
+  let sugerencias=[];
+  let sugerenciasMateriales=[];
+  if(!trabajoCerrado){
+    [sugerencias,sugerenciasMateriales]=await Promise.all([
+      cargarSugerenciasDocumentales(t,arch),
+      cargarSugerenciasMaterialesTrabajo(t,mat)
+    ]);
+  }
 
   const equipo=equipoPlanificacion(plan,t);
   const dir=direccionTrabajo(t);
@@ -3223,7 +3233,6 @@ async function abrirFicha(id){
             <strong>${limpiar(estadoVisible)}</strong>
           </div>
           <div class="zx_tr_badges">
-            <span class="estado ${claseEstado(jornadaActual ? jornadaActual.estado : t.estado)}">${limpiar(estadoVisible)}</span>
             <span class="prio ${clasePrioridad(t.prioridad)}">${limpiar(prioridadTexto(t.prioridad))}</span>
           </div>
         </div>
@@ -3255,13 +3264,6 @@ async function abrirFicha(id){
         </div>
       `}
 
-      <section class="zx_tr_contact_card">
-        ${t.cliente ? `<div class="zx_tr_contact_title">👤 ${limpiar(t.cliente)}</div>` : ""}
-        ${equipo.length ? `<div class="zx_tr_contact_line"><b>Equipo</b><span>${limpiar(equipo.join(", "))}</span></div>` : ""}
-        ${dir ? `<div class="zx_tr_contact_line"><b>Dirección</b><span>${limpiar(dir)}</span></div>` : ""}
-        ${t.descripcion ? `<div class="zx_tr_description">${limpiar(t.descripcion)}</div>` : ""}
-      </section>
-
       <div class="zx_tr_quick_actions">
         ${dir ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_route"><span class="zx_tr_quick_icon">🧭</span><span>Ruta</span></button>` : ""}
         <button type="button" class="zx_tr_quick_btn zx_tr_quick_material" id="tr_quick_materials"><span class="zx_tr_quick_icon">📦</span><span>Materiales</span><b>${mat.length}</b></button>
@@ -3272,12 +3274,18 @@ async function abrirFicha(id){
         ${tel ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_whatsapp"><span class="zx_tr_quick_icon">💬</span><span>WhatsApp</span></button>` : ""}
       </div>
 
+      <section class="zx_tr_contact_card">
+        ${t.cliente ? `<div class="zx_tr_contact_title">👤 ${limpiar(t.cliente)}</div>` : ""}
+        ${dir ? `<div class="zx_tr_contact_line"><b>Dirección</b><span>${limpiar(dir)}</span></div>` : ""}
+        ${equipo.length ? `<details class="zx_tr_team_details"><summary>👥 Equipo · ${equipo.length}</summary><span>${limpiar(equipo.join(", "))}</span></details>` : ""}
+        ${t.descripcion ? `<div class="zx_tr_description">${limpiar(t.descripcion)}</div>` : ""}
+      </section>
+
       <details class="zx_tr_more">
         <summary>Más opciones</summary>
         <div class="zx_tr_more_grid">
           ${puedeGestionar() ? `<button class="blue" onclick="ZX_tr_editar('${limpiar(id)}')"><span class="zx_tr_action_icon">✏️</span><span>Editar trabajo</span></button>` : ""}
           ${puedeGestionar() ? `<button class="orange" onclick="ZX_tr_estado('${limpiar(id)}')"><span class="zx_tr_action_icon">🔄</span><span>Cambiar estado</span></button>` : ""}
-          ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_material('${limpiar(id)}')"><span class="zx_tr_action_icon">📦</span><span>Materiales</span></button>` : ""}
           ${puedeGestionar() ? `<button class="gray" onclick="ZX_tr_archivo('${limpiar(id)}')"><span class="zx_tr_action_icon">📎</span><span>Archivos</span></button>` : ""}
           ${puedeBorrar() ? `<button class="red" onclick="ZX_tr_gestionar('${limpiar(id)}')"><span class="zx_tr_action_icon">⚙️</span><span>Gestionar</span></button>` : ""}
         </div>
@@ -3438,7 +3446,10 @@ ${renderPlanificacionPlegable(plan)}
 function renderNotasVisibles(hist){
   const notas=(hist || []).filter(h=>normalizar(h.tipo).includes("nota") || normalizar(h.notas).startsWith("nota"));
   if(!notas.length) return "";
-  return `<section class="zx_tr_block zx_tr_notes_block"><div class="zx_tr_block_title"><h3>Notas</h3><span>${notas.length}</span></div>${notas.slice(0,5).map(h=>`<article class="zx_tr_note_visible"><p>${limpiar(h.notas || "")}</p><small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small></article>`).join("")}</section>`;
+  return `<details class="zx_tr_block zx_tr_notes_block zx_tr_secondary_details">
+    <summary><span>📝 Notas</span><b>${notas.length}</b><em>Ver notas</em></summary>
+    <div class="zx_tr_secondary_panel">${notas.slice(0,5).map(h=>`<article class="zx_tr_note_visible"><p>${limpiar(h.notas || "")}</p><small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small></article>`).join("")}</div>
+  </details>`;
 }
 
 
@@ -4609,33 +4620,33 @@ function renderArchivos(lista,trabajoId){
   });
 
   return `
-    <div class="zx_tr_block">
-      <div class="zx_tr_block_title">
-        <h3>Archivos</h3>
-        ${trabajoId ? `<button type="button" class="zx_doc_library_open" id="tr_open_doc_library">📚 Buscar en biblioteca</button>` : ""}
+    <details class="zx_tr_block zx_tr_files_block zx_tr_secondary_details">
+      <summary><span>📎 Archivos</span><b>${archivosVisibles.length}</b><em>Ver archivos</em></summary>
+      <div class="zx_tr_secondary_panel">
+        ${trabajoId ? `<button type="button" class="zx_doc_library_open zx_tr_library_full" id="tr_open_doc_library">📚 Buscar en biblioteca</button>` : ""}
+        ${
+          archivosVisibles.length
+          ? `<div class="zx_tr_files_list">${archivosVisibles.map(a=>{
+              const nombre=a.nombre || a.filename || "Archivo";
+              const fecha=fechaArchivoVisible(a);
+              const hora=horaArchivoVisible(a);
+              const tamano=tamanoArchivoVisible(a);
+              const meta1=[tipoArchivoVisible(a),tamano].filter(Boolean).join(" · ");
+              const meta2=[fecha,hora].filter(Boolean).join(" · ");
+              return `<button type="button" class="zx_tr_file zx_tr_file_manage" onclick="ZX_tr_file_menu('${limpiar(a.id)}','${limpiar(a.trabajo_id || "")}')">
+                ${miniaturaArchivo(a)}
+                <span class="zx_tr_file_text">
+                  <strong>${limpiar(nombre)}</strong>
+                  <small>${limpiar(meta1)}</small>
+                  ${meta2 ? `<small class="zx_tr_file_date">${limpiar(meta2)}</small>` : ""}
+                </span>
+                <span class="zx_tr_file_more">⋯</span>
+              </button>`;
+            }).join("")}</div>`
+          : `<div class="zx_tr_empty mini">Sin archivos.</div>`
+        }
       </div>
-      ${
-        archivosVisibles.length
-        ? `<div class="zx_tr_files_list">${archivosVisibles.map(a=>{
-            const nombre=a.nombre || a.filename || "Archivo";
-            const fecha=fechaArchivoVisible(a);
-            const hora=horaArchivoVisible(a);
-            const tamano=tamanoArchivoVisible(a);
-            const meta1=[tipoArchivoVisible(a),tamano].filter(Boolean).join(" · ");
-            const meta2=[fecha,hora].filter(Boolean).join(" · ");
-            return `<button type="button" class="zx_tr_file zx_tr_file_manage" onclick="ZX_tr_file_menu('${limpiar(a.id)}','${limpiar(a.trabajo_id || "")}')">
-              ${miniaturaArchivo(a)}
-              <span class="zx_tr_file_text">
-                <strong>${limpiar(nombre)}</strong>
-                <small>${limpiar(meta1)}</small>
-                ${meta2 ? `<small class="zx_tr_file_date">${limpiar(meta2)}</small>` : ""}
-              </span>
-              <span class="zx_tr_file_more">⋯</span>
-            </button>`;
-          }).join("")}</div>`
-        : `<div class="zx_tr_empty mini">Sin archivos.</div>`
-      }
-    </div>
+    </details>
   `;
 }
 
@@ -5691,12 +5702,15 @@ function instalarCSS(){
     .zx_tr_plan_toggle[aria-expanded="true"]{background:#eff6ff}
     .zx_tr_plan_panel{padding-top:10px}
     .zx_tr_plan_panel[hidden]{display:none!important}
-    .zx_tr_full_header{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;background:#fff;padding:8px 0 12px;border-bottom:1px solid #e2e8f0}
-    .zx_tr_full_header h2{margin:0!important;min-width:0;overflow-wrap:anywhere}
-    .zx_tr_back_agenda{border:1px solid #bfdbfe;border-radius:12px;padding:9px 11px;background:#eff6ff;color:#1d4ed8;font-weight:950;white-space:nowrap}
-    .zx_tr_full_state{border-radius:999px;padding:7px 10px;font-size:12px;font-weight:950;white-space:nowrap}
+    .zx_tr_full_header{position:sticky;top:0;z-index:90;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:10px;background:rgba(255,255,255,.98);padding:5px 0 8px;border-bottom:1px solid #e2e8f0;min-height:46px}
+    .zx_tr_full_header h2{margin:0!important;min-width:0;font-size:17px!important;line-height:1.15!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .zx_tr_back_agenda{border:1px solid #bfdbfe;border-radius:12px;padding:8px 10px;background:#eff6ff;color:#1d4ed8;font-weight:950;white-space:nowrap;font-size:13px}
+    .zx_tr_full_state{border-radius:999px;padding:6px 8px;font-size:11px;font-weight:950;white-space:nowrap}
     #zx_modal_trabajo.zx_tr_fullscreen{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;padding:0!important;margin:0!important;align-items:stretch!important;justify-content:stretch!important;background:#fff!important;z-index:999999!important}
     #zx_modal_trabajo.zx_tr_fullscreen .zx_modal_caja{width:100vw!important;max-width:none!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))!important;box-shadow:none!important;overflow-y:auto!important;overflow-x:hidden!important}
+    #zx_modal_trabajo.zx_tr_fullscreen .zx_tr_modal_topbar,
+    #zx_modal_trabajo.zx_tr_part_fullscreen .zx_tr_modal_topbar,
+    #zx_modal_trabajo.zx_tr_photo_fullscreen .zx_tr_modal_topbar{display:none!important}
 
     body:has(#zx_modal_trabajo.zx_tr_fullscreen){overflow:hidden!important}
     #zx_modal_trabajo.zx_tr_fullscreen>.zx_modal_caja,
@@ -5731,9 +5745,9 @@ function instalarCSS(){
       #zx_modal_trabajo.zx_tr_fullscreen .zx_tr_operativo{max-width:1180px;margin:0 auto}
     }
     @media(max-width:520px){
-      .zx_tr_full_header{grid-template-columns:auto minmax(0,1fr)}
-      .zx_tr_full_state{grid-column:1/-1;width:max-content}
-      .zx_tr_back_agenda{padding:8px 9px}
+      .zx_tr_full_header{grid-template-columns:auto minmax(0,1fr);gap:8px}
+      .zx_tr_full_header h2{font-size:16px!important}
+      .zx_tr_back_agenda{padding:7px 9px;font-size:12px}
     }
     .zx_tr_hold_mic{width:100%;border:2px solid #bfdbfe;border-radius:16px;padding:13px;background:#eff6ff;color:#1d4ed8;font-weight:950;margin-bottom:10px}
     .zx_tr_hold_mic.escuchando{background:#fee2e2;border-color:#f87171;color:#b91c1c;transform:scale(.99)}
@@ -5939,7 +5953,7 @@ function instalarCSS(){
 
     .zx_tr_actions,.zx_tr_ficha_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
     .zx_tr_operativo{display:grid;gap:12px}
-    .zx_tr_status_card{background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:14px}
+    .zx_tr_status_card{background:#f8fafc;border:1px solid #dbe3ef;border-radius:20px;padding:12px}
     .zx_tr_status_top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
     .zx_tr_status_label{display:block;color:#64748b;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.5px}
     .zx_tr_status_top strong{display:block;color:#071330;font-size:23px;font-weight:950;margin-top:3px}
@@ -5952,6 +5966,7 @@ function instalarCSS(){
     .zx_tr_status_grid b{color:#071330;font-size:14px;font-weight:950;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .zx_tr_main_action{width:100%;border:0;border-radius:20px;padding:18px 16px;color:white;font-size:19px;font-weight:950;display:flex;align-items:center;justify-content:center;gap:10px;text-align:center}
     .zx_tr_main_action span{font-size:22px}
+    .zx_tr_main_action.zx_tr_done{padding:13px 14px;font-size:16px;border-radius:16px}
     .zx_tr_start{background:#16a34a}.zx_tr_finish{background:#ea580c}.zx_tr_done{background:#166534}.zx_tr_cancelled{background:#991b1b}
     .zx_tr_contact_card{background:#fff;border:1px solid #dbe3ef;border-radius:20px;padding:14px;display:grid;gap:9px}
     .zx_tr_contact_title{color:#071330;font-size:19px;font-weight:950}
@@ -5970,6 +5985,20 @@ function instalarCSS(){
     .zx_tr_more{border:1px solid #dbe3ef;border-radius:18px;background:#f8fafc;overflow:hidden}
     .zx_tr_more summary{padding:14px;color:#334155;font-size:14px;font-weight:950;text-align:center;cursor:pointer}
     .zx_tr_more_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 12px 12px}
+    .zx_tr_secondary_details{overflow:hidden;padding:0!important}
+    .zx_tr_secondary_details>summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;padding:15px 16px;cursor:pointer;color:#0f172a}
+    .zx_tr_secondary_details>summary::-webkit-details-marker{display:none}
+    .zx_tr_secondary_details>summary span{font-size:18px;font-weight:950;min-width:0}
+    .zx_tr_secondary_details>summary b{font-size:13px;color:#2563eb;font-weight:950}
+    .zx_tr_secondary_details>summary em{grid-column:1/-1;color:#64748b;font-size:11px;font-style:normal;font-weight:850}
+    .zx_tr_secondary_details[open]>summary{background:#f8fafc;border-bottom:1px solid #e2e8f0}
+    .zx_tr_secondary_details[open]>summary em{color:#2563eb}
+    .zx_tr_secondary_panel{padding:12px 14px 14px;display:grid;gap:10px}
+    .zx_tr_library_full{width:100%;justify-content:center;min-height:44px}
+    .zx_tr_team_details{border-top:1px solid #eef2f7;padding-top:8px}
+    .zx_tr_team_details summary{cursor:pointer;color:#475569;font-size:12px;font-weight:900;list-style:none}
+    .zx_tr_team_details summary::-webkit-details-marker{display:none}
+    .zx_tr_team_details span{display:block;margin-top:7px;color:#071330;font-size:13px;font-weight:800;line-height:1.35}
     .zx_tr_actions button,.zx_tr_ficha_actions button{border:0;border-radius:16px;padding:13px 8px;color:white;font-size:14px;font-weight:950;min-height:46px}
     .zx_tr_actions .green,.zx_tr_ficha_actions .green{background:#16a34a}
     .zx_tr_actions .blue,.zx_tr_ficha_actions .blue{background:#2563eb}
