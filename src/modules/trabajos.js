@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3216
-// V3216 - ESTADO DEL TRABAJO SEPARADO DEL ESTADO DE LA JORNADA
+// ZENTRYX PRO - TRABAJOS V3217
+// V3217 - RESPETA LA JORNADA SELECCIONADA DESDE AGENDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3216";
+const ZX_VERSION="3217";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -1993,15 +1993,30 @@ async function cargarJornadasAgendaTrabajo(trabajoId){
 function jornadaSeleccionadaAgenda(jornadas){
   const lista=Array.isArray(jornadas) ? jornadas : [];
   const id=idEventoAgendaSeleccionado();
-  if(id){
-    const porId=lista.find(x=>String(x.id)===id);
-    if(porId) return porId;
-  }
   const fecha=fechaAgendaSeleccionada();
+
+  // Si Agenda entrega ID y fecha, ambos deben corresponder a la misma jornada.
+  // Evita que un ID antiguo haga abrir otro día del mismo trabajo.
+  if(id && fecha){
+    const exacta=lista.find(x=>
+      String(x.id)===id &&
+      String(x.fecha_inicio || "").slice(0,10)===fecha
+    );
+    if(exacta) return exacta;
+  }
+
+  // La fecha pulsada en Agenda manda sobre cualquier ID que no coincida.
   if(fecha){
     const porFecha=lista.find(x=>String(x.fecha_inicio || "").slice(0,10)===fecha);
     if(porFecha) return porFecha;
   }
+
+  // El ID se usa como respaldo cuando no hay una fecha válida.
+  if(id){
+    const porId=lista.find(x=>String(x.id)===id);
+    if(porId) return porId;
+  }
+
   const hoyIso=hoy();
   return lista.find(x=>String(x.fecha_inicio || "").slice(0,10)===hoyIso && !["completado","cancelado"].includes(String(x.estado || "")))
     || lista.find(x=>!["completado","cancelado"].includes(String(x.estado || "")))
