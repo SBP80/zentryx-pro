@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3118 - REFRESCO INMEDIATO DEL LISTADO TRAS GUARDAR
+// V3119 - PRINCIPAL DE DIRECCIONES INDEPENDIENTE DEL PLEGADO EN IPHONE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3118";
+const ZX_VERSION="3119";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -1270,10 +1270,10 @@ function renderDireccionEditor(d,abierta){
   const viaActual=String(d.via_tipo || (esNueva ? "Calle" : "")).trim();
   const resumen=resumenDireccionEtiqueta(d);
   return `
-    <details class="zx_cli_address_editor" data-id="${limpiar(id)}" data-lat="${limpiar(d.lat ?? "")}" data-lng="${limpiar(d.lng ?? "")}" ${abierta ? "open" : ""}>
+    <details class="zx_cli_address_editor" data-id="${limpiar(id)}" data-lat="${limpiar(d.lat ?? "")}" data-lng="${limpiar(d.lng ?? "")}" data-principal="${d.principal ? "1" : "0"}" ${abierta ? "open" : ""}>
       <summary>
         <span data-dir-resumen>${limpiar(resumen)}</span>
-        ${mostrarBadgePrincipalDireccion(d) ? ` <span class="zx_cli_badge">Principal</span>` : ""}
+        <span class="zx_cli_badge" data-dir-principal-badge ${mostrarBadgePrincipalDireccion(d) ? "" : "hidden"}>Principal</span>
       </summary>
       <div class="zx_cli_address_body">
         <div class="zx_cli_subcard_head">
@@ -1351,12 +1351,29 @@ function asegurarPrincipal(tipo){
   }
 }
 
+function actualizarPrincipalDireccionesUI(principalRow){
+  const rows=Array.from(document.querySelectorAll(".zx_cli_address_editor"));
+  rows.forEach(function(row){
+    const radio=row.querySelector("[data-dir-principal]");
+    const esPrincipal=!!principalRow && row===principalRow;
+    if(radio) radio.checked=esPrincipal;
+    row.dataset.principal=esPrincipal ? "1" : "0";
+
+    const badge=row.querySelector("[data-dir-principal-badge]");
+    if(badge){
+      const etiqueta=String(row.querySelector("[data-dir-campo=\"etiqueta\"]")?.value || row.querySelector("[data-dir-resumen]")?.textContent || "").trim().toLowerCase();
+      badge.hidden=!(esPrincipal && etiqueta!=="principal");
+    }
+  });
+}
+
 function asegurarPrincipalDireccion(){
   const rows=Array.from(document.querySelectorAll(".zx_cli_address_editor"));
-  if(rows.length && !rows.some(function(r){return r.querySelector("[data-dir-principal]")?.checked})){
-    const radio=rows[0].querySelector("[data-dir-principal]");
-    if(radio) radio.checked=true;
-  }
+  if(!rows.length) return;
+  let principal=rows.find(function(r){return r.dataset.principal==="1"}) ||
+                rows.find(function(r){return !!r.querySelector("[data-dir-principal]")?.checked}) || null;
+  if(!principal) principal=rows[0];
+  actualizarPrincipalDireccionesUI(principal);
 }
 
 function conectarFormularioDinamico(){
@@ -1403,15 +1420,31 @@ function conectarFormularioDinamico(){
         const opciones=etiquetasDireccion();
         if(opciones.includes(String(inp.value || "").trim())) inp.value="";
         if(span) span.textContent=inp.value.trim() || "Nueva dirección";
+        if(row && row.dataset.principal==="1") actualizarPrincipalDireccionesUI(row);
         if(enfocar) setTimeout(function(){inp.focus()},0);
       }else if(sel.value){
         inp.value=sel.value;
         inp.hidden=true;
         if(span) span.textContent=sel.value;
+        if(row && row.dataset.principal==="1") actualizarPrincipalDireccionesUI(row);
       }
     };
     sel.onchange=function(){aplicar(true)};
     aplicar(false);
+  });
+
+  // iOS/Safari puede mantener marcado el radio de una dirección dentro de un <details> cerrado.
+  // No dependemos del comportamiento nativo: la dirección seleccionada se guarda también en data-principal
+  // y se desmarca de forma explícita en todas las demás, estén abiertas o plegadas.
+  document.querySelectorAll("[data-dir-principal]").forEach(function(radio){
+    if(radio.dataset.zxPrincipalReady) return;radio.dataset.zxPrincipalReady="1";
+    const activar=function(){
+      if(!radio.checked) return;
+      const row=radio.closest(".zx_cli_address_editor");
+      if(row) actualizarPrincipalDireccionesUI(row);
+    };
+    radio.onclick=activar;
+    radio.onchange=activar;
   });
 
   document.querySelectorAll("[data-remove-contacto]").forEach(function(btn){
@@ -1424,7 +1457,7 @@ function conectarFormularioDinamico(){
   });
   document.querySelectorAll("[data-dir-campo=\"etiqueta\"]").forEach(function(inp){
     if(inp.dataset.zxReady) return;inp.dataset.zxReady="1";
-    inp.oninput=function(){const row=inp.closest(".zx_cli_address_editor");const span=row?.querySelector("[data-dir-resumen]");if(span) span.textContent=inp.value.trim() || "Nueva dirección"};
+    inp.oninput=function(){const row=inp.closest(".zx_cli_address_editor");const span=row?.querySelector("[data-dir-resumen]");if(span) span.textContent=inp.value.trim() || "Nueva dirección";if(row && row.dataset.principal==="1") actualizarPrincipalDireccionesUI(row)};
   });
 }
 
@@ -1546,7 +1579,7 @@ function leerDireccionesFormulario(){
       poblacion:get("poblacion"),provincia:get("provincia"),pais:get("pais") || "España",notas:get("notas"),
       lat:row.dataset.lat ? Number(row.dataset.lat) : null,
       lng:row.dataset.lng ? Number(row.dataset.lng) : null,
-      principal:!!row.querySelector("[data-dir-principal]")?.checked,
+      principal:row.dataset.principal==="1",
       activa:true
     };
     const tiene=[d.direccion,d.numero,d.codigo_postal,d.poblacion,d.provincia,d.notas].some(function(v){return String(v || "").trim()}) || d.lat!=null || d.lng!=null;
