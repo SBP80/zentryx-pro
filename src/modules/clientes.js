@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3123 - DOCUMENTACION MULTIPLE + FECHAS DD/MM/AAAA
+// V3124 - CLIENTES LIMPIO: SIN MENSAJE PREDEFINIDO POR CLIENTE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3123";
+const ZX_VERSION="3124";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -282,7 +282,7 @@ function textoBusqueda(c){
   return normalizar([
     c.nombre,c.razon_social,c.cliente,c.empresa,c.nombre_comercial,c.tipo,
     c.nif,c.persona_contacto,c.telefono,c.telefono_2,c.email,
-    c.notas,c.mensaje_predefinido,c.documento_nombre,
+    c.notas,c.documento_nombre,
     contactos,direcciones,nombreCliente(c)
   ].join(" "));
 }
@@ -321,11 +321,9 @@ function telefonoLimpio(tel){
   return n;
 }
 
-function menuTelefono(tel,mensaje){
+function menuTelefono(tel){
   const n=telefonoLimpio(tel);
   if(!n){alert("Sin teléfono.");return}
-
-  const msg=encodeURIComponent(mensaje || "");
 
   modal(`
     <h2>Teléfono</h2>
@@ -336,8 +334,8 @@ function menuTelefono(tel,mensaje){
   `);
 
   document.getElementById("cli_tel_llamar").onclick=function(){location.href="tel:"+n};
-  document.getElementById("cli_tel_sms").onclick=function(){location.href="sms:"+n+(mensaje ? "&body="+msg : "")};
-  document.getElementById("cli_tel_was").onclick=function(){location.href="https://wa.me/"+n.replace("+","")+(mensaje ? "?text="+msg : "")};
+  document.getElementById("cli_tel_sms").onclick=function(){location.href="sms:"+n};
+  document.getElementById("cli_tel_was").onclick=function(){location.href="https://wa.me/"+n.replace("+","")};
   document.getElementById("cli_tel_cerrar").onclick=cerrarModal;
 }
 
@@ -1321,7 +1319,7 @@ function mostrarFichaCliente(c){
           <b>${limpiar(etiquetaContacto(x))}${x.principal ? ` <span class="zx_cli_badge">Principal</span>` : ""}</b>
           <span>${limpiar(x.valor)}</span>
         </div>
-        ${esTel ? `<button class="green" type="button" data-ficha-tel="${limpiar(x.valor)}" data-ficha-msg="${limpiar(c.mensaje_predefinido || "")}">☎</button>` : `<button class="blue" type="button" data-ficha-mail="${limpiar(x.valor)}">✉</button>`}
+        ${esTel ? `<button class="green" type="button" data-ficha-tel="${limpiar(x.valor)}">☎</button>` : `<button class="blue" type="button" data-ficha-mail="${limpiar(x.valor)}">✉</button>`}
       </div>
     `;
   }).join("");
@@ -1390,12 +1388,6 @@ function mostrarFichaCliente(c){
       ${c.notas ? `<div class="zx_cli_ficha_text">${limpiar(c.notas)}</div>` : `<div class="zx_cli_ficha_vacio">Sin notas.</div>`}
     </section>
 
-    ${c.mensaje_predefinido ? `
-      <section class="zx_cli_ficha_section">
-        <h3>Mensaje predefinido</h3>
-        <div class="zx_cli_ficha_text">${limpiar(c.mensaje_predefinido)}</div>
-      </section>
-    ` : ""}
 
     ${puedeBorrar() ? `<button class="zx_btn_big zx_cli_options_btn" type="button" id="cli_ficha_opciones">••• Opciones</button>` : ""}
     <button class="zx_btn_big zx_gris" type="button" id="cli_ficha_cerrar">Cerrar</button>
@@ -1423,7 +1415,7 @@ function mostrarFichaCliente(c){
   }
 
   document.querySelectorAll("[data-ficha-tel]").forEach(function(btn){
-    btn.onclick=function(e){e.stopPropagation();menuTelefono(btn.dataset.fichaTel,btn.dataset.fichaMsg)};
+    btn.onclick=function(e){e.stopPropagation();menuTelefono(btn.dataset.fichaTel)};
   });
   document.querySelectorAll("[data-ficha-mail]").forEach(function(btn){
     btn.onclick=function(e){e.stopPropagation();enviarMail(btn.dataset.fichaMail)};
@@ -2001,8 +1993,6 @@ function formulario(c){
       <label class="zx_cli_label" for="c_notas">Notas técnicas</label>
       <textarea id="c_notas" rows="4">${limpiar(c.notas || "")}</textarea>
 
-      <label class="zx_cli_label" for="c_mensaje">Mensaje WhatsApp/SMS</label>
-      <textarea id="c_mensaje" rows="4">${limpiar(c.mensaje_predefinido || "")}</textarea>
     </div>
 
     <button class="zx_btn_big zx_verde" id="btn_guardar_cliente">Guardar cliente</button>
@@ -2150,7 +2140,6 @@ async function guardarCliente(id,documentoActual,nombreDocActual){
     lat:dirPrincipal ? dirPrincipal.lat : null,
     lng:dirPrincipal ? dirPrincipal.lng : null,
     notas:valor("c_notas"),
-    mensaje_predefinido:valor("c_mensaje"),
     // Se conservan los campos antiguos por compatibilidad. La biblioteca nueva usa clientes_documentos.
     documento_url:documentoActual || null,
     documento_nombre:nombreDocActual || null,
