@@ -1,12 +1,13 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3226
+// ZENTRYX PRO - TRABAJOS V3227
+// V3227 - NOTAS: EDITAR/BORRAR DESDE HISTORIAL Y CONTADOR ACTUALIZADO
 // V3226 - CIERRE TOTAL: AVISO CORRECTO DE JORNADAS RESTANTES
 // V3225 - REAPERTURA SEGURA: CONSERVA JORNADAS REALIZADAS Y CANCELADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3226";
+const ZX_VERSION="3227";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3070,6 +3071,86 @@ async function registrarNotaRapida(id){
   };
 }
 
+async function cargarNotaPorId(historialId){
+  if(!historialId || !navigator.onLine || !sb()) return null;
+  try{
+    const r=await sb().from("trabajos_historial").select("*").eq("id",String(historialId)).maybeSingle();
+    if(r.error || !r.data) return null;
+    return r.data;
+  }catch(e){
+    return null;
+  }
+}
+
+async function abrirMenuNota(historialId,trabajoId){
+  const h=await cargarNotaPorId(historialId);
+  if(!h){alert("No se pudo cargar la nota.");return}
+  const idTrabajo=trabajoId || h.trabajo_id;
+  const texto=String(h.notas || "").trim() || "Nota";
+  modal(`
+    <h2>Opciones de la nota</h2>
+    <div class="zx_text"><b>${limpiar(fechaHoraHistorial(h))}</b><br>${limpiar(texto)}</div>
+    <button class="zx_btn_big zx_azul" id="tr_note_menu_edit">✏️ Editar nota</button>
+    <button class="zx_btn_big zx_rojo" id="tr_note_menu_delete">🗑️ Eliminar nota</button>
+    <button class="zx_btn_big zx_gris" id="tr_note_menu_close">Cerrar</button>
+  `);
+  document.getElementById("tr_note_menu_close").onclick=function(){abrirFicha(idTrabajo)};
+  document.getElementById("tr_note_menu_edit").onclick=function(){editarNotaRapidaExistente(historialId,idTrabajo)};
+  document.getElementById("tr_note_menu_delete").onclick=function(){borrarNotaRapida(historialId,idTrabajo)};
+}
+
+async function editarNotaRapidaExistente(historialId,trabajoId){
+  const h=await cargarNotaPorId(historialId);
+  if(!h){alert("No se pudo cargar la nota.");return}
+  const idTrabajo=trabajoId || h.trabajo_id;
+  modal(`
+    <h2>Editar nota</h2>
+    <div class="zx_text">Modifica la observación y guarda los cambios.</div>
+    <textarea id="tr_nota_editar" rows="5">${limpiar(h.notas || "")}</textarea>
+    <div class="zx_tr_dictation_actions">
+      <button type="button" class="zx_tr_hold_mic" id="tr_nota_editar_micro">🎙️ Mantén pulsado para dictar</button>
+      <button type="button" class="zx_tr_clear_text" id="tr_nota_editar_borrar">🗑️ Borrar texto</button>
+    </div>
+    <button class="zx_btn_big zx_verde" id="tr_nota_editar_guardar">Guardar cambios</button>
+    <button class="zx_btn_big zx_gris" id="tr_nota_editar_cancelar">Cancelar</button>
+  `);
+  const campo=document.getElementById("tr_nota_editar");
+  iniciarDictadoMientrasPulsa(document.getElementById("tr_nota_editar_micro"),campo);
+  document.getElementById("tr_nota_editar_borrar").onclick=function(){
+    if(!campo.value.trim()) return;
+    if(confirm("¿Borrar todo el texto de la nota?")){campo.value="";campo.focus()}
+  };
+  document.getElementById("tr_nota_editar_cancelar").onclick=function(){abrirMenuNota(historialId,idTrabajo)};
+  document.getElementById("tr_nota_editar_guardar").onclick=async function(){
+    const nota=campo.value.trim();
+    if(!nota){alert("Escribe una nota.");return}
+    if(!navigator.onLine || !sb()){alert("Necesitas conexión para modificar la nota.");return}
+    const datos=Object.assign({},datosHistorial(h),{nota:nota});
+    try{
+      let r=await sb().from("trabajos_historial").update({notas:nota,datos:datos}).eq("id",String(historialId));
+      if(r.error) r=await sb().from("trabajos_historial").update({notas:nota}).eq("id",String(historialId));
+      if(r.error) throw r.error;
+      await abrirFicha(idTrabajo);
+    }catch(e){
+      alert("No se pudo modificar la nota.\n\n"+mensajeError(e));
+    }
+  };
+}
+
+async function borrarNotaRapida(historialId,trabajoId){
+  if(!navigator.onLine || !sb()){alert("Necesitas conexión para eliminar la nota.");return}
+  if(!confirm("¿Eliminar esta nota?")) return;
+  try{
+    const h=await cargarNotaPorId(historialId);
+    const idTrabajo=trabajoId || h?.trabajo_id;
+    const r=await sb().from("trabajos_historial").delete().eq("id",String(historialId));
+    if(r.error) throw r.error;
+    await abrirFicha(idTrabajo);
+  }catch(e){
+    alert("No se pudo eliminar la nota.\n\n"+mensajeError(e));
+  }
+}
+
 async function finalizarTrabajoRapido(id){
   const t=await cargarTrabajo(id);
   if(!t) return;
@@ -3737,10 +3818,16 @@ function renderNotasVisibles(hist){
   if(!notas.length) return "";
   return `<details class="zx_tr_block zx_tr_notes_block zx_tr_secondary_details">
     <summary><span>📝 Notas</span><b>${notas.length}</b><em>Ver notas</em></summary>
-    <div class="zx_tr_secondary_panel">${notas.slice(0,5).map(h=>`<article class="zx_tr_note_visible"><p>${limpiar(h.notas || "")}</p><small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small></article>`).join("")}</div>
+    <div class="zx_tr_secondary_panel">${notas.slice(0,5).map(h=>`<article class="zx_tr_note_visible">
+      <p>${limpiar(h.notas || "")}</p>
+      <small>${limpiar(h.usuario || "Sistema")} · ${limpiar(fechaHoraHistorial(h))}</small>
+      <div class="zx_tr_note_actions">
+        <button type="button" onclick="ZX_tr_nota_editar('${limpiar(h.id)}','${limpiar(h.trabajo_id || "")}')">✏️ Editar</button>
+        <button type="button" class="delete" onclick="ZX_tr_nota_borrar('${limpiar(h.id)}','${limpiar(h.trabajo_id || "")}')">🗑️ Eliminar</button>
+      </div>
+    </article>`).join("")}</div>
   </details>`;
 }
-
 
 function horaHistorialParte(h){
   const raw=h?.created_at || h?.fecha || "";
@@ -4824,8 +4911,9 @@ function renderHistorialProfesional(lista){
         const notasVisibles=notasParteSinDatos(h.notas || "") || "Actividad registrada";
         const cfg=configHistorial(h.tipo,notasVisibles);
         const usuario=h.usuario || h.usuario_nombre || h.nombre_usuario || "Sistema";
+        const esNota=normalizar(h.tipo || "")==="nota";
         return `
-          <article class="zx_tr_history_item ${cfg.clase}">
+          <article class="zx_tr_history_item ${cfg.clase}${esNota ? " zx_tr_history_clickable" : ""}" ${esNota ? `onclick="ZX_tr_nota_menu('${limpiar(h.id)}','${limpiar(h.trabajo_id || "")}')" role="button" tabindex="0"` : ""}>
             <div class="zx_tr_history_icon">${cfg.icono}</div>
             <div class="zx_tr_history_content">
               <div class="zx_tr_history_head">
@@ -4834,6 +4922,7 @@ function renderHistorialProfesional(lista){
               </div>
               <p>${limpiar(notasVisibles)}</p>
               <div class="zx_tr_history_user"><span>👤</span>${limpiar(usuario)}</div>
+              ${esNota ? `<div class="zx_tr_history_hint">Toca para editar o eliminar</div>` : ""}
             </div>
           </article>
         `;
@@ -5909,6 +5998,9 @@ window.ZX_tr_file_menu=function(archivoId,trabajoId){abrirMenuArchivo(archivoId,
 window.ZX_tr_gestionar=function(id){gestionarTrabajo(id)};
 window.ZX_tr_nota=function(id){registrarNotaRapida(id)};
 window.ZX_tr_parte=function(id){abrirParteJornada(id)};
+window.ZX_tr_nota_menu=function(historialId,trabajoId){abrirMenuNota(historialId,trabajoId)};
+window.ZX_tr_nota_editar=function(historialId,trabajoId){editarNotaRapidaExistente(historialId,trabajoId)};
+window.ZX_tr_nota_borrar=function(historialId,trabajoId){borrarNotaRapida(historialId,trabajoId)};
 window.ZX_tr_parte_editar=function(id,historialId){abrirParteJornada(id,historialId)};
 window.ZX_tr_parte_borrar=function(historialId,trabajoId){borrarParteJornada(historialId,trabajoId)};
 window.ZX_tr_parte_menu=function(historialId,trabajoId){abrirMenuParte(historialId,trabajoId)};
@@ -6445,7 +6537,7 @@ function instalarCSS(){
     .zx_tr_notice{background:#f8fafc;border:1px solid #dbe3ef;border-left:7px solid #64748b;border-radius:18px;padding:14px;color:#334155;font-size:15px;font-weight:900;line-height:1.35}
     .zx_tr_notice.danger{border-left-color:#dc2626;background:#fef2f2;color:#991b1b}
 
-    .zx_tr_autocomplete_wrap{position:relative}.zx_tr_autocomplete_list{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:30;max-height:280px;overflow:auto;background:#fff;border:1px solid #b9d2f3;border-radius:16px;padding:6px;box-shadow:0 14px 30px rgba(15,35,72,.18)}.zx_tr_autocomplete_list button{display:grid;width:100%;gap:3px;text-align:left;border:0;background:#fff;padding:11px;border-radius:11px}.zx_tr_suggestion_row{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:stretch;border-bottom:1px solid #eef2f7}.zx_tr_suggestion_pick{min-width:0}.zx_tr_suggestion_star{display:flex!important;align-items:center;justify-content:center!important;font-size:24px!important;color:#f59e0b!important;padding:6px!important}.zx_tr_create_material{border-top:1px solid #dbeafe!important;background:#eff6ff!important;color:#1d4ed8!important}.zx_tr_autocomplete_list button:active{background:#eff6ff}.zx_tr_autocomplete_list strong{color:#071330;font-size:15px}.zx_tr_autocomplete_list small{color:#64748b;font-size:12px;font-weight:800}.zx_tr_material_extra{margin-top:12px;border:1px solid #dbe3ef;border-radius:16px;padding:10px 12px;background:#fff}.zx_tr_material_extra summary{color:#334155;font-weight:950;cursor:pointer}.zx_tr_smart_block{border-color:#c4b5fd;background:#faf5ff}.zx_tr_smart_materials{border-color:#86efac;background:#f0fdf4}.zx_tr_smart_help{color:#64748b;font-size:13px;font-weight:800;line-height:1.4}.zx_tr_smart_list{display:grid;gap:8px;margin:12px 0}.zx_tr_smart_item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;background:#fff;border:1px solid #ddd6fe;border-radius:14px;padding:11px}.zx_tr_smart_item input{width:22px!important;height:22px;accent-color:#7c3aed}.zx_tr_smart_item span{display:grid;gap:3px;min-width:0}.zx_tr_smart_item strong{color:#071330;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_tr_smart_item small{color:#64748b;font-size:11px;font-weight:800}.zx_tr_notes_block{background:#fffbeb;border-color:#fde68a}.zx_tr_note_visible{background:#fff;border:1px solid #fde68a;border-radius:14px;padding:11px;margin-top:9px}.zx_tr_note_visible p{margin:0;color:#334155;font-size:14px;font-weight:800;line-height:1.4;white-space:pre-wrap}.zx_tr_note_visible small{display:block;margin-top:7px;color:#92400e;font-size:11px;font-weight:850}
+    .zx_tr_autocomplete_wrap{position:relative}.zx_tr_autocomplete_list{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:30;max-height:280px;overflow:auto;background:#fff;border:1px solid #b9d2f3;border-radius:16px;padding:6px;box-shadow:0 14px 30px rgba(15,35,72,.18)}.zx_tr_autocomplete_list button{display:grid;width:100%;gap:3px;text-align:left;border:0;background:#fff;padding:11px;border-radius:11px}.zx_tr_suggestion_row{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:stretch;border-bottom:1px solid #eef2f7}.zx_tr_suggestion_pick{min-width:0}.zx_tr_suggestion_star{display:flex!important;align-items:center;justify-content:center!important;font-size:24px!important;color:#f59e0b!important;padding:6px!important}.zx_tr_create_material{border-top:1px solid #dbeafe!important;background:#eff6ff!important;color:#1d4ed8!important}.zx_tr_autocomplete_list button:active{background:#eff6ff}.zx_tr_autocomplete_list strong{color:#071330;font-size:15px}.zx_tr_autocomplete_list small{color:#64748b;font-size:12px;font-weight:800}.zx_tr_material_extra{margin-top:12px;border:1px solid #dbe3ef;border-radius:16px;padding:10px 12px;background:#fff}.zx_tr_material_extra summary{color:#334155;font-weight:950;cursor:pointer}.zx_tr_smart_block{border-color:#c4b5fd;background:#faf5ff}.zx_tr_smart_materials{border-color:#86efac;background:#f0fdf4}.zx_tr_smart_help{color:#64748b;font-size:13px;font-weight:800;line-height:1.4}.zx_tr_smart_list{display:grid;gap:8px;margin:12px 0}.zx_tr_smart_item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;background:#fff;border:1px solid #ddd6fe;border-radius:14px;padding:11px}.zx_tr_smart_item input{width:22px!important;height:22px;accent-color:#7c3aed}.zx_tr_smart_item span{display:grid;gap:3px;min-width:0}.zx_tr_smart_item strong{color:#071330;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_tr_smart_item small{color:#64748b;font-size:11px;font-weight:800}.zx_tr_notes_block{background:#fffbeb;border-color:#fde68a}.zx_tr_note_visible{background:#fff;border:1px solid #fde68a;border-radius:14px;padding:11px;margin-top:9px}.zx_tr_note_visible p{margin:0;color:#334155;font-size:14px;font-weight:800;line-height:1.4;white-space:pre-wrap}.zx_tr_note_visible small{display:block;margin-top:7px;color:#92400e;font-size:11px;font-weight:850}.zx_tr_note_actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.zx_tr_note_actions button{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:11px;padding:9px 8px;font-size:12px;font-weight:950}.zx_tr_note_actions button.delete{border-color:#fecaca;background:#fff1f2;color:#b91c1c}.zx_tr_history_item.zx_tr_history_clickable{cursor:pointer;box-shadow:0 2px 8px rgba(15,23,42,.035),0 0 0 1px rgba(202,138,4,.08)}.zx_tr_history_item.zx_tr_history_clickable:active{transform:scale(.995)}.zx_tr_history_hint{margin-top:8px;color:#a16207;font-size:11px;font-weight:900}
     /* Ficha responsive: evita cualquier desbordamiento horizontal en móvil */
     #zx_modal_trabajo,
     #zx_modal_trabajo *{box-sizing:border-box;min-width:0}
