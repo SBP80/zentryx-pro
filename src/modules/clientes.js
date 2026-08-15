@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3110 - VALIDACIÓN PIN SEGURA
+// V3111 - FICHA DE CONSULTA + ACCIONES SUPERIORES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3110";
+const ZX_VERSION="3111";
 const TABLA="clientes";
 const CACHE_KEY="zentryx_cache_clientes";
 
@@ -384,7 +384,7 @@ function renderCliente(c){
   const nombre=nombreCliente(c);
 
   return `
-    <article class="zx_cli_card" data-id="${limpiar(c.id)}">
+    <article class="zx_cli_card" data-id="${limpiar(c.id)}" data-cli-open="${limpiar(c.id)}" role="button" tabindex="0" aria-label="Abrir ficha de ${limpiar(nombre)}">
       <div class="zx_cli_top">
         <div class="zx_cli_avatar">${limpiar((nombre || "C").slice(0,1).toUpperCase())}</div>
         <div>
@@ -415,6 +415,178 @@ function renderCliente(c){
       </div>
     </article>
   `;
+}
+
+
+function fichaCampo(label,valor){
+  if(valor===null || valor===undefined || String(valor).trim()==="") return "";
+  return `
+    <div class="zx_cli_ficha_campo">
+      <b>${limpiar(label)}</b>
+      <span>${limpiar(valor)}</span>
+    </div>
+  `;
+}
+
+function modalFicha(html){
+  cerrarModal();
+  document.body.classList.add("zx_modal_abierto");
+  const d=document.createElement("div");
+  d.id="zx_modal_cliente";
+  d.className="zx_modal_fondo";
+  d.innerHTML=`<div class="zx_modal_caja zx_cli_ficha_modal">${html}</div>`;
+  document.body.appendChild(d);
+}
+
+function mostrarFichaCliente(c){
+  if(!c) return;
+
+  const nombre=nombreCliente(c);
+  const dir=c.__zx_dir || direccionCompleta(c);
+  const tel1=String(c.telefono || "").trim();
+  const tel2=String(c.telefono_2 || "").trim();
+  const email=String(c.email || "").trim();
+
+  modalFicha(`
+    <div class="zx_cli_top_actions">
+      <button type="button" class="zx_cli_top_back" id="cli_ficha_volver">← Volver</button>
+      ${puedeEditar() ? `<button type="button" class="zx_cli_top_edit" id="cli_ficha_editar">✏️ Editar</button>` : ""}
+    </div>
+
+    <div class="zx_cli_ficha_head">
+      <div class="zx_cli_ficha_avatar">${limpiar((nombre || "C").slice(0,1).toUpperCase())}</div>
+      <div>
+        <div class="zx_cli_ficha_kicker">FICHA DE CLIENTE</div>
+        <h2>${limpiar(nombre)}</h2>
+        <div class="zx_cli_ficha_tipo">${limpiar(c.tipo || "Sin tipo")}</div>
+      </div>
+    </div>
+
+    <section class="zx_cli_ficha_section">
+      <h3>Datos principales</h3>
+      <div class="zx_cli_ficha_grid">
+        ${fichaCampo("Tipo",c.tipo || "Sin tipo")}
+        ${puedeGestionar() ? fichaCampo("DNI / NIF / CIF",c.nif) : ""}
+        ${fichaCampo("Persona de contacto",c.persona_contacto)}
+      </div>
+    </section>
+
+    <section class="zx_cli_ficha_section">
+      <h3>Contacto</h3>
+      <div class="zx_cli_ficha_grid">
+        ${fichaCampo("Teléfono",tel1)}
+        ${fichaCampo("Teléfono 2",tel2)}
+        ${fichaCampo("Email",email)}
+      </div>
+
+      ${(tel1 || tel2 || email) ? `
+        <div class="zx_cli_ficha_actions">
+          ${tel1 ? `<button class="green" type="button" data-ficha-tel="${limpiar(tel1)}" data-ficha-msg="${limpiar(c.mensaje_predefinido || "")}">☎ Teléfono</button>` : ""}
+          ${tel2 ? `<button class="green" type="button" data-ficha-tel="${limpiar(tel2)}" data-ficha-msg="${limpiar(c.mensaje_predefinido || "")}">☎ Teléfono 2</button>` : ""}
+          ${email ? `<button class="blue" type="button" data-ficha-mail="${limpiar(email)}">✉ Email</button>` : ""}
+        </div>
+      ` : `<div class="zx_cli_ficha_vacio">Sin datos de contacto.</div>`}
+    </section>
+
+    <section class="zx_cli_ficha_section">
+      <h3>Dirección</h3>
+      ${dir ? `
+        <div class="zx_cli_ficha_address">${limpiar(dir)}</div>
+        <div class="zx_cli_ficha_actions">
+          <button class="purple" type="button" data-ficha-map="${limpiar(dir)}">📍 Mapa</button>
+        </div>
+      ` : `<div class="zx_cli_ficha_vacio">Sin dirección registrada.</div>`}
+    </section>
+
+    ${puedeDocs() ? `
+      <section class="zx_cli_ficha_section">
+        <h3>Documentación</h3>
+        ${c.documento_url ? `
+          <div class="zx_cli_ficha_doc">
+            <span>${limpiar(c.documento_nombre || "Documento del cliente")}</span>
+            <button class="gray" type="button" data-ficha-doc="${limpiar(c.documento_url)}">📄 Ver documento</button>
+          </div>
+        ` : `<div class="zx_cli_ficha_vacio">Sin documento asociado.</div>`}
+      </section>
+    ` : ""}
+
+    <section class="zx_cli_ficha_section">
+      <h3>Notas</h3>
+      ${c.notas ? `<div class="zx_cli_ficha_text">${limpiar(c.notas)}</div>` : `<div class="zx_cli_ficha_vacio">Sin notas.</div>`}
+    </section>
+
+    ${c.mensaje_predefinido ? `
+      <section class="zx_cli_ficha_section">
+        <h3>Mensaje predefinido</h3>
+        <div class="zx_cli_ficha_text">${limpiar(c.mensaje_predefinido)}</div>
+      </section>
+    ` : ""}
+
+    <button class="zx_btn_big zx_gris" type="button" id="cli_ficha_cerrar">Cerrar</button>
+  `);
+
+  const volver=document.getElementById("cli_ficha_volver");
+  const cerrar=document.getElementById("cli_ficha_cerrar");
+  const editar=document.getElementById("cli_ficha_editar");
+
+  if(volver) volver.onclick=cerrarModal;
+  if(cerrar) cerrar.onclick=cerrarModal;
+  if(editar){
+    editar.onclick=function(){
+      cerrarModal();
+      editarCliente(c.id);
+    };
+  }
+
+  document.querySelectorAll("[data-ficha-tel]").forEach(function(btn){
+    btn.onclick=function(e){
+      e.stopPropagation();
+      menuTelefono(btn.dataset.fichaTel,btn.dataset.fichaMsg);
+    };
+  });
+
+  document.querySelectorAll("[data-ficha-mail]").forEach(function(btn){
+    btn.onclick=function(e){
+      e.stopPropagation();
+      enviarMail(btn.dataset.fichaMail);
+    };
+  });
+
+  document.querySelectorAll("[data-ficha-map]").forEach(function(btn){
+    btn.onclick=function(e){
+      e.stopPropagation();
+      menuMapa(btn.dataset.fichaMap);
+    };
+  });
+
+  document.querySelectorAll("[data-ficha-doc]").forEach(function(btn){
+    btn.onclick=function(e){
+      e.stopPropagation();
+      window.open(btn.dataset.fichaDoc,"_blank");
+    };
+  });
+}
+
+async function abrirFichaCliente(id){
+  const local=ZX_CLIENTES_CACHE.find(function(x){return String(x.id)===String(id)}) || null;
+
+  if(local){
+    mostrarFichaCliente(local);
+    return;
+  }
+
+  if(navigator.onLine && sb()){
+    try{
+      const r=await sb().from(TABLA).select("*").eq("id",id).maybeSingle();
+      if(!r.error && r.data){
+        const c=prepararCliente(r.data);
+        mostrarFichaCliente(c);
+        return;
+      }
+    }catch(e){}
+  }
+
+  alert("Cliente no encontrado.");
 }
 
 function renderListado(lista){
@@ -522,27 +694,60 @@ function conectarLimpiar(){
 
 function conectarAcciones(){
   document.querySelectorAll("[data-cli-tel]").forEach(btn=>{
-    btn.onclick=function(){menuTelefono(btn.dataset.cliTel,btn.dataset.cliMsg)};
+    btn.onclick=function(e){
+      if(e) e.stopPropagation();
+      menuTelefono(btn.dataset.cliTel,btn.dataset.cliMsg);
+    };
   });
 
   document.querySelectorAll("[data-cli-mail]").forEach(btn=>{
-    btn.onclick=function(){enviarMail(btn.dataset.cliMail)};
+    btn.onclick=function(e){
+      if(e) e.stopPropagation();
+      enviarMail(btn.dataset.cliMail);
+    };
   });
 
   document.querySelectorAll("[data-cli-map]").forEach(btn=>{
-    btn.onclick=function(){menuMapa(btn.dataset.cliMap)};
+    btn.onclick=function(e){
+      if(e) e.stopPropagation();
+      menuMapa(btn.dataset.cliMap);
+    };
   });
 
   document.querySelectorAll("[data-cli-doc]").forEach(btn=>{
-    btn.onclick=function(){window.open(btn.dataset.cliDoc,"_blank")};
+    btn.onclick=function(e){
+      if(e) e.stopPropagation();
+      window.open(btn.dataset.cliDoc,"_blank");
+    };
   });
 
   document.querySelectorAll("[data-cli-edit]").forEach(btn=>{
-    btn.onclick=function(){editarCliente(btn.dataset.cliEdit)};
+    btn.onclick=function(e){
+      if(e) e.stopPropagation();
+      editarCliente(btn.dataset.cliEdit);
+    };
   });
 
   document.querySelectorAll("[data-cli-del]").forEach(btn=>{
-    btn.onclick=function(){borrarCliente(btn.dataset.cliDel)};
+    btn.onclick=function(e){
+      if(e) e.stopPropagation();
+      borrarCliente(btn.dataset.cliDel);
+    };
+  });
+
+  document.querySelectorAll("[data-cli-open]").forEach(card=>{
+    card.onclick=function(e){
+      if(e && e.target && e.target.closest("button,a,input,select,textarea,label")) return;
+      abrirFichaCliente(card.dataset.cliOpen);
+    };
+
+    card.onkeydown=function(e){
+      if(e.target && e.target.closest("button,a,input,select,textarea,label")) return;
+      if(e.key==="Enter" || e.key===" "){
+        e.preventDefault();
+        abrirFichaCliente(card.dataset.cliOpen);
+      }
+    };
   });
 }
 
@@ -580,6 +785,11 @@ function formulario(c){
   if(!c.id && !puedeCrear()){alert("No tienes permiso para crear clientes.");return}
 
   modal(`
+    <div class="zx_cli_top_actions zx_cli_form_top">
+      <button type="button" class="zx_cli_top_back" id="btn_cancelar_cliente_top">← Volver</button>
+      <button type="button" class="zx_cli_top_save" id="btn_guardar_cliente_top">💾 Guardar</button>
+    </div>
+
     <h2>${c.id ? "Editar cliente" : "Nuevo cliente"}</h2>
 
     <div class="zx_cli_form">
@@ -634,10 +844,20 @@ function formulario(c){
     <button class="zx_btn_big zx_gris" id="btn_cancelar_cliente">Cancelar</button>
   `);
 
-  document.getElementById("btn_cancelar_cliente").onclick=cerrarModal;
-  document.getElementById("btn_guardar_cliente").onclick=function(){
+  const cancelarTop=document.getElementById("btn_cancelar_cliente_top");
+  const guardarTop=document.getElementById("btn_guardar_cliente_top");
+  const cancelarBottom=document.getElementById("btn_cancelar_cliente");
+  const guardarBottom=document.getElementById("btn_guardar_cliente");
+
+  if(cancelarTop) cancelarTop.onclick=cerrarModal;
+  if(cancelarBottom) cancelarBottom.onclick=cerrarModal;
+
+  const guardar=function(){
     guardarCliente(c.id || null,c.documento_url || null,c.documento_nombre || null);
   };
+
+  if(guardarTop) guardarTop.onclick=guardar;
+  if(guardarBottom) guardarBottom.onclick=guardar;
 }
 
 function valor(id){
@@ -769,11 +989,13 @@ async function borrarCliente(id){
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_clientes_css_v3109");
-  if(old) old.remove();
+  ["zx_clientes_css_v3109","zx_clientes_css_v3111"].forEach(function(id){
+    const old=document.getElementById(id);
+    if(old) old.remove();
+  });
 
   const s=document.createElement("style");
-  s.id="zx_clientes_css_v3109";
+  s.id="zx_clientes_css_v3111";
   s.innerHTML=`
     .zx_cli_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_cli_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
@@ -818,8 +1040,34 @@ function instalarCSS(){
     .zx_cli_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
     .zx_cli_form input,.zx_cli_form select,.zx_cli_form textarea,#zx_modal_cliente input,#zx_modal_cliente select,#zx_modal_cliente textarea{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}
     .zx_cli_grid2,.zx_cli_grid3{display:grid;grid-template-columns:1fr;gap:10px}
-    @media(max-width:390px){.zx_cli_panel{padding:15px;border-radius:22px}.zx_cli_header h2{font-size:27px}.zx_cli_actions{grid-template-columns:1fr}.zx_cli_kpis{grid-template-columns:1fr 1fr}.zx_cli_top h3{font-size:19px}}
-    @media(min-width:700px){.zx_cli_shell{padding-bottom:32px}.zx_cli_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_cli_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_grid3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    .zx_cli_card[data-cli-open]{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}
+    .zx_cli_card[data-cli-open]:active{transform:scale(.992);border-color:#93c5fd}
+    .zx_cli_card[data-cli-open]:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+    .zx_cli_top_actions{position:sticky;top:0;z-index:8;display:grid;grid-template-columns:1fr 1fr;gap:10px;background:rgba(255,255,255,.97);padding:4px 0 14px;margin:0 0 16px;border-bottom:1px solid #e2e8f0;backdrop-filter:blur(10px)}
+    .zx_cli_top_actions button{border:1px solid #bfdbfe;border-radius:16px;padding:12px 14px;min-height:48px;font-size:15px;font-weight:950}
+    .zx_cli_top_back{background:#eff6ff;color:#1d4ed8}
+    .zx_cli_top_edit,.zx_cli_top_save{background:#2563eb!important;color:white!important;border-color:#2563eb!important}
+    .zx_cli_ficha_modal{padding-top:12px}
+    .zx_cli_ficha_head{display:grid;grid-template-columns:62px 1fr;gap:14px;align-items:center;margin-bottom:16px}
+    .zx_cli_ficha_avatar{width:62px;height:62px;border-radius:20px;background:#dbeafe;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:950}
+    .zx_cli_ficha_kicker{color:#64748b;font-size:12px;font-weight:950;letter-spacing:.08em}
+    .zx_cli_ficha_head h2{margin:3px 0 0;color:#071330;font-size:28px;line-height:1.05;font-weight:950;letter-spacing:-.4px}
+    .zx_cli_ficha_tipo{margin-top:6px;color:#4338ca;background:#eef2ff;border-radius:999px;display:inline-block;padding:6px 10px;font-size:13px;font-weight:950;text-transform:capitalize}
+    .zx_cli_ficha_section{background:#f8fafc;border:1px solid #dbe3ef;border-radius:22px;padding:15px;margin:12px 0}
+    .zx_cli_ficha_section h3{margin:0 0 12px;color:#071330;font-size:20px;font-weight:950}
+    .zx_cli_ficha_grid{display:grid;grid-template-columns:1fr;gap:9px}
+    .zx_cli_ficha_campo{background:white;border:1px solid #e6edf5;border-radius:16px;padding:11px}
+    .zx_cli_ficha_campo b{display:block;color:#64748b;font-size:12px;font-weight:950;margin-bottom:4px}
+    .zx_cli_ficha_campo span{display:block;color:#071330;font-size:16px;font-weight:850;line-height:1.35;word-break:break-word}
+    .zx_cli_ficha_address,.zx_cli_ficha_text{background:white;border:1px solid #e6edf5;border-radius:16px;padding:12px;color:#071330;font-size:16px;font-weight:850;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+    .zx_cli_ficha_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+    .zx_cli_ficha_actions button,.zx_cli_ficha_doc button{border:0;border-radius:15px;padding:12px;color:white;font-size:14px;font-weight:950;min-height:46px}
+    .zx_cli_ficha_actions .green{background:#16a34a}.zx_cli_ficha_actions .blue{background:#2563eb}.zx_cli_ficha_actions .purple{background:#7c3aed}.zx_cli_ficha_actions .gray,.zx_cli_ficha_doc .gray{background:#64748b}
+    .zx_cli_ficha_doc{display:grid;grid-template-columns:1fr;gap:10px}
+    .zx_cli_ficha_doc span{color:#334155;font-size:15px;font-weight:850;word-break:break-word}
+    .zx_cli_ficha_vacio{color:#64748b;font-size:15px;font-weight:850;padding:4px 0}
+    @media(max-width:390px){.zx_cli_panel{padding:15px;border-radius:22px}.zx_cli_header h2{font-size:27px}.zx_cli_actions{grid-template-columns:1fr}.zx_cli_kpis{grid-template-columns:1fr 1fr}.zx_cli_top h3{font-size:19px}.zx_cli_ficha_actions{grid-template-columns:1fr}.zx_cli_top_actions{grid-template-columns:1fr 1fr}.zx_cli_top_actions button{font-size:14px;padding:11px 8px}}
+    @media(min-width:700px){.zx_cli_shell{padding-bottom:32px}.zx_cli_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_cli_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_grid3{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_cli_ficha_grid{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_ficha_doc{grid-template-columns:1fr auto;align-items:center}}
     @media(min-width:1100px){.zx_cli_panel{padding:22px}.zx_cli_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
   document.head.appendChild(s);
