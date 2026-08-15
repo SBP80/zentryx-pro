@@ -1,11 +1,12 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3225
+// ZENTRYX PRO - TRABAJOS V3226
+// V3226 - CIERRE TOTAL: AVISO CORRECTO DE JORNADAS RESTANTES
 // V3225 - REAPERTURA SEGURA: CONSERVA JORNADAS REALIZADAS Y CANCELADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3225";
+const ZX_VERSION="3226";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3107,19 +3108,25 @@ async function finalizarTrabajoRapido(id){
     // usuario pulsa Cancelar, la pantalla no se queda atrapada en "Guardando...".
     let jornadasACancelar=[];
     if(finalizarTodo){
-      const pendientes=jornadas.filter(j=>!["completado","cancelado"].includes(String(j.estado || "")));
-      if(pendientes.length>1){
-        const ok=confirm("Quedan "+pendientes.length+" jornadas sin realizar. ¿Finalizar todo el trabajo igualmente?");
+      // La jornada seleccionada se va a completar, por lo que no debe contarse
+      // entre las jornadas restantes que se cancelarán al cerrar todo.
+      jornadasACancelar=jornadas.filter(function(j){
+        return String(j.id)!==String(jornada.id) &&
+          !["completado","cancelado"].includes(String(j.estado || ""));
+      });
+
+      if(jornadasACancelar.length){
+        const ok=confirm(
+          "Quedan "+jornadasACancelar.length+
+          " jornadas adicionales sin realizar. Se cancelarán al finalizar todo el trabajo. "+
+          "La jornada actual se marcará como realizada. ¿Continuar?"
+        );
         if(!ok) return;
       }
 
       // Cerrar todo no significa declarar como trabajadas las jornadas que no
       // se hicieron. La jornada seleccionada sí se completa; las demás que
       // sigan pendientes/en curso se cancelan por cierre anticipado.
-      jornadasACancelar=jornadas.filter(function(j){
-        return String(j.id)!==String(jornada.id) &&
-          !["completado","cancelado"].includes(String(j.estado || ""));
-      });
     }
 
     if(btnConfirmar){
