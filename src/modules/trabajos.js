@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3221
-// V3221 - CIERRE TOTAL: REALIZA LA JORNADA ACTUAL Y CANCELA LAS PENDIENTES; RESTAURA BOTONES AL CANCELAR
+// ZENTRYX PRO - TRABAJOS V3223
+// V3223 - CONTADOR DIARIO DE JORNADA + CONTADORES RAPIDOS + HISTORIAL LIMPIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3221";
+const ZX_VERSION="3223";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2553,6 +2553,39 @@ function formatoDuracion(ms){
   return [h,m,s].map(function(n){return String(n).padStart(2,"0")}).join(":");
 }
 
+function mismaFechaLocal(a,b){
+  return !!(a && b) &&
+    a.getFullYear()===b.getFullYear() &&
+    a.getMonth()===b.getMonth() &&
+    a.getDate()===b.getDate();
+}
+
+function inicioDiaLocal(fecha){
+  const d=new Date(fecha || Date.now());
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+function milisegundosContadorDiario(inicio,ahora){
+  if(!inicio) return 0;
+  const fin=ahora instanceof Date ? ahora : new Date(ahora || Date.now());
+  const base=mismaFechaLocal(inicio,fin) ? inicio : inicioDiaLocal(fin);
+  return Math.max(0,fin.getTime()-base.getTime());
+}
+
+function textoInicioRealJornada(inicio){
+  if(!inicio) return "Ahora";
+  const ahora=new Date();
+  const hora=inicio.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",hour12:false});
+  if(mismaFechaLocal(inicio,ahora)) return hora;
+  return inicio.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"})+" · "+hora;
+}
+
+function avisoJornadaAbierta(inicio){
+  if(!inicio || mismaFechaLocal(inicio,new Date())) return "";
+  return `<div class="zx_tr_execution_warning">⚠️ Jornada abierta desde ${limpiar(textoInicioRealJornada(inicio))}. El contador corresponde únicamente al día de hoy y se reinicia a las 00:00.</div>`;
+}
+
 function minutosPlanificadosTrabajo(t,plan){
   const primera=(plan || [])[0] || {};
   const inicio=String(primera.hora_inicio || t.hora_inicio || "").slice(0,5);
@@ -2571,13 +2604,14 @@ function renderPanelEjecucion(t,plan,hist,jornada){
   return `<section class="zx_tr_execution_panel">
     <div class="zx_tr_execution_head">
       <div>
-        <span>Trabajo en curso</span>
-        <strong id="tr_execution_timer">${inicio ? formatoDuracion(Date.now()-inicio.getTime()) : "00:00:00"}</strong>
+        <span>Trabajo en curso · contador de hoy</span>
+        <strong id="tr_execution_timer">${inicio ? formatoDuracion(milisegundosContadorDiario(inicio,new Date())) : "00:00:00"}</strong>
       </div>
       <div class="zx_tr_execution_sync">● Sincronizado</div>
     </div>
+    ${avisoJornadaAbierta(inicio)}
     <div class="zx_tr_execution_grid">
-      <div><small>Inicio real</small><b>${inicio ? inicio.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}) : "Ahora"}</b></div>
+      <div><small>Inicio real</small><b>${limpiar(textoInicioRealJornada(inicio))}</b></div>
       <div><small>Tiempo previsto</small><b>${minutos ? Math.floor(minutos/60)+" h "+(minutos%60)+" min" : "Sin definir"}</b></div>
       <div><small>Jornadas</small><b>${Math.max(1,new Set((plan||[]).map(p=>String(p.fecha||""))).size)}</b></div>
     </div>
@@ -2595,7 +2629,7 @@ function iniciarTemporizadorEjecucion(hist,jornada,trabajoId){
       detenerTemporizadorEjecucion();
       return;
     }
-    actual.textContent=formatoDuracion(Date.now()-inicio.getTime());
+    actual.textContent=formatoDuracion(milisegundosContadorDiario(inicio,new Date()));
   };
   pintar();
   ZX_TR_EXEC_TIMER=setInterval(pintar,1000);
@@ -3442,6 +3476,19 @@ async function abrirFicha(id){
   const horario=tiempoPlanificado(t);
   const estadoTrabajoVisible=estadoTexto(t.estado);
   const estadoJornadaVisible=jornadaActual ? estadoJornadaTexto(jornadaActual.estado) : "";
+
+  const totalFotosRapidas=(arch || []).filter(function(a){
+    return esImagenArchivo(a);
+  }).length;
+
+  const totalNotasRapidas=(hist || []).filter(function(h){
+    return normalizar(h.tipo || "")==="nota";
+  }).length;
+
+  const totalPartes=(hist || []).filter(function(h){
+    const tipo=normalizar(h.tipo || "");
+    return tipo.includes("parte jornada") || tipo.includes("parte_jornada");
+  }).length;
   const headerState=document.getElementById("tr_full_header_state");
   if(headerState){
     headerState.className="zx_tr_full_state "+claseEstado(t.estado);
@@ -3493,9 +3540,9 @@ async function abrirFicha(id){
       <div class="zx_tr_quick_actions">
         ${dir ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_route"><span class="zx_tr_quick_icon">🧭</span><span>Ruta</span></button>` : ""}
         <button type="button" class="zx_tr_quick_btn zx_tr_quick_material" id="tr_quick_materials"><span class="zx_tr_quick_icon">📦</span><span>Materiales</span><b>${mat.length}</b></button>
-        <button type="button" class="zx_tr_quick_btn zx_tr_quick_photo" id="tr_quick_photo"><span class="zx_tr_quick_icon">📷</span><span>Foto rápida</span></button>
-        <button type="button" class="zx_tr_quick_btn" id="tr_quick_note"><span class="zx_tr_quick_icon">📝</span><span>Nota</span></button>
-        <button type="button" class="zx_tr_quick_btn zx_tr_quick_part" id="tr_quick_part"><span class="zx_tr_quick_icon">✍️</span><span>Parte y firma</span></button>
+        <button type="button" class="zx_tr_quick_btn zx_tr_quick_photo" id="tr_quick_photo"><span class="zx_tr_quick_icon">📷</span><span>Foto rápida</span><b>${totalFotosRapidas}</b></button>
+        <button type="button" class="zx_tr_quick_btn" id="tr_quick_note"><span class="zx_tr_quick_icon">📝</span><span>Nota</span><b>${totalNotasRapidas}</b></button>
+        <button type="button" class="zx_tr_quick_btn zx_tr_quick_part" id="tr_quick_part"><span class="zx_tr_quick_icon">✍️</span><span>Parte y firma</span><b>${totalPartes}</b></button>
         ${tel ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_call"><span class="zx_tr_quick_icon">📞</span><span>Llamar</span></button>` : ""}
         ${tel ? `<button type="button" class="zx_tr_quick_btn" id="tr_quick_whatsapp"><span class="zx_tr_quick_icon">💬</span><span>WhatsApp</span></button>` : ""}
       </div>
@@ -3747,6 +3794,13 @@ function duracionRealJornada(hist,jornadaId){
   });
 
   if(!inicio || !fin || fin<=inicio) return 0;
+
+  // Si la jornada se cerró en una fecha distinta a la de inicio, no presentamos
+  // como "tiempo real" todas las horas transcurridas entre ambos días. Ese
+  // intervalo puede incluir noches o días en los que el operario olvidó cerrar.
+  // El contador operativo es diario; el histórico conserva las fechas reales.
+  if(!mismaFechaLocal(inicio,fin)) return 0;
+
   return Math.round((fin.getTime()-inicio.getTime())/60000);
 }
 
@@ -4753,7 +4807,8 @@ function renderHistorialProfesional(lista){
   const contenido=hist.length ? `
     <div class="zx_tr_history_list">
       ${hist.map(function(h){
-        const cfg=configHistorial(h.tipo,h.notas);
+        const notasVisibles=notasParteSinDatos(h.notas || "") || "Actividad registrada";
+        const cfg=configHistorial(h.tipo,notasVisibles);
         const usuario=h.usuario || h.usuario_nombre || h.nombre_usuario || "Sistema";
         return `
           <article class="zx_tr_history_item ${cfg.clase}">
@@ -4763,7 +4818,7 @@ function renderHistorialProfesional(lista){
                 <strong>${limpiar(cfg.titulo)}</strong>
                 <time>${limpiar(fechaHoraHistorial(h))}</time>
               </div>
-              <p>${limpiar(h.notas || "Actividad registrada")}</p>
+              <p>${limpiar(notasVisibles)}</p>
               <div class="zx_tr_history_user"><span>👤</span>${limpiar(usuario)}</div>
             </div>
           </article>
@@ -5933,7 +5988,8 @@ function instalarCSS(){
     .zx_tr_execution_head span{display:block;font-size:12px;font-weight:900;color:#1d4ed8;text-transform:uppercase}
     .zx_tr_execution_head strong{display:block;font-size:34px;line-height:1.1;color:#0f172a;font-variant-numeric:tabular-nums}
     .zx_tr_execution_sync{font-size:12px;font-weight:950;color:#047857;background:#d1fae5;border-radius:999px;padding:7px 10px;white-space:nowrap}
-    .zx_tr_execution_grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:13px}
+    .zx_tr_execution_warning{margin:10px 0 0;padding:10px 12px;border:1px solid currentColor;border-radius:10px;font-size:13px;line-height:1.35}
+.zx_tr_execution_grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:13px}
     .zx_tr_execution_grid>div{padding:10px;border-radius:14px;background:rgba(255,255,255,.78);min-width:0}
     .zx_tr_execution_grid small{display:block;color:#64748b;font-weight:800;font-size:11px}
     .zx_tr_execution_grid b{display:block;color:#0f172a;font-size:14px;overflow-wrap:anywhere}
