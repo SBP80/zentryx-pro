@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3124 - CLIENTES LIMPIO: SIN MENSAJE PREDEFINIDO POR CLIENTE
+// V3125 - BORRADO SEGURO: MOTIVO + RELACIONES + ARCHIVADO + AUDITORÍA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3124";
+const ZX_VERSION="3125";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -162,6 +162,18 @@ function puedeEditar(){return puedeGestionar()}
 function puedeBorrar(){return esAdmin()}
 function puedeDocs(){return puedeGestionar()}
 
+function clienteArchivado(c){
+  return normalizar(c && c.estado)==="archivado";
+}
+
+function clientesActivos(){
+  return (ZX_CLIENTES_CACHE || []).filter(function(c){return !clienteArchivado(c)});
+}
+
+function clientesArchivados(){
+  return (ZX_CLIENTES_CACHE || []).filter(clienteArchivado);
+}
+
 function leerCache(){
   try{return JSON.parse(localStorage.getItem(CACHE_KEY) || "[]")}
   catch(e){return []}
@@ -188,11 +200,12 @@ function modal(html){
   document.body.appendChild(d);
 }
 
-async function pedirPinAdmin(){
+async function pedirPinAdmin(accion){
+  const textoAccion=String(accion || "continuar").trim();
   return new Promise(function(resolve){
     modal(`
       <h2>PIN administrador</h2>
-      <div class="zx_text">Introduce el PIN para continuar.</div>
+      <div class="zx_text">Introduce el PIN para ${limpiar(textoAccion)}.</div>
       <input id="cli_pin_admin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN">
       <div id="cli_pin_error" class="zx_cli_error"></div>
       <button class="zx_btn_big zx_verde" id="cli_pin_ok">Confirmar</button>
@@ -236,7 +249,7 @@ async function pedirPinAdmin(){
       const admin=normalizar(r.data.rol)==="administrador" || normalizar(r.data.usuario)==="admin";
 
       if(!admin){
-        error.textContent="Solo un administrador puede borrar clientes.";
+        error.textContent="Solo un administrador puede realizar esta acción.";
         input.value="";
         input.focus();
         return;
@@ -1174,7 +1187,7 @@ async function refrescarResumenDocumentosEdicion(c){
 }
 
 function filtrarClientes(){
-  let lista=ZX_CLIENTES_CACHE || [];
+  let lista=clientesActivos();
 
   if(ZX_CLIENTES_BUSQUEDA.trim()){
     lista=lista.filter(c=>coincide(c,ZX_CLIENTES_BUSQUEDA));
@@ -1224,10 +1237,11 @@ async function cargarClientes(){
 }
 
 function resumen(){
-  const total=ZX_CLIENTES_CACHE.length;
-  const empresas=ZX_CLIENTES_CACHE.filter(c=>normalizar(c.tipo)==="empresa").length;
-  const particulares=ZX_CLIENTES_CACHE.filter(c=>normalizar(c.tipo)==="particular").length;
-  const comunidades=ZX_CLIENTES_CACHE.filter(c=>normalizar(c.tipo)==="comunidad").length;
+  const activos=clientesActivos();
+  const total=activos.length;
+  const empresas=activos.filter(c=>normalizar(c.tipo)==="empresa").length;
+  const particulares=activos.filter(c=>normalizar(c.tipo)==="particular").length;
+  const comunidades=activos.filter(c=>normalizar(c.tipo)==="comunidad").length;
 
   return `
     <div class="zx_cli_kpis" aria-label="Resumen de clientes">
@@ -1240,12 +1254,14 @@ function resumen(){
 }
 
 function toolbar(){
+  const archivados=clientesArchivados().length;
   return `
     <div class="zx_cli_toolbar">
       <div class="zx_cli_search">
         <input id="zx_buscar_clientes" type="search" value="${limpiar(ZX_CLIENTES_BUSQUEDA)}" placeholder="Buscar clientes…" autocomplete="off">
         ${ZX_CLIENTES_BUSQUEDA ? `<button id="zx_limpiar_clientes" type="button" aria-label="Limpiar búsqueda">✕</button>` : ""}
       </div>
+      ${esAdmin() && archivados ? `<button id="zx_clientes_archivados" class="zx_cli_archived_btn" type="button">Archivados (${archivados})</button>` : ""}
     </div>
   `;
 }
@@ -1574,6 +1590,9 @@ function conectarBuscador(){
   }
 
   conectarLimpiar();
+
+  const archivados=document.getElementById("zx_clientes_archivados");
+  if(archivados) archivados.onclick=abrirClientesArchivados;
 }
 
 function conectarLimpiar(){
@@ -2203,45 +2222,195 @@ async function editarCliente(id){
   }
 }
 
+async function contarDependenciaCliente(tabla,columna,id,config){
+  const cfg=config || {};
+  try{
+    let q=sb().from(tabla).select("id",{count:"exact",head:true}).eq(columna,String(id));
+    if(cfg.soloActivos) q=q.eq("eliminado",false);
+    const r=await q;
+    if(r.error) return {tabla:tabla,count:0,error:r.error.message || "Error"};
+    return {tabla:tabla,count:Number(r.count || 0),error:""};
+  }catch(e){
+    return {tabla:tabla,count:0,error:e.message || "Error"};
+  }
+}
+
+async function comprobarDependenciasCliente(id){
+  if(!navigator.onLine || !sb()) throw new Error("Necesitas conexión para comprobar si el cliente conserva información relacionada.");
+  const resultados=await Promise.all([
+    contarDependenciaCliente("trabajos","cliente_id",id),
+    contarDependenciaCliente("agenda_eventos","cliente_id",id),
+    contarDependenciaCliente(TABLA_DOCUMENTOS,"cliente_id",id,{soloActivos:true})
+  ]);
+  const out={trabajos:0,agenda:0,documentos:0,errores:[]};
+  const claves=["trabajos","agenda","documentos"];
+  resultados.forEach(function(r,i){
+    out[claves[i]]=Number(r.count || 0);
+    if(r.error) out.errores.push(r.tabla+": "+r.error);
+  });
+  out.total=out.trabajos+out.agenda+out.documentos;
+  out.requiereArchivo=out.total>0 || out.errores.length>0;
+  return out;
+}
+
+function detalleDependenciasCliente(dep){
+  const filas=[];
+  if(dep.trabajos) filas.push(`<div><b>Trabajos</b><span>${dep.trabajos}</span></div>`);
+  if(dep.agenda) filas.push(`<div><b>Agenda</b><span>${dep.agenda}</span></div>`);
+  if(dep.documentos) filas.push(`<div><b>Documentos</b><span>${dep.documentos}</span></div>`);
+  if(dep.errores && dep.errores.length) filas.push(`<div><b>Comprobación incompleta</b><span>Se archivará por seguridad</span></div>`);
+  return filas.length ? `<div class="zx_cli_delete_rel">${filas.join("")}</div>` : `<div class="zx_cli_notice">No se han encontrado trabajos, eventos ni documentos activos asociados.</div>`;
+}
+
+async function registrarAuditoriaCliente(accion,c,motivo,detalle){
+  if(!sb()) throw new Error("No hay conexión con la auditoría.");
+  const ss=sesion();
+  const payload={
+    cliente_id:String(c && c.id || ""),
+    cliente:nombreCliente(c || {}),
+    motivo:String(motivo || "").trim(),
+    detalle:detalle || {}
+  };
+  const r=await sb().from("auditoria").insert([{
+    id:uuid(),
+    usuario_id:String(ss.id || ss.usuario_id || ""),
+    usuario:ss.usuario || "",
+    nombre:ss.nombre || "",
+    modulo:"clientes",
+    accion:String(accion || ""),
+    detalle:JSON.stringify(payload),
+    usuario_objetivo_id:null,
+    created_at:new Date().toISOString()
+  }]);
+  if(r && r.error) throw r.error;
+}
+
+async function archivarClienteSeguro(c,motivo,dep){
+  const estadoAnterior=c.estado == null ? null : c.estado;
+  const r=await sb().from(TABLA).update({estado:"archivado",updated_at:new Date().toISOString()}).eq("id",c.id);
+  if(r.error) throw r.error;
+  try{
+    await registrarAuditoriaCliente("archivar_cliente",c,motivo,dep);
+  }catch(e){
+    await sb().from(TABLA).update({estado:estadoAnterior,updated_at:new Date().toISOString()}).eq("id",c.id);
+    throw new Error("No se pudo registrar la auditoría. El cliente no se ha archivado.");
+  }
+}
+
+async function borrarClienteDefinitivo(c,motivo,dep){
+  // La autorización queda registrada antes del borrado físico para no dejar
+  // una eliminación definitiva sin usuario, fecha y motivo.
+  await registrarAuditoriaCliente("borrar_cliente_definitivo",c,motivo,dep);
+  let r;
+  if(zx() && typeof zx().remove==="function") r=await zx().remove(TABLA,"id",c.id);
+  else r=await sb().from(TABLA).delete().eq("id",c.id);
+  if(r && r.error) throw r.error;
+}
+
+async function restaurarCliente(id){
+  if(!esAdmin()){alert("Solo un administrador puede restaurar clientes.");return}
+  const c=ZX_CLIENTES_CACHE.find(function(x){return String(x.id)===String(id)});
+  if(!c) return;
+  const ok=await pedirPinAdmin("restaurar el cliente");
+  if(!ok) return;
+  try{
+    const r=await sb().from(TABLA).update({estado:"activo",updated_at:new Date().toISOString()}).eq("id",c.id);
+    if(r.error) throw r.error;
+    try{
+      await registrarAuditoriaCliente("restaurar_cliente",c,"Restauración manual de cliente archivado",{});
+    }catch(e){
+      await sb().from(TABLA).update({estado:"archivado",updated_at:new Date().toISOString()}).eq("id",c.id);
+      throw new Error("No se pudo registrar la auditoría. El cliente sigue archivado.");
+    }
+    await window.ZX_clientes();
+  }catch(e){
+    alert("No se pudo restaurar el cliente.\n\n"+(e.message || "Error"));
+  }
+}
+
+function abrirClientesArchivados(){
+  const lista=clientesArchivados().slice().sort(function(a,b){return nombreCliente(a).localeCompare(nombreCliente(b),"es",{sensitivity:"base"})});
+  modal(`
+    <h2>Clientes archivados</h2>
+    <div class="zx_text">Se conservan para mantener trabajos, agenda, documentos e historial.</div>
+    <div class="zx_cli_archived_list">
+      ${lista.length ? lista.map(function(c){return `<div class="zx_cli_archived_item"><div><b>${limpiar(nombreCliente(c))}</b><span>${limpiar(c.tipo || "Cliente")}</span></div><button type="button" data-cli-restore="${limpiar(c.id)}">Restaurar</button></div>`}).join("") : `<div class="zx_cli_ficha_vacio">No hay clientes archivados.</div>`}
+    </div>
+    <button class="zx_btn_big zx_gris" type="button" id="cli_archivados_cerrar">Cerrar</button>
+  `);
+  document.getElementById("cli_archivados_cerrar").onclick=cerrarModal;
+  document.querySelectorAll("[data-cli-restore]").forEach(function(btn){btn.onclick=function(){restaurarCliente(btn.dataset.cliRestore)}});
+}
+
 async function borrarCliente(id){
   if(!puedeBorrar()){alert("No tienes permiso para borrar clientes.");return}
 
-  const c=ZX_CLIENTES_CACHE.find(x=>String(x.id)===String(id));
-  const nombre=c ? nombreCliente(c) : "cliente";
+  const c=ZX_CLIENTES_CACHE.find(function(x){return String(x.id)===String(id)});
+  if(!c){alert("Cliente no encontrado.");return}
+  const nombre=nombreCliente(c);
 
   modal(`
     <h2>Borrar cliente</h2>
     <div class="zx_cli_notice danger">
-      Vas a borrar:<br><b>${limpiar(nombre)}</b><br><br>
-      Esta acción requiere PIN de administrador.
+      Vas a gestionar la baja de:<br><b>${limpiar(nombre)}</b><br><br>
+      Zentryx comprobará primero si conserva trabajos, agenda o documentación.
     </div>
-    <button class="zx_btn_big zx_rojo" id="cli_borrar_confirmar">Continuar</button>
+    <label class="zx_cli_label" for="cli_borrar_motivo">Motivo obligatorio</label>
+    <textarea id="cli_borrar_motivo" rows="4" placeholder="Indica por qué se elimina o archiva este cliente"></textarea>
+    <div id="cli_borrar_error" class="zx_cli_error"></div>
+    <button class="zx_btn_big zx_rojo" id="cli_borrar_confirmar">Comprobar y continuar</button>
     <button class="zx_btn_big zx_gris" id="cli_borrar_cancelar">Cancelar</button>
   `);
 
   document.getElementById("cli_borrar_cancelar").onclick=cerrarModal;
 
   document.getElementById("cli_borrar_confirmar").onclick=async function(){
-    const ok=await pedirPinAdmin();
-    if(!ok) return;
+    const motivo=String(document.getElementById("cli_borrar_motivo").value || "").trim();
+    const error=document.getElementById("cli_borrar_error");
+    if(motivo.length<3){error.textContent="Escribe el motivo antes de continuar.";return}
+    if(!navigator.onLine || !sb()){error.textContent="Necesitas conexión para comprobar la información relacionada.";return}
 
+    const btn=this;
+    btn.disabled=true;
+    btn.textContent="Comprobando…";
+    let dep;
     try{
-      let r;
-
-      if(zx() && typeof zx().remove==="function"){
-        r=await zx().remove(TABLA,"id",id);
-      }else{
-        r=await sb().from(TABLA).delete().eq("id",id);
-      }
-
-      if(r && r.error) throw r.error;
-
-      cerrarModal();
-      await window.ZX_clientes();
-
+      dep=await comprobarDependenciasCliente(c.id);
     }catch(e){
-      alert("Error borrando cliente: "+(e.message || "Error"));
+      error.textContent=e.message || "No se pudo comprobar el cliente.";
+      btn.disabled=false;
+      btn.textContent="Comprobar y continuar";
+      return;
     }
+
+    const archivar=dep.requiereArchivo;
+    modal(`
+      <h2>${archivar ? "Archivar cliente" : "Borrado definitivo"}</h2>
+      <div class="zx_cli_notice ${archivar ? "warning" : "danger"}">
+        <b>${limpiar(nombre)}</b><br><br>
+        ${archivar
+          ? "El cliente conserva información relacionada. No se borrará físicamente: quedará archivado y fuera del listado habitual."
+          : "No se han encontrado datos relacionados que obliguen a conservarlo. Se permite el borrado definitivo."}
+      </div>
+      ${detalleDependenciasCliente(dep)}
+      <div class="zx_cli_delete_reason"><b>Motivo</b><span>${limpiar(motivo)}</span></div>
+      <button class="zx_btn_big ${archivar ? "zx_naranja" : "zx_rojo"}" id="cli_borrar_ejecutar">${archivar ? "Archivar con PIN" : "Borrar definitivamente con PIN"}</button>
+      <button class="zx_btn_big zx_gris" id="cli_borrar_atras">Cancelar</button>
+    `);
+    document.getElementById("cli_borrar_atras").onclick=cerrarModal;
+    document.getElementById("cli_borrar_ejecutar").onclick=async function(){
+      const ok=await pedirPinAdmin(archivar ? "archivar el cliente" : "borrar definitivamente el cliente");
+      if(!ok) return;
+      try{
+        if(archivar) await archivarClienteSeguro(c,motivo,dep);
+        else await borrarClienteDefinitivo(c,motivo,dep);
+        cerrarModal();
+        await window.ZX_clientes();
+        alert(archivar ? "Cliente archivado. Sus datos históricos se conservan." : "Cliente borrado definitivamente.");
+      }catch(e){
+        alert((archivar ? "No se pudo archivar el cliente.\n\n" : "No se pudo borrar el cliente.\n\n")+(e.message || "Error"));
+      }
+    };
   };
 }
 
@@ -2264,11 +2433,19 @@ function instalarCSS(){
     .zx_cli_new{background:#16a34a}.zx_cli_import{background:#2563eb}
     .zx_cli_notice{grid-column:1/-1;background:#f8fafc;border:1px solid #dbe3ef;border-left:7px solid #64748b;border-radius:18px;padding:14px;color:#334155;font-size:15px;font-weight:900;line-height:1.35}
     .zx_cli_notice.danger{border-left-color:#dc2626;background:#fef2f2;color:#991b1b}
+    .zx_cli_notice.warning{border-left-color:#f59e0b;background:#fffbeb;color:#92400e}
     .zx_cli_kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:10px}
     .zx_cli_kpis div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:15px;padding:9px 4px;text-align:center;min-width:0}
     .zx_cli_kpis b{display:block;color:#071330;font-size:20px;font-weight:950;line-height:1}
     .zx_cli_kpis span{display:block;color:#64748b;font-size:10px;font-weight:900;margin-top:4px;line-height:1.05;overflow-wrap:anywhere}
-    .zx_cli_toolbar{display:grid;grid-template-columns:1fr;gap:0}
+    .zx_cli_toolbar{display:grid;grid-template-columns:1fr;gap:9px}
+    .zx_cli_archived_btn{justify-self:start;border:1px solid #cbd5e1;background:#f8fafc;color:#475569;border-radius:14px;padding:9px 13px;font-weight:900;font-size:13px}
+    .zx_cli_archived_list{display:grid;gap:10px;margin:12px 0 16px}
+    .zx_cli_archived_item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid #dbe3ef;border-radius:18px;padding:13px;background:#f8fafc}
+    .zx_cli_archived_item b,.zx_cli_archived_item span{display:block}.zx_cli_archived_item span{color:#64748b;font-weight:800;margin-top:3px}
+    .zx_cli_archived_item button{border:0;border-radius:13px;background:#2563eb;color:#fff;padding:10px 12px;font-weight:900}
+    .zx_cli_delete_rel{display:grid;gap:8px;margin:12px 0}.zx_cli_delete_rel>div{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid #dbe3ef;border-radius:15px;background:#f8fafc}.zx_cli_delete_rel b{color:#071330}.zx_cli_delete_rel span{color:#475569;font-weight:900}
+    .zx_cli_delete_reason{display:grid;gap:5px;margin:12px 0;padding:13px 14px;border:1px solid #dbe3ef;border-radius:15px;background:#f8fafc}.zx_cli_delete_reason b{color:#64748b;font-size:13px}.zx_cli_delete_reason span{color:#071330;font-weight:900}
     .zx_cli_search{position:relative}
     .zx_cli_search input{width:100%;margin:0!important;padding-right:48px!important;border:1px solid #dbe3ef;border-radius:18px;padding:14px 15px;font-size:16px;font-weight:850;background:#f8fafc;color:#071330}
     .zx_cli_search button{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:#e2e8f0;width:34px;height:34px;border-radius:12px;font-weight:950;color:#334155}
