@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3125 - BORRADO SEGURO: MOTIVO + RELACIONES + ARCHIVADO + AUDITORÍA
+// V3126 - AUDITORÍA CLIENTES CORRECTA + ARCHIVADO/RESTAURACIÓN SEGUROS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3125";
+const ZX_VERSION="3126";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -2265,22 +2265,24 @@ function detalleDependenciasCliente(dep){
 async function registrarAuditoriaCliente(accion,c,motivo,detalle){
   if(!sb()) throw new Error("No hay conexión con la auditoría.");
   const ss=sesion();
-  const payload={
-    cliente_id:String(c && c.id || ""),
-    cliente:nombreCliente(c || {}),
+  const clienteId=String(c && c.id || "").trim();
+  if(!clienteId) throw new Error("No se puede registrar la auditoría sin cliente.");
+
+  const datos={
     motivo:String(motivo || "").trim(),
-    detalle:detalle || {}
+    detalle:detalle || {},
+    estado_cliente:c && c.estado != null ? c.estado : null
   };
-  const r=await sb().from("auditoria").insert([{
+
+  const r=await sb().from("clientes_auditoria").insert([{
     id:uuid(),
-    usuario_id:String(ss.id || ss.usuario_id || ""),
-    usuario:ss.usuario || "",
-    nombre:ss.nombre || "",
-    modulo:"clientes",
+    cliente_id:clienteId,
+    nombre:nombreCliente(c || {}),
     accion:String(accion || ""),
-    detalle:JSON.stringify(payload),
-    usuario_objetivo_id:null,
-    created_at:new Date().toISOString()
+    usuario_id:String(ss.id || ss.usuario_id || "") || null,
+    usuario:String(ss.nombre || ss.usuario || ""),
+    fecha:new Date().toISOString(),
+    datos:datos
   }]);
   if(r && r.error) throw r.error;
 }
