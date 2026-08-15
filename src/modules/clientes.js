@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3114 - CONTACTOS Y DIRECCIONES MÚLTIPLES + IMPORTAR/COMPARTIR VCARD
+// V3115 - ETIQUETAS DE CONTACTO CON DESPLEGABLE + PERSONALIZAR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3114";
+const ZX_VERSION="3115";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -1200,10 +1200,18 @@ function uuidValido(v){
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ""));
 }
 
+function etiquetasContacto(tipo){
+  if(tipo==="telefono") return ["Móvil","Personal","Trabajo","Casa","Oficina","WhatsApp"];
+  return ["Personal","Trabajo","Facturación","Administración","Pedidos"];
+}
+
 function renderContactoEditor(tipo,x){
   x=x || {};
   const id=uuidValido(x.id) ? x.id : uuid();
   const esTel=tipo==="telefono";
+  const opciones=etiquetasContacto(tipo);
+  const etiquetaActual=String(x.etiqueta || (esTel ? "Móvil" : "Personal")).trim() || (esTel ? "Móvil" : "Personal");
+  const personalizada=!opciones.includes(etiquetaActual);
   return `
     <div class="zx_cli_subcard zx_cli_contacto_row" data-contacto-tipo="${tipo}" data-id="${limpiar(id)}">
       <div class="zx_cli_subcard_head">
@@ -1213,7 +1221,11 @@ function renderContactoEditor(tipo,x){
       <div class="zx_cli_grid2 zx_cli_compact_grid">
         <div>
           <label class="zx_cli_label">Etiqueta</label>
-          <input data-contacto-campo="etiqueta" value="${limpiar(x.etiqueta || (esTel ? "Móvil" : "Email"))}" placeholder="Móvil, trabajo, casa…">
+          <select data-contacto-etiqueta-select>
+            ${opciones.map(function(o){return `<option value="${limpiar(o)}" ${!personalizada && etiquetaActual===o ? "selected" : ""}>${limpiar(o)}</option>`}).join("")}
+            <option value="__personalizar__" ${personalizada ? "selected" : ""}>Personalizar…</option>
+          </select>
+          <input data-contacto-campo="etiqueta" data-contacto-etiqueta-custom value="${limpiar(etiquetaActual)}" placeholder="Escribe la etiqueta" ${personalizada ? "" : "hidden"}>
         </div>
         <div>
           <label class="zx_cli_label">${esTel ? "Número" : "Dirección de email"}</label>
@@ -1292,8 +1304,28 @@ function conectarFormularioDinamico(){
   const addDir=document.getElementById("cli_add_direccion");
 
   if(addTel) addTel.onclick=function(){telBox.insertAdjacentHTML("beforeend",renderContactoEditor("telefono",{etiqueta:"Móvil",principal:!telBox.children.length}));conectarFormularioDinamico()};
-  if(addEmail) addEmail.onclick=function(){emailBox.insertAdjacentHTML("beforeend",renderContactoEditor("email",{etiqueta:"Email",principal:!emailBox.children.length}));conectarFormularioDinamico()};
+  if(addEmail) addEmail.onclick=function(){emailBox.insertAdjacentHTML("beforeend",renderContactoEditor("email",{etiqueta:"Personal",principal:!emailBox.children.length}));conectarFormularioDinamico()};
   if(addDir) addDir.onclick=function(){dirBox.insertAdjacentHTML("beforeend",renderDireccionEditor({etiqueta:"Nueva dirección",principal:!dirBox.children.length},true));conectarFormularioDinamico()};
+
+  document.querySelectorAll("[data-contacto-etiqueta-select]").forEach(function(sel){
+    if(sel.dataset.zxReady) return;sel.dataset.zxReady="1";
+    const aplicar=function(enfocar){
+      const row=sel.closest(".zx_cli_contacto_row");
+      const inp=row?.querySelector("[data-contacto-etiqueta-custom]");
+      if(!inp) return;
+      if(sel.value==="__personalizar__"){
+        inp.hidden=false;
+        const opciones=etiquetasContacto(row?.dataset.contactoTipo || "telefono");
+        if(opciones.includes(String(inp.value || "").trim())) inp.value="";
+        if(enfocar) setTimeout(function(){inp.focus()},0);
+      }else{
+        inp.value=sel.value;
+        inp.hidden=true;
+      }
+    };
+    sel.onchange=function(){aplicar(true)};
+    aplicar(false);
+  });
 
   document.querySelectorAll("[data-remove-contacto]").forEach(function(btn){
     if(btn.dataset.zxReady) return;btn.dataset.zxReady="1";
