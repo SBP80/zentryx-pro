@@ -1,14 +1,16 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3121 - PRINCIPAL UNICA + DISTINTIVO CORRECTO + ETIQUETA DIRECCION
+// V3122 - DOCUMENTACION MULTIPLE + BIBLIOTECA DE CLIENTE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3121";
+const ZX_VERSION="3122";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
+const TABLA_DOCUMENTOS="clientes_documentos";
+const DOC_BUCKET="zentryx-clientes";
 const CACHE_KEY="zentryx_cache_clientes";
 
 let ZX_CLIENTES_CACHE=[];
@@ -700,35 +702,428 @@ async function compartirCliente(c){
   alert("Se ha preparado el archivo .vcf del cliente.");
 }
 
-async function subirArchivo(file,nombre){
-  if(!puedeDocs()){
-    alert("No tienes permiso para subir documentos de clientes.");
-    return null;
+function cerrarModalDocumentosCliente(){
+  const m=document.getElementById("zx_cli_docs_modal");
+  if(m) m.remove();
+}
+
+function modalDocumentosCliente(html){
+  cerrarModalDocumentosCliente();
+  const fondo=document.createElement("div");
+  fondo.id="zx_cli_docs_modal";
+  fondo.className="zx_cli_docs_modal";
+  fondo.innerHTML=`<div class="zx_cli_docs_caja">${html}</div>`;
+  fondo.onclick=function(e){if(e.target===fondo) cerrarModalDocumentosCliente()};
+  document.body.appendChild(fondo);
+}
+
+function fechaDocumentoES(v){
+  const t=String(v || "").trim();
+  if(!t) return "";
+  const m=t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return `${m[3]}/${m[2]}/${m[1]}`;
+  const d=new Date(t);
+  if(Number.isNaN(d.getTime())) return t;
+  return d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"});
+}
+
+function fechaHoyISO(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const dia=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dia}`;
+}
+
+function tipoDocumentoConocido(v){
+  return ["general","factura","presupuesto","contrato","certificado","parte","foto","albaran","pedido"].includes(normalizar(v));
+}
+
+function textoTipoDocumentoCliente(v){
+  const t=String(v || "general").trim();
+  const n=normalizar(t);
+  const mapa={
+    general:"General",factura:"Factura",presupuesto:"Presupuesto",contrato:"Contrato",
+    certificado:"Certificado",parte:"Parte",foto:"Foto",albaran:"Albarán",pedido:"Pedido"
+  };
+  return mapa[n] || t || "General";
+}
+
+function opcionesTipoDocumento(valor){
+  const actual=normalizar(valor || "general");
+  const base=[
+    ["general","General"],["factura","Factura"],["presupuesto","Presupuesto"],["contrato","Contrato"],
+    ["certificado","Certificado"],["parte","Parte"],["foto","Foto"],["albaran","Albarán"],["pedido","Pedido"]
+  ];
+  return base.map(function(x){return `<option value="${x[0]}" ${actual===x[0]?"selected":""}>${x[1]}</option>`}).join("")+
+    `<option value="personalizar" ${actual && !tipoDocumentoConocido(actual)?"selected":""}>Personalizar…</option>`;
+}
+
+function iconoDocumentoCliente(d){
+  const tipo=normalizar(d && d.mime_type || "");
+  const nombre=normalizar(d && d.nombre || "");
+  const url=normalizar(d && d.url || "");
+  if(tipo.startsWith("image/") || /\.(jpg|jpeg|png|webp|gif|heic)(\?|$)/.test(url) || /\.(jpg|jpeg|png|webp|gif|heic)$/.test(nombre)) return "🖼️";
+  if(tipo.includes("pdf") || /\.pdf(\?|$)/.test(url) || nombre.endsWith(".pdf")) return "📕";
+  if(tipo.includes("word") || /\.(doc|docx)$/.test(nombre)) return "📘";
+  if(tipo.includes("sheet") || /\.(xls|xlsx|csv)$/.test(nombre)) return "📗";
+  return "📎";
+}
+
+function tamanoDocumentoCliente(bytes){
+  const n=Number(bytes || 0);
+  if(!n) return "";
+  if(n<1024) return n+" B";
+  if(n<1024*1024) return (n/1024).toFixed(n<10*1024?1:0)+" KB";
+  return (n/(1024*1024)).toFixed(n<10*1024*1024?1:0)+" MB";
+}
+
+function rutaStorageDocumentoCliente(d){
+  if(d && d.storage_path) return String(d.storage_path);
+  const url=String(d && d.url || "");
+  const marca="/storage/v1/object/public/"+DOC_BUCKET+"/";
+  const pos=url.indexOf(marca);
+  if(pos<0) return "";
+  try{return decodeURIComponent(url.slice(pos+marca.length).split("?")[0])}catch(e){return url.slice(pos+marca.length).split("?")[0]}
+}
+
+async function consultarDocumentosCliente(clienteId){
+  if(!clienteId || !navigator.onLine || !sb()) return {disponible:false,offline:true,lista:[]};
+  try{
+    const r=await sb().from(TABLA_DOCUMENTOS)
+      .select("*")
+      .eq("cliente_id",String(clienteId))
+      .or("eliminado.is.null,eliminado.eq.false")
+      .order("fecha_documento",{ascending:false})
+      .order("created_at",{ascending:false});
+    if(r.error) return {disponible:false,error:r.error,lista:[]};
+    return {disponible:true,lista:r.data || []};
+  }catch(e){return {disponible:false,error:e,lista:[]}}
+}
+
+async function subirDocumentoCliente(file,clienteId){
+  if(!puedeDocs()) throw new Error("No tienes permiso para subir documentos de clientes.");
+  if(!file) throw new Error("Selecciona un archivo.");
+  if(!navigator.onLine || !sb()) throw new Error("Necesitas conexión para subir documentos.");
+  const limpio=String(file.name || "documento").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9._-]+/g,"_");
+  const path="clientes/"+String(clienteId)+"/"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"_"+limpio;
+  const r=await sb().storage.from(DOC_BUCKET).upload(path,file,{upsert:false,contentType:file.type || undefined});
+  if(r.error) throw r.error;
+  const data=sb().storage.from(DOC_BUCKET).getPublicUrl(path);
+  const url=data && data.data ? data.data.publicUrl : "";
+  if(!url) throw new Error("No se pudo obtener la dirección del archivo.");
+  return {url:url,path:path};
+}
+
+async function quitarArchivoDocumentoCliente(d){
+  const path=rutaStorageDocumentoCliente(d);
+  if(!path || !sb()) return;
+  try{await sb().storage.from(DOC_BUCKET).remove([path])}catch(e){}
+}
+
+function tarjetaDocumentoCliente(d){
+  const meta=[textoTipoDocumentoCliente(d.tipo),fechaDocumentoES(d.fecha_documento || d.created_at),tamanoDocumentoCliente(d.tamano)].filter(Boolean).join(" · ");
+  const origen=String(d.origen_modulo || "clientes");
+  const origenTxt=normalizar(origen)==="clientes" || normalizar(origen)==="clientes_legacy" ? "" : ` · ${origen}`;
+  return `<article class="zx_cli_doc_card" data-doc-id="${limpiar(d.id)}">
+    <div class="zx_cli_doc_icon">${iconoDocumentoCliente(d)}</div>
+    <div class="zx_cli_doc_text">
+      <b>${limpiar(d.nombre || "Documento")}</b>
+      <span>${limpiar(meta+origenTxt)}</span>
+      ${d.notas ? `<small>${limpiar(d.notas)}</small>` : ""}
+    </div>
+    <div class="zx_cli_doc_actions">
+      <button type="button" class="zx_cli_doc_open" data-doc-open="${limpiar(d.id)}">Ver</button>
+      <button type="button" class="zx_cli_doc_more" data-doc-more="${limpiar(d.id)}">•••</button>
+    </div>
+  </article>`;
+}
+
+async function compartirDocumentoCliente(d){
+  if(!d || !d.url) return;
+  try{
+    if(navigator.share){
+      try{
+        const r=await fetch(d.url);
+        if(r.ok){
+          const blob=await r.blob();
+          let file=null;
+          try{file=new File([blob],d.nombre || "documento",{type:d.mime_type || blob.type || "application/octet-stream"})}catch(e){}
+          if(file && (!navigator.canShare || navigator.canShare({files:[file]}))){
+            await navigator.share({title:d.nombre || "Documento",files:[file]});
+            return;
+          }
+        }
+      }catch(e){}
+      await navigator.share({title:d.nombre || "Documento",url:d.url});
+      return;
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(d.url);
+      alert("Enlace del documento copiado.");
+      return;
+    }
+    window.open(d.url,"_blank");
+  }catch(e){if(!e || e.name!=="AbortError") window.open(d.url,"_blank")}
+}
+
+function pintarListaDocumentosCliente(lista,contenedor){
+  if(!contenedor) return;
+  contenedor.innerHTML=lista.length ? lista.map(tarjetaDocumentoCliente).join("") : `<div class="zx_cli_ficha_vacio">No hay documentos que coincidan.</div>`;
+}
+
+function abrirFormularioDocumentoCliente(c){
+  modalDocumentosCliente(`
+    <div class="zx_cli_docs_top">
+      <button type="button" id="cli_doc_nuevo_volver">← Volver</button>
+      <button type="button" class="primary" id="cli_doc_nuevo_guardar">💾 Guardar</button>
+    </div>
+    <h2>Nuevo documento</h2>
+    <div class="zx_cli_docs_form">
+      <label>Tipo de documento</label>
+      <div class="zx_cli_select_shell"><select id="cli_doc_tipo">${opcionesTipoDocumento("general")}</select></div>
+      <input id="cli_doc_tipo_custom" class="zx_cli_doc_custom" placeholder="Escribe el tipo de documento" hidden>
+      <label>Archivo</label>
+      <input id="cli_doc_file" type="file">
+      <label>Nombre visible</label>
+      <input id="cli_doc_nombre" placeholder="Se usará el nombre del archivo si lo dejas vacío">
+      <label>Fecha</label>
+      <input id="cli_doc_fecha" type="date" value="${fechaHoyISO()}">
+      <label>Notas</label>
+      <textarea id="cli_doc_notas" rows="3" placeholder="Referencia, observaciones…"></textarea>
+    </div>
+  `);
+  const volver=document.getElementById("cli_doc_nuevo_volver");
+  const guardar=document.getElementById("cli_doc_nuevo_guardar");
+  const tipo=document.getElementById("cli_doc_tipo");
+  const custom=document.getElementById("cli_doc_tipo_custom");
+  const file=document.getElementById("cli_doc_file");
+  if(volver) volver.onclick=function(){abrirGestorDocumentosCliente(c)};
+  if(tipo) tipo.onchange=function(){custom.hidden=tipo.value!=="personalizar";if(!custom.hidden) custom.focus()};
+  if(file) file.onchange=function(){const f=file.files && file.files[0];const nombre=document.getElementById("cli_doc_nombre");if(f && nombre && !nombre.value.trim()) nombre.value=f.name};
+  if(guardar) guardar.onclick=async function(){
+    const f=file && file.files ? file.files[0] : null;
+    if(!f){alert("Selecciona un archivo.");return}
+    let tipoValor=tipo ? tipo.value : "general";
+    if(tipoValor==="personalizar") tipoValor=String(custom && custom.value || "").trim();
+    if(!tipoValor){alert("Indica el tipo de documento.");return}
+    const nombre=String(document.getElementById("cli_doc_nombre")?.value || f.name || "Documento").trim();
+    const fecha=String(document.getElementById("cli_doc_fecha")?.value || fechaHoyISO());
+    const notas=String(document.getElementById("cli_doc_notas")?.value || "").trim();
+    guardar.disabled=true;guardar.textContent="Guardando…";
+    let subido=null;
+    try{
+      subido=await subirDocumentoCliente(f,c.id);
+      const ss=sesion();
+      const r=await sb().from(TABLA_DOCUMENTOS).insert([{
+        id:uuid(),cliente_id:String(c.id),tipo:tipoValor,nombre:nombre,url:subido.url,storage_path:subido.path,
+        mime_type:f.type || "",tamano:Number(f.size || 0),notas:notas,fecha_documento:fecha,
+        origen_modulo:"clientes",origen_id:null,version:1,eliminado:false,creado_por:ss.usuario || "",
+        created_at:new Date().toISOString(),updated_at:new Date().toISOString()
+      }]);
+      if(r.error) throw r.error;
+      await abrirGestorDocumentosCliente(c);
+    }catch(e){
+      if(subido) await quitarArchivoDocumentoCliente({storage_path:subido.path,url:subido.url});
+      alert("No se pudo guardar el documento.\n\n"+(e.message || "Error"));
+      guardar.disabled=false;guardar.textContent="💾 Guardar";
+    }
+  };
+}
+
+function editarDatosDocumentoCliente(c,d){
+  const conocido=tipoDocumentoConocido(d.tipo);
+  modalDocumentosCliente(`
+    <div class="zx_cli_docs_top">
+      <button type="button" id="cli_doc_edit_volver">← Volver</button>
+      <button type="button" class="primary" id="cli_doc_edit_guardar">💾 Guardar</button>
+    </div>
+    <h2>Editar documento</h2>
+    <div class="zx_cli_docs_form">
+      <label>Tipo de documento</label>
+      <div class="zx_cli_select_shell"><select id="cli_doc_edit_tipo">${opcionesTipoDocumento(d.tipo)}</select></div>
+      <input id="cli_doc_edit_tipo_custom" class="zx_cli_doc_custom" value="${limpiar(conocido?"":d.tipo || "")}" placeholder="Escribe el tipo de documento" ${conocido?"hidden":""}>
+      <label>Nombre visible</label>
+      <input id="cli_doc_edit_nombre" value="${limpiar(d.nombre || "")}">
+      <label>Fecha</label>
+      <input id="cli_doc_edit_fecha" type="date" value="${limpiar(String(d.fecha_documento || "").slice(0,10) || fechaHoyISO())}">
+      <label>Notas</label>
+      <textarea id="cli_doc_edit_notas" rows="3">${limpiar(d.notas || "")}</textarea>
+    </div>
+  `);
+  const volver=document.getElementById("cli_doc_edit_volver");
+  const guardar=document.getElementById("cli_doc_edit_guardar");
+  const tipo=document.getElementById("cli_doc_edit_tipo");
+  const custom=document.getElementById("cli_doc_edit_tipo_custom");
+  if(volver) volver.onclick=function(){abrirOpcionesDocumentoCliente(c,d)};
+  if(tipo) tipo.onchange=function(){custom.hidden=tipo.value!=="personalizar";if(!custom.hidden) custom.focus()};
+  if(guardar) guardar.onclick=async function(){
+    let tipoValor=tipo.value;
+    if(tipoValor==="personalizar") tipoValor=String(custom.value || "").trim();
+    const nombre=String(document.getElementById("cli_doc_edit_nombre")?.value || "").trim();
+    if(!tipoValor || !nombre){alert("Completa tipo y nombre.");return}
+    const datos={tipo:tipoValor,nombre:nombre,fecha_documento:document.getElementById("cli_doc_edit_fecha")?.value || null,notas:String(document.getElementById("cli_doc_edit_notas")?.value || "").trim(),updated_at:new Date().toISOString()};
+    guardar.disabled=true;
+    const r=await sb().from(TABLA_DOCUMENTOS).update(datos).eq("id",d.id);
+    if(r.error){alert("No se pudo actualizar el documento.\n\n"+r.error.message);guardar.disabled=false;return}
+    await abrirGestorDocumentosCliente(c);
+  };
+}
+
+function reemplazarDocumentoCliente(c,d){
+  modalDocumentosCliente(`
+    <div class="zx_cli_docs_top">
+      <button type="button" id="cli_doc_replace_volver">← Volver</button>
+      <button type="button" class="primary" id="cli_doc_replace_guardar">💾 Sustituir</button>
+    </div>
+    <h2>Sustituir archivo</h2>
+    <div class="zx_cli_doc_replace_info"><b>${limpiar(d.nombre || "Documento")}</b><span>Versión actual: ${Number(d.version || 1)}</span></div>
+    <div class="zx_cli_docs_form">
+      <label>Nuevo archivo</label>
+      <input id="cli_doc_replace_file" type="file">
+    </div>
+  `);
+  const volver=document.getElementById("cli_doc_replace_volver");
+  const guardar=document.getElementById("cli_doc_replace_guardar");
+  if(volver) volver.onclick=function(){abrirOpcionesDocumentoCliente(c,d)};
+  if(guardar) guardar.onclick=async function(){
+    const file=document.getElementById("cli_doc_replace_file")?.files?.[0] || null;
+    if(!file){alert("Selecciona el nuevo archivo.");return}
+    guardar.disabled=true;
+    let subido=null;
+    try{
+      subido=await subirDocumentoCliente(file,c.id);
+      const r=await sb().from(TABLA_DOCUMENTOS).update({
+        url:subido.url,storage_path:subido.path,mime_type:file.type || "",tamano:Number(file.size || 0),
+        version:Number(d.version || 1)+1,updated_at:new Date().toISOString()
+      }).eq("id",d.id);
+      if(r.error) throw r.error;
+      await quitarArchivoDocumentoCliente(d);
+      await abrirGestorDocumentosCliente(c);
+    }catch(e){
+      if(subido) await quitarArchivoDocumentoCliente({storage_path:subido.path,url:subido.url});
+      alert("No se pudo sustituir el archivo.\n\n"+(e.message || "Error"));
+      guardar.disabled=false;
+    }
+  };
+}
+
+async function borrarDocumentoCliente(c,d){
+  if(!puedeBorrar()){alert("Solo un administrador puede borrar documentos.");return}
+  if(!confirm("¿Borrar este documento?")) return;
+  const ok=await pedirPinAdmin();
+  if(!ok) return;
+  const ss=sesion();
+  const r=await sb().from(TABLA_DOCUMENTOS).update({
+    eliminado:true,eliminado_at:new Date().toISOString(),eliminado_por:ss.usuario || "",updated_at:new Date().toISOString()
+  }).eq("id",d.id);
+  if(r.error){alert("No se pudo borrar el documento.\n\n"+r.error.message);return}
+  await quitarArchivoDocumentoCliente(d);
+  await abrirGestorDocumentosCliente(c);
+}
+
+function abrirOpcionesDocumentoCliente(c,d){
+  modalDocumentosCliente(`
+    <div class="zx_cli_docs_top zx_cli_docs_one">
+      <button type="button" id="cli_doc_opts_volver">← Volver</button>
+    </div>
+    <h2>Opciones del documento</h2>
+    <div class="zx_cli_doc_replace_info"><b>${limpiar(d.nombre || "Documento")}</b><span>${limpiar(textoTipoDocumentoCliente(d.tipo))} · ${limpiar(fechaDocumentoES(d.fecha_documento || d.created_at))}</span></div>
+    <button class="zx_btn_big zx_azul" type="button" id="cli_doc_opts_ver">👁 Ver archivo</button>
+    <button class="zx_btn_big zx_cli_share_btn" type="button" id="cli_doc_opts_share">↗ Compartir / Enviar</button>
+    <button class="zx_btn_big zx_cli_options_btn" type="button" id="cli_doc_opts_edit">✏️ Editar datos</button>
+    <button class="zx_btn_big zx_cli_options_btn" type="button" id="cli_doc_opts_replace">🔁 Sustituir archivo</button>
+    ${puedeBorrar()?`<button class="zx_btn_big zx_rojo" type="button" id="cli_doc_opts_delete">🗑️ Borrar documento</button>`:""}
+  `);
+  document.getElementById("cli_doc_opts_volver").onclick=function(){abrirGestorDocumentosCliente(c)};
+  document.getElementById("cli_doc_opts_ver").onclick=function(){window.open(d.url,"_blank")};
+  document.getElementById("cli_doc_opts_share").onclick=function(){compartirDocumentoCliente(d)};
+  document.getElementById("cli_doc_opts_edit").onclick=function(){editarDatosDocumentoCliente(c,d)};
+  document.getElementById("cli_doc_opts_replace").onclick=function(){reemplazarDocumentoCliente(c,d)};
+  const del=document.getElementById("cli_doc_opts_delete");
+  if(del) del.onclick=function(){borrarDocumentoCliente(c,d)};
+}
+
+async function abrirGestorDocumentosCliente(c){
+  if(!c || !c.id){alert("Guarda primero el cliente para añadir documentos.");return}
+  if(!navigator.onLine || !sb()){alert("Necesitas conexión para gestionar documentos.");return}
+  const res=await consultarDocumentosCliente(c.id);
+  if(!res.disponible){
+    const detalle=res.error && res.error.message ? "\n\n"+res.error.message : "";
+    alert("La biblioteca de documentos del cliente no está disponible. Instala primero el SQL de clientes_documentos."+detalle);
+    return;
   }
+  const docs=res.lista || [];
+  const tipos=Array.from(new Set(docs.map(function(d){return String(d.tipo || "general")}))).sort(function(a,b){return textoTipoDocumentoCliente(a).localeCompare(textoTipoDocumentoCliente(b),"es")});
+  modalDocumentosCliente(`
+    <div class="zx_cli_docs_top">
+      <button type="button" id="cli_docs_cerrar">← Volver</button>
+      ${puedeDocs()?`<button type="button" class="primary" id="cli_docs_nuevo">＋ Añadir</button>`:""}
+    </div>
+    <div class="zx_cli_docs_head"><div><span>DOCUMENTACIÓN DEL CLIENTE</span><h2>${limpiar(nombreCliente(c))}</h2></div><b>${docs.length}</b></div>
+    <div class="zx_cli_docs_toolbar">
+      <input id="cli_docs_buscar" placeholder="Buscar por nombre, tipo, fecha o notas">
+      <div class="zx_cli_select_shell"><select id="cli_docs_tipo"><option value="">Todos los tipos</option>${tipos.map(function(t){return `<option value="${limpiar(t)}">${limpiar(textoTipoDocumentoCliente(t))}</option>`}).join("")}</select></div>
+    </div>
+    <div id="cli_docs_lista" class="zx_cli_docs_lista"></div>
+  `);
+  const listaEl=document.getElementById("cli_docs_lista");
+  const buscar=document.getElementById("cli_docs_buscar");
+  const filtro=document.getElementById("cli_docs_tipo");
+  const pintar=function(){
+    const q=normalizar(buscar && buscar.value || "");
+    const tipo=String(filtro && filtro.value || "");
+    const filtrados=docs.filter(function(d){
+      if(tipo && String(d.tipo || "")!==tipo) return false;
+      if(!q) return true;
+      const txt=normalizar([d.nombre,textoTipoDocumentoCliente(d.tipo),d.notas,fechaDocumentoES(d.fecha_documento || d.created_at),d.origen_modulo].filter(Boolean).join(" "));
+      return txt.includes(q);
+    });
+    pintarListaDocumentosCliente(filtrados,listaEl);
+    listaEl.querySelectorAll("[data-doc-open]").forEach(function(btn){btn.onclick=function(){const d=docs.find(function(x){return String(x.id)===String(btn.dataset.docOpen)});if(d) window.open(d.url,"_blank")}});
+    listaEl.querySelectorAll("[data-doc-more]").forEach(function(btn){btn.onclick=function(){const d=docs.find(function(x){return String(x.id)===String(btn.dataset.docMore)});if(d) abrirOpcionesDocumentoCliente(c,d)}});
+  };
+  if(buscar) buscar.oninput=pintar;
+  if(filtro) filtro.onchange=pintar;
+  pintar();
+  document.getElementById("cli_docs_cerrar").onclick=async function(){
+    cerrarModalDocumentosCliente();
+    if(document.getElementById("cli_docs_resumen")) await refrescarResumenDocumentosFicha(c);
+    if(document.getElementById("cli_form_docs_estado")) await refrescarResumenDocumentosEdicion(c);
+  };
+  const nuevo=document.getElementById("cli_docs_nuevo");
+  if(nuevo) nuevo.onclick=function(){abrirFormularioDocumentoCliente(c)};
+}
 
-  if(!file) return null;
-
-  if(!navigator.onLine || !sb()){
-    alert("Para subir documentos necesitas conexión.");
-    return null;
+async function refrescarResumenDocumentosFicha(c){
+  const box=document.getElementById("cli_docs_resumen");
+  const count=document.getElementById("cli_docs_count");
+  if(!box || !c || !c.id) return;
+  const res=await consultarDocumentosCliente(c.id);
+  if(!res.disponible){
+    if(c.documento_url){
+      if(count) count.textContent="1";
+      box.innerHTML=`<div class="zx_cli_doc_summary_item"><span>📎</span><div><b>${limpiar(c.documento_nombre || "Documento del cliente")}</b><small>Documento actual</small></div><button type="button" data-doc-legacy-open>Ver</button></div>`;
+      const b=box.querySelector("[data-doc-legacy-open]");if(b) b.onclick=function(){window.open(c.documento_url,"_blank")};
+    }else{
+      if(count) count.textContent="0";
+      box.innerHTML=`<div class="zx_cli_ficha_vacio">Sin documentos.</div>`;
+    }
+    return;
   }
+  const docs=res.lista || [];
+  if(count) count.textContent=String(docs.length);
+  box.innerHTML=docs.length ? docs.slice(0,3).map(function(d){return `<div class="zx_cli_doc_summary_item"><span>${iconoDocumentoCliente(d)}</span><div><b>${limpiar(d.nombre || "Documento")}</b><small>${limpiar(textoTipoDocumentoCliente(d.tipo))} · ${limpiar(fechaDocumentoES(d.fecha_documento || d.created_at))}</small></div><button type="button" data-doc-summary-open="${limpiar(d.id)}">Ver</button></div>`}).join("") : `<div class="zx_cli_ficha_vacio">Sin documentos.</div>`;
+  box.querySelectorAll("[data-doc-summary-open]").forEach(function(btn){btn.onclick=function(){const d=docs.find(function(x){return String(x.id)===String(btn.dataset.docSummaryOpen)});if(d) window.open(d.url,"_blank")}});
+}
 
-  const ext=(file.name.split(".").pop() || "dat").toLowerCase();
-  const limpio=String(nombre || "cliente").replace(/[^a-zA-Z0-9_-]/g,"_");
-  const path="clientes/"+limpio+"_"+Date.now()+"."+ext;
-
-  const r=await sb().storage
-    .from("zentryx-clientes")
-    .upload(path,file,{upsert:true});
-
-  if(r.error){
-    alert("Error subiendo documento: "+r.error.message);
-    return null;
-  }
-
-  return sb().storage
-    .from("zentryx-clientes")
-    .getPublicUrl(path).data.publicUrl;
+async function refrescarResumenDocumentosEdicion(c){
+  const el=document.getElementById("cli_form_docs_estado");
+  if(!el || !c || !c.id) return;
+  const res=await consultarDocumentosCliente(c.id);
+  if(!res.disponible){el.textContent=c.documento_url ? "1 documento guardado (modo anterior)" : "Biblioteca pendiente de SQL";return}
+  const n=(res.lista || []).length;
+  el.textContent=n===1 ? "1 documento guardado" : n+" documentos guardados";
 }
 
 function filtrarClientes(){
@@ -935,13 +1330,9 @@ function mostrarFichaCliente(c){
 
     ${puedeDocs() ? `
       <section class="zx_cli_ficha_section">
-        <h3>Documentación</h3>
-        ${c.documento_url ? `
-          <div class="zx_cli_ficha_doc">
-            <span>${limpiar(c.documento_nombre || "Documento del cliente")}</span>
-            <button class="gray" type="button" data-ficha-doc="${limpiar(c.documento_url)}">📄 Ver documento</button>
-          </div>
-        ` : `<div class="zx_cli_ficha_vacio">Sin documento asociado.</div>`}
+        <div class="zx_cli_ficha_section_head"><h3>Documentación</h3><span id="cli_docs_count">…</span></div>
+        <div id="cli_docs_resumen"><div class="zx_cli_ficha_vacio">Cargando documentos…</div></div>
+        <button class="zx_btn_big zx_azul zx_cli_docs_manage" type="button" id="cli_docs_gestionar">📚 Ver y gestionar documentos</button>
       </section>
     ` : ""}
 
@@ -991,9 +1382,9 @@ function mostrarFichaCliente(c){
   document.querySelectorAll("[data-ficha-map]").forEach(function(btn){
     btn.onclick=function(e){e.stopPropagation();menuMapa(btn.dataset.fichaMap)};
   });
-  document.querySelectorAll("[data-ficha-doc]").forEach(function(btn){
-    btn.onclick=function(e){e.stopPropagation();window.open(btn.dataset.fichaDoc,"_blank")};
-  });
+  const docsGestionar=document.getElementById("cli_docs_gestionar");
+  if(docsGestionar) docsGestionar.onclick=function(){abrirGestorDocumentosCliente(c)};
+  refrescarResumenDocumentosFicha(c);
 }
 
 function opcionesCliente(c){
@@ -1549,10 +1940,13 @@ function formulario(c){
 
       ${puedeDocs() ? `
         <h3>Documentación</h3>
-        <label class="zx_cli_label" for="c_documento">Documento</label>
-        <input id="c_documento" type="file" accept="image/*,.pdf,.doc,.docx">
-        ${c.documento_url ? `<a class="zx_btn_big zx_azul" href="${limpiar(c.documento_url)}" target="_blank">Ver documento actual</a>` : ""}
-      ` : `<input id="c_documento" type="file" style="display:none">`}
+        ${c.id ? `
+          <div class="zx_cli_docs_edit_box">
+            <div><b id="cli_form_docs_estado">Comprobando documentos…</b><span>Los archivos se guardan por separado y no sustituyen a los anteriores.</span></div>
+            <button type="button" class="zx_btn_big zx_azul" id="cli_form_docs_gestionar">📚 Gestionar documentación</button>
+          </div>
+        ` : `<div class="zx_cli_hint">Guarda primero el cliente. Después podrás añadir todos los documentos que necesites.</div>`}
+      ` : ""}
 
       <h3>Notas</h3>
       <label class="zx_cli_label" for="c_notas">Notas técnicas</label>
@@ -1578,6 +1972,9 @@ function formulario(c){
   if(guardarTop) guardarTop.onclick=guardar;
   if(guardarBottom) guardarBottom.onclick=guardar;
   conectarFormularioDinamico();
+  const docsBtn=document.getElementById("cli_form_docs_gestionar");
+  if(docsBtn) docsBtn.onclick=function(){abrirGestorDocumentosCliente(c)};
+  if(c.id) refrescarResumenDocumentosEdicion(c);
 }
 
 function valor(id){
@@ -1679,8 +2076,6 @@ async function guardarCliente(id,documentoActual,nombreDocActual){
   const emailPrincipal=principalDe(emails);
   const dirPrincipal=principalDe(direcciones);
 
-  const file=(document.getElementById("c_documento")?.files || [])[0] || null;
-  const docUrl=await subirArchivo(file,nombre);
   const s=sesion();
   const clienteId=id || uuid();
 
@@ -1707,8 +2102,9 @@ async function guardarCliente(id,documentoActual,nombreDocActual){
     lng:dirPrincipal ? dirPrincipal.lng : null,
     notas:valor("c_notas"),
     mensaje_predefinido:valor("c_mensaje"),
-    documento_url:docUrl || documentoActual || null,
-    documento_nombre:file ? file.name : nombreDocActual || null,
+    // Se conservan los campos antiguos por compatibilidad. La biblioteca nueva usa clientes_documentos.
+    documento_url:documentoActual || null,
+    documento_nombre:nombreDocActual || null,
     creado_por:s.usuario || "",
     usuario_id:String(s.id || "")
   };
@@ -1929,6 +2325,16 @@ function instalarCSS(){
     .zx_cli_address_more_body{padding:2px 12px 12px}
     .zx_cli_import_preview{display:grid;gap:5px;background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px;margin:12px 0}
     .zx_cli_import_preview b{color:#071330;font-size:18px}.zx_cli_import_preview span{color:#475569;font-size:13px;font-weight:850;line-height:1.35}
+    .zx_cli_ficha_section_head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.zx_cli_ficha_section_head h3{margin:0!important}.zx_cli_ficha_section_head>span{min-width:28px;height:28px;padding:0 8px;border-radius:999px;background:#dbeafe;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:950}
+    .zx_cli_docs_manage{margin-top:10px!important}
+    .zx_cli_doc_summary_item{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;background:#fff;border:1px solid #e6edf5;border-radius:15px;padding:10px;margin-top:8px}.zx_cli_doc_summary_item:first-child{margin-top:0}.zx_cli_doc_summary_item>span{font-size:22px}.zx_cli_doc_summary_item div{min-width:0}.zx_cli_doc_summary_item b{display:block;color:#071330;font-size:14px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zx_cli_doc_summary_item small{display:block;color:#64748b;font-size:11px;font-weight:850;margin-top:3px}.zx_cli_doc_summary_item button{border:0;border-radius:12px;background:#64748b;color:#fff;padding:9px 11px;font-weight:950}
+    .zx_cli_docs_edit_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:12px;display:grid;gap:10px}.zx_cli_docs_edit_box b{display:block;color:#071330;font-size:15px;font-weight:950}.zx_cli_docs_edit_box span{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:3px;line-height:1.35}
+    .zx_cli_docs_modal{position:fixed;inset:0;z-index:100200;background:rgba(15,23,42,.68);display:flex;align-items:center;justify-content:center;padding:14px}.zx_cli_docs_caja{width:min(680px,100%);max-height:92dvh;overflow-y:auto;background:#fff;border-radius:28px;padding:20px;box-shadow:0 28px 80px rgba(15,23,42,.45)}
+    .zx_cli_docs_top{position:sticky;top:0;z-index:3;display:grid;grid-template-columns:1fr 1fr;gap:10px;background:rgba(255,255,255,.98);padding:3px 0 12px;margin-bottom:14px;border-bottom:1px solid #e2e8f0}.zx_cli_docs_top.zx_cli_docs_one{grid-template-columns:1fr}.zx_cli_docs_top button{border:1px solid #bfdbfe;border-radius:16px;min-height:48px;padding:11px 12px;background:#eff6ff;color:#1d4ed8;font-size:15px;font-weight:950}.zx_cli_docs_top button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+    .zx_cli_docs_head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px}.zx_cli_docs_head span{display:block;color:#64748b;font-size:11px;font-weight:950;letter-spacing:.08em}.zx_cli_docs_head h2,.zx_cli_docs_caja>h2{margin:3px 0 0;color:#071330;font-size:27px;line-height:1.08;font-weight:950}.zx_cli_docs_head>b{min-width:38px;height:38px;border-radius:14px;background:#dbeafe;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:950}
+    .zx_cli_docs_toolbar{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:9px;margin-bottom:12px}.zx_cli_docs_toolbar input,.zx_cli_docs_toolbar select,.zx_cli_docs_form input,.zx_cli_docs_form select,.zx_cli_docs_form textarea{width:100%;border:1px solid #dbe3ef;border-radius:15px;padding:12px;font-size:15px;font-weight:800;background:#f8fafc;color:#071330}.zx_cli_docs_form{display:grid;gap:7px}.zx_cli_docs_form label{margin-top:8px;color:#475569;font-size:13px;font-weight:950}.zx_cli_doc_custom[hidden]{display:none!important}
+    .zx_cli_docs_lista{display:grid;gap:9px}.zx_cli_doc_card{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:10px;align-items:center;background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:11px}.zx_cli_doc_icon{width:46px;height:46px;border-radius:14px;background:#fff;border:1px solid #e6edf5;display:flex;align-items:center;justify-content:center;font-size:23px}.zx_cli_doc_text{min-width:0}.zx_cli_doc_text b{display:block;color:#071330;font-size:15px;font-weight:950;line-height:1.25;word-break:break-word}.zx_cli_doc_text span,.zx_cli_doc_text small{display:block;color:#64748b;font-size:11px;font-weight:850;margin-top:4px;line-height:1.3}.zx_cli_doc_actions{display:flex;gap:6px}.zx_cli_doc_actions button{border:0;border-radius:12px;min-height:40px;padding:9px 11px;font-size:12px;font-weight:950}.zx_cli_doc_open{background:#2563eb;color:white}.zx_cli_doc_more{background:#e2e8f0;color:#334155}.zx_cli_doc_replace_info{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px;margin:12px 0}.zx_cli_doc_replace_info b{display:block;color:#071330;font-size:16px;font-weight:950}.zx_cli_doc_replace_info span{display:block;color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
+    @media(max-width:520px){.zx_cli_docs_toolbar{grid-template-columns:1fr}.zx_cli_doc_card{grid-template-columns:40px minmax(0,1fr);align-items:start}.zx_cli_doc_icon{width:40px;height:40px}.zx_cli_doc_actions{grid-column:1/-1;display:grid;grid-template-columns:1fr auto}.zx_cli_doc_actions button{min-height:42px}.zx_cli_docs_caja{padding:16px;border-radius:24px}}
     @media(max-width:390px){.zx_cli_panel{padding:15px;border-radius:22px}.zx_cli_header{grid-template-columns:1fr}.zx_cli_header_actions{grid-template-columns:1fr 1fr}.zx_cli_header_actions button{padding:11px 10px;font-size:14px}.zx_cli_header h2{font-size:27px}.zx_cli_kpis{gap:5px}.zx_cli_kpis span{font-size:9px}.zx_cli_top h3{font-size:18px}.zx_cli_ficha_actions{grid-template-columns:1fr}.zx_cli_top_actions{grid-template-columns:1fr 1fr}.zx_cli_top_actions button{font-size:14px;padding:11px 8px}}
     @media(min-width:700px){.zx_cli_shell{padding-bottom:32px}.zx_cli_kpis b{font-size:22px}.zx_cli_kpis span{font-size:11px}.zx_cli_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_grid3{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_cli_ficha_grid{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_ficha_doc{grid-template-columns:1fr auto;align-items:center}}
     @media(min-width:1100px){.zx_cli_panel{padding:22px}.zx_cli_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
