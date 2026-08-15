@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3115 - ETIQUETAS DE CONTACTO CON DESPLEGABLE + PERSONALIZAR
+// V3116 - DESPLEGABLE DE ETIQUETAS VISIBLE EN IOS + PERSONALIZAR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3115";
+const ZX_VERSION="3116";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -1221,11 +1221,13 @@ function renderContactoEditor(tipo,x){
       <div class="zx_cli_grid2 zx_cli_compact_grid">
         <div>
           <label class="zx_cli_label">Etiqueta</label>
-          <select data-contacto-etiqueta-select>
-            ${opciones.map(function(o){return `<option value="${limpiar(o)}" ${!personalizada && etiquetaActual===o ? "selected" : ""}>${limpiar(o)}</option>`}).join("")}
-            <option value="__personalizar__" ${personalizada ? "selected" : ""}>Personalizar…</option>
-          </select>
-          <input data-contacto-campo="etiqueta" data-contacto-etiqueta-custom value="${limpiar(etiquetaActual)}" placeholder="Escribe la etiqueta" ${personalizada ? "" : "hidden"}>
+          <div class="zx_cli_select_shell">
+            <select class="zx_cli_contact_label_select" data-contacto-etiqueta-select aria-label="Etiqueta">
+              ${opciones.map(function(o){return `<option value="${limpiar(o)}" ${!personalizada && etiquetaActual===o ? "selected" : ""}>${limpiar(o)}</option>`}).join("")}
+              <option value="__personalizar__" ${personalizada ? "selected" : ""}>Personalizar…</option>
+            </select>
+          </div>
+          <input class="zx_cli_custom_label" data-contacto-campo="etiqueta" data-contacto-etiqueta-custom value="${limpiar(etiquetaActual)}" placeholder="Escribe la etiqueta" ${personalizada ? "" : "hidden"}>
         </div>
         <div>
           <label class="zx_cli_label">${esTel ? "Número" : "Dirección de email"}</label>
@@ -1733,6 +1735,10 @@ function instalarCSS(){
     .zx_cli_subcard_head b{color:#071330;font-size:15px;font-weight:950}
     .zx_cli_remove_small{border:0;border-radius:11px;background:#fee2e2;color:#b91c1c;width:38px;height:38px;font-size:16px;font-weight:950}
     .zx_cli_compact_grid{margin-top:2px}
+    .zx_cli_select_shell{position:relative;width:100%}
+    .zx_cli_select_shell:after{content:"▾";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:20px;font-weight:950;color:#071330;pointer-events:none;line-height:1}
+    .zx_cli_contact_label_select{-webkit-appearance:none!important;appearance:none!important;padding-right:50px!important;cursor:pointer}
+    .zx_cli_custom_label[hidden]{display:none!important}
     .zx_cli_checkline{display:flex;align-items:center;gap:9px;margin-top:10px;color:#334155;font-size:13px;font-weight:950}
     .zx_cli_checkline input{width:20px!important;height:20px!important;margin:0!important;padding:0!important}
     .zx_cli_hint{color:#64748b;font-size:13px;font-weight:800;margin:7px 0 3px}
