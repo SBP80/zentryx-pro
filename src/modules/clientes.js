@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3120 - PRINCIPAL UNICA + REPARACION DE DUPLICADOS EN DIRECCIONES
+// V3121 - PRINCIPAL UNICA + DISTINTIVO CORRECTO + ETIQUETA DIRECCION
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3120";
+const ZX_VERSION="3121";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -42,7 +42,7 @@ function direccionDesdeLegacy(c){
   const tiene=[c.via_tipo,c.direccion,c.numero,c.portal,c.escalera,c.piso,c.puerta,c.codigo_postal,c.poblacion,c.provincia,c.pais].some(function(v){return String(v || "").trim()});
   if(!tiene && c.lat==null && c.lng==null) return null;
   return {
-    id:"legacy_dir_1",etiqueta:"Principal",via_tipo:c.via_tipo || "",direccion:c.direccion || "",numero:c.numero || "",
+    id:"legacy_dir_1",etiqueta:"Dirección",via_tipo:c.via_tipo || "",direccion:c.direccion || "",numero:c.numero || "",
     portal:c.portal || "",escalera:c.escalera || "",piso:c.piso || "",puerta:c.puerta || "",
     codigo_postal:c.codigo_postal || "",poblacion:c.poblacion || "",provincia:c.provincia || "",pais:c.pais || "España",
     lat:c.lat ?? null,lng:c.lng ?? null,notas:"",principal:true,orden:0,activa:true
@@ -70,7 +70,11 @@ function coincideDireccionLegacy(d,c){
 }
 
 function normalizarPrincipalesDirecciones(c,lista){
-  const dirs=(lista || []).map(function(d){return Object.assign({},d)});
+  const dirs=(lista || []).map(function(d){
+    const copia=Object.assign({},d);
+    copia.etiqueta=normalizarEtiquetaDireccion(copia.etiqueta) || "Dirección";
+    return copia;
+  });
   if(!dirs.length) return dirs;
 
   const marcadas=dirs.filter(function(d){return !!d.principal});
@@ -1245,18 +1249,26 @@ function etiquetasContacto(tipo){
   return ["Personal","Trabajo","Facturación","Administración","Pedidos"];
 }
 
+function normalizarEtiquetaDireccion(etiqueta){
+  const e=String(etiqueta || "").trim();
+  // "Principal" era una etiqueta antigua de dirección. Ahora "Principal"
+  // describe únicamente el estado de la dirección, no su tipo.
+  if(!e || e==="Nueva dirección") return "";
+  if(normalizar(e)==="principal") return "Dirección";
+  return e;
+}
+
 function etiquetasDireccion(){
-  return ["Principal","Casa","Trabajo","Facturación","Obra","Almacén","Entrega","Otra"];
+  return ["Dirección","Casa","Trabajo","Facturación","Obra","Almacén","Entrega","Otra"];
 }
 
 function resumenDireccionEtiqueta(d){
-  const e=String(d && d.etiqueta || "").trim();
-  return e && e!=="Nueva dirección" ? e : "Nueva dirección";
+  const e=normalizarEtiquetaDireccion(d && d.etiqueta);
+  return e || "Nueva dirección";
 }
 
 function mostrarBadgePrincipalDireccion(d){
-  const e=String(d && d.etiqueta || "").trim().toLowerCase();
-  return !!(d && d.principal && e!=="principal");
+  return !!(d && d.principal);
 }
 
 function renderContactoEditor(tipo,x){
@@ -1298,8 +1310,8 @@ function renderDireccionEditor(d,abierta){
   const esNueva=!d.id;
   const id=uuidValido(d.id) ? d.id : uuid();
   const opcionesEtiqueta=etiquetasDireccion();
-  const etiquetaOriginal=String(d.etiqueta || "").trim();
-  const etiquetaActual=etiquetaOriginal==="Nueva dirección" ? "" : etiquetaOriginal;
+  const etiquetaOriginal=normalizarEtiquetaDireccion(d.etiqueta);
+  const etiquetaActual=etiquetaOriginal;
   const personalizada=!!etiquetaActual && !opcionesEtiqueta.includes(etiquetaActual);
   const viaActual=String(d.via_tipo || (esNueva ? "Calle" : "")).trim();
   const resumen=resumenDireccionEtiqueta(d);
@@ -1394,10 +1406,7 @@ function actualizarPrincipalDireccionesUI(principalRow){
     row.dataset.principal=esPrincipal ? "1" : "0";
 
     const badge=row.querySelector("[data-dir-principal-badge]");
-    if(badge){
-      const etiqueta=String(row.querySelector("[data-dir-campo=\"etiqueta\"]")?.value || row.querySelector("[data-dir-resumen]")?.textContent || "").trim().toLowerCase();
-      badge.hidden=!(esPrincipal && etiqueta!=="principal");
-    }
+    if(badge) badge.hidden=!esPrincipal;
   });
 }
 
@@ -1611,7 +1620,7 @@ function leerDireccionesFormulario(){
     const get=function(campo){return valorDentro(row,`[data-dir-campo="${campo}"]`)};
     const d={
       id:uuidValido(row.dataset.id) ? row.dataset.id : uuid(),
-      etiqueta:get("etiqueta") || "Dirección",
+      etiqueta:normalizarEtiquetaDireccion(get("etiqueta")) || "Dirección",
       via_tipo:get("via_tipo"),direccion:get("direccion"),numero:get("numero"),portal:get("portal"),
       escalera:get("escalera"),piso:get("piso"),puerta:get("puerta"),codigo_postal:get("codigo_postal"),
       poblacion:get("poblacion"),provincia:get("provincia"),pais:get("pais") || "España",notas:get("notas"),
@@ -1888,6 +1897,7 @@ function instalarCSS(){
     .zx_cli_contact_view button,.zx_cli_address_view button{border:0;border-radius:14px;color:white;font-weight:950;min-width:48px;min-height:44px;padding:9px 11px}
     .zx_cli_contact_view .green{background:#16a34a}.zx_cli_contact_view .blue{background:#2563eb}.zx_cli_address_view .purple{background:#7c3aed}
     .zx_cli_badge{display:inline-block!important;width:auto!important;background:#dcfce7;color:#166534!important;border-radius:999px;padding:3px 7px;font-size:10px!important;font-weight:950!important;vertical-align:middle}
+    .zx_cli_badge[hidden],[data-dir-principal-badge][hidden]{display:none!important}
     .zx_cli_section_title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px}
     .zx_cli_section_title h3{margin:0!important}
     .zx_cli_add_small{border:0;border-radius:14px;background:#2563eb;color:white;padding:10px 12px;font-size:13px;font-weight:950;white-space:nowrap}
