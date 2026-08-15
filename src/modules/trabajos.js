@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3223
-// V3223 - CONTADOR DIARIO DE JORNADA + CONTADORES RAPIDOS + HISTORIAL LIMPIO
+// ZENTRYX PRO - TRABAJOS V3224
+// V3224 - CONTADOR DIARIO VALIDADO + CIERRES ENTRE FECHAS MARCADOS PARA REVISION
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3223";
+const ZX_VERSION="3224";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3764,9 +3764,9 @@ function textoDuracionMinutos(minutos){
   return `${m} min`;
 }
 
-function duracionRealJornada(hist,jornadaId){
+function datosDuracionRealJornada(hist,jornadaId){
   const jid=String(jornadaId || "");
-  if(!jid) return 0;
+  if(!jid) return {minutos:0,cruzaFecha:false,inicio:null,fin:null};
 
   const entradas=(hist || []).filter(function(h){
     const datos=datosHistorial(h);
@@ -3793,15 +3793,19 @@ function duracionRealJornada(hist,jornadaId){
     }
   });
 
-  if(!inicio || !fin || fin<=inicio) return 0;
+  if(!inicio || !fin || fin<=inicio) return {minutos:0,cruzaFecha:false,inicio,fin};
 
-  // Si la jornada se cerró en una fecha distinta a la de inicio, no presentamos
-  // como "tiempo real" todas las horas transcurridas entre ambos días. Ese
-  // intervalo puede incluir noches o días en los que el operario olvidó cerrar.
-  // El contador operativo es diario; el histórico conserva las fechas reales.
-  if(!mismaFechaLocal(inicio,fin)) return 0;
+  const cruzaFecha=!mismaFechaLocal(inicio,fin);
+  return {
+    minutos:cruzaFecha ? 0 : Math.round((fin.getTime()-inicio.getTime())/60000),
+    cruzaFecha,
+    inicio,
+    fin
+  };
+}
 
-  return Math.round((fin.getTime()-inicio.getTime())/60000);
+function duracionRealJornada(hist,jornadaId){
+  return datosDuracionRealJornada(hist,jornadaId).minutos;
 }
 
 function resumenFirmaParte(datos){
@@ -3873,8 +3877,11 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
         const fin=String(jornada?.hora_fin || "").slice(0,5);
         const horario=[inicio,fin].filter(Boolean).join("–");
         const prevista=minutosEntreHoras(inicio,fin);
-        const real=duracionRealJornada(hist,jornada?.id);
-        const duracion=real ? `Real ${textoDuracionMinutos(real)}` : (prevista ? `Prevista ${textoDuracionMinutos(prevista)}` : "");
+        const datosReal=datosDuracionRealJornada(hist,jornada?.id);
+        const real=datosReal.minutos;
+        const duracion=datosReal.cruzaFecha
+          ? "Horas pendientes de revisar"
+          : (real ? `Real ${textoDuracionMinutos(real)}` : (prevista ? `Prevista ${textoDuracionMinutos(prevista)}` : ""));
         const fotosDia=items.reduce(function(total,h){
           const d=datosHistorial(h);
           return total+(Array.isArray(d.archivos) ? d.archivos.filter(a=>String(a.tipo || "")==="foto").length : 0);
