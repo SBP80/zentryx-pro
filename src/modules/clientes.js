@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3119 - PRINCIPAL DE DIRECCIONES INDEPENDIENTE DEL PLEGADO EN IPHONE
+// V3120 - PRINCIPAL UNICA + REPARACION DE DUPLICADOS EN DIRECCIONES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3119";
+const ZX_VERSION="3120";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -56,11 +56,45 @@ function contactosCliente(c){
   }) : contactosLegacy(c);
 }
 
+function coincideDireccionLegacy(d,c){
+  if(!d || !c) return false;
+  const campos=["via_tipo","direccion","numero","portal","escalera","piso","puerta","codigo_postal","poblacion","provincia","pais"];
+  let comparados=0;
+  for(const campo of campos){
+    const legacy=normalizar(c[campo]);
+    if(!legacy) continue;
+    comparados++;
+    if(normalizar(d[campo])!==legacy) return false;
+  }
+  return comparados>0;
+}
+
+function normalizarPrincipalesDirecciones(c,lista){
+  const dirs=(lista || []).map(function(d){return Object.assign({},d)});
+  if(!dirs.length) return dirs;
+
+  const marcadas=dirs.filter(function(d){return !!d.principal});
+  if(marcadas.length===1) return dirs;
+
+  // Si una versión anterior dejó más de una dirección como principal,
+  // la tabla clientes conserva la última principal usada por el resto de módulos.
+  // La usamos para decidir cuál debe mantenerse sin pedir nada al usuario.
+  let elegida=dirs.find(function(d){return coincideDireccionLegacy(d,c)}) || null;
+  if(!elegida && marcadas.length) elegida=marcadas[0];
+  if(!elegida) elegida=dirs[0];
+
+  dirs.forEach(function(d){d.principal=(d===elegida)});
+  return dirs;
+}
+
 function direccionesCliente(c){
   const rel=Array.isArray(c && c.__zx_direcciones) ? c.__zx_direcciones.filter(function(x){return x && x.activa!==false}) : [];
-  if(rel.length) return rel.slice().sort(function(a,b){
-    return Number(!!b.principal)-Number(!!a.principal) || Number(a.orden || 0)-Number(b.orden || 0);
-  });
+  if(rel.length){
+    const normalizadas=normalizarPrincipalesDirecciones(c,rel);
+    return normalizadas.sort(function(a,b){
+      return Number(!!b.principal)-Number(!!a.principal) || Number(a.orden || 0)-Number(b.orden || 0);
+    });
+  }
   const legacy=direccionDesdeLegacy(c);
   return legacy ? [legacy] : [];
 }
@@ -1459,6 +1493,10 @@ function conectarFormularioDinamico(){
     if(inp.dataset.zxReady) return;inp.dataset.zxReady="1";
     inp.oninput=function(){const row=inp.closest(".zx_cli_address_editor");const span=row?.querySelector("[data-dir-resumen]");if(span) span.textContent=inp.value.trim() || "Nueva dirección";if(row && row.dataset.principal==="1") actualizarPrincipalDireccionesUI(row)};
   });
+
+  // Mantiene radio, data-principal y distintivo visual sincronizados también
+  // cuando las tarjetas están plegadas o llegan datos antiguos duplicados.
+  asegurarPrincipalDireccion();
 }
 
 function formulario(c){
@@ -1585,7 +1623,10 @@ function leerDireccionesFormulario(){
     const tiene=[d.direccion,d.numero,d.codigo_postal,d.poblacion,d.provincia,d.notas].some(function(v){return String(v || "").trim()}) || d.lat!=null || d.lng!=null;
     if(tiene) out.push(d);
   });
-  if(out.length && !out.some(function(x){return x.principal})) out[0].principal=true;
+  if(out.length){
+    const elegida=out.find(function(x){return x.principal}) || out[0];
+    out.forEach(function(x){x.principal=(x===elegida)});
+  }
   out.forEach(function(x,i){x.orden=i});
   return out;
 }
