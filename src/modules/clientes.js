@@ -1,17 +1,16 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3111 - FICHA DE CONSULTA + ACCIONES SUPERIORES
+// V3112 - LISTADO LIMPIO + BUSCADOR GLOBAL + NAVEGACIÓN DE FICHA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3111";
+const ZX_VERSION="3112";
 const TABLA="clientes";
 const CACHE_KEY="zentryx_cache_clientes";
 
 let ZX_CLIENTES_CACHE=[];
 let ZX_CLIENTES_BUSQUEDA="";
-let ZX_CLIENTES_FILTRO="todos";
 let ZX_CLIENTES_CARGANDO=false;
 
 function app(){return document.getElementById("app")}
@@ -178,9 +177,11 @@ function direccionCompleta(c){
 
 function textoBusqueda(c){
   return normalizar([
-    c.nombre,c.tipo,c.nif,c.persona_contacto,c.telefono,c.telefono_2,c.email,
+    c.nombre,c.razon_social,c.cliente,c.empresa,c.nombre_comercial,c.tipo,
+    c.nif,c.persona_contacto,c.telefono,c.telefono_2,c.email,c.via_tipo,
     c.direccion,c.numero,c.portal,c.escalera,c.piso,c.puerta,c.codigo_postal,
-    c.poblacion,c.provincia,c.pais,c.notas,c.mensaje_predefinido,direccionCompleta(c)
+    c.poblacion,c.provincia,c.pais,c.notas,c.mensaje_predefinido,
+    c.documento_nombre,direccionCompleta(c),nombreCliente(c)
   ].join(" "));
 }
 
@@ -295,10 +296,6 @@ async function subirArchivo(file,nombre){
 function filtrarClientes(){
   let lista=ZX_CLIENTES_CACHE || [];
 
-  if(ZX_CLIENTES_FILTRO!=="todos"){
-    lista=lista.filter(c=>normalizar(c.tipo)===normalizar(ZX_CLIENTES_FILTRO));
-  }
-
   if(ZX_CLIENTES_BUSQUEDA.trim()){
     lista=lista.filter(c=>coincide(c,ZX_CLIENTES_BUSQUEDA));
   }
@@ -358,21 +355,14 @@ function resumen(){
 }
 
 function toolbar(total){
-  const filtros=["todos","particular","empresa","comunidad","administración","otro"];
-
   return `
     <div class="zx_cli_toolbar">
       <div class="zx_cli_search">
-        <input id="zx_buscar_clientes" type="search" value="${limpiar(ZX_CLIENTES_BUSQUEDA)}" placeholder="Buscar nombre, teléfono, email, dirección o NIF" autocomplete="off">
+        <input id="zx_buscar_clientes" type="search" value="${limpiar(ZX_CLIENTES_BUSQUEDA)}" placeholder="Buscar clientes por cualquier dato" autocomplete="off">
         ${ZX_CLIENTES_BUSQUEDA ? `<button id="zx_limpiar_clientes" type="button">✕</button>` : ""}
       </div>
 
-      <div class="zx_cli_filters">
-        ${filtros.map(function(f){
-          return `<button class="${ZX_CLIENTES_FILTRO===f ? "on" : ""}" data-cli-filter="${limpiar(f)}">${limpiar(f==="todos" ? "Todos" : f)}</button>`;
-        }).join("")}
-      </div>
-
+      <div class="zx_cli_search_hint">Nombre, contacto, teléfono, email, NIF/CIF, dirección, localidad, provincia, CP, notas o tipo de cliente.</div>
       <div class="zx_cli_resume" id="zx_cliente_resume">${limpiar(total)} resultado(s)</div>
     </div>
   `;
@@ -591,7 +581,7 @@ async function abrirFichaCliente(id){
 
 function renderListado(lista){
   if(!lista.length){
-    return `<div class="zx_cli_empty">No hay clientes con este filtro.</div>`;
+    return `<div class="zx_cli_empty">${ZX_CLIENTES_BUSQUEDA.trim() ? "No hay clientes que coincidan con la búsqueda." : "No hay clientes."}</div>`;
   }
 
   return lista.map(renderCliente).join("");
@@ -666,15 +656,6 @@ function conectarBuscador(){
   }
 
   conectarLimpiar();
-
-  document.querySelectorAll("[data-cli-filter]").forEach(function(btn){
-    btn.onclick=function(){
-      ZX_CLIENTES_FILTRO=btn.dataset.cliFilter || "todos";
-      document.querySelectorAll("[data-cli-filter]").forEach(b=>b.classList.remove("on"));
-      btn.classList.add("on");
-      repintarLista();
-    };
-  });
 }
 
 function conectarLimpiar(){
@@ -917,7 +898,19 @@ async function guardarCliente(id,documentoActual,nombreDocActual){
     if(r && r.error) throw r.error;
 
     cerrarModal();
-    await window.ZX_clientes();
+
+    // Al editar un cliente existente, volver a su ficha de consulta.
+    // Al crear uno nuevo mantenemos el listado, ya que el backend puede
+    // resolver el alta en cola sin devolver todavía el UUID definitivo.
+    if(id){
+      const actualizado=prepararCliente(Object.assign({},ZX_CLIENTES_CACHE.find(c=>String(c.id)===String(id)) || {},datos,{id:id}));
+      const pos=ZX_CLIENTES_CACHE.findIndex(c=>String(c.id)===String(id));
+      if(pos>=0) ZX_CLIENTES_CACHE[pos]=actualizado;
+      guardarCache(ZX_CLIENTES_CACHE);
+      mostrarFichaCliente(actualizado);
+    }else{
+      await window.ZX_clientes();
+    }
 
   }catch(e){
     alert("Error guardando cliente: "+(e.message || "Error"));
@@ -989,13 +982,13 @@ async function borrarCliente(id){
 }
 
 function instalarCSS(){
-  ["zx_clientes_css_v3109","zx_clientes_css_v3111"].forEach(function(id){
+  ["zx_clientes_css_v3109","zx_clientes_css_v3111","zx_clientes_css_v3112"].forEach(function(id){
     const old=document.getElementById(id);
     if(old) old.remove();
   });
 
   const s=document.createElement("style");
-  s.id="zx_clientes_css_v3111";
+  s.id="zx_clientes_css_v3112";
   s.innerHTML=`
     .zx_cli_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_cli_panel{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
@@ -1013,9 +1006,7 @@ function instalarCSS(){
     .zx_cli_search{position:relative}
     .zx_cli_search input{width:100%;margin:0!important;padding-right:48px!important;border:1px solid #dbe3ef;border-radius:18px;padding:15px;font-size:16px;font-weight:850;background:#f8fafc;color:#071330}
     .zx_cli_search button{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:#e2e8f0;width:34px;height:34px;border-radius:12px;font-weight:950;color:#334155}
-    .zx_cli_filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px}
-    .zx_cli_filters button{border:0;border-radius:999px;background:#f1f5f9;color:#334155;padding:10px 13px;font-size:13px;font-weight:950;white-space:nowrap;text-transform:capitalize}
-    .zx_cli_filters button.on{background:#2563eb;color:white}
+    .zx_cli_search_hint{color:#64748b;font-size:12px;font-weight:800;line-height:1.35;margin-top:-3px}
     .zx_cli_resume{color:#64748b;font-size:13px;font-weight:900}
     .zx_cli_list_head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
     .zx_cli_list_head h3{margin:0;color:#071330;font-size:25px;font-weight:950;letter-spacing:-.3px}
