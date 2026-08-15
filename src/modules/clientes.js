@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3117 - DIRECCIONES RAPIDAS + ETIQUETAS + CAMPOS AVANZADOS PLEGADOS
+// V3118 - REFRESCO INMEDIATO DEL LISTADO TRAS GUARDAR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3117";
+const ZX_VERSION="3118";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -1077,6 +1077,12 @@ function repintarLista(){
   }
 }
 
+function refrescarListadoTrasCambio(){
+  const kpis=document.querySelector(".zx_cli_kpis");
+  if(kpis) kpis.outerHTML=resumen();
+  repintarLista();
+}
+
 function conectarBuscador(){
   const buscar=document.getElementById("zx_buscar_clientes");
 
@@ -1647,6 +1653,9 @@ async function guardarCliente(id,documentoActual,nombreDocActual){
     ZX_CLIENTES_CACHE.sort(function(a,b){return nombreCliente(a).localeCompare(nombreCliente(b),"es",{sensitivity:"base"})});
     guardarCache(ZX_CLIENTES_CACHE);
 
+    // La ficha se abre sobre el listado. Sin este repintado, al cerrar la ficha
+    // se veía la tarjeta anterior aunque la caché y la base ya estuvieran actualizadas.
+    refrescarListadoTrasCambio();
     cerrarModal();
     mostrarFichaCliente(actualizado);
 
