@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
-// V3156 - CONSERVA EL DIA EXACTO AL ABRIR UN TRABAJO
+// V3157 - ESTADO DE JORNADA CLARO EN TARJETAS DE TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3156";
+const ZX_VERSION="3157";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -412,6 +412,19 @@ function textoEstado(e){
     cancelado:"Cancelado"
   };
   return m[e] || e || "Activo";
+}
+
+function textoEstadoJornadaAgenda(e){
+  const estado=normalizar(e);
+  const m={
+    activo:"Pendiente",
+    pendiente:"Pendiente",
+    en_curso:"En curso",
+    completado:"Realizada",
+    terminado:"Realizada",
+    cancelado:"Cancelada"
+  };
+  return m[estado] || e || "Pendiente";
 }
 
 function colorTipo(tipo){
@@ -939,7 +952,7 @@ function renderEvento(e,fechaContexto){
       <div class="zx_ag_event_top">
         <div>
           <b>${limpiar(e.titulo || "Evento")}</b>
-          <span>${limpiar(textoTipo(e.tipo))} · ${limpiar(textoEstado(e.estado))}</span>
+          <span>${limpiar(trabajo ? "Jornada" : textoTipo(e.tipo))} · ${limpiar(trabajo ? textoEstadoJornadaAgenda(e.estado) : textoEstado(e.estado))}</span>
         </div>
         <em>${limpiar(e.hora_inicio ? String(e.hora_inicio).slice(0,5) : "")}</em>
       </div>
