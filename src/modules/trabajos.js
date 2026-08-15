@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3224
-// V3224 - CONTADOR DIARIO VALIDADO + CIERRES ENTRE FECHAS MARCADOS PARA REVISION
+// ZENTRYX PRO - TRABAJOS V3225
+// V3225 - REAPERTURA SEGURA: CONSERVA JORNADAS REALIZADAS Y CANCELADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3224";
+const ZX_VERSION="3225";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -2312,15 +2312,15 @@ async function aplicarEstado(id,estado){
 
     if(r && r.error) throw r.error;
 
-    // Si el administrador reabre un trabajo de varios días como Pendiente,
-    // reabre también sus jornadas no canceladas. Sirve además para corregir
-    // trabajos que se hubieran cerrado completos con una versión anterior.
+    // Al devolver un trabajo de varios días a Pendiente, solo se reabren
+    // jornadas que todavía no estaban cerradas. Las jornadas realizadas y
+    // canceladas conservan siempre su estado para no repetir días ya cerrados.
     if(multi && estado==="pendiente"){
       const rr=await sb().from("agenda_eventos")
         .update({estado:"activo"})
         .eq("origen","trabajos")
         .eq("origen_id",String(id))
-        .neq("estado","cancelado");
+        .in("estado",["activo","en_curso","pendiente"]);
       if(rr && rr.error) throw rr.error;
     }else if(estado==="cancelado"){
       await sincronizarAgenda(id,Object.assign({},t,{estado:estado}));
