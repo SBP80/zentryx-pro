@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3122 - DOCUMENTACION MULTIPLE + BIBLIOTECA DE CLIENTE
+// V3123 - DOCUMENTACION MULTIPLE + FECHAS DD/MM/AAAA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3122";
+const ZX_VERSION="3123";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -735,6 +735,48 @@ function fechaHoyISO(){
   return `${y}-${m}-${dia}`;
 }
 
+function fechaDocumentoISO(v){
+  const t=String(v || "").trim();
+  if(!t) return "";
+
+  let m=t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if(m){
+    const dia=Number(m[1]);
+    const mes=Number(m[2]);
+    const ano=Number(m[3]);
+    const d=new Date(ano,mes-1,dia);
+    if(d.getFullYear()!==ano || d.getMonth()!==mes-1 || d.getDate()!==dia) return "";
+    return `${String(ano).padStart(4,"0")}-${String(mes).padStart(2,"0")}-${String(dia).padStart(2,"0")}`;
+  }
+
+  m=t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m){
+    const ano=Number(m[1]);
+    const mes=Number(m[2]);
+    const dia=Number(m[3]);
+    const d=new Date(ano,mes-1,dia);
+    if(d.getFullYear()!==ano || d.getMonth()!==mes-1 || d.getDate()!==dia) return "";
+    return `${m[1]}-${m[2]}-${m[3]}`;
+  }
+
+  return "";
+}
+
+function prepararCampoFechaDocumento(id){
+  const input=document.getElementById(id);
+  if(!input) return;
+  input.oninput=function(){
+    const digitos=String(input.value || "").replace(/\D/g,"").slice(0,8);
+    if(digitos.length<=2) input.value=digitos;
+    else if(digitos.length<=4) input.value=digitos.slice(0,2)+"/"+digitos.slice(2);
+    else input.value=digitos.slice(0,2)+"/"+digitos.slice(2,4)+"/"+digitos.slice(4);
+  };
+  input.onblur=function(){
+    const iso=fechaDocumentoISO(input.value);
+    if(iso) input.value=fechaDocumentoES(iso);
+  };
+}
+
 function tipoDocumentoConocido(v){
   return ["general","factura","presupuesto","contrato","certificado","parte","foto","albaran","pedido"].includes(normalizar(v));
 }
@@ -888,7 +930,7 @@ function abrirFormularioDocumentoCliente(c){
       <label>Nombre visible</label>
       <input id="cli_doc_nombre" placeholder="Se usará el nombre del archivo si lo dejas vacío">
       <label>Fecha</label>
-      <input id="cli_doc_fecha" type="date" value="${fechaHoyISO()}">
+      <input id="cli_doc_fecha" type="text" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="DD/MM/AAAA" value="${fechaDocumentoES(fechaHoyISO())}">
       <label>Notas</label>
       <textarea id="cli_doc_notas" rows="3" placeholder="Referencia, observaciones…"></textarea>
     </div>
@@ -898,6 +940,7 @@ function abrirFormularioDocumentoCliente(c){
   const tipo=document.getElementById("cli_doc_tipo");
   const custom=document.getElementById("cli_doc_tipo_custom");
   const file=document.getElementById("cli_doc_file");
+  prepararCampoFechaDocumento("cli_doc_fecha");
   if(volver) volver.onclick=function(){abrirGestorDocumentosCliente(c)};
   if(tipo) tipo.onchange=function(){custom.hidden=tipo.value!=="personalizar";if(!custom.hidden) custom.focus()};
   if(file) file.onchange=function(){const f=file.files && file.files[0];const nombre=document.getElementById("cli_doc_nombre");if(f && nombre && !nombre.value.trim()) nombre.value=f.name};
@@ -908,7 +951,9 @@ function abrirFormularioDocumentoCliente(c){
     if(tipoValor==="personalizar") tipoValor=String(custom && custom.value || "").trim();
     if(!tipoValor){alert("Indica el tipo de documento.");return}
     const nombre=String(document.getElementById("cli_doc_nombre")?.value || f.name || "Documento").trim();
-    const fecha=String(document.getElementById("cli_doc_fecha")?.value || fechaHoyISO());
+    const fechaVisible=String(document.getElementById("cli_doc_fecha")?.value || "").trim();
+    const fecha=fechaDocumentoISO(fechaVisible || fechaDocumentoES(fechaHoyISO()));
+    if(!fecha){alert("Escribe la fecha en formato DD/MM/AAAA.");return}
     const notas=String(document.getElementById("cli_doc_notas")?.value || "").trim();
     guardar.disabled=true;guardar.textContent="Guardando…";
     let subido=null;
@@ -946,7 +991,7 @@ function editarDatosDocumentoCliente(c,d){
       <label>Nombre visible</label>
       <input id="cli_doc_edit_nombre" value="${limpiar(d.nombre || "")}">
       <label>Fecha</label>
-      <input id="cli_doc_edit_fecha" type="date" value="${limpiar(String(d.fecha_documento || "").slice(0,10) || fechaHoyISO())}">
+      <input id="cli_doc_edit_fecha" type="text" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="DD/MM/AAAA" value="${limpiar(fechaDocumentoES(String(d.fecha_documento || "").slice(0,10) || fechaHoyISO()))}">
       <label>Notas</label>
       <textarea id="cli_doc_edit_notas" rows="3">${limpiar(d.notas || "")}</textarea>
     </div>
@@ -955,6 +1000,7 @@ function editarDatosDocumentoCliente(c,d){
   const guardar=document.getElementById("cli_doc_edit_guardar");
   const tipo=document.getElementById("cli_doc_edit_tipo");
   const custom=document.getElementById("cli_doc_edit_tipo_custom");
+  prepararCampoFechaDocumento("cli_doc_edit_fecha");
   if(volver) volver.onclick=function(){abrirOpcionesDocumentoCliente(c,d)};
   if(tipo) tipo.onchange=function(){custom.hidden=tipo.value!=="personalizar";if(!custom.hidden) custom.focus()};
   if(guardar) guardar.onclick=async function(){
@@ -962,7 +1008,10 @@ function editarDatosDocumentoCliente(c,d){
     if(tipoValor==="personalizar") tipoValor=String(custom.value || "").trim();
     const nombre=String(document.getElementById("cli_doc_edit_nombre")?.value || "").trim();
     if(!tipoValor || !nombre){alert("Completa tipo y nombre.");return}
-    const datos={tipo:tipoValor,nombre:nombre,fecha_documento:document.getElementById("cli_doc_edit_fecha")?.value || null,notas:String(document.getElementById("cli_doc_edit_notas")?.value || "").trim(),updated_at:new Date().toISOString()};
+    const fechaVisible=String(document.getElementById("cli_doc_edit_fecha")?.value || "").trim();
+    const fecha=fechaVisible ? fechaDocumentoISO(fechaVisible) : null;
+    if(fechaVisible && !fecha){alert("Escribe la fecha en formato DD/MM/AAAA.");return}
+    const datos={tipo:tipoValor,nombre:nombre,fecha_documento:fecha,notas:String(document.getElementById("cli_doc_edit_notas")?.value || "").trim(),updated_at:new Date().toISOString()};
     guardar.disabled=true;
     const r=await sb().from(TABLA_DOCUMENTOS).update(datos).eq("id",d.id);
     if(r.error){alert("No se pudo actualizar el documento.\n\n"+r.error.message);guardar.disabled=false;return}
@@ -2332,7 +2381,7 @@ function instalarCSS(){
     .zx_cli_docs_modal{position:fixed;inset:0;z-index:100200;background:rgba(15,23,42,.68);display:flex;align-items:center;justify-content:center;padding:14px}.zx_cli_docs_caja{width:min(680px,100%);max-height:92dvh;overflow-y:auto;background:#fff;border-radius:28px;padding:20px;box-shadow:0 28px 80px rgba(15,23,42,.45)}
     .zx_cli_docs_top{position:sticky;top:0;z-index:3;display:grid;grid-template-columns:1fr 1fr;gap:10px;background:rgba(255,255,255,.98);padding:3px 0 12px;margin-bottom:14px;border-bottom:1px solid #e2e8f0}.zx_cli_docs_top.zx_cli_docs_one{grid-template-columns:1fr}.zx_cli_docs_top button{border:1px solid #bfdbfe;border-radius:16px;min-height:48px;padding:11px 12px;background:#eff6ff;color:#1d4ed8;font-size:15px;font-weight:950}.zx_cli_docs_top button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
     .zx_cli_docs_head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px}.zx_cli_docs_head span{display:block;color:#64748b;font-size:11px;font-weight:950;letter-spacing:.08em}.zx_cli_docs_head h2,.zx_cli_docs_caja>h2{margin:3px 0 0;color:#071330;font-size:27px;line-height:1.08;font-weight:950}.zx_cli_docs_head>b{min-width:38px;height:38px;border-radius:14px;background:#dbeafe;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:950}
-    .zx_cli_docs_toolbar{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:9px;margin-bottom:12px}.zx_cli_docs_toolbar input,.zx_cli_docs_toolbar select,.zx_cli_docs_form input,.zx_cli_docs_form select,.zx_cli_docs_form textarea{width:100%;border:1px solid #dbe3ef;border-radius:15px;padding:12px;font-size:15px;font-weight:800;background:#f8fafc;color:#071330}.zx_cli_docs_form{display:grid;gap:7px}.zx_cli_docs_form label{margin-top:8px;color:#475569;font-size:13px;font-weight:950}.zx_cli_doc_custom[hidden]{display:none!important}
+    .zx_cli_docs_toolbar{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:9px;margin-bottom:12px}.zx_cli_docs_toolbar input,.zx_cli_docs_toolbar select,.zx_cli_docs_form input,.zx_cli_docs_form select,.zx_cli_docs_form textarea{width:100%;border:1px solid #dbe3ef;border-radius:15px;padding:12px;font-size:15px;font-weight:800;background:#f8fafc;color:#071330}.zx_cli_docs_form input[inputmode="numeric"]{font-variant-numeric:tabular-nums}.zx_cli_docs_form{display:grid;gap:7px}.zx_cli_docs_form label{margin-top:8px;color:#475569;font-size:13px;font-weight:950}.zx_cli_doc_custom[hidden]{display:none!important}
     .zx_cli_docs_lista{display:grid;gap:9px}.zx_cli_doc_card{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:10px;align-items:center;background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:11px}.zx_cli_doc_icon{width:46px;height:46px;border-radius:14px;background:#fff;border:1px solid #e6edf5;display:flex;align-items:center;justify-content:center;font-size:23px}.zx_cli_doc_text{min-width:0}.zx_cli_doc_text b{display:block;color:#071330;font-size:15px;font-weight:950;line-height:1.25;word-break:break-word}.zx_cli_doc_text span,.zx_cli_doc_text small{display:block;color:#64748b;font-size:11px;font-weight:850;margin-top:4px;line-height:1.3}.zx_cli_doc_actions{display:flex;gap:6px}.zx_cli_doc_actions button{border:0;border-radius:12px;min-height:40px;padding:9px 11px;font-size:12px;font-weight:950}.zx_cli_doc_open{background:#2563eb;color:white}.zx_cli_doc_more{background:#e2e8f0;color:#334155}.zx_cli_doc_replace_info{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px;margin:12px 0}.zx_cli_doc_replace_info b{display:block;color:#071330;font-size:16px;font-weight:950}.zx_cli_doc_replace_info span{display:block;color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
     @media(max-width:520px){.zx_cli_docs_toolbar{grid-template-columns:1fr}.zx_cli_doc_card{grid-template-columns:40px minmax(0,1fr);align-items:start}.zx_cli_doc_icon{width:40px;height:40px}.zx_cli_doc_actions{grid-column:1/-1;display:grid;grid-template-columns:1fr auto}.zx_cli_doc_actions button{min-height:42px}.zx_cli_docs_caja{padding:16px;border-radius:24px}}
     @media(max-width:390px){.zx_cli_panel{padding:15px;border-radius:22px}.zx_cli_header{grid-template-columns:1fr}.zx_cli_header_actions{grid-template-columns:1fr 1fr}.zx_cli_header_actions button{padding:11px 10px;font-size:14px}.zx_cli_header h2{font-size:27px}.zx_cli_kpis{gap:5px}.zx_cli_kpis span{font-size:9px}.zx_cli_top h3{font-size:18px}.zx_cli_ficha_actions{grid-template-columns:1fr}.zx_cli_top_actions{grid-template-columns:1fr 1fr}.zx_cli_top_actions button{font-size:14px;padding:11px 8px}}
