@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3126 - AUDITORÍA CLIENTES CORRECTA + ARCHIVADO/RESTAURACIÓN SEGUROS
+// V3127 - DIAGNÓSTICO EXACTO DE AUDITORÍA DE CLIENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3126";
+const ZX_VERSION="3127";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -2262,6 +2262,22 @@ function detalleDependenciasCliente(dep){
   return filas.length ? `<div class="zx_cli_delete_rel">${filas.join("")}</div>` : `<div class="zx_cli_notice">No se han encontrado trabajos, eventos ni documentos activos asociados.</div>`;
 }
 
+function detalleErrorSupabase(e){
+  if(!e) return "Error desconocido";
+  const partes=[];
+  if(e.message) partes.push("message: "+String(e.message));
+  if(e.code) partes.push("code: "+String(e.code));
+  if(e.details) partes.push("details: "+String(e.details));
+  if(e.hint) partes.push("hint: "+String(e.hint));
+  if(e.status) partes.push("status: "+String(e.status));
+  if(e.statusCode) partes.push("statusCode: "+String(e.statusCode));
+  if(!partes.length){
+    try{partes.push(JSON.stringify(e))}
+    catch(_){partes.push(String(e))}
+  }
+  return partes.join("\n");
+}
+
 async function registrarAuditoriaCliente(accion,c,motivo,detalle){
   if(!sb()) throw new Error("No hay conexión con la auditoría.");
   const ss=sesion();
@@ -2274,7 +2290,7 @@ async function registrarAuditoriaCliente(accion,c,motivo,detalle){
     estado_cliente:c && c.estado != null ? c.estado : null
   };
 
-  const r=await sb().from("clientes_auditoria").insert([{
+  const payload={
     id:uuid(),
     cliente_id:clienteId,
     nombre:nombreCliente(c || {}),
@@ -2283,8 +2299,18 @@ async function registrarAuditoriaCliente(accion,c,motivo,detalle){
     usuario:String(ss.nombre || ss.usuario || ""),
     fecha:new Date().toISOString(),
     datos:datos
-  }]);
-  if(r && r.error) throw r.error;
+  };
+
+  let r;
+  try{
+    r=await sb().from("clientes_auditoria").insert([payload]);
+  }catch(e){
+    throw new Error("INSERT clientes_auditoria lanzó una excepción.\n"+detalleErrorSupabase(e));
+  }
+
+  if(r && r.error){
+    throw new Error("Supabase rechazó INSERT clientes_auditoria.\n"+detalleErrorSupabase(r.error));
+  }
 }
 
 async function archivarClienteSeguro(c,motivo,dep){
@@ -2294,8 +2320,19 @@ async function archivarClienteSeguro(c,motivo,dep){
   try{
     await registrarAuditoriaCliente("archivar_cliente",c,motivo,dep);
   }catch(e){
-    await sb().from(TABLA).update({estado:estadoAnterior,updated_at:new Date().toISOString()}).eq("id",c.id);
-    throw new Error("No se pudo registrar la auditoría. El cliente no se ha archivado.");
+    let rollbackError=null;
+    try{
+      const rb=await sb().from(TABLA).update({estado:estadoAnterior,updated_at:new Date().toISOString()}).eq("id",c.id);
+      if(rb && rb.error) rollbackError=rb.error;
+    }catch(rbEx){
+      rollbackError=rbEx;
+    }
+
+    let mensaje="No se pudo registrar la auditoría. El cliente no se ha archivado.\n\nDETALLE TÉCNICO:\n"+detalleErrorSupabase(e);
+    if(rollbackError){
+      mensaje+="\n\nATENCIÓN: también falló la reversión del estado:\n"+detalleErrorSupabase(rollbackError);
+    }
+    throw new Error(mensaje);
   }
 }
 
@@ -2321,8 +2358,19 @@ async function restaurarCliente(id){
     try{
       await registrarAuditoriaCliente("restaurar_cliente",c,"Restauración manual de cliente archivado",{});
     }catch(e){
-      await sb().from(TABLA).update({estado:"archivado",updated_at:new Date().toISOString()}).eq("id",c.id);
-      throw new Error("No se pudo registrar la auditoría. El cliente sigue archivado.");
+      let rollbackError=null;
+      try{
+        const rb=await sb().from(TABLA).update({estado:"archivado",updated_at:new Date().toISOString()}).eq("id",c.id);
+        if(rb && rb.error) rollbackError=rb.error;
+      }catch(rbEx){
+        rollbackError=rbEx;
+      }
+
+      let mensaje="No se pudo registrar la auditoría. El cliente sigue archivado.\n\nDETALLE TÉCNICO:\n"+detalleErrorSupabase(e);
+      if(rollbackError){
+        mensaje+="\n\nATENCIÓN: también falló la reversión del estado:\n"+detalleErrorSupabase(rollbackError);
+      }
+      throw new Error(mensaje);
     }
     await window.ZX_clientes();
   }catch(e){
