@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3116 - DESPLEGABLE DE ETIQUETAS VISIBLE EN IOS + PERSONALIZAR
+// V3117 - DIRECCIONES RAPIDAS + ETIQUETAS + CAMPOS AVANZADOS PLEGADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3116";
+const ZX_VERSION="3117";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -850,7 +850,7 @@ function mostrarFichaCliente(c){
     return `
       <div class="zx_cli_address_view">
         <div>
-          <b>${limpiar(d.etiqueta || "Dirección")}${d.principal ? ` <span class="zx_cli_badge">Principal</span>` : ""}</b>
+          <b>${limpiar(d.etiqueta || "Dirección")}${mostrarBadgePrincipalDireccion(d) ? ` <span class="zx_cli_badge">Principal</span>` : ""}</b>
           <span>${limpiar(dir)}</span>
           ${d.notas ? `<small>${limpiar(d.notas)}</small>` : ""}
         </div>
@@ -1205,6 +1205,20 @@ function etiquetasContacto(tipo){
   return ["Personal","Trabajo","Facturación","Administración","Pedidos"];
 }
 
+function etiquetasDireccion(){
+  return ["Principal","Casa","Trabajo","Facturación","Obra","Almacén","Entrega","Otra"];
+}
+
+function resumenDireccionEtiqueta(d){
+  const e=String(d && d.etiqueta || "").trim();
+  return e && e!=="Nueva dirección" ? e : "Nueva dirección";
+}
+
+function mostrarBadgePrincipalDireccion(d){
+  const e=String(d && d.etiqueta || "").trim().toLowerCase();
+  return !!(d && d.principal && e!=="principal");
+}
+
 function renderContactoEditor(tipo,x){
   x=x || {};
   const id=uuidValido(x.id) ? x.id : uuid();
@@ -1241,41 +1255,83 @@ function renderContactoEditor(tipo,x){
 
 function renderDireccionEditor(d,abierta){
   d=d || {};
+  const esNueva=!d.id;
   const id=uuidValido(d.id) ? d.id : uuid();
+  const opcionesEtiqueta=etiquetasDireccion();
+  const etiquetaOriginal=String(d.etiqueta || "").trim();
+  const etiquetaActual=etiquetaOriginal==="Nueva dirección" ? "" : etiquetaOriginal;
+  const personalizada=!!etiquetaActual && !opcionesEtiqueta.includes(etiquetaActual);
+  const viaActual=String(d.via_tipo || (esNueva ? "Calle" : "")).trim();
+  const resumen=resumenDireccionEtiqueta(d);
   return `
     <details class="zx_cli_address_editor" data-id="${limpiar(id)}" data-lat="${limpiar(d.lat ?? "")}" data-lng="${limpiar(d.lng ?? "")}" ${abierta ? "open" : ""}>
-      <summary><span data-dir-resumen>${limpiar(d.etiqueta || "Dirección")}</span>${d.principal ? ` <span class="zx_cli_badge">Principal</span>` : ""}</summary>
+      <summary>
+        <span data-dir-resumen>${limpiar(resumen)}</span>
+        ${mostrarBadgePrincipalDireccion(d) ? ` <span class="zx_cli_badge">Principal</span>` : ""}
+      </summary>
       <div class="zx_cli_address_body">
         <div class="zx_cli_subcard_head">
-          <b>Datos de la dirección</b>
+          <b>Dirección</b>
           <button type="button" class="zx_cli_remove_small" data-remove-direccion>🗑️</button>
         </div>
-        <label class="zx_cli_label">Nombre / tipo de dirección</label>
-        <input data-dir-campo="etiqueta" value="${limpiar(d.etiqueta || "Principal")}" placeholder="Principal, fiscal, obra, almacén…">
+
+        <label class="zx_cli_label">Tipo de dirección</label>
+        <div class="zx_cli_select_shell">
+          <select class="zx_cli_dir_label_select" data-dir-etiqueta-select aria-label="Tipo de dirección">
+            <option value="" ${!etiquetaActual ? "selected" : ""} disabled>Seleccionar…</option>
+            ${opcionesEtiqueta.map(function(o){return `<option value="${limpiar(o)}" ${!personalizada && etiquetaActual===o ? "selected" : ""}>${limpiar(o)}</option>`}).join("")}
+            <option value="__personalizar__" ${personalizada ? "selected" : ""}>Personalizar…</option>
+          </select>
+        </div>
+        <input class="zx_cli_custom_label" data-dir-campo="etiqueta" data-dir-etiqueta-custom value="${limpiar(etiquetaActual)}" placeholder="Escribe el nombre de la dirección" ${personalizada ? "" : "hidden"}>
+
         <label class="zx_cli_checkline"><input type="radio" name="principal_direccion" data-dir-principal ${d.principal ? "checked" : ""}> Dirección principal</label>
-        <label class="zx_cli_label">Tipo de vía</label>
-        <select data-dir-campo="via_tipo">${opcionesVia(d.via_tipo || "")}</select>
-        <label class="zx_cli_label">Dirección</label>
-        <input data-dir-campo="direccion" value="${limpiar(d.direccion || "")}" placeholder="Nombre de la vía">
-        <div class="zx_cli_grid2">
-          <div><label class="zx_cli_label">Número</label><input data-dir-campo="numero" value="${limpiar(d.numero || "")}"></div>
-          <div><label class="zx_cli_label">Portal</label><input data-dir-campo="portal" value="${limpiar(d.portal || "")}"></div>
+
+        <div class="zx_cli_address_quick2">
+          <div>
+            <label class="zx_cli_label">Tipo de vía</label>
+            <select data-dir-campo="via_tipo">${opcionesVia(viaActual)}</select>
+          </div>
+          <div>
+            <label class="zx_cli_label">Número</label>
+            <input data-dir-campo="numero" value="${limpiar(d.numero || "")}" inputmode="text" autocomplete="off">
+          </div>
         </div>
-        <div class="zx_cli_grid3">
-          <div><label class="zx_cli_label">Escalera</label><input data-dir-campo="escalera" value="${limpiar(d.escalera || "")}"></div>
-          <div><label class="zx_cli_label">Piso</label><input data-dir-campo="piso" value="${limpiar(d.piso || "")}"></div>
-          <div><label class="zx_cli_label">Puerta</label><input data-dir-campo="puerta" value="${limpiar(d.puerta || "")}"></div>
+
+        <label class="zx_cli_label">Nombre de la vía</label>
+        <input data-dir-campo="direccion" value="${limpiar(d.direccion || "")}" placeholder="Calle, avenida, plaza…" autocomplete="address-line1">
+
+        <div class="zx_cli_address_quick2">
+          <div>
+            <label class="zx_cli_label">Código postal</label>
+            <input data-dir-campo="codigo_postal" inputmode="numeric" value="${limpiar(d.codigo_postal || "")}" autocomplete="postal-code">
+          </div>
+          <div>
+            <label class="zx_cli_label">Población</label>
+            <input data-dir-campo="poblacion" value="${limpiar(d.poblacion || "")}" autocomplete="address-level2">
+          </div>
         </div>
-        <div class="zx_cli_grid2">
-          <div><label class="zx_cli_label">Código postal</label><input data-dir-campo="codigo_postal" inputmode="numeric" value="${limpiar(d.codigo_postal || "")}"></div>
-          <div><label class="zx_cli_label">Población</label><input data-dir-campo="poblacion" value="${limpiar(d.poblacion || "")}"></div>
-        </div>
-        <div class="zx_cli_grid2">
-          <div><label class="zx_cli_label">Provincia</label><input data-dir-campo="provincia" value="${limpiar(d.provincia || "")}"></div>
-          <div><label class="zx_cli_label">País</label><input data-dir-campo="pais" value="${limpiar(d.pais || "España")}"></div>
-        </div>
-        <label class="zx_cli_label">Notas de esta dirección</label>
-        <textarea data-dir-campo="notas" rows="2" placeholder="Acceso, horario, referencia…">${limpiar(d.notas || "")}</textarea>
+
+        <label class="zx_cli_label">Provincia</label>
+        <input data-dir-campo="provincia" value="${limpiar(d.provincia || "")}" autocomplete="address-level1">
+
+        <details class="zx_cli_address_more">
+          <summary>Más datos <span>Portal, piso, puerta, país y notas</span></summary>
+          <div class="zx_cli_address_more_body">
+            <div class="zx_cli_address_quick2">
+              <div><label class="zx_cli_label">Portal</label><input data-dir-campo="portal" value="${limpiar(d.portal || "")}"></div>
+              <div><label class="zx_cli_label">Escalera</label><input data-dir-campo="escalera" value="${limpiar(d.escalera || "")}"></div>
+            </div>
+            <div class="zx_cli_address_quick2">
+              <div><label class="zx_cli_label">Piso</label><input data-dir-campo="piso" value="${limpiar(d.piso || "")}"></div>
+              <div><label class="zx_cli_label">Puerta</label><input data-dir-campo="puerta" value="${limpiar(d.puerta || "")}"></div>
+            </div>
+            <label class="zx_cli_label">País</label>
+            <input data-dir-campo="pais" value="${limpiar(d.pais || "España")}" autocomplete="country-name">
+            <label class="zx_cli_label">Notas de esta dirección</label>
+            <textarea data-dir-campo="notas" rows="2" placeholder="Acceso, horario, referencia…">${limpiar(d.notas || "")}</textarea>
+          </div>
+        </details>
       </div>
     </details>
   `;
@@ -1307,7 +1363,7 @@ function conectarFormularioDinamico(){
 
   if(addTel) addTel.onclick=function(){telBox.insertAdjacentHTML("beforeend",renderContactoEditor("telefono",{etiqueta:"Móvil",principal:!telBox.children.length}));conectarFormularioDinamico()};
   if(addEmail) addEmail.onclick=function(){emailBox.insertAdjacentHTML("beforeend",renderContactoEditor("email",{etiqueta:"Personal",principal:!emailBox.children.length}));conectarFormularioDinamico()};
-  if(addDir) addDir.onclick=function(){dirBox.insertAdjacentHTML("beforeend",renderDireccionEditor({etiqueta:"Nueva dirección",principal:!dirBox.children.length},true));conectarFormularioDinamico()};
+  if(addDir) addDir.onclick=function(){dirBox.insertAdjacentHTML("beforeend",renderDireccionEditor({etiqueta:"",principal:!dirBox.children.length},true));conectarFormularioDinamico()};
 
   document.querySelectorAll("[data-contacto-etiqueta-select]").forEach(function(sel){
     if(sel.dataset.zxReady) return;sel.dataset.zxReady="1";
@@ -1329,6 +1385,29 @@ function conectarFormularioDinamico(){
     aplicar(false);
   });
 
+  document.querySelectorAll("[data-dir-etiqueta-select]").forEach(function(sel){
+    if(sel.dataset.zxReady) return;sel.dataset.zxReady="1";
+    const aplicar=function(enfocar){
+      const row=sel.closest(".zx_cli_address_editor");
+      const inp=row?.querySelector("[data-dir-etiqueta-custom]");
+      const span=row?.querySelector("[data-dir-resumen]");
+      if(!inp) return;
+      if(sel.value==="__personalizar__"){
+        inp.hidden=false;
+        const opciones=etiquetasDireccion();
+        if(opciones.includes(String(inp.value || "").trim())) inp.value="";
+        if(span) span.textContent=inp.value.trim() || "Nueva dirección";
+        if(enfocar) setTimeout(function(){inp.focus()},0);
+      }else if(sel.value){
+        inp.value=sel.value;
+        inp.hidden=true;
+        if(span) span.textContent=sel.value;
+      }
+    };
+    sel.onchange=function(){aplicar(true)};
+    aplicar(false);
+  });
+
   document.querySelectorAll("[data-remove-contacto]").forEach(function(btn){
     if(btn.dataset.zxReady) return;btn.dataset.zxReady="1";
     btn.onclick=function(){const row=btn.closest(".zx_cli_contacto_row");const tipo=row?.dataset.contactoTipo;row?.remove();if(tipo) asegurarPrincipal(tipo)};
@@ -1339,7 +1418,7 @@ function conectarFormularioDinamico(){
   });
   document.querySelectorAll("[data-dir-campo=\"etiqueta\"]").forEach(function(inp){
     if(inp.dataset.zxReady) return;inp.dataset.zxReady="1";
-    inp.oninput=function(){const row=inp.closest(".zx_cli_address_editor");const span=row?.querySelector("[data-dir-resumen]");if(span) span.textContent=inp.value.trim() || "Dirección"};
+    inp.oninput=function(){const row=inp.closest(".zx_cli_address_editor");const span=row?.querySelector("[data-dir-resumen]");if(span) span.textContent=inp.value.trim() || "Nueva dirección"};
   });
 }
 
@@ -1379,7 +1458,7 @@ function formulario(c){
       ${emails.length ? "" : `<div class="zx_cli_hint">Puedes guardar varios emails.</div>`}
 
       <div class="zx_cli_section_title"><h3>Direcciones</h3><button type="button" class="zx_cli_add_small" id="cli_add_direccion">＋ Dirección</button></div>
-      <div id="cli_direcciones_box" class="zx_cli_dynamic_box">${dirs.map(function(d,i){return renderDireccionEditor(d,i===0)}).join("")}</div>
+      <div id="cli_direcciones_box" class="zx_cli_dynamic_box">${dirs.map(function(d){return renderDireccionEditor(d,false)}).join("")}</div>
       ${dirs.length ? "" : `<div class="zx_cli_hint">Añade domicilio, dirección fiscal, obras, almacenes u otras ubicaciones.</div>`}
 
       ${puedeDocs() ? `
@@ -1737,17 +1816,24 @@ function instalarCSS(){
     .zx_cli_compact_grid{margin-top:2px}
     .zx_cli_select_shell{position:relative;width:100%}
     .zx_cli_select_shell:after{content:"▾";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:20px;font-weight:950;color:#071330;pointer-events:none;line-height:1}
-    .zx_cli_contact_label_select{-webkit-appearance:none!important;appearance:none!important;padding-right:50px!important;cursor:pointer}
+    .zx_cli_contact_label_select,.zx_cli_dir_label_select{-webkit-appearance:none!important;appearance:none!important;padding-right:50px!important;cursor:pointer}
     .zx_cli_custom_label[hidden]{display:none!important}
     .zx_cli_checkline{display:flex;align-items:center;gap:9px;margin-top:10px;color:#334155;font-size:13px;font-weight:950}
     .zx_cli_checkline input{width:20px!important;height:20px!important;margin:0!important;padding:0!important}
     .zx_cli_hint{color:#64748b;font-size:13px;font-weight:800;margin:7px 0 3px}
     .zx_cli_address_editor{padding:0;overflow:hidden}
-    .zx_cli_address_editor summary{cursor:pointer;list-style:none;padding:13px 14px;color:#071330;font-size:15px;font-weight:950;background:#f8fafc}
-    .zx_cli_address_editor summary::-webkit-details-marker{display:none}
-    .zx_cli_address_editor summary:after{content:'›';float:right;color:#94a3b8;font-size:23px;line-height:.8;transform:rotate(90deg)}
-    .zx_cli_address_editor[open] summary:after{transform:rotate(-90deg)}
+    .zx_cli_address_editor>summary{cursor:pointer;list-style:none;padding:13px 14px;color:#071330;font-size:15px;font-weight:950;background:#f8fafc}
+    .zx_cli_address_editor>summary::-webkit-details-marker{display:none}
+    .zx_cli_address_editor>summary:after{content:'›';float:right;color:#94a3b8;font-size:23px;line-height:.8;transform:rotate(90deg)}
+    .zx_cli_address_editor[open]>summary:after{transform:rotate(-90deg)}
     .zx_cli_address_body{padding:0 12px 13px;border-top:1px solid #e2e8f0}
+.zx_cli_address_quick2{display:grid;grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr);gap:9px;align-items:end}
+    .zx_cli_address_more{margin-top:13px;border:1px solid #dbe3ef;border-radius:15px;background:white;overflow:hidden}
+    .zx_cli_address_more>summary{position:relative;padding:12px 42px 12px 13px!important;background:#eff6ff!important;color:#1d4ed8!important;font-size:14px!important;display:flex;flex-direction:column;gap:2px}
+    .zx_cli_address_more>summary span{color:#64748b;font-size:11px;font-weight:850}
+    .zx_cli_address_more>summary:after{content:'›';position:absolute;right:16px;top:50%;transform:translateY(-50%) rotate(90deg);color:#64748b;font-size:21px;line-height:1}
+    .zx_cli_address_more[open]>summary:after{transform:translateY(-50%) rotate(-90deg)}
+    .zx_cli_address_more_body{padding:2px 12px 12px}
     .zx_cli_import_preview{display:grid;gap:5px;background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px;margin:12px 0}
     .zx_cli_import_preview b{color:#071330;font-size:18px}.zx_cli_import_preview span{color:#475569;font-size:13px;font-weight:850;line-height:1.35}
     @media(max-width:390px){.zx_cli_panel{padding:15px;border-radius:22px}.zx_cli_header{grid-template-columns:1fr}.zx_cli_header_actions{grid-template-columns:1fr 1fr}.zx_cli_header_actions button{padding:11px 10px;font-size:14px}.zx_cli_header h2{font-size:27px}.zx_cli_kpis{gap:5px}.zx_cli_kpis span{font-size:9px}.zx_cli_top h3{font-size:18px}.zx_cli_ficha_actions{grid-template-columns:1fr}.zx_cli_top_actions{grid-template-columns:1fr 1fr}.zx_cli_top_actions button{font-size:14px;padding:11px 8px}}
