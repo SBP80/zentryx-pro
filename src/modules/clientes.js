@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3127 - DIAGNÓSTICO EXACTO DE AUDITORÍA DE CLIENTES
+// V3128 - CONTACTOS RECIBIDOS + COMPARTIR CONTACTO SIMPLIFICADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3127";
+const ZX_VERSION="3128";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -602,17 +602,30 @@ function resumenImportado(imp){
 
 function revisarImportado(imp){
   const duplicados=buscarDuplicadosImportado(imp);
+
+  // Si no hay coincidencias, abrir directamente Nuevo cliente con los datos cargados.
+  if(!duplicados.length){
+    imp.__zx_importando=true;
+    formulario(imp);
+    return;
+  }
+
+  // Solo interrumpir el flujo cuando exista riesgo real de duplicado.
   modal(`
-    <h2>Importar cliente</h2>
-    <div class="zx_text">Revisa los datos antes de guardarlos.</div>
+    <h2>Posible cliente existente</h2>
+    <div class="zx_text">El contacto recibido coincide con datos que ya existen. Revisa antes de crear otro cliente.</div>
     ${resumenImportado(imp)}
-    ${duplicados.length ? `<div class="zx_cli_notice danger">Posible cliente existente: ${duplicados.map(function(d){return limpiar(nombreCliente(d.cliente))+" ("+limpiar(d.motivos.join(", "))+")"}).join(" · ")}</div>` : `<div class="zx_cli_notice">No se han encontrado coincidencias claras.</div>`}
-    ${duplicados.slice(0,3).map(function(d,i){return `<button class="zx_btn_big zx_azul" type="button" data-import-update="${limpiar(d.cliente.id)}">Revisar actualización de ${limpiar(nombreCliente(d.cliente))}</button>`}).join("")}
-    <button class="zx_btn_big zx_verde" type="button" id="cli_import_nuevo">${duplicados.length ? "Crear como cliente nuevo" : "Revisar y crear cliente"}</button>
+    <div class="zx_cli_notice danger">${duplicados.map(function(d){return limpiar(nombreCliente(d.cliente))+" ("+limpiar(d.motivos.join(", "))+")"}).join(" · ")}</div>
+    ${duplicados.slice(0,3).map(function(d){return `<button class="zx_btn_big zx_azul" type="button" data-import-update="${limpiar(d.cliente.id)}">Revisar ${limpiar(nombreCliente(d.cliente))}</button>`}).join("")}
+    <button class="zx_btn_big zx_verde" type="button" id="cli_import_nuevo">Crear como cliente nuevo</button>
     <button class="zx_btn_big zx_gris" type="button" id="cli_import_cancelar">Cancelar</button>
   `);
   document.getElementById("cli_import_cancelar").onclick=cerrarModal;
-  document.getElementById("cli_import_nuevo").onclick=function(){cerrarModal();imp.__zx_importando=true;formulario(imp)};
+  document.getElementById("cli_import_nuevo").onclick=function(){
+    cerrarModal();
+    imp.__zx_importando=true;
+    formulario(imp);
+  };
   document.querySelectorAll("[data-import-update]").forEach(function(btn){
     btn.onclick=function(){
       const existente=ZX_CLIENTES_CACHE.find(function(c){return String(c.id)===String(btn.dataset.importUpdate)});
@@ -626,8 +639,8 @@ function revisarImportado(imp){
 function seleccionarVcard(cards){
   if(cards.length===1){revisarImportado(cards[0]);return}
   modal(`
-    <h2>Seleccionar contacto</h2>
-    <div class="zx_text">El archivo contiene ${cards.length} contactos.</div>
+    <h2>Seleccionar contacto recibido</h2>
+    <div class="zx_text">La tarjeta contiene ${cards.length} contactos. Elige cuál quieres guardar.</div>
     ${cards.slice(0,50).map(function(c,i){return `<button class="zx_btn_big zx_azul" type="button" data-vcard-index="${i}">${limpiar(c.nombre || "Contacto "+(i+1))}</button>`}).join("")}
     <button class="zx_btn_big zx_gris" type="button" id="cli_vcard_cancelar">Cancelar</button>
   `);
@@ -640,9 +653,9 @@ async function importarVcard(file){
   try{
     const texto=await file.text();
     const cards=parsearVcards(texto);
-    if(!cards.length){alert("El archivo no contiene una ficha de contacto vCard válida.");return}
+    if(!cards.length){alert("No se ha encontrado una tarjeta de contacto válida.");return}
     seleccionarVcard(cards);
-  }catch(e){alert("No se pudo leer el archivo de contacto.")}
+  }catch(e){alert("No se pudo leer la tarjeta de contacto.")}
 }
 
 function tipoVcardDesdeEtiqueta(etiqueta,tipo){
@@ -1370,7 +1383,7 @@ function mostrarFichaCliente(c){
       </div>
     </div>
 
-    <button class="zx_btn_big zx_cli_share_btn" type="button" id="cli_ficha_compartir">↗ Compartir / Enviar contacto</button>
+    <button class="zx_btn_big zx_cli_share_btn" type="button" id="cli_ficha_compartir">📤 Compartir contacto</button>
 
     <section class="zx_cli_ficha_section">
       <h3>Datos principales</h3>
@@ -1517,7 +1530,7 @@ function pintarShell(lista){
         </div>
         ${puedeCrear() ? `
           <div class="zx_cli_header_actions">
-            <button class="zx_cli_import" id="btn_importar_cliente" type="button">⇩ Importar</button>
+            <button class="zx_cli_import" id="btn_importar_cliente" type="button">📥 Añadir contacto</button>
             <button class="zx_cli_new" id="btn_nuevo_cliente" type="button">＋ Crear</button>
             <input id="cli_import_file" type="file" accept=".vcf,text/vcard,text/x-vcard" style="display:none">
           </div>
@@ -1977,7 +1990,7 @@ function formulario(c){
     </div>
 
     <h2>${c.id ? "Editar cliente" : "Nuevo cliente"}</h2>
-    ${c.__zx_importando ? `<div class="zx_cli_notice">Datos cargados desde una ficha de contacto. Revisa todo antes de guardar.</div>` : ""}
+    ${c.__zx_importando ? `<div class="zx_cli_notice">Contacto recibido cargado. Revisa los datos y pulsa Guardar.</div>` : ""}
 
     <div class="zx_cli_form">
       <h3>Datos principales</h3>
