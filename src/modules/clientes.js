@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3130 - ETIQUETAS DE PROVEEDOR EMAIL NORMALIZADAS
+// V3131 - EXPORTACIÓN VCARD CON ETIQUETAS Y PRINCIPALES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3130";
+const ZX_VERSION="3131";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -808,6 +808,31 @@ function parametroEtiqueta(etiqueta){
   return String(etiqueta || "").replace(/[;:,\r\n]/g," ").trim();
 }
 
+function etiquetaAppleVcard(etiqueta,tipo){
+  const e=normalizar(etiqueta || "");
+  if(tipo==="telefono"){
+    if(e==="movil" || e==="móvil") return "_$!<Mobile>!$_";
+    if(e==="casa") return "_$!<Home>!$_";
+    if(e==="trabajo" || e==="empresa" || e==="oficina") return "_$!<Work>!$_";
+  }
+  if(tipo==="email"){
+    if(e==="trabajo" || e==="empresa" || e==="oficina") return "_$!<Work>!$_";
+    if(e==="personal") return "Personal";
+  }
+  if(tipo==="direccion"){
+    if(e==="casa") return "_$!<Home>!$_";
+    if(e==="trabajo" || e==="empresa" || e==="oficina") return "_$!<Work>!$_";
+  }
+  return parametroEtiqueta(etiqueta || (tipo==="email" ? "Personal" : tipo==="direccion" ? "Dirección" : "Teléfono"));
+}
+
+function tipoVcardDireccion(etiqueta){
+  const e=normalizar(etiqueta || "");
+  if(e.includes("trabajo") || e.includes("empresa") || e.includes("oficina")) return "WORK";
+  if(e.includes("casa") || e.includes("personal")) return "HOME";
+  return "OTHER";
+}
+
 function generarVcard(c){
   const nombre=nombreCliente(c);
   const lineas=["BEGIN:VCARD","VERSION:3.0","FN:"+vcardEscapar(nombre)];
@@ -815,17 +840,43 @@ function generarVcard(c){
   lineas.push("X-ZENTRYX-TIPO:"+vcardEscapar(c.tipo || "particular"));
   if(c.nif) lineas.push("X-ZENTRYX-NIF:"+vcardEscapar(c.nif));
   if(c.persona_contacto) lineas.push("X-ZENTRYX-CONTACTO:"+vcardEscapar(c.persona_contacto));
+
+  let item=1;
+
   contactosCliente(c).forEach(function(x){
-    const tipo=tipoVcardDesdeEtiqueta(x.etiqueta,x.tipo);
-    const etiqueta=parametroEtiqueta(x.etiqueta);
-    if(x.tipo==="email") lineas.push(`EMAIL;TYPE=${tipo};X-ZENTRYX-LABEL=${etiqueta}:${vcardEscapar(x.valor)}`);
-    else lineas.push(`TEL;TYPE=${tipo};X-ZENTRYX-LABEL=${etiqueta}:${vcardEscapar(x.valor)}`);
+    const grupo="item"+(item++);
+    let tipo=tipoVcardDesdeEtiqueta(x.etiqueta,x.tipo);
+
+    // "Personal" en email debe conservarse como etiqueta de uso.
+    // HOME ayuda a otros lectores; X-ABLabel conserva "Personal" en Apple.
+    if(x.tipo==="email" && normalizar(x.etiqueta)==="personal") tipo="HOME";
+
+    const tipos=[tipo];
+    if(x.principal) tipos.push("PREF");
+
+    const etiqueta=parametroEtiqueta(x.etiqueta || (x.tipo==="email" ? "Personal" : "Teléfono"));
+    const apple=etiquetaAppleVcard(x.etiqueta,x.tipo);
+
+    if(x.tipo==="email"){
+      lineas.push(`${grupo}.EMAIL;TYPE=${tipos.join(",")};X-ZENTRYX-LABEL=${etiqueta}:${vcardEscapar(x.valor)}`);
+    }else{
+      lineas.push(`${grupo}.TEL;TYPE=${tipos.join(",")};X-ZENTRYX-LABEL=${etiqueta}:${vcardEscapar(x.valor)}`);
+    }
+    lineas.push(`${grupo}.X-ABLabel:${vcardEscapar(apple)}`);
   });
+
   direccionesCliente(c).forEach(function(d){
+    const grupo="item"+(item++);
     const calle=[d.via_tipo,d.direccion,d.numero].filter(Boolean).join(" ");
     const etiqueta=parametroEtiqueta(d.etiqueta || "Dirección");
-    lineas.push(`ADR;TYPE=WORK;X-ZENTRYX-LABEL=${etiqueta}:;;${vcardEscapar(calle)};${vcardEscapar(d.poblacion)};${vcardEscapar(d.provincia)};${vcardEscapar(d.codigo_postal)};${vcardEscapar(d.pais)}`);
+    const apple=etiquetaAppleVcard(d.etiqueta || "Dirección","direccion");
+    const tipos=[tipoVcardDireccion(d.etiqueta)];
+    if(d.principal) tipos.push("PREF");
+
+    lineas.push(`${grupo}.ADR;TYPE=${tipos.join(",")};X-ZENTRYX-LABEL=${etiqueta}:;;${vcardEscapar(calle)};${vcardEscapar(d.poblacion)};${vcardEscapar(d.provincia)};${vcardEscapar(d.codigo_postal)};${vcardEscapar(d.pais)}`);
+    lineas.push(`${grupo}.X-ABLabel:${vcardEscapar(apple)}`);
   });
+
   lineas.push("END:VCARD");
   return lineas.join("\r\n")+"\r\n";
 }
