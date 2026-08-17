@@ -2,7 +2,7 @@
 // ZENTRYX PRO - USUARIOS
 // V3111 - OFFLINE INSTANTANEO PRO
 // V3156 - VALIDACIÓN PIN SEGURA
-// V3137 - FICHA/EDICIÓN CON ACCIONES ARRIBA + CONTADOR BUSCADOR
+// V3138 - ELIMINA ACCIONES INFERIORES DUPLICADAS EN CREAR/EDITAR
 // ===============================
 (function(){
 "use strict";
@@ -1449,25 +1449,16 @@ function formulario(u){
     ])}
     ${selectSimple("u_estado","Estado",u.estado || "Activo",["Activo","Inactivo"])}
 
-    <button class="zx_btn_big ${editando ? "zx_azul" : "zx_verde"}" id="btn_guardar_usuario">
-      ${editando ? "Guardar cambios" : "Guardar"}
-    </button>
-
-    <button class="zx_btn_big zx_gris" id="btn_cancelar_usuario">Cancelar</button>
   `);
 
   const guardarActual=function(){
     guardarUsuario(u.id || null,u.foto_url || null);
   };
 
-  const cancelarAbajo=document.getElementById("btn_cancelar_usuario");
   const cancelarArriba=document.getElementById("btn_cancelar_usuario_top");
-  const guardarAbajo=document.getElementById("btn_guardar_usuario");
   const guardarArriba=document.getElementById("btn_guardar_usuario_top");
 
-  if(cancelarAbajo) cancelarAbajo.onclick=cerrarModal;
   if(cancelarArriba) cancelarArriba.onclick=cerrarModal;
-  if(guardarAbajo) guardarAbajo.onclick=guardarActual;
   if(guardarArriba) guardarArriba.onclick=guardarActual;
 }
 
@@ -3204,10 +3195,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3137")) return;
+  if(document.getElementById("zx_usuarios_v3138")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3137";
+  s.id="zx_usuarios_v3138";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
