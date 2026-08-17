@@ -2,6 +2,7 @@
 // ZENTRYX PRO - USUARIOS
 // V3111 - OFFLINE INSTANTANEO PRO
 // V3156 - VALIDACIÓN PIN SEGURA
+// V3137 - FICHA/EDICIÓN CON ACCIONES ARRIBA + CONTADOR BUSCADOR
 // ===============================
 (function(){
 "use strict";
@@ -630,10 +631,15 @@ function renderListaUsuarios(datos){
 function pintarListaUsuarios(){
   const lista=document.getElementById("zx_usuarios_lista");
   const contador=document.getElementById("zx_usuarios_contador");
+  const resumen=document.getElementById("zx_usuarios_resumen_filtro");
   const datos=filtrarUsuariosEnMemoria();
 
   if(contador){
     contador.textContent=datos.length+" usuario(s)";
+  }
+
+  if(resumen){
+    resumen.innerHTML=textoResumenFiltroUsuarios(datos.length);
   }
 
   if(lista){
@@ -670,7 +676,7 @@ function renderFiltroUsuarios(){
   `;
 }
 
-function renderResumenFiltroUsuarios(total){
+function textoResumenFiltroUsuarios(total){
   const partes=[];
 
   if(ZX_FILTRO_USUARIOS==="activos") partes.push("Activos");
@@ -681,9 +687,13 @@ function renderResumenFiltroUsuarios(total){
     partes.push("Búsqueda: "+ZX_BUSQUEDA_USUARIOS.trim());
   }
 
+  return `${limpiar(total)} resultado(s) · ${limpiar(partes.join(" · "))}`;
+}
+
+function renderResumenFiltroUsuarios(total){
   return `
-    <div class="zx_user_filter_resume">
-      ${limpiar(total)} resultado(s) · ${limpiar(partes.join(" · "))}
+    <div class="zx_user_filter_resume" id="zx_usuarios_resumen_filtro">
+      ${textoResumenFiltroUsuarios(total)}
     </div>
   `;
 }
@@ -1177,7 +1187,12 @@ async function abrirFichaUsuario(u){
   const resumenRapido=await cargarResumenRapidoUsuario(u.id);
   const resumenLaboralMini=await cargarLaboralUsuario(u.id);
 
-  modal(u.nombre || u.usuario || "Usuario",`
+  modal("Ficha de usuario",`
+    <div class="zx_user_top_actions">
+      <button type="button" class="zx_user_top_back" id="f_volver_top">← Volver</button>
+      ${puedeEditar() ? `<button type="button" class="zx_user_top_primary" id="f_editar_top">✏️ Editar</button>` : ``}
+    </div>
+
     ${renderFichaUsuario(u,ultimoFichaje,resumenRapido,resumenLaboralMini)}
 
     <div class="zx_ficha_acciones">
@@ -1214,6 +1229,8 @@ async function abrirFichaUsuario(u){
     if(el) el.onclick=fn;
   };
 
+  asignar("f_volver_top",cerrarModal);
+  asignar("f_editar_top",()=>pedirPinConPermiso("editar",()=>editarUsuario(u.id)));
   asignar("f_tel_personal",()=>menuTelefono(u.telefono_personal));
   asignar("f_tel_empresa",()=>menuTelefono(u.telefono_empresa));
   asignar("f_mail_personal",()=>enviarMail(u.email_personal));
@@ -1374,6 +1391,11 @@ function formulario(u){
   const editando=!!u.id;
 
   modal(editando ? "Editar usuario" : "Crear usuario",`
+    <div class="zx_user_top_actions">
+      <button type="button" class="zx_user_top_back" id="btn_cancelar_usuario_top">← Volver</button>
+      <button type="button" class="zx_user_top_primary" id="btn_guardar_usuario_top">💾 ${editando ? "Guardar" : "Crear"}</button>
+    </div>
+
     ${editando ? avatar(u) : ""}
 
     <label class="zx_label" for="u_foto">Foto</label>
@@ -1434,11 +1456,19 @@ function formulario(u){
     <button class="zx_btn_big zx_gris" id="btn_cancelar_usuario">Cancelar</button>
   `);
 
-  document.getElementById("btn_cancelar_usuario").onclick=cerrarModal;
-
-  document.getElementById("btn_guardar_usuario").onclick=function(){
+  const guardarActual=function(){
     guardarUsuario(u.id || null,u.foto_url || null);
   };
+
+  const cancelarAbajo=document.getElementById("btn_cancelar_usuario");
+  const cancelarArriba=document.getElementById("btn_cancelar_usuario_top");
+  const guardarAbajo=document.getElementById("btn_guardar_usuario");
+  const guardarArriba=document.getElementById("btn_guardar_usuario_top");
+
+  if(cancelarAbajo) cancelarAbajo.onclick=cerrarModal;
+  if(cancelarArriba) cancelarArriba.onclick=cerrarModal;
+  if(guardarAbajo) guardarAbajo.onclick=guardarActual;
+  if(guardarArriba) guardarArriba.onclick=guardarActual;
 }
 
 async function editarUsuario(id){
@@ -3174,10 +3204,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3136")) return;
+  if(document.getElementById("zx_usuarios_v3137")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3136";
+  s.id="zx_usuarios_v3137";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -3210,6 +3240,10 @@ async function verDocumentosUsuario(u){
     .zx_rol_operario{background:#334155;color:white}
     .zx_rol_invitado{background:#e5e7eb;color:#475569}
     .zx_user_open_btn{border:0;border-radius:12px;background:#2563eb;color:white;padding:10px 12px;font-size:13px;font-weight:900}
+    .zx_user_top_actions{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:-2px 0 16px;padding:4px 0 12px;background:linear-gradient(#fff 82%,rgba(255,255,255,.96));border-bottom:1px solid #e2e8f0}
+    .zx_user_top_actions button{border-radius:14px;padding:13px 12px;font-size:15px;font-weight:900;cursor:pointer}
+    .zx_user_top_back{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8}
+    .zx_user_top_primary{border:0;background:#2563eb;color:white}
     .zx_ficha_head{display:grid;grid-template-columns:72px 1fr;gap:12px;align-items:center;margin-bottom:14px}
     .zx_ficha_nombre{font-size:23px;font-weight:900;color:#0f172a;line-height:1.15}
     .zx_ficha_meta{font-size:14px;font-weight:800;color:#64748b;margin-top:4px}
