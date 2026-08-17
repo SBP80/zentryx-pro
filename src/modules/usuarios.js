@@ -2,7 +2,7 @@
 // ZENTRYX PRO - USUARIOS
 // V3111 - OFFLINE INSTANTANEO PRO
 // V3156 - VALIDACIÓN PIN SEGURA
-// V3138 - ELIMINA ACCIONES INFERIORES DUPLICADAS EN CREAR/EDITAR
+// V3139 - ELIMINA EDITAR Y CERRAR INFERIORES DUPLICADOS EN FICHA
 // ===============================
 (function(){
 "use strict";
@@ -1206,7 +1206,6 @@ async function abrirFichaUsuario(u){
     </div>
 
     <div class="zx_ficha_acciones">
-      ${puedeEditar() ? `<button class="zx_action_btn zx_blue" id="f_editar">Editar</button>` : ""}
       ${puedeVerLaboral(u) ? `<button class="zx_action_btn zx_laboral" id="f_laboral">Laboral</button>` : ""}
       ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_dni">DNI</button>` : ""}
       ${puedeVerDocs(u) ? `<button class="zx_action_btn zx_blue" id="f_docs">Documentos</button>` : ""}
@@ -1221,7 +1220,6 @@ async function abrirFichaUsuario(u){
       }
     </div>
 
-    <button class="zx_btn_big zx_gris" id="f_cerrar">Cerrar</button>
   `);
 
   const asignar=function(id,fn){
@@ -1238,7 +1236,6 @@ async function abrirFichaUsuario(u){
   asignar("f_mapa",()=>menuMapa(dir));
   asignar("f_emergencia_tel",()=>menuTelefono(u.emergencia_telefono));
   asignar("f_emergencia_mail",()=>enviarMail(u.emergencia_email));
-  asignar("f_editar",()=>pedirPinConPermiso("editar",()=>editarUsuario(u.id)));
   asignar("f_laboral",()=>verLaboralUsuario(u));
   asignar("f_dni",()=>verDniUsuario(u));
   asignar("f_docs",()=>verDocumentosUsuario(u));
@@ -1248,7 +1245,6 @@ async function abrirFichaUsuario(u){
   asignar("f_reset",()=>pedirPinConPermiso("reset",()=>resetPin(u.id,u.nombre || u.usuario || "usuario")));
   asignar("f_desactivar",()=>pedirPinConPermiso("eliminar",()=>desactivarUsuario(u.id,u.nombre || u.usuario || "usuario",u.usuario)));
   asignar("f_reactivar",()=>pedirPinConPermiso("reactivar",()=>reactivarUsuario(u.id,u.nombre || u.usuario || "usuario")));
-  asignar("f_cerrar",cerrarModal);
 }
 
 function renderUsuariosPantalla(usuarios){
@@ -3195,10 +3191,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3138")) return;
+  if(document.getElementById("zx_usuarios_v3139")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3138";
+  s.id="zx_usuarios_v3139";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
