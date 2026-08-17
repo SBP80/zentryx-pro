@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3128 - CONTACTOS RECIBIDOS + COMPARTIR CONTACTO SIMPLIFICADO
+// V3129 - ETIQUETAS VCARD IPHONE NORMALIZADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3128";
+const ZX_VERSION="3129";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -478,32 +478,130 @@ function dividirVcard(v,separador){
 
 function parametrosVcard(cabecera){
   const partes=String(cabecera || "").split(";");
-  let propiedad=(partes.shift() || "").toUpperCase();
-  if(propiedad.includes(".")) propiedad=propiedad.split(".").pop();
+  const propiedadBruta=(partes.shift() || "");
+  const punto=propiedadBruta.lastIndexOf(".");
+  const grupo=punto>=0 ? propiedadBruta.slice(0,punto) : "";
+  const propiedad=(punto>=0 ? propiedadBruta.slice(punto+1) : propiedadBruta).toUpperCase();
   const params={};
+
   partes.forEach(function(p){
     const pos=p.indexOf("=");
-    if(pos>0) params[p.slice(0,pos).toUpperCase()]=p.slice(pos+1);
-    else if(p) params.TYPE=(params.TYPE ? params.TYPE+"," : "")+p;
+    if(pos>0){
+      const clave=p.slice(0,pos).toUpperCase();
+      const valor=p.slice(pos+1);
+      if(clave==="TYPE") params.TYPE=(params.TYPE ? params.TYPE+"," : "")+valor;
+      else params[clave]=valor;
+    }else if(p){
+      params.TYPE=(params.TYPE ? params.TYPE+"," : "")+p;
+    }
   });
-  return {propiedad:propiedad,params:params};
+
+  return {propiedad:propiedad,params:params,grupo:grupo};
 }
 
-function etiquetaDesdeParams(params,tipo){
-  const propia=vcardDesescapar(params["X-ZENTRYX-LABEL"] || "").trim();
+function limpiarEtiquetaVcard(v){
+  let e=vcardDesescapar(v || "").trim();
+  if((e.startsWith('"') && e.endsWith('"')) || (e.startsWith("'") && e.endsWith("'"))) e=e.slice(1,-1).trim();
+
+  const apple=e.match(/^_\$!<(.+)>!\$_$/);
+  if(apple) e=String(apple[1] || "").trim();
+
+  return e;
+}
+
+function normalizarEtiquetaVcard(etiqueta,tipo){
+  const original=limpiarEtiquetaVcard(etiqueta);
+  if(!original) return "";
+
+  const n=normalizar(original);
+
+  if(tipo==="telefono"){
+    if(["mobile","movil","cell","cellular","celular","iphone"].includes(n)) return "Móvil";
+    if(["home","casa"].includes(n)) return "Casa";
+    if(["work","trabajo","business","empresa"].includes(n)) return "Trabajo";
+    if(["office","oficina"].includes(n)) return "Oficina";
+    if(["personal","private","privado"].includes(n)) return "Personal";
+    if(["whatsapp","whats app"].includes(n)) return "WhatsApp";
+    if(["voice","phone","telefono","telephone","main","primary","principal","pref","preferred"].includes(n)) return "Móvil";
+    if(n==="fax") return "Fax";
+    return original;
+  }
+
+  if(tipo==="email"){
+    if(["home","casa","personal","private","privado","email","e-mail","internet","main","primary","principal","pref","preferred"].includes(n)) return "Personal";
+    if(["work","trabajo","business","empresa","office","oficina"].includes(n)) return "Trabajo";
+    if(["billing","facturacion"].includes(n)) return "Facturación";
+    if(["administration","administracion","admin"].includes(n)) return "Administración";
+    if(["orders","pedidos","pedido"].includes(n)) return "Pedidos";
+    return original;
+  }
+
+  if(tipo==="direccion"){
+    if(["home","casa"].includes(n)) return "Casa";
+    if(["work","trabajo","business","empresa","office","oficina"].includes(n)) return "Trabajo";
+    if(["billing","facturacion"].includes(n)) return "Facturación";
+    if(["shipping","delivery","entrega"].includes(n)) return "Entrega";
+    if(["warehouse","almacen"].includes(n)) return "Almacén";
+    if(["site","obra"].includes(n)) return "Obra";
+    if(["address","direccion","main","primary","principal","pref","preferred"].includes(n)) return "Dirección";
+    return original;
+  }
+
+  return original;
+}
+
+function etiquetaDesdeParams(params,tipo,etiquetaGrupo){
+  const propia=normalizarEtiquetaVcard(params["X-ZENTRYX-LABEL"] || "",tipo);
   if(propia) return propia;
-  const tipos=String(params.TYPE || "").toUpperCase().split(",");
-  if(tipos.includes("CELL")) return "Móvil";
-  if(tipos.includes("WORK")) return "Trabajo";
-  if(tipos.includes("HOME")) return "Casa";
-  if(tipos.includes("FAX")) return "Fax";
-  return tipo==="email" ? "Email" : "Teléfono";
+
+  const apple=normalizarEtiquetaVcard(etiquetaGrupo || "",tipo);
+  if(apple) return apple;
+
+  const tipos=String(params.TYPE || "")
+    .split(",")
+    .map(function(x){return limpiarEtiquetaVcard(x).toUpperCase()})
+    .filter(Boolean);
+
+  if(tipo==="telefono"){
+    if(tipos.includes("CELL") || tipos.includes("MOBILE") || tipos.includes("IPHONE")) return "Móvil";
+    if(tipos.includes("WORK")) return "Trabajo";
+    if(tipos.includes("HOME")) return "Casa";
+    if(tipos.includes("FAX")) return "Fax";
+    return "Móvil";
+  }
+
+  if(tipo==="email"){
+    if(tipos.includes("WORK")) return "Trabajo";
+    if(tipos.includes("HOME")) return "Personal";
+    return "Personal";
+  }
+
+  if(tipo==="direccion"){
+    if(tipos.includes("WORK")) return "Trabajo";
+    if(tipos.includes("HOME")) return "Casa";
+    return "Dirección";
+  }
+
+  return "";
 }
 
 function parsearVcardBloque(texto){
   const lineas=String(texto || "").replace(/\r?\n[ \t]/g,"").split(/\r?\n/);
   const c={tipo:"particular",nombre:"",nif:"",persona_contacto:"",notas:"",__zx_contactos:[],__zx_direcciones:[]};
   let nombreN="";
+  const etiquetasApple={};
+
+  lineas.forEach(function(linea){
+    const pos=linea.indexOf(":");
+    if(pos<0) return;
+    const cab=linea.slice(0,pos);
+    const valorBruto=linea.slice(pos+1);
+    const info=parametrosVcard(cab);
+    if(info.propiedad==="X-ABLABEL" && info.grupo){
+      etiquetasApple[info.grupo]=limpiarEtiquetaVcard(valorBruto);
+    }
+  });
+
   lineas.forEach(function(linea){
     const pos=linea.indexOf(":");
     if(pos<0) return;
@@ -512,19 +610,52 @@ function parsearVcardBloque(texto){
     const info=parametrosVcard(cab);
     const prop=info.propiedad;
     const valor=vcardDesescapar(valorBruto).trim();
+    const etiquetaGrupo=info.grupo ? (etiquetasApple[info.grupo] || "") : "";
+
     if(prop==="FN") c.nombre=valor;
     else if(prop==="N"){
       const p=dividirVcard(valorBruto,";").map(vcardDesescapar);
       nombreN=[p[1],p[2],p[0]].filter(Boolean).join(" ").trim();
     }else if(prop==="ORG" && !c.nombre) c.nombre=vcardDesescapar(dividirVcard(valorBruto,";")[0] || "");
     else if(prop==="TEL" && valor){
-      c.__zx_contactos.push({id:uuid(),tipo:"telefono",etiqueta:etiquetaDesdeParams(info.params,"telefono"),valor:valor,principal:c.__zx_contactos.filter(function(x){return x.tipo==="telefono"}).length===0,activo:true});
+      c.__zx_contactos.push({
+        id:uuid(),
+        tipo:"telefono",
+        etiqueta:etiquetaDesdeParams(info.params,"telefono",etiquetaGrupo),
+        valor:valor,
+        principal:c.__zx_contactos.filter(function(x){return x.tipo==="telefono"}).length===0,
+        activo:true
+      });
     }else if(prop==="EMAIL" && valor){
-      c.__zx_contactos.push({id:uuid(),tipo:"email",etiqueta:etiquetaDesdeParams(info.params,"email"),valor:valor.toLowerCase(),principal:c.__zx_contactos.filter(function(x){return x.tipo==="email"}).length===0,activo:true});
+      c.__zx_contactos.push({
+        id:uuid(),
+        tipo:"email",
+        etiqueta:etiquetaDesdeParams(info.params,"email",etiquetaGrupo),
+        valor:valor.toLowerCase(),
+        principal:c.__zx_contactos.filter(function(x){return x.tipo==="email"}).length===0,
+        activo:true
+      });
     }else if(prop==="ADR"){
       const p=dividirVcard(valorBruto,";").map(vcardDesescapar);
       const calle=String(p[2] || "").trim();
-      const dir={id:uuid(),etiqueta:etiquetaDesdeParams(info.params,"direccion"),via_tipo:"",direccion:calle,numero:"",portal:"",escalera:"",piso:"",puerta:"",poblacion:p[3] || "",provincia:p[4] || "",codigo_postal:p[5] || "",pais:p[6] || "España",notas:"",principal:c.__zx_direcciones.length===0,activa:true};
+      const dir={
+        id:uuid(),
+        etiqueta:etiquetaDesdeParams(info.params,"direccion",etiquetaGrupo),
+        via_tipo:"",
+        direccion:calle,
+        numero:"",
+        portal:"",
+        escalera:"",
+        piso:"",
+        puerta:"",
+        poblacion:p[3] || "",
+        provincia:p[4] || "",
+        codigo_postal:p[5] || "",
+        pais:p[6] || "España",
+        notas:"",
+        principal:c.__zx_direcciones.length===0,
+        activa:true
+      };
       const m=calle.match(/^(Calle|Avenida|Plaza|Camino|Carretera|Paseo|Ronda|Travesía|Urbanización|Polígono)\s+(.+?)(?:,?\s+(\d+[A-Za-z]?))?$/i);
       if(m){dir.via_tipo=m[1];dir.direccion=m[2] || calle;dir.numero=m[3] || ""}
       c.__zx_direcciones.push(dir);
@@ -533,6 +664,7 @@ function parsearVcardBloque(texto){
     else if(prop==="X-ZENTRYX-NIF") c.nif=valor;
     else if(prop==="X-ZENTRYX-CONTACTO") c.persona_contacto=valor;
   });
+
   if(!c.nombre) c.nombre=nombreN || "";
   c.__zx_contactos.forEach(function(x,i){x.orden=i});
   c.__zx_direcciones.forEach(function(x,i){x.orden=i});
