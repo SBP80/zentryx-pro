@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3131 - EXPORTACIÓN VCARD CON ETIQUETAS Y PRINCIPALES
+// V3132 - NOMBRE ESTRUCTURADO EN VCARD COMPARTIDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3131";
+const ZX_VERSION="3132";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -833,9 +833,31 @@ function tipoVcardDireccion(etiqueta){
   return "OTHER";
 }
 
+function nombreEstructuradoVcard(c){
+  const nombre=String(nombreCliente(c) || "").trim();
+  if(!nombre) return {nombre:"",apellidos:""};
+
+  // Para particulares usamos el primer término como nombre y el resto como apellidos.
+  // FN conserva siempre el nombre completo tal como se ve en Zentryx.
+  if(normalizar(c.tipo)!=="empresa"){
+    const partes=nombre.split(/\s+/).filter(Boolean);
+    if(partes.length===1) return {nombre:partes[0],apellidos:""};
+    return {nombre:partes[0],apellidos:partes.slice(1).join(" ")};
+  }
+
+  // En empresas N sigue siendo obligatorio para algunos lectores.
+  return {nombre:nombre,apellidos:""};
+}
+
 function generarVcard(c){
   const nombre=nombreCliente(c);
-  const lineas=["BEGIN:VCARD","VERSION:3.0","FN:"+vcardEscapar(nombre)];
+  const estructurado=nombreEstructuradoVcard(c);
+  const lineas=[
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    "N:"+vcardEscapar(estructurado.apellidos)+";"+vcardEscapar(estructurado.nombre)+";;;",
+    "FN:"+vcardEscapar(nombre)
+  ];
   if(normalizar(c.tipo)==="empresa") lineas.push("ORG:"+vcardEscapar(nombre));
   lineas.push("X-ZENTRYX-TIPO:"+vcardEscapar(c.tipo || "particular"));
   if(c.nif) lineas.push("X-ZENTRYX-NIF:"+vcardEscapar(c.nif));
