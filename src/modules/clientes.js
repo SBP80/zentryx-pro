@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
-// V3129 - ETIQUETAS VCARD IPHONE NORMALIZADAS
+// V3130 - ETIQUETAS DE PROVEEDOR EMAIL NORMALIZADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3129";
+const ZX_VERSION="3130";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -528,7 +528,12 @@ function normalizarEtiquetaVcard(etiqueta,tipo){
   }
 
   if(tipo==="email"){
-    if(["home","casa","personal","private","privado","email","e-mail","internet","main","primary","principal","pref","preferred"].includes(n)) return "Personal";
+    if([
+      "home","casa","personal","private","privado","email","e-mail","internet",
+      "main","primary","principal","pref","preferred",
+      "gmail","googlemail","icloud","me","mac","hotmail","outlook","live","msn",
+      "yahoo","ymail","aol","protonmail","proton","gmx"
+    ].includes(n)) return "Personal";
     if(["work","trabajo","business","empresa","office","oficina"].includes(n)) return "Trabajo";
     if(["billing","facturacion"].includes(n)) return "Facturación";
     if(["administration","administracion","admin"].includes(n)) return "Administración";
