@@ -4,6 +4,7 @@
 // V3156 - VALIDACIÓN PIN SEGURA
 // V3141 - LIMPIA ETIQUETA DUPLICADA CONVENIO EN LABORAL
 // V3144 - NAVEGACIÓN HISTORIAL/AUDITORÍA + IMPRESIÓN CON SALIDA + TEXTOS LEGIBLES
+// V3145 - IMPRESIÓN DIRECTA COMPATIBLE CON iPhone/iPad PWA
 // ===============================
 (function(){
 "use strict";
@@ -900,87 +901,136 @@ async function cargarResumenRapidoUsuario(usuarioId){
 }
 
 function imprimirFichaActual(){
-  const modal=document.querySelector("#zx_modal .zx_modal_caja");
+  const caja=document.querySelector("#zx_modal .zx_modal_caja");
 
-  if(!modal){
+  if(!caja){
     alert("No hay ficha abierta.");
     return;
   }
 
-  const contenido=modal.innerHTML;
-  const w=window.open("","_blank");
-
-  if(!w){
-    alert("El navegador ha bloqueado la ventana de impresión.");
+  if(typeof window.print!=="function"){
+    alert("La impresión no está disponible en este dispositivo.");
     return;
   }
 
-  w.document.open();
-  w.document.write(`
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-      <title>Ficha usuario</title>
-      <style>
-        *{box-sizing:border-box}
-        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#0f172a;margin:24px;background:white}
-        h2{font-size:28px;margin:0 0 18px}
-        h3{font-size:18px;margin:0 0 10px}
-        button,input,select,textarea{display:none!important}
-        img{max-width:120px;border-radius:18px}
-        .zx_print_actions{position:sticky;top:0;z-index:1000;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:-8px 0 18px;padding:8px 0 12px;background:linear-gradient(#fff 82%,rgba(255,255,255,.96));border-bottom:1px solid #e2e8f0}
-        .zx_print_actions button{display:block!important;border-radius:14px;padding:13px 12px;font:inherit;font-size:15px;font-weight:900;cursor:pointer}
-        .zx_print_back{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8}
-        .zx_print_go{border:0;background:#2563eb;color:white}
-        .zx_ficha_head{display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:center;margin-bottom:18px}
-        .zx_ficha_nombre{font-size:28px;font-weight:900}
-        .zx_ficha_meta{color:#64748b;font-weight:800}
-        .zx_ficha_bloque,.zx_contact_box,.zx_emergencia_box,.zx_ficha_indicadores div,.zx_ficha_resumen_rapido div,.zx_ficha_laboral_grid div{border:1px solid #d1d5db;border-radius:14px;padding:12px;margin:10px 0}
-        .zx_ficha_resumen_rapido,.zx_ficha_laboral_grid,.zx_ficha_indicadores{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-        .zx_user_data,.zx_contact_box,.zx_emergencia_box,.zx_ficha_laboral_linea{font-size:14px;line-height:1.5}
-        span{color:#64748b;font-weight:800}
-        b{font-weight:900}
-        @media(max-width:560px){
-          body{margin:16px}
-          .zx_print_actions{grid-template-columns:1fr 1fr}
-        }
-        @media print{
-          body{margin:12mm}
-          .zx_print_actions{display:none!important}
-          .zx_ficha_bloque,.zx_contact_box,.zx_emergencia_box{break-inside:avoid}
-        }
-      </style>
-    </head>
-    <body>
-      <div class="zx_print_actions">
-        <button type="button" class="zx_print_back" id="zx_print_volver">← Volver</button>
-        <button type="button" class="zx_print_go" id="zx_print_imprimir">🖨 Imprimir</button>
-      </div>
-      ${contenido}
-      <script>
-        function zxCerrarFichaImpresion(){
-          try{
-            if(window.opener && !window.opener.closed){
-              window.opener.focus();
-            }
-          }catch(e){}
-          window.close();
-        }
+  // En iPhone/iPad instalado como PWA, imprimir desde una ventana abierta
+  // con window.open puede ser ignorado por iOS. Se imprime desde la propia
+  // ventana de Zentryx para que el gesto del usuario llegue a window.print().
+  const anterior=document.getElementById("zx_print_ficha_usuario");
+  if(anterior) anterior.remove();
 
-        window.onload=function(){
-          var volver=document.getElementById("zx_print_volver");
-          var imprimir=document.getElementById("zx_print_imprimir");
-          if(volver) volver.onclick=zxCerrarFichaImpresion;
-          if(imprimir) imprimir.onclick=function(){window.print()};
-          setTimeout(function(){window.print()},250);
-        };
-      <\/script>
-    </body>
-    </html>
-  `);
-  w.document.close();
+  const clon=caja.cloneNode(true);
+  clon.id="zx_print_ficha_usuario";
+  clon.classList.remove("zx_modal_caja");
+
+  clon.querySelectorAll("button,input,select,textarea,.zx_user_top_actions,.zx_ficha_acciones").forEach(function(el){
+    el.remove();
+  });
+
+  const estiloId="zx_print_ficha_usuario_style";
+  let estilo=document.getElementById(estiloId);
+
+  if(!estilo){
+    estilo=document.createElement("style");
+    estilo.id=estiloId;
+    estilo.textContent=`
+      #zx_print_ficha_usuario{display:none}
+
+      @media print{
+        @page{margin:10mm}
+        html,body{
+          background:#fff!important;
+          color:#0f172a!important;
+          height:auto!important;
+          min-height:0!important;
+          overflow:visible!important;
+        }
+        body.zx_print_usuario_activo > *:not(#zx_print_ficha_usuario){
+          display:none!important;
+        }
+        body.zx_print_usuario_activo #zx_print_ficha_usuario{
+          display:block!important;
+          position:static!important;
+          width:100%!important;
+          max-width:none!important;
+          height:auto!important;
+          max-height:none!important;
+          overflow:visible!important;
+          margin:0!important;
+          padding:0!important;
+          background:#fff!important;
+          box-shadow:none!important;
+          border:0!important;
+          border-radius:0!important;
+          font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+        }
+        body.zx_print_usuario_activo #zx_print_ficha_usuario h2{
+          margin:0 0 16px!important;
+          font-size:28px!important;
+          color:#0f172a!important;
+        }
+        body.zx_print_usuario_activo #zx_print_ficha_usuario h3{
+          color:#0f172a!important;
+        }
+        body.zx_print_usuario_activo #zx_print_ficha_usuario img{
+          max-width:120px!important;
+          height:auto!important;
+        }
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_head{
+          display:grid!important;
+          grid-template-columns:120px 1fr!important;
+          gap:18px!important;
+          align-items:center!important;
+          margin-bottom:18px!important;
+        }
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_indicadores,
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_resumen_rapido,
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_laboral_grid{
+          display:grid!important;
+          grid-template-columns:repeat(2,minmax(0,1fr))!important;
+          gap:10px!important;
+        }
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_bloque,
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_contact_box,
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_emergencia_box,
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_indicadores > div,
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_resumen_rapido > div,
+        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_laboral_grid > div{
+          break-inside:avoid!important;
+          page-break-inside:avoid!important;
+          box-shadow:none!important;
+        }
+      }
+    `;
+    document.head.appendChild(estilo);
+  }
+
+  document.body.appendChild(clon);
+  document.body.classList.add("zx_print_usuario_activo");
+
+  let limpiado=false;
+  const limpiarImpresion=function(){
+    if(limpiado) return;
+    limpiado=true;
+    document.body.classList.remove("zx_print_usuario_activo");
+    const nodo=document.getElementById("zx_print_ficha_usuario");
+    if(nodo) nodo.remove();
+    window.removeEventListener("afterprint",limpiarImpresion);
+  };
+
+  window.addEventListener("afterprint",limpiarImpresion,{once:true});
+
+  try{
+    // Llamada directa desde el clic: necesaria para iOS/Safari/PWA.
+    window.print();
+  }catch(e){
+    limpiarImpresion();
+    alert("No se pudo abrir la impresión en este dispositivo.");
+    return;
+  }
+
+  // Respaldo por si iOS no emite el evento afterprint.
+  setTimeout(limpiarImpresion,60000);
 }
 
 function renderResumenLaboralFicha(l){
