@@ -3,6 +3,7 @@
 // V3111 - OFFLINE INSTANTANEO PRO
 // V3156 - VALIDACIÓN PIN SEGURA
 // V3141 - LIMPIA ETIQUETA DUPLICADA CONVENIO EN LABORAL
+// V3144 - NAVEGACIÓN HISTORIAL/AUDITORÍA + IMPRESIÓN CON SALIDA + TEXTOS LEGIBLES
 // ===============================
 (function(){
 "use strict";
@@ -920,7 +921,7 @@ function imprimirFichaActual(){
     <html lang="es">
     <head>
       <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
       <title>Ficha usuario</title>
       <style>
         *{box-sizing:border-box}
@@ -929,6 +930,10 @@ function imprimirFichaActual(){
         h3{font-size:18px;margin:0 0 10px}
         button,input,select,textarea{display:none!important}
         img{max-width:120px;border-radius:18px}
+        .zx_print_actions{position:sticky;top:0;z-index:1000;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:-8px 0 18px;padding:8px 0 12px;background:linear-gradient(#fff 82%,rgba(255,255,255,.96));border-bottom:1px solid #e2e8f0}
+        .zx_print_actions button{display:block!important;border-radius:14px;padding:13px 12px;font:inherit;font-size:15px;font-weight:900;cursor:pointer}
+        .zx_print_back{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8}
+        .zx_print_go{border:0;background:#2563eb;color:white}
         .zx_ficha_head{display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:center;margin-bottom:18px}
         .zx_ficha_nombre{font-size:28px;font-weight:900}
         .zx_ficha_meta{color:#64748b;font-weight:800}
@@ -937,16 +942,38 @@ function imprimirFichaActual(){
         .zx_user_data,.zx_contact_box,.zx_emergencia_box,.zx_ficha_laboral_linea{font-size:14px;line-height:1.5}
         span{color:#64748b;font-weight:800}
         b{font-weight:900}
+        @media(max-width:560px){
+          body{margin:16px}
+          .zx_print_actions{grid-template-columns:1fr 1fr}
+        }
         @media print{
           body{margin:12mm}
+          .zx_print_actions{display:none!important}
           .zx_ficha_bloque,.zx_contact_box,.zx_emergencia_box{break-inside:avoid}
         }
       </style>
     </head>
     <body>
+      <div class="zx_print_actions">
+        <button type="button" class="zx_print_back" id="zx_print_volver">← Volver</button>
+        <button type="button" class="zx_print_go" id="zx_print_imprimir">🖨 Imprimir</button>
+      </div>
       ${contenido}
       <script>
+        function zxCerrarFichaImpresion(){
+          try{
+            if(window.opener && !window.opener.closed){
+              window.opener.focus();
+            }
+          }catch(e){}
+          window.close();
+        }
+
         window.onload=function(){
+          var volver=document.getElementById("zx_print_volver");
+          var imprimir=document.getElementById("zx_print_imprimir");
+          if(volver) volver.onclick=zxCerrarFichaImpresion;
+          if(imprimir) imprimir.onclick=function(){window.print()};
           setTimeout(function(){window.print()},250);
         };
       <\/script>
@@ -2615,6 +2642,28 @@ function textoMinutos(min){
   return h+" h"+(m ? " "+m+" min" : "");
 }
 
+function textoEstadoHistorial(v){
+  const original=String(v || "").trim();
+  const clave=normalizarTexto(original).replaceAll(" ","_").replaceAll("-","_");
+  const mapa={
+    pendiente:"Pendiente",
+    validada:"Validada",
+    validado:"Validada",
+    validada_admin:"Validada por administrador",
+    validado_admin:"Validada por administrador",
+    aprobada:"Aprobada",
+    aprobado:"Aprobado",
+    cobrada:"Cobrada",
+    cobrado:"Cobrado",
+    pagada:"Pagada",
+    pagado:"Pagado",
+    rechazada:"Rechazada",
+    rechazado:"Rechazado"
+  };
+
+  return mapa[clave] || (original ? original.replaceAll("_"," ") : "Pendiente");
+}
+
 function fechaISO(v){
   if(!v) return "";
   const s=String(v);
@@ -2693,7 +2742,7 @@ function renderHistorialHoras(lista){
   return lista.slice(0,12).map(h=>{
     const fecha=fechaES(h.fecha || h.created_at);
     const minutos=textoMinutos(h.minutos || h.minutos_extra || h.total_minutos || 0);
-    const estado=h.estado || (h.pagada ? "Pagada" : "Pendiente");
+    const estado=textoEstadoHistorial(h.estado || (h.pagada ? "Pagada" : "Pendiente"));
     const tipo=h.tipo || "Hora extra";
 
     return itemHistorial(tipo,fecha+" · "+estado,minutos);
@@ -2715,13 +2764,22 @@ function renderHistorialSolicitudes(lista){
 
 async function verHistorialUsuario(u){
   modal("Historial",`
+    <div class="zx_user_top_actions zx_user_top_single">
+      <button type="button" class="zx_user_top_back" id="hist_volver_top">← Volver</button>
+    </div>
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
     <div class="zx_text">Cargando historial...</div>
   `);
 
+  const volverCarga=document.getElementById("hist_volver_top");
+  if(volverCarga) volverCarga.onclick=function(){abrirFichaUsuario(u)};
+
   const h=await cargarHistorialUsuario(u);
 
   modal("Historial",`
+    <div class="zx_user_top_actions zx_user_top_single">
+      <button type="button" class="zx_user_top_back" id="hist_volver_top">← Volver</button>
+    </div>
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
 
     <details class="zx_hist_section" open>
@@ -2743,11 +2801,10 @@ async function verHistorialUsuario(u){
       <summary>Solicitudes</summary>
       ${renderHistorialSolicitudes(h.solicitudes)}
     </details>
-
-    <button class="zx_btn_big zx_gris" id="hist_cerrar">Cerrar</button>
   `);
 
-  document.getElementById("hist_cerrar").onclick=cerrarModal;
+  const volver=document.getElementById("hist_volver_top");
+  if(volver) volver.onclick=function(){abrirFichaUsuario(u)};
 }
 
 /* AUDITORIA USUARIO */
@@ -2819,31 +2876,159 @@ function parseDetalleAuditoria(v){
   return [];
 }
 
-function renderAuditoriaCambios(detalle){
+function etiquetaAccionAuditoria(accion){
+  const clave=normalizarTexto(accion).replaceAll(" ","_").replaceAll("-","_");
+  const mapa={
+    documento_eliminado:"Documento eliminado",
+    documento_renombrado:"Documento renombrado",
+    documento_subido:"Documento subido",
+    laboral_modificado:"Datos laborales modificados",
+    editar_usuario:"Usuario editado",
+    crear_usuario:"Usuario creado",
+    reset_pin:"PIN restablecido",
+    desactivar_usuario:"Usuario desactivado",
+    reactivar_usuario:"Usuario reactivado"
+  };
+
+  if(mapa[clave]) return mapa[clave];
+  const texto=String(accion || "").replaceAll("_"," ").trim();
+  return texto ? texto.charAt(0).toUpperCase()+texto.slice(1) : "Acción";
+}
+
+function etiquetaCampoAuditoria(campo,accion){
+  const clave=String(campo || "").trim();
+  const accionClave=normalizarTexto(accion).replaceAll(" ","_").replaceAll("-","_");
+
+  if(clave==="nombre" && accionClave.startsWith("documento_")) return "Nombre del documento";
+  if(clave==="tipo" && accionClave.startsWith("documento_")) return "Tipo de documento";
+
+  const mapa={
+    nombre:"Nombre",
+    usuario:"Usuario",
+    dni:"DNI / NIE",
+    telefono_personal:"Teléfono personal",
+    telefono_empresa:"Teléfono de empresa",
+    email_personal:"Email personal",
+    email_empresa:"Email de empresa",
+    via_tipo:"Tipo de vía",
+    calle:"Calle / nombre de vía",
+    numero:"Número",
+    portal:"Portal",
+    escalera:"Escalera",
+    piso:"Piso",
+    puerta:"Puerta",
+    poblacion:"Población",
+    provincia:"Provincia",
+    codigo_postal:"Código postal",
+    pais:"País",
+    emergencia_nombre:"Nombre del contacto de emergencia",
+    emergencia_relacion:"Relación",
+    emergencia_telefono:"Teléfono de emergencia",
+    emergencia_email:"Email de emergencia",
+    emergencia_observaciones:"Observaciones de emergencia",
+    rol:"Rol",
+    estado:"Estado",
+    activo:"Activo",
+    pin:"PIN",
+    horas_dia:"Horas por día",
+    horas_semana:"Horas por semana",
+    vacaciones_dias:"Vacaciones anuales",
+    asuntos_propios:"Asuntos propios",
+    precio_extra:"Precio hora extra",
+    precio_extra_nocturna:"Precio hora extra nocturna",
+    precio_extra_festiva:"Precio hora extra festiva",
+    comunidad:"Comunidad autónoma",
+    localidad:"Localidad",
+    convenio:"Convenio",
+    documento:"Nombre del documento",
+    documento_id:"Documento"
+  };
+
+  return mapa[clave] || String(clave || "Campo").replaceAll("_"," ");
+}
+
+function valorAuditoriaVisible(campo,valor,accion){
+  const s=String(valor ?? "").trim();
+  if(!s) return "Sin dato";
+
+  const clave=normalizarTexto(s).replaceAll(" ","_").replaceAll("-","_");
+  const campoClave=String(campo || "");
+
+  if(campoClave==="documento_id" && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(s)){
+    return "Documento registrado";
+  }
+
+  const documentos={
+    dni_frontal:"DNI frontal",
+    dni_trasero:"DNI trasero",
+    contrato:"Contrato",
+    certificado:"Certificado",
+    carnet:"Carnet",
+    formacion:"Formación",
+    otro:"Otro"
+  };
+  if(documentos[clave]) return documentos[clave];
+
+  if(clave==="validada_admin" || clave==="validado_admin") return "Validada por administrador";
+  if(clave==="true") return "Sí";
+  if(clave==="false") return "No";
+  if(clave==="eliminado") return "Eliminado";
+  if(clave==="activo") return "Activo";
+  if(clave==="pendiente") return "Pendiente";
+
+  return s.replaceAll("_"," ");
+}
+
+function renderAuditoriaCambios(detalle,accion){
   const cambios=parseDetalleAuditoria(detalle);
 
   if(!cambios.length){
     return `<div class="zx_text">Sin detalle de campos.</div>`;
   }
 
-  return cambios.map(c=>`
-    <div class="zx_audit_cambio">
-      <b>${limpiar(c.campo || "-")}</b>
-      <span>Antes: ${limpiar(c.antes || "-")}</span>
-      <span>Después: ${limpiar(c.despues || "-")}</span>
-    </div>
-  `).join("");
+  return cambios.map(c=>{
+    const campo=String(c.campo || "");
+    const etiqueta=etiquetaCampoAuditoria(campo,accion);
+    const antes=valorAuditoriaVisible(campo,c.antes,accion);
+    const despues=valorAuditoriaVisible(campo,c.despues,accion);
+
+    if(campo==="documento_id"){
+      return `
+        <div class="zx_audit_cambio">
+          <b>${limpiar(etiqueta)}</b>
+          <span>Estado: ${limpiar(despues)}</span>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="zx_audit_cambio">
+        <b>${limpiar(etiqueta)}</b>
+        <span>Antes: ${limpiar(antes)}</span>
+        <span>Después: ${limpiar(despues)}</span>
+      </div>
+    `;
+  }).join("");
 }
 
 async function verAuditoriaUsuario(u){
   modal("Auditoría",`
+    <div class="zx_user_top_actions zx_user_top_single">
+      <button type="button" class="zx_user_top_back" id="audit_volver_top">← Volver</button>
+    </div>
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
     <div class="zx_text">Cargando auditoría...</div>
   `);
 
+  const volverCarga=document.getElementById("audit_volver_top");
+  if(volverCarga) volverCarga.onclick=function(){abrirFichaUsuario(u)};
+
   const datos=await cargarAuditoriaUsuario(u.id);
 
   modal("Auditoría",`
+    <div class="zx_user_top_actions zx_user_top_single">
+      <button type="button" class="zx_user_top_back" id="audit_volver_top">← Volver</button>
+    </div>
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
 
     ${
@@ -2851,19 +3036,18 @@ async function verAuditoriaUsuario(u){
       ? datos.map(a=>`
         <details class="zx_audit_item">
           <summary>
-            <b>${limpiar(String(a.accion || "-").replaceAll("_"," "))}</b>
+            <b>${limpiar(etiquetaAccionAuditoria(a.accion))}</b>
             <span>${limpiar(fechaHoraES(a.fecha))} · ${limpiar(a.usuario || "-")}</span>
           </summary>
-          ${renderAuditoriaCambios(a.detalle)}
+          ${renderAuditoriaCambios(a.detalle,a.accion)}
         </details>
       `).join("")
       : `<div class="zx_text">Sin auditoría registrada.</div>`
     }
-
-    <button class="zx_btn_big zx_gris" id="audit_cerrar">Cerrar</button>
   `);
 
-  document.getElementById("audit_cerrar").onclick=cerrarModal;
+  const volver=document.getElementById("audit_volver_top");
+  if(volver) volver.onclick=function(){abrirFichaUsuario(u)};
 }
 
 /* DOCUMENTOS */
@@ -2998,7 +3182,7 @@ async function borrarDocumentoLogico(id,u,origen="ficha"){
     })
     .eq("id",String(id))
     .eq("usuario_id",String(u.id))
-    .select("id,eliminado");
+    .select("id,eliminado,nombre,tipo");
 
   if(r.error){
     alert("Error borrando documento: "+r.error.message);
@@ -3015,7 +3199,11 @@ async function borrarDocumentoLogico(id,u,origen="ficha"){
   }
 
   await registrarAuditoriaUsuario(u.id,"documento_eliminado",[
-    {campo:"documento_id",antes:String(id || ""),despues:"eliminado"}
+    {
+      campo:"documento",
+      antes:String(fila.nombre || textoTipoDoc(fila.tipo) || "Documento"),
+      despues:"Eliminado"
+    }
   ]);
 
   await verDocumentosUsuario(u,origen);
@@ -3224,10 +3412,10 @@ async function verDocumentosUsuario(u,origen="ficha"){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3143")) return;
+  if(document.getElementById("zx_usuarios_v3144")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3143";
+  s.id="zx_usuarios_v3144";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
