@@ -6,6 +6,7 @@
 // V3144 - NAVEGACIÓN HISTORIAL/AUDITORÍA + IMPRESIÓN CON SALIDA + TEXTOS LEGIBLES
 // V3145 - IMPRESIÓN DIRECTA COMPATIBLE CON iPhone/iPad PWA
 // V3146 - IMPRESIÓN PDF NATIVA PARA iPhone/iPad PWA
+// V3147 - VOLVER DESDE EDITAR REGRESA A LA FICHA DEL MISMO USUARIO
 // ===============================
 (function(){
 "use strict";
@@ -1698,7 +1699,15 @@ function formulario(u){
   const cancelarArriba=document.getElementById("btn_cancelar_usuario_top");
   const guardarArriba=document.getElementById("btn_guardar_usuario_top");
 
-  if(cancelarArriba) cancelarArriba.onclick=cerrarModal;
+  if(cancelarArriba){
+    cancelarArriba.onclick=function(){
+      if(editando){
+        abrirFichaUsuario(u);
+      }else{
+        cerrarModal();
+      }
+    };
+  }
   if(guardarArriba) guardarArriba.onclick=guardarActual;
 }
 
