@@ -2,7 +2,7 @@
 // ZENTRYX PRO - USUARIOS
 // V3111 - OFFLINE INSTANTANEO PRO
 // V3156 - VALIDACIÓN PIN SEGURA
-// V3140 - ACCIONES SUPERIORES EN LABORAL Y ELIMINA DUPLICADOS INFERIORES
+// V3141 - LIMPIA ETIQUETA DUPLICADA CONVENIO EN LABORAL
 // ===============================
 (function(){
 "use strict";
@@ -2186,7 +2186,6 @@ async function verLaboralUsuario(u){
     ${selectLaboral("lab_provincia","Provincia",l.provincia,["",...provincias])}
     ${inputConLista("lab_localidad","Localidad",l.localidad,"lab_localidad_lista")}
 
-    <h3 class="zx_form_subtitle">Convenio</h3>
     ${selectLaboral("lab_convenio","Convenio",l.convenio,ZX_CONVENIOS)}
 
   `);
@@ -3196,10 +3195,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3140")) return;
+  if(document.getElementById("zx_usuarios_v3141")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3140";
+  s.id="zx_usuarios_v3141";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
