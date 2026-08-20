@@ -2,7 +2,7 @@
 // ZENTRYX PRO - USUARIOS
 // V3111 - OFFLINE INSTANTANEO PRO
 // V3156 - VALIDACIÓN PIN SEGURA
-// V3139 - ELIMINA EDITAR Y CERRAR INFERIORES DUPLICADOS EN FICHA
+// V3140 - ACCIONES SUPERIORES EN LABORAL Y ELIMINA DUPLICADOS INFERIORES
 // ===============================
 (function(){
 "use strict";
@@ -2140,6 +2140,11 @@ async function verLaboralUsuario(u){
   const provincias=opcionesProvincias(l.comunidad,l.provincia);
 
   modal("Laboral",`
+    <div class="zx_user_top_actions">
+      <button type="button" class="zx_user_top_back" id="lab_volver_top">← Volver</button>
+      ${editable ? `<button type="button" class="zx_user_top_primary" id="lab_guardar_top">💾 Guardar</button>` : ``}
+    </div>
+
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
     ${resumenLaboral(l,consumo)}
 
@@ -2184,15 +2189,15 @@ async function verLaboralUsuario(u){
     <h3 class="zx_form_subtitle">Convenio</h3>
     ${selectLaboral("lab_convenio","Convenio",l.convenio,ZX_CONVENIOS)}
 
-    ${editable ? `<button class="zx_btn_big zx_verde" id="lab_guardar">Guardar laboral</button>` : ``}
-    <button class="zx_btn_big zx_gris" id="lab_cerrar">Cerrar</button>
   `);
 
-  document.getElementById("lab_cerrar").onclick=cerrarModal;
+  const volverArriba=document.getElementById("lab_volver_top");
+  if(volverArriba) volverArriba.onclick=cerrarModal;
+
   cargarDatalistLocalidades(l.provincia,l.localidad);
   activarFiltrosUbicacion();
 
-  const guardar=document.getElementById("lab_guardar");
+  const guardar=document.getElementById("lab_guardar_top");
   if(guardar){
     guardar.onclick=function(){
       const datos=leerDatosLaboralesFormulario(u);
@@ -3191,10 +3196,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3139")) return;
+  if(document.getElementById("zx_usuarios_v3140")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3139";
+  s.id="zx_usuarios_v3140";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
