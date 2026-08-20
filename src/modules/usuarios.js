@@ -527,7 +527,7 @@ async function pedirPinConPermiso(accion,callback){
     cerrarModal();
 
     if(typeof callback==="function"){
-      callback();
+      await callback();
     }
   };
 }
@@ -2985,31 +2985,39 @@ async function renombrarDocumento(id,nombreActual,u){
 async function borrarDocumentoLogico(id,u){
   if(!puedeBorrarDocs(u)){
     alert("No tienes permiso para borrar documentos.");
-    return;
+    return false;
   }
-
-  const s=sesion();
 
   const r=await sb()
     .from("usuarios_documentos")
     .update({
       eliminado:true,
-      eliminado_at:new Date().toISOString(),
-      eliminado_por:s.usuario || "",
       updated_at:new Date().toISOString()
     })
-    .eq("id",id);
+    .eq("id",String(id))
+    .eq("usuario_id",String(u.id))
+    .select("id,eliminado");
 
   if(r.error){
     alert("Error borrando documento: "+r.error.message);
-    return;
+    await verDocumentosUsuario(u);
+    return false;
+  }
+
+  const fila=(r.data || [])[0] || null;
+
+  if(!fila || fila.eliminado!==true){
+    alert("No se pudo borrar el documento. No se confirmó el cambio en la base de datos.");
+    await verDocumentosUsuario(u);
+    return false;
   }
 
   await registrarAuditoriaUsuario(u.id,"documento_eliminado",[
     {campo:"documento_id",antes:String(id || ""),despues:"eliminado"}
   ]);
 
-  verDocumentosUsuario(u);
+  await verDocumentosUsuario(u);
+  return true;
 }
 
 async function verDniUsuario(u){
@@ -3069,6 +3077,10 @@ async function verDocumentosUsuario(u){
   const docs=await cargarDocumentos(u.id);
 
   modal("Documentos",`
+    <div class="zx_user_top_actions zx_user_top_single">
+      <button type="button" class="zx_user_top_back" id="doc_cerrar_top">← Cerrar</button>
+    </div>
+
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
 
     ${
@@ -3116,11 +3128,9 @@ async function verDocumentosUsuario(u){
         : `<div class="zx_text">Sin documentos.</div>`
       }
     </div>
-
-    <button class="zx_btn_big zx_gris" id="doc_cerrar">Cerrar</button>
   `);
 
-  document.getElementById("doc_cerrar").onclick=cerrarModal;
+  document.getElementById("doc_cerrar_top").onclick=cerrarModal;
 
   const docSubir=document.getElementById("doc_subir");
   if(docSubir){
@@ -3187,7 +3197,10 @@ async function verDocumentosUsuario(u){
   document.querySelectorAll("[data-doc-del]").forEach(btn=>{
     btn.onclick=function(){
       pedirPinConPermiso("docs",async function(){
-        if(!confirm("¿Borrar documento?")) return;
+        if(!confirm("¿Borrar documento?")){
+          await verDocumentosUsuario(u);
+          return;
+        }
         await borrarDocumentoLogico(btn.dataset.docDel,u);
       });
     };
@@ -3195,10 +3208,10 @@ async function verDocumentosUsuario(u){
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3141")) return;
+  if(document.getElementById("zx_usuarios_v3142")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3141";
+  s.id="zx_usuarios_v3142";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -3232,6 +3245,7 @@ async function verDocumentosUsuario(u){
     .zx_rol_invitado{background:#e5e7eb;color:#475569}
     .zx_user_open_btn{border:0;border-radius:12px;background:#2563eb;color:white;padding:10px 12px;font-size:13px;font-weight:900}
     .zx_user_top_actions{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:-2px 0 16px;padding:4px 0 12px;background:linear-gradient(#fff 82%,rgba(255,255,255,.96));border-bottom:1px solid #e2e8f0}
+    .zx_user_top_actions.zx_user_top_single{grid-template-columns:1fr}
     .zx_user_top_actions button{border-radius:14px;padding:13px 12px;font-size:15px;font-weight:900;cursor:pointer}
     .zx_user_top_back{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8}
     .zx_user_top_primary{border:0;background:#2563eb;color:white}
