@@ -5,6 +5,7 @@
 // V3141 - LIMPIA ETIQUETA DUPLICADA CONVENIO EN LABORAL
 // V3144 - NAVEGACIÓN HISTORIAL/AUDITORÍA + IMPRESIÓN CON SALIDA + TEXTOS LEGIBLES
 // V3145 - IMPRESIÓN DIRECTA COMPATIBLE CON iPhone/iPad PWA
+// V3146 - IMPRESIÓN PDF NATIVA PARA iPhone/iPad PWA
 // ===============================
 (function(){
 "use strict";
@@ -900,137 +901,303 @@ async function cargarResumenRapidoUsuario(usuarioId){
   };
 }
 
-function imprimirFichaActual(){
-  const caja=document.querySelector("#zx_modal .zx_modal_caja");
-
-  if(!caja){
-    alert("No hay ficha abierta.");
-    return;
-  }
-
-  if(typeof window.print!=="function"){
-    alert("La impresión no está disponible en este dispositivo.");
-    return;
-  }
-
-  // En iPhone/iPad instalado como PWA, imprimir desde una ventana abierta
-  // con window.open puede ser ignorado por iOS. Se imprime desde la propia
-  // ventana de Zentryx para que el gesto del usuario llegue a window.print().
-  const anterior=document.getElementById("zx_print_ficha_usuario");
-  if(anterior) anterior.remove();
-
-  const clon=caja.cloneNode(true);
-  clon.id="zx_print_ficha_usuario";
-  clon.classList.remove("zx_modal_caja");
-
-  clon.querySelectorAll("button,input,select,textarea,.zx_user_top_actions,.zx_ficha_acciones").forEach(function(el){
-    el.remove();
-  });
-
-  const estiloId="zx_print_ficha_usuario_style";
-  let estilo=document.getElementById(estiloId);
-
-  if(!estilo){
-    estilo=document.createElement("style");
-    estilo.id=estiloId;
-    estilo.textContent=`
-      #zx_print_ficha_usuario{display:none}
-
-      @media print{
-        @page{margin:10mm}
-        html,body{
-          background:#fff!important;
-          color:#0f172a!important;
-          height:auto!important;
-          min-height:0!important;
-          overflow:visible!important;
-        }
-        body.zx_print_usuario_activo > *:not(#zx_print_ficha_usuario){
-          display:none!important;
-        }
-        body.zx_print_usuario_activo #zx_print_ficha_usuario{
-          display:block!important;
-          position:static!important;
-          width:100%!important;
-          max-width:none!important;
-          height:auto!important;
-          max-height:none!important;
-          overflow:visible!important;
-          margin:0!important;
-          padding:0!important;
-          background:#fff!important;
-          box-shadow:none!important;
-          border:0!important;
-          border-radius:0!important;
-          font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
-        }
-        body.zx_print_usuario_activo #zx_print_ficha_usuario h2{
-          margin:0 0 16px!important;
-          font-size:28px!important;
-          color:#0f172a!important;
-        }
-        body.zx_print_usuario_activo #zx_print_ficha_usuario h3{
-          color:#0f172a!important;
-        }
-        body.zx_print_usuario_activo #zx_print_ficha_usuario img{
-          max-width:120px!important;
-          height:auto!important;
-        }
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_head{
-          display:grid!important;
-          grid-template-columns:120px 1fr!important;
-          gap:18px!important;
-          align-items:center!important;
-          margin-bottom:18px!important;
-        }
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_indicadores,
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_resumen_rapido,
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_laboral_grid{
-          display:grid!important;
-          grid-template-columns:repeat(2,minmax(0,1fr))!important;
-          gap:10px!important;
-        }
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_bloque,
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_contact_box,
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_emergencia_box,
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_indicadores > div,
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_resumen_rapido > div,
-        body.zx_print_usuario_activo #zx_print_ficha_usuario .zx_ficha_laboral_grid > div{
-          break-inside:avoid!important;
-          page-break-inside:avoid!important;
-          box-shadow:none!important;
-        }
-      }
-    `;
-    document.head.appendChild(estilo);
-  }
-
-  document.body.appendChild(clon);
-  document.body.classList.add("zx_print_usuario_activo");
-
-  let limpiado=false;
-  const limpiarImpresion=function(){
-    if(limpiado) return;
-    limpiado=true;
-    document.body.classList.remove("zx_print_usuario_activo");
-    const nodo=document.getElementById("zx_print_ficha_usuario");
-    if(nodo) nodo.remove();
-    window.removeEventListener("afterprint",limpiarImpresion);
+function zxPdfTextoSeguro(valor){
+  const mapa={
+    8364:128,8218:130,402:131,8222:132,8230:133,8224:134,8225:135,
+    710:136,8240:137,352:138,8249:139,338:140,381:142,8216:145,
+    8217:146,8220:147,8221:148,8226:149,8211:150,8212:151,732:152,
+    8482:153,353:154,8250:155,339:156,382:158,376:159
   };
 
-  window.addEventListener("afterprint",limpiarImpresion,{once:true});
+  let salida="";
+  for(const ch of String(valor ?? "")){
+    const cp=ch.codePointAt(0);
+    let b;
+
+    if(cp<=255) b=cp;
+    else if(Object.prototype.hasOwnProperty.call(mapa,cp)) b=mapa[cp];
+    else b=63;
+
+    if(b===10 || b===13 || b===9){
+      salida+=" ";
+      continue;
+    }
+
+    const c=String.fromCharCode(b);
+    if(c==="\\" || c==="(" || c===")") salida+="\\"+c;
+    else salida+=c;
+  }
+
+  return salida;
+}
+
+function zxPdfBytes(binario){
+  const out=new Uint8Array(binario.length);
+  for(let i=0;i<binario.length;i++) out[i]=binario.charCodeAt(i)&255;
+  return out;
+}
+
+function zxPdfLimpiarTexto(valor){
+  return String(valor ?? "")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+function zxPdfValor(valor,sufijo=""){
+  const s=zxPdfLimpiarTexto(valor);
+  return s ? s+sufijo : "Sin dato";
+}
+
+function zxPdfPartirLinea(texto,maxCaracteres){
+  const limpio=zxPdfLimpiarTexto(texto);
+  if(!limpio) return [""];
+
+  const palabras=limpio.split(" ");
+  const lineas=[];
+  let actual="";
+
+  palabras.forEach(function(palabra){
+    if(!actual){
+      actual=palabra;
+      return;
+    }
+
+    if((actual+" "+palabra).length<=maxCaracteres){
+      actual+=" "+palabra;
+    }else{
+      lineas.push(actual);
+      actual=palabra;
+    }
+  });
+
+  if(actual) lineas.push(actual);
+  return lineas.length ? lineas : [""];
+}
+
+function zxPdfDiasLaborales(l){
+  if(!l) return "Sin dato";
+
+  const dias=[
+    l.trabaja_lunes ? "Lunes" : "",
+    l.trabaja_martes ? "Martes" : "",
+    l.trabaja_miercoles ? "Miércoles" : "",
+    l.trabaja_jueves ? "Jueves" : "",
+    l.trabaja_viernes ? "Viernes" : "",
+    l.trabaja_sabado ? "Sábado" : "",
+    l.trabaja_domingo ? "Domingo" : ""
+  ].filter(Boolean);
+
+  return dias.length ? dias.join(", ") : "Sin dato";
+}
+
+function zxCrearPdfFichaUsuario(u,ultimoFichaje,resumenRapido,laboral){
+  const nombre=zxPdfValor(u && (u.nombre || u.usuario));
+  const rol=zxPdfValor(u && u.rol);
+  const estado=(u && u.activo!==false) ? "Activo" : "Inactivo";
+  const calendario=laboral
+    ? [laboral.pais,laboral.comunidad,laboral.provincia,laboral.localidad].filter(Boolean).join(" · ")
+    : "";
+
+  const entradas=[];
+  const titulo=function(texto){entradas.push({texto:texto,tamano:21,negrita:true,antes:0,despues:12});};
+  const seccion=function(texto){entradas.push({texto:texto,tamano:14,negrita:true,antes:12,despues:5});};
+  const linea=function(etiqueta,valor){entradas.push({texto:etiqueta+": "+zxPdfValor(valor),tamano:10.5,negrita:false,antes:0,despues:1});};
+
+  titulo("Ficha de usuario");
+  entradas.push({texto:nombre,tamano:17,negrita:true,antes:0,despues:3});
+  linea("Rol",rol);
+  linea("Estado",estado);
+
+  seccion("Resumen");
+  linea("Último acceso",fechaHoraES(valorUltimoAcceso(u)));
+  linea("Último fichaje",textoUltimoFichaje(ultimoFichaje));
+  if(resumenRapido){
+    linea("Solicitudes pendientes",resumenRapido.solicitudesPendientes || 0);
+    linea("Solicitudes aprobadas",resumenRapido.solicitudesAprobadas || 0);
+    linea("Horas extra pendientes",resumenRapido.horasPendientes || 0);
+    linea("Horas extra validadas",resumenRapido.horasValidadas || 0);
+    linea("Horas extra pagadas/cobradas",resumenRapido.horasPagadas || 0);
+    linea("Jornadas abiertas",resumenRapido.jornadasAbiertas || 0);
+  }
+
+  if(laboral){
+    seccion("Resumen laboral");
+    linea("Horas por día",zxPdfValor(laboral.horas_dia));
+    linea("Horas por semana",zxPdfValor(laboral.horas_semana));
+    linea("Vacaciones anuales",laboral.vacaciones_dias!==null && laboral.vacaciones_dias!==undefined ? laboral.vacaciones_dias+" días" : "Sin dato");
+    linea("Asuntos propios",laboral.asuntos_propios!==null && laboral.asuntos_propios!==undefined ? laboral.asuntos_propios+" h" : "Sin dato");
+    linea("Días de trabajo",zxPdfDiasLaborales(laboral));
+    linea("Calendario",calendario || "Sin dato");
+    linea("Convenio",laboral.convenio || "Sin dato");
+  }
+
+  seccion("Datos de contacto");
+  linea("Teléfono de empresa",u && u.telefono_empresa);
+  linea("Email de empresa",u && u.email_empresa);
+
+  if(puedeVerDatosPersonales(u)){
+    linea("Teléfono personal",u && u.telefono_personal);
+    linea("Email personal",u && u.email_personal);
+
+    seccion("Datos personales");
+    linea("Usuario",u && u.usuario);
+    linea("DNI / NIE",u && u.dni);
+
+    seccion("Dirección");
+    entradas.push({texto:zxPdfValor(direccionCompleta(u)),tamano:10.5,negrita:false,antes:0,despues:1});
+  }
+
+  if(puedeVerDatosEmergencia(u) && tieneEmergencia(u)){
+    seccion("Contacto de emergencia");
+    linea("Nombre",u && u.emergencia_nombre);
+    linea("Relación",u && u.emergencia_relacion);
+    linea("Teléfono",u && u.emergencia_telefono);
+    linea("Email",u && u.emergencia_email);
+    if(u && u.emergencia_observaciones) linea("Observaciones",u.emergencia_observaciones);
+  }
+
+  const paginas=[[]];
+  let pagina=paginas[0];
+  let y=800;
+  const margenInferior=48;
+
+  const nuevaPagina=function(){
+    pagina=[];
+    paginas.push(pagina);
+    y=800;
+  };
+
+  entradas.forEach(function(e){
+    const tamano=Number(e.tamano || 10.5);
+    const alto=Math.max(14,tamano*1.35);
+    const max=Math.max(32,Math.floor(94*(10.5/tamano)));
+    const lineas=zxPdfPartirLinea(e.texto,max);
+    const espacioAntes=Number(e.antes || 0);
+    const espacioDespues=Number(e.despues || 0);
+
+    if(y-espacioAntes-(lineas.length*alto)-espacioDespues<margenInferior) nuevaPagina();
+    y-=espacioAntes;
+
+    lineas.forEach(function(txt){
+      pagina.push({texto:txt,x:44,y:y,tamano:tamano,negrita:!!e.negrita});
+      y-=alto;
+    });
+
+    y-=espacioDespues;
+  });
+
+  const objetos=[];
+  objetos[1]='<< /Type /Catalog /Pages 2 0 R >>';
+  objetos[3]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+  objetos[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+
+  const kids=[];
+  paginas.forEach(function(comandos,indice){
+    const paginaObj=5+(indice*2);
+    const contenidoObj=paginaObj+1;
+    kids.push(paginaObj+' 0 R');
+
+    let stream='';
+    comandos.forEach(function(c){
+      const fuente=c.negrita ? 'F2' : 'F1';
+      stream+='BT /'+fuente+' '+c.tamano+' Tf 1 0 0 1 '+c.x+' '+c.y+' Tm ('+zxPdfTextoSeguro(c.texto)+') Tj ET\n';
+    });
+
+    objetos[paginaObj]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents '+contenidoObj+' 0 R >>';
+    objetos[contenidoObj]='<< /Length '+stream.length+' >>\nstream\n'+stream+'endstream';
+  });
+
+  objetos[2]='<< /Type /Pages /Kids ['+kids.join(' ')+'] /Count '+paginas.length+' >>';
+
+  let pdf='%PDF-1.4\n%âãÏÓ\n';
+  const offsets=[0];
+  const maxObj=objetos.length-1;
+
+  for(let i=1;i<=maxObj;i++){
+    offsets[i]=pdf.length;
+    pdf+=i+' 0 obj\n'+objetos[i]+'\nendobj\n';
+  }
+
+  const xref=pdf.length;
+  pdf+='xref\n0 '+(maxObj+1)+'\n';
+  pdf+='0000000000 65535 f \n';
+
+  for(let i=1;i<=maxObj;i++){
+    pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+  }
+
+  pdf+='trailer\n<< /Size '+(maxObj+1)+' /Root 1 0 R >>\n';
+  pdf+='startxref\n'+xref+'\n%%EOF';
+
+  return new Blob([zxPdfBytes(pdf)],{type:'application/pdf'});
+}
+
+function zxNombreArchivoFicha(u){
+  const base=String((u && (u.nombre || u.usuario)) || 'usuario')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-zA-Z0-9_-]+/g,'_')
+    .replace(/^_+|_+$/g,'');
+
+  return 'Ficha_'+(base || 'usuario')+'.pdf';
+}
+
+async function imprimirFichaActual(u,ultimoFichaje,resumenRapido,laboral){
+  let pdf;
 
   try{
-    // Llamada directa desde el clic: necesaria para iOS/Safari/PWA.
-    window.print();
+    pdf=zxCrearPdfFichaUsuario(u,ultimoFichaje,resumenRapido,laboral);
   }catch(e){
-    limpiarImpresion();
-    alert("No se pudo abrir la impresión en este dispositivo.");
+    console.error('Error creando PDF de usuario',e);
+    alert('No se pudo preparar la ficha para imprimir.');
     return;
   }
 
-  // Respaldo por si iOS no emite el evento afterprint.
-  setTimeout(limpiarImpresion,60000);
+  const nombreArchivo=zxNombreArchivoFicha(u);
+  let archivo=null;
+
+  try{
+    archivo=new File([pdf],nombreArchivo,{type:'application/pdf'});
+  }catch(e){}
+
+  // En iPhone/iPad instalado como PWA, window.print() puede no abrir nada.
+  // La hoja nativa de iOS sí permite trabajar con un PDF real y desde ella
+  // puede elegirse Imprimir, Guardar en Archivos, Mail, etc.
+  if(archivo && navigator.share){
+    try{
+      const datos={
+        title:'Ficha de usuario',
+        text:'Ficha de '+String((u && (u.nombre || u.usuario)) || 'usuario'),
+        files:[archivo]
+      };
+
+      if(!navigator.canShare || navigator.canShare({files:[archivo]})){
+        await navigator.share(datos);
+        return;
+      }
+    }catch(e){
+      if(e && e.name==='AbortError') return;
+      console.warn('No se pudo abrir la hoja de compartir para impresión',e);
+    }
+  }
+
+  // Respaldo para equipos donde compartir archivos no esté disponible:
+  // abrir el PDF real para usar las opciones de impresión del navegador.
+  const url=URL.createObjectURL(pdf);
+  const ventana=window.open(url,'_blank');
+
+  if(!ventana){
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=nombreArchivo;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  setTimeout(function(){
+    try{URL.revokeObjectURL(url)}catch(e){}
+  },60000);
 }
 
 function renderResumenLaboralFicha(l){
@@ -1318,7 +1485,7 @@ async function abrirFichaUsuario(u){
   asignar("f_docs",()=>verDocumentosUsuario(u,"ficha"));
   asignar("f_historial",()=>verHistorialUsuario(u));
   asignar("f_auditoria",()=>verAuditoriaUsuario(u));
-  asignar("f_imprimir",()=>imprimirFichaActual());
+  asignar("f_imprimir",()=>imprimirFichaActual(u,ultimoFichaje,resumenRapido,resumenLaboralMini));
   asignar("f_reset",()=>pedirPinConPermiso("reset",()=>resetPin(u.id,u.nombre || u.usuario || "usuario")));
   asignar("f_desactivar",()=>pedirPinConPermiso("eliminar",()=>desactivarUsuario(u.id,u.nombre || u.usuario || "usuario",u.usuario)));
   asignar("f_reactivar",()=>pedirPinConPermiso("reactivar",()=>reactivarUsuario(u.id,u.nombre || u.usuario || "usuario")));
