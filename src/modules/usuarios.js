@@ -1238,7 +1238,7 @@ async function abrirFichaUsuario(u){
   asignar("f_emergencia_mail",()=>enviarMail(u.emergencia_email));
   asignar("f_laboral",()=>verLaboralUsuario(u));
   asignar("f_dni",()=>verDniUsuario(u));
-  asignar("f_docs",()=>verDocumentosUsuario(u));
+  asignar("f_docs",()=>verDocumentosUsuario(u,"ficha"));
   asignar("f_historial",()=>verHistorialUsuario(u));
   asignar("f_auditoria",()=>verAuditoriaUsuario(u));
   asignar("f_imprimir",()=>imprimirFichaActual());
@@ -2935,22 +2935,24 @@ function vistaPreviaDocumento(d){
   return `<div class="zx_text">Vista previa no disponible para este tipo de archivo.</div>`;
 }
 
-function abrirVistaDocumento(d){
+function abrirVistaDocumento(d,u,origen="ficha"){
   modal("Vista previa",`
     <div class="zx_text"><b>${limpiar(d.nombre || "Documento")}</b></div>
     <div class="zx_doc_preview_box">${vistaPreviaDocumento(d)}</div>
     <button class="zx_btn_big zx_azul" id="doc_preview_abrir">Abrir archivo</button>
-    <button class="zx_btn_big zx_gris" id="doc_preview_cerrar">Cerrar</button>
+    <button class="zx_btn_big zx_gris" id="doc_preview_cerrar">← Volver</button>
   `);
 
   document.getElementById("doc_preview_abrir").onclick=function(){
     window.open(d.url,"_blank");
   };
 
-  document.getElementById("doc_preview_cerrar").onclick=cerrarModal;
+  document.getElementById("doc_preview_cerrar").onclick=function(){
+    verDocumentosUsuario(u,origen);
+  };
 }
 
-async function renombrarDocumento(id,nombreActual,u){
+async function renombrarDocumento(id,nombreActual,u,origen="ficha"){
   if(!puedeGestionarDocs(u)){
     alert("No tienes permiso para renombrar documentos.");
     return;
@@ -2979,10 +2981,10 @@ async function renombrarDocumento(id,nombreActual,u){
     {campo:"documento",antes:String(nombreActual || ""),despues:limpio}
   ]);
 
-  verDocumentosUsuario(u);
+  await verDocumentosUsuario(u,origen);
 }
 
-async function borrarDocumentoLogico(id,u){
+async function borrarDocumentoLogico(id,u,origen="ficha"){
   if(!puedeBorrarDocs(u)){
     alert("No tienes permiso para borrar documentos.");
     return false;
@@ -3000,7 +3002,7 @@ async function borrarDocumentoLogico(id,u){
 
   if(r.error){
     alert("Error borrando documento: "+r.error.message);
-    await verDocumentosUsuario(u);
+    await verDocumentosUsuario(u,origen);
     return false;
   }
 
@@ -3008,7 +3010,7 @@ async function borrarDocumentoLogico(id,u){
 
   if(!fila || fila.eliminado!==true){
     alert("No se pudo borrar el documento. No se confirmó el cambio en la base de datos.");
-    await verDocumentosUsuario(u);
+    await verDocumentosUsuario(u,origen);
     return false;
   }
 
@@ -3016,7 +3018,7 @@ async function borrarDocumentoLogico(id,u){
     {campo:"documento_id",antes:String(id || ""),despues:"eliminado"}
   ]);
 
-  await verDocumentosUsuario(u);
+  await verDocumentosUsuario(u,origen);
   return true;
 }
 
@@ -3026,6 +3028,10 @@ async function verDniUsuario(u){
   const trasero=docs.find(d=>String(d.tipo||"")==="dni_trasero") || null;
 
   modal("DNI",`
+    <div class="zx_user_top_actions zx_user_top_single">
+      <button type="button" class="zx_user_top_back" id="dni_volver_top">← Volver</button>
+    </div>
+
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
 
     <div class="zx_dni_grid">
@@ -3055,8 +3061,11 @@ async function verDniUsuario(u){
     </div>
 
     <button class="zx_btn_big zx_blue" id="dni_ir_docs">Gestionar documentos</button>
-    <button class="zx_btn_big zx_gris" id="dni_cerrar">Cerrar</button>
   `);
+
+  document.getElementById("dni_volver_top").onclick=function(){
+    abrirFichaUsuario(u);
+  };
 
   const b1=document.getElementById("dni_frontal_abrir");
   if(b1 && frontal) b1.onclick=function(){window.open(frontal.url,"_blank")};
@@ -3064,11 +3073,12 @@ async function verDniUsuario(u){
   const b2=document.getElementById("dni_trasero_abrir");
   if(b2 && trasero) b2.onclick=function(){window.open(trasero.url,"_blank")};
 
-  document.getElementById("dni_ir_docs").onclick=function(){verDocumentosUsuario(u)};
-  document.getElementById("dni_cerrar").onclick=cerrarModal;
+  document.getElementById("dni_ir_docs").onclick=function(){
+    verDocumentosUsuario(u,"dni");
+  };
 }
 
-async function verDocumentosUsuario(u){
+async function verDocumentosUsuario(u,origen="ficha"){
   if(!puedeVerDocs(u)){
     alert("No tienes permiso para ver documentos.");
     return;
@@ -3078,7 +3088,7 @@ async function verDocumentosUsuario(u){
 
   modal("Documentos",`
     <div class="zx_user_top_actions zx_user_top_single">
-      <button type="button" class="zx_user_top_back" id="doc_cerrar_top">← Cerrar</button>
+      <button type="button" class="zx_user_top_back" id="doc_cerrar_top">${origen==="dni" ? "← DNI" : "← Volver"}</button>
     </div>
 
     <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
@@ -3130,7 +3140,13 @@ async function verDocumentosUsuario(u){
     </div>
   `);
 
-  document.getElementById("doc_cerrar_top").onclick=cerrarModal;
+  document.getElementById("doc_cerrar_top").onclick=function(){
+    if(origen==="dni"){
+      verDniUsuario(u);
+    }else{
+      abrirFichaUsuario(u);
+    }
+  };
 
   const docSubir=document.getElementById("doc_subir");
   if(docSubir){
@@ -3172,7 +3188,7 @@ async function verDocumentosUsuario(u){
       {campo:"nombre",antes:"",despues:nombre}
     ]);
 
-    verDocumentosUsuario(u);
+    await verDocumentosUsuario(u,origen);
     };
   }
 
@@ -3183,14 +3199,14 @@ async function verDocumentosUsuario(u){
   document.querySelectorAll("[data-doc-preview]").forEach(btn=>{
     btn.onclick=function(){
       const d=docs.find(x=>String(x.id)===String(btn.dataset.docPreview));
-      if(d) abrirVistaDocumento(d);
+      if(d) abrirVistaDocumento(d,u,origen);
     };
   });
 
   document.querySelectorAll("[data-doc-rename]").forEach(btn=>{
     btn.onclick=function(){
       const d=docs.find(x=>String(x.id)===String(btn.dataset.docRename));
-      if(d) renombrarDocumento(d.id,d.nombre,u);
+      if(d) renombrarDocumento(d.id,d.nombre,u,origen);
     };
   });
 
@@ -3198,20 +3214,20 @@ async function verDocumentosUsuario(u){
     btn.onclick=function(){
       pedirPinConPermiso("docs",async function(){
         if(!confirm("¿Borrar documento?")){
-          await verDocumentosUsuario(u);
+          await verDocumentosUsuario(u,origen);
           return;
         }
-        await borrarDocumentoLogico(btn.dataset.docDel,u);
+        await borrarDocumentoLogico(btn.dataset.docDel,u,origen);
       });
     };
   });
 }
 
 (function estilos(){
-  if(document.getElementById("zx_usuarios_v3142")) return;
+  if(document.getElementById("zx_usuarios_v3143")) return;
 
   const s=document.createElement("style");
-  s.id="zx_usuarios_v3142";
+  s.id="zx_usuarios_v3143";
 
   s.innerHTML=`
     .zx_usuarios_head_top{display:flex;justify-content:space-between;align-items:center;gap:12px}
