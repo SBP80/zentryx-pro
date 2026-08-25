@@ -12,8 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-const ZX_VERSION="3154";
-const ZX_APP_VERSION="3401";
+const ZX_VERSION="3155";
+const ZX_APP_VERSION="3402";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -54,9 +54,223 @@ input:disabled{opacity:.65;background:#f1f5f9}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:430px){body{padding:18px;align-items:flex-start;padding-top:48px}.logo{width:82px;height:82px;font-size:48px;border-radius:24px}.brand h1{font-size:34px}.box{padding:22px;border-radius:26px}.box h2{font-size:30px}.user_name{font-size:18px}.user_card{grid-template-columns:58px 1fr}.user_avatar{width:58px;height:58px}}
 </style>
+
+<script src="src/core/store.js?v=3109"></script>
+
+<style id="zx_login_theme_css">
+/* zx-theme-no-patch */
+
+/* LOGIN: respeta la apariencia guardada en Zentryx */
+body.zx_login_page{
+  background:
+    radial-gradient(circle at 18% 22%,rgba(var(--zx-primary-rgb),.22),transparent 28%),
+    radial-gradient(circle at 86% 18%,rgba(16,185,129,.12),transparent 28%),
+    var(--zx-bg) !important;
+  color:var(--zx-text) !important;
+}
+
+body.zx_login_page .brand h1{color:var(--zx-text)}
+body.zx_login_page .brand p{color:var(--zx-muted)}
+
+body.zx_login_page #app.box{
+  background:var(--zx-card) !important;
+  color:var(--zx-text) !important;
+  border:1px solid var(--zx-line);
+  border-radius:var(--zx-radius-lg);
+  box-shadow:var(--zx-shadow);
+}
+
+body.zx_login_page .box h2,
+body.zx_login_page label,
+body.zx_login_page .user_name{color:var(--zx-text)}
+
+body.zx_login_page .sub,
+body.zx_login_page .user_meta,
+body.zx_login_page .loading,
+body.zx_login_page .footer{color:var(--zx-muted)}
+
+body.zx_login_page input{
+  background:var(--zx-field) !important;
+  color:var(--zx-text) !important;
+  border-color:var(--zx-line) !important;
+  border-radius:var(--zx-radius-md);
+}
+
+body.zx_login_page input:focus{
+  border-color:var(--zx-primary) !important;
+  box-shadow:0 0 0 4px rgba(var(--zx-primary-rgb),.15) !important;
+}
+
+body.zx_login_page .btn{
+  background:var(--zx-primary) !important;
+  color:var(--zx-primary-contrast) !important;
+  border-radius:var(--zx-radius-md);
+  box-shadow:0 10px 24px rgba(var(--zx-primary-rgb),.20);
+}
+
+body.zx_login_page .btn_sec{
+  background:var(--zx-soft-2) !important;
+  color:var(--zx-text) !important;
+  box-shadow:none;
+}
+
+body.zx_login_page .logo{
+  background:linear-gradient(135deg,var(--zx-primary),#10b981);
+  border-radius:var(--zx-radius-lg);
+}
+
+body.zx_login_page .user_card{
+  background:var(--zx-soft) !important;
+  border-color:var(--zx-line) !important;
+  border-radius:var(--zx-radius-md);
+}
+
+body.zx_login_page .user_avatar{
+  background:linear-gradient(135deg,var(--zx-primary),#10b981);
+  border-radius:var(--zx-radius-sm);
+}
+
+body.zx_login_page .spinner{border-top-color:var(--zx-primary)}
+body.zx_login_page .progress{background:var(--zx-soft-2)}
+
+/* El modo compacto también se ve ANTES de entrar */
+body.zx_login_page.zx_compacto{
+  padding:14px;
+}
+
+body.zx_login_page.zx_compacto .login_wrap{
+  max-width:430px;
+}
+
+body.zx_login_page.zx_compacto .brand{
+  margin-bottom:15px;
+}
+
+body.zx_login_page.zx_compacto .logo{
+  width:68px;
+  height:68px;
+  font-size:40px;
+  margin-bottom:10px;
+}
+
+body.zx_login_page.zx_compacto .brand h1{
+  font-size:29px;
+  letter-spacing:-.6px;
+}
+
+body.zx_login_page.zx_compacto .brand p{
+  margin-top:4px;
+  font-size:13px;
+}
+
+body.zx_login_page.zx_compacto #app.box{
+  padding:17px;
+  min-height:0;
+}
+
+body.zx_login_page.zx_compacto .box h2{
+  margin-bottom:6px;
+  font-size:25px;
+}
+
+body.zx_login_page.zx_compacto .sub{
+  margin-bottom:11px;
+  font-size:13px;
+}
+
+body.zx_login_page.zx_compacto label{
+  margin:10px 0 5px;
+  font-size:13px;
+}
+
+body.zx_login_page.zx_compacto input{
+  padding:12px 13px !important;
+  font-size:17px !important;
+}
+
+body.zx_login_page.zx_compacto .pin{
+  font-size:27px !important;
+  letter-spacing:9px;
+}
+
+body.zx_login_page.zx_compacto .btn{
+  padding:13px;
+  margin-top:13px;
+  font-size:18px;
+}
+
+body.zx_login_page.zx_compacto .user_card{
+  grid-template-columns:48px 1fr;
+  gap:9px;
+  padding:9px;
+  margin:11px 0;
+}
+
+body.zx_login_page.zx_compacto .user_avatar{
+  width:48px;
+  height:48px;
+  font-size:22px;
+}
+
+body.zx_login_page.zx_compacto .user_name{font-size:16px}
+body.zx_login_page.zx_compacto .user_meta{font-size:12px}
+body.zx_login_page.zx_compacto .footer{
+  margin-top:11px;
+  font-size:11px;
+}
+
+/* Alto contraste también actúa en Login */
+body.zx_login_page.zx_alto_contraste #app.box,
+body.zx_login_page.zx_alto_contraste input,
+body.zx_login_page.zx_alto_contraste .user_card{
+  border-width:2px !important;
+  border-color:var(--zx-text) !important;
+}
+
+@media(max-width:430px){
+  body.zx_login_page.zx_compacto{
+    padding:12px;
+    padding-top:30px;
+  }
+  body.zx_login_page.zx_compacto .logo{
+    width:64px;
+    height:64px;
+    font-size:38px;
+  }
+  body.zx_login_page.zx_compacto .brand h1{font-size:28px}
+  body.zx_login_page.zx_compacto #app.box{padding:16px}
+}
+</style>
+
+<script>
+(function(){
+  function zxAplicarAparienciaLogin(){
+    try{
+      if(window.ZENTRYX_STORE && typeof window.ZENTRYX_STORE.applyTheme==="function"){
+        window.ZENTRYX_STORE.applyTheme(window.ZENTRYX_STORE.getTheme());
+      }
+    }catch(e){}
+  }
+
+  /* Variables y CSS desde el primer momento posible */
+  zxAplicarAparienciaLogin();
+
+  /* Al existir body, aplica compacto/contraste */
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",zxAplicarAparienciaLogin,{once:true});
+  }else{
+    zxAplicarAparienciaLogin();
+  }
+
+  /* Si otra pestaña cambia la apariencia, Login se actualiza */
+  window.addEventListener("storage",function(e){
+    if(e && e.key==="zentryx_theme") zxAplicarAparienciaLogin();
+  });
+})();
+</script>
 </head>
 
-<body>
+<body class="zx_login_page">
 <div class="login_wrap">
   <div class="brand">
     <div class="logo">Z</div>
@@ -66,7 +280,7 @@ input:disabled{opacity:.65;background:#f1f5f9}
 
   <div class="box" id="app"></div>
 
-  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3151 LOGIN</div>
+  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3155 LOGIN</div>
 </div>
 
 <script>
