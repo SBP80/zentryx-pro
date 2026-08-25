@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3154 - ACCESO CENTRALIZADO A MÓDULOS
+// V3155 - DEV SOLO PARA DESARROLLADOR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3154";
+const ZX_VERSION="3155";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -2461,13 +2461,16 @@ function puedeVerModulo(modulo){
   const m=MODULOS.find(function(x){return x.id===modulo});
   if(!m) return false;
 
+  // Dev nunca se delega a la regla general de administrador.
+  // Debe quedar oculto y bloqueado salvo para Desarrollador.
+  if(m.dev) return esDesarrollador();
+
   if(zx() && typeof zx().puede==="function"){
     return zx().puede("ver",modulo)===true;
   }
 
   // Respaldo para una carga incompleta del núcleo.
   if(!moduloActivo(modulo)) return false;
-  if(m.dev) return esDesarrollador();
   if(!m.admin) return true;
   return esAdmin() || esDesarrollador();
 }
