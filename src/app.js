@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3117 - ACCESO A MÓDULOS Y CONFIGURACIÓN DE EMPRESA
+// V3118 - DEV SOLO PARA DESARROLLADOR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3117";
+const ZX_VERSION="3118";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -1343,6 +1343,10 @@ function permisosModulosUsuario(){
 
 function puedeVerModuloUsuario(modulo){
   modulo=aliasModulo(modulo || "");
+
+  // El panel Dev es una excepción de seguridad: solo el rol/usuario
+  // Desarrollador puede verlo. Un Administrador normal no hereda este acceso.
+  if(modulo==="desarrollador") return esDesarrollador();
 
   if(esDesarrollador()) return true;
   if(!moduloActivo(modulo)) return false;
