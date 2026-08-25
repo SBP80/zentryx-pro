@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Zentryx PRO</title>
 
 <link rel="manifest" href="manifest.json">
@@ -12,8 +15,8 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-const ZX_VERSION="3155";
-const ZX_APP_VERSION="3402";
+const ZX_VERSION="3156";
+const ZX_APP_VERSION="3403";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -55,7 +58,7 @@ input:disabled{opacity:.65;background:#f1f5f9}
 @media(max-width:430px){body{padding:18px;align-items:flex-start;padding-top:48px}.logo{width:82px;height:82px;font-size:48px;border-radius:24px}.brand h1{font-size:34px}.box{padding:22px;border-radius:26px}.box h2{font-size:30px}.user_name{font-size:18px}.user_card{grid-template-columns:58px 1fr}.user_avatar{width:58px;height:58px}}
 </style>
 
-<script src="src/core/store.js?v=3109"></script>
+<script src="src/core/store.js?v=3403"></script>
 
 <style id="zx_login_theme_css">
 /* zx-theme-no-patch */
@@ -280,7 +283,7 @@ body.zx_login_page.zx_alto_contraste .user_card{
 
   <div class="box" id="app"></div>
 
-  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3155 LOGIN</div>
+  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3156 LOGIN</div>
 </div>
 
 <script>
@@ -297,9 +300,9 @@ window.sb=supabase.createClient(
 window.supabaseClient=window.sb;
 </script>
 
-<script src="src/app.js?v=3151"></script>
-<script src="src/core/security.js?v=3154"></script>
-<script src="src/core/session.js?v=3151"></script>
+<script src="src/app.js?v=3403"></script>
+<script src="src/core/security.js?v=3403"></script>
+<script src="src/core/session.js?v=3403"></script>
 
 <script>
 let usuarioActual=null;
@@ -501,7 +504,7 @@ function setLoading(txt){
   app.innerHTML=`<div class="loading"><div class="spinner"></div><div>${limpiar(txt || "Cargando...")}</div></div>`;
 }
 
-function irApp(){location.href="app.html?v="+ZX_APP_VERSION}
+function irApp(){location.replace("app.html?v="+ZX_APP_VERSION+"&t="+Date.now())}
 
 function guardarSesion(){
   if(typeof ZENTRYX_createSession==="function"){
@@ -1161,7 +1164,7 @@ async function iniciar(){
   clearInterval(bloqueoTimer);
 
   if(typeof window.ZENTRYX_sessionValid==="function" && window.ZENTRYX_sessionValid()){
-    location.href="app.html?v="+ZX_APP_VERSION;
+    location.replace("app.html?v="+ZX_APP_VERSION+"&t="+Date.now());
     return;
   }
 
