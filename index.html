@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-const ZX_VERSION="3156";
-const ZX_APP_VERSION="3403";
+const ZX_VERSION="3157";
+const ZX_APP_VERSION="3404";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -283,7 +283,7 @@ body.zx_login_page.zx_alto_contraste .user_card{
 
   <div class="box" id="app"></div>
 
-  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3156 LOGIN</div>
+  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3157 LOGIN</div>
 </div>
 
 <script>
@@ -300,9 +300,9 @@ window.sb=supabase.createClient(
 window.supabaseClient=window.sb;
 </script>
 
-<script src="src/app.js?v=3403"></script>
+<script src="src/app.js?v=3117&build=20260826a"></script>
 <script src="src/core/security.js?v=3403"></script>
-<script src="src/core/session.js?v=3403"></script>
+<script src="src/core/session.js?v=3153&build=20260826a"></script>
 
 <script>
 let usuarioActual=null;
@@ -516,6 +516,7 @@ function guardarSesion(){
       nombre:usuarioActual.nombre || usuarioActual.usuario,
       rol:usuarioActual.rol || "Usuario",
       empresa_id:usuarioActual.empresa_id || "demo",
+      permisos:usuarioActual.permisos && typeof usuarioActual.permisos==="object" ? usuarioActual.permisos : {},
       inicio:new Date().toISOString(),
       actividad:new Date().toISOString()
     }));
