@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3114 - ESTADO DE CONEXIÓN ADAPTABLE SIN TAPAR LOGIN
+// V3116 - APLICA APARIENCIA GLOBAL AL ARRANQUE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3115";
+const ZX_VERSION="3116";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -1239,18 +1239,22 @@ function puede(accion,modulo){
 }
 
 function aplicarTemaGuardado(){
-  if(window.ZENTRYX_STORE && typeof window.ZENTRYX_STORE.getTheme==="function"){
-    const t=window.ZENTRYX_STORE.getTheme();
+  if(!window.ZENTRYX_STORE || typeof window.ZENTRYX_STORE.getTheme!=="function") return;
+  const t=window.ZENTRYX_STORE.getTheme();
 
-    if(document.documentElement){
-      document.documentElement.style.setProperty("--zx-primary",t.color || "#2563eb");
-      document.documentElement.style.setProperty("--zx-radius",t.radio || "26px");
-    }
+  if(typeof window.ZENTRYX_STORE.applyTheme==="function"){
+    window.ZENTRYX_STORE.applyTheme(t);
+    return;
+  }
 
-    if(document.body){
-      document.body.classList.toggle("zx_compacto",!!t.compacto);
-      document.body.classList.toggle("zx_alto_contraste",!!t.alto_contraste);
-    }
+  if(document.documentElement){
+    document.documentElement.style.setProperty("--zx-primary",t.color || "#2563eb");
+    document.documentElement.style.setProperty("--zx-radius",t.radio || "26px");
+  }
+
+  if(document.body){
+    document.body.classList.toggle("zx_compacto",!!t.compacto);
+    document.body.classList.toggle("zx_alto_contraste",!!t.alto_contraste);
   }
 }
 
