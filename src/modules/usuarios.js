@@ -13,11 +13,12 @@
 // V3151 - BUSQUEDA EMAIL EMPRESA ROBUSTA + LIMPIEZA DE CARACTERES INVISIBLES
 // V3152 - CORRIGE RESULTADO REMOTO VACIO QUE PODIA OCULTAR COINCIDENCIAS LOCALES
 // V3153 - BUSCADOR DIRECTO ROBUSTO EN TODOS LOS CAMPOS + EMAIL EMPRESA LITERAL/NORMALIZADO
+// V3154 - ACCESO INDIVIDUAL A MÓDULOS
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3153";
+window.ZX_USUARIOS_VERSION="3154";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -76,6 +77,7 @@ let ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ=0;
 let ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER=null;
 let ZX_EMAIL_BUSQUEDA_REMOTA_Q="";
 let ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS=null;
+let ZX_USUARIOS_PERMISOS_EDITANDO={};
 
 const ZX_PROVINCIAS_POR_COMUNIDAD={
   "Andalucía":["Almería","Cádiz","Córdoba","Granada","Huelva","Jaén","Málaga","Sevilla"],
@@ -231,6 +233,74 @@ function puedeReactivar(){return esAdminLocal()}
 function puedeGestionarDocs(u){return esAdminLocal()}
 function puedeSubirDocs(u){return esAdminLocal()}
 function puedeBorrarDocs(u){return esAdminLocal()}
+
+const ZX_MODULOS_ASIGNABLES=[
+  {id:"fichaje",label:"Fichaje"},
+  {id:"agenda",label:"Agenda"},
+  {id:"clientes",label:"Clientes"},
+  {id:"trabajos",label:"Trabajos"},
+  {id:"almacen",label:"Almacén"},
+  {id:"usuarios",label:"Usuarios"},
+  {id:"vehiculos",label:"Vehículos"},
+  {id:"horas_extra",label:"Horas"},
+  {id:"control_fichajes",label:"Control"},
+  {id:"manual",label:"Manual"}
+];
+
+const ZX_MODULOS_USUARIO_POR_DEFECTO=new Set([
+  "fichaje","agenda","clientes","trabajos","manual"
+]);
+
+function zxObjeto(v){
+  return v && typeof v==="object" && !Array.isArray(v) ? v : {};
+}
+
+function zxPermisosUsuario(u){
+  return zxObjeto(u && u.permisos);
+}
+
+function zxAccesoModuloGuardado(u,id){
+  const permisos=zxPermisosUsuario(u);
+  const modulos=zxObjeto(permisos.modulos);
+  if(Object.prototype.hasOwnProperty.call(modulos,id)) return modulos[id]===true;
+  return ZX_MODULOS_USUARIO_POR_DEFECTO.has(id);
+}
+
+function zxPermisosEditorHTML(u){
+  return `
+    <section class="zx_user_permissions_box" id="zx_user_permissions_editor">
+      <div class="zx_user_permissions_head">
+        <h3>Acceso a módulos</h3>
+        <p>El administrador decide qué módulos puede abrir este usuario. Los administradores tienen acceso automático a todos los módulos activos.</p>
+      </div>
+      <div class="zx_user_permissions_grid">
+        ${ZX_MODULOS_ASIGNABLES.map(function(m){
+          const checked=zxAccesoModuloGuardado(u,m.id);
+          return `
+            <label class="zx_user_permission_item" for="u_perm_${m.id}">
+              <span>${limpiar(m.label)}</span>
+              <input id="u_perm_${m.id}" type="checkbox" ${checked ? "checked" : ""}>
+            </label>
+          `;
+        }).join("")}
+      </div>
+      <div class="zx_user_permissions_note">Inicio permanece disponible para todos los usuarios con sesión. Ajustes queda reservado a Administrador.</div>
+    </section>
+  `;
+}
+
+function zxLeerPermisosFormulario(){
+  const permisos=JSON.parse(JSON.stringify(zxObjeto(ZX_USUARIOS_PERMISOS_EDITANDO)));
+  permisos.modulos={};
+  const rolElegido=normalizarTexto((document.getElementById("u_rol") || {}).value || "");
+
+  ZX_MODULOS_ASIGNABLES.forEach(function(m){
+    const el=document.getElementById("u_perm_"+m.id);
+    permisos.modulos[m.id]=rolElegido==="invitado" ? false : !!(el && el.checked);
+  });
+
+  return permisos;
+}
 
 /*
 PERMISOS USUARIOS V3134
@@ -1850,6 +1920,7 @@ function selectVia(valor){
 
 function formulario(u){
   const editando=!!u.id;
+  ZX_USUARIOS_PERMISOS_EDITANDO=JSON.parse(JSON.stringify(zxPermisosUsuario(u)));
 
   modal(editando ? "Editar usuario" : "Crear usuario",`
     <div class="zx_user_top_actions">
@@ -1908,6 +1979,9 @@ function formulario(u){
       "Oficina",
       "Invitado"
     ])}
+
+    ${zxPermisosEditorHTML(u)}
+
     ${selectSimple("u_estado","Estado",u.estado || "Activo",["Activo","Inactivo"])}
 
   `);
@@ -2002,6 +2076,7 @@ function datosFormulario(foto_url,id){
     emergencia_email:document.getElementById("u_emergencia_email").value.trim().toLowerCase(),
     emergencia_observaciones:document.getElementById("u_emergencia_observaciones").value.trim(),
 
+    permisos:zxLeerPermisosFormulario(),
     rol:document.getElementById("u_rol").value,
     estado:document.getElementById("u_estado").value,
     activo:document.getElementById("u_estado").value==="Activo",
@@ -2096,6 +2171,7 @@ function camposAuditablesUsuario(){
     "emergencia_relacion",
     "emergencia_telefono",
     "emergencia_email",
+    "permisos",
     "rol",
     "estado",
     "activo"
@@ -2106,8 +2182,10 @@ function calcularCambiosUsuario(antes,despues){
   const cambios=[];
 
   camposAuditablesUsuario().forEach(function(campo){
-    const a=String((antes && antes[campo]) ?? "");
-    const b=String((despues && despues[campo]) ?? "");
+    const valorAntes=(antes && antes[campo]) ?? "";
+    const valorDespues=(despues && despues[campo]) ?? "";
+    const a=typeof valorAntes==="object" ? JSON.stringify(valorAntes || {}) : String(valorAntes);
+    const b=typeof valorDespues==="object" ? JSON.stringify(valorDespues || {}) : String(valorDespues);
 
     if(a!==b){
       cambios.push({
@@ -2244,7 +2322,8 @@ function actualizarSesionSiEsUsuarioActual(id,datos){
     ...s,
     usuario:datos.usuario || s.usuario,
     nombre:datos.nombre || s.nombre,
-    rol:datos.rol || s.rol
+    rol:datos.rol || s.rol,
+    permisos:datos.permisos && typeof datos.permisos==="object" ? datos.permisos : (s.permisos || {})
   }));
 }
 
@@ -3888,6 +3967,14 @@ async function verDocumentosUsuario(u,origen="ficha"){
     .zx_user_avatar_empty{background:linear-gradient(135deg,#2563eb,#10b981);color:white;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900}
     .zx_user_row_name{font-size:18px;font-weight:900;color:#0f172a;line-height:1.15;word-break:break-word}
     .zx_user_row_meta,.zx_user_row_phone{color:#64748b;font-size:13px;font-weight:800;margin-top:2px;word-break:break-word}
+    .zx_user_permissions_box{margin:18px 0;padding:16px;border:1px solid #dbe3ef;border-radius:20px;background:#f8fafc}
+    .zx_user_permissions_head h3{margin:0 0 5px;color:#071330;font-size:18px;font-weight:950}
+    .zx_user_permissions_head p{margin:0 0 13px;color:#64748b;font-size:13px;font-weight:800;line-height:1.4}
+    .zx_user_permissions_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .zx_user_permission_item{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:52px;padding:10px 12px;border:1px solid #dbe3ef;border-radius:15px;background:#fff;color:#0f172a;font-weight:900}
+    .zx_user_permission_item input{width:24px;height:24px;accent-color:#2563eb}
+    .zx_user_permissions_note{margin-top:12px;color:#64748b;font-size:12px;font-weight:800;line-height:1.4}
+    @media(max-width:520px){.zx_user_permissions_grid{grid-template-columns:1fr}}
     .zx_rol_badge{display:inline-block;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:900;line-height:1;background:#e5e7eb;color:#111827;margin-right:5px}
     .zx_rol_admin{background:#dc2626;color:white}
     .zx_rol_gerente{background:#7c3aed;color:white}
