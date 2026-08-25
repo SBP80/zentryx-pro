@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3116 - APLICA APARIENCIA GLOBAL AL ARRANQUE
+// V3117 - ACCESO A MÓDULOS Y CONFIGURACIÓN DE EMPRESA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3116";
+const ZX_VERSION="3117";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -13,6 +13,7 @@ const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
 const SESSION_KEY="zentryx_session";
 const USER_KEY="usuario";
 const CONFIG_KEY="zentryx_config";
+const EMPRESA_CONFIG_TABLE="config_empresa";
 const OFFLINE_QUEUE_KEY="zentryx_offline_queue";
 const OFFLINE_CACHE_PREFIX="zentryx_cache_";
 const FETCH_WRAPPED_KEY="__zentryx_fetch_protegido";
@@ -548,9 +549,9 @@ function leerConfig(){
   const cfg=Object.assign({},base,saved || {});
   cfg.modulos=Object.assign({},base.modulos,(saved && saved.modulos) || {});
 
-  if(window.ZENTRYX_STORE && typeof window.ZENTRYX_STORE.getModulos==="function"){
-    cfg.modulos=Object.assign({},cfg.modulos,window.ZENTRYX_STORE.getModulos());
-  }
+  // Inicio y Ajustes son zonas protegidas para evitar dejar la aplicación sin salida.
+  cfg.modulos.inicio=true;
+  cfg.modulos.configuracion=true;
 
   return cfg;
 }
@@ -560,6 +561,8 @@ function guardarConfig(config){
   const next=Object.assign({},base,config || {});
 
   next.modulos=Object.assign({},base.modulos,(config && config.modulos) || {});
+  next.modulos.inicio=true;
+  next.modulos.configuracion=true;
 
   storageSet(CONFIG_KEY,next);
 
@@ -568,6 +571,120 @@ function guardarConfig(config){
   }
 
   return next;
+}
+
+function empresaActualId(){
+  const u=usuarioActual();
+  return String(u.empresa_id || "demo").trim() || "demo";
+}
+
+function modulosEmpresaNormalizados(modulos){
+  const base=configBase().modulos;
+  const out=Object.assign({},base,modulos && typeof modulos==="object" ? modulos : {});
+  out.inicio=true;
+  out.configuracion=true;
+  return out;
+}
+
+function notificarCambioModulos(modulos,origen){
+  try{
+    window.dispatchEvent(new CustomEvent("zentryx:moduleschange",{
+      detail:{
+        modulos:Object.assign({},modulos || {}),
+        origen:origen || "local"
+      }
+    }));
+  }catch(e){}
+}
+
+async function cargarConfigEmpresa(){
+  const local=leerConfig();
+  const cliente=getSupabase();
+
+  if(!cliente || (typeof navigator!=="undefined" && navigator.onLine===false)){
+    return local;
+  }
+
+  try{
+    const empresaId=empresaActualId();
+    const consulta=cliente
+      .from(EMPRESA_CONFIG_TABLE)
+      .select("empresa_id,modulos,updated_at")
+      .eq("empresa_id",empresaId)
+      .maybeSingle();
+
+    const r=await conTimeout(consulta,Math.min(ZX_TIMEOUTS.lectura,5000),"config_empresa");
+
+    if(r && !r.error && r.data && r.data.modulos && typeof r.data.modulos==="object"){
+      const modulos=modulosEmpresaNormalizados(r.data.modulos);
+      const next=guardarConfig({modulos:modulos});
+      notificarCambioModulos(next.modulos,"remoto");
+      return next;
+    }
+  }catch(e){
+    console.warn("Zentryx: no se pudo cargar la configuración de módulos de empresa",e);
+  }
+
+  return local;
+}
+
+async function guardarModulosEmpresa(modulos){
+  const normalizados=modulosEmpresaNormalizados(modulos);
+  const next=guardarConfig({modulos:normalizados});
+  notificarCambioModulos(next.modulos,"local");
+
+  const fila={
+    empresa_id:empresaActualId(),
+    modulos:normalizados,
+    updated_at:ahoraISO(),
+    updated_by:usuarioActual().usuario || usuarioActual().id || ""
+  };
+
+  const r=await upsert(EMPRESA_CONFIG_TABLE,fila);
+  return Object.assign({config:next},r || {});
+}
+
+async function refrescarAccesoUsuarioActual(){
+  const actual=usuarioActual();
+  const cliente=getSupabase();
+
+  if(!actual.id || !cliente || (typeof navigator!=="undefined" && navigator.onLine===false)){
+    return actual;
+  }
+
+  try{
+    const consulta=cliente
+      .from("usuarios")
+      .select("id,usuario,nombre,rol,empresa_id,permisos,activo,estado")
+      .eq("id",actual.id)
+      .maybeSingle();
+
+    const r=await conTimeout(consulta,Math.min(ZX_TIMEOUTS.lectura,5000),"usuario_acceso_actual");
+    if(r && !r.error && r.data){
+      if(r.data.activo===false || normalizar(r.data.estado)==="inactivo"){
+        if(typeof window.ZENTRYX_logout==="function") window.ZENTRYX_logout();
+        return actual;
+      }
+
+      const ses=sesion();
+      const actualizado=Object.assign({},ses,{
+        usuario:r.data.usuario || ses.usuario,
+        nombre:r.data.nombre || ses.nombre,
+        rol:r.data.rol || ses.rol,
+        empresa_id:r.data.empresa_id || ses.empresa_id || "demo",
+        permisos:r.data.permisos && typeof r.data.permisos==="object" ? r.data.permisos : {}
+      });
+      storageSet(SESSION_KEY,actualizado);
+
+      const local=usuarioLocal();
+      storageSet(USER_KEY,Object.assign({},local,r.data));
+      return usuarioActual();
+    }
+  }catch(e){
+    console.warn("Zentryx: no se pudo actualizar el acceso del usuario",e);
+  }
+
+  return actual;
 }
 
 function aliasModulo(nombre){
@@ -1212,26 +1329,67 @@ function guardarOffline(tabla,operacion,data,campo,valor){
   });
 }
 
-function puede(accion,modulo){
-  if(esDesarrollador()) return true;
+const ZX_MODULOS_LEGACY_VISIBLES=new Set([
+  "inicio","fichaje","agenda","clientes","trabajos","manual"
+]);
 
+function permisosModulosUsuario(){
+  const p=usuarioActual().permisos || {};
+  if(p.modulos && typeof p.modulos==="object" && !Array.isArray(p.modulos)){
+    return p.modulos;
+  }
+  return {};
+}
+
+function puedeVerModuloUsuario(modulo){
+  modulo=aliasModulo(modulo || "");
+
+  if(esDesarrollador()) return true;
+  if(!moduloActivo(modulo)) return false;
+  if(esAdmin()) return true;
+
+  // Inicio permanece disponible para cualquier usuario con sesión válida.
+  if(modulo==="inicio") return true;
+  // Invitado conserva el perfil sin acceso operativo.
+  if(rol()==="invitado") return false;
+  // Ajustes queda reservado al administrador/desarrollador.
+  if(modulo==="configuracion") return false;
+
+  const permisos=permisosModulosUsuario();
+  if(Object.prototype.hasOwnProperty.call(permisos,modulo)){
+    return permisos[modulo]===true;
+  }
+
+  // Compatibilidad con usuarios aún no configurados individualmente.
+  return ZX_MODULOS_LEGACY_VISIBLES.has(modulo);
+}
+
+function puede(accion,modulo){
   modulo=aliasModulo(modulo || "");
   accion=normalizar(accion || "");
 
+  if(esDesarrollador()) return true;
+
   if(["diagnostico","logs","sistema","backend","offline","cache","sync","desarrollo"].includes(modulo)){
     return esTecnicoSistema();
+  }
+
+  if(accion==="ver"){
+    return puedeVerModuloUsuario(modulo);
   }
 
   if(esAdmin()) return true;
 
   const u=usuarioActual();
   const permisos=u.permisos || {};
+  const acciones=permisos.acciones && typeof permisos.acciones==="object" ? permisos.acciones : {};
 
-  if(permisos[modulo] && permisos[modulo][accion]===true){
+  if(acciones[modulo] && acciones[modulo][accion]===true){
     return true;
   }
 
-  if(accion==="ver" && moduloActivo(modulo)){
+  // Compatibilidad con el formato anterior previsto en el código.
+  if(permisos[modulo] && typeof permisos[modulo]==="object" && permisos[modulo][accion]===true){
     return true;
   }
 
@@ -1429,6 +1587,10 @@ window.ZENTRYX.formatoFechaHoraES=formatoFechaHoraES;
 window.ZENTRYX.uuid=uuid;
 
 window.ZENTRYX.guardarConfig=guardarConfig;
+window.ZENTRYX.cargarConfigEmpresa=cargarConfigEmpresa;
+window.ZENTRYX.guardarModulosEmpresa=guardarModulosEmpresa;
+window.ZENTRYX.refrescarAccesoUsuarioActual=refrescarAccesoUsuarioActual;
+window.ZENTRYX.puedeVerModuloUsuario=puedeVerModuloUsuario;
 window.ZENTRYX.moduloActivo=moduloActivo;
 window.ZENTRYX.registrarModulo=registrarModulo;
 window.ZENTRYX.obtenerModulo=obtenerModulo;
