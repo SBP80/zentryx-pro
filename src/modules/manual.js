@@ -445,13 +445,13 @@ const AYUDAS_DIRECTAS=[
   {
     id:"permisos_usuario", modulo:"usuarios", titulo:"Permisos de un usuario",
     consulta:"cambiar permisos usuario modificar permisos usuario permisos trabajador acceso usuario",
-    resumen:"En esta versión los accesos dependen principalmente del rol asignado al usuario; no existe un editor separado de permisos individuales en la ficha.",
+    resumen:"El administrador puede decidir qué módulos puede abrir cada usuario desde su ficha.",
     pasos:[
       "Entra en Usuarios y abre la ficha del usuario.",
       "Pulsa Editar.",
-      "Revisa el campo Rol y selecciona el perfil que corresponda.",
+      "En Acceso a módulos marca o desmarca las zonas que puede utilizar.",
       "Guarda los cambios.",
-      "Si necesitas permisos distintos a los definidos por los roles disponibles, esa configuración individual no está disponible en esta versión."
+      "Los administradores tienen acceso automático a todos los módulos activos de la empresa."
     ]
   },
   {
@@ -1695,11 +1695,26 @@ const BASE=[
   }
 ];
 
+const ZX_MANUAL_MODULOS_CON_ACCESO=new Set([
+  "inicio","fichaje","agenda","clientes","trabajos","almacen","usuarios",
+  "vehiculos","horas_extra","control_fichajes","manual","configuracion"
+]);
+
+function accesoModuloManual(id){
+  if(ZX_MANUAL_MODULOS_CON_ACCESO.has(String(id||""))){
+    try{
+      const core=window.ZENTRYX || window.ZX;
+      if(core && typeof core.puede==="function") return core.puede("ver",id)===true;
+    }catch(e){}
+  }
+  return moduloActivo(id);
+}
+
 function visiblePara(u,item){
-  if(item.roles.includes("todos")) return moduloActivo(item.id);
-  if(item.roles.includes("dev") && esDev(u)) return moduloActivo(item.id);
-  if(item.roles.includes("admin") && (esAdmin(u)||esDev(u))) return moduloActivo(item.id);
-  if(item.roles.includes("encargado") && (esEncargado(u)||esAdmin(u)||esDev(u))) return moduloActivo(item.id);
+  if(item.roles.includes("todos")) return accesoModuloManual(item.id);
+  if(item.roles.includes("dev") && esDev(u)) return accesoModuloManual(item.id);
+  if(item.roles.includes("admin") && (esAdmin(u)||esDev(u))) return accesoModuloManual(item.id);
+  if(item.roles.includes("encargado") && (esEncargado(u)||esAdmin(u)||esDev(u))) return accesoModuloManual(item.id);
   return false;
 }
 function contenidos(){
