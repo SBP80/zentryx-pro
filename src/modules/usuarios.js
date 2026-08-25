@@ -10,9 +10,12 @@
 // V3148 - BUSCADOR EMAIL EMPRESA + SINCRONIZACION DE CACHE DE USUARIOS
 // V3149 - BUSQUEDA REMOTA DE RESPALDO PARA EMAIL EMPRESA CUANDO LA CACHE LOCAL ESTA ANTIGUA
 // V3150 - BUSQUEDA EMAIL REMOTA DIRECTA SIN DEPENDER DE CACHE NI ILIKE
+// V3151 - BUSQUEDA EMAIL EMPRESA ROBUSTA + LIMPIEZA DE CARACTERES INVISIBLES
 // ===============================
 (function(){
 "use strict";
+
+window.ZX_USUARIOS_VERSION="3151";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -150,13 +153,26 @@ function normalizarTexto(v){
 }
 
 function normalizarEmailBusqueda(v){
-  return String(v ?? "")
-    .normalize("NFKC")
-    .replace(/[\u200B-\u200D\u2060\uFEFF]/g,"")
-    .replace(/\s+/g,"")
+  let s=String(v ?? "");
+
+  try{
+    s=s.normalize("NFKD");
+  }catch(e){}
+
+  // Elimina marcas diacríticas, espacios y caracteres de formato/control
+  // que pueden quedar guardados de forma invisible al copiar desde iPhone.
+  try{
+    s=s.replace(/\p{M}+/gu,"")
+       .replace(/[\p{Cf}\p{Cc}\p{Z}]+/gu,"");
+  }catch(e){
+    s=s.replace(/[\u0300-\u036f]/g,"")
+       .replace(/[\u0000-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u2000-\u200F\u2028-\u202F\u205F-\u206F\u3000\uFE00-\uFE0F\uFEFF]/g,"")
+       .replace(/\s+/g,"");
+  }
+
+  return s
+    .replace(/[。．｡]/g,".")
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g,"")
     .trim();
 }
 
