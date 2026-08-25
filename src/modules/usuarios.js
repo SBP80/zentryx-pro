@@ -12,11 +12,12 @@
 // V3150 - BUSQUEDA EMAIL REMOTA DIRECTA SIN DEPENDER DE CACHE NI ILIKE
 // V3151 - BUSQUEDA EMAIL EMPRESA ROBUSTA + LIMPIEZA DE CARACTERES INVISIBLES
 // V3152 - CORRIGE RESULTADO REMOTO VACIO QUE PODIA OCULTAR COINCIDENCIAS LOCALES
+// V3153 - BUSCADOR DIRECTO ROBUSTO EN TODOS LOS CAMPOS + EMAIL EMPRESA LITERAL/NORMALIZADO
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3152";
+window.ZX_USUARIOS_VERSION="3153";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -448,14 +449,55 @@ function textoBusquedaUsuario(u){
 }
 
 function coincideBusqueda(u,busqueda){
-  const q=normalizarTexto(busqueda);
+  const original=String(busqueda ?? "").trim();
+  if(!original) return true;
 
-  if(!q) return true;
+  // V3153: primera comprobación literal, sin transformar el contenido del email.
+  // Se usa NFC para que caracteres como ñ coincidan aunque iPhone/Safari los
+  // entregue con una composición Unicode distinta.
+  let qLiteral=original;
+  try{ qLiteral=qLiteral.normalize("NFC"); }catch(e){}
+  qLiteral=qLiteral.toLowerCase();
 
-  // Los emails se comparan también de forma directa. Esto evita que una
-  // fila recuperada desde cache falle por espacios o caracteres Unicode
-  // invisibles y garantiza que email_empresa participe en la búsqueda.
-  const qEmail=normalizarEmailBusqueda(busqueda);
+  const camposDirectos=[
+    u && u.nombre,
+    u && u.usuario,
+    u && u.dni,
+    u && u.rol,
+    u && u.estado,
+    u && u.telefono_personal,
+    u && u.telefono_empresa,
+    u && u.email_personal,
+    u && u.email_empresa,
+    u && u.emergencia_nombre,
+    u && u.emergencia_relacion,
+    u && u.emergencia_telefono,
+    u && u.emergencia_email,
+    u && u.emergencia_observaciones,
+    u && u.via_tipo,
+    u && u.calle,
+    u && u.numero,
+    u && u.portal,
+    u && u.escalera,
+    u && u.piso,
+    u && u.puerta,
+    u && u.poblacion,
+    u && u.provincia,
+    u && u.codigo_postal,
+    u && u.pais,
+    direccionCompleta(u || {})
+  ];
+
+  for(const valor of camposDirectos){
+    if(valor===null || valor===undefined) continue;
+    let s=String(valor).trim();
+    try{ s=s.normalize("NFC"); }catch(e){}
+    if(s.toLowerCase().includes(qLiteral)) return true;
+  }
+
+  // Segunda comprobación específica para email. Elimina espacios, marcas
+  // diacríticas y caracteres invisibles tanto del texto buscado como del dato.
+  const qEmail=normalizarEmailBusqueda(original);
   if(qEmail && qEmail.includes("@")){
     const emailPersonal=normalizarEmailBusqueda(u && u.email_personal);
     const emailEmpresa=normalizarEmailBusqueda(u && u.email_empresa);
@@ -466,7 +508,9 @@ function coincideBusqueda(u,busqueda){
     }
   }
 
-  const texto=textoBusquedaUsuario(u);
+  // Búsqueda general normalizada para nombres, direcciones y resto de campos.
+  const q=normalizarTexto(original);
+  const texto=textoBusquedaUsuario(u || {});
 
   if(texto.includes(q)) return true;
 
@@ -483,14 +527,14 @@ function coincideBusqueda(u,busqueda){
 
   if(qNumeros){
     const numeros=soloNumeros([
-      u.telefono_personal,
-      u.telefono_empresa,
-      u.emergencia_telefono,
-      u.dni,
-      u.codigo_postal,
-      u.numero,
-      u.piso,
-      u.puerta
+      u && u.telefono_personal,
+      u && u.telefono_empresa,
+      u && u.emergencia_telefono,
+      u && u.dni,
+      u && u.codigo_postal,
+      u && u.numero,
+      u && u.piso,
+      u && u.puerta
     ].join(" "));
 
     if(numeros.includes(qNumeros)){
@@ -679,7 +723,7 @@ function filtrarUsuariosEnMemoria(){
     return base;
   }
 
-  // V3152: la cache completa es siempre la fuente de búsqueda.
+  // V3153: la lista completa cargada es siempre la fuente principal de búsqueda.
   // Un resultado remoto vacío o antiguo nunca puede ocultar una coincidencia
   // que sí existe en los datos cargados (por ejemplo email_empresa).
   let candidatos=base.slice();
@@ -866,7 +910,7 @@ function conectarBuscadorUsuarios(){
       ZX_BUSQUEDA_USUARIOS=buscar.value || "";
       const actual=normalizarEmailBusqueda(ZX_BUSQUEDA_USUARIOS);
 
-      // V3152: al cambiar el texto se invalida cualquier respuesta remota anterior
+      // V3153: al cambiar el texto se invalida cualquier respuesta remota anterior
       // antes de repintar, evitando que un [] antiguo deje la pantalla en 0.
       if(anterior!==actual){
         ZX_EMAIL_BUSQUEDA_REMOTA_Q="";
