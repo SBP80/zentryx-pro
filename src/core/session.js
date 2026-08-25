@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - SESSION
-// V3152
+// V3153 - PERMISOS DE USUARIO EN SESIÓN
 // ===============================
 (function(){
 "use strict";
@@ -134,6 +134,7 @@ function normalizeSession(session){
     nombre:String(session.nombre || session.usuario).trim(),
     rol:String(session.rol || "Usuario").trim(),
     empresa_id:session.empresa_id || "demo",
+    permisos:session.permisos && typeof session.permisos==="object" ? session.permisos : {},
     created_at:created,
     last_activity:last,
     expires_at:expires,
@@ -242,6 +243,7 @@ function createSession(usuario){
     nombre:String(usuario.nombre || usuario.usuario).trim(),
     rol:String(usuario.rol || "Usuario").trim(),
     empresa_id:usuario.empresa_id || "demo",
+    permisos:usuario.permisos && typeof usuario.permisos==="object" ? usuario.permisos : {},
     created_at:current,
     last_activity:current,
     expires_at:current+MAX_SESSION_MS,
