@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3153 - TEMA GLOBAL EN LAYOUT
+// V3154 - ACCESO CENTRALIZADO A MÓDULOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3153";
+const ZX_VERSION="3154";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -66,7 +66,8 @@ function usuarioActual(){
     usuario:s.usuario || s.nombre || "",
     nombre:s.nombre || s.usuario || "",
     rol:s.rol || "",
-    empresa_id:s.empresa_id || "demo"
+    empresa_id:s.empresa_id || "demo",
+    permisos:s.permisos && typeof s.permisos==="object" ? s.permisos : {}
   };
 }
 
@@ -2459,6 +2460,12 @@ function moduloVisibleEnDOM(){
 function puedeVerModulo(modulo){
   const m=MODULOS.find(function(x){return x.id===modulo});
   if(!m) return false;
+
+  if(zx() && typeof zx().puede==="function"){
+    return zx().puede("ver",modulo)===true;
+  }
+
+  // Respaldo para una carga incompleta del núcleo.
   if(!moduloActivo(modulo)) return false;
   if(m.dev) return esDesarrollador();
   if(!m.admin) return true;
@@ -3235,6 +3242,28 @@ function nav(){
   montarMenuCompletoModulos();
 }
 
+function refrescarModulosLayout(){
+  const actual=leerModuloActual();
+  const navAnterior=$("zx_nav");
+  if(navAnterior) navAnterior.remove();
+
+  cerrarMenuModulos();
+  const menuAnterior=$("zx_modules_backdrop");
+  if(menuAnterior) menuAnterior.remove();
+  const editorAnterior=$("zx_favorites_editor_backdrop");
+  if(editorAnterior) editorAnterior.remove();
+
+  nav();
+
+  if(actual && puedeVerModulo(actual)){
+    activo(actual);
+    return true;
+  }
+
+  abrirModuloPorId("inicio");
+  return true;
+}
+
 function activo(nombre){
   const objetivo=String(nombre || "")==="horas" ? "horas_extra" : String(nombre || "");
 
@@ -3894,6 +3923,7 @@ window.ZENTRYX_UI_LAYOUT={
   moduloActual:leerModuloActual,
   router:ZXRouter,
   volver:function(){return ZXRouter.back()},
+  refrescarModulos:refrescarModulosLayout,
   iniciar:function(){
     limpiarLayout();
     estilos();
@@ -3904,6 +3934,9 @@ window.ZENTRYX_UI_LAYOUT={
     topbar();
     reloj();
     nav();
+    escuchar(window,"zentryx:moduleschange",function(){
+      setTimeout(refrescarModulosLayout,0);
+    });
     instalarCabeceraFijaReal();
 
     const asegurarModulo=function(){
