@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AJUSTES
-// V3115 - ALMACEN EN MODULOS
+// V3116 - APARIENCIA GLOBAL FUNCIONAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3115";
+const ZX_VERSION="3116";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
 const CONFIG_KEY="zentryx_config";
@@ -154,12 +154,14 @@ function setTema(t){
 
   if(store() && typeof store().saveTheme==="function"){
     store().saveTheme(t);
+    return;
   }
 
   document.documentElement.style.setProperty("--zx-primary",t.color || "#2563eb");
   document.documentElement.style.setProperty("--zx-radius",t.radio || "26px");
   document.body.classList.toggle("zx_compacto",!!t.compacto);
   document.body.classList.toggle("zx_alto_contraste",!!t.alto_contraste);
+  document.documentElement.dataset.zxTheme=String(t.modo||"light")==="dark" ? "dark" : "light";
 }
 
 function guardarTodo(cfg,t,st){
@@ -459,7 +461,7 @@ function conectar(){
     colorTxt.onchange=function(){color.value=colorTxt.value || "#2563eb";setTema(Object.assign(getTheme(),{color:color.value}))};
   }
 
-  ["set_theme_compacto","set_theme_contraste","set_theme_radio"].forEach(function(id){
+  ["set_theme_modo","set_theme_compacto","set_theme_contraste","set_theme_radio"].forEach(function(id){
     const el=document.getElementById(id);
     if(el){
       el.onchange=function(){
@@ -499,11 +501,11 @@ function conectar(){
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_configuracion_css_v3114");
+  const old=document.getElementById("zx_configuracion_css_v3116");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_configuracion_css_v3114";
+  s.id="zx_configuracion_css_v3116";
   s.innerHTML=`
     .zx_set_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_set_hero,.zx_set_card,.zx_set_nav{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
@@ -527,11 +529,11 @@ function instalarCSS(){
     .zx_set_toggle{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:14px;margin-top:10px}
     .zx_set_toggle b{display:block;color:#071330;font-size:15px;line-height:1.2;font-weight:950}
     .zx_set_toggle span{display:block;color:#64748b;font-size:13px;line-height:1.3;font-weight:800;margin-top:4px}
-    .zx_set_toggle input{width:28px;height:28px;margin:0;accent-color:#2563eb}
+    .zx_set_toggle input{width:28px;height:28px;margin:0;accent-color:var(--zx-primary)}
     .zx_set_modgrid{display:grid;grid-template-columns:1fr;gap:0}
     .zx_set_actions{display:grid;grid-template-columns:1fr;gap:10px}
     .zx_set_actions button{border:0;border-radius:18px;padding:15px;color:white;font-size:16px;font-weight:950}
-    .zx_set_actions .blue{background:#2563eb}.zx_set_actions .purple{background:#7c3aed}
+    .zx_set_actions .blue{background:var(--zx-primary);color:var(--zx-primary-contrast)}.zx_set_actions .purple{background:#7c3aed}
     body.zx_compacto .zx_set_hero,body.zx_compacto .zx_set_card{padding:14px;border-radius:20px}
     body.zx_alto_contraste .zx_set_card,body.zx_alto_contraste .zx_set_hero{border-color:#0f172a}
     @media(max-width:390px){.zx_set_hero{grid-template-columns:1fr}.zx_set_hero h2{font-size:27px}.zx_set_card_head{grid-template-columns:46px 1fr}.zx_set_icon{width:46px;height:46px;border-radius:16px}}
