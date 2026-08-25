@@ -2184,7 +2184,7 @@ function topbar(){
   function cerrarSesion(){
     localStorage.removeItem("zentryx_session");
     localStorage.removeItem("usuario");
-    location.href="index.html?v="+ZX_VERSION;
+    location.replace("index.html?v="+ZX_VERSION+"&t="+Date.now());
   }
 
   $("zx_menu_cambiar").onclick=cerrarSesion;
