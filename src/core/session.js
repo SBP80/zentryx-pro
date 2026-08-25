@@ -5,15 +5,15 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3347";
+const ZX_VERSION="3403";
 
 const SESSION_KEY="zentryx_session";
 const USER_KEY="usuario";
 const DEVICE_KEY="zentryx_device_id";
 const SESSION_EVENT_KEY="zentryx_session_event";
 
-const LOGIN_URL="index.html?v="+ZX_VERSION;
-const APP_URL="app.html?v="+ZX_VERSION;
+const LOGIN_URL="index.html?v="+ZX_VERSION+"&t="+Date.now();
+const APP_URL="app.html?v="+ZX_VERSION+"&t="+Date.now();
 
 // Duración máxima absoluta de una sesión.
 const MAX_SESSION_MS=12*60*60*1000;
