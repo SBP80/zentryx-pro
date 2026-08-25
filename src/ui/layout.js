@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3152 - MANUAL DESDE MENU DE APLICACIONES
+// V3153 - TEMA GLOBAL EN LAYOUT
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3152";
+const ZX_VERSION="3153";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -174,6 +174,17 @@ function estilos(){
   css.innerHTML=`
     :root{
       --zx-primary:#2563eb;
+      --zx-primary-rgb:37,99,235;
+      --zx-primary-contrast:#ffffff;
+      --zx-primary-strong:#1d4ed8;
+      --zx-primary-soft:#eff6ff;
+      --zx-primary-soft-2:#dbeafe;
+      --zx-primary-border:#bfdbfe;
+      --zx-radius:26px;
+      --zx-radius-xs:12px;
+      --zx-radius-sm:16px;
+      --zx-radius-md:20px;
+      --zx-radius-lg:26px;
       --zx-bg:#f4f7fb;
       --zx-card:#ffffff;
       --zx-text:#071330;
@@ -3886,6 +3897,9 @@ window.ZENTRYX_UI_LAYOUT={
   iniciar:function(){
     limpiarLayout();
     estilos();
+    if(window.ZENTRYX_STORE && typeof window.ZENTRYX_STORE.applyTheme==="function"){
+      window.ZENTRYX_STORE.applyTheme(window.ZENTRYX_STORE.getTheme ? window.ZENTRYX_STORE.getTheme() : null);
+    }
     instalarRutas();
     topbar();
     reloj();
