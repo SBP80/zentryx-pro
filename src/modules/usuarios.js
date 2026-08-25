@@ -9,6 +9,7 @@
 // V3147 - VOLVER DESDE EDITAR REGRESA A LA FICHA DEL MISMO USUARIO
 // V3148 - BUSCADOR EMAIL EMPRESA + SINCRONIZACION DE CACHE DE USUARIOS
 // V3149 - BUSQUEDA REMOTA DE RESPALDO PARA EMAIL EMPRESA CUANDO LA CACHE LOCAL ESTA ANTIGUA
+// V3150 - BUSQUEDA EMAIL REMOTA DIRECTA SIN DEPENDER DE CACHE NI ILIKE
 // ===============================
 (function(){
 "use strict";
@@ -68,6 +69,8 @@ let ZX_BUSQUEDA_USUARIOS="";
 let ZX_USUARIOS_CACHE=[];
 let ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ=0;
 let ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER=null;
+let ZX_EMAIL_BUSQUEDA_REMOTA_Q="";
+let ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS=null;
 
 const ZX_PROVINCIAS_POR_COMUNIDAD={
   "Andalucía":["Almería","Cádiz","Córdoba","Granada","Huelva","Jaén","Málaga","Sevilla"],
@@ -659,6 +662,13 @@ function filtrarUsuariosEnMemoria(){
     return base;
   }
 
+  const qEmail=normalizarEmailBusqueda(q);
+  if(qEmail && qEmail.includes("@") &&
+     ZX_EMAIL_BUSQUEDA_REMOTA_Q===qEmail &&
+     Array.isArray(ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS)){
+    return ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS.filter(puedeVerUsuario);
+  }
+
   return base.filter(function(u){
     return coincideBusqueda(u,q);
   });
@@ -757,8 +767,17 @@ function programarBusquedaEmailEmpresaRemota(busqueda){
   const original=String(busqueda || "").trim();
   const qEmail=normalizarEmailBusqueda(original);
 
-  if(!qEmail || !qEmail.includes("@") || zxUsuariosOffline() || !sb()){
+  if(!qEmail || !qEmail.includes("@")){
     ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ++;
+    ZX_EMAIL_BUSQUEDA_REMOTA_Q="";
+    ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS=null;
+    return;
+  }
+
+  if(zxUsuariosOffline() || !sb()){
+    ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ++;
+    ZX_EMAIL_BUSQUEDA_REMOTA_Q="";
+    ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS=null;
     return;
   }
 
@@ -771,56 +790,45 @@ function programarBusquedaEmailEmpresaRemota(busqueda){
     if(normalizarEmailBusqueda(ZX_BUSQUEDA_USUARIOS)!==qEmail) return;
 
     try{
-      const partes=qEmail.split("@");
-      const dominio=partes.length>1 ? partes.slice(1).join("@").trim() : "";
-
+      // Para búsquedas de email se obtiene la lista directamente del backend
+      // y se filtra en el dispositivo. Así no dependemos de una cache antigua
+      // ni del comportamiento de ILIKE con caracteres especiales.
       let consulta=sb()
         .from("usuarios")
         .select("*")
-        .limit(100);
+        .order("nombre",{ascending:true})
+        .limit(500);
 
-      // Se consulta por dominio para que un caracter raro/invisible en la
-      // parte local del email no impida recuperar la fila correcta.
-      if(dominio){
-        consulta=consulta.ilike("email_empresa","%@"+dominio+"%");
-      }else{
-        consulta=consulta.ilike("email_empresa","%"+original+"%");
+      if(ZX_FILTRO_USUARIOS==="activos"){
+        consulta=consulta.eq("activo",true);
+      }
+      if(ZX_FILTRO_USUARIOS==="inactivos"){
+        consulta=consulta.eq("activo",false);
       }
 
       const res=await consulta;
 
       if(seq!==ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ) return;
       if(normalizarEmailBusqueda(ZX_BUSQUEDA_USUARIOS)!==qEmail) return;
-      if(res.error || !Array.isArray(res.data) || !res.data.length) return;
+      if(res.error || !Array.isArray(res.data)) return;
 
-      let cambiado=false;
-      const lista=Array.isArray(ZX_USUARIOS_CACHE) ? ZX_USUARIOS_CACHE.slice() : [];
-
-      res.data.forEach(function(remoto){
-        const emailEmpresa=normalizarEmailBusqueda(remoto && remoto.email_empresa);
-        if(!emailEmpresa || !emailEmpresa.includes(qEmail)) return;
-
-        const id=String((remoto && remoto.id) || "");
-        if(!id) return;
-
-        const i=lista.findIndex(u=>String((u && u.id) || "")===id);
-        if(i>=0){
-          lista[i]={...lista[i],...remoto};
-        }else{
-          lista.push(remoto);
-        }
-        cambiado=true;
+      const remotos=res.data.filter(function(u){
+        return puedeVerUsuario(u) && coincideBusqueda(u,original);
       });
 
-      if(cambiado){
-        ZX_USUARIOS_CACHE=lista;
-        zxUsuariosGuardarCache(lista);
-        pintarListaUsuarios();
-      }
+      // La respuesta remota pasa a ser la fuente de verdad para esta búsqueda.
+      ZX_EMAIL_BUSQUEDA_REMOTA_Q=qEmail;
+      ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS=remotos;
+
+      // Renovamos también la cache general con las filas obtenidas.
+      ZX_USUARIOS_CACHE=res.data.slice();
+      zxUsuariosGuardarCache(ZX_USUARIOS_CACHE);
+
+      pintarListaUsuarios();
     }catch(e){
-      // Si falla la red se conserva el comportamiento local/offline actual.
+      // Se mantiene el resultado local si la red falla.
     }
-  },250);
+  },180);
 }
 
 function conectarBuscadorUsuarios(){
@@ -852,6 +860,9 @@ function conectarBuscadorUsuarios(){
   document.querySelectorAll("[data-user-filter]").forEach(function(btn){
     btn.onclick=function(){
       ZX_FILTRO_USUARIOS=btn.dataset.userFilter || "activos";
+      ZX_EMAIL_BUSQUEDA_REMOTA_Q="";
+      ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS=null;
+      ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ++;
       ZX_usuarios();
     };
   });
@@ -864,6 +875,13 @@ function conectarBotonLimpiarBusqueda(){
   if(limpiarBusqueda){
     limpiarBusqueda.onclick=function(){
       ZX_BUSQUEDA_USUARIOS="";
+      ZX_EMAIL_BUSQUEDA_REMOTA_Q="";
+      ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS=null;
+      ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ++;
+      if(ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER){
+        clearTimeout(ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER);
+        ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER=null;
+      }
       if(buscar) buscar.value="";
       limpiarBusqueda.remove();
       pintarListaUsuarios();
