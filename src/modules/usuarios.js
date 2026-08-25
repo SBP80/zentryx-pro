@@ -7,6 +7,7 @@
 // V3145 - IMPRESIÓN DIRECTA COMPATIBLE CON iPhone/iPad PWA
 // V3146 - IMPRESIÓN PDF NATIVA PARA iPhone/iPad PWA
 // V3147 - VOLVER DESDE EDITAR REGRESA A LA FICHA DEL MISMO USUARIO
+// V3148 - BUSCADOR EMAIL EMPRESA + SINCRONIZACION DE CACHE DE USUARIOS
 // ===============================
 (function(){
 "use strict";
@@ -31,6 +32,23 @@ function zxUsuariosGuardarCache(datos){
   try{
     localStorage.setItem(ZX_USUARIOS_CACHE_KEY,JSON.stringify(Array.isArray(datos) ? datos : []));
   }catch(e){}
+}
+
+function zxUsuariosActualizarCacheUsuario(usuarioId,datos){
+  const id=String(usuarioId || (datos && datos.id) || "");
+  if(!id || !datos) return;
+
+  const lista=Array.isArray(ZX_USUARIOS_CACHE) ? ZX_USUARIOS_CACHE.slice() : [];
+  const i=lista.findIndex(u=>String((u && u.id) || "")===id);
+
+  if(i>=0){
+    lista[i]={...lista[i],...datos,id:lista[i].id || usuarioId};
+  }else{
+    lista.push({...datos,id:usuarioId});
+  }
+
+  ZX_USUARIOS_CACHE=lista;
+  zxUsuariosGuardarCache(lista);
 }
 
 function zxUsuariosEsErrorRed(e){
@@ -119,6 +137,17 @@ function limpiar(v){
 
 function normalizarTexto(v){
   return String(v ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .trim();
+}
+
+function normalizarEmailBusqueda(v){
+  return String(v ?? "")
+    .normalize("NFKC")
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g,"")
+    .replace(/\s+/g,"")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g,"")
@@ -399,6 +428,20 @@ function coincideBusqueda(u,busqueda){
   const q=normalizarTexto(busqueda);
 
   if(!q) return true;
+
+  // Los emails se comparan también de forma directa. Esto evita que una
+  // fila recuperada desde cache falle por espacios o caracteres Unicode
+  // invisibles y garantiza que email_empresa participe en la búsqueda.
+  const qEmail=normalizarEmailBusqueda(busqueda);
+  if(qEmail && qEmail.includes("@")){
+    const emailPersonal=normalizarEmailBusqueda(u && u.email_personal);
+    const emailEmpresa=normalizarEmailBusqueda(u && u.email_empresa);
+
+    if((emailPersonal && emailPersonal.includes(qEmail)) ||
+       (emailEmpresa && emailEmpresa.includes(qEmail))){
+      return true;
+    }
+  }
 
   const texto=textoBusquedaUsuario(u);
 
@@ -1994,6 +2037,11 @@ async function guardarUsuario(id,fotoActual){
   }
 
   const usuarioId=id || (res.data && res.data[0] ? res.data[0].id : "");
+
+  // Mantener la copia local al día con todos los campos guardados.
+  // Es importante para que las búsquedas sigan funcionando aunque la
+  // siguiente lectura de red use temporalmente la cache.
+  zxUsuariosActualizarCacheUsuario(usuarioId,{...datos,id:usuarioId});
 
   if(id){
     const cambios=calcularCambiosUsuario(antes,datos);
