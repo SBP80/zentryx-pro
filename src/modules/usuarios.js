@@ -11,11 +11,12 @@
 // V3149 - BUSQUEDA REMOTA DE RESPALDO PARA EMAIL EMPRESA CUANDO LA CACHE LOCAL ESTA ANTIGUA
 // V3150 - BUSQUEDA EMAIL REMOTA DIRECTA SIN DEPENDER DE CACHE NI ILIKE
 // V3151 - BUSQUEDA EMAIL EMPRESA ROBUSTA + LIMPIEZA DE CARACTERES INVISIBLES
+// V3152 - CORRIGE RESULTADO REMOTO VACIO QUE PODIA OCULTAR COINCIDENCIAS LOCALES
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3151";
+window.ZX_USUARIOS_VERSION="3152";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -678,14 +679,23 @@ function filtrarUsuariosEnMemoria(){
     return base;
   }
 
-  const qEmail=normalizarEmailBusqueda(q);
-  if(qEmail && qEmail.includes("@") &&
-     ZX_EMAIL_BUSQUEDA_REMOTA_Q===qEmail &&
-     Array.isArray(ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS)){
-    return ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS.filter(puedeVerUsuario);
+  // V3152: la cache completa es siempre la fuente de búsqueda.
+  // Un resultado remoto vacío o antiguo nunca puede ocultar una coincidencia
+  // que sí existe en los datos cargados (por ejemplo email_empresa).
+  let candidatos=base.slice();
+
+  if(Array.isArray(ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS)){
+    const vistos=new Set(candidatos.map(u=>String((u && u.id) || "")));
+    ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS.forEach(function(u){
+      const id=String((u && u.id) || "");
+      if(!id || vistos.has(id)) return;
+      if(!puedeVerUsuario(u)) return;
+      vistos.add(id);
+      candidatos.push(u);
+    });
   }
 
-  return base.filter(function(u){
+  return candidatos.filter(function(u){
     return coincideBusqueda(u,q);
   });
 }
@@ -852,7 +862,17 @@ function conectarBuscadorUsuarios(){
 
   if(buscar){
     buscar.oninput=function(){
+      const anterior=normalizarEmailBusqueda(ZX_BUSQUEDA_USUARIOS);
       ZX_BUSQUEDA_USUARIOS=buscar.value || "";
+      const actual=normalizarEmailBusqueda(ZX_BUSQUEDA_USUARIOS);
+
+      // V3152: al cambiar el texto se invalida cualquier respuesta remota anterior
+      // antes de repintar, evitando que un [] antiguo deje la pantalla en 0.
+      if(anterior!==actual){
+        ZX_EMAIL_BUSQUEDA_REMOTA_Q="";
+        ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS=null;
+      }
+
       pintarListaUsuarios();
       programarBusquedaEmailEmpresaRemota(ZX_BUSQUEDA_USUARIOS);
 
