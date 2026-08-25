@@ -8,6 +8,7 @@
 // V3146 - IMPRESIÓN PDF NATIVA PARA iPhone/iPad PWA
 // V3147 - VOLVER DESDE EDITAR REGRESA A LA FICHA DEL MISMO USUARIO
 // V3148 - BUSCADOR EMAIL EMPRESA + SINCRONIZACION DE CACHE DE USUARIOS
+// V3149 - BUSQUEDA REMOTA DE RESPALDO PARA EMAIL EMPRESA CUANDO LA CACHE LOCAL ESTA ANTIGUA
 // ===============================
 (function(){
 "use strict";
@@ -65,6 +66,8 @@ const FOTO_BUCKET="zentryx-usuarios";
 let ZX_FILTRO_USUARIOS="activos";
 let ZX_BUSQUEDA_USUARIOS="";
 let ZX_USUARIOS_CACHE=[];
+let ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ=0;
+let ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER=null;
 
 const ZX_PROVINCIAS_POR_COMUNIDAD={
   "Andalucía":["Almería","Cádiz","Córdoba","Granada","Huelva","Jaén","Málaga","Sevilla"],
@@ -745,6 +748,81 @@ function renderResumenFiltroUsuarios(total){
   `;
 }
 
+function programarBusquedaEmailEmpresaRemota(busqueda){
+  if(ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER){
+    clearTimeout(ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER);
+    ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER=null;
+  }
+
+  const original=String(busqueda || "").trim();
+  const qEmail=normalizarEmailBusqueda(original);
+
+  if(!qEmail || !qEmail.includes("@") || zxUsuariosOffline() || !sb()){
+    ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ++;
+    return;
+  }
+
+  const seq=++ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ;
+
+  ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER=setTimeout(async function(){
+    ZX_EMAIL_EMPRESA_BUSQUEDA_TIMER=null;
+
+    if(seq!==ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ) return;
+    if(normalizarEmailBusqueda(ZX_BUSQUEDA_USUARIOS)!==qEmail) return;
+
+    try{
+      const partes=qEmail.split("@");
+      const dominio=partes.length>1 ? partes.slice(1).join("@").trim() : "";
+
+      let consulta=sb()
+        .from("usuarios")
+        .select("*")
+        .limit(100);
+
+      // Se consulta por dominio para que un caracter raro/invisible en la
+      // parte local del email no impida recuperar la fila correcta.
+      if(dominio){
+        consulta=consulta.ilike("email_empresa","%@"+dominio+"%");
+      }else{
+        consulta=consulta.ilike("email_empresa","%"+original+"%");
+      }
+
+      const res=await consulta;
+
+      if(seq!==ZX_EMAIL_EMPRESA_BUSQUEDA_SEQ) return;
+      if(normalizarEmailBusqueda(ZX_BUSQUEDA_USUARIOS)!==qEmail) return;
+      if(res.error || !Array.isArray(res.data) || !res.data.length) return;
+
+      let cambiado=false;
+      const lista=Array.isArray(ZX_USUARIOS_CACHE) ? ZX_USUARIOS_CACHE.slice() : [];
+
+      res.data.forEach(function(remoto){
+        const emailEmpresa=normalizarEmailBusqueda(remoto && remoto.email_empresa);
+        if(!emailEmpresa || !emailEmpresa.includes(qEmail)) return;
+
+        const id=String((remoto && remoto.id) || "");
+        if(!id) return;
+
+        const i=lista.findIndex(u=>String((u && u.id) || "")===id);
+        if(i>=0){
+          lista[i]={...lista[i],...remoto};
+        }else{
+          lista.push(remoto);
+        }
+        cambiado=true;
+      });
+
+      if(cambiado){
+        ZX_USUARIOS_CACHE=lista;
+        zxUsuariosGuardarCache(lista);
+        pintarListaUsuarios();
+      }
+    }catch(e){
+      // Si falla la red se conserva el comportamiento local/offline actual.
+    }
+  },250);
+}
+
 function conectarBuscadorUsuarios(){
   const buscar=document.getElementById("zx_buscar_usuarios");
 
@@ -752,6 +830,7 @@ function conectarBuscadorUsuarios(){
     buscar.oninput=function(){
       ZX_BUSQUEDA_USUARIOS=buscar.value || "";
       pintarListaUsuarios();
+      programarBusquedaEmailEmpresaRemota(ZX_BUSQUEDA_USUARIOS);
 
       const limpiarBusqueda=document.getElementById("zx_limpiar_busqueda_usuarios");
       if(!limpiarBusqueda && ZX_BUSQUEDA_USUARIOS){
