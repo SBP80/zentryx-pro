@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AJUSTES
-// V3116 - APARIENCIA GLOBAL FUNCIONAL
+// V3117 - MÓDULOS DE EMPRESA PERSISTENTES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3116";
+const ZX_VERSION="3117";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
 const CONFIG_KEY="zentryx_config";
@@ -133,9 +133,9 @@ function getConfig(){
     cfg.empresa.color=emp.color || cfg.empresa.color;
   }
 
-  if(store() && typeof store().getModulos==="function"){
-    cfg.modulos=Object.assign({},cfg.modulos,store().getModulos() || {});
-  }
+  // Inicio y Ajustes no pueden quedar desactivados.
+  cfg.modulos.inicio=true;
+  cfg.modulos.configuracion=true;
 
   return cfg;
 }
@@ -164,7 +164,12 @@ function setTema(t){
   document.documentElement.dataset.zxTheme=String(t.modo||"light")==="dark" ? "dark" : "light";
 }
 
-function guardarTodo(cfg,t,st){
+async function guardarTodo(cfg,t,st){
+  cfg.modulos=Object.assign({},cfg.modulos || {},{
+    inicio:true,
+    configuracion:true
+  });
+
   guardar(CONFIG_KEY,cfg);
   guardar(SETTINGS_KEY,st);
   setTema(t);
@@ -183,11 +188,22 @@ function guardarTodo(cfg,t,st){
     });
   }
 
-  if(zx() && typeof zx().guardarConfig==="function"){
+  let remoto={error:null};
+  if(zx() && typeof zx().guardarModulosEmpresa==="function"){
+    remoto=await zx().guardarModulosEmpresa(cfg.modulos);
+  }else if(zx() && typeof zx().guardarConfig==="function"){
     zx().guardarConfig(cfg);
   }
 
-  alert("Ajustes guardados.");
+  if(remoto && remoto.error){
+    alert("Los ajustes se han guardado en este dispositivo, pero no se pudieron guardar todavía para la empresa: "+(remoto.error.message || remoto.error));
+    return false;
+  }
+
+  alert(remoto && (remoto.offline || remoto.degradada)
+    ? "Ajustes guardados. La copia de empresa queda pendiente de sincronizar."
+    : "Ajustes guardados.");
+  return true;
 }
 
 function campoTexto(id,label,value,placeholder){
@@ -270,7 +286,6 @@ function seccionApariencia(t){
 
 function seccionModulos(cfg){
   const nombres={
-    inicio:"Inicio",
     fichaje:"Fichaje",
     agenda:"Agenda",
     clientes:"Clientes",
@@ -280,14 +295,14 @@ function seccionModulos(cfg){
     vehiculos:"Vehículos",
     horas_extra:"Horas",
     control_fichajes:"Control",
-    configuracion:"Ajustes"
+    manual:"Manual"
   };
 
   return `
     <section class="zx_set_card" id="zx_set_modulos">
       <div class="zx_set_card_head">
         <div class="zx_set_icon green">🧩</div>
-        <div><h3>Módulos</h3><p>Activa o desactiva zonas de Zentryx.</p></div>
+        <div><h3>Módulos de empresa</h3><p>Decide qué zonas utiliza la empresa. Inicio y Ajustes permanecen disponibles.</p></div>
       </div>
       <div class="zx_set_modgrid">
         ${Object.keys(nombres).map(function(k){
@@ -471,10 +486,10 @@ function conectar(){
     }
   });
 
-  function guardarClick(){
+  async function guardarClick(){
     const vals=leerPantalla();
-    guardarTodo(vals.cfg,vals.t,vals.st);
-    pintar();
+    const ok=await guardarTodo(vals.cfg,vals.t,vals.st);
+    if(ok!==false) pintar();
   }
 
   document.getElementById("set_guardar_top").onclick=guardarClick;
