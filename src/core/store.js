@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - STORE CORE
-// V3108 - MOTOR GLOBAL DE APARIENCIA
+// V3109 - MODO COMPACTO GLOBAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3108";
+const ZX_VERSION="3109";
 const STORAGE_KEY="zentryx_state";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
@@ -261,23 +261,189 @@ function zxInstalarCssTema(){
     .zx_azul,.zx_blue,.zx_filter_on,.zx_user_open_btn,.zx_user_top_primary{background:var(--zx-primary)!important;color:var(--zx-primary-contrast)!important}
     .zx_contact_box{border-left-color:var(--zx-primary)!important}
 
-    body.zx_compacto #app{font-size:.95em}
+    /* MODO COMPACTO GLOBAL */
+    body.zx_compacto #app{font-size:.94em}
+
+    body.zx_compacto #zx_topbar{padding-bottom:6px!important}
+    body.zx_compacto #zx_topbar_inner{gap:3px 7px!important}
+    body.zx_compacto #zx_logo{width:34px!important;height:34px!important;min-width:34px!important}
+    body.zx_compacto #zx_brand_txt h1{font-size:17px!important}
+    body.zx_compacto #zx_brand_txt div{font-size:10px!important}
+    body.zx_compacto #zx_user_btn{width:32px!important;height:32px!important;min-width:32px!important}
+    body.zx_compacto #zx_header_meta{padding-top:3px!important}
+    body.zx_compacto #zx_nav{padding:5px 8px!important}
+    body.zx_compacto #zx_nav_inner{gap:4px!important}
+    body.zx_compacto .zx_nav_btn{min-height:42px!important;padding:4px 6px!important;gap:5px!important;font-size:10px!important}
+    body.zx_compacto .zx_nav_icon{width:24px!important;height:24px!important;min-width:24px!important;font-size:16px!important}
+
+    body.zx_compacto #app input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]),
+    body.zx_compacto #app select,
+    body.zx_compacto #app textarea{padding:9px 10px!important;font-size:15px!important}
+
     body.zx_compacto .zx_card,
-    body.zx_compacto .zx_user_row,
     body.zx_compacto .zx_list_item,
     body.zx_compacto .zx_set_card,
-    body.zx_compacto .zx_set_hero{padding-top:10px!important;padding-bottom:10px!important}
+    body.zx_compacto .zx_set_hero,
+    body.zx_compacto .zx_md_hero,
+    body.zx_compacto .zx_md_card,
+    body.zx_compacto .zx_cli_panel,
+    body.zx_compacto .zx_cli_card,
+    body.zx_compacto .zx_cli_ficha_section,
+    body.zx_compacto .zx_cli_subcard,
+    body.zx_compacto .zx_tr_panel,
+    body.zx_compacto .zx_tr_card,
+    body.zx_compacto .zx_tr_block,
+    body.zx_compacto .zx_tr_status_card,
+    body.zx_compacto .zx_tr_execution_panel,
+    body.zx_compacto .zx_tr_history_item,
+    body.zx_compacto .zx_tr_team_item,
+    body.zx_compacto .zx_tr_part_item,
+    body.zx_compacto .zx_ag_panel,
+    body.zx_compacto .zx_ag_event,
+    body.zx_compacto .zx_veh_panel,
+    body.zx_compacto .zx_veh_card,
+    body.zx_compacto .zx_veh_hist_item,
+    body.zx_compacto .zx_veh_incident_card,
+    body.zx_compacto .zx_uso_card,
+    body.zx_compacto .zx_al_card,
+    body.zx_compacto .zx_al_row,
+    body.zx_compacto .zx_al_stat,
+    body.zx_compacto .zx_al_inventory_row,
+    body.zx_compacto .zx_fichaje_item,
+    body.zx_compacto .zx_resumen_card,
+    body.zx_compacto .zx_admin_row,
+    body.zx_compacto .zx_consumo_card,
+    body.zx_compacto .zx_audit_item,
+    body.zx_compacto .zx_hist_item,
+    body.zx_compacto .zx_doc_item{padding:10px 11px!important}
+
+    body.zx_compacto .zx_md_day{gap:8px!important;margin-top:12px!important}
+    body.zx_compacto .zx_md_status,
+    body.zx_compacto .zx_md_inline{padding:9px 10px!important;gap:8px!important}
+    body.zx_compacto .zx_md_primary,
+    body.zx_compacto .zx_md_work{padding:12px!important;font-size:16px!important}
+    body.zx_compacto .zx_md_card h3{font-size:20px!important;margin-bottom:9px!important}
+    body.zx_compacto .zx_md_quick{gap:6px!important;margin-top:6px!important}
+    body.zx_compacto .zx_md_quick button{padding:9px 6px!important;font-size:12px!important}
+    body.zx_compacto .zx_md_empty{padding:10px 12px!important}
+
     body.zx_compacto .zx_usuarios_lista,
-    body.zx_compacto .zx_user_toolbar{gap:6px!important}
+    body.zx_compacto .zx_user_toolbar,
+    body.zx_compacto .zx_cli_shell,
+    body.zx_compacto .zx_cli_list,
+    body.zx_compacto .zx_cli_toolbar,
+    body.zx_compacto .zx_cli_dynamic_box,
+    body.zx_compacto .zx_tr_shell,
+    body.zx_compacto .zx_tr_toolbar,
+    body.zx_compacto .zx_tr_list,
+    body.zx_compacto .zx_tr_history_list,
+    body.zx_compacto .zx_tr_team_list,
+    body.zx_compacto .zx_ag_shell,
+    body.zx_compacto .zx_ag_lists,
+    body.zx_compacto .zx_veh_shell,
+    body.zx_compacto .zx_veh_toolbar,
+    body.zx_compacto .zx_veh_list,
+    body.zx_compacto .zx_veh_hist,
+    body.zx_compacto .zx_al_grid,
+    body.zx_compacto .zx_al_list,
+    body.zx_compacto .zx_al_form,
+    body.zx_compacto .zx_solicitudes_laboral_lista{gap:7px!important}
+
     body.zx_compacto .zx_user_row{padding:7px 9px!important}
     body.zx_compacto .zx_user_row_main{grid-template-columns:44px minmax(0,1fr) auto!important;gap:8px!important}
     body.zx_compacto .zx_user_row_avatar{width:44px!important;height:44px!important}
     body.zx_compacto .zx_user_row_name{font-size:16px!important}
-    body.zx_compacto .zx_user_row_meta,body.zx_compacto .zx_user_row_phone{font-size:12px!important}
+    body.zx_compacto .zx_user_row_meta,
+    body.zx_compacto .zx_user_row_phone{font-size:12px!important}
     body.zx_compacto .zx_user_open_btn{padding:8px 9px!important;font-size:12px!important}
-    body.zx_compacto input,body.zx_compacto select,body.zx_compacto textarea{padding:10px 12px!important;margin-top:7px!important}
-    body.zx_compacto .zx_nav_btn{min-height:50px!important;padding-top:5px!important;padding-bottom:5px!important}
-    body.zx_compacto .zx_nav_icon{width:25px!important;height:25px!important;font-size:16px!important}
+    body.zx_compacto .zx_user_filter{gap:6px!important}
+    body.zx_compacto .zx_user_filter button{padding:9px!important}
+    body.zx_compacto .zx_user_top_actions{gap:7px!important;margin-bottom:10px!important;padding-bottom:8px!important}
+    body.zx_compacto .zx_user_top_actions button{padding:10px!important;font-size:14px!important}
+
+    body.zx_compacto .zx_cli_shell,
+    body.zx_compacto .zx_tr_shell,
+    body.zx_compacto .zx_ag_shell,
+    body.zx_compacto .zx_veh_shell{gap:9px!important}
+    body.zx_compacto .zx_cli_header h2,
+    body.zx_compacto .zx_tr_header h2,
+    body.zx_compacto .zx_ag_header h2,
+    body.zx_compacto .zx_veh_header h2{font-size:26px!important}
+    body.zx_compacto .zx_cli_new,
+    body.zx_compacto .zx_cli_import,
+    body.zx_compacto .zx_ag_new,
+    body.zx_compacto .zx_veh_new{padding:10px 12px!important;min-height:42px!important;font-size:14px!important}
+    body.zx_compacto .zx_cli_kpis,
+    body.zx_compacto .zx_tr_kpis,
+    body.zx_compacto .zx_veh_kpis{gap:5px!important;margin-bottom:8px!important}
+    body.zx_compacto .zx_cli_kpis div,
+    body.zx_compacto .zx_tr_kpis div,
+    body.zx_compacto .zx_veh_kpis div{padding:7px 4px!important}
+    body.zx_compacto .zx_tr_kpis b,
+    body.zx_compacto .zx_veh_kpis b{font-size:21px!important}
+    body.zx_compacto .zx_tr_kpis span,
+    body.zx_compacto .zx_veh_kpis span{font-size:10px!important;margin-top:4px!important}
+    body.zx_compacto .zx_cli_top_actions,
+    body.zx_compacto .zx_tr_ficha_actions,
+    body.zx_compacto .zx_cli_ficha_actions,
+    body.zx_compacto .zx_veh_actions,
+    body.zx_compacto .zx_ag_actions{gap:6px!important;margin-top:8px!important}
+    body.zx_compacto .zx_cli_top_actions button,
+    body.zx_compacto .zx_cli_ficha_actions button,
+    body.zx_compacto .zx_ag_actions button{padding:9px 8px!important;min-height:40px!important;font-size:13px!important}
+    body.zx_compacto .zx_cli_ficha_head{gap:10px!important;margin-bottom:10px!important}
+    body.zx_compacto .zx_cli_ficha_section{margin:8px 0!important}
+    body.zx_compacto .zx_cli_ficha_section h3{margin-bottom:8px!important;font-size:18px!important}
+
+    body.zx_compacto .zx_tr_filters,
+    body.zx_compacto .zx_veh_filters,
+    body.zx_compacto .zx_ag_filters{gap:5px!important}
+    body.zx_compacto .zx_tr_filters button,
+    body.zx_compacto .zx_veh_filters button,
+    body.zx_compacto .zx_ag_filters button{padding:7px 9px!important;font-size:11px!important}
+    body.zx_compacto .zx_tr_block{margin-top:10px!important}
+    body.zx_compacto .zx_tr_form h3,
+    body.zx_compacto .zx_tr_block h3,
+    body.zx_compacto .zx_cli_form h3,
+    body.zx_compacto .zx_veh_form h3{margin-top:13px!important;font-size:19px!important}
+
+    body.zx_compacto .zx_ag_month_head{margin-bottom:9px!important}
+    body.zx_compacto .zx_ag_month_head>button{width:44px!important;height:44px!important;font-size:25px!important}
+    body.zx_compacto .zx_ag_month_head h3{font-size:21px!important}
+    body.zx_compacto .zx_ag_weekdays,
+    body.zx_compacto .zx_ag_calendar{gap:4px!important}
+    body.zx_compacto .zx_ag_weekdays{margin-bottom:5px!important}
+    body.zx_compacto .zx_ag_day{min-height:68px!important;padding:4px!important}
+    body.zx_compacto .zx_ag_day b{font-size:12px!important;margin-bottom:3px!important}
+    body.zx_compacto .zx_ag_event{margin-top:8px!important}
+    body.zx_compacto .zx_ag_event_top b{font-size:16px!important}
+    body.zx_compacto .zx_ag_event_txt{margin-top:7px!important;font-size:13px!important}
+
+    body.zx_compacto .zx_veh_card_head{grid-template-columns:48px minmax(0,1fr) auto!important;gap:8px!important}
+    body.zx_compacto .zx_veh_actions{gap:6px!important;margin-top:8px!important}
+    body.zx_compacto .zx_veh_incident_card{margin:8px 0!important}
+
+    body.zx_compacto .zx_al_wrap{padding:12px 10px 34px!important}
+    body.zx_compacto .zx_al_head{gap:9px!important;margin-bottom:9px!important}
+    body.zx_compacto .zx_al_head h1{font-size:26px!important}
+    body.zx_compacto .zx_al_summary{gap:6px!important;margin-bottom:9px!important}
+    body.zx_compacto .zx_al_stat b{font-size:20px!important}
+    body.zx_compacto .zx_al_tools{gap:6px!important;margin-bottom:9px!important}
+    body.zx_compacto .zx_al_grid{gap:8px!important}
+    body.zx_compacto .zx_al_card{gap:8px!important}
+    body.zx_compacto .zx_al_stock{gap:5px!important}
+    body.zx_compacto .zx_al_stock span{padding:7px 5px!important}
+    body.zx_compacto .zx_al_actions{gap:5px!important}
+    body.zx_compacto .zx_al_actions button{padding:8px 6px!important}
+
+    body.zx_compacto .zx_fichaje_item,
+    body.zx_compacto .zx_admin_row{margin-bottom:7px!important}
+    body.zx_compacto .zx_jornada_resumen_grid,
+    body.zx_compacto .zx_resumen_grid,
+    body.zx_compacto .zx_edit_grid,
+    body.zx_compacto .zx_checks_grid,
+    body.zx_compacto .zx_consumo_grid,
+    body.zx_compacto .zx_dni_grid{gap:7px!important}
 
     body.zx_alto_contraste{--zx-line:#0f172a;--zx-muted:#334155;--zx-shadow:none}
     html[data-zx-theme="dark"] body.zx_alto_contraste{--zx-line:#f8fafc;--zx-muted:#e2e8f0}
