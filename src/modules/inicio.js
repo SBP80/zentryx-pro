@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
-// V3161 - PROTECCION CONTRA RENDER ASINCRONO OBSOLETO
+// V3162 - VEHÍCULOS RESPETA PERMISO DE MÓDULO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3161";
+const ZX_VERSION="3162";
 const CACHE_PREFIX="zentryx_mi_dia_v3161";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
@@ -72,6 +72,13 @@ function normalizar(v){
 function esAdmin(){
   const s=sesion();
   return normalizar(s.rol)==="administrador" || normalizar(s.usuario)==="admin";
+}
+
+function puedeVerVehiculos(){
+  const z=zx();
+  if(z && typeof z.puede==="function") return z.puede("ver","vehiculos")===true;
+  const s=sesion();
+  return normalizar(s.rol)!=="invitado" && normalizar(s.rol)!=="";
 }
 
 function ahoraISO(){return new Date().toISOString()}
@@ -669,6 +676,16 @@ function renderEstadoJornada(j){
 }
 
 function abrirVehiculosSeguro(){
+  if(!puedeVerVehiculos()){
+    // La gestión básica del vehículo durante la jornada sigue disponible
+    // dentro de Fichaje aunque el usuario no tenga acceso al módulo Vehículos.
+    if(typeof window.ZX_abrirFichaje==="function"){
+      window.ZX_abrirFichaje();
+      return;
+    }
+    alert("No tienes permiso para abrir Vehículos.");
+    return;
+  }
   if(typeof window.ZX_vehiculos_operativo==="function"){
     window.ZX_vehiculos_operativo();
     return;
