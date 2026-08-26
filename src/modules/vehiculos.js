@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3205 - ACCIONES SUPERIORES EN VISTAS LARGAS
+// V3206 - ACCESO REAL POR PERMISO DE MÓDULO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3205";
+const ZX_VERSION="3206";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -138,7 +138,14 @@ function fechaES(f){
 function rol(){return normalizar(sesion().rol || "")}
 function usuario(){return normalizar(sesion().usuario || "")}
 function esAdmin(){return rol()==="administrador" || usuario()==="admin"}
-function puedeEntrar(){return rol()!=="invitado" && rol()!==""}
+function puedeEntrar(){
+  const z=zx();
+  if(z && typeof z.puede==="function"){
+    return z.puede("ver","vehiculos")===true;
+  }
+  // Compatibilidad de seguridad si el controlador general aún no está disponible.
+  return rol()!=="invitado" && rol()!=="";
+}
 function puedeGestionar(){return esAdmin() || ["gerente","supervisor","encargado","administrativo","oficina"].includes(rol())}
 
 function leerCache(){
@@ -4703,15 +4710,6 @@ async function abrirVehiculosBase(modoOperativo){
   if(ZX_VEH_MODO_OPERATIVO && ["inactivos","avisos","todos"].includes(ZX_VEH_FILTRO)) ZX_VEH_FILTRO="activos";
   instalarCSS();
 
-  if(zx() && typeof zx().marcarModuloActivo==="function"){
-    zx().marcarModuloActivo("vehiculos");
-  }else{
-    document.querySelectorAll(".zx_nav_btn").forEach(function(b){
-      b.classList.remove("zx_activo");
-      if(b.dataset.modulo==="vehiculos") b.classList.add("zx_activo");
-    });
-  }
-
   if(!puedeEntrar()){
     app().innerHTML=`
       <div class="zx_veh_panel">
@@ -4720,6 +4718,15 @@ async function abrirVehiculosBase(modoOperativo){
       </div>
     `;
     return;
+  }
+
+  if(zx() && typeof zx().marcarModuloActivo==="function"){
+    zx().marcarModuloActivo("vehiculos");
+  }else{
+    document.querySelectorAll(".zx_nav_btn").forEach(function(b){
+      b.classList.remove("zx_activo");
+      if(b.dataset.modulo==="vehiculos") b.classList.add("zx_activo");
+    });
   }
 
   ZX_VEH_CACHE=leerCache().map(prepararVehiculo);
