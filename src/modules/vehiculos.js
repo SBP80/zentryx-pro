@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3217 - PROTECCIÓN CONTRA MODALES ASÍNCRONOS OBSOLETOS
+// V3221 - ADMINISTRACIÓN DEL SEGUIMIENTO GPS CON PIN, MOTIVO Y AUDITORÍA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3220";
+const ZX_VERSION="3221";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -1915,7 +1915,7 @@ function renderVehiculo(v){
             ${gpsHabilitado ? `<button class="gray" data-veh-route="${limpiar(v.id)}">🛰️ Historial GPS</button>` : ""}
             ${puedeGestionar() ? `<button class="gray" data-veh-asignar="${limpiar(v.id)}">${asignado ? "👤 Cambiar responsable" : "👤 Asignar responsable"}</button><button class="gray" data-veh-edit="${limpiar(v.id)}">✏️ Editar ficha</button>` : ""}
             ${enUso && (esResponsableActual(v) || puedeGestionar()) ? `<button class="orange" data-veh-devolver="${limpiar(v.id)}">📤 Finalizar uso</button>` : ""}
-            ${esAdmin() ? `<details class="zx_veh_admin_actions"><summary>🔐 Administración</summary>${estado!=="inactivo" ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar vehículo</button>` : `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar vehículo</button><button class="red" data-veh-eliminar="${limpiar(v.id)}">🗑️ Eliminar definitivamente</button>`}</details>` : ""}
+            ${esAdmin() ? `<details class="zx_veh_admin_actions"><summary>🔐 Administración</summary>${gpsHabilitado ? `<button class="orange" data-veh-gps-desactivar="${limpiar(v.id)}">📍 Desactivar seguimiento GPS</button>` : (estado!=="inactivo" ? `<button class="green" data-veh-gps-activar="${limpiar(v.id)}">📍 Activar seguimiento GPS</button>` : "")}${estado!=="inactivo" ? `<button class="red" data-veh-desactivar="${limpiar(v.id)}">⛔ Desactivar vehículo</button>` : `<button class="green" data-veh-activar="${limpiar(v.id)}">✅ Activar vehículo</button><button class="red" data-veh-eliminar="${limpiar(v.id)}">🗑️ Eliminar definitivamente</button>`}</details>` : ""}
           `}
       </div>
     </article>
@@ -2025,6 +2025,8 @@ function conectarEventos(){
   document.querySelectorAll("[data-veh-tomar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehTomar)}});
   document.querySelectorAll("[data-veh-recuperar]").forEach(btn=>{btn.onclick=function(){tomarVehiculo(btn.dataset.vehRecuperar)}});
   document.querySelectorAll("[data-veh-devolver]").forEach(btn=>{btn.onclick=function(){devolverVehiculo(btn.dataset.vehDevolver)}});
+  document.querySelectorAll("[data-veh-gps-activar]").forEach(btn=>{btn.onclick=function(){cambiarSeguimientoGPSAdmin(btn.dataset.vehGpsActivar,true)}});
+  document.querySelectorAll("[data-veh-gps-desactivar]").forEach(btn=>{btn.onclick=function(){cambiarSeguimientoGPSAdmin(btn.dataset.vehGpsDesactivar,false)}});
   document.querySelectorAll("[data-veh-activar]").forEach(btn=>{btn.onclick=function(){activarVehiculo(btn.dataset.vehActivar)}});
   document.querySelectorAll("[data-veh-desactivar]").forEach(btn=>{btn.onclick=function(){desactivarVehiculo(btn.dataset.vehDesactivar)}});
   document.querySelectorAll("[data-veh-eliminar]").forEach(btn=>{btn.onclick=function(){eliminarVehiculo(btn.dataset.vehEliminar)}});
@@ -3902,6 +3904,92 @@ async function devolverVehiculo(id){
       alert("No se pudo transferir el vehículo: "+(e.message||"Error"));
     }
   };
+}
+
+async function cambiarSeguimientoGPSAdmin(id,habilitar){
+  const v=vehiculoPorId(id);
+  if(!v || !esAdmin()) return;
+
+  const actual=v.seguimiento_gps_habilitado===true || v.seguimiento_gps_habilitado==="true";
+  habilitar=!!habilitar;
+  if(actual===habilitar){
+    await recargarVehiculosActual();
+    return;
+  }
+  if(habilitar && estadoVehiculo(v)==="inactivo"){
+    alert("Primero debes activar el vehículo.");
+    return;
+  }
+
+  const verbo=habilitar ? "activar" : "desactivar";
+  if(!confirm("¿"+(habilitar?"Activar":"Desactivar")+" el seguimiento GPS de "+nombreVehiculo(v)+"?")) return;
+  const motivo=pedirMotivoObligatorio("Motivo para "+verbo+" el seguimiento GPS.");
+  if(!motivo) return;
+  if(!await validarPinAdministrador()) return;
+
+  const usoActual=ZX_USOS_ACTUALES[String(id)] || v.__uso_actual || null;
+  let vehiculoCambiado=false;
+  let usoCambiado=false;
+  try{
+    const rVeh=await zxUpdate(TABLA,{
+      seguimiento_gps_habilitado:habilitar,
+      updated_at:ahoraISO()
+    },"id",id);
+    if(rVeh&&rVeh.error) throw rVeh.error;
+    vehiculoCambiado=true;
+
+    if(usoActual && usoActual.id){
+      const rUso=await zxUpdate("usos_vehiculos",{
+        seguimiento_gps_activo:habilitar,
+        updated_at:ahoraISO()
+      },"id",usoActual.id);
+      if(rUso&&rUso.error) throw rUso.error;
+      usoCambiado=true;
+    }
+
+    try{
+      await registrarAuditoriaVehiculo(
+        habilitar ? "activar_seguimiento_gps" : "desactivar_seguimiento_gps",
+        v,
+        motivo,
+        {
+          seguimiento_gps_anterior:actual,
+          seguimiento_gps_nuevo:habilitar,
+          uso_actual_id:usoActual&&usoActual.id ? String(usoActual.id) : null
+        }
+      );
+    }catch(auditError){
+      if(usoCambiado && usoActual && usoActual.id){
+        try{await zxUpdate("usos_vehiculos",{seguimiento_gps_activo:actual,updated_at:ahoraISO()},"id",usoActual.id)}catch(e){}
+      }
+      if(vehiculoCambiado){
+        try{await zxUpdate(TABLA,{seguimiento_gps_habilitado:actual,updated_at:ahoraISO()},"id",id)}catch(e){}
+      }
+      throw new Error("No se registró la auditoría. El cambio de GPS se ha cancelado.");
+    }
+
+    if(!habilitar && usoActual && String(ZX_GPS_USO_ID||"")===String(usoActual.id||"")){
+      detenerSeguimientoGPS();
+    }
+
+    try{
+      window.dispatchEvent(new CustomEvent("zentryx:vehiculo:cambio",{
+        detail:{vehiculo_id:String(id),seguimiento_gps_habilitado:habilitar}
+      }));
+    }catch(e){}
+
+    await recargarVehiculosActual();
+    if(habilitar){
+      setTimeout(function(){refrescarSeguimientoGPSGlobal().catch(function(){})},100);
+    }
+    alert("Seguimiento GPS "+(habilitar?"activado":"desactivado")+".");
+  }catch(e){
+    if(vehiculoCambiado && !usoCambiado){
+      try{await zxUpdate(TABLA,{seguimiento_gps_habilitado:actual,updated_at:ahoraISO()},"id",id)}catch(x){}
+    }
+    await recargarVehiculosActual();
+    alert("No se pudo "+verbo+" el seguimiento GPS: "+String(e&&e.message||e||"Error"));
+  }
 }
 
 async function desactivarVehiculo(id){
