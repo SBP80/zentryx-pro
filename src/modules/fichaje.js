@@ -1,6 +1,9 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3143 - INICIO DE JORNADA CON VEHÍCULO DESDE FICHAJE + CONTRASTE TEMA
+// V3144 - CONTRASTE DEL SELECTOR DE VEHÍCULO EN MODO OSCURO
+// - Mantiene el flujo V3143 de inicio de jornada con/sin vehículo desde Fichaje.
+// - Corrige la tarjeta de vehículo recomendado en tema oscuro: el fondo ya no queda claro
+//   mientras el texto se adapta a blanco por el sistema global de apariencia.
 // ===============================
 (function(){
 "use strict";
@@ -3188,6 +3191,7 @@ function estilosAdminCompacto(){
     .zx_vehicle_pick .state{border-radius:999px;padding:7px 9px;font-size:11px;font-weight:950;white-space:nowrap}.zx_vehicle_pick .state.free{background:#dcfce7;color:#166534}.zx_vehicle_pick .state.mine{background:#dbeafe;color:#1d4ed8}.zx_vehicle_pick .state.busy{background:#ffedd5;color:#9a3412}
     .zx_start_vehicle_choice{border:1px solid #bbf7d0;background:#f0fdf4;border-radius:20px;padding:14px;margin:10px 0 12px}
     .zx_start_vehicle_title{display:flex;align-items:center;gap:10px;margin-bottom:10px}.zx_start_vehicle_title>span{font-size:27px}.zx_start_vehicle_title small,.zx_start_vehicle_title b{display:block}.zx_start_vehicle_title small{color:#64748b;font-size:11px;font-weight:950;text-transform:uppercase}.zx_start_vehicle_title b{color:#071330;font-size:20px;font-weight:950}
+    html[data-zx-theme="dark"] .zx_start_vehicle_choice{background:var(--zx-soft)!important;border-color:var(--zx-line)!important}
     .zx_naranja{background:#f97316!important;color:white!important}.zx_blanco{background:white!important;color:#334155!important;border:1px solid #dbe3ef!important}
 
     @media(max-width:390px){.zx_vehicle_strip{grid-template-columns:42px 1fr}.zx_vehicle_strip_action{grid-column:2;justify-self:start;padding-left:0}.zx_vehicle_take{padding:8px 11px}.zx_vehicle_pick{grid-template-columns:38px 1fr}.zx_vehicle_pick .state{grid-column:2;justify-self:start}}
