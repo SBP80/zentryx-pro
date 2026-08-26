@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3209 - CONTRASTE FORZADO MOVIMIENTOS EN MODO OSCURO
+// V3210 - CONTRASTE ROBUSTO MOVIMIENTOS SAFARI/PWA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3209";
+const ZX_VERSION="3210";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -4224,18 +4224,35 @@ async function abrirFicha(id,tabInicial){
   function claseMovimiento(tipo){
     return "zx_mov_"+(tipo||"otro");
   }
+  function coloresMovimientoActual(){
+    try{
+      const cs=getComputedStyle(document.documentElement);
+      const lee=(nombre,fallback)=>String(cs.getPropertyValue(nombre)||"").trim()||fallback;
+      return {
+        text:lee("--zx-text","#071330"),
+        muted:lee("--zx-muted","#64748b"),
+        card:lee("--zx-card","#ffffff"),
+        soft:lee("--zx-soft","#f8fafc"),
+        line:lee("--zx-line","#dbe3ef")
+      };
+    }catch(e){
+      return {text:"#071330",muted:"#64748b",card:"#ffffff",soft:"#f8fafc",line:"#dbe3ef"};
+    }
+  }
   function renderMovimiento(m){
+    const c=coloresMovimientoActual();
+    const celda=(etiqueta,valor,wide)=>`<div${wide?' class="zx_mov_wide"':''} style="background:${c.card}!important;border-color:${c.line}!important"><span style="color:${c.muted}!important;-webkit-text-fill-color:${c.muted}!important">${etiqueta}</span><b style="color:${c.text}!important;-webkit-text-fill-color:${c.text}!important">${valor}</b></div>`;
     const filas=[];
-    if(m.responsable) filas.push(`<div><span>Responsable</span><b>${limpiar(m.responsable)}</b></div>`);
-    if(m.clasificacion) filas.push(`<div><span>Clasificación</span><b>${limpiar(m.clasificacion)}</b></div>`);
-    if(m.kmInicio!==""&&m.kmInicio!=null) filas.push(`<div><span>Km iniciales</span><b>${limpiar(m.kmInicio)}</b></div>`);
-    if(m.kmFin!==""&&m.kmFin!=null) filas.push(`<div><span>Km finales</span><b>${limpiar(m.kmFin)}</b></div>`);
-    if(m.kmRecorridos!==""&&m.kmRecorridos!=null) filas.push(`<div><span>Recorrido</span><b>${limpiar(m.kmRecorridos)} km</b></div>`);
-    if(m.ubicacion) filas.push(`<div class="zx_mov_wide"><span>Ubicación</span><b>${limpiar(m.ubicacion)}</b></div>`);
-    if(m.dispositivo) filas.push(`<div class="zx_mov_wide"><span>Dispositivo</span><b>${limpiar(m.dispositivo)}</b></div>`);
-    if(m.observaciones) filas.push(`<div class="zx_mov_wide"><span>Observaciones</span><b>${limpiar(m.observaciones)}</b></div>`);
-    return `<article class="zx_veh_mov ${claseMovimiento(m.tipo)}">
-      <header><i>${iconoMovimiento(m.tipo)}</i><div><strong>${limpiar(m.titulo)}</strong><time>${limpiar(fechaHoraES(m.fecha))}</time></div></header>
+    if(m.responsable) filas.push(celda("Responsable",limpiar(m.responsable),false));
+    if(m.clasificacion) filas.push(celda("Clasificación",limpiar(m.clasificacion),false));
+    if(m.kmInicio!==""&&m.kmInicio!=null) filas.push(celda("Km iniciales",limpiar(m.kmInicio),false));
+    if(m.kmFin!==""&&m.kmFin!=null) filas.push(celda("Km finales",limpiar(m.kmFin),false));
+    if(m.kmRecorridos!==""&&m.kmRecorridos!=null) filas.push(celda("Recorrido",limpiar(m.kmRecorridos)+" km",false));
+    if(m.ubicacion) filas.push(celda("Ubicación",limpiar(m.ubicacion),true));
+    if(m.dispositivo) filas.push(celda("Dispositivo",limpiar(m.dispositivo),true));
+    if(m.observaciones) filas.push(celda("Observaciones",limpiar(m.observaciones),true));
+    return `<article class="zx_veh_mov ${claseMovimiento(m.tipo)}" style="background:${c.soft}!important;border-top-color:${c.line}!important;border-right-color:${c.line}!important;border-bottom-color:${c.line}!important">
+      <header><i>${iconoMovimiento(m.tipo)}</i><div><strong style="color:${c.text}!important;-webkit-text-fill-color:${c.text}!important">${limpiar(m.titulo)}</strong><time style="color:${c.muted}!important;-webkit-text-fill-color:${c.muted}!important">${limpiar(fechaHoraES(m.fecha))}</time></div></header>
       ${filas.length?`<div class="zx_mov_grid">${filas.join("")}</div>`:""}
     </article>`;
   }
@@ -4261,7 +4278,8 @@ async function abrirFicha(id,tabInicial){
     });
     return Array.from(grupos.entries()).map(function(par){
       const primera=par[1]&&par[1][0]?par[1][0].fecha:null;
-      return `<section class="zx_mov_dia"><div class="zx_mov_dia_titulo"><span>${limpiar(cabeceraDiaMovimiento(primera))}</span></div>${par[1].map(renderMovimiento).join("")}</section>`;
+      const c=coloresMovimientoActual();
+      return `<section class="zx_mov_dia"><div class="zx_mov_dia_titulo"><span style="background:${c.soft}!important;color:${c.text}!important;-webkit-text-fill-color:${c.text}!important;border-color:${c.line}!important">${limpiar(cabeceraDiaMovimiento(primera))}</span></div>${par[1].map(renderMovimiento).join("")}</section>`;
     }).join("");
   }
 
@@ -4649,7 +4667,7 @@ function instalarCSS(){
     .zx_mov_dia{margin:0 0 18px}.zx_mov_dia_titulo{margin:16px 0 10px;padding:8px 0;border-top:2px solid var(--zx-line);border-bottom:2px solid var(--zx-line);background:transparent;color:var(--zx-text);font-weight:950}.zx_mov_dia_titulo span{display:inline-block;background:var(--zx-soft);color:var(--zx-text);border:1px solid var(--zx-line);border-radius:10px;padding:7px 11px;letter-spacing:.02em}
     .zx_veh_mov header{display:flex;align-items:flex-start;gap:10px}.zx_veh_mov header i{font-style:normal;font-size:21px;line-height:1}.zx_veh_mov header strong,.zx_veh_mov header time{display:block}.zx_veh_mov header strong{color:var(--zx-text);font-size:16px;line-height:1.15}.zx_veh_mov header time{color:var(--zx-muted);font-size:12px;font-weight:900;margin-top:5px}
     .zx_mov_grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_mov_grid>div{background:var(--zx-card);border:1px solid var(--zx-line);border-radius:12px;padding:9px 10px;min-width:0}.zx_mov_grid span,.zx_mov_grid b{display:block}.zx_mov_grid span{color:var(--zx-muted);font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.zx_mov_grid b{color:var(--zx-text);font-size:12px;line-height:1.25;margin-top:3px;overflow-wrap:anywhere}.zx_mov_grid .zx_mov_wide{grid-column:1/-1}
-    /* V3209: Safari/PWA podía conservar colores claros antiguos dentro de Movimientos. Se fuerza el contraste solo en tema oscuro. */
+    /* V3210: respaldo CSS; los colores efectivos de Movimientos se fijan al renderizar según el tema calculado. */
     html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_mov_dia_titulo span{background:#172033!important;color:#f8fafc!important;border-color:#334155!important}
     html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_veh_mov{background:#172033!important;border-top-color:#334155!important;border-right-color:#334155!important;border-bottom-color:#334155!important}
     html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_veh_mov header strong{color:#f8fafc!important}
