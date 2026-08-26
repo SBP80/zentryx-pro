@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3222 - REGISTRO DE CAMBIOS DEL SEGUIMIENTO GPS EN MOVIMIENTOS
+// V3223 - ACTIVACIÓN Y DESACTIVACIÓN DEL VEHÍCULO VISIBLES EN MOVIMIENTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3222";
+const ZX_VERSION="3223";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -4333,7 +4333,7 @@ async function abrirFicha(id,tabInicial){
     return primerValor(obj,["dispositivo","device","device_name","nombre_dispositivo"]);
   }
   function iconoMovimiento(tipo){
-    return tipo==="inicio"?"🟢":tipo==="fin"?"🔴":tipo==="transferencia"?"🔄":tipo==="clasificacion"?"🏷️":tipo==="gps_activo"?"📍":tipo==="gps_inactivo"?"📴":tipo==="laboral"?"🚗":tipo==="personal"?"🏠":"📍";
+    return tipo==="inicio"?"🟢":tipo==="fin"?"🔴":tipo==="transferencia"?"🔄":tipo==="clasificacion"?"🏷️":tipo==="gps_activo"?"📍":tipo==="gps_inactivo"?"📴":tipo==="vehiculo_activo"?"✅":tipo==="vehiculo_inactivo"?"⛔":tipo==="laboral"?"🚗":tipo==="personal"?"🏠":"📍";
   }
   function claseMovimiento(tipo){
     return "zx_mov_"+(tipo||"otro");
@@ -4466,6 +4466,18 @@ async function abrirFicha(id,tabInicial){
         tipo:activado?"gps_activo":"gps_inactivo",
         responsable:a.usuario||"Usuario",
         observaciones:String(d.motivo||"").trim() || (activado?"Activación del seguimiento GPS":"Desactivación del seguimiento GPS")
+      });
+      return;
+    }
+
+    if(accion==="activar_vehiculo" || accion==="desactivar_vehiculo"){
+      const activado=accion==="activar_vehiculo";
+      movimientos.push({
+        fecha:a.fecha,
+        titulo:activado?"Vehículo activado":"Vehículo desactivado",
+        tipo:activado?"vehiculo_activo":"vehiculo_inactivo",
+        responsable:a.usuario||"Usuario",
+        observaciones:String(d.motivo||"").trim() || (activado?"Activación del vehículo":"Desactivación del vehículo")
       });
     }
   });
@@ -4824,7 +4836,7 @@ function instalarCSS(){
     html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_mov_grid>div{background:#0f172a!important;border-color:#64748b!important}
     html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_mov_grid span{color:#cbd5e1!important}
     html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_mov_grid b{color:#f8fafc!important}
-    .zx_mov_inicio{border-left-color:#22c55e}.zx_mov_fin{border-left-color:#ef4444}.zx_mov_transferencia{border-left-color:#7c3aed}.zx_mov_laboral{border-left-color:#2563eb}.zx_mov_personal{border-left-color:#f59e0b}.zx_mov_gps_activo{border-left-color:#16a34a}.zx_mov_gps_inactivo{border-left-color:#f97316}.zx_mov_otro{border-left-color:#64748b}
+    .zx_mov_inicio{border-left-color:#22c55e}.zx_mov_fin{border-left-color:#ef4444}.zx_mov_transferencia{border-left-color:#7c3aed}.zx_mov_laboral{border-left-color:#2563eb}.zx_mov_personal{border-left-color:#f59e0b}.zx_mov_gps_activo{border-left-color:#16a34a}.zx_mov_gps_inactivo{border-left-color:#f97316}.zx_mov_vehiculo_activo{border-left-color:#16a34a}.zx_mov_vehiculo_inactivo{border-left-color:#ef4444}.zx_mov_otro{border-left-color:#64748b}
     .zx_veh_tabs{scrollbar-width:none;-webkit-overflow-scrolling:touch}.zx_veh_tabs::-webkit-scrollbar{display:none}.zx_veh_tabs button{flex:0 0 auto}
     .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a,.zx_veh_route_box button{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border:0;border-radius:14px;padding:11px 13px;font-weight:950;font:inherit;cursor:pointer}
     .zx_veh_route_head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.zx_veh_route_head em{font-style:normal;background:#fee2e2;color:#b91c1c;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:950;white-space:nowrap;animation:zxRutaPulso 1.5s infinite}.zx_veh_route_stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:13px 0}.zx_veh_route_stats>div{background:white;border:1px solid #dbe3ef;border-radius:14px;padding:9px;text-align:center;min-width:0}.zx_veh_route_stats strong{display:block;color:var(--zx-text);font-size:14px;font-weight:950;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.15}.zx_veh_route_stats small{display:block;color:#64748b;font-size:10px;font-weight:900;margin-top:3px}.zx_veh_mapa_ruta{width:100%;height:390px;border-radius:18px;border:1px solid #cbd5e1;overflow:hidden;background:#e2e8f0;margin-top:10px}.zx_veh_map_error{height:100%;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;color:#64748b;font-weight:900}.zx_ruta_marker_wrap{background:transparent!important;border:0!important}.zx_ruta_marker{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;border:3px solid white;box-shadow:0 3px 9px rgba(15,23,42,.35);font-size:11px;font-weight:950}@keyframes zxRutaPulso{0%,100%{opacity:1}50%{opacity:.55}}
