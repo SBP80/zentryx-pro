@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3141 - TIPO DE USO LABORAL COMPATIBLE CON SQL ACTUAL
+// V3142 - VER VEHÍCULO RESPETA PERMISO DE MÓDULO
 // ===============================
 (function(){
 "use strict";
@@ -45,6 +45,14 @@ function esAdmin(){
   const s=sesion();
   return String(s.rol||"").toLowerCase()==="administrador" ||
          String(s.usuario||"").toLowerCase()==="admin";
+}
+
+function puedeVerModuloVehiculos(){
+  const z=window.ZENTRYX || window.ZX || null;
+  if(z && typeof z.puede==="function") return z.puede("ver","vehiculos")===true;
+  const s=sesion();
+  const r=String(s.rol||"").toLowerCase();
+  return r!=="invitado" && r!=="";
 }
 
 function limpiar(v){
@@ -755,7 +763,7 @@ function abrirGestionVehiculoRapido(info){
       <b>${limpiar(nombreVehiculoRapido(v))}</b>
       <span>${habitual&&!pendiente?"Asignación habitual":"Uso temporal"} · ${limpiar(v.km_actual??"-")} km</span>
     </div>
-    <button class="zx_btn_big zx_azul" id="zx_vehicle_manage_file">📄 Ver vehículo</button>
+    ${puedeVerModuloVehiculos()?`<button class="zx_btn_big zx_azul" id="zx_vehicle_manage_file">📄 Ver vehículo</button>`:""}
     <button class="zx_btn_big zx_gris" id="zx_vehicle_manage_change">🔄 Cambiar vehículo</button>
     ${(!habitual||pendiente)?`<button class="zx_btn_big zx_naranja" id="zx_vehicle_manage_return">📤 Devolver vehículo</button>`:""}
     <button class="zx_btn_big zx_blanco" id="zx_vehicle_manage_close">Cerrar</button>
@@ -764,7 +772,8 @@ function abrirGestionVehiculoRapido(info){
   document.getElementById("zx_vehicle_manage_change").onclick=()=>{cerrarModalVehiculoRapido();abrirSelectorVehiculoRapido(info);};
   const ret=document.getElementById("zx_vehicle_manage_return");
   if(ret) ret.onclick=()=>{cerrarModalVehiculoRapido();devolverVehiculoRapido(info);};
-  document.getElementById("zx_vehicle_manage_file").onclick=()=>{cerrarModalVehiculoRapido();guardarScroll();if(typeof window.ZX_vehiculos==="function") window.ZX_vehiculos();};
+  const verFicha=document.getElementById("zx_vehicle_manage_file");
+  if(verFicha) verFicha.onclick=()=>{cerrarModalVehiculoRapido();guardarScroll();if(typeof window.ZX_vehiculos==="function") window.ZX_vehiculos();};
 }
 
 function abrirInicioJornadaSimple(info){
