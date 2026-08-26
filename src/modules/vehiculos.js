@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3208 - CONTRASTE MOVIMIENTOS EN MODO OSCURO
+// V3209 - CONTRASTE FORZADO MOVIMIENTOS EN MODO OSCURO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3208";
+const ZX_VERSION="3209";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -4649,6 +4649,14 @@ function instalarCSS(){
     .zx_mov_dia{margin:0 0 18px}.zx_mov_dia_titulo{margin:16px 0 10px;padding:8px 0;border-top:2px solid var(--zx-line);border-bottom:2px solid var(--zx-line);background:transparent;color:var(--zx-text);font-weight:950}.zx_mov_dia_titulo span{display:inline-block;background:var(--zx-soft);color:var(--zx-text);border:1px solid var(--zx-line);border-radius:10px;padding:7px 11px;letter-spacing:.02em}
     .zx_veh_mov header{display:flex;align-items:flex-start;gap:10px}.zx_veh_mov header i{font-style:normal;font-size:21px;line-height:1}.zx_veh_mov header strong,.zx_veh_mov header time{display:block}.zx_veh_mov header strong{color:var(--zx-text);font-size:16px;line-height:1.15}.zx_veh_mov header time{color:var(--zx-muted);font-size:12px;font-weight:900;margin-top:5px}
     .zx_mov_grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_mov_grid>div{background:var(--zx-card);border:1px solid var(--zx-line);border-radius:12px;padding:9px 10px;min-width:0}.zx_mov_grid span,.zx_mov_grid b{display:block}.zx_mov_grid span{color:var(--zx-muted);font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.zx_mov_grid b{color:var(--zx-text);font-size:12px;line-height:1.25;margin-top:3px;overflow-wrap:anywhere}.zx_mov_grid .zx_mov_wide{grid-column:1/-1}
+    /* V3209: Safari/PWA podía conservar colores claros antiguos dentro de Movimientos. Se fuerza el contraste solo en tema oscuro. */
+    html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_mov_dia_titulo span{background:#172033!important;color:#f8fafc!important;border-color:#334155!important}
+    html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_veh_mov{background:#172033!important;border-top-color:#334155!important;border-right-color:#334155!important;border-bottom-color:#334155!important}
+    html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_veh_mov header strong{color:#f8fafc!important}
+    html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_veh_mov header time{color:#cbd5e1!important}
+    html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_mov_grid>div{background:#0f172a!important;border-color:#64748b!important}
+    html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_mov_grid span{color:#cbd5e1!important}
+    html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_mov_grid b{color:#f8fafc!important}
     .zx_mov_inicio{border-left-color:#22c55e}.zx_mov_fin{border-left-color:#ef4444}.zx_mov_transferencia{border-left-color:#7c3aed}.zx_mov_laboral{border-left-color:#2563eb}.zx_mov_personal{border-left-color:#f59e0b}.zx_mov_otro{border-left-color:#64748b}
     .zx_veh_tabs{scrollbar-width:none;-webkit-overflow-scrolling:touch}.zx_veh_tabs::-webkit-scrollbar{display:none}.zx_veh_tabs button{flex:0 0 auto}
     .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a,.zx_veh_route_box button{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border:0;border-radius:14px;padding:11px 13px;font-weight:950;font:inherit;cursor:pointer}
