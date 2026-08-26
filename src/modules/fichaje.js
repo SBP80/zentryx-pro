@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3142 - VER VEHÍCULO RESPETA PERMISO DE MÓDULO
+// V3143 - INICIO DE JORNADA CON VEHÍCULO DESDE FICHAJE + CONTRASTE TEMA
 // ===============================
 (function(){
 "use strict";
@@ -333,6 +333,7 @@ function textoBotonFichar(estado){
 }
 
 function accionDirectaEstado(estado){
+  if(estado==="fuera") return "entrada";
   if(estado==="descanso") return "fin_descanso";
   if(estado==="comida") return "fin_comida";
   return null;
@@ -695,13 +696,13 @@ async function usarVehiculoRapido(id,info,onSuccess){
       const km=Number(document.getElementById("zx_vehicle_km_start").value||0);
       await asignarVehiculoRapido(v,info,km,ocupado,"Uso rápido desde Fichaje");
       cerrarModalVehiculoRapido();
-      if(typeof onSuccess==="function") await onSuccess(v);
+      if(typeof onSuccess==="function") await onSuccess(v,km);
       else await window.ZX_fichaje_real();
     }catch(e){btn.disabled=false;btn.textContent="🚗 Confirmar";alert("No se pudo asignar el vehículo: "+(e.message||"Error"));}
   };
 }
 
-async function abrirSelectorVehiculoRapido(info){
+async function abrirSelectorVehiculoRapido(info,onSuccess){
   const items=(info?.vehiculos||[]).filter(v=>String(v.activo)!=="false");
   insertarModalVehiculoRapido(`
     <h2>🚗 Elegir vehículo</h2>
@@ -719,7 +720,7 @@ async function abrirSelectorVehiculoRapido(info){
     <button class="zx_btn_big zx_gris" id="zx_vehicle_picker_close">Cerrar</button>
   `);
   document.getElementById("zx_vehicle_picker_close").onclick=cerrarModalVehiculoRapido;
-  document.querySelectorAll("[data-quick-veh]").forEach(b=>b.onclick=function(){const id=this.dataset.quickVeh;cerrarModalVehiculoRapido();usarVehiculoRapido(id,info);});
+  document.querySelectorAll("[data-quick-veh]").forEach(b=>b.onclick=function(){const id=this.dataset.quickVeh;cerrarModalVehiculoRapido();usarVehiculoRapido(id,info,onSuccess);});
 }
 
 async function devolverVehiculoRapido(info){
@@ -812,7 +813,12 @@ function abrirInicioJornadaSimple(info){
     }catch(e){btn.disabled=false;btn.textContent="🚗 Empezar con "+String(rec.matricula||"vehículo");alert("No se pudo iniciar: "+(e.message||"Error"));}
   };
   const other=document.getElementById("zx_start_other_vehicle");
-  if(other) other.onclick=()=>{cerrarModalVehiculoRapido();abrirSelectorVehiculoRapido(info);};
+  if(other) other.onclick=()=>{
+    cerrarModalVehiculoRapido();
+    abrirSelectorVehiculoRapido(info,async(v,km)=>{
+      await registrar("entrada",{vehiculo:{id:String(v.id),matricula:v.matricula||null,km:Number(km)}});
+    });
+  };
 }
 
 function enlazarVehiculoRapido(info){
@@ -1806,8 +1812,8 @@ async function abrirMenu(estado,jornadaActual=null){
         ` : ""}
 
         <div class="zx_modal_contexto" style="margin-bottom:12px;">
-          El uso de vehículos se gestiona de forma independiente desde el módulo <b>Vehículos</b>.
-          Puedes iniciar o finalizar la jornada sin coger ni devolver ningún vehículo.
+          El vehículo de tu jornada se gestiona desde <b>Fichaje</b>.
+          Puedes continuar la jornada aunque no utilices ningún vehículo.
         </div>
 
         <div class="zx_text" style="margin-bottom:12px;color:#dc2626;font-weight:900;">
@@ -3155,7 +3161,7 @@ function estilosAdminCompacto(){
     .zx_modificado_box{margin-top:10px;border-radius:14px;background:#fff1f2;border:1px solid #fecdd3;color:#9f1239;padding:10px;font-size:13px;font-weight:850;line-height:1.4;}
     .zx_readonly_box{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-size:16px;font-weight:900;color:#0f172a;background:#eef2f7;}
     .zx_help_text{margin-top:8px;color:#64748b;font-size:13px;font-weight:850;line-height:1.35;}
-    .zx_modal_contexto{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:14px;padding:10px;margin:10px 0 12px;font-size:14px;font-weight:850;line-height:1.35;}
+    .zx_modal_contexto{background:var(--zx-primary-soft,#eff6ff);border:1px solid var(--zx-primary-border,#bfdbfe);color:var(--zx-text,#1e3a8a);border-radius:14px;padding:10px;margin:10px 0 12px;font-size:14px;font-weight:850;line-height:1.35;}
     .zx_resumen_vehiculo{margin:8px 0 2px;padding:10px 12px;border-radius:14px;background:#f1f5f9;color:#334155;font-weight:900;}
     .zx_resumen_principal_click{cursor:pointer;}
     .zx_resumen_principal_click:active{transform:scale(.995);}
