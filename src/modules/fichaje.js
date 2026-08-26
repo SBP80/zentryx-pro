@@ -1,9 +1,10 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3144 - CONTRASTE DEL SELECTOR DE VEHÍCULO EN MODO OSCURO
-// - Mantiene el flujo V3143 de inicio de jornada con/sin vehículo desde Fichaje.
-// - Corrige la tarjeta de vehículo recomendado en tema oscuro: el fondo ya no queda claro
-//   mientras el texto se adapta a blanco por el sistema global de apariencia.
+// V3145 - FINALIZAR/DEVOLVER VEHÍCULO DESDE FICHAJE SIN ACCESO AL MÓDULO GENERAL
+// - Mantiene el flujo V3144 y la separación entre Fichaje y el módulo administrativo Vehículos.
+// - Permite al responsable finalizar el uso de su vehículo desde Fichaje, también si es habitual.
+// - Al finalizar un uso habitual conserva la asignación habitual y solo cierra el uso actual.
+// - No añade permisos administrativos ni abre el listado general de Vehículos.
 // ===============================
 (function(){
 "use strict";
@@ -729,13 +730,18 @@ async function abrirSelectorVehiculoRapido(info,onSuccess){
 async function devolverVehiculoRapido(info){
   const v=info?.actual;
   if(!v) return;
+  const habitual=esAsignacionHabitualRapido(v);
   const kmBase=Number(v.km_actual||0);
+  const textoAccion=habitual ? "✅ Finalizar uso" : "✅ Confirmar devolución";
   insertarModalVehiculoRapido(`
-    <h2>📤 Devolver vehículo</h2>
-    <div class="zx_vehicle_modal_card"><b>${limpiar(nombreVehiculoRapido(v))}</b><span>Uso actual</span></div>
+    <h2>${habitual ? "📤 Finalizar uso" : "📤 Devolver vehículo"}</h2>
+    <div class="zx_vehicle_modal_card">
+      <b>${limpiar(nombreVehiculoRapido(v))}</b>
+      <span>${habitual ? "Asignación habitual · se mantendrá asignado" : "Uso actual"}</span>
+    </div>
     <label class="zx_label">Kilómetros finales</label>
     <input id="zx_vehicle_km_end" type="number" inputmode="decimal" value="${limpiar(kmBase)}">
-    <button class="zx_btn_big zx_verde" id="zx_vehicle_return_ok">✅ Confirmar devolución</button>
+    <button class="zx_btn_big zx_verde" id="zx_vehicle_return_ok">${textoAccion}</button>
     <button class="zx_btn_big zx_gris" id="zx_vehicle_return_cancel">Cancelar</button>
   `);
   document.getElementById("zx_vehicle_return_cancel").onclick=cerrarModalVehiculoRapido;
@@ -746,13 +752,28 @@ async function devolverVehiculoRapido(info){
     try{
       const u=identidadVehiculoRapido(); const pos=await posicionVehiculoRapido(); const now=ahora();
       if(v.uso_actual_id){
-        const ru=await sb().from("usos_vehiculos").update({estado:"devuelto",fin_at:now,km_fin:km,lat_fin:pos.lat,lng_fin:pos.lng,motivo_fin:"Devolución rápida desde Fichaje",dispositivo_fin:navigator.userAgent||"",actualizado_por:u.id,updated_at:now}).eq("id",String(v.uso_actual_id));
+        const ru=await sb().from("usos_vehiculos").update({
+          estado:"devuelto",fin_at:now,km_fin:km,lat_fin:pos.lat,lng_fin:pos.lng,
+          motivo_fin:habitual ? "Fin de uso desde Fichaje (asignación habitual)" : "Devolución rápida desde Fichaje",
+          dispositivo_fin:navigator.userAgent||"",actualizado_por:u.id,updated_at:now
+        }).eq("id",String(v.uso_actual_id));
         if(ru.error) throw ru.error;
       }
-      const rv=await sb().from("vehiculos").update({uso_actual_id:null,usuario_actual_id:null,usuario_actual_nombre:null,uso_iniciado_at:null,estado_flota:"libre",km_actual:km,en_uso:false,usuario_asignado:""}).eq("id",String(v.id));
+      const cambiosVehiculo={
+        uso_actual_id:null,usuario_actual_id:null,usuario_actual_nombre:null,uso_iniciado_at:null,
+        estado_flota:"libre",km_actual:km,en_uso:false
+      };
+      // La devolución de un uso temporal libera también el nombre operativo.
+      // En una asignación habitual se conserva usuario_asignado/usuario_id para no borrar
+      // la asignación permanente al cerrar únicamente el uso actual.
+      if(!habitual) cambiosVehiculo.usuario_asignado="";
+      const rv=await sb().from("vehiculos").update(cambiosVehiculo).eq("id",String(v.id));
       if(rv.error) throw rv.error;
       cerrarModalVehiculoRapido(); await window.ZX_fichaje_real();
-    }catch(e){btn.disabled=false;btn.textContent="✅ Confirmar devolución";alert("No se pudo devolver el vehículo: "+(e.message||"Error"));}
+    }catch(e){
+      btn.disabled=false;btn.textContent=textoAccion;
+      alert("No se pudo finalizar el uso del vehículo: "+(e.message||"Error"));
+    }
   };
 }
 
@@ -761,6 +782,7 @@ function abrirGestionVehiculoRapido(info){
   if(!v) return;
   const habitual=esAsignacionHabitualRapido(v);
   const pendiente=estadoFlotaRapido(v)==="pendiente_devolucion";
+  const usoAbierto=!!v.uso_actual_id || ["en_uso","pendiente_devolucion"].includes(estadoFlotaRapido(v));
   insertarModalVehiculoRapido(`
     <h2>🚗 ${limpiar(v.matricula||"Vehículo")}</h2>
     <div class="zx_vehicle_modal_card">
@@ -769,7 +791,7 @@ function abrirGestionVehiculoRapido(info){
     </div>
     ${puedeVerModuloVehiculos()?`<button class="zx_btn_big zx_azul" id="zx_vehicle_manage_file">📄 Ver vehículo</button>`:""}
     <button class="zx_btn_big zx_gris" id="zx_vehicle_manage_change">🔄 Cambiar vehículo</button>
-    ${(!habitual||pendiente)?`<button class="zx_btn_big zx_naranja" id="zx_vehicle_manage_return">📤 Devolver vehículo</button>`:""}
+    ${usoAbierto?`<button class="zx_btn_big zx_naranja" id="zx_vehicle_manage_return">${habitual&&!pendiente?"📤 Finalizar uso":"📤 Devolver vehículo"}</button>`:""}
     <button class="zx_btn_big zx_blanco" id="zx_vehicle_manage_close">Cerrar</button>
   `);
   document.getElementById("zx_vehicle_manage_close").onclick=cerrarModalVehiculoRapido;
