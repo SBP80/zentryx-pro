@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3207 - AJUSTE VISUAL FICHA/USOS/MOVIMIENTOS EN MÓVIL
+// V3208 - CONTRASTE MOVIMIENTOS EN MODO OSCURO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3207";
+const ZX_VERSION="3208";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -4645,10 +4645,10 @@ function instalarCSS(){
     .zx_veh_tab{display:none}.zx_veh_tab.on{display:block}
     .zx_veh_hist{display:grid;gap:10px}.zx_veh_hist_item{background:#f8fafc;border:1px solid #dbe3ef;border-radius:16px;padding:12px}
     .zx_veh_hist_item b,.zx_veh_hist_item span,.zx_veh_hist_item small{display:block}.zx_veh_hist_item b{color:#071330;font-size:15px}.zx_veh_hist_item span{color:#475569;font-size:13px;font-weight:850;margin-top:4px}.zx_veh_hist_item small{color:#64748b;font-size:12px;font-weight:850;margin-top:4px}
-    .zx_veh_mov{background:#f8fafc;border:1px solid #dbe3ef;border-left:6px solid #94a3b8;border-radius:18px;padding:14px;box-shadow:0 5px 14px rgba(15,23,42,.04)}
-    .zx_mov_dia{margin:0 0 18px}.zx_mov_dia_titulo{margin:16px 0 10px;padding:8px 0;border-top:2px solid #dbe3ef;border-bottom:2px solid #dbe3ef;background:#fff;color:#071330;font-weight:950}.zx_mov_dia_titulo span{display:inline-block;background:#eef2f7;border-radius:10px;padding:7px 11px;letter-spacing:.02em}
-    .zx_veh_mov header{display:flex;align-items:flex-start;gap:10px}.zx_veh_mov header i{font-style:normal;font-size:21px;line-height:1}.zx_veh_mov header strong,.zx_veh_mov header time{display:block}.zx_veh_mov header strong{color:#071330;font-size:16px;line-height:1.15}.zx_veh_mov header time{color:#64748b;font-size:12px;font-weight:900;margin-top:5px}
-    .zx_mov_grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_mov_grid>div{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:9px 10px;min-width:0}.zx_mov_grid span,.zx_mov_grid b{display:block}.zx_mov_grid span{color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.zx_mov_grid b{color:#16233d;font-size:12px;line-height:1.25;margin-top:3px;overflow-wrap:anywhere}.zx_mov_grid .zx_mov_wide{grid-column:1/-1}
+    .zx_veh_mov{background:var(--zx-soft);border:1px solid var(--zx-line);border-left:6px solid #94a3b8;border-radius:18px;padding:14px;box-shadow:0 5px 14px rgba(15,23,42,.04)}
+    .zx_mov_dia{margin:0 0 18px}.zx_mov_dia_titulo{margin:16px 0 10px;padding:8px 0;border-top:2px solid var(--zx-line);border-bottom:2px solid var(--zx-line);background:transparent;color:var(--zx-text);font-weight:950}.zx_mov_dia_titulo span{display:inline-block;background:var(--zx-soft);color:var(--zx-text);border:1px solid var(--zx-line);border-radius:10px;padding:7px 11px;letter-spacing:.02em}
+    .zx_veh_mov header{display:flex;align-items:flex-start;gap:10px}.zx_veh_mov header i{font-style:normal;font-size:21px;line-height:1}.zx_veh_mov header strong,.zx_veh_mov header time{display:block}.zx_veh_mov header strong{color:var(--zx-text);font-size:16px;line-height:1.15}.zx_veh_mov header time{color:var(--zx-muted);font-size:12px;font-weight:900;margin-top:5px}
+    .zx_mov_grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.zx_mov_grid>div{background:var(--zx-card);border:1px solid var(--zx-line);border-radius:12px;padding:9px 10px;min-width:0}.zx_mov_grid span,.zx_mov_grid b{display:block}.zx_mov_grid span{color:var(--zx-muted);font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.03em}.zx_mov_grid b{color:var(--zx-text);font-size:12px;line-height:1.25;margin-top:3px;overflow-wrap:anywhere}.zx_mov_grid .zx_mov_wide{grid-column:1/-1}
     .zx_mov_inicio{border-left-color:#22c55e}.zx_mov_fin{border-left-color:#ef4444}.zx_mov_transferencia{border-left-color:#7c3aed}.zx_mov_laboral{border-left-color:#2563eb}.zx_mov_personal{border-left-color:#f59e0b}.zx_mov_otro{border-left-color:#64748b}
     .zx_veh_tabs{scrollbar-width:none;-webkit-overflow-scrolling:touch}.zx_veh_tabs::-webkit-scrollbar{display:none}.zx_veh_tabs button{flex:0 0 auto}
     .zx_veh_route_box{background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:16px}.zx_veh_route_box b,.zx_veh_route_box span{display:block}.zx_veh_route_box span{margin-top:6px;color:#64748b;font-weight:850}.zx_veh_route_box a,.zx_veh_route_box button{display:inline-block;margin-top:12px;background:#2563eb;color:white;text-decoration:none;border:0;border-radius:14px;padding:11px 13px;font-weight:950;font:inherit;cursor:pointer}
