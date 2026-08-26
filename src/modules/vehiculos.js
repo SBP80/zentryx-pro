@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3219";
+const ZX_VERSION="3220";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -4518,6 +4518,12 @@ async function abrirFicha(id,tabInicial){
       const tab=btn.dataset.vehTab;
       document.querySelectorAll("[data-veh-tab]").forEach(x=>x.classList.toggle("on",x===btn));
       document.querySelectorAll("[data-veh-panel]").forEach(x=>x.classList.toggle("on",x.dataset.vehPanel===tab));
+      const cajaModal=document.querySelector("#zx_modal_vehiculo .zx_modal_caja");
+      if(cajaModal){
+        try{if(document.activeElement&&typeof document.activeElement.blur==="function") document.activeElement.blur()}catch(e){}
+        cajaModal.scrollTop=0;
+        requestAnimationFrame(function(){if(cajaModal.isConnected) cajaModal.scrollTop=0});
+      }
       if(tab==="ruta") setTimeout(asegurarMapa,30);
     };
   });
