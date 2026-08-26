@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3214 - CONTRASTE DE AVISOS INFORMATIVOS EN TEMA OSCURO
+// V3215 - CONTRASTE DE INCIDENCIAS + ACCIÓN SEGÚN PERMISO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3214";
+const ZX_VERSION="3215";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -2684,7 +2684,7 @@ async function abrirIncidenciasVehiculo(vehiculoId){
         ${i.direccion?`<div class="wide"><small>UBICACIÓN</small><b>${limpiar(i.direccion)}</b></div>`:""}
         ${i.aseguradora||i.poliza?`<div class="wide"><small>SEGURO</small><b>${limpiar([i.aseguradora,i.poliza].filter(Boolean).join(" · "))}</b></div>`:""}
       </div>
-      <div class="zx_inc_open_hint">Ver y gestionar ›</div>
+      <div class="zx_inc_open_hint">${puedeGestionar()?"Ver y gestionar ›":"Ver detalle ›"}</div>
     </button>`;
   }).join("");
 
@@ -4715,7 +4715,7 @@ function instalarCSS(){
 
     .zx_veh_incident_card{width:100%;display:block;text-align:left;border:1px solid #d9e2ec;border-left:7px solid #94a3b8;border-radius:18px;padding:16px;margin:12px 0;background:#fff;color:#0f172a;box-sizing:border-box;cursor:pointer}
     .zx_veh_incident_card.alta{border-left-color:#ef4444}.zx_veh_incident_card.abierta{border-left-color:#f59e0b}.zx_veh_incident_card.resuelta{border-left-color:#22c55e}
-    .zx_veh_incident_head{display:flex;justify-content:space-between;gap:12px;align-items:center}.zx_veh_incident_head strong{font-size:1.08rem}.zx_veh_incident_head span{font-size:.82rem;font-weight:800;background:#eef2f7;padding:6px 10px;border-radius:999px}
+    .zx_veh_incident_head{display:flex;justify-content:space-between;gap:12px;align-items:center}.zx_veh_incident_head strong{font-size:1.08rem}.zx_veh_incident_head span{font-size:.82rem;font-weight:800;background:var(--zx-soft-2);color:var(--zx-text);border:1px solid var(--zx-line);padding:6px 10px;border-radius:999px}
     .zx_veh_incident_card time{display:block;color:#64748b;font-weight:700;margin-top:5px}.zx_veh_incident_card p{font-weight:700;margin:12px 0;line-height:1.35}
     .zx_veh_incident_grid,.zx_inc_detail_grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.zx_veh_incident_grid>div,.zx_inc_detail_grid>div{border:1px solid #e2e8f0;border-radius:13px;padding:11px;min-width:0;background:#fff}
     .zx_veh_incident_grid .wide,.zx_inc_detail_grid .wide{grid-column:1/-1}.zx_veh_incident_grid small,.zx_inc_detail_grid small,.zx_inc_description small{display:block;color:#64748b;font-weight:800;font-size:.72rem;line-height:1.2;margin-bottom:5px}
@@ -4726,6 +4726,7 @@ function instalarCSS(){
     .zx_inc_manage label{display:block;font-weight:800;margin:8px 0}.zx_inc_manage select,.zx_inc_manage textarea{width:100%;box-sizing:border-box;margin-top:6px}
     .zx_inc_audit_list{display:grid;gap:10px}.zx_inc_audit_item{border:1px solid #e2e8f0;border-radius:14px;padding:12px;background:#fff}.zx_inc_audit_top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
     .zx_inc_audit_top time{color:#64748b;font-weight:700;font-size:.85rem}.zx_inc_audit_user{color:#64748b;font-weight:700;margin-top:3px}.zx_inc_audit_change{margin-top:8px;font-weight:900}.zx_inc_audit_item p{margin:8px 0 0;line-height:1.35}
+    html[data-zx-theme="dark"] #zx_modal_vehiculo .zx_veh_incident_head span{background:#202b3d!important;color:#f8fafc!important;border-color:#475569!important;-webkit-text-fill-color:#f8fafc!important}
 
 
     .zx_modal_top_actions{position:sticky;top:0;z-index:80;display:flex;justify-content:flex-end;padding:6px 0 9px;margin:-4px 0 6px;background:linear-gradient(var(--zx-card) 78%,color-mix(in srgb,var(--zx-card) 94%,transparent))}
