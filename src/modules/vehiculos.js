@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3212 - RUTA MÓVIL: SELECTOR COMPACTO Y COMPLETO
+// V3213 - RUTA MÓVIL: SELECTOR COMPACTO + CARGA FORZADA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3212";
+const ZX_VERSION="3213";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -545,8 +545,7 @@ function fechaRutaSelector(v){
   return String(d.getDate()).padStart(2,"0")+"/"+
     String(d.getMonth()+1).padStart(2,"0")+" "+
     String(d.getHours()).padStart(2,"0")+":"+
-    String(d.getMinutes()).padStart(2,"0")+":"+
-    String(d.getSeconds()).padStart(2,"0");
+    String(d.getMinutes()).padStart(2,"0");
 }
 
 function textoRutaSelector(fecha,nombre){
