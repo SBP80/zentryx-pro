@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3211 - RUTA MÓVIL: DATOS COMPLETOS Y SIN CORTES
+// V3212 - RUTA MÓVIL: SELECTOR COMPACTO Y COMPLETO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3211";
+const ZX_VERSION="3212";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -536,6 +536,23 @@ function fechaHoraES(v){
     String(d.getHours()).padStart(2,"0")+":"+
     String(d.getMinutes()).padStart(2,"0")+":"+
     String(d.getSeconds()).padStart(2,"0");
+}
+
+function fechaRutaSelector(v){
+  if(!v) return "-";
+  const d=new Date(v);
+  if(isNaN(d.getTime())) return "-";
+  return String(d.getDate()).padStart(2,"0")+"/"+
+    String(d.getMonth()+1).padStart(2,"0")+" "+
+    String(d.getHours()).padStart(2,"0")+":"+
+    String(d.getMinutes()).padStart(2,"0")+":"+
+    String(d.getSeconds()).padStart(2,"0");
+}
+
+function textoRutaSelector(fecha,nombre){
+  const f=fechaRutaSelector(fecha);
+  const n=String(nombre||"Usuario").trim()||"Usuario";
+  return f+" · "+n;
 }
 
 function duracionDesde(v){
@@ -1140,8 +1157,8 @@ function actualizarResumenRuta(){
   if(selector && selector.selectedOptions && selector.selectedOptions[0]){
     const op=selector.selectedOptions[0];
     const usoTxt=op.dataset.usoNombre||"Usuario";
-    const fechaTxt=p.length?fechaHoraES(p[p.length-1].registrado_at):(op.dataset.fechaBase||"");
-    op.textContent=fechaTxt+" · "+usoTxt+" · "+p.length+" puntos";
+    const fechaValor=p.length?p[p.length-1].registrado_at:(op.dataset.fechaValor||"");
+    op.textContent=textoRutaSelector(fechaValor,usoTxt);
   }
 }
 
@@ -4456,7 +4473,7 @@ async function abrirFicha(id,tabInicial){
           <div><b>Recorrido GPS exacto</b><span id="zx_ruta_cab_estado">${puntos.length ? "Línea trazada con los puntos registrados por Zentryx." : "Todavía no hay posiciones para este uso."}</span></div>
           ${rutaEnDirecto&&esAdmin()?`<em>● EN DIRECTO</em>`:""}
         </div>
-        ${rutasDisponibles.length>1?`<label class="zx_veh_route_select"><span>Recorrido</span><select id="zx_ruta_selector">${rutasDisponibles.map(function(r,i){const nombre=r.uso?(r.uso.nombre_usuario||r.uso.usuario||"Usuario"):"Sesión";const fechaBase=fechaHoraES(r.ultima);return `<option value="${limpiar(r.id)}" data-uso-nombre="${limpiar(nombre)}" data-fecha-base="${limpiar(fechaBase)}" ${r.id===usoRutaId?"selected":""}>${limpiar(fechaBase.slice(0,16))} · ${limpiar(nombre)}</option>`}).join("")}</select></label>`:""}
+        ${rutasDisponibles.length>1?`<label class="zx_veh_route_select"><span>Recorrido</span><select id="zx_ruta_selector">${rutasDisponibles.map(function(r,i){const nombre=r.uso?(r.uso.nombre_usuario||r.uso.usuario||"Usuario"):"Sesión";return `<option value="${limpiar(r.id)}" data-uso-nombre="${limpiar(nombre)}" data-fecha-valor="${limpiar(r.ultima||"")}" ${r.id===usoRutaId?"selected":""}>${limpiar(textoRutaSelector(r.ultima,nombre))}</option>`}).join("")}</select></label>`:""}
         <div class="zx_veh_route_stats">
           <div><strong id="zx_ruta_num_puntos">${puntos.length}</strong><small>Puntos</small></div>
           <div><strong id="zx_ruta_distancia">${textoDistancia(distanciaRuta(puntos))}</strong><small>Recorrido</small></div>
