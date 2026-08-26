@@ -14,11 +14,12 @@
 // V3152 - CORRIGE RESULTADO REMOTO VACIO QUE PODIA OCULTAR COINCIDENCIAS LOCALES
 // V3153 - BUSCADOR DIRECTO ROBUSTO EN TODOS LOS CAMPOS + EMAIL EMPRESA LITERAL/NORMALIZADO
 // V3154 - ACCESO INDIVIDUAL A MÓDULOS
+// V3155 - SOLO MÓDULOS ACTIVOS DE EMPRESA EN PERMISOS
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3154";
+window.ZX_USUARIOS_VERSION="3155";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -266,15 +267,39 @@ function zxAccesoModuloGuardado(u,id){
   return ZX_MODULOS_USUARIO_POR_DEFECTO.has(id);
 }
 
+function zxModuloEmpresaActivo(id){
+  try{
+    if(window.ZENTRYX && typeof window.ZENTRYX.moduloActivo==="function"){
+      return window.ZENTRYX.moduloActivo(id)!==false;
+    }
+
+    const cfg=window.ZENTRYX && window.ZENTRYX.config;
+    if(cfg && cfg.modulos && Object.prototype.hasOwnProperty.call(cfg.modulos,id)){
+      return cfg.modulos[id]!==false;
+    }
+  }catch(e){}
+
+  // Si la configuración todavía no ha cargado, no ocultamos módulos por error.
+  return true;
+}
+
+function zxModulosAsignablesActivos(){
+  return ZX_MODULOS_ASIGNABLES.filter(function(m){
+    return zxModuloEmpresaActivo(m.id);
+  });
+}
+
 function zxPermisosEditorHTML(u){
+  const activos=zxModulosAsignablesActivos();
+
   return `
     <section class="zx_user_permissions_box" id="zx_user_permissions_editor">
       <div class="zx_user_permissions_head">
         <h3>Acceso a módulos</h3>
-        <p>El administrador decide qué módulos puede abrir este usuario. Los administradores tienen acceso automático a todos los módulos activos.</p>
+        <p>El administrador decide qué módulos puede abrir este usuario. Solo se muestran los módulos activos para la empresa. Los administradores tienen acceso automático a todos los módulos activos.</p>
       </div>
       <div class="zx_user_permissions_grid">
-        ${ZX_MODULOS_ASIGNABLES.map(function(m){
+        ${activos.map(function(m){
           const checked=zxAccesoModuloGuardado(u,m.id);
           return `
             <label class="zx_user_permission_item" for="u_perm_${m.id}">
@@ -284,19 +309,25 @@ function zxPermisosEditorHTML(u){
           `;
         }).join("")}
       </div>
-      <div class="zx_user_permissions_note">Inicio permanece disponible para todos los usuarios con sesión. Ajustes queda reservado a Administrador.</div>
+      <div class="zx_user_permissions_note">Inicio permanece disponible para todos los usuarios con sesión. Ajustes queda reservado a Administrador. Los módulos desactivados en Ajustes no se muestran aquí.</div>
     </section>
   `;
 }
 
 function zxLeerPermisosFormulario(){
   const permisos=JSON.parse(JSON.stringify(zxObjeto(ZX_USUARIOS_PERMISOS_EDITANDO)));
-  permisos.modulos={};
+  const modulosPrevios=zxObjeto(permisos.modulos);
+  permisos.modulos=Object.assign({},modulosPrevios);
   const rolElegido=normalizarTexto((document.getElementById("u_rol") || {}).value || "");
 
   ZX_MODULOS_ASIGNABLES.forEach(function(m){
+    // Los módulos desactivados para la empresa no aparecen en el formulario y
+    // conservan su valor anterior para no alterar permisos al editar otros datos.
+    if(!zxModuloEmpresaActivo(m.id)) return;
+
     const el=document.getElementById("u_perm_"+m.id);
-    permisos.modulos[m.id]=rolElegido==="invitado" ? false : !!(el && el.checked);
+    if(!el) return;
+    permisos.modulos[m.id]=rolElegido==="invitado" ? false : !!el.checked;
   });
 
   return permisos;
