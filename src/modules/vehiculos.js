@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
-// V3216 - CONTRASTE DETALLE DE INCIDENCIA EN MODO OSCURO
+// V3217 - PROTECCIÓN CONTRA MODALES ASÍNCRONOS OBSOLETOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3216";
+const ZX_VERSION="3217";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -48,6 +48,7 @@ let ZX_FLOTA_CANAL=null;
 let ZX_FLOTA_TIMER=null;
 let ZX_FLOTA_ACTUALIZANDO=false;
 let ZX_FLOTA_ULTIMAS_POSICIONES={};
+let ZX_MODAL_GENERACION=0;
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -300,6 +301,7 @@ function limpiarMapaRuta(){
 }
 
 function cerrarModal(){
+  ZX_MODAL_GENERACION++;
   limpiarMapaRuta();
   const m=document.getElementById("zx_modal_vehiculo");
   if(m) m.remove();
@@ -308,6 +310,7 @@ function cerrarModal(){
 
 function modal(html){
   cerrarModal();
+  const generacion=ZX_MODAL_GENERACION;
   document.body.classList.add("zx_modal_abierto");
   const d=document.createElement("div");
   d.id="zx_modal_vehiculo";
@@ -321,6 +324,11 @@ function modal(html){
   document.body.appendChild(d);
   const cerrarArriba=document.getElementById("zx_modal_cerrar_arriba");
   if(cerrarArriba) cerrarArriba.onclick=cerrarModal;
+  return generacion;
+}
+
+function modalSigueActivo(generacion){
+  return generacion===ZX_MODAL_GENERACION && !!document.getElementById("zx_modal_vehiculo");
 }
 
 function estadoVehiculo(v){
@@ -4108,7 +4116,7 @@ async function abrirFicha(id,tabInicial){
   const v=vehiculoPorId(id);
   if(!v){alert("Vehículo no encontrado.");return}
 
-  modal(`
+  const generacionFicha=modal(`
     <div class="zx_veh_view_head">
       <h2>${limpiar(nombreVehiculo(v))}</h2>
       ${puedeGestionar()?`<button class="zx_view_action blue" id="veh_ficha_editar_arriba">✏️ Editar</button>`:""}
@@ -4124,7 +4132,9 @@ async function abrirFicha(id,tabInicial){
   let detalle;
   try{
     detalle=await cargarDetalleVehiculo(id);
+    if(!modalSigueActivo(generacionFicha)) return;
   }catch(e){
+    if(!modalSigueActivo(generacionFicha)) return;
     modal(`
       <h2>${limpiar(nombreVehiculo(v))}</h2>
       <div class="zx_veh_empty">No se pudo cargar la ficha del vehículo.</div>
@@ -4145,6 +4155,7 @@ async function abrirFicha(id,tabInicial){
     const idsAutor=[...new Set(transferencias.map(t=>String(t.confirmado_por||"")).filter(Boolean))];
     if(idsAutor.length && sb() && navigator.onLine!==false){
       const ru=await sb().from("usuarios").select("id,nombre_completo,nombre,usuario").in("id",idsAutor);
+      if(!modalSigueActivo(generacionFicha)) return;
       if(ru && !ru.error && Array.isArray(ru.data)){
         ru.data.forEach(function(x){
           autoresTransferencia[String(x.id)]=String(x.nombre_completo||x.nombre||x.usuario||"Usuario");
@@ -4410,6 +4421,7 @@ async function abrirFicha(id,tabInicial){
     ? `<div class="zx_veh_notice warning">No se pudo cargar el historial de usos. Puedes seguir usando la ficha y volver a intentarlo más tarde.</div>`
     : "";
 
+  if(!modalSigueActivo(generacionFicha)) return;
   modal(`
     <div class="zx_veh_view_head">
       <h2>${limpiar(nombreVehiculo(v))}</h2>
@@ -4556,6 +4568,7 @@ async function abrirFicha(id,tabInicial){
   document.getElementById("veh_ficha_cerrar").onclick=cerrarModal;
   }catch(e){
     console.error("Error abriendo ficha de vehículo",e);
+    if(!modalSigueActivo(generacionFicha)) return;
     modal(`
       <h2>${limpiar(nombreVehiculo(v))}</h2>
       <div class="zx_veh_empty">No se pudo mostrar el historial.</div>
