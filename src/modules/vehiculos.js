@@ -5,7 +5,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3218";
+const ZX_VERSION="3219";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -1161,6 +1161,8 @@ function actualizarResumenRuta(){
   if(h) h.textContent=p.length?fechaHoraES(p[p.length-1].registrado_at):"-";
   if(cab) cab.textContent=p.length ? "Línea trazada con los puntos registrados por Zentryx." : "Todavía no hay posiciones para este uso.";
   if(tab) tab.textContent="Ruta ("+p.length+")";
+  const mapaRuta=document.getElementById("zx_veh_mapa_ruta");
+  if(mapaRuta) mapaRuta.style.display=p.length?"":"none";
   if(selector && selector.selectedOptions && selector.selectedOptions[0]){
     const op=selector.selectedOptions[0];
     const usoTxt=op.dataset.usoNombre||"Usuario";
@@ -4488,7 +4490,7 @@ async function abrirFicha(id,tabInicial){
           <div><strong id="zx_ruta_ultima_hora">${puntos.length?limpiar(fechaHoraES(puntos[puntos.length-1].registrado_at)):"-"}</strong><small>Última posición</small></div>
         </div>
         <small id="zx_ruta_estado" class="zx_veh_route_note"></small>
-        <div id="zx_veh_mapa_ruta" class="zx_veh_mapa_ruta"></div>
+        <div id="zx_veh_mapa_ruta" class="zx_veh_mapa_ruta" style="${puntos.length?"":"display:none"}"></div>
         ${!puntos.length?`<small class="zx_veh_route_note">Activa el seguimiento GPS, utiliza el vehículo y mantén Zentryx abierto durante el desplazamiento.</small>`:""}
       </div>
     </div>
@@ -4503,6 +4505,10 @@ async function abrirFicha(id,tabInicial){
 
   let mapaIniciado=false;
   async function asegurarMapa(){
+    if(!puntos.length){
+      actualizarResumenRuta();
+      return;
+    }
     if(mapaIniciado) return;
     mapaIniciado=true;
     await crearMapaRutaExacta("zx_veh_mapa_ruta",puntos,id,usoRutaId,rutaEnDirecto);
@@ -4526,7 +4532,15 @@ async function abrirFicha(id,tabInicial){
       ZX_RUTA_USO_ID=usoRutaId;
       ZX_RUTA_PUNTOS=ordenarPuntos(puntos);
       actualizarResumenRuta();
-      dibujarRutaExacta(true);
+      if(puntos.length){
+        if(ZX_RUTA_MAPA) dibujarRutaExacta(true);
+        else{
+          mapaIniciado=false;
+          setTimeout(asegurarMapa,30);
+        }
+      }else if(ZX_RUTA_MAPA){
+        dibujarRutaExacta(false);
+      }
     };
   }
   const grua=document.getElementById("veh_ficha_grua");
