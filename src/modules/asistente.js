@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - ASISTENTE CONTEXTUAL
-// V1004 - RECOMENDACIONES + CONSULTA + DICTADO MANTENER PULSADO
+// V1010 - BOTON MOVIL ACOPLADO AL BORDE + MENOS SOLAPES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1009";
+const ZX_VERSION="1010";
 const BASE_KEY="zentryx_asistente_v1009";
 const SESSION_SHOWN_KEY="zentryx_asistente_mostrado_sesion";
 const SNOOZE_HOURS=6;
@@ -403,7 +403,7 @@ function instalarCSS(){
     .zx_as_mic.is-listening{background:#fee2e2;border-color:#ef4444;color:#991b1b;box-shadow:0 0 0 3px rgba(239,68,68,.12)}
     .zx_as_hint{margin-top:7px;color:#64748b;font-size:.82rem;font-weight:650;line-height:1.35}
     @media(max-width:759px){
-      #zx_assistant_button{right:14px;bottom:calc(82px + env(safe-area-inset-bottom,0px))}
+      #zx_assistant_button{right:-11px;bottom:calc(90px + env(safe-area-inset-bottom,0px));width:48px;height:52px;border-radius:18px 0 0 18px;font-size:22px;padding-right:8px;box-shadow:0 10px 28px rgba(37,99,235,.30);opacity:.96}
       #zx_assistant_panel{
         left:12px;right:12px;bottom:calc(18px + env(safe-area-inset-bottom,0px));
         width:auto;max-height:min(78vh,720px);border-radius:24px;padding:16px 16px 18px
