@@ -15,11 +15,12 @@
 // V3153 - BUSCADOR DIRECTO ROBUSTO EN TODOS LOS CAMPOS + EMAIL EMPRESA LITERAL/NORMALIZADO
 // V3154 - ACCESO INDIVIDUAL A MÓDULOS
 // V3155 - SOLO MÓDULOS ACTIVOS DE EMPRESA EN PERMISOS
+// V3156 - LABORAL: FILA ACTIVA ÚNICA + PRECIOS PERSONALES/HEREDADOS DE EMPRESA
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3155";
+window.ZX_USUARIOS_VERSION="3156";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -2483,11 +2484,14 @@ function selectLaboral(id,label,valor,opciones){
 }
 
 async function cargarLaboralUsuario(usuarioId){
+  // Usuarios y Fichaje deben leer exactamente la misma fila laboral.
+  // Si existen varias filas activas antiguas, manda la más recientemente actualizada.
   const h=await sb()
     .from("horarios_usuario")
     .select("*")
     .eq("usuario_id",String(usuarioId))
     .eq("activo",true)
+    .order("actualizado_en",{ascending:false})
     .limit(1);
 
   if(!h.error && h.data && h.data.length){
@@ -2499,6 +2503,7 @@ async function cargarLaboralUsuario(usuarioId){
     .select("*")
     .eq("user_id",String(usuarioId))
     .eq("activo",true)
+    .order("actualizado_en",{ascending:false})
     .limit(1);
 
   if(!h2.error && h2.data && h2.data.length){
@@ -2542,9 +2547,12 @@ function normalizarLaboralDesdeHorario(h){
     provincia:h.provincia || "",
     localidad:h.localidad || "",
     convenio:h.convenio || "",
-    precio_extra:Number(h.precio_extra || 0),
-    precio_extra_nocturna:Number(h.precio_extra_nocturna || 0),
-    precio_extra_festiva:Number(h.precio_extra_festiva || 0)
+    precio_extra:Number(h.precio_extra ?? 0),
+    precio_extra_nocturna:Number(h.precio_extra_nocturna ?? 0),
+    precio_extra_festiva:Number(h.precio_extra_festiva ?? 0),
+    hereda_precio_extra:h.precio_extra===null || h.precio_extra===undefined,
+    hereda_precio_extra_nocturna:h.precio_extra_nocturna===null || h.precio_extra_nocturna===undefined,
+    hereda_precio_extra_festiva:h.precio_extra_festiva===null || h.precio_extra_festiva===undefined
   };
 }
 
@@ -2572,7 +2580,10 @@ function normalizarLaboralDesdeConfig(c){
     convenio:c.convenio || "",
     precio_extra:Number(c.precio_extra || 0),
     precio_extra_nocturna:Number(c.precio_extra_nocturna || 0),
-    precio_extra_festiva:Number(c.precio_extra_festiva || 0)
+    precio_extra_festiva:Number(c.precio_extra_festiva || 0),
+    hereda_precio_extra:false,
+    hereda_precio_extra_nocturna:false,
+    hereda_precio_extra_festiva:false
   };
 }
 
@@ -2600,7 +2611,10 @@ function laboralDefault(u){
     convenio:"",
     precio_extra:0,
     precio_extra_nocturna:0,
-    precio_extra_festiva:0
+    precio_extra_festiva:0,
+    hereda_precio_extra:true,
+    hereda_precio_extra_nocturna:true,
+    hereda_precio_extra_festiva:true
   };
 }
 
@@ -2722,6 +2736,12 @@ async function verLaboralUsuario(u){
 
   const actual=await cargarLaboralUsuario(u.id);
   const l=actual || laboralDefault(u);
+  let baseEmpresa={precio_extra:0,precio_extra_nocturna:0,precio_extra_festiva:0};
+  try{
+    if(window.ZENTRYX_LABORAL && typeof window.ZENTRYX_LABORAL.cargarBaseEmpresa==="function"){
+      baseEmpresa=Object.assign(baseEmpresa,await window.ZENTRYX_LABORAL.cargarBaseEmpresa());
+    }
+  }catch(e){}
   const solicitudes=await cargarSolicitudesUsuario(String(u.id || ""));
   const consumo=calcularConsumoLaboral(solicitudes);
   const editable=puedeEditarLaboral(u);
@@ -2761,9 +2781,16 @@ async function verLaboralUsuario(u){
       puedeVerDatosLaboralesSensibles(u)
       ? `
         <h3 class="zx_form_subtitle">Precios horas extra</h3>
-        ${inputNum("lab_precio_extra","Precio hora extra",l.precio_extra,"0.01")}
-        ${inputNum("lab_precio_extra_nocturna","Precio hora extra nocturna",l.precio_extra_nocturna,"0.01")}
-        ${inputNum("lab_precio_extra_festiva","Precio hora extra festiva",l.precio_extra_festiva,"0.01")}
+        <div class="zx_text" style="margin-bottom:10px">Cada tarifa puede usar la base de empresa o un precio propio del trabajador.</div>
+
+        ${check("lab_hereda_precio_extra","Usar base empresa · Extra normal ("+Number(baseEmpresa.precio_extra||0).toFixed(2)+" €)",l.hereda_precio_extra===true)}
+        ${inputNum("lab_precio_extra","Precio propio · Extra normal",l.hereda_precio_extra ? Number(baseEmpresa.precio_extra||0) : l.precio_extra,"0.01")}
+
+        ${check("lab_hereda_precio_extra_nocturna","Usar base empresa · Extra nocturna ("+Number(baseEmpresa.precio_extra_nocturna||0).toFixed(2)+" €)",l.hereda_precio_extra_nocturna===true)}
+        ${inputNum("lab_precio_extra_nocturna","Precio propio · Extra nocturna",l.hereda_precio_extra_nocturna ? Number(baseEmpresa.precio_extra_nocturna||0) : l.precio_extra_nocturna,"0.01")}
+
+        ${check("lab_hereda_precio_extra_festiva","Usar base empresa · Extra festiva ("+Number(baseEmpresa.precio_extra_festiva||0).toFixed(2)+" €)",l.hereda_precio_extra_festiva===true)}
+        ${inputNum("lab_precio_extra_festiva","Precio propio · Extra festiva",l.hereda_precio_extra_festiva ? Number(baseEmpresa.precio_extra_festiva||0) : l.precio_extra_festiva,"0.01")}
       `
       : ``
     }
@@ -2783,6 +2810,7 @@ async function verLaboralUsuario(u){
 
   cargarDatalistLocalidades(l.provincia,l.localidad);
   activarFiltrosUbicacion();
+  activarHerenciaPreciosLaboral(baseEmpresa);
 
   const guardar=document.getElementById("lab_guardar_top");
   if(guardar){
@@ -2793,6 +2821,30 @@ async function verLaboralUsuario(u){
       });
     };
   }
+}
+
+function activarHerenciaPreciosLaboral(baseEmpresa){
+  const pares=[
+    ["lab_hereda_precio_extra","lab_precio_extra","precio_extra"],
+    ["lab_hereda_precio_extra_nocturna","lab_precio_extra_nocturna","precio_extra_nocturna"],
+    ["lab_hereda_precio_extra_festiva","lab_precio_extra_festiva","precio_extra_festiva"]
+  ];
+
+  pares.forEach(function(par){
+    const checkEl=document.getElementById(par[0]);
+    const inputEl=document.getElementById(par[1]);
+    if(!checkEl || !inputEl) return;
+
+    const refrescar=function(){
+      const hereda=checkEl.checked===true;
+      inputEl.disabled=hereda;
+      inputEl.style.opacity=hereda ? ".65" : "1";
+      if(hereda) inputEl.value=Number(baseEmpresa?.[par[2]]||0);
+    };
+
+    checkEl.onchange=refrescar;
+    refrescar();
+  });
 }
 
 function activarFiltrosUbicacion(){
@@ -2847,6 +2899,9 @@ function leerDatosLaboralesFormulario(u){
     precio_extra:numVal("lab_precio_extra",0),
     precio_extra_nocturna:numVal("lab_precio_extra_nocturna",0),
     precio_extra_festiva:numVal("lab_precio_extra_festiva",0),
+    hereda_precio_extra:document.getElementById("lab_hereda_precio_extra")?.checked===true,
+    hereda_precio_extra_nocturna:document.getElementById("lab_hereda_precio_extra_nocturna")?.checked===true,
+    hereda_precio_extra_festiva:document.getElementById("lab_hereda_precio_extra_festiva")?.checked===true,
     pais:document.getElementById("lab_pais").value.trim() || "España",
     comunidad:document.getElementById("lab_comunidad").value.trim(),
     provincia:document.getElementById("lab_provincia").value.trim(),
@@ -2936,9 +2991,10 @@ async function guardarHorarioUsuario(datos){
     asuntos:Number(datos.asuntos_propios || 0),
     asuntos_horas:Number(datos.asuntos_propios || 0),
     convenio:String(datos.convenio || ""),
-    precio_extra:Number(datos.precio_extra || 0),
-    precio_extra_nocturna:Number(datos.precio_extra_nocturna || 0),
-    precio_extra_festiva:Number(datos.precio_extra_festiva || 0),
+    // null = heredar la tarifa base de empresa. Un número, incluido 0, = precio propio.
+    precio_extra:datos.hereda_precio_extra ? null : Number(datos.precio_extra || 0),
+    precio_extra_nocturna:datos.hereda_precio_extra_nocturna ? null : Number(datos.precio_extra_nocturna || 0),
+    precio_extra_festiva:datos.hereda_precio_extra_festiva ? null : Number(datos.precio_extra_festiva || 0),
     pais:String(datos.pais || "España"),
     comunidad:String(datos.comunidad || ""),
     provincia:String(datos.provincia || ""),
@@ -2946,17 +3002,32 @@ async function guardarHorarioUsuario(datos){
     actualizado_en:new Date().toISOString()
   };
 
-  const buscado=await sb()
-    .from("horarios_usuario")
-    .select("id")
-    .eq("usuario_id",String(datos.usuario_id))
-    .eq("activo",true)
-    .limit(1);
+  const [porUsuarioId,porUserId]=await Promise.all([
+    sb().from("horarios_usuario").select("id,actualizado_en").eq("usuario_id",String(datos.usuario_id)).eq("activo",true),
+    sb().from("horarios_usuario").select("id,actualizado_en").eq("user_id",String(datos.usuario_id)).eq("activo",true)
+  ]);
 
-  if(buscado.error) return buscado;
+  if(porUsuarioId.error && porUserId.error) return porUsuarioId;
 
-  if(buscado.data && buscado.data.length){
-    return await sb().from("horarios_usuario").update(horario).eq("id",buscado.data[0].id);
+  const mapa=new Map();
+  [...(porUsuarioId.data||[]),...(porUserId.data||[])].forEach(function(f){
+    if(f && f.id) mapa.set(String(f.id),f);
+  });
+  const activas=Array.from(mapa.values()).sort(function(a,b){
+    return String(b.actualizado_en||"").localeCompare(String(a.actualizado_en||""));
+  });
+
+  if(activas.length){
+    const principal=activas[0];
+    const guardado=await sb().from("horarios_usuario").update(horario).eq("id",principal.id);
+    if(guardado.error) return guardado;
+
+    // Corrige datos antiguos con varias filas activas sin borrar historial.
+    const duplicadas=activas.slice(1).map(x=>x.id).filter(Boolean);
+    if(duplicadas.length){
+      await sb().from("horarios_usuario").update({activo:false,actualizado_en:new Date().toISOString()}).in("id",duplicadas);
+    }
+    return guardado;
   }
 
   return await sb().from("horarios_usuario").insert([horario]);
