@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
+// V3158 - FESTIVOS LABORALES AUTOMÁTICOS Y COLORES POR ÁMBITO
 // V3157 - ESTADO DE JORNADA CLARO EN TARJETAS DE TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3157";
+const ZX_VERSION="3158";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -442,6 +443,13 @@ function colorTipo(tipo){
   return "default";
 }
 
+function claseFestivoAmbito(e){
+  if(String(e?.tipo||"")!=="festivo") return "";
+  const a=normalizar(e?.festivo_ambito||"");
+  if(["nacional","autonomico","provincial","local","empresa"].includes(a)) return "festivo_"+a;
+  return "";
+}
+
 function claseEstadoVisual(e){
   const estado=normalizar(e);
   if(estado==="completado" || estado==="terminado") return "estado_terminado";
@@ -770,7 +778,19 @@ async function cargarEventos(opciones){
       });
     }
 
-    const datos=combinarEventosAgenda(eventosAgenda,trabajosDirectos);
+    let datos=combinarEventosAgenda(eventosAgenda,trabajosDirectos);
+    if(window.ZENTRYX_LABORAL && typeof window.ZENTRYX_LABORAL.eventosFestivosRango==="function"){
+      try{
+        const festivosAuto=await window.ZENTRYX_LABORAL.eventosFestivosRango(r.desde,r.hasta,s.id || s.usuario_id);
+        if(Array.isArray(festivosAuto) && festivosAuto.length){
+          datos=datos.concat(festivosAuto).sort(function(a,b){
+            const fa=String(a.fecha_inicio||"")+" "+String(a.hora_inicio||"");
+            const fb=String(b.fecha_inicio||"")+" "+String(b.hora_inicio||"");
+            return fa.localeCompare(fb);
+          });
+        }
+      }catch(e){console.warn("Agenda: no se pudieron cargar los festivos laborales",e);}
+    }
     await actualizarVehiculosAgenda(datos);
     ZX_AGENDA_CACHE=datos;
     ZX_AGENDA_ULTIMA_CARGA=Date.now();
@@ -903,7 +923,7 @@ function renderCalendario(){
       <button class="zx_ag_day ${claseHoy}" onclick="ZX_ag_verDia('${fecha}')">
         <b>${d}</b>
         ${evs.slice(0,3).map(function(e){
-          return `<span class="${colorTipo(e.tipo)} ${esTrabajo(e) ? claseEstadoVisual(e.estado) : ""}">${limpiar(e.hora_inicio ? String(e.hora_inicio).slice(0,5)+" " : "")}${limpiar(e.titulo || "")}</span>`;
+          return `<span class="${colorTipo(e.tipo)} ${claseFestivoAmbito(e)} ${esTrabajo(e) ? claseEstadoVisual(e.estado) : ""}">${limpiar(e.hora_inicio ? String(e.hora_inicio).slice(0,5)+" " : "")}${limpiar(e.titulo || "")}</span>`;
         }).join("")}
         ${evs.length>3 ? `<em>+${evs.length-3}</em>` : ""}
       </button>
@@ -920,6 +940,7 @@ function renderCalendario(){
 
 function renderEvento(e,fechaContexto){
   const trabajo=esTrabajo(e);
+  const festivoAuto=String(e?.tipo||"")==="festivo" && String(e?.origen||"")==="festivos";
   const done=terminado(e);
   const canc=cancelado(e);
   const responsable=String(e.responsable || e.usuario || "").trim();
@@ -936,6 +957,8 @@ function renderEvento(e,fechaContexto){
     if(e.direccion){
       acciones+=`<button class="green" onclick="ZX_ag_mapa('${limpiar(e.direccion)}')">📍 Mapa</button>`;
     }
+  }else if(festivoAuto){
+    acciones=`<span class="zx_ag_festivo_info">Calendario laboral · ${limpiar(String(e.festivo_ambito||"festivo").replaceAll("_"," "))}${e.festivo_verificado ? " · Oficial verificado" : ""}</span>`;
   }else{
     acciones+=`<button class="blue" onclick="ZX_ag_editar('${limpiar(e.id)}')">✏️ Editar</button>`;
 
@@ -948,7 +971,7 @@ function renderEvento(e,fechaContexto){
   }
 
   return `
-    <article class="zx_ag_event ${colorTipo(e.tipo)} ${trabajo ? claseEstadoVisual(e.estado) : ""}">
+    <article class="zx_ag_event ${colorTipo(e.tipo)} ${claseFestivoAmbito(e)} ${trabajo ? claseEstadoVisual(e.estado) : ""}">
       <div class="zx_ag_event_top">
         <div>
           <b>${limpiar(e.titulo || "Evento")}</b>
@@ -2157,6 +2180,12 @@ function instalarCSS(){
     .zx_ag_day span.revision{background:#0f766e}
     .zx_ag_event.festivo,
     .zx_ag_day span.festivo{background:#9333ea}
+    .zx_ag_event.festivo.festivo_nacional,.zx_ag_day span.festivo.festivo_nacional{background:#dc2626}
+    .zx_ag_event.festivo.festivo_autonomico,.zx_ag_day span.festivo.festivo_autonomico{background:#f97316}
+    .zx_ag_event.festivo.festivo_provincial,.zx_ag_day span.festivo.festivo_provincial{background:#d97706}
+    .zx_ag_event.festivo.festivo_local,.zx_ag_day span.festivo.festivo_local{background:#9333ea}
+    .zx_ag_event.festivo.festivo_empresa,.zx_ag_day span.festivo.festivo_empresa{background:#2563eb}
+    .zx_ag_festivo_info{display:block;width:100%;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.18);font-size:12px;font-weight:900;text-transform:capitalize}
     .zx_ag_event.libranza,
     .zx_ag_day span.libranza{background:#0891b2}
     .zx_ag_event.default,
