@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
+// V3147 - CALENDARIO LABORAL DE EMPRESA + FESTIVOS APLICABLES POR USUARIO
 // V3145 - FINALIZAR/DEVOLVER VEHÍCULO DESDE FICHAJE SIN ACCESO AL MÓDULO GENERAL
 // - Mantiene el flujo V3144 y la separación entre Fichaje y el módulo administrativo Vehículos.
 // - Permite al responsable finalizar el uso de su vehículo desde Fichaje, también si es habitual.
@@ -1128,58 +1129,53 @@ async function contextoLaboralDia(fechaISOtxt,usuarioIdOpcional){
 // FESTIVOS Y OBJETIVO
 // ===============================
 async function esFestivo(fechaTxt,usuarioIdOpcional){
-  if(zxOffline()) return {es:false,tipo:null,nombre:null,offline:true};
+  if(zxOffline()) return {es:false,tipo:null,nombre:null,offline:true,computaExtra:false};
   const s=sesion();
   const uid=usuarioIdOpcional || s.id;
   const fecha=fechaLocalISO(fechaTxt||new Date());
 
-  let conf={data:null};
+  if(window.ZENTRYX_LABORAL && typeof window.ZENTRYX_LABORAL.festivosUsuarioEnFecha==="function"){
+    try{
+      const r=await window.ZENTRYX_LABORAL.festivosUsuarioEnFecha(fecha,uid);
+      const f=r && r.principal ? r.principal : null;
+      if(r && r.es && f){
+        return {
+          es:true,
+          tipo:f.ambito || f.tipo || "festivo",
+          nombre:f.nombre || "Festivo",
+          computaExtra:f.computa_extra!==false,
+          festivos:r.festivos || [f]
+        };
+      }
+    }catch(e){console.warn("Fichaje: no se pudo consultar el calendario laboral PRO",e);}
+  }
+
+  // Compatibilidad con instalaciones anteriores a laboral_core.
+  let h=null;
   try{
-    conf=await sb()
-      .from("config_laboral")
-      .select("pais,provincia,localidad")
-      .eq("usuario_id",String(uid))
-      .maybeSingle();
+    const rh=await sb().from("horarios_usuario").select("pais,comunidad,provincia,localidad").eq("usuario_id",String(uid)).eq("activo",true).limit(1);
+    if(!rh.error && rh.data && rh.data.length) h=rh.data[0];
   }catch(e){}
-
-  const paisUsuario=normalizarTexto(conf.data?.pais||"España");
-  const provinciaUsuario=normalizarTexto(conf.data?.provincia||"");
-  const localidadUsuario=normalizarTexto(conf.data?.localidad||"");
-  const comunidadUsuario=normalizarComunidadDesdeProvincia(provinciaUsuario);
-
-  let r=null;
-  try{r=await sb().from("festivos").select("*").eq("fecha",fecha)}catch(e){return {es:false,tipo:null,nombre:null}}
-  if(r.error || !r.data || !r.data.length) return {es:false,tipo:null,nombre:null};
-
-  for(const f of r.data){
-    const tipo=normalizarTexto(f.tipo||"");
+  const paisUsuario=normalizarTexto(h?.pais||"España");
+  const provinciaUsuario=normalizarTexto(h?.provincia||"");
+  const localidadUsuario=normalizarTexto(h?.localidad||"");
+  const comunidadUsuario=normalizarTexto(h?.comunidad||normalizarComunidadDesdeProvincia(provinciaUsuario));
+  let q=null;
+  try{q=await sb().from("festivos").select("*").eq("fecha",fecha)}catch(e){return {es:false,tipo:null,nombre:null,computaExtra:false}}
+  if(q.error || !q.data || !q.data.length) return {es:false,tipo:null,nombre:null,computaExtra:false};
+  for(const f of q.data){
+    const tipo=normalizarTexto(f.ambito||f.tipo||"");
     const pais=normalizarTexto(f.pais||"");
     const provincia=normalizarTexto(f.provincia||"");
     const localidad=normalizarTexto(f.localidad||"");
     const comunidad=normalizarTexto(f.comunidad||"");
-
-    if(tipo==="nacional"){
-      if(!pais || pais==="empty" || pais===paisUsuario) return {es:true,tipo:f.tipo||"nacional",nombre:f.nombre||"Festivo"};
-    }
-
-    if(tipo==="autonomico"){
-      if(comunidad && comunidad!=="empty" && (comunidad===comunidadUsuario || comunidad===provinciaUsuario)){
-        return {es:true,tipo:f.tipo||"autonomico",nombre:f.nombre||"Festivo"};
-      }
-    }
-
-    if(tipo==="local"){
-      if(localidad && localidad!=="empty" && localidad===localidadUsuario){
-        return {es:true,tipo:f.tipo||"local",nombre:f.nombre||"Festivo"};
-      }
-    }
-
-    if(provincia && provincia!=="empty" && provincia===provinciaUsuario && tipo!=="local"){
-      return {es:true,tipo:f.tipo||"festivo",nombre:f.nombre||"Festivo"};
-    }
+    if(tipo==="empresa") return {es:true,tipo:"empresa",nombre:f.nombre||"Día de empresa",computaExtra:f.computa_extra!==false};
+    if(tipo==="nacional" && (!pais || pais==="empty" || pais===paisUsuario)) return {es:true,tipo:f.tipo||"nacional",nombre:f.nombre||"Festivo",computaExtra:f.computa_extra!==false};
+    if(tipo==="autonomico" && comunidad && comunidad!=="empty" && comunidad===comunidadUsuario) return {es:true,tipo:f.tipo||"autonomico",nombre:f.nombre||"Festivo",computaExtra:f.computa_extra!==false};
+    if(tipo==="local" && localidad && localidad!=="empty" && localidad===localidadUsuario) return {es:true,tipo:f.tipo||"local",nombre:f.nombre||"Festivo",computaExtra:f.computa_extra!==false};
+    if(tipo==="provincial" && provincia && provincia!=="empty" && provincia===provinciaUsuario) return {es:true,tipo:f.tipo||"provincial",nombre:f.nombre||"Festivo",computaExtra:f.computa_extra!==false};
   }
-
-  return {es:false,tipo:null,nombre:null};
+  return {es:false,tipo:null,nombre:null,computaExtra:false};
 }
 
 async function objetivoDiaPRO(fechaISOtxt,usuarioIdOpcional){
@@ -1195,15 +1191,8 @@ async function objetivoDiaPRO(fechaISOtxt,usuarioIdOpcional){
     objetivoBaseSeg=0;
   }else{
     try{
-      const r=await sb()
-        .from("horarios_usuario")
-        .select("*")
-        .eq("usuario_id",String(uid))
-        .eq("activo",true)
-        .limit(1);
-
-      if(!r.error && r.data && r.data.length){
-        const h=r.data[0];
+      const h=await horarioUsuarioActivo(uid);
+      if(h){
         const dia=diaSemana(fecha);
         objetivoBaseSeg=Number(h[dia]||0)*60;
       }
@@ -1242,7 +1231,8 @@ async function objetivoDiaPRO(fechaISOtxt,usuarioIdOpcional){
     solicitudId,
     bloquearFichaje,
     solicitudes:contexto.solicitudes||[],
-    festivo:festivo.es,
+    festivo:festivo.es && festivo.computaExtra!==false,
+    diaEspecial:festivo.es,
     tipoFestivo:festivo.tipo,
     nombreFestivo:festivo.nombre
   };
@@ -1266,27 +1256,20 @@ function horaSQL(v){
 
 async function horarioUsuarioActivo(usuarioId){
   if(zxOffline()) return null;
+  if(window.ZENTRYX_LABORAL && typeof window.ZENTRYX_LABORAL.resolverUsuario==="function"){
+    try{
+      const cfg=await window.ZENTRYX_LABORAL.resolverUsuario(usuarioId);
+      if(cfg) return cfg;
+    }catch(e){console.warn("Fichaje: no se pudo resolver la configuración laboral efectiva",e);}
+  }
   try{
-    const r=await sb()
-      .from("horarios_usuario")
-      .select("*")
-      .eq("usuario_id",String(usuarioId))
-      .eq("activo",true)
-      .order("actualizado_en",{ascending:false})
-      .limit(1);
+    const r=await sb().from("horarios_usuario").select("*").eq("usuario_id",String(usuarioId)).eq("activo",true).order("actualizado_en",{ascending:false}).limit(1);
     if(!r.error && r.data && r.data.length) return r.data[0];
   }catch(e){}
-
   try{
-    const r=await sb()
-      .from("horarios_usuario")
-      .select("*")
-      .eq("usuario_id",String(usuarioId))
-      .eq("activo",true)
-      .limit(1);
+    const r=await sb().from("horarios_usuario").select("*").eq("usuario_id",String(usuarioId)).eq("activo",true).limit(1);
     if(!r.error && r.data && r.data.length) return r.data[0];
   }catch(e){}
-
   return null;
 }
 
