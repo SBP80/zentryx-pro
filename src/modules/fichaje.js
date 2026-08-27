@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
+// V3149 - PRECIOS PERSONALES O HEREDADOS DE EMPRESA EN EL SNAPSHOT DE JORNADA
 // V3148 - OBJETIVO 0 EN FESTIVOS/AUSENCIAS + EXTRA FESTIVA REAL
 // V3147 - CALENDARIO LABORAL DE EMPRESA + FESTIVOS APLICABLES POR USUARIO
 // V3145 - FINALIZAR/DEVOLVER VEHÍCULO DESDE FICHAJE SIN ACCESO AL MÓDULO GENERAL
@@ -1355,20 +1356,28 @@ function cambioConfiguracionEntreJornadas(anterior,snapshotActual){
 }
 
 async function crearSnapshotConfiguracion(fecha,usuarioId,laboral,objetivoSeg){
-  const [h,control]=await Promise.all([
+  const resolverLaboral=(window.ZENTRYX_LABORAL && typeof window.ZENTRYX_LABORAL.resolverUsuario==="function")
+    ? window.ZENTRYX_LABORAL.resolverUsuario(usuarioId)
+    : Promise.resolve(null);
+
+  const [h,control,laboralUsuario]=await Promise.all([
     horarioUsuarioActivo(usuarioId),
-    configControlUsuario(usuarioId)
+    configControlUsuario(usuarioId),
+    resolverLaboral
   ]);
 
+  const resuelto=laboralUsuario || laboral || {};
   const dia=diaSemana(fecha);
-  const minutosDia=h ? valorDiaHorario(h,dia) : Math.floor(numeroSeguro(objetivoSeg,0)/60);
+  const minutosDia=(resuelto[dia]!==null && resuelto[dia]!==undefined)
+    ? Math.max(0,numeroSeguro(resuelto[dia],0))
+    : (h ? valorDiaHorario(h,dia) : Math.floor(numeroSeguro(objetivoSeg,0)/60));
   const esLaborable=minutosDia>0;
 
   return {
     config_copiada_en:ahora(),
     config_dia_semana:dia,
     config_minutos_dia:minutosDia,
-    config_horas_semana:numeroSeguro(h?.horas_semana,0),
+    config_horas_semana:numeroSeguro(resuelto?.horas_semana ?? h?.horas_semana,0),
     config_hora_entrada:horaSQL(control?.entrada ?? control?.hora_entrada ?? h?.entrada ?? h?.hora_entrada),
     config_hora_salida:horaSQL(control?.salida ?? control?.hora_salida ?? h?.salida ?? h?.hora_salida),
     config_margen_entrada:Math.max(0,numeroSeguro(control?.margen_entrada,0)),
@@ -1377,16 +1386,16 @@ async function crearSnapshotConfiguracion(fecha,usuarioId,laboral,objetivoSeg){
     config_comida_max:Math.max(0,numeroSeguro(control?.comida_max,0)),
     config_jornada_max_horas:Math.max(0,numeroSeguro(control?.jornada_max_horas,0)),
     config_es_dia_laborable:esLaborable,
-    config_vacaciones_anuales:Math.max(0,numeroSeguro(h?.vacaciones,0)),
-    config_asuntos_propios_horas:Math.max(0,numeroSeguro(h?.asuntos_horas ?? h?.asuntos,0)),
-    config_precio_extra:Math.max(0,numeroSeguro(h?.precio_extra ?? h?.precio_hora ?? h?.precio_hora_extra,0)),
-    config_precio_extra_nocturna:Math.max(0,numeroSeguro(h?.precio_extra_nocturna ?? h?.precio_hora_extra_nocturna,0)),
-    config_precio_extra_festiva:Math.max(0,numeroSeguro(h?.precio_extra_festiva ?? h?.precio_hora_extra_festiva,0)),
-    config_pais:String(h?.pais ?? laboral?.pais ?? ""),
-    config_comunidad:String(h?.comunidad ?? ""),
-    config_provincia:String(h?.provincia ?? ""),
-    config_localidad:String(h?.localidad ?? ""),
-    config_convenio:String(h?.convenio ?? ""),
+    config_vacaciones_anuales:Math.max(0,numeroSeguro(resuelto?.vacaciones ?? h?.vacaciones,0)),
+    config_asuntos_propios_horas:Math.max(0,numeroSeguro(resuelto?.asuntos_horas ?? h?.asuntos_horas ?? h?.asuntos,0)),
+    config_precio_extra:Math.max(0,numeroSeguro(resuelto?.precio_extra ?? h?.precio_extra ?? h?.precio_hora ?? h?.precio_hora_extra,0)),
+    config_precio_extra_nocturna:Math.max(0,numeroSeguro(resuelto?.precio_extra_nocturna ?? h?.precio_extra_nocturna ?? h?.precio_hora_extra_nocturna,0)),
+    config_precio_extra_festiva:Math.max(0,numeroSeguro(resuelto?.precio_extra_festiva ?? h?.precio_extra_festiva ?? h?.precio_hora_extra_festiva,0)),
+    config_pais:String(resuelto?.pais ?? h?.pais ?? laboral?.pais ?? ""),
+    config_comunidad:String(resuelto?.comunidad ?? h?.comunidad ?? ""),
+    config_provincia:String(resuelto?.provincia ?? h?.provincia ?? ""),
+    config_localidad:String(resuelto?.localidad ?? h?.localidad ?? ""),
+    config_convenio:String(resuelto?.convenio ?? h?.convenio ?? ""),
     config_origen:"snapshot_jornada_v1"
   };
 }
