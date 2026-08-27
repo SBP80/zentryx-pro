@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3227
+// ZENTRYX PRO - TRABAJOS V3228
+// V3228 - AVISO DE FESTIVOS POR TRABAJADOR ANTES DE PROGRAMAR
 // V3227 - NOTAS: EDITAR/BORRAR DESDE HISTORIAL Y CONTADOR ACTUALIZADO
 // V3226 - CIERRE TOTAL: AVISO CORRECTO DE JORNADAS RESTANTES
 // V3225 - REAPERTURA SEGURA: CONSERVA JORNADAS REALIZADAS Y CANCELADAS
@@ -7,7 +8,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3227";
+const ZX_VERSION="3228";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -1837,6 +1838,32 @@ function valor(id){
   return el ? String(el.value || "").trim() : "";
 }
 
+async function confirmarPlanificacionFestivos(jornadas,equipo){
+  const core=window.ZENTRYX_LABORAL;
+  if(!core || typeof core.avisosPlanificacion!=="function") return true;
+  try{
+    const avisos=await core.avisosPlanificacion(jornadas,equipo);
+    if(!avisos || !avisos.length) return true;
+    const lineas=[];
+    const vistos=new Set();
+    avisos.forEach(function(a){
+      const k=[a.fecha,a.usuario,a.nombres].join("|");
+      if(vistos.has(k)) return;
+      vistos.add(k);
+      lineas.push("• "+fechaES(a.fecha)+" · "+a.usuario+" · "+a.nombres);
+    });
+    const texto="AVISO DE CALENDARIO LABORAL\n\n"+
+      "Hay trabajo planificado en uno o varios festivos aplicables:\n\n"+
+      lineas.slice(0,12).join("\n")+
+      (lineas.length>12 ? "\n… y "+(lineas.length-12)+" aviso(s) más." : "")+
+      "\n\nPuedes programarlo, pero Zentryx dejará el aviso. Las horas extra festivas se generarán cuando exista trabajo realmente fichado, no por la planificación.\n\n¿Continuar?";
+    return confirm(texto);
+  }catch(e){
+    console.warn("Trabajos: no se pudo comprobar el calendario laboral",e);
+    return true;
+  }
+}
+
 async function guardarTrabajo(id,clientes,usuarios){
   const titulo=valor("tr_titulo");
 
@@ -1875,6 +1902,8 @@ async function guardarTrabajo(id,clientes,usuarios){
       return;
     }
   }
+
+  if(!await confirmarPlanificacionFestivos(jornadas,equipo)) return;
 
   const principal=jornadas[0];
 
