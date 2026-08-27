@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - LABORAL CORE V1003
+// ZENTRYX PRO - LABORAL CORE V1004
 // Configuración base de empresa, calendario laboral y festivos aplicables.
 // ===============================
 (function(){
 "use strict";
 
-const VERSION="1003";
+const VERSION="1004";
 const EMPRESA_TABLE="config_empresa";
 const FESTIVOS_TABLE="festivos";
 const HORARIOS_TABLE="horarios_usuario";
@@ -115,9 +115,10 @@ const FUENTE_MADRID_2026={
 
 function baseLaboral(){
   return {
-    version:1,
+    version:2,
     lunes:480,martes:480,miercoles:480,jueves:480,viernes:480,sabado:0,domingo:0,horas_semana:40,
-    convenio:"Metal",vacaciones:30,asuntos_horas:16,
+    convenio:"Metal",convenio_referencia:"",convenio_vigencia_desde:"",convenio_vigencia_hasta:"",
+    vacaciones:30,vacaciones_tipo:"naturales",asuntos_horas:16,
     precio_hora:0,precio_extra:0,precio_extra_nocturna:0,precio_extra_festiva:0,
     regla_festivo_nocturno:"festivo",
     pais:"España",pais_codigo:"ES",comunidad:"Madrid",provincia:"Madrid",localidad:"",anio:new Date().getFullYear(),
@@ -125,6 +126,14 @@ function baseLaboral(){
   };
 }
 function unirLaboral(base,data){return Object.assign({},base||{},data&&typeof data==="object"?data:{})}
+
+function objetoLaboral(v){return v && typeof v==="object" && !Array.isArray(v) ? v : {}}
+function metaLaboral(h){return objetoLaboral(h && h.laboral_meta)}
+function metaLaboralActiva(m){return !!(m && (m.inicializado===true || Number(m.version||0)>=1))}
+function numeroLaboral(v,def){const n=Number(v);return Number.isFinite(n)?n:Number(def||0)}
+function codigoPais(nombre){return PAISES_ISO[normalizar(nombre)] || ""}
+function totalSemanal(cfg){return ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"].reduce((n,k)=>n+numeroLaboral(cfg&&cfg[k],0),0)}
+
 
 async function horarioUsuario(usuarioId){
   const cliente=sb(); if(!cliente || !usuarioId) return null;
@@ -151,12 +160,16 @@ function baseDesdeHorario(h){
 
 async function cargarBaseEmpresa(){
   const cliente=sb();
-  const fallback=baseDesdeHorario(await horarioUsuario(sesion().id));
+  // La base de empresa nunca depende de la fila personal del administrador.
+  const fallback=baseLaboral();
   if(!cliente || navigator.onLine===false) return fallback;
   try{
     const r=await cliente.from(EMPRESA_TABLE).select("empresa_id,laboral").eq("empresa_id",empresaId()).maybeSingle();
     if(!r.error && r.data && r.data.laboral && typeof r.data.laboral==="object"){
-      return unirLaboral(fallback,r.data.laboral);
+      const out=unirLaboral(fallback,r.data.laboral);
+      out.horas_semana=Number((totalSemanal(out)/60).toFixed(2));
+      out.pais_codigo=out.pais_codigo || codigoPais(out.pais);
+      return out;
     }
   }catch(e){}
   return fallback;
@@ -172,19 +185,76 @@ async function guardarBaseEmpresa(data){
 
 async function resolverUsuario(usuarioId){
   const [base,h]=await Promise.all([cargarBaseEmpresa(),horarioUsuario(usuarioId)]);
-  if(!h) return clonar(base);
-  // Las filas actuales de horarios_usuario son excepciones personales. Los campos vacíos heredan la base.
   const out=clonar(base);
-  ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"].forEach(k=>{if(h[k]!==null && h[k]!==undefined) out[k]=Number(h[k])});
-  if(h.convenio) out.convenio=h.convenio;
-  if(h.vacaciones!==null && h.vacaciones!==undefined) out.vacaciones=Number(h.vacaciones);
-  if((h.asuntos_horas??h.asuntos)!==null && (h.asuntos_horas??h.asuntos)!==undefined) out.asuntos_horas=Number(h.asuntos_horas??h.asuntos);
-  ["precio_hora","precio_extra","precio_extra_nocturna","precio_extra_festiva"].forEach(k=>{if(h[k]!==null && h[k]!==undefined) out[k]=Number(h[k])});
-  if(h.pais) out.pais=h.pais;
-  if(h.comunidad) out.comunidad=h.comunidad;
-  if(h.provincia) out.provincia=h.provincia;
-  if(h.localidad) out.localidad=h.localidad;
-  if(!Number(out.horas_semana)) out.horas_semana=["lunes","martes","miercoles","jueves","viernes","sabado","domingo"].reduce((n,k)=>n+Number(out[k]||0),0)/60;
+  if(!h){
+    out.horas_semana=Number((totalSemanal(out)/60).toFixed(2));
+    out.pais_codigo=out.pais_codigo || codigoPais(out.pais);
+    return out;
+  }
+
+  const meta=metaLaboral(h);
+  const pro=metaLaboralActiva(meta);
+
+  if(pro){
+    const jornada=objetoLaboral(meta.jornada_propia);
+    if(meta.hereda_jornada!==true){
+      ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"].forEach(k=>{
+        const v=jornada[k]!==undefined && jornada[k]!==null ? jornada[k] : h[k];
+        if(v!==undefined && v!==null) out[k]=numeroLaboral(v,0);
+      });
+    }
+
+    if(meta.hereda_convenio!==true){
+      const c=objetoLaboral(meta.convenio_propio);
+      out.convenio=String(c.nombre ?? h.convenio ?? "");
+      out.convenio_referencia=String(c.referencia ?? "");
+      out.convenio_vigencia_desde=String(c.vigencia_desde ?? "");
+      out.convenio_vigencia_hasta=String(c.vigencia_hasta ?? "");
+    }
+
+    if(meta.hereda_vacaciones!==true){
+      const v=objetoLaboral(meta.vacaciones_propias);
+      out.vacaciones=numeroLaboral(v.dias!==undefined ? v.dias : h.vacaciones,0);
+      out.vacaciones_tipo=String(v.tipo || out.vacaciones_tipo || "naturales");
+    }
+
+    if(meta.hereda_asuntos!==true){
+      const a=meta.asuntos_propios_horas!==undefined && meta.asuntos_propios_horas!==null
+        ? meta.asuntos_propios_horas
+        : (h.asuntos_horas ?? h.asuntos);
+      out.asuntos_horas=numeroLaboral(a,0);
+    }
+
+    if(meta.hereda_calendario!==true){
+      const c=objetoLaboral(meta.calendario_propio);
+      out.pais=String(c.pais ?? h.pais ?? out.pais ?? "España");
+      out.pais_codigo=String(c.pais_codigo || codigoPais(out.pais));
+      out.comunidad=String(c.comunidad ?? h.comunidad ?? "");
+      out.provincia=String(c.provincia ?? h.provincia ?? "");
+      out.localidad=String(c.localidad ?? h.localidad ?? "");
+    }
+  }else{
+    // Compatibilidad: una fila anterior a V3439 conserva sus valores como personales.
+    ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"].forEach(k=>{
+      if(h[k]!==null && h[k]!==undefined) out[k]=numeroLaboral(h[k],0);
+    });
+    if(h.convenio) out.convenio=h.convenio;
+    if(h.vacaciones!==null && h.vacaciones!==undefined) out.vacaciones=numeroLaboral(h.vacaciones,0);
+    if((h.asuntos_horas??h.asuntos)!==null && (h.asuntos_horas??h.asuntos)!==undefined) out.asuntos_horas=numeroLaboral(h.asuntos_horas??h.asuntos,0);
+    if(h.pais) out.pais=h.pais;
+    if(h.comunidad) out.comunidad=h.comunidad;
+    if(h.provincia) out.provincia=h.provincia;
+    if(h.localidad) out.localidad=h.localidad;
+  }
+
+  // Las tarifas mantienen el mecanismo ya validado: null hereda empresa; número = precio propio.
+  ["precio_hora","precio_extra","precio_extra_nocturna","precio_extra_festiva"].forEach(k=>{
+    if(h[k]!==null && h[k]!==undefined) out[k]=numeroLaboral(h[k],0);
+  });
+
+  out.horas_semana=Number((totalSemanal(out)/60).toFixed(2));
+  out.pais_codigo=out.pais_codigo || codigoPais(out.pais);
+  out.laboral_meta=clonar(meta);
   return out;
 }
 
@@ -342,7 +412,7 @@ async function buscarLocalidades(texto,paisCodigo="ES"){
 window.ZENTRYX_LABORAL={
   version:VERSION,empresaId,baseLaboral,cargarBaseEmpresa,guardarBaseEmpresa,horarioUsuario,resolverUsuario,
   festivosAplicables,festivosUsuarioEnFecha,eventosFestivosRango,avisosPlanificacion,guardarFestivosOficiales,oficialMadrid2026,
-  ambitoFestivo,aplicaFestivo,comunidadDeProvincia,buscarLocalidades,
+  ambitoFestivo,aplicaFestivo,comunidadDeProvincia,codigoPais,buscarLocalidades,
   geo:{comunidades:COMUNIDADES,provincias:PROVINCIAS,provinciasPorComunidad:PROVINCIAS_POR_COMUNIDAD,localidadesFallback:LOCALIDADES_FALLBACK}
 };
 console.log("ZENTRYX laboral_core.js V"+VERSION+" cargado");
