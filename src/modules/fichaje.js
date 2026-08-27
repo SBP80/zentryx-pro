@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
+// V3150 - IMPORTE EXACTO POR MINUTOS + PRECIO HISTÓRICO INMUTABLE EN HORAS EXTRA
 // V3149 - PRECIOS PERSONALES O HEREDADOS DE EMPRESA EN EL SNAPSHOT DE JORNADA
 // V3148 - OBJETIVO 0 EN FESTIVOS/AUSENCIAS + EXTRA FESTIVA REAL
 // V3147 - CALENDARIO LABORAL DE EMPRESA + FESTIVOS APLICABLES POR USUARIO
@@ -2063,11 +2064,19 @@ async function sincronizarHorasExtra(jornadaId,c,laboral,extraSeg,jornada){
     return;
   }
 
-  const horasDecimal=Number((minutos/60).toFixed(2));
-  // El precio también pertenece a la configuración histórica de esta jornada.
-  // No se usa el precio vigente del usuario para modificar horas ya registradas.
-  const precioHora=precioExtraJornada(jornada,laboral);
-  const importe=Number((horasDecimal*precioHora).toFixed(2));
+  // Guardamos más precisión en horas_decimal, pero el importe se calcula directamente
+  // desde los minutos para no inflar o reducir importes por redondeo intermedio.
+  const horasDecimal=Number((minutos/60).toFixed(4));
+
+  // Una vez que existe un registro de horas extra, su precio es histórico y no se
+  // reinterpreta por cambios posteriores de tarifas. Para un registro nuevo manda
+  // exclusivamente el snapshot guardado en la jornada.
+  const precioSnapshot=precioExtraJornada(jornada,laboral);
+  const precioHora=(reg && reg.precio_hora!==null && reg.precio_hora!==undefined)
+    ? Math.max(0,numeroSeguro(reg.precio_hora,0))
+    : precioSnapshot;
+
+  const importe=Number(((minutos*precioHora)/60).toFixed(2));
 
   if(reg){
     if(["pagada","cobrada","cobrada_trabajador"].includes(reg.estado)) return;
