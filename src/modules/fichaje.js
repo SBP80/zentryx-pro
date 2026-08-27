@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
-// V3150 - IMPORTE EXACTO POR MINUTOS + PRECIO HISTÓRICO INMUTABLE EN HORAS EXTRA
+// V3151 - IMPORTE EXACTO POR MINUTOS + PRECIO HISTÓRICO INMUTABLE EN HORAS EXTRA
 // V3149 - PRECIOS PERSONALES O HEREDADOS DE EMPRESA EN EL SNAPSHOT DE JORNADA
 // V3148 - OBJETIVO 0 EN FESTIVOS/AUSENCIAS + EXTRA FESTIVA REAL
 // V3147 - CALENDARIO LABORAL DE EMPRESA + FESTIVOS APLICABLES POR USUARIO
@@ -975,11 +975,6 @@ function pedirMotivo(txt){
   return String(motivo).trim();
 }
 
-function hashPin(pin){
-  try{return btoa(String(pin))}
-  catch(e){return String(pin)}
-}
-
 async function validarAdminOperacion(){
   const s=sesion();
 
@@ -1020,8 +1015,40 @@ async function validarAdminOperacion(){
       return false;
     }
 
-    if(hashPin(String(pin).trim())!==String(r.data.pin_hash||"")){
-      alert("PIN incorrecto.");
+    const seguridad=window.ZENTRYX_SECURITY;
+    if(!seguridad || typeof seguridad.verifyPin!=="function"){
+      alert("No se pudo cargar el sistema de seguridad del PIN.");
+      return false;
+    }
+
+    const pruebaSesion=typeof seguridad.verifySessionPin==="function"
+      ? await seguridad.verifySessionPin(String(pin).trim())
+      : {ok:false,available:false};
+
+    if(pruebaSesion && pruebaSesion.ok){
+      return true;
+    }
+
+    let hashGuardado=String(r.data.pin_hash||"");
+    try{
+      const usuarioLocal=JSON.parse(localStorage.getItem("usuario") || "null");
+      if(usuarioLocal && String(usuarioLocal.id||"")===String(r.data.id||"") && usuarioLocal.pin_hash){
+        hashGuardado=String(usuarioLocal.pin_hash);
+      }
+    }catch(e){}
+
+    let verificacion=null;
+    try{
+      verificacion=await seguridad.verifyPin(String(pin).trim(),hashGuardado);
+      if((!verificacion || !verificacion.ok) && hashGuardado!==String(r.data.pin_hash||"")){
+        verificacion=await seguridad.verifyPin(String(pin).trim(),String(r.data.pin_hash||""));
+      }
+    }catch(e){
+      verificacion={ok:false};
+    }
+
+    if(!verificacion || !verificacion.ok){
+      alert(pruebaSesion && pruebaSesion.available ? "PIN incorrecto." : "Vuelve a iniciar sesión una vez para validar el PIN con el sistema actualizado.");
       return false;
     }
 
