@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
-// V3083 - FECHAS VISIBLES DD/MM/AAAA
+// V3084 - PRECIO HISTÓRICO + IMPORTE EXACTO POR MINUTOS
 // ===============================
 (function(){
 "use strict";
@@ -105,33 +105,46 @@ function formatoFecha(v){
   return raw;
 }
 
+function valorNumericoDefinido(v){
+  return v!==null && v!==undefined && v!=="" && Number.isFinite(Number(v));
+}
+
+function precioSnapshotJornada(j,tipo){
+  if(!j) return null;
+  if(tipo==="festivo" && valorNumericoDefinido(j.config_precio_extra_festiva)) return Math.max(0,Number(j.config_precio_extra_festiva));
+  if(tipo==="nocturna" && valorNumericoDefinido(j.config_precio_extra_nocturna)) return Math.max(0,Number(j.config_precio_extra_nocturna));
+  if(valorNumericoDefinido(j.config_precio_extra)) return Math.max(0,Number(j.config_precio_extra));
+  return null;
+}
+
 async function precioHoraExtra(usuarioId,tipo){
-  if(esOffline()) return 15;
+  if(esOffline()) return 0;
 
   try{
+    if(window.ZENTRYX_LABORAL && typeof window.ZENTRYX_LABORAL.resolverUsuario==="function"){
+      const c=await window.ZENTRYX_LABORAL.resolverUsuario(String(usuarioId));
+      if(c){
+        if(tipo==="festivo") return Math.max(0,Number(c.precio_extra_festiva ?? c.precio_extra ?? 0));
+        if(tipo==="nocturna") return Math.max(0,Number(c.precio_extra_nocturna ?? c.precio_extra ?? 0));
+        return Math.max(0,Number(c.precio_extra ?? 0));
+      }
+    }
+
     const r=await sb()
       .from("horarios_usuario")
-      .select("precio_extra,precio_extra_festiva,precio_extra_nocturna")
+      .select("precio_extra,precio_extra_festiva,precio_extra_nocturna,actualizado_en")
       .eq("usuario_id",String(usuarioId))
+      .eq("activo",true)
+      .order("actualizado_en",{ascending:false})
       .limit(1);
 
-    if(r.error || !r.data || !r.data.length){
-      return 15;
-    }
-
+    if(r.error || !r.data || !r.data.length) return 0;
     const c=r.data[0];
-
-    if(tipo==="festivo"){
-      return Number(c.precio_extra_festiva || c.precio_extra || 15);
-    }
-
-    if(tipo==="nocturna"){
-      return Number(c.precio_extra_nocturna || c.precio_extra || 15);
-    }
-
-    return Number(c.precio_extra || 15);
+    if(tipo==="festivo") return Math.max(0,Number(c.precio_extra_festiva ?? c.precio_extra ?? 0));
+    if(tipo==="nocturna") return Math.max(0,Number(c.precio_extra_nocturna ?? c.precio_extra ?? 0));
+    return Math.max(0,Number(c.precio_extra ?? 0));
   }catch(e){
-    return 15;
+    return 0;
   }
 }
 
@@ -207,13 +220,23 @@ async function sincronizarDesdeJornadas(){
       }
 
       const tipo=detectarTipoHoraExtra(j);
-      const precio=await precioHoraExtra(j.usuario_id,tipo);
-      const horasDecimal=Number((minutos/60).toFixed(2));
-      const importe=Number((horasDecimal*precio).toFixed(2));
       const reg=existe.data && existe.data.length ? existe.data[0] : null;
 
+      // El precio de un registro existente es histórico. No se sustituye al abrir
+      // Horas extra ni al cambiar posteriormente la tarifa del trabajador.
+      let precio;
+      if(reg && valorNumericoDefinido(reg.precio_hora)){
+        precio=Math.max(0,Number(reg.precio_hora));
+      }else{
+        const snapshot=precioSnapshotJornada(j,tipo);
+        precio=snapshot!==null ? snapshot : await precioHoraExtra(j.usuario_id,tipo);
+      }
+
+      const horasDecimal=Number((minutos/60).toFixed(4));
+      const importe=Number(((minutos*precio)/60).toFixed(2));
+
       if(reg){
-        if(["pagada","cobrada"].includes(reg.estado)){
+        if(["pagada","cobrada","cobrada_trabajador"].includes(reg.estado)){
           continue;
         }
 
@@ -228,6 +251,7 @@ async function sincronizarDesdeJornadas(){
             tipo,
             minutos,
             horas_decimal:horasDecimal,
+            // precio_hora permanece con el valor histórico del registro.
             precio_hora:precio,
             importe,
             observacion:j.observacion_laboral || "",
