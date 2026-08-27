@@ -17,11 +17,12 @@
 // V3155 - SOLO MÓDULOS ACTIVOS DE EMPRESA EN PERMISOS
 // V3156 - LABORAL: FILA ACTIVA ÚNICA + PRECIOS PERSONALES/HEREDADOS DE EMPRESA
 // V3157 - LABORAL: CONSERVA PRECIO PROPIO AL USAR BASE DE EMPRESA
+// V3158 - LABORAL PRO: HERENCIA DE JORNADA, CONVENIO, VACACIONES, ASUNTOS Y CALENDARIO
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3157";
+window.ZX_USUARIOS_VERSION="3158";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -2522,163 +2523,152 @@ function aplicarBackupPreciosLaborales(l,backup){
 }
 
 async function cargarLaboralUsuario(usuarioId){
-  // Usuarios y Fichaje deben leer exactamente la misma fila laboral.
-  // Si existen varias filas activas antiguas, manda la más recientemente actualizada.
+  const core=window.ZENTRYX_LABORAL;
+  const basePromise=(core && typeof core.cargarBaseEmpresa==="function") ? core.cargarBaseEmpresa() : Promise.resolve({});
+  const efectivoPromise=(core && typeof core.resolverUsuario==="function") ? core.resolverUsuario(usuarioId) : Promise.resolve(null);
   const backupPromise=cargarBackupPreciosLaborales(usuarioId);
 
-  const h=await sb()
-    .from("horarios_usuario")
-    .select("*")
-    .eq("usuario_id",String(usuarioId))
-    .eq("activo",true)
-    .order("actualizado_en",{ascending:false})
-    .limit(1);
-
-  const backup=await backupPromise;
-
-  if(!h.error && h.data && h.data.length){
-    return aplicarBackupPreciosLaborales(normalizarLaboralDesdeHorario(h.data[0]),backup);
+  let h=await sb().from("horarios_usuario").select("*").eq("usuario_id",String(usuarioId)).eq("activo",true).order("actualizado_en",{ascending:false}).limit(1);
+  if((h.error || !h.data || !h.data.length)){
+    const h2=await sb().from("horarios_usuario").select("*").eq("user_id",String(usuarioId)).eq("activo",true).order("actualizado_en",{ascending:false}).limit(1);
+    if(!h2.error && h2.data && h2.data.length) h=h2;
   }
 
-  const h2=await sb()
-    .from("horarios_usuario")
-    .select("*")
-    .eq("user_id",String(usuarioId))
-    .eq("activo",true)
-    .order("actualizado_en",{ascending:false})
-    .limit(1);
+  const [base,efectivo,backup]=await Promise.all([basePromise,efectivoPromise,backupPromise]);
 
-  if(!h2.error && h2.data && h2.data.length){
-    return aplicarBackupPreciosLaborales(normalizarLaboralDesdeHorario(h2.data[0]),backup);
+  if(!h.error && h.data && h.data.length){
+    return normalizarLaboralDesdeHorario(h.data[0],backup,base,efectivo);
   }
 
   if(backup){
-    const c=await sb()
-      .from("config_laboral")
-      .select("*")
-      .eq("usuario_id",String(usuarioId))
-      .order("updated_at",{ascending:false})
-      .limit(1);
-
+    const c=await sb().from("config_laboral").select("*").eq("usuario_id",String(usuarioId)).order("updated_at",{ascending:false}).limit(1);
     if(!c.error && c.data && c.data.length){
-      return aplicarBackupPreciosLaborales(normalizarLaboralDesdeConfig(c.data[0]),c.data[0]);
+      return aplicarBackupPreciosLaborales(normalizarLaboralDesdeConfig(c.data[0],base,efectivo),c.data[0]);
     }
   }
 
   return null;
 }
 
-function normalizarLaboralDesdeHorario(h){
-  const dias=[
-    Number(h.lunes||0),
-    Number(h.martes||0),
-    Number(h.miercoles||0),
-    Number(h.jueves||0),
-    Number(h.viernes||0),
-    Number(h.sabado||0),
-    Number(h.domingo||0)
-  ];
+function normalizarLaboralDesdeHorario(h,backup,baseEmpresa,efectivo){
+  const base=baseEmpresa || {};
+  const meta=(h && h.laboral_meta && typeof h.laboral_meta==="object" && !Array.isArray(h.laboral_meta)) ? h.laboral_meta : {};
+  const metaActiva=meta.inicializado===true || Number(meta.version||0)>=1;
+  const diasNombres=["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
+  const fila={}; diasNombres.forEach(k=>fila[k]=Number(h[k]??0));
+  const jornadaMeta=meta.jornada_propia && typeof meta.jornada_propia==="object" ? meta.jornada_propia : {};
+  const jornadaPropia={};
+  diasNombres.forEach(k=>jornadaPropia[k]=Number(metaActiva && jornadaMeta[k]!==undefined ? jornadaMeta[k] : fila[k]));
 
-  const primerDia=dias.find(x=>x>0) || 480;
+  const conv=metaActiva && meta.convenio_propio && typeof meta.convenio_propio==="object" ? meta.convenio_propio : {};
+  const vac=metaActiva && meta.vacaciones_propias && typeof meta.vacaciones_propias==="object" ? meta.vacaciones_propias : {};
+  const cal=metaActiva && meta.calendario_propio && typeof meta.calendario_propio==="object" ? meta.calendario_propio : {};
+  const ef=efectivo || {};
+  const diasEf=diasNombres.map(k=>Number(ef[k]!==undefined ? ef[k] : fila[k]));
+  const primerDia=diasEf.find(x=>x>0) || 0;
+  const suma=diasEf.reduce((a,b)=>a+b,0);
 
-  return {
+  const out={
     id:h.id,
     usuario_id:h.usuario_id || h.user_id || "",
     usuario:h.usuario || "",
     nombre:h.nombre || "",
     horas_dia:Number((primerDia/60).toFixed(2)),
-    horas_semana:Number((dias.reduce((a,b)=>a+b,0)/60).toFixed(2)),
-    trabaja_lunes:dias[0]>0,
-    trabaja_martes:dias[1]>0,
-    trabaja_miercoles:dias[2]>0,
-    trabaja_jueves:dias[3]>0,
-    trabaja_viernes:dias[4]>0,
-    trabaja_sabado:dias[5]>0,
-    trabaja_domingo:dias[6]>0,
-    vacaciones_dias:Number(h.vacaciones||30),
-    asuntos_propios:Number(h.asuntos_horas || h.asuntos || 0),
-    pais:h.pais || "España",
-    comunidad:h.comunidad || "",
-    provincia:h.provincia || "",
-    localidad:h.localidad || "",
-    convenio:h.convenio || "",
-    precio_extra:Number(h.precio_extra ?? 0),
-    precio_extra_nocturna:Number(h.precio_extra_nocturna ?? 0),
-    precio_extra_festiva:Number(h.precio_extra_festiva ?? 0),
-    precio_propio_extra:Number(h.precio_extra ?? 0),
-    precio_propio_extra_nocturna:Number(h.precio_extra_nocturna ?? 0),
-    precio_propio_extra_festiva:Number(h.precio_extra_festiva ?? 0),
+    horas_semana:Number((suma/60).toFixed(2)),
+    trabaja_lunes:diasEf[0]>0,trabaja_martes:diasEf[1]>0,trabaja_miercoles:diasEf[2]>0,trabaja_jueves:diasEf[3]>0,trabaja_viernes:diasEf[4]>0,trabaja_sabado:diasEf[5]>0,trabaja_domingo:diasEf[6]>0,
+    jornada_propia:jornadaPropia,
+    hereda_jornada:metaActiva ? meta.hereda_jornada===true : false,
+
+    convenio:String(ef.convenio ?? h.convenio ?? ""),
+    convenio_referencia:String(ef.convenio_referencia ?? ""),
+    convenio_vigencia_desde:String(ef.convenio_vigencia_desde ?? ""),
+    convenio_vigencia_hasta:String(ef.convenio_vigencia_hasta ?? ""),
+    convenio_propio:String(metaActiva ? (conv.nombre ?? h.convenio ?? "") : (h.convenio ?? "")),
+    convenio_propio_referencia:String(metaActiva ? (conv.referencia ?? "") : ""),
+    convenio_propio_desde:String(metaActiva ? (conv.vigencia_desde ?? "") : ""),
+    convenio_propio_hasta:String(metaActiva ? (conv.vigencia_hasta ?? "") : ""),
+    hereda_convenio:metaActiva ? meta.hereda_convenio===true : false,
+
+    vacaciones_dias:Number(ef.vacaciones ?? h.vacaciones ?? 30),
+    vacaciones_tipo:String(ef.vacaciones_tipo || base.vacaciones_tipo || "naturales"),
+    vacaciones_propias:Number(metaActiva ? (vac.dias ?? h.vacaciones ?? 30) : (h.vacaciones ?? 30)),
+    vacaciones_propias_tipo:String(metaActiva ? (vac.tipo || base.vacaciones_tipo || "naturales") : (base.vacaciones_tipo || "naturales")),
+    hereda_vacaciones:metaActiva ? meta.hereda_vacaciones===true : false,
+
+    asuntos_propios:Number(ef.asuntos_horas ?? h.asuntos_horas ?? h.asuntos ?? 0),
+    asuntos_propios_personal:Number(metaActiva ? (meta.asuntos_propios_horas ?? h.asuntos_horas ?? h.asuntos ?? 0) : (h.asuntos_horas ?? h.asuntos ?? 0)),
+    hereda_asuntos:metaActiva ? meta.hereda_asuntos===true : false,
+
+    pais:String(ef.pais ?? h.pais ?? "España"),comunidad:String(ef.comunidad ?? h.comunidad ?? ""),provincia:String(ef.provincia ?? h.provincia ?? ""),localidad:String(ef.localidad ?? h.localidad ?? ""),
+    calendario_propio:{
+      pais:String(metaActiva ? (cal.pais ?? h.pais ?? "España") : (h.pais ?? "España")),
+      pais_codigo:String(metaActiva ? (cal.pais_codigo ?? "") : ""),
+      comunidad:String(metaActiva ? (cal.comunidad ?? h.comunidad ?? "") : (h.comunidad ?? "")),
+      provincia:String(metaActiva ? (cal.provincia ?? h.provincia ?? "") : (h.provincia ?? "")),
+      localidad:String(metaActiva ? (cal.localidad ?? h.localidad ?? "") : (h.localidad ?? ""))
+    },
+    hereda_calendario:metaActiva ? meta.hereda_calendario===true : false,
+
+    precio_extra:Number(h.precio_extra ?? 0),precio_extra_nocturna:Number(h.precio_extra_nocturna ?? 0),precio_extra_festiva:Number(h.precio_extra_festiva ?? 0),
+    precio_propio_extra:Number(h.precio_extra ?? 0),precio_propio_extra_nocturna:Number(h.precio_extra_nocturna ?? 0),precio_propio_extra_festiva:Number(h.precio_extra_festiva ?? 0),
     hereda_precio_extra:h.precio_extra===null || h.precio_extra===undefined,
     hereda_precio_extra_nocturna:h.precio_extra_nocturna===null || h.precio_extra_nocturna===undefined,
-    hereda_precio_extra_festiva:h.precio_extra_festiva===null || h.precio_extra_festiva===undefined
+    hereda_precio_extra_festiva:h.precio_extra_festiva===null || h.precio_extra_festiva===undefined,
+    _base_empresa:base,
+    _meta_inicializada:metaActiva
+  };
+
+  return aplicarBackupPreciosLaborales(out,backup);
+}
+
+function normalizarLaboralDesdeConfig(c,baseEmpresa,efectivo){
+  const base=baseEmpresa || {};
+  const dias={
+    lunes:c.trabaja_lunes!==false ? Number(c.horas_dia||8)*60 : 0,
+    martes:c.trabaja_martes!==false ? Number(c.horas_dia||8)*60 : 0,
+    miercoles:c.trabaja_miercoles!==false ? Number(c.horas_dia||8)*60 : 0,
+    jueves:c.trabaja_jueves!==false ? Number(c.horas_dia||8)*60 : 0,
+    viernes:c.trabaja_viernes!==false ? Number(c.horas_dia||8)*60 : 0,
+    sabado:c.trabaja_sabado===true ? Number(c.horas_dia||8)*60 : 0,
+    domingo:c.trabaja_domingo===true ? Number(c.horas_dia||8)*60 : 0
+  };
+  const ef=efectivo || {};
+  return {
+    id:c.id,usuario_id:c.usuario_id||"",usuario:c.usuario||"",nombre:c.nombre||"",
+    horas_dia:Number(c.horas_dia||8),horas_semana:Number(c.horas_semana||40),
+    trabaja_lunes:dias.lunes>0,trabaja_martes:dias.martes>0,trabaja_miercoles:dias.miercoles>0,trabaja_jueves:dias.jueves>0,trabaja_viernes:dias.viernes>0,trabaja_sabado:dias.sabado>0,trabaja_domingo:dias.domingo>0,
+    jornada_propia:dias,hereda_jornada:false,
+    vacaciones_dias:Number(c.vacaciones_dias||30),vacaciones_tipo:String(base.vacaciones_tipo||"naturales"),vacaciones_propias:Number(c.vacaciones_dias||30),vacaciones_propias_tipo:String(base.vacaciones_tipo||"naturales"),hereda_vacaciones:false,
+    asuntos_propios:Number(c.asuntos_propios||0),asuntos_propios_personal:Number(c.asuntos_propios||0),hereda_asuntos:false,
+    pais:c.pais||"España",comunidad:c.comunidad||"",provincia:c.provincia||"",localidad:c.localidad||"",
+    calendario_propio:{pais:c.pais||"España",pais_codigo:"",comunidad:c.comunidad||"",provincia:c.provincia||"",localidad:c.localidad||""},hereda_calendario:false,
+    convenio:c.convenio||"",convenio_referencia:"",convenio_vigencia_desde:"",convenio_vigencia_hasta:"",convenio_propio:c.convenio||"",convenio_propio_referencia:"",convenio_propio_desde:"",convenio_propio_hasta:"",hereda_convenio:false,
+    precio_extra:Number(c.precio_extra||0),precio_extra_nocturna:Number(c.precio_extra_nocturna||0),precio_extra_festiva:Number(c.precio_extra_festiva||0),
+    precio_propio_extra:Number(c.precio_extra||0),precio_propio_extra_nocturna:Number(c.precio_extra_nocturna||0),precio_propio_extra_festiva:Number(c.precio_extra_festiva||0),
+    hereda_precio_extra:false,hereda_precio_extra_nocturna:false,hereda_precio_extra_festiva:false,
+    _base_empresa:base,_meta_inicializada:false
   };
 }
 
-function normalizarLaboralDesdeConfig(c){
+function laboralDefault(u,baseEmpresa){
+  const b=baseEmpresa || {lunes:480,martes:480,miercoles:480,jueves:480,viernes:480,sabado:0,domingo:0,horas_semana:40,convenio:"",vacaciones:30,vacaciones_tipo:"naturales",asuntos_horas:0,pais:"España",comunidad:"",provincia:"",localidad:""};
+  const dias={}; ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"].forEach(k=>dias[k]=Number(b[k]||0));
+  const total=Object.values(dias).reduce((a,n)=>a+Number(n||0),0)/60;
+  const primer=Object.values(dias).find(n=>Number(n)>0) || 0;
   return {
-    id:c.id,
-    usuario_id:c.usuario_id || "",
-    usuario:c.usuario || "",
-    nombre:c.nombre || "",
-    horas_dia:Number(c.horas_dia || 8),
-    horas_semana:Number(c.horas_semana || 40),
-    trabaja_lunes:c.trabaja_lunes!==false,
-    trabaja_martes:c.trabaja_martes!==false,
-    trabaja_miercoles:c.trabaja_miercoles!==false,
-    trabaja_jueves:c.trabaja_jueves!==false,
-    trabaja_viernes:c.trabaja_viernes!==false,
-    trabaja_sabado:c.trabaja_sabado===true,
-    trabaja_domingo:c.trabaja_domingo===true,
-    vacaciones_dias:Number(c.vacaciones_dias || 30),
-    asuntos_propios:Number(c.asuntos_propios || 0),
-    pais:c.pais || "España",
-    comunidad:c.comunidad || "",
-    provincia:c.provincia || "",
-    localidad:c.localidad || "",
-    convenio:c.convenio || "",
-    precio_extra:Number(c.precio_extra || 0),
-    precio_extra_nocturna:Number(c.precio_extra_nocturna || 0),
-    precio_extra_festiva:Number(c.precio_extra_festiva || 0),
-    precio_propio_extra:Number(c.precio_extra || 0),
-    precio_propio_extra_nocturna:Number(c.precio_extra_nocturna || 0),
-    precio_propio_extra_festiva:Number(c.precio_extra_festiva || 0),
-    hereda_precio_extra:false,
-    hereda_precio_extra_nocturna:false,
-    hereda_precio_extra_festiva:false
-  };
-}
-
-function laboralDefault(u){
-  return {
-    id:null,
-    usuario_id:String(u.id || ""),
-    usuario:u.usuario || "",
-    nombre:u.nombre || "",
-    horas_dia:8,
-    horas_semana:40,
-    trabaja_lunes:true,
-    trabaja_martes:true,
-    trabaja_miercoles:true,
-    trabaja_jueves:true,
-    trabaja_viernes:true,
-    trabaja_sabado:false,
-    trabaja_domingo:false,
-    vacaciones_dias:30,
-    asuntos_propios:0,
-    pais:u.pais || "España",
-    comunidad:"",
-    provincia:u.provincia || "",
-    localidad:u.poblacion || "",
-    convenio:"",
-    precio_extra:0,
-    precio_extra_nocturna:0,
-    precio_extra_festiva:0,
-    precio_propio_extra:0,
-    precio_propio_extra_nocturna:0,
-    precio_propio_extra_festiva:0,
-    hereda_precio_extra:true,
-    hereda_precio_extra_nocturna:true,
-    hereda_precio_extra_festiva:true
+    id:null,usuario_id:String(u.id||""),usuario:u.usuario||"",nombre:u.nombre||"",
+    horas_dia:Number((primer/60).toFixed(2)),horas_semana:Number(total.toFixed(2)),
+    trabaja_lunes:dias.lunes>0,trabaja_martes:dias.martes>0,trabaja_miercoles:dias.miercoles>0,trabaja_jueves:dias.jueves>0,trabaja_viernes:dias.viernes>0,trabaja_sabado:dias.sabado>0,trabaja_domingo:dias.domingo>0,
+    jornada_propia:Object.assign({},dias),hereda_jornada:true,
+    vacaciones_dias:Number(b.vacaciones??30),vacaciones_tipo:String(b.vacaciones_tipo||"naturales"),vacaciones_propias:Number(b.vacaciones??30),vacaciones_propias_tipo:String(b.vacaciones_tipo||"naturales"),hereda_vacaciones:true,
+    asuntos_propios:Number(b.asuntos_horas??0),asuntos_propios_personal:Number(b.asuntos_horas??0),hereda_asuntos:true,
+    pais:b.pais||u.pais||"España",comunidad:b.comunidad||"",provincia:b.provincia||u.provincia||"",localidad:b.localidad||u.poblacion||"",
+    calendario_propio:{pais:b.pais||u.pais||"España",pais_codigo:b.pais_codigo||"",comunidad:b.comunidad||"",provincia:b.provincia||u.provincia||"",localidad:b.localidad||u.poblacion||""},hereda_calendario:true,
+    convenio:b.convenio||"",convenio_referencia:b.convenio_referencia||"",convenio_vigencia_desde:b.convenio_vigencia_desde||"",convenio_vigencia_hasta:b.convenio_vigencia_hasta||"",
+    convenio_propio:b.convenio||"",convenio_propio_referencia:b.convenio_referencia||"",convenio_propio_desde:b.convenio_vigencia_desde||"",convenio_propio_hasta:b.convenio_vigencia_hasta||"",hereda_convenio:true,
+    precio_extra:Number(b.precio_extra||0),precio_extra_nocturna:Number(b.precio_extra_nocturna||0),precio_extra_festiva:Number(b.precio_extra_festiva||0),
+    precio_propio_extra:0,precio_propio_extra_nocturna:0,precio_propio_extra_festiva:0,
+    hereda_precio_extra:true,hereda_precio_extra_nocturna:true,hereda_precio_extra_festiva:true,_base_empresa:b,_meta_inicializada:true
   };
 }
 
@@ -2792,99 +2782,133 @@ function renderHistorialLaboral(solicitudes){
   `;
 }
 
-async function verLaboralUsuario(u){
-  if(!puedeVerLaboral(u)){
-    alert("No tienes permiso para ver laboral.");
-    return;
-  }
 
+const ZX_LAB_DIAS_PRO=[
+  ["lunes","Lunes"],["martes","Martes"],["miercoles","Miércoles"],["jueves","Jueves"],["viernes","Viernes"],["sabado","Sábado"],["domingo","Domingo"]
+];
+function zxLabMinutosTexto(min){
+  const n=Math.max(0,Math.round(Number(min)||0)),h=Math.floor(n/60),m=n%60;
+  return h+" h "+String(m).padStart(2,"0")+" min";
+}
+function zxLabTotalDias(dias){return ZX_LAB_DIAS_PRO.reduce((n,x)=>n+Number((dias||{})[x[0]]||0),0)}
+function zxLabHorasInput(min){return Number((Number(min||0)/60).toFixed(2))}
+function zxLabResumenCalendario(c){return [c?.pais,c?.comunidad,c?.provincia,c?.localidad].filter(Boolean).join(" · ") || "Sin ubicación"}
+function zxLabTipoVacaciones(t){return String(t||"naturales")==="laborables" ? "laborables" : "naturales"}
+function zxLabCampoTexto(id,label,value,type){
+  return `<label class="zx_label" for="${id}">${limpiar(label)}</label><input id="${id}" type="${type||"text"}" value="${limpiar(value||"")}" placeholder="${limpiar(label)}">`;
+}
+function zxLabBloque(id,html){return `<div id="${id}" style="padding:12px;border:1px solid #dbe4ef;border-radius:18px;margin:8px 0 14px;background:rgba(248,250,252,.72)">${html}</div>`}
+function zxLabDeshabilitar(ids,disabled){
+  ids.forEach(id=>{const el=document.getElementById(id);if(!el)return;el.disabled=!!disabled;el.style.opacity=disabled?".62":"1";el.setAttribute("aria-disabled",disabled?"true":"false")});
+}
+function zxLabRefrescarTotalPropio(){
+  let total=0;
+  ZX_LAB_DIAS_PRO.forEach(([k])=>{total+=Math.round(numVal("lab_j_"+k,0)*60)});
+  const el=document.getElementById("lab_total_propio"); if(el)el.textContent=zxLabMinutosTexto(total);
+}
+function activarHerenciasLaboralPro(){
+  const grupos=[
+    ["lab_hereda_jornada",ZX_LAB_DIAS_PRO.map(([k])=>"lab_j_"+k)],
+    ["lab_hereda_convenio",["lab_convenio","lab_convenio_ref","lab_convenio_desde","lab_convenio_hasta"]],
+    ["lab_hereda_vacaciones",["lab_vacaciones","lab_vacaciones_tipo"]],
+    ["lab_hereda_asuntos",["lab_asuntos"]],
+    ["lab_hereda_calendario",["lab_pais","lab_comunidad","lab_provincia","lab_localidad"]]
+  ];
+  grupos.forEach(([checkId,ids])=>{
+    const c=document.getElementById(checkId); if(!c)return;
+    const f=()=>zxLabDeshabilitar(ids,c.checked===true);
+    c.onchange=f;f();
+  });
+  ZX_LAB_DIAS_PRO.forEach(([k])=>{const el=document.getElementById("lab_j_"+k);if(el)el.addEventListener("input",zxLabRefrescarTotalPropio)});
+  zxLabRefrescarTotalPropio();
+}
+
+async function verLaboralUsuario(u){
+  if(!puedeVerLaboral(u)){alert("No tienes permiso para ver laboral.");return;}
+
+  let baseEmpresa={lunes:480,martes:480,miercoles:480,jueves:480,viernes:480,sabado:0,domingo:0,horas_semana:40,convenio:"",vacaciones:30,vacaciones_tipo:"naturales",asuntos_horas:0,precio_extra:0,precio_extra_nocturna:0,precio_extra_festiva:0,pais:"España",comunidad:"",provincia:"",localidad:""};
+  try{if(window.ZENTRYX_LABORAL?.cargarBaseEmpresa)baseEmpresa=Object.assign(baseEmpresa,await window.ZENTRYX_LABORAL.cargarBaseEmpresa())}catch(e){}
   const actual=await cargarLaboralUsuario(u.id);
-  const l=actual || laboralDefault(u);
-  let baseEmpresa={precio_extra:0,precio_extra_nocturna:0,precio_extra_festiva:0};
-  try{
-    if(window.ZENTRYX_LABORAL && typeof window.ZENTRYX_LABORAL.cargarBaseEmpresa==="function"){
-      baseEmpresa=Object.assign(baseEmpresa,await window.ZENTRYX_LABORAL.cargarBaseEmpresa());
-    }
-  }catch(e){}
-  const solicitudes=await cargarSolicitudesUsuario(String(u.id || ""));
+  const l=actual || laboralDefault(u,baseEmpresa);
+  const solicitudes=await cargarSolicitudesUsuario(String(u.id||""));
   const consumo=calcularConsumoLaboral(solicitudes);
   const editable=puedeEditarLaboral(u);
-  const provincias=opcionesProvincias(l.comunidad,l.provincia);
+  const jp=l.jornada_propia||{};
+  const cp=l.calendario_propio||{};
+  const baseSemana=zxLabTotalDias(baseEmpresa);
+  const baseVacTipo=zxLabTipoVacaciones(baseEmpresa.vacaciones_tipo);
+  const baseCal=zxLabResumenCalendario(baseEmpresa);
 
   modal("Laboral",`
     <div class="zx_user_top_actions">
       <button type="button" class="zx_user_top_back" id="lab_volver_top">← Volver</button>
-      ${editable ? `<button type="button" class="zx_user_top_primary" id="lab_guardar_top">💾 Guardar</button>` : ``}
+      ${editable?`<button type="button" class="zx_user_top_primary" id="lab_guardar_top">💾 Guardar</button>`:``}
     </div>
-
-    <div class="zx_text"><b>${limpiar(u.nombre || u.usuario || "Usuario")}</b></div>
+    <div class="zx_text"><b>${limpiar(u.nombre||u.usuario||"Usuario")}</b></div>
+    <div class="zx_text" style="margin:8px 0 12px">Cada bloque puede seguir la base de empresa o conservar una condición propia. Las jornadas ya cerradas no cambian al modificar estos datos.</div>
     ${resumenLaboral(l,consumo)}
-
     ${renderHistorialLaboral(solicitudes)}
 
-    <h3 class="zx_form_subtitle">Jornada</h3>
-    ${inputNum("lab_horas_dia","Horas por día",l.horas_dia,"0.25")}
-    ${inputNum("lab_horas_semana","Horas por semana",l.horas_semana,"0.25")}
+    <h3 class="zx_form_subtitle">Jornada semanal</h3>
+    ${check("lab_hereda_jornada","Usar jornada de empresa · "+zxLabMinutosTexto(baseSemana),l.hereda_jornada===true)}
+    ${zxLabBloque("lab_jornada_personal",`
+      <div class="zx_text" style="margin-bottom:8px"><b>Jornada propia</b> · 0 horas significa día no laborable.</div>
+      ${ZX_LAB_DIAS_PRO.map(([k,n])=>inputNum("lab_j_"+k,n+" (horas)",zxLabHorasInput(jp[k]),"0.25")).join("")}
+      <div class="zx_text" style="margin-top:10px">Total semanal propio: <b id="lab_total_propio">${zxLabMinutosTexto(zxLabTotalDias(jp))}</b></div>
+    `)}
 
-    <h3 class="zx_form_subtitle">Días de trabajo</h3>
-    <div class="zx_checks_grid">
-      ${check("lab_lunes","Lunes",l.trabaja_lunes)}
-      ${check("lab_martes","Martes",l.trabaja_martes)}
-      ${check("lab_miercoles","Miércoles",l.trabaja_miercoles)}
-      ${check("lab_jueves","Jueves",l.trabaja_jueves)}
-      ${check("lab_viernes","Viernes",l.trabaja_viernes)}
-      ${check("lab_sabado","Sábado",l.trabaja_sabado)}
-      ${check("lab_domingo","Domingo",l.trabaja_domingo)}
-    </div>
+    <h3 class="zx_form_subtitle">Convenio</h3>
+    ${check("lab_hereda_convenio","Usar convenio de empresa · "+String(baseEmpresa.convenio||"Sin definir"),l.hereda_convenio===true)}
+    ${baseEmpresa.convenio_referencia?`<div class="zx_text">Referencia empresa: ${limpiar(baseEmpresa.convenio_referencia)}</div>`:``}
+    ${zxLabBloque("lab_convenio_personal",`
+      <label class="zx_label" for="lab_convenio">Convenio propio</label>
+      <input id="lab_convenio" list="lab_convenios_lista" value="${limpiar(l.convenio_propio||"")}" placeholder="Convenio propio">
+      <datalist id="lab_convenios_lista">${ZX_CONVENIOS.filter(Boolean).map(x=>`<option value="${limpiar(x)}"></option>`).join("")}</datalist>
+      ${zxLabCampoTexto("lab_convenio_ref","Referencia / código / publicación",l.convenio_propio_referencia||"")}
+      ${zxLabCampoTexto("lab_convenio_desde","Vigente desde",l.convenio_propio_desde||"","date")}
+      ${zxLabCampoTexto("lab_convenio_hasta","Vigente hasta",l.convenio_propio_hasta||"","date")}
+    `)}
 
-    <h3 class="zx_form_subtitle">Vacaciones y asuntos propios</h3>
-    ${inputNum("lab_vacaciones","Vacaciones anuales en días",l.vacaciones_dias,"1")}
-    ${inputNum("lab_asuntos","Asuntos propios en horas",l.asuntos_propios,"0.25")}
+    <h3 class="zx_form_subtitle">Vacaciones</h3>
+    ${check("lab_hereda_vacaciones","Usar base empresa/convenio · "+Number(baseEmpresa.vacaciones||0)+" días "+baseVacTipo,l.hereda_vacaciones===true)}
+    ${zxLabBloque("lab_vacaciones_personal",`
+      ${inputNum("lab_vacaciones","Vacaciones propias en días",l.vacaciones_propias,"0.5")}
+      ${selectLaboral("lab_vacaciones_tipo","Cómputo de vacaciones",l.vacaciones_propias_tipo||"naturales",["naturales","laborables"])}
+    `)}
 
-    ${
-      puedeVerDatosLaboralesSensibles(u)
-      ? `
-        <h3 class="zx_form_subtitle">Precios horas extra</h3>
-        <div class="zx_text" style="margin-bottom:10px">Cada tarifa puede usar la base de empresa o un precio propio del trabajador.</div>
+    <h3 class="zx_form_subtitle">Asuntos propios</h3>
+    ${check("lab_hereda_asuntos","Usar base empresa/convenio · "+Number(baseEmpresa.asuntos_horas||0)+" h/año",l.hereda_asuntos===true)}
+    ${zxLabBloque("lab_asuntos_personal",inputNum("lab_asuntos","Asuntos propios personales (h/año)",l.asuntos_propios_personal,"0.25"))}
 
-        ${check("lab_hereda_precio_extra","Usar base empresa · Extra normal ("+Number(baseEmpresa.precio_extra||0).toFixed(2)+" €)",l.hereda_precio_extra===true)}
-        ${inputNum("lab_precio_extra","Precio propio · Extra normal",l.precio_propio_extra ?? l.precio_extra,"0.01")}
-
-        ${check("lab_hereda_precio_extra_nocturna","Usar base empresa · Extra nocturna ("+Number(baseEmpresa.precio_extra_nocturna||0).toFixed(2)+" €)",l.hereda_precio_extra_nocturna===true)}
-        ${inputNum("lab_precio_extra_nocturna","Precio propio · Extra nocturna",l.precio_propio_extra_nocturna ?? l.precio_extra_nocturna,"0.01")}
-
-        ${check("lab_hereda_precio_extra_festiva","Usar base empresa · Extra festiva ("+Number(baseEmpresa.precio_extra_festiva||0).toFixed(2)+" €)",l.hereda_precio_extra_festiva===true)}
-        ${inputNum("lab_precio_extra_festiva","Precio propio · Extra festiva",l.precio_propio_extra_festiva ?? l.precio_extra_festiva,"0.01")}
-      `
-      : ``
-    }
+    ${puedeVerDatosLaboralesSensibles(u)?`
+      <h3 class="zx_form_subtitle">Precios horas extra</h3>
+      <div class="zx_text" style="margin-bottom:10px">Cada tarifa puede usar la base de empresa o un precio propio del trabajador.</div>
+      ${check("lab_hereda_precio_extra","Usar base empresa · Extra normal ("+Number(baseEmpresa.precio_extra||0).toFixed(2)+" €)",l.hereda_precio_extra===true)}
+      ${inputNum("lab_precio_extra","Precio propio · Extra normal",l.precio_propio_extra??l.precio_extra,"0.01")}
+      ${check("lab_hereda_precio_extra_nocturna","Usar base empresa · Extra nocturna ("+Number(baseEmpresa.precio_extra_nocturna||0).toFixed(2)+" €)",l.hereda_precio_extra_nocturna===true)}
+      ${inputNum("lab_precio_extra_nocturna","Precio propio · Extra nocturna",l.precio_propio_extra_nocturna??l.precio_extra_nocturna,"0.01")}
+      ${check("lab_hereda_precio_extra_festiva","Usar base empresa · Extra festiva ("+Number(baseEmpresa.precio_extra_festiva||0).toFixed(2)+" €)",l.hereda_precio_extra_festiva===true)}
+      ${inputNum("lab_precio_extra_festiva","Precio propio · Extra festiva",l.precio_propio_extra_festiva??l.precio_extra_festiva,"0.01")}
+    `:``}
 
     <h3 class="zx_form_subtitle">Calendario laboral</h3>
-    ${selectLaboral("lab_pais","País",l.pais || "España",["España"])}
-    ${selectLaboral("lab_comunidad","Comunidad autónoma",l.comunidad,ZX_COMUNIDADES)}
-    ${selectLaboral("lab_provincia","Provincia",l.provincia,["",...provincias])}
-    ${inputConLista("lab_localidad","Localidad",l.localidad,"lab_localidad_lista")}
-
-    ${selectLaboral("lab_convenio","Convenio",l.convenio,ZX_CONVENIOS)}
-
+    ${check("lab_hereda_calendario","Usar calendario de empresa · "+baseCal,l.hereda_calendario===true)}
+    ${zxLabBloque("lab_calendario_personal",`
+      ${input("lab_pais","País",cp.pais||"España","text")}
+      ${input("lab_comunidad","Comunidad / región",cp.comunidad||"","text")}
+      ${input("lab_provincia","Provincia / estado / departamento",cp.provincia||"","text")}
+      ${inputConLista("lab_localidad","Localidad / municipio / ciudad",cp.localidad||"","lab_localidad_lista")}
+    `)}
   `);
 
-  const volverArriba=document.getElementById("lab_volver_top");
-  if(volverArriba) volverArriba.onclick=cerrarModal;
-
-  cargarDatalistLocalidades(l.provincia,l.localidad);
+  document.getElementById("lab_volver_top")?.addEventListener("click",cerrarModal);
+  cargarDatalistLocalidades(cp.provincia||"",cp.localidad||"");
   activarFiltrosUbicacion();
+  activarHerenciasLaboralPro();
   activarHerenciaPreciosLaboral(baseEmpresa);
 
   const guardar=document.getElementById("lab_guardar_top");
-  if(guardar){
-    guardar.onclick=function(){
-      const datos=leerDatosLaboralesFormulario(u);
-      pedirPinConPermiso("laboral",function(){
-        guardarLaboralDatos(datos);
-      });
-    };
-  }
+  if(guardar){guardar.onclick=function(){const datos=leerDatosLaboralesFormulario(u);pedirPinConPermiso("laboral",function(){guardarLaboralDatos(datos,u)})}}
 }
 
 function activarHerenciaPreciosLaboral(baseEmpresa){
@@ -2915,24 +2939,42 @@ function activarFiltrosUbicacion(){
   const comunidad=document.getElementById("lab_comunidad");
   const provincia=document.getElementById("lab_provincia");
   const localidad=document.getElementById("lab_localidad");
-
   if(!comunidad || !provincia || !localidad) return;
 
-  comunidad.onchange=function(){
-    const provincias=opcionesProvincias(comunidad.value,"");
-
-    provincia.innerHTML=[
-      `<option value="">Seleccionar</option>`,
-      ...provincias.map(p=>`<option value="${limpiar(p)}">${limpiar(p)}</option>`)
-    ].join("");
-
-    localidad.value="";
-    cargarDatalistLocalidades("", "");
+  let timer=null;
+  comunidad.oninput=function(){
+    const exact=Object.keys(ZX_PROVINCIAS_POR_COMUNIDAD).find(x=>normalizarTexto(x)===normalizarTexto(comunidad.value));
+    if(exact && !provincia.value){
+      const lista=ZX_PROVINCIAS_POR_COMUNIDAD[exact]||[];
+      if(lista.length===1) provincia.value=lista[0];
+    }
   };
-
-  provincia.onchange=function(){
-    localidad.value="";
-    cargarDatalistLocalidades(provincia.value,"");
+  provincia.oninput=function(){
+    const p=provincia.value.trim();
+    const com=Object.entries(ZX_PROVINCIAS_POR_COMUNIDAD).find(([,lista])=>lista.some(x=>normalizarTexto(x)===normalizarTexto(p)));
+    if(com) comunidad.value=com[0];
+    cargarDatalistLocalidades(p,localidad.value);
+  };
+  localidad.oninput=function(){
+    clearTimeout(timer);
+    timer=setTimeout(async function(){
+      const q=localidad.value.trim(); if(q.length<2)return;
+      try{
+        const core=window.ZENTRYX_LABORAL;
+        if(!core?.buscarLocalidades)return;
+        const pais=document.getElementById("lab_pais")?.value||"España";
+        const codigo=core.codigoPais?.(pais)||"ES";
+        const lista=await core.buscarLocalidades(q,codigo);
+        const dl=document.getElementById("lab_localidad_lista");
+        if(dl)dl.innerHTML=(lista||[]).map(x=>`<option value="${limpiar(x.nombre||"")}"></option>`).join("");
+        const exact=(lista||[]).find(x=>normalizarTexto(x.nombre)===normalizarTexto(q));
+        if(exact){
+          if(exact.provincia)provincia.value=exact.provincia;
+          if(exact.comunidad)comunidad.value=exact.comunidad;
+          if(exact.pais){const pe=document.getElementById("lab_pais");if(pe)pe.value=exact.pais}
+        }
+      }catch(e){}
+    },300);
   };
 }
 
@@ -2945,209 +2987,127 @@ function numVal(id,def){
 }
 
 function leerDatosLaboralesFormulario(u){
+  const jornada={}; ZX_LAB_DIAS_PRO.forEach(([k])=>jornada[k]=Math.max(0,Math.round(numVal("lab_j_"+k,0)*60)));
+  const totalMin=zxLabTotalDias(jornada);
+  const primerMin=ZX_LAB_DIAS_PRO.map(([k])=>jornada[k]).find(x=>x>0)||0;
+  const pais=(document.getElementById("lab_pais")?.value||"España").trim()||"España";
+  const core=window.ZENTRYX_LABORAL;
   return {
-    usuario_id:String(u.id || ""),
-    usuario:String(u.usuario || ""),
-    nombre:String(u.nombre || u.usuario || ""),
-    horas_dia:numVal("lab_horas_dia",8),
-    horas_semana:numVal("lab_horas_semana",40),
-    trabaja_lunes:document.getElementById("lab_lunes").checked,
-    trabaja_martes:document.getElementById("lab_martes").checked,
-    trabaja_miercoles:document.getElementById("lab_miercoles").checked,
-    trabaja_jueves:document.getElementById("lab_jueves").checked,
-    trabaja_viernes:document.getElementById("lab_viernes").checked,
-    trabaja_sabado:document.getElementById("lab_sabado").checked,
-    trabaja_domingo:document.getElementById("lab_domingo").checked,
-    vacaciones_dias:numVal("lab_vacaciones",30),
-    asuntos_propios:numVal("lab_asuntos",0),
-    precio_extra:numVal("lab_precio_extra",0),
-    precio_extra_nocturna:numVal("lab_precio_extra_nocturna",0),
-    precio_extra_festiva:numVal("lab_precio_extra_festiva",0),
-    hereda_precio_extra:document.getElementById("lab_hereda_precio_extra")?.checked===true,
-    hereda_precio_extra_nocturna:document.getElementById("lab_hereda_precio_extra_nocturna")?.checked===true,
-    hereda_precio_extra_festiva:document.getElementById("lab_hereda_precio_extra_festiva")?.checked===true,
-    pais:document.getElementById("lab_pais").value.trim() || "España",
-    comunidad:document.getElementById("lab_comunidad").value.trim(),
-    provincia:document.getElementById("lab_provincia").value.trim(),
-    localidad:document.getElementById("lab_localidad").value.trim(),
-    convenio:document.getElementById("lab_convenio").value.trim()
+    usuario_id:String(u.id||""),usuario:String(u.usuario||""),nombre:String(u.nombre||u.usuario||""),
+    jornada_propia:jornada,horas_dia:Number((primerMin/60).toFixed(2)),horas_semana:Number((totalMin/60).toFixed(2)),
+    trabaja_lunes:jornada.lunes>0,trabaja_martes:jornada.martes>0,trabaja_miercoles:jornada.miercoles>0,trabaja_jueves:jornada.jueves>0,trabaja_viernes:jornada.viernes>0,trabaja_sabado:jornada.sabado>0,trabaja_domingo:jornada.domingo>0,
+    hereda_jornada:document.getElementById("lab_hereda_jornada")?.checked===true,
+    convenio:(document.getElementById("lab_convenio")?.value||"").trim(),
+    convenio_referencia:(document.getElementById("lab_convenio_ref")?.value||"").trim(),
+    convenio_vigencia_desde:document.getElementById("lab_convenio_desde")?.value||"",
+    convenio_vigencia_hasta:document.getElementById("lab_convenio_hasta")?.value||"",
+    hereda_convenio:document.getElementById("lab_hereda_convenio")?.checked===true,
+    vacaciones_dias:numVal("lab_vacaciones",30),vacaciones_tipo:document.getElementById("lab_vacaciones_tipo")?.value||"naturales",hereda_vacaciones:document.getElementById("lab_hereda_vacaciones")?.checked===true,
+    asuntos_propios:numVal("lab_asuntos",0),hereda_asuntos:document.getElementById("lab_hereda_asuntos")?.checked===true,
+    precio_extra:numVal("lab_precio_extra",0),precio_extra_nocturna:numVal("lab_precio_extra_nocturna",0),precio_extra_festiva:numVal("lab_precio_extra_festiva",0),
+    hereda_precio_extra:document.getElementById("lab_hereda_precio_extra")?.checked===true,hereda_precio_extra_nocturna:document.getElementById("lab_hereda_precio_extra_nocturna")?.checked===true,hereda_precio_extra_festiva:document.getElementById("lab_hereda_precio_extra_festiva")?.checked===true,
+    pais,pais_codigo:core?.codigoPais?.(pais)||"",comunidad:(document.getElementById("lab_comunidad")?.value||"").trim(),provincia:(document.getElementById("lab_provincia")?.value||"").trim(),localidad:(document.getElementById("lab_localidad")?.value||"").trim(),
+    hereda_calendario:document.getElementById("lab_hereda_calendario")?.checked===true
   };
 }
 
 async function guardarBackupPreciosLaborales(datos){
-  const usuarioId=String(datos.usuario_id || "");
-  if(!usuarioId) return {error:{message:"Usuario laboral sin identificador."}};
-
+  const usuarioId=String(datos.usuario_id||"");
+  if(!usuarioId)return {error:{message:"Usuario laboral sin identificador."}};
+  const j=datos.jornada_propia||{};
+  const diasActivos=ZX_LAB_DIAS_PRO.filter(([k])=>Number(j[k]||0)>0).length;
+  const horasDia=diasActivos?Number((ZX_LAB_DIAS_PRO.map(([k])=>Number(j[k]||0)).find(x=>x>0)/60).toFixed(2)):0;
   const data={
-    usuario_id:usuarioId,
-    usuario:String(datos.usuario || ""),
-    nombre:String(datos.nombre || ""),
-    horas_dia:Number(datos.horas_dia || 8),
-    horas_semana:Number(datos.horas_semana || 40),
-    trabaja_lunes:!!datos.trabaja_lunes,
-    trabaja_martes:!!datos.trabaja_martes,
-    trabaja_jueves:!!datos.trabaja_jueves,
-    trabaja_viernes:!!datos.trabaja_viernes,
-    trabaja_sabado:!!datos.trabaja_sabado,
-    trabaja_domingo:!!datos.trabaja_domingo,
-    vacaciones_dias:Math.round(Number(datos.vacaciones_dias || 0)),
-    asuntos_propios:Number(datos.asuntos_propios || 0),
-    pais:String(datos.pais || "España"),
-    comunidad:String(datos.comunidad || ""),
-    provincia:String(datos.provincia || ""),
-    localidad:String(datos.localidad || ""),
-    convenio:String(datos.convenio || ""),
-    // config_laboral conserva el último precio PROPIO aunque horarios_usuario
-    // esté en null porque la tarifa efectiva se herede de la empresa.
-    precio_extra:Number(datos.precio_extra || 0),
-    precio_extra_nocturna:Number(datos.precio_extra_nocturna || 0),
-    precio_extra_festiva:Number(datos.precio_extra_festiva || 0),
-    updated_at:new Date().toISOString()
+    usuario_id:usuarioId,usuario:String(datos.usuario||""),nombre:String(datos.nombre||""),
+    horas_dia:horasDia,horas_semana:Number((zxLabTotalDias(j)/60).toFixed(2)),
+    trabaja_lunes:Number(j.lunes||0)>0,trabaja_martes:Number(j.martes||0)>0,trabaja_miercoles:Number(j.miercoles||0)>0,trabaja_jueves:Number(j.jueves||0)>0,trabaja_viernes:Number(j.viernes||0)>0,trabaja_sabado:Number(j.sabado||0)>0,trabaja_domingo:Number(j.domingo||0)>0,
+    vacaciones_dias:Number(datos.vacaciones_dias||0),asuntos_propios:Number(datos.asuntos_propios||0),
+    pais:String(datos.pais||"España"),comunidad:String(datos.comunidad||""),provincia:String(datos.provincia||""),localidad:String(datos.localidad||""),convenio:String(datos.convenio||""),
+    precio_extra:Number(datos.precio_extra||0),precio_extra_nocturna:Number(datos.precio_extra_nocturna||0),precio_extra_festiva:Number(datos.precio_extra_festiva||0),updated_at:new Date().toISOString()
   };
-
-  const buscado=await sb()
-    .from("config_laboral")
-    .select("id,updated_at")
-    .eq("usuario_id",usuarioId)
-    .order("updated_at",{ascending:false})
-    .limit(1);
-
-  if(buscado.error) return buscado;
-
-  if(buscado.data && buscado.data.length){
-    return await sb().from("config_laboral").update(data).eq("id",buscado.data[0].id);
-  }
-
-  data.created_at=new Date().toISOString();
-  return await sb().from("config_laboral").insert([data]);
+  const buscado=await sb().from("config_laboral").select("id,updated_at").eq("usuario_id",usuarioId).order("updated_at",{ascending:false}).limit(1);
+  if(buscado.error)return buscado;
+  if(buscado.data&&buscado.data.length)return await sb().from("config_laboral").update(data).eq("id",buscado.data[0].id);
+  data.created_at=new Date().toISOString();return await sb().from("config_laboral").insert([data]);
 }
 
-async function guardarLaboralDatos(datos){
-  if(!esAdminLocal()){
-    alert("No tienes permiso para modificar datos laborales.");
-    return;
-  }
-
+async function guardarLaboralDatos(datos,u){
+  if(!esAdminLocal()){alert("No tienes permiso para modificar datos laborales.");return;}
   const backup=await guardarBackupPreciosLaborales(datos);
-  if(backup && backup.error){
-    alert("Error conservando el precio propio: "+backup.error.message);
-    return;
-  }
-
+  if(backup&&backup.error){alert("Error conservando valores personales: "+backup.error.message);return;}
   const r=await guardarHorarioUsuario(datos);
+  if(r&&r.error){alert("Error guardando horarios_usuario: "+r.error.message);return;}
 
-  if(r && r.error){
-    alert("Error guardando horarios_usuario: "+r.error.message);
-    return;
-  }
-
-  await guardarSaldoAusenciasUsuario(datos);
+  let efectivo=null;
+  try{if(window.ZENTRYX_LABORAL?.resolverUsuario)efectivo=await window.ZENTRYX_LABORAL.resolverUsuario(datos.usuario_id)}catch(e){}
+  await guardarSaldoAusenciasUsuario(datos,efectivo);
   await registrarAuditoriaUsuario(datos.usuario_id,"laboral_modificado",[
-    {campo:"horas_dia",antes:"",despues:String(datos.horas_dia || "")},
-    {campo:"horas_semana",antes:"",despues:String(datos.horas_semana || "")},
-    {campo:"vacaciones_dias",antes:"",despues:String(datos.vacaciones_dias || "")},
-    {campo:"asuntos_propios",antes:"",despues:String(datos.asuntos_propios || "")}
+    {campo:"hereda_jornada",antes:"",despues:String(datos.hereda_jornada)},
+    {campo:"hereda_convenio",antes:"",despues:String(datos.hereda_convenio)},
+    {campo:"hereda_vacaciones",antes:"",despues:String(datos.hereda_vacaciones)},
+    {campo:"hereda_asuntos",antes:"",despues:String(datos.hereda_asuntos)},
+    {campo:"hereda_calendario",antes:"",despues:String(datos.hereda_calendario)}
   ]);
-
   alert("Datos laborales guardados.");
-  cerrarModal();
-  ZX_usuarios();
+  if(u){await verLaboralUsuario(u)}else{ZX_usuarios()}
 }
 
 
 
-async function guardarSaldoAusenciasUsuario(datos){
+async function guardarSaldoAusenciasUsuario(datos,efectivo){
   try{
-    const anio=new Date().getFullYear();
-    const usuarioId=String(datos.usuario_id || "");
-
-    if(!usuarioId) return;
-
-    const buscado=await sb()
-      .from("saldos_ausencias")
-      .select("id")
-      .eq("user_id",usuarioId)
-      .eq("anio",anio)
-      .limit(1);
-
-    if(buscado.error) return;
-
-    const saldo={
-      user_id:usuarioId,
-      anio:anio,
-      dias_vacaciones:Math.round(Number(datos.vacaciones_dias || 0)),
-      dias_asuntos_propios:Number(datos.asuntos_propios || 0)
-    };
-
-    if(buscado.data && buscado.data.length){
-      await sb().from("saldos_ausencias").update(saldo).eq("id",buscado.data[0].id);
-    }else{
-      saldo.created_at=new Date().toISOString();
-      await sb().from("saldos_ausencias").insert([saldo]);
-    }
+    const anio=new Date().getFullYear(),usuarioId=String(datos.usuario_id||"");if(!usuarioId)return;
+    const buscado=await sb().from("saldos_ausencias").select("id").eq("user_id",usuarioId).eq("anio",anio).limit(1);if(buscado.error)return;
+    const vac=efectivo&&efectivo.vacaciones!==undefined?efectivo.vacaciones:datos.vacaciones_dias;
+    const asu=efectivo&&efectivo.asuntos_horas!==undefined?efectivo.asuntos_horas:datos.asuntos_propios;
+    const saldo={user_id:usuarioId,anio,dias_vacaciones:Number(vac||0),dias_asuntos_propios:Number(asu||0)};
+    if(buscado.data&&buscado.data.length)await sb().from("saldos_ausencias").update(saldo).eq("id",buscado.data[0].id);else{saldo.created_at=new Date().toISOString();await sb().from("saldos_ausencias").insert([saldo])}
   }catch(e){}
 }
 
 async function guardarHorarioUsuario(datos){
-  const minutosDia=Math.round(Number(datos.horas_dia || 0) * 60);
+  let base={lunes:480,martes:480,miercoles:480,jueves:480,viernes:480,sabado:0,domingo:0,convenio:"",vacaciones:30,vacaciones_tipo:"naturales",asuntos_horas:0,pais:"España",pais_codigo:"",comunidad:"",provincia:"",localidad:""};
+  try{if(window.ZENTRYX_LABORAL?.cargarBaseEmpresa)base=Object.assign(base,await window.ZENTRYX_LABORAL.cargarBaseEmpresa())}catch(e){}
+  const propia=datos.jornada_propia||{};
+  const dias={}; ZX_LAB_DIAS_PRO.forEach(([k])=>dias[k]=Math.max(0,Math.round(Number(datos.hereda_jornada?base[k]:propia[k])||0)));
+  const conv=datos.hereda_convenio?{
+    nombre:String(base.convenio||""),referencia:String(base.convenio_referencia||""),vigencia_desde:String(base.convenio_vigencia_desde||""),vigencia_hasta:String(base.convenio_vigencia_hasta||"")
+  }:{nombre:String(datos.convenio||""),referencia:String(datos.convenio_referencia||""),vigencia_desde:String(datos.convenio_vigencia_desde||""),vigencia_hasta:String(datos.convenio_vigencia_hasta||"")};
+  const vacaciones=datos.hereda_vacaciones?Number(base.vacaciones||0):Number(datos.vacaciones_dias||0);
+  const asuntos=datos.hereda_asuntos?Number(base.asuntos_horas||0):Number(datos.asuntos_propios||0);
+  const cal=datos.hereda_calendario?{
+    pais:String(base.pais||"España"),pais_codigo:String(base.pais_codigo||""),comunidad:String(base.comunidad||""),provincia:String(base.provincia||""),localidad:String(base.localidad||"")
+  }:{pais:String(datos.pais||"España"),pais_codigo:String(datos.pais_codigo||""),comunidad:String(datos.comunidad||""),provincia:String(datos.provincia||""),localidad:String(datos.localidad||"")};
+
+  const laboralMeta={
+    version:1,inicializado:true,
+    hereda_jornada:!!datos.hereda_jornada,jornada_propia:Object.fromEntries(ZX_LAB_DIAS_PRO.map(([k])=>[k,Math.max(0,Math.round(Number(propia[k])||0))])),
+    hereda_convenio:!!datos.hereda_convenio,convenio_propio:{nombre:String(datos.convenio||""),referencia:String(datos.convenio_referencia||""),vigencia_desde:String(datos.convenio_vigencia_desde||""),vigencia_hasta:String(datos.convenio_vigencia_hasta||"")},
+    hereda_vacaciones:!!datos.hereda_vacaciones,vacaciones_propias:{dias:Number(datos.vacaciones_dias||0),tipo:String(datos.vacaciones_tipo||"naturales")},
+    hereda_asuntos:!!datos.hereda_asuntos,asuntos_propios_horas:Number(datos.asuntos_propios||0),
+    hereda_calendario:!!datos.hereda_calendario,calendario_propio:{pais:String(datos.pais||"España"),pais_codigo:String(datos.pais_codigo||""),comunidad:String(datos.comunidad||""),provincia:String(datos.provincia||""),localidad:String(datos.localidad||"")}
+  };
 
   const horario={
-    user_id:String(datos.usuario_id || ""),
-    usuario_id:String(datos.usuario_id || ""),
-    usuario:String(datos.usuario || ""),
-    nombre:String(datos.nombre || ""),
-    trabaja:true,
-    activo:true,
-    lunes:datos.trabaja_lunes ? minutosDia : 0,
-    martes:datos.trabaja_martes ? minutosDia : 0,
-    miercoles:datos.trabaja_miercoles ? minutosDia : 0,
-    jueves:datos.trabaja_jueves ? minutosDia : 0,
-    viernes:datos.trabaja_viernes ? minutosDia : 0,
-    sabado:datos.trabaja_sabado ? minutosDia : 0,
-    domingo:datos.trabaja_domingo ? minutosDia : 0,
-    vacaciones:Math.round(Number(datos.vacaciones_dias || 0)),
-    asuntos:Number(datos.asuntos_propios || 0),
-    asuntos_horas:Number(datos.asuntos_propios || 0),
-    convenio:String(datos.convenio || ""),
-    // null = heredar la tarifa base de empresa. Un número, incluido 0, = precio propio.
-    precio_extra:datos.hereda_precio_extra ? null : Number(datos.precio_extra || 0),
-    precio_extra_nocturna:datos.hereda_precio_extra_nocturna ? null : Number(datos.precio_extra_nocturna || 0),
-    precio_extra_festiva:datos.hereda_precio_extra_festiva ? null : Number(datos.precio_extra_festiva || 0),
-    pais:String(datos.pais || "España"),
-    comunidad:String(datos.comunidad || ""),
-    provincia:String(datos.provincia || ""),
-    localidad:String(datos.localidad || ""),
-    actualizado_en:new Date().toISOString()
+    user_id:String(datos.usuario_id||""),usuario_id:String(datos.usuario_id||""),usuario:String(datos.usuario||""),nombre:String(datos.nombre||""),trabaja:true,activo:true,
+    lunes:dias.lunes,martes:dias.martes,miercoles:dias.miercoles,jueves:dias.jueves,viernes:dias.viernes,sabado:dias.sabado,domingo:dias.domingo,
+    vacaciones:vacaciones,asuntos:asuntos,asuntos_horas:asuntos,convenio:conv.nombre,
+    precio_extra:datos.hereda_precio_extra?null:Number(datos.precio_extra||0),precio_extra_nocturna:datos.hereda_precio_extra_nocturna?null:Number(datos.precio_extra_nocturna||0),precio_extra_festiva:datos.hereda_precio_extra_festiva?null:Number(datos.precio_extra_festiva||0),
+    pais:cal.pais,comunidad:cal.comunidad,provincia:cal.provincia,localidad:cal.localidad,laboral_meta:laboralMeta,actualizado_en:new Date().toISOString()
   };
 
   const [porUsuarioId,porUserId]=await Promise.all([
     sb().from("horarios_usuario").select("id,actualizado_en").eq("usuario_id",String(datos.usuario_id)).eq("activo",true),
     sb().from("horarios_usuario").select("id,actualizado_en").eq("user_id",String(datos.usuario_id)).eq("activo",true)
   ]);
-
-  if(porUsuarioId.error && porUserId.error) return porUsuarioId;
-
-  const mapa=new Map();
-  [...(porUsuarioId.data||[]),...(porUserId.data||[])].forEach(function(f){
-    if(f && f.id) mapa.set(String(f.id),f);
-  });
-  const activas=Array.from(mapa.values()).sort(function(a,b){
-    return String(b.actualizado_en||"").localeCompare(String(a.actualizado_en||""));
-  });
-
+  const mapa=new Map();[...(porUsuarioId.data||[]),...(porUserId.data||[])].forEach(f=>{if(f&&f.id!==undefined)mapa.set(String(f.id),f)});
+  const activas=Array.from(mapa.values()).sort((a,b)=>new Date(b.actualizado_en||0)-new Date(a.actualizado_en||0));
   if(activas.length){
     const principal=activas[0];
-    const guardado=await sb().from("horarios_usuario").update(horario).eq("id",principal.id);
-    if(guardado.error) return guardado;
-
-    // Corrige datos antiguos con varias filas activas sin borrar historial.
-    const duplicadas=activas.slice(1).map(x=>x.id).filter(Boolean);
-    if(duplicadas.length){
-      await sb().from("horarios_usuario").update({activo:false,actualizado_en:new Date().toISOString()}).in("id",duplicadas);
-    }
-    return guardado;
+    const upd=await sb().from("horarios_usuario").update(horario).eq("id",principal.id);if(upd.error)return upd;
+    const sobrantes=activas.slice(1).map(x=>x.id);if(sobrantes.length)await sb().from("horarios_usuario").update({activo:false,actualizado_en:new Date().toISOString()}).in("id",sobrantes);
+    return upd;
   }
-
   return await sb().from("horarios_usuario").insert([horario]);
 }
 
