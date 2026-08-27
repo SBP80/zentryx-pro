@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
-// V3082 - OFFLINE INSTANTANEO
+// V3083 - FECHAS VISIBLES DD/MM/AAAA
 // ===============================
 (function(){
 "use strict";
@@ -73,6 +73,36 @@ function formatoMin(min){
 
 function fechaHora(){
   return new Date().toLocaleString("es-ES");
+}
+
+function formatoFecha(v){
+  const raw=String(v ?? "").trim();
+  if(!raw) return "";
+
+  let formato="DD/MM/AAAA";
+  try{
+    const cfg=JSON.parse(localStorage.getItem("zentryx_config") || "{}");
+    formato=String(cfg?.app?.formato_fecha || formato);
+  }catch(e){}
+
+  const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m){
+    if(formato==="AAAA-MM-DD") return m[1]+"-"+m[2]+"-"+m[3];
+    return m[3]+"/"+m[2]+"/"+m[1];
+  }
+
+  const d=new Date(raw);
+  if(!Number.isNaN(d.getTime())){
+    if(formato==="AAAA-MM-DD"){
+      const y=d.getFullYear();
+      const mo=String(d.getMonth()+1).padStart(2,"0");
+      const da=String(d.getDate()).padStart(2,"0");
+      return y+"-"+mo+"-"+da;
+    }
+    return d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"});
+  }
+
+  return raw;
 }
 
 async function precioHoraExtra(usuarioId,tipo){
@@ -397,7 +427,7 @@ function renderFila(h){
       <h2>${limpiar(h.nombre || h.usuario || "Usuario")}</h2>
 
       <div class="zx_text">
-        Fecha: <b>${limpiar(h.fecha || "")}</b><br>
+        Fecha: <b>${limpiar(formatoFecha(h.fecha))}</b><br>
         Tipo: <b>${limpiar(h.tipo || "normal")}</b><br>
         Horas: <b>${formatoMin(h.minutos)}</b><br>
         Precio hora: <b>${Number(h.precio_hora||0).toFixed(2)} €</b><br>
@@ -452,7 +482,7 @@ function htmlDocumento(datos){
 
   const filas=datos.map(h=>`
     <tr>
-      <td>${limpiar(h.fecha||"")}</td>
+      <td>${limpiar(formatoFecha(h.fecha))}</td>
       <td>${limpiar(h.nombre||h.usuario||"")}</td>
       <td>${limpiar(h.tipo||"normal")}</td>
       <td>${formatoMin(h.minutos)}</td>
@@ -556,7 +586,7 @@ window.ZX_enviarHorasExtra=function(){
     totalImporte+=Number(h.importe||0);
 
     texto+=
-      "Fecha: "+(h.fecha||"")+"\n"+
+      "Fecha: "+formatoFecha(h.fecha)+"\n"+
       "Trabajador: "+(h.nombre||h.usuario||"")+"\n"+
       "Tipo: "+(h.tipo||"normal")+"\n"+
       "Horas: "+formatoMin(h.minutos)+"\n"+
