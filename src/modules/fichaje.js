@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
+// V3148 - OBJETIVO 0 EN FESTIVOS/AUSENCIAS + EXTRA FESTIVA REAL
 // V3147 - CALENDARIO LABORAL DE EMPRESA + FESTIVOS APLICABLES POR USUARIO
 // V3145 - FINALIZAR/DEVOLVER VEHÍCULO DESDE FICHAJE SIN ACCESO AL MÓDULO GENERAL
 // - Mantiene el flujo V3144 y la separación entre Fichaje y el módulo administrativo Vehículos.
@@ -1395,13 +1396,19 @@ function laboralDesdeJornada(j){
     ? numeroSeguro(j.segundos_objetivo,0)
     : Math.round(numeroSeguro(j?.minutos_objetivo,0)*60);
 
-  // Si la jornada ya tiene una copia histórica válida, esa copia manda.
-  // Corrige también jornadas creadas con segundos_objetivo=0 por el fallo anterior.
-  if(
+  // Un objetivo efectivo 0 es válido en festivos y ausencias completas.
+  // No debe sustituirse por la jornada base del snapshot.
+  const festivoGuardado=!!(j?.es_festivo || j?.tipo_festivo);
+  const ausenciaGuardada=!!j?.tipo_ausencia;
+  if(festivoGuardado){
+    objetivoSeg=0;
+  }else if(
+    !ausenciaGuardada &&
     jornadaTieneSnapshot(j) &&
     numeroSeguro(j?.config_minutos_dia,0)>0 &&
     objetivoSeg<=0
   ){
+    // Compatibilidad con jornadas antiguas sin objetivo efectivo guardado.
     objetivoSeg=Math.round(numeroSeguro(j.config_minutos_dia,0)*60);
   }
 
@@ -1748,8 +1755,16 @@ function objetivoJornadaSeg(j,laboral){
     if(guardadoSeg>0) objetivoSeg=guardadoSeg;
   }
 
+  // Los festivos tienen objetivo efectivo 0 aunque la jornada semanal base
+  // del trabajador sea mayor que cero. Las ausencias usan el objetivo efectivo
+  // que quedó guardado, que puede ser 0 o una reducción parcial.
+  if(j?.es_festivo || j?.tipo_festivo){
+    return 0;
+  }
+
   if(
     objetivoSeg<=0 &&
+    !j?.tipo_ausencia &&
     jornadaTieneSnapshot(j) &&
     Number(j?.config_minutos_dia||0)>0
   ){
@@ -1871,9 +1886,11 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
   const laboral=await objetivoDiaPRO(fecha,s.id);
   const snapshot=await crearSnapshotConfiguracion(fecha,s.id,laboral,laboral.objetivoSeg);
 
-  // El objetivo de esta jornada se fija con la copia histórica recién creada.
-  // Los cambios posteriores nunca alteran jornadas ya creadas.
-  let objetivoMin=Math.max(0,Math.floor(Number(snapshot.config_minutos_dia||0)));
+  // El objetivo efectivo lo determina el calendario laboral del día.
+  // El snapshot conserva la jornada base, pero un festivo, vacaciones o una
+  // ausencia autorizada pueden reducir el objetivo efectivo hasta 0.
+  let objetivoSeg=Math.max(0,Math.floor(Number(laboral.objetivoSeg||0)));
+  let objetivoMin=Math.floor(objetivoSeg/60);
 
   const ultimaCerrada=cerradas.length
     ? [...cerradas].sort((a,b)=>new Date(b.created_at||b.entrada||0)-new Date(a.created_at||a.entrada||0))[0]
@@ -1886,8 +1903,6 @@ async function crearJornada(motivoAdmin,datosVehiculo=null){
   // de la nueva configuración y las jornadas anteriores no se modifican.
   const configuracionCambio=!!(ultimaCerrada && cambioConfiguracionEntreJornadas(ultimaCerrada,snapshot));
   const esJornadaContinuacion=!!(cerradas.length && !configuracionCambio);
-
-  let objetivoSeg=objetivoMin*60;
 
   if(esJornadaContinuacion && ultimaCerrada){
     // La continuación parte únicamente del objetivo pendiente de la jornada
@@ -2850,16 +2865,19 @@ async function verFichajesJornada(jornadaId){
 // RENDER
 // ===============================
 function objetivoVisualSeg(jornada,objetivoCalculoSeg){
-  // El objetivo mostrado debe ser la jornada configurada para ese día.
-  // El cálculo de falta y extra mantiene el objetivo pendiente de la jornada
-  // para conservar correctamente las continuaciones del mismo día.
+  // La pantalla debe mostrar el objetivo efectivo guardado, no la jornada base.
+  // En festivos y ausencias completas el objetivo correcto es 0.
+  if(jornada?.es_festivo || jornada?.tipo_festivo) return 0;
+
+  if(jornada && jornada.segundos_objetivo!==undefined && jornada.segundos_objetivo!==null){
+    return Math.max(0,Math.round(Number(jornada.segundos_objetivo||0)));
+  }
+  if(jornada && jornada.minutos_objetivo!==undefined && jornada.minutos_objetivo!==null){
+    return Math.max(0,Math.round(Number(jornada.minutos_objetivo||0)*60));
+  }
+
   const minutosConfig=Number(jornada?.config_minutos_dia||0);
   if(minutosConfig>0) return Math.max(0,Math.round(minutosConfig*60));
-
-  const segundosGuardados=Number(jornada?.segundos_objetivo||0);
-  const minutosGuardados=Number(jornada?.minutos_objetivo||0);
-  if(segundosGuardados>0) return Math.max(0,Math.round(segundosGuardados));
-  if(minutosGuardados>0) return Math.max(0,Math.round(minutosGuardados*60));
 
   return Math.max(0,Number(objetivoCalculoSeg||0));
 }
