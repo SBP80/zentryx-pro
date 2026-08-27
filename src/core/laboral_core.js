@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - LABORAL CORE V1002
+// ZENTRYX PRO - LABORAL CORE V1003
 // Configuración base de empresa, calendario laboral y festivos aplicables.
 // ===============================
 (function(){
 "use strict";
 
-const VERSION="1002";
+const VERSION="1003";
 const EMPRESA_TABLE="config_empresa";
 const FESTIVOS_TABLE="festivos";
 const HORARIOS_TABLE="horarios_usuario";
@@ -73,14 +73,14 @@ function comunidadDeProvincia(provincia){
 const MADRID_2026_BASE=[
   ["2026-01-01","Año Nuevo","nacional"],
   ["2026-01-06","Epifanía del Señor","nacional"],
-  ["2026-04-02","Jueves Santo","autonomico"],
+  ["2026-04-02","Jueves Santo","nacional"],
   ["2026-04-03","Viernes Santo","nacional"],
   ["2026-05-01","Fiesta del Trabajo","nacional"],
   ["2026-05-02","Fiesta de la Comunidad de Madrid","autonomico"],
   ["2026-08-15","Asunción de la Virgen","nacional"],
   ["2026-10-12","Fiesta Nacional de España","nacional"],
-  ["2026-11-02","Traslado de Todos los Santos","autonomico"],
-  ["2026-12-07","Traslado del Día de la Constitución Española","autonomico"],
+  ["2026-11-02","Traslado de Todos los Santos","nacional"],
+  ["2026-12-07","Traslado del Día de la Constitución Española","nacional"],
   ["2026-12-08","Inmaculada Concepción","nacional"],
   ["2026-12-25","Natividad del Señor","nacional"]
 ];
@@ -99,6 +99,12 @@ const MADRID_2026_LOCALES={
   "nuevo baztan":["2026-05-11","2026-12-03"],
   "valverde de alcala":["2026-05-15","2026-09-04"],
   "villalbilla":["2026-05-04","2026-09-25"]
+};
+
+const FUENTE_BOE_2026={
+  nombre:"BOE · Calendario laboral 2026",
+  url:"https://www.boe.es/eli/es/res/2025/10/17/(2)",
+  comprobado_en:"2026-08-27"
 };
 
 const FUENTE_MADRID_2026={
@@ -227,10 +233,13 @@ async function festivosUsuarioEnFecha(fecha,usuarioId){
 
 function oficialMadrid2026(cfg){
   if(normalizar(cfg.pais)!=="espana" || normalizar(cfg.comunidad)!=="madrid" || Number(cfg.anio)!==2026) return null;
-  const out=MADRID_2026_BASE.map(([fecha,nombre,ambito])=>({
-    fecha,nombre,pais:"España",tipo:ambito,ambito,comunidad:ambito==="autonomico"?"Madrid":"",provincia:"",localidad:"",anio:2026,
-    origen:"oficial",fuente:FUENTE_MADRID_2026.nombre,fuente_url:FUENTE_MADRID_2026.url,verificado:true,computa_extra:true
-  }));
+  const out=MADRID_2026_BASE.map(([fecha,nombre,ambito])=>{
+    const fuente=ambito==="nacional"?FUENTE_BOE_2026:FUENTE_MADRID_2026;
+    return {
+      fecha,nombre,pais:"España",tipo:ambito,ambito,comunidad:ambito==="autonomico"?"Madrid":"",provincia:"",localidad:"",anio:2026,
+      origen:"oficial",fuente:fuente.nombre,fuente_url:fuente.url,verificado:true,computa_extra:true
+    };
+  });
   const loc=MADRID_2026_LOCALES[normalizar(cfg.localidad)];
   if(loc){
     loc.forEach(fecha=>out.push({
