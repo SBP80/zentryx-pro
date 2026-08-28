@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1040 - BUSCADOR INTENCIONAL Y RESPUESTAS ESPECÍFICAS
+// V1041 - CONTROL ADMINISTRATIVO UNIFICADO EN FICHAJE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1040";
+const ZX_VERSION="1041";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -151,7 +151,7 @@ function abrirModuloManual(id){
     monitor:"ZX_monitor_oficina",
     horas_extra:"ZX_horas_extra",
     almacen:"ZX_almacen",
-    control_fichajes:"ZX_control_fichajes",
+    control_fichajes:"ZX_abrirFichaje",
     configuracion:"ZX_configuracion",
     usuarios:"ZX_usuarios",
     vehiculos:"ZX_vehiculos",
@@ -1056,11 +1056,11 @@ const AYUDAS_DIRECTAS=[
     ]
   },
   {
-    id:"modificar_fichaje_admin", modulo:"control_fichajes", titulo:"Modificar un fichaje",
+    id:"modificar_fichaje_admin", modulo:"fichaje", titulo:"Modificar un fichaje",
     consulta:"modificar fichaje corregir fichaje editar fichaje administrador trabajador empleado usuario",
     resumen:"Corrige un fichaje desde las herramientas administrativas dejando registro del cambio.",
     pasos:[
-      "Abre Control de fichajes o el panel administrativo de Fichaje.",
+      "Abre Fichaje y entra en el panel administrativo.",
       "Busca la jornada y el fichaje.",
       "Pulsa Modificar.",
       "Introduce la autorización solicitada y el motivo del cambio.",
@@ -1068,11 +1068,11 @@ const AYUDAS_DIRECTAS=[
     ]
   },
   {
-    id:"borrar_fichaje_admin", modulo:"control_fichajes", titulo:"Borrar un fichaje",
+    id:"borrar_fichaje_admin", modulo:"fichaje", titulo:"Borrar un fichaje",
     consulta:"borrar fichaje eliminar fichaje administrador",
     resumen:"Elimina un fichaje con las confirmaciones administrativas correspondientes.",
     pasos:[
-      "Abre Control de fichajes o el panel administrativo.",
+      "Abre Fichaje y entra en el panel administrativo.",
       "Busca el fichaje.",
       "Pulsa Borrar.",
       "Confirma la acción, introduce la autorización y deja el motivo cuando Zentryx lo solicite."
@@ -1644,16 +1644,6 @@ const BASE=[
     palabras:"usuario trabajador empleado permisos laboral documento horario"
   },
   {
-    id:"control_fichajes",icono:"✅",titulo:"Control de fichajes",roles:["admin","encargado"],
-    resumen:"Revisión administrativa de jornadas y fichajes.",
-    pasos:[
-      "Busca al trabajador o la fecha que necesites revisar.",
-      "Comprueba los registros antes de modificarlos.",
-      "Las acciones protegidas requieren autorización y deben conservar el motivo del cambio."
-    ],
-    palabras:"control fichaje jornada modificar borrar pin motivo administrador"
-  },
-  {
     id:"horas_extra",icono:"➕",titulo:"Horas extra",roles:["admin","encargado"],
     resumen:"Consulta y gestión de horas adicionales registradas.",
     pasos:[
@@ -1697,7 +1687,7 @@ const BASE=[
 
 const ZX_MANUAL_MODULOS_CON_ACCESO=new Set([
   "inicio","fichaje","agenda","clientes","trabajos","almacen","usuarios",
-  "vehiculos","horas_extra","control_fichajes","manual","configuracion"
+  "vehiculos","horas_extra","manual","configuracion"
 ]);
 
 function accesoModuloManual(id){
