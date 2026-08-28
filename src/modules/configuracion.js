@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AJUSTES
-// V3117 - MÓDULOS DE EMPRESA PERSISTENTES
+// V3118 - CONTROL RETIRADO DE MÓDULOS DE EMPRESA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3117";
+const ZX_VERSION="3118";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
 const CONFIG_KEY="zentryx_config";
@@ -63,7 +63,7 @@ function configBase(){
       vehiculos:true,
       manual:true,
       horas_extra:true,
-      control_fichajes:true,
+      control_fichajes:false,
       configuracion:true
     },
     app:{
@@ -136,6 +136,8 @@ function getConfig(){
   // Inicio y Ajustes no pueden quedar desactivados.
   cfg.modulos.inicio=true;
   cfg.modulos.configuracion=true;
+  // Control se conserva solo como clave antigua; la gestión está dentro de Fichaje.
+  cfg.modulos.control_fichajes=false;
 
   return cfg;
 }
@@ -167,7 +169,8 @@ function setTema(t){
 async function guardarTodo(cfg,t,st){
   cfg.modulos=Object.assign({},cfg.modulos || {},{
     inicio:true,
-    configuracion:true
+    configuracion:true,
+    control_fichajes:false
   });
 
   guardar(CONFIG_KEY,cfg);
@@ -294,7 +297,6 @@ function seccionModulos(cfg){
     usuarios:"Usuarios",
     vehiculos:"Vehículos",
     horas_extra:"Horas",
-    control_fichajes:"Control",
     manual:"Manual"
   };
 
