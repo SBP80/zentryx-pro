@@ -18,11 +18,12 @@
 // V3156 - LABORAL: FILA ACTIVA ÚNICA + PRECIOS PERSONALES/HEREDADOS DE EMPRESA
 // V3157 - LABORAL: CONSERVA PRECIO PROPIO AL USAR BASE DE EMPRESA
 // V3158 - LABORAL PRO: HERENCIA DE JORNADA, CONVENIO, VACACIONES, ASUNTOS Y CALENDARIO
+// V3159 - UNIDADES VISIBLES + AUDITORÍA LABORAL EXACTA + HISTORIAL LEGIBLE SIN DUPLICADOS
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3158";
+window.ZX_USUARIOS_VERSION="3159";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -387,6 +388,14 @@ function cerrarModal(){
   if(m) m.remove();
 }
 
+function esperarRepintadoTrasModal(){
+  return new Promise(function(resolve){
+    requestAnimationFrame(function(){
+      requestAnimationFrame(resolve);
+    });
+  });
+}
+
 function modal(titulo,contenido){
   cerrarModal();
 
@@ -715,6 +724,7 @@ async function pedirPinConPermiso(accion,callback){
 
     if(pruebaSesion && pruebaSesion.ok){
       cerrarModal();
+      await esperarRepintadoTrasModal();
       if(typeof callback==="function") await callback();
       return;
     }
@@ -743,6 +753,7 @@ async function pedirPinConPermiso(accion,callback){
     }
 
     cerrarModal();
+    await esperarRepintadoTrasModal();
 
     if(typeof callback==="function"){
       await callback();
@@ -1347,8 +1358,8 @@ function zxCrearPdfFichaUsuario(u,ultimoFichaje,resumenRapido,laboral){
 
   if(laboral){
     seccion("Resumen laboral");
-    linea("Horas por día",zxPdfValor(laboral.horas_dia));
-    linea("Horas por semana",zxPdfValor(laboral.horas_semana));
+    linea("Horas por día",laboral.horas_dia!==null && laboral.horas_dia!==undefined ? zxPdfValor(laboral.horas_dia)+" h" : "Sin dato");
+    linea("Horas por semana",laboral.horas_semana!==null && laboral.horas_semana!==undefined ? zxPdfValor(laboral.horas_semana)+" h" : "Sin dato");
     linea("Vacaciones anuales",laboral.vacaciones_dias!==null && laboral.vacaciones_dias!==undefined ? laboral.vacaciones_dias+" días" : "Sin dato");
     linea("Asuntos propios",laboral.asuntos_propios!==null && laboral.asuntos_propios!==undefined ? laboral.asuntos_propios+" h" : "Sin dato");
     linea("Días de trabajo",zxPdfDiasLaborales(laboral));
@@ -1545,22 +1556,22 @@ function renderResumenLaboralFicha(l){
       <div class="zx_ficha_laboral_grid">
         <div>
           <span>Horas/día</span>
-          <b>${limpiar(l.horas_dia ?? "-")}</b>
+          <b>${limpiar(l.horas_dia ?? "-")} ${l.horas_dia!==null && l.horas_dia!==undefined ? "h" : ""}</b>
         </div>
 
         <div>
           <span>Horas/semana</span>
-          <b>${limpiar(l.horas_semana ?? "-")}</b>
+          <b>${limpiar(l.horas_semana ?? "-")} ${l.horas_semana!==null && l.horas_semana!==undefined ? "h" : ""}</b>
         </div>
 
         <div>
           <span>Vacaciones</span>
-          <b>${limpiar(l.vacaciones_dias ?? "-")}</b>
+          <b>${limpiar(l.vacaciones_dias ?? "-")} ${l.vacaciones_dias!==null && l.vacaciones_dias!==undefined ? "días" : ""}</b>
         </div>
 
         <div>
           <span>Asuntos propios</span>
-          <b>${limpiar(l.asuntos_propios ?? "-")}</b>
+          <b>${limpiar(l.asuntos_propios ?? "-")} ${l.asuntos_propios!==null && l.asuntos_propios!==undefined ? "h" : ""}</b>
         </div>
       </div>
 
@@ -1901,10 +1912,14 @@ function input(id,label,value,type){
   `;
 }
 
-function inputNum(id,label,value,step){
+function inputNum(id,label,value,step,unidad){
+  const sufijo=String(unidad||"").trim();
   return `
     <label class="zx_label" for="${id}">${limpiar(label)}</label>
-    <input id="${id}" type="number" step="${step || "1"}" value="${limpiar(value ?? "")}" placeholder="${limpiar(label)}">
+    <div class="zx_num_unit_wrap">
+      <input id="${id}" type="number" step="${step || "1"}" value="${limpiar(value ?? "")}" placeholder="${limpiar(label)}">
+      ${sufijo ? `<span class="zx_num_unit">${limpiar(sufijo)}</span>` : ""}
+    </div>
   `;
 }
 
@@ -2677,10 +2692,10 @@ function resumenLaboral(l,consumo){
 
   return `
     <div class="zx_laboral_resumen">
-      <div><b>${limpiar(l.horas_dia ?? 0)}</b><span>Horas/día</span></div>
-      <div><b>${limpiar(l.horas_semana ?? 0)}</b><span>Horas/semana</span></div>
-      <div><b>${limpiar(l.vacaciones_dias ?? 0)}</b><span>Vacaciones asignadas</span></div>
-      <div><b>${limpiar(l.asuntos_propios ?? 0)}</b><span>Asuntos propios asignados</span></div>
+      <div><b>${limpiar(l.horas_dia ?? 0)} h</b><span>Horas/día</span></div>
+      <div><b>${limpiar(l.horas_semana ?? 0)} h</b><span>Horas/semana</span></div>
+      <div><b>${limpiar(l.vacaciones_dias ?? 0)} días</b><span>Vacaciones asignadas</span></div>
+      <div><b>${limpiar(l.asuntos_propios ?? 0)} h</b><span>Asuntos propios asignados</span></div>
     </div>
 
     ${bloqueConsumo}
@@ -2853,7 +2868,7 @@ async function verLaboralUsuario(u){
     ${check("lab_hereda_jornada","Usar jornada de empresa · "+zxLabMinutosTexto(baseSemana),l.hereda_jornada===true)}
     ${zxLabBloque("lab_jornada_personal",`
       <div class="zx_text" style="margin-bottom:8px"><b>Jornada propia</b> · 0 horas significa día no laborable.</div>
-      ${ZX_LAB_DIAS_PRO.map(([k,n])=>inputNum("lab_j_"+k,n+" (horas)",zxLabHorasInput(jp[k]),"0.25")).join("")}
+      ${ZX_LAB_DIAS_PRO.map(([k,n])=>inputNum("lab_j_"+k,n,zxLabHorasInput(jp[k]),"0.25","h")).join("")}
       <div class="zx_text" style="margin-top:10px">Total semanal propio: <b id="lab_total_propio">${zxLabMinutosTexto(zxLabTotalDias(jp))}</b></div>
     `)}
 
@@ -2872,23 +2887,23 @@ async function verLaboralUsuario(u){
     <h3 class="zx_form_subtitle">Vacaciones</h3>
     ${check("lab_hereda_vacaciones","Usar base empresa/convenio · "+Number(baseEmpresa.vacaciones||0)+" días "+baseVacTipo,l.hereda_vacaciones===true)}
     ${zxLabBloque("lab_vacaciones_personal",`
-      ${inputNum("lab_vacaciones","Vacaciones propias en días",l.vacaciones_propias,"0.5")}
+      ${inputNum("lab_vacaciones","Vacaciones propias",l.vacaciones_propias,"0.5","días")}
       ${selectLaboral("lab_vacaciones_tipo","Cómputo de vacaciones",l.vacaciones_propias_tipo||"naturales",["naturales","laborables"])}
     `)}
 
     <h3 class="zx_form_subtitle">Asuntos propios</h3>
     ${check("lab_hereda_asuntos","Usar base empresa/convenio · "+Number(baseEmpresa.asuntos_horas||0)+" h/año",l.hereda_asuntos===true)}
-    ${zxLabBloque("lab_asuntos_personal",inputNum("lab_asuntos","Asuntos propios personales (h/año)",l.asuntos_propios_personal,"0.25"))}
+    ${zxLabBloque("lab_asuntos_personal",inputNum("lab_asuntos","Asuntos propios personales",l.asuntos_propios_personal,"0.25","h/año"))}
 
     ${puedeVerDatosLaboralesSensibles(u)?`
       <h3 class="zx_form_subtitle">Precios horas extra</h3>
       <div class="zx_text" style="margin-bottom:10px">Cada tarifa puede usar la base de empresa o un precio propio del trabajador.</div>
-      ${check("lab_hereda_precio_extra","Usar base empresa · Extra normal ("+Number(baseEmpresa.precio_extra||0).toFixed(2)+" €)",l.hereda_precio_extra===true)}
-      ${inputNum("lab_precio_extra","Precio propio · Extra normal",l.precio_propio_extra??l.precio_extra,"0.01")}
-      ${check("lab_hereda_precio_extra_nocturna","Usar base empresa · Extra nocturna ("+Number(baseEmpresa.precio_extra_nocturna||0).toFixed(2)+" €)",l.hereda_precio_extra_nocturna===true)}
-      ${inputNum("lab_precio_extra_nocturna","Precio propio · Extra nocturna",l.precio_propio_extra_nocturna??l.precio_extra_nocturna,"0.01")}
-      ${check("lab_hereda_precio_extra_festiva","Usar base empresa · Extra festiva ("+Number(baseEmpresa.precio_extra_festiva||0).toFixed(2)+" €)",l.hereda_precio_extra_festiva===true)}
-      ${inputNum("lab_precio_extra_festiva","Precio propio · Extra festiva",l.precio_propio_extra_festiva??l.precio_extra_festiva,"0.01")}
+      ${check("lab_hereda_precio_extra","Usar base empresa · Extra normal ("+Number(baseEmpresa.precio_extra||0).toFixed(2)+" €/h)",l.hereda_precio_extra===true)}
+      ${inputNum("lab_precio_extra","Precio propio · Extra normal",l.precio_propio_extra??l.precio_extra,"0.01","€/h")}
+      ${check("lab_hereda_precio_extra_nocturna","Usar base empresa · Extra nocturna ("+Number(baseEmpresa.precio_extra_nocturna||0).toFixed(2)+" €/h)",l.hereda_precio_extra_nocturna===true)}
+      ${inputNum("lab_precio_extra_nocturna","Precio propio · Extra nocturna",l.precio_propio_extra_nocturna??l.precio_extra_nocturna,"0.01","€/h")}
+      ${check("lab_hereda_precio_extra_festiva","Usar base empresa · Extra festiva ("+Number(baseEmpresa.precio_extra_festiva||0).toFixed(2)+" €/h)",l.hereda_precio_extra_festiva===true)}
+      ${inputNum("lab_precio_extra_festiva","Precio propio · Extra festiva",l.precio_propio_extra_festiva??l.precio_extra_festiva,"0.01","€/h")}
     `:``}
 
     <h3 class="zx_form_subtitle">Calendario laboral</h3>
@@ -3031,8 +3046,110 @@ async function guardarBackupPreciosLaborales(datos){
   data.created_at=new Date().toISOString();return await sb().from("config_laboral").insert([data]);
 }
 
+function zxLabAudValorNumero(v){
+  const n=Number(v);
+  return Number.isFinite(n) ? String(Number(n.toFixed(4))) : "";
+}
+
+function zxLabAudValorTexto(v){
+  return String(v ?? "").trim();
+}
+
+function zxLabAudValorBool(v){
+  return v===true ? "true" : "false";
+}
+
+function zxLabAudSnapshotActual(l){
+  const x=l||{};
+  const j=x.jornada_propia||{};
+  const c=x.calendario_propio||{};
+  return {
+    hereda_jornada:zxLabAudValorBool(x.hereda_jornada===true),
+    jornada_lunes:zxLabAudValorNumero(Number(j.lunes||0)/60),
+    jornada_martes:zxLabAudValorNumero(Number(j.martes||0)/60),
+    jornada_miercoles:zxLabAudValorNumero(Number(j.miercoles||0)/60),
+    jornada_jueves:zxLabAudValorNumero(Number(j.jueves||0)/60),
+    jornada_viernes:zxLabAudValorNumero(Number(j.viernes||0)/60),
+    jornada_sabado:zxLabAudValorNumero(Number(j.sabado||0)/60),
+    jornada_domingo:zxLabAudValorNumero(Number(j.domingo||0)/60),
+    hereda_convenio:zxLabAudValorBool(x.hereda_convenio===true),
+    convenio:zxLabAudValorTexto(x.convenio_propio),
+    convenio_referencia:zxLabAudValorTexto(x.convenio_propio_referencia),
+    convenio_vigencia_desde:zxLabAudValorTexto(x.convenio_propio_desde),
+    convenio_vigencia_hasta:zxLabAudValorTexto(x.convenio_propio_hasta),
+    hereda_vacaciones:zxLabAudValorBool(x.hereda_vacaciones===true),
+    vacaciones_dias:zxLabAudValorNumero(x.vacaciones_propias),
+    vacaciones_tipo:zxLabAudValorTexto(x.vacaciones_propias_tipo||"naturales"),
+    hereda_asuntos:zxLabAudValorBool(x.hereda_asuntos===true),
+    asuntos_propios:zxLabAudValorNumero(x.asuntos_propios_personal),
+    hereda_precio_extra:zxLabAudValorBool(x.hereda_precio_extra===true),
+    precio_extra:zxLabAudValorNumero(x.precio_propio_extra),
+    hereda_precio_extra_nocturna:zxLabAudValorBool(x.hereda_precio_extra_nocturna===true),
+    precio_extra_nocturna:zxLabAudValorNumero(x.precio_propio_extra_nocturna),
+    hereda_precio_extra_festiva:zxLabAudValorBool(x.hereda_precio_extra_festiva===true),
+    precio_extra_festiva:zxLabAudValorNumero(x.precio_propio_extra_festiva),
+    hereda_calendario:zxLabAudValorBool(x.hereda_calendario===true),
+    pais:zxLabAudValorTexto(c.pais||x.pais||"España"),
+    comunidad:zxLabAudValorTexto(c.comunidad||""),
+    provincia:zxLabAudValorTexto(c.provincia||""),
+    localidad:zxLabAudValorTexto(c.localidad||"")
+  };
+}
+
+function zxLabAudSnapshotFormulario(datos){
+  const d=datos||{};
+  const j=d.jornada_propia||{};
+  return {
+    hereda_jornada:zxLabAudValorBool(d.hereda_jornada===true),
+    jornada_lunes:zxLabAudValorNumero(Number(j.lunes||0)/60),
+    jornada_martes:zxLabAudValorNumero(Number(j.martes||0)/60),
+    jornada_miercoles:zxLabAudValorNumero(Number(j.miercoles||0)/60),
+    jornada_jueves:zxLabAudValorNumero(Number(j.jueves||0)/60),
+    jornada_viernes:zxLabAudValorNumero(Number(j.viernes||0)/60),
+    jornada_sabado:zxLabAudValorNumero(Number(j.sabado||0)/60),
+    jornada_domingo:zxLabAudValorNumero(Number(j.domingo||0)/60),
+    hereda_convenio:zxLabAudValorBool(d.hereda_convenio===true),
+    convenio:zxLabAudValorTexto(d.convenio),
+    convenio_referencia:zxLabAudValorTexto(d.convenio_referencia),
+    convenio_vigencia_desde:zxLabAudValorTexto(d.convenio_vigencia_desde),
+    convenio_vigencia_hasta:zxLabAudValorTexto(d.convenio_vigencia_hasta),
+    hereda_vacaciones:zxLabAudValorBool(d.hereda_vacaciones===true),
+    vacaciones_dias:zxLabAudValorNumero(d.vacaciones_dias),
+    vacaciones_tipo:zxLabAudValorTexto(d.vacaciones_tipo||"naturales"),
+    hereda_asuntos:zxLabAudValorBool(d.hereda_asuntos===true),
+    asuntos_propios:zxLabAudValorNumero(d.asuntos_propios),
+    hereda_precio_extra:zxLabAudValorBool(d.hereda_precio_extra===true),
+    precio_extra:zxLabAudValorNumero(d.precio_extra),
+    hereda_precio_extra_nocturna:zxLabAudValorBool(d.hereda_precio_extra_nocturna===true),
+    precio_extra_nocturna:zxLabAudValorNumero(d.precio_extra_nocturna),
+    hereda_precio_extra_festiva:zxLabAudValorBool(d.hereda_precio_extra_festiva===true),
+    precio_extra_festiva:zxLabAudValorNumero(d.precio_extra_festiva),
+    hereda_calendario:zxLabAudValorBool(d.hereda_calendario===true),
+    pais:zxLabAudValorTexto(d.pais||"España"),
+    comunidad:zxLabAudValorTexto(d.comunidad),
+    provincia:zxLabAudValorTexto(d.provincia),
+    localidad:zxLabAudValorTexto(d.localidad)
+  };
+}
+
+function zxLabAudCambios(antes,despues){
+  const a=zxLabAudSnapshotActual(antes);
+  const b=zxLabAudSnapshotFormulario(despues);
+  return Object.keys(b).filter(function(campo){return String(a[campo]??"")!==String(b[campo]??"")}).map(function(campo){
+    return {campo:campo,antes:String(a[campo]??""),despues:String(b[campo]??"")};
+  });
+}
+
 async function guardarLaboralDatos(datos,u){
   if(!esAdminLocal()){alert("No tienes permiso para modificar datos laborales.");return;}
+  let anterior=null;
+  try{anterior=await cargarLaboralUsuario(datos.usuario_id)}catch(e){}
+  if(!anterior){
+    let base={};
+    try{if(window.ZENTRYX_LABORAL?.cargarBaseEmpresa)base=await window.ZENTRYX_LABORAL.cargarBaseEmpresa()}catch(e){}
+    anterior=laboralDefault(u||{id:datos.usuario_id,usuario:datos.usuario,nombre:datos.nombre},base);
+  }
+  const cambiosAuditoria=zxLabAudCambios(anterior,datos);
   const backup=await guardarBackupPreciosLaborales(datos);
   if(backup&&backup.error){alert("Error conservando valores personales: "+backup.error.message);return;}
   const r=await guardarHorarioUsuario(datos);
@@ -3041,13 +3158,9 @@ async function guardarLaboralDatos(datos,u){
   let efectivo=null;
   try{if(window.ZENTRYX_LABORAL?.resolverUsuario)efectivo=await window.ZENTRYX_LABORAL.resolverUsuario(datos.usuario_id)}catch(e){}
   await guardarSaldoAusenciasUsuario(datos,efectivo);
-  await registrarAuditoriaUsuario(datos.usuario_id,"laboral_modificado",[
-    {campo:"hereda_jornada",antes:"",despues:String(datos.hereda_jornada)},
-    {campo:"hereda_convenio",antes:"",despues:String(datos.hereda_convenio)},
-    {campo:"hereda_vacaciones",antes:"",despues:String(datos.hereda_vacaciones)},
-    {campo:"hereda_asuntos",antes:"",despues:String(datos.hereda_asuntos)},
-    {campo:"hereda_calendario",antes:"",despues:String(datos.hereda_calendario)}
-  ]);
+  if(cambiosAuditoria.length){
+    await registrarAuditoriaUsuario(datos.usuario_id,"laboral_modificado",cambiosAuditoria);
+  }
   alert("Datos laborales guardados.");
   if(u){await verLaboralUsuario(u)}else{ZX_usuarios()}
 }
@@ -3336,11 +3449,21 @@ async function cargarHistorialUsuario(u){
   const solicitudesA=await consultaHistorial("solicitudes_laborales","usuario_id",usuarioId,"created_at");
   const solicitudesB=await consultaHistorial("solicitudes_laborales","user_id",usuarioId,"created_at");
 
+  const unirSinDuplicados=function(a,b){
+    const mapa=new Map();
+    [...(a||[]),...(b||[])].forEach(function(x){
+      if(!x)return;
+      const clave=x.id!==undefined && x.id!==null ? "id:"+String(x.id) : "row:"+JSON.stringify(x);
+      if(!mapa.has(clave)) mapa.set(clave,x);
+    });
+    return Array.from(mapa.values());
+  };
+
   return {
-    jornadas:[...jornadasA,...jornadasB],
-    fichajes:[...fichajesA,...fichajesB],
-    horas:[...horasA,...horasB],
-    solicitudes:[...solicitudesA,...solicitudesB]
+    jornadas:unirSinDuplicados(jornadasA,jornadasB),
+    fichajes:unirSinDuplicados(fichajesA,fichajesB),
+    horas:unirSinDuplicados(horasA,horasB),
+    solicitudes:unirSinDuplicados(solicitudesA,solicitudesB)
   };
 }
 
@@ -3429,13 +3552,36 @@ function renderHistorialJornadas(lista){
   }).join("");
 }
 
+function textoTipoFichajeHistorial(v){
+  const original=String(v||"").trim();
+  const clave=normalizarTexto(original).replaceAll(" ","_").replaceAll("-","_");
+  const mapa={
+    entrada:"Entrada",
+    salida:"Salida",
+    inicio_descanso:"Inicio de descanso",
+    fin_descanso:"Fin de descanso",
+    inicio_comida:"Inicio de comida",
+    fin_comida:"Fin de comida",
+    descanso:"Descanso",
+    comida:"Comida"
+  };
+  return mapa[clave] || (original ? original.replaceAll("_"," ") : "Fichaje");
+}
+
+function textoTipoHoraExtraHistorial(v){
+  const original=String(v||"").trim();
+  const clave=normalizarTexto(original).replaceAll(" ","_").replaceAll("-","_");
+  const mapa={normal:"Normal",nocturna:"Nocturna",festiva:"Festiva",extra_normal:"Extra normal",extra_nocturna:"Extra nocturna",extra_festiva:"Extra festiva"};
+  return mapa[clave] || (original ? original.replaceAll("_"," ") : "Hora extra");
+}
+
 function renderHistorialFichajes(lista){
   if(!lista.length) return `<div class="zx_text">Sin fichajes registrados.</div>`;
 
   return lista.slice(0,12).map(f=>{
     const fecha=fechaES(f.created_at || f.fecha || f.hora);
     const hora=horaES(f.created_at || f.hora || f.fecha);
-    const tipo=f.tipo || f.accion || f.estado || "Fichaje";
+    const tipo=textoTipoFichajeHistorial(f.tipo || f.accion || f.estado || "Fichaje");
     const detalle=[
       f.direccion,
       f.vehiculo_matricula ? "Vehículo: "+f.vehiculo_matricula : "",
@@ -3453,7 +3599,7 @@ function renderHistorialHoras(lista){
     const fecha=fechaES(h.fecha || h.created_at);
     const minutos=textoMinutos(h.minutos || h.minutos_extra || h.total_minutos || 0);
     const estado=textoEstadoHistorial(h.estado || (h.pagada ? "Pagada" : "Pendiente"));
-    const tipo=h.tipo || "Hora extra";
+    const tipo=textoTipoHoraExtraHistorial(h.tipo || "Hora extra");
 
     return itemHistorial(tipo,fecha+" · "+estado,minutos);
   }).join("");
@@ -3642,11 +3788,30 @@ function etiquetaCampoAuditoria(campo,accion){
     pin:"PIN",
     horas_dia:"Horas por día",
     horas_semana:"Horas por semana",
+    hereda_jornada:"Usar jornada de empresa",
+    jornada_lunes:"Jornada lunes",
+    jornada_martes:"Jornada martes",
+    jornada_miercoles:"Jornada miércoles",
+    jornada_jueves:"Jornada jueves",
+    jornada_viernes:"Jornada viernes",
+    jornada_sabado:"Jornada sábado",
+    jornada_domingo:"Jornada domingo",
+    hereda_convenio:"Usar convenio de empresa",
+    convenio_referencia:"Referencia de convenio",
+    convenio_vigencia_desde:"Convenio vigente desde",
+    convenio_vigencia_hasta:"Convenio vigente hasta",
+    hereda_vacaciones:"Usar vacaciones de empresa/convenio",
     vacaciones_dias:"Vacaciones anuales",
+    vacaciones_tipo:"Cómputo de vacaciones",
+    hereda_asuntos:"Usar asuntos propios de empresa/convenio",
     asuntos_propios:"Asuntos propios",
-    precio_extra:"Precio hora extra",
+    hereda_precio_extra:"Usar precio de empresa · Extra normal",
+    precio_extra:"Precio hora extra normal",
+    hereda_precio_extra_nocturna:"Usar precio de empresa · Extra nocturna",
     precio_extra_nocturna:"Precio hora extra nocturna",
+    hereda_precio_extra_festiva:"Usar precio de empresa · Extra festiva",
     precio_extra_festiva:"Precio hora extra festiva",
+    hereda_calendario:"Usar calendario de empresa",
     comunidad:"Comunidad autónoma",
     localidad:"Localidad",
     convenio:"Convenio",
@@ -3680,6 +3845,12 @@ function valorAuditoriaVisible(campo,valor,accion){
   if(documentos[clave]) return documentos[clave];
 
   if(clave==="validada_admin" || clave==="validado_admin") return "Validada por administrador";
+  if(campoClave.startsWith("jornada_")) return s+" h";
+  if(campoClave==="vacaciones_dias") return s+" días";
+  if(campoClave==="asuntos_propios") return s+" h/año";
+  if(campoClave==="precio_extra" || campoClave==="precio_extra_nocturna" || campoClave==="precio_extra_festiva") return s+" €/h";
+  if(campoClave==="vacaciones_tipo" && clave==="naturales") return "Días naturales";
+  if(campoClave==="vacaciones_tipo" && clave==="laborables") return "Días laborables";
   if(clave==="true") return "Sí";
   if(clave==="false") return "No";
   if(clave==="eliminado") return "Eliminado";
@@ -4210,6 +4381,10 @@ async function verDocumentosUsuario(u,origen="ficha"){
     .zx_laboral_resumen div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:14px;text-align:center}
     .zx_laboral_resumen b{display:block;font-size:28px;font-weight:900;color:#0f172a}
     .zx_laboral_resumen span{display:block;color:#64748b;font-size:14px;font-weight:900;margin-top:4px}
+    .zx_num_unit_wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:stretch;margin-bottom:12px}
+    .zx_num_unit_wrap input{margin-bottom:0!important;min-width:0}
+    .zx_num_unit{display:flex;align-items:center;justify-content:center;min-width:58px;padding:0 13px;border:1px solid #cbd5e1;border-radius:14px;background:#f1f5f9;color:#334155;font-size:15px;font-weight:950;white-space:nowrap}
+    html[data-zx-theme="dark"] .zx_num_unit{background:#1f2937;color:#f8fafc;border-color:#475569}
     .zx_checks_grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
     .zx_check{display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;font-weight:900;color:#0f172a}
     .zx_check input{width:auto!important;margin:0!important;transform:scale(1.2)}
