@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
-// V3086 - PDF COMPARTIBLE + IMPRESIÓN IOS + VISTA RESPONSIVE
+// V3087 - UN SOLO FLUJO PARA VER, COMPARTIR E IMPRIMIR PDF
 // ===============================
 (function(){
 "use strict";
@@ -557,12 +557,8 @@ function resumen(datos){
         Total importe: <b>${formatoDinero(imp)}</b>
       </div>
 
-      <button class="zx_btn_big zx_gris" onclick="ZX_imprimirHorasExtra()">
-        Ver / imprimir horas extra
-      </button>
-
-      <button class="zx_btn_big zx_azul" onclick="ZX_enviarHorasExtra()">
-        Enviar horas extra
+      <button class="zx_btn_big zx_azul" onclick="ZX_imprimirHorasExtra()">
+        Ver documento de horas extra
       </button>
     </div>
   `;
@@ -622,19 +618,6 @@ function cuerpoDocumento(datos){
       <div class="zx_hx_firma">Firma administrador</div>
     </div>
   `;
-}
-
-function esIOS(){
-  const ua=String(navigator.userAgent||"");
-  return /iPad|iPhone|iPod/i.test(ua) ||
-    (String(navigator.platform||"")==="MacIntel" && Number(navigator.maxTouchPoints||0)>1);
-}
-
-function esAppInstalada(){
-  let standalone=navigator.standalone===true;
-  try{standalone=standalone || window.matchMedia("(display-mode: standalone)").matches}catch(e){}
-  try{standalone=standalone || window.matchMedia("(display-mode: fullscreen)").matches}catch(e){}
-  return standalone;
 }
 
 function nombrePDFHoras(){
@@ -899,18 +882,13 @@ function asegurarEstiloVistaHoras(){
     #zx_hx_preview_actions{
       position:sticky;top:0;z-index:3;background:var(--zx-card,#fff);
       border-bottom:1px solid var(--zx-line,#dbe3ee);padding:12px;
-      display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;
+      display:grid;grid-template-columns:1fr 1.45fr;gap:8px;
     }
     #zx_hx_preview_actions button{
       border:0;border-radius:16px;padding:14px 8px;font-size:16px;font-weight:900;
     }
     #zx_hx_preview_back{background:#dbeafe;color:#0757c7}
-    #zx_hx_preview_print{background:#0b6cff;color:white}
     #zx_hx_preview_share{background:#16a34a;color:white}
-    #zx_hx_preview_hint{
-      background:#eff6ff;color:#334155;border-bottom:1px solid #dbeafe;
-      padding:9px 14px;font-size:13px;font-weight:750;line-height:1.35;text-align:center;
-    }
     #zx_hx_preview_scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px}
     #zx_hx_print_doc{
       width:100%;max-width:1080px;margin:0 auto;background:white;color:#111827;
@@ -927,7 +905,7 @@ function asegurarEstiloVistaHoras(){
     .zx_hx_firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px}
     .zx_hx_firma{border-top:1px solid #111827;padding-top:8px;text-align:center;font-size:14px}
     @media(max-width:700px){
-      #zx_hx_preview_actions{grid-template-columns:1fr 1fr 1fr;padding:10px 8px;gap:6px}
+      #zx_hx_preview_actions{grid-template-columns:1fr 1.45fr;padding:10px 8px;gap:6px}
       #zx_hx_preview_actions button{font-size:14px;padding:13px 4px}
       #zx_hx_preview_scroll{padding:10px}
       #zx_hx_print_doc{padding:14px;border-radius:16px}
@@ -948,7 +926,7 @@ function asegurarEstiloVistaHoras(){
         position:absolute!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;
         width:100%!important;height:auto!important;overflow:visible!important;background:#fff!important;padding:0!important;
       }
-      #zx_hx_preview_actions,#zx_hx_preview_hint{display:none!important}
+      #zx_hx_preview_actions{display:none!important}
       #zx_hx_preview_scroll{display:block!important;overflow:visible!important;height:auto!important;padding:0!important}
       #zx_hx_print_doc{max-width:none!important;width:100%!important;margin:0!important;padding:8mm!important;box-shadow:none!important;border-radius:0!important}
       .zx_hx_table_wrap{overflow:visible!important}
@@ -971,23 +949,6 @@ window.ZX_cerrarVistaHorasExtra=function(){
   document.body.style.overflow="";
 };
 
-window.ZX_imprimirVistaHorasExtra=function(){
-  const datos=ZX_HX_CACHE||[];
-  if(!datos.length){
-    alert("No hay horas extra para imprimir.");
-    return;
-  }
-
-  // En la app instalada de iPhone/iPad, window.print() puede no abrir nada.
-  // En ese caso entregamos un PDF real al menú del sistema, desde donde se puede elegir Imprimir.
-  if(esIOS() && esAppInstalada()){
-    compartirPDFHoras(datos,true);
-    return;
-  }
-
-  window.print();
-};
-
 window.ZX_compartirVistaHorasExtra=function(){
   compartirPDFHoras(ZX_HX_CACHE||[],false);
 };
@@ -1003,19 +964,13 @@ window.ZX_imprimirHorasExtra=function(){
   asegurarEstiloVistaHoras();
   window.ZX_cerrarVistaHorasExtra();
 
-  const aviso=(esIOS() && esAppInstalada())
-    ? `<div id="zx_hx_preview_hint">En iPhone, “Imprimir” abre el PDF en las opciones del sistema. Allí puedes elegir Imprimir.</div>`
-    : "";
-
   const vista=document.createElement("div");
   vista.id="zx_hx_preview";
   vista.innerHTML=`
     <div id="zx_hx_preview_actions">
       <button id="zx_hx_preview_back" type="button" onclick="ZX_cerrarVistaHorasExtra()">← Volver</button>
-      <button id="zx_hx_preview_print" type="button" onclick="ZX_imprimirVistaHorasExtra()">🖨️ Imprimir</button>
-      <button id="zx_hx_preview_share" type="button" onclick="ZX_compartirVistaHorasExtra()">Compartir</button>
+      <button id="zx_hx_preview_share" type="button" onclick="ZX_compartirVistaHorasExtra()">Compartir / imprimir PDF</button>
     </div>
-    ${aviso}
     <div id="zx_hx_preview_scroll">
       <div id="zx_hx_print_doc">${cuerpoDocumento(datos)}</div>
     </div>
@@ -1025,8 +980,9 @@ window.ZX_imprimirHorasExtra=function(){
   document.body.style.overflow="hidden";
 };
 
+// Compatibilidad con botones o accesos antiguos.
 window.ZX_enviarHorasExtra=function(){
-  compartirPDFHoras(ZX_HX_CACHE || [],false);
+  window.ZX_imprimirHorasExtra();
 };
 
 function renderHoras(datos){
@@ -1034,7 +990,7 @@ function renderHoras(datos){
     <div class="zx_card">
       <h2>Horas extra</h2>
       <div class="zx_text">
-        Validación, pago, cobro, impresión y envío.
+        Validación, pago, cobro y documento PDF.
       </div>
     </div>
 
