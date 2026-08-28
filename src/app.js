@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3118 - DEV SOLO PARA DESARROLLADOR
+// V3119 - CONTROL UNIFICADO EN FICHAJE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3118";
+const ZX_VERSION="3119";
 
 const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
 const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
@@ -533,7 +533,7 @@ function configBase(){
       usuarios:true,
       vehiculos:true,
       horas_extra:true,
-      control_fichajes:true,
+      control_fichajes:false,
       configuracion:true,
       config_laboral:true,
       solicitudes:true,
@@ -692,7 +692,8 @@ function aliasModulo(nombre){
 
   const aliases={
     horas:"horas_extra",
-    control:"control_fichajes",
+    control:"fichaje",
+    control_fichajes:"fichaje",
     config:"configuracion",
     ajustes:"configuracion",
     configuracion_laboral:"config_laboral"
