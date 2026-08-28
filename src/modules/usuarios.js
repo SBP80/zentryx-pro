@@ -18,12 +18,12 @@
 // V3156 - LABORAL: FILA ACTIVA ÚNICA + PRECIOS PERSONALES/HEREDADOS DE EMPRESA
 // V3157 - LABORAL: CONSERVA PRECIO PROPIO AL USAR BASE DE EMPRESA
 // V3158 - LABORAL PRO: HERENCIA DE JORNADA, CONVENIO, VACACIONES, ASUNTOS Y CALENDARIO
-// V3159 - UNIDADES VISIBLES + AUDITORÍA LABORAL EXACTA + HISTORIAL LEGIBLE SIN DUPLICADOS
+// V3160 - CONTROL RETIRADO DE PERMISOS + MEJORAS V3159
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3159";
+window.ZX_USUARIOS_VERSION="3160";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -248,7 +248,6 @@ const ZX_MODULOS_ASIGNABLES=[
   {id:"usuarios",label:"Usuarios"},
   {id:"vehiculos",label:"Vehículos"},
   {id:"horas_extra",label:"Horas"},
-  {id:"control_fichajes",label:"Control"},
   {id:"manual",label:"Manual"}
 ];
 
@@ -333,6 +332,9 @@ function zxLeerPermisosFormulario(){
     if(!el) return;
     permisos.modulos[m.id]=rolElegido==="invitado" ? false : !!el.checked;
   });
+
+  // Clave antigua: Control ya forma parte de Fichaje.
+  delete permisos.modulos.control_fichajes;
 
   return permisos;
 }
