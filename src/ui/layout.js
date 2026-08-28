@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3155 - DEV SOLO PARA DESARROLLADOR
+// V3156 - CONTROL RETIRADO Y REDIRIGIDO A FICHAJE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3155";
+const ZX_VERSION="3156";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -2415,7 +2415,6 @@ const MODULOS=[
   {id:"almacen",texto:"Almacén",icono:"📦",color:"#0f766e",bg:"#ccfbf1",admin:true},
   {id:"usuarios",texto:"Usuarios",icono:"👤",color:"#0891b2",bg:"#cffafe",admin:true},
   {id:"horas_extra",texto:"Horas",icono:"➕",color:"#f59e0b",bg:"#fef3c7",admin:true},
-  {id:"control_fichajes",texto:"Control",icono:"✅",color:"#22c55e",bg:"#dcfce7",admin:true},
   {id:"vehiculos",texto:"Vehículos",icono:"🚗",color:"#3b82f6",bg:"#dbeafe",admin:true},
   {id:"manual",texto:"Manual",icono:"📖",color:"#2563eb",bg:"#dbeafe",admin:false},
   {id:"desarrollador",texto:"Dev",icono:"🛠️",color:"#0f172a",bg:"#e2e8f0",admin:true,dev:true},
@@ -3459,7 +3458,7 @@ function zxRouterEjecutarModulo(id){
     almacen:window.ZX_abrirAlmacen || window.ZX_almacen,
     usuarios:window.ZX_usuarios,
     horas_extra:window.ZX_abrirHorasExtra,
-    control_fichajes:window.ZX_abrirControlFichajes,
+    control_fichajes:window.ZX_abrirFichaje,
     vehiculos:window.ZX_vehiculos,
     manual:window.ZX_abrirManual || window.ZX_manual,
     desarrollador:window.ZX_abrirDesarrollador,
@@ -3831,7 +3830,6 @@ function instalarRutas(){
   const modAlmacen=window.ZX_almacen;
   const modUsuarios=window.ZENTRYX_UI_usuarios || window.ZX_usuarios;
   const modHoras=window.ZX_horas_extra || window.ZENTRYX_UI_horas_extra;
-  const modControl=window.ZX_control_fichajes || window.ZX_controlFichajes;
   const modVehiculos=window.ZX_vehiculos || window.ZENTRYX_UI_abrirVehiculos;
   const modDev=window.ZX_desarrollador || (window.ZENTRYX && window.ZENTRYX.desarrollador);
   const modConfig=window.ZX_configuracion || window.ZENTRYX_UI_configuracion || window.ZX_configuracion_pro || window.ZX_configLaboral || window.ZX_config_laboral;
@@ -3892,11 +3890,9 @@ function instalarRutas(){
     });
   };
 
+  // Compatibilidad con accesos antiguos: Control ya no es un módulo independiente.
   window.ZX_abrirControlFichajes=function(){
-    abrirModulo("control_fichajes",function(){
-      if(typeof modControl==="function"){modControl();return}
-      app().innerHTML=`<div class="zx_card"><h2>Control</h2><div class="zx_text">No se ha cargado control_fichajes.js.</div></div>`;
-    });
+    if(typeof window.ZX_abrirFichaje==="function") window.ZX_abrirFichaje();
   };
 
   window.ZX_vehiculos=function(){
