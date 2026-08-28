@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
-// V3085 - FLUJO SEGURO + FORMATO LEGIBLE + VISTA DE IMPRESIÓN
+// V3086 - PDF COMPARTIBLE + IMPRESIÓN IOS + VISTA RESPONSIVE
 // ===============================
 (function(){
 "use strict";
@@ -571,13 +571,13 @@ function resumen(datos){
 function filasDocumento(datos){
   return datos.map(h=>`
     <tr>
-      <td>${limpiar(formatoFecha(h.fecha))}</td>
-      <td>${limpiar(h.nombre||h.usuario||"")}</td>
-      <td>${limpiar(textoTipo(h.tipo))}</td>
-      <td>${formatoDuracion(h.minutos)}</td>
-      <td>${formatoPrecio(h.precio_hora)}</td>
-      <td>${formatoDinero(h.importe)}</td>
-      <td>${limpiar(textoEstado(h.estado))}</td>
+      <td data-label="Fecha">${limpiar(formatoFecha(h.fecha))}</td>
+      <td data-label="Trabajador">${limpiar(h.nombre||h.usuario||"")}</td>
+      <td data-label="Tipo">${limpiar(textoTipo(h.tipo))}</td>
+      <td data-label="Horas">${formatoDuracion(h.minutos)}</td>
+      <td data-label="Precio">${formatoPrecio(h.precio_hora)}</td>
+      <td data-label="Importe">${formatoDinero(h.importe)}</td>
+      <td data-label="Estado">${limpiar(textoEstado(h.estado))}</td>
     </tr>
   `).join("");
 }
@@ -624,51 +624,265 @@ function cuerpoDocumento(datos){
   `;
 }
 
-function textoCompartirHoras(datos){
-  let texto="HORAS EXTRA\n\n";
-  let totalMin=0;
-  let totalImporte=0;
-
-  datos.forEach(h=>{
-    totalMin+=Number(h.minutos||0);
-    totalImporte+=Number(h.importe||0);
-
-    texto+=
-      "Fecha: "+formatoFecha(h.fecha)+"\n"+
-      "Trabajador: "+(h.nombre||h.usuario||"")+"\n"+
-      "Tipo: "+textoTipo(h.tipo)+"\n"+
-      "Horas: "+formatoDuracion(h.minutos)+"\n"+
-      "Precio hora: "+formatoPrecio(h.precio_hora)+"\n"+
-      "Importe: "+formatoDinero(h.importe)+"\n"+
-      "Estado: "+textoEstado(h.estado)+"\n\n";
-  });
-
-  texto+=
-    "TOTAL HORAS: "+formatoDuracion(totalMin)+"\n"+
-    "TOTAL IMPORTE: "+formatoDinero(totalImporte);
-
-  return texto;
+function esIOS(){
+  const ua=String(navigator.userAgent||"");
+  return /iPad|iPhone|iPod/i.test(ua) ||
+    (String(navigator.platform||"")==="MacIntel" && Number(navigator.maxTouchPoints||0)>1);
 }
 
-async function compartirHoras(datos){
+function esAppInstalada(){
+  let standalone=navigator.standalone===true;
+  try{standalone=standalone || window.matchMedia("(display-mode: standalone)").matches}catch(e){}
+  try{standalone=standalone || window.matchMedia("(display-mode: fullscreen)").matches}catch(e){}
+  return standalone;
+}
+
+function nombrePDFHoras(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const dia=String(d.getDate()).padStart(2,"0");
+  return `horas_extra_${y}${m}${dia}.pdf`;
+}
+
+function normalizarTextoPDF(v){
+  return String(v??"")
+    .replace(/[\r\n\t]+/g," ")
+    .replace(/[“”]/g,'"')
+    .replace(/[‘’]/g,"'")
+    .replace(/[–—]/g,"-")
+    .replace(/…/g,"...")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+function pdfEscape(v){
+  return normalizarTextoPDF(v)
+    .replaceAll("\\","\\\\")
+    .replaceAll("(","\\(")
+    .replaceAll(")","\\)");
+}
+
+function cp1252Byte(code){
+  const mapa={
+    0x20AC:0x80,0x201A:0x82,0x0192:0x83,0x201E:0x84,0x2026:0x85,
+    0x2020:0x86,0x2021:0x87,0x02C6:0x88,0x2030:0x89,0x0160:0x8A,
+    0x2039:0x8B,0x0152:0x8C,0x017D:0x8E,0x2018:0x91,0x2019:0x92,
+    0x201C:0x93,0x201D:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,
+    0x02DC:0x98,0x2122:0x99,0x0161:0x9A,0x203A:0x9B,0x0153:0x9C,
+    0x017E:0x9E,0x0178:0x9F
+  };
+  if(code<=255) return code;
+  return mapa[code] ?? 0x3F;
+}
+
+function bytesWinAnsi(str){
+  const s=String(str??"");
+  const out=[];
+  for(const ch of s){
+    const code=ch.codePointAt(0);
+    out.push(cp1252Byte(code));
+  }
+  return new Uint8Array(out);
+}
+
+function bytesASCII(str){
+  const s=String(str??"");
+  const out=new Uint8Array(s.length);
+  for(let i=0;i<s.length;i++) out[i]=s.charCodeAt(i)&0x7F;
+  return out;
+}
+
+function unirBytes(partes){
+  const arrays=partes.map(p=>p instanceof Uint8Array ? p : bytesASCII(p));
+  const total=arrays.reduce((n,a)=>n+a.length,0);
+  const out=new Uint8Array(total);
+  let pos=0;
+  arrays.forEach(a=>{out.set(a,pos);pos+=a.length});
+  return out;
+}
+
+function cortarPDF(v,max){
+  const s=normalizarTextoPDF(v);
+  if(s.length<=max) return s;
+  return s.slice(0,Math.max(1,max-1))+"…";
+}
+
+function cmdTextoPDF(texto,x,y,tam,negrita=false){
+  return `BT /${negrita?"F2":"F1"} ${tam} Tf 1 0 0 1 ${x} ${y} Tm (${pdfEscape(texto)}) Tj ET\n`;
+}
+
+function crearContenidoPaginaPDF(filas,indice,totalPaginas,totalMin,totalImporte,esUltima){
+  const x0=34;
+  const top=500;
+  const altoCab=24;
+  const altoFila=24;
+  const anchos=[68,188,68,80,94,84,158];
+  const cabeceras=["Fecha","Trabajador","Tipo","Horas","Precio","Importe","Estado"];
+  const xs=[x0];
+  for(const w of anchos) xs.push(xs[xs.length-1]+w);
+
+  let c="";
+  c+=cmdTextoPDF("Documento de horas extra",34,557,20,true);
+  c+=cmdTextoPDF("Generado: "+fechaHora(),34,538,9,false);
+  c+=cmdTextoPDF(`Página ${indice+1} de ${totalPaginas}`,730,557,8,false);
+
+  // Cabecera de tabla.
+  c+="0.92 0.94 0.97 rg\n";
+  c+=`${x0} ${top-altoCab} ${xs[xs.length-1]-x0} ${altoCab} re f\n`;
+  c+="0 0 0 rg 0 0 0 RG 0.55 w\n";
+  c+=`${x0} ${top-altoCab} m ${xs[xs.length-1]} ${top-altoCab} l S\n`;
+  c+=`${x0} ${top} m ${xs[xs.length-1]} ${top} l S\n`;
+  for(const x of xs) c+=`${x} ${top-altoCab} m ${x} ${top} l S\n`;
+  cabeceras.forEach((h,i)=>{c+=cmdTextoPDF(h,xs[i]+4,top-16,7.5,true)});
+
+  filas.forEach((h,ri)=>{
+    const yTop=top-altoCab-(ri*altoFila);
+    const yBot=yTop-altoFila;
+    c+=`${x0} ${yBot} m ${xs[xs.length-1]} ${yBot} l S\n`;
+    for(const x of xs) c+=`${x} ${yBot} m ${x} ${yTop} l S\n`;
+
+    const vals=[
+      cortarPDF(formatoFecha(h.fecha),10),
+      cortarPDF(h.nombre||h.usuario||"",28),
+      cortarPDF(textoTipo(h.tipo),11),
+      cortarPDF(formatoDuracion(h.minutos),12),
+      cortarPDF(formatoPrecio(h.precio_hora),13),
+      cortarPDF(formatoDinero(h.importe),12),
+      cortarPDF(textoEstado(h.estado),24)
+    ];
+    vals.forEach((v,i)=>{c+=cmdTextoPDF(v,xs[i]+4,yBot+8,7.5,false)});
+  });
+
+  if(esUltima){
+    c+=cmdTextoPDF("Total horas: "+formatoDuracion(totalMin),34,105,11,true);
+    c+=cmdTextoPDF("Total importe: "+formatoDinero(totalImporte),34,88,11,true);
+    c+="0.6 w\n34 50 m 360 50 l S\n480 50 m 806 50 l S\n";
+    c+=cmdTextoPDF("Firma trabajador",145,34,9,false);
+    c+=cmdTextoPDF("Firma administrador",585,34,9,false);
+  }
+
+  return c;
+}
+
+function crearPDFHorasExtra(datos){
+  const registros=Array.isArray(datos)?datos:[];
+  let totalMin=0;
+  let totalImporte=0;
+  registros.forEach(h=>{
+    totalMin+=Number(h.minutos||0);
+    totalImporte+=Number(h.importe||0);
+  });
+
+  const porPagina=13;
+  const paginas=[];
+  for(let i=0;i<registros.length;i+=porPagina){
+    paginas.push(registros.slice(i,i+porPagina));
+  }
+  if(!paginas.length) paginas.push([]);
+
+  const pageCount=paginas.length;
+  const maxObj=4+(pageCount*2);
+  const cuerpos=new Array(maxObj+1);
+  const pageRefs=[];
+
+  cuerpos[1]=bytesASCII("<< /Type /Catalog /Pages 2 0 R >>");
+  cuerpos[3]=bytesASCII("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  cuerpos[4]=bytesASCII("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+
+  paginas.forEach((filas,i)=>{
+    const pageObj=5+(i*2);
+    const contentObj=pageObj+1;
+    pageRefs.push(`${pageObj} 0 R`);
+    const contenido=crearContenidoPaginaPDF(filas,i,pageCount,totalMin,totalImporte,i===pageCount-1);
+    const contenidoBytes=bytesWinAnsi(contenido);
+
+    cuerpos[pageObj]=bytesASCII(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObj} 0 R >>`
+    );
+    cuerpos[contentObj]=unirBytes([
+      bytesASCII(`<< /Length ${contenidoBytes.length} >>\nstream\n`),
+      contenidoBytes,
+      bytesASCII("\nendstream")
+    ]);
+  });
+
+  cuerpos[2]=bytesASCII(`<< /Type /Pages /Kids [${pageRefs.join(" ")}] /Count ${pageCount} >>`);
+
+  const header=bytesASCII("%PDF-1.4\n%ZENTRYX\n");
+  const partes=[header];
+  const offsets=new Array(maxObj+1).fill(0);
+  let pos=header.length;
+
+  for(let i=1;i<=maxObj;i++){
+    offsets[i]=pos;
+    const obj=unirBytes([
+      bytesASCII(`${i} 0 obj\n`),
+      cuerpos[i],
+      bytesASCII("\nendobj\n")
+    ]);
+    partes.push(obj);
+    pos+=obj.length;
+  }
+
+  const xrefPos=pos;
+  let xref=`xref\n0 ${maxObj+1}\n0000000000 65535 f \n`;
+  for(let i=1;i<=maxObj;i++){
+    xref+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+  }
+  xref+=`trailer\n<< /Size ${maxObj+1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF`;
+  partes.push(bytesASCII(xref));
+
+  return new Blob(partes,{type:"application/pdf"});
+}
+
+function archivoPDFHoras(datos){
+  const blob=crearPDFHorasExtra(datos);
+  try{
+    return new File([blob],nombrePDFHoras(),{type:"application/pdf",lastModified:Date.now()});
+  }catch(e){
+    blob.name=nombrePDFHoras();
+    return blob;
+  }
+}
+
+async function compartirPDFHoras(datos,modoImprimir=false){
   if(!datos.length){
     alert("No hay horas extra para enviar.");
-    return;
+    return false;
   }
 
-  const texto=textoCompartirHoras(datos);
+  const archivo=archivoPDFHoras(datos);
+  let puedeArchivos=!!navigator.share;
+  if(puedeArchivos && navigator.canShare){
+    try{puedeArchivos=!!navigator.canShare({files:[archivo]})}
+    catch(e){puedeArchivos=false}
+  }
 
-  if(navigator.share){
+  if(puedeArchivos){
     try{
-      await navigator.share({title:"Horas extra",text:texto});
+      await navigator.share({
+        title:modoImprimir ? "Imprimir horas extra" : "Horas extra",
+        files:[archivo]
+      });
+      return true;
     }catch(e){
-      if(e && e.name==="AbortError") return;
-      alert("No se pudo abrir el menú para compartir.");
+      if(e && e.name==="AbortError") return false;
     }
-    return;
   }
 
-  window.location.href="mailto:?subject=Horas extra&body="+encodeURIComponent(texto);
+  // Respaldo: abre/guarda el PDF como archivo si el dispositivo no permite compartir archivos.
+  const blob=archivo instanceof Blob ? archivo : crearPDFHorasExtra(datos);
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=nombrePDFHoras();
+  a.target="_blank";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  return false;
 }
 
 function asegurarEstiloVistaHoras(){
@@ -693,6 +907,10 @@ function asegurarEstiloVistaHoras(){
     #zx_hx_preview_back{background:#dbeafe;color:#0757c7}
     #zx_hx_preview_print{background:#0b6cff;color:white}
     #zx_hx_preview_share{background:#16a34a;color:white}
+    #zx_hx_preview_hint{
+      background:#eff6ff;color:#334155;border-bottom:1px solid #dbeafe;
+      padding:9px 14px;font-size:13px;font-weight:750;line-height:1.35;text-align:center;
+    }
     #zx_hx_preview_scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px}
     #zx_hx_print_doc{
       width:100%;max-width:1080px;margin:0 auto;background:white;color:#111827;
@@ -701,19 +919,26 @@ function asegurarEstiloVistaHoras(){
     }
     .zx_hx_doc_title{font-size:28px;font-weight:900;margin-bottom:4px}
     .zx_hx_doc_sub{color:#6b7280;margin-bottom:18px}
-    .zx_hx_table_wrap{overflow:auto;width:100%}
-    .zx_hx_doc_table{width:100%;min-width:760px;border-collapse:collapse;margin-top:12px}
+    .zx_hx_table_wrap{width:100%}
+    .zx_hx_doc_table{width:100%;border-collapse:collapse;margin-top:12px}
     .zx_hx_doc_table th,.zx_hx_doc_table td{border:1px solid #d1d5db;padding:8px;font-size:13px;text-align:left;vertical-align:top}
     .zx_hx_doc_table th{background:#f3f4f6}
     .zx_hx_totales{margin-top:20px;font-size:16px;font-weight:bold}
     .zx_hx_firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px}
     .zx_hx_firma{border-top:1px solid #111827;padding-top:8px;text-align:center;font-size:14px}
-    @media(max-width:600px){
+    @media(max-width:700px){
       #zx_hx_preview_actions{grid-template-columns:1fr 1fr 1fr;padding:10px 8px;gap:6px}
       #zx_hx_preview_actions button{font-size:14px;padding:13px 4px}
       #zx_hx_preview_scroll{padding:10px}
       #zx_hx_print_doc{padding:14px;border-radius:16px}
       .zx_hx_doc_title{font-size:23px}
+      .zx_hx_doc_table,.zx_hx_doc_table tbody,.zx_hx_doc_table tr,.zx_hx_doc_table td{display:block;width:100%}
+      .zx_hx_doc_table thead{display:none}
+      .zx_hx_doc_table tr{border:1px solid #dbe3ee;border-radius:14px;margin:0 0 10px;padding:8px 12px;background:#fff}
+      .zx_hx_doc_table td{border:0;border-bottom:1px solid #eef2f7;padding:7px 0;font-size:14px}
+      .zx_hx_doc_table td:last-child{border-bottom:0}
+      .zx_hx_doc_table td::before{content:attr(data-label) ": ";font-weight:900;color:#475569}
+      .zx_hx_firmas{gap:20px;margin-top:46px}
     }
     @media print{
       body{background:#fff!important}
@@ -723,12 +948,16 @@ function asegurarEstiloVistaHoras(){
         position:absolute!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;
         width:100%!important;height:auto!important;overflow:visible!important;background:#fff!important;padding:0!important;
       }
-      #zx_hx_preview_actions{display:none!important}
+      #zx_hx_preview_actions,#zx_hx_preview_hint{display:none!important}
       #zx_hx_preview_scroll{display:block!important;overflow:visible!important;height:auto!important;padding:0!important}
       #zx_hx_print_doc{max-width:none!important;width:100%!important;margin:0!important;padding:8mm!important;box-shadow:none!important;border-radius:0!important}
       .zx_hx_table_wrap{overflow:visible!important}
-      .zx_hx_doc_table{min-width:0!important;width:100%!important}
-      .zx_hx_doc_table th,.zx_hx_doc_table td{font-size:9px!important;padding:4px!important}
+      .zx_hx_doc_table{display:table!important;width:100%!important;border-collapse:collapse!important}
+      .zx_hx_doc_table thead{display:table-header-group!important}
+      .zx_hx_doc_table tbody{display:table-row-group!important}
+      .zx_hx_doc_table tr{display:table-row!important;border:0!important;margin:0!important;padding:0!important}
+      .zx_hx_doc_table th,.zx_hx_doc_table td{display:table-cell!important;width:auto!important;border:1px solid #d1d5db!important;font-size:9px!important;padding:4px!important}
+      .zx_hx_doc_table td::before{display:none!important;content:none!important}
       .zx_hx_doc_title{font-size:20px!important}
       .zx_hx_firmas{margin-top:30px!important}
     }
@@ -743,11 +972,24 @@ window.ZX_cerrarVistaHorasExtra=function(){
 };
 
 window.ZX_imprimirVistaHorasExtra=function(){
+  const datos=ZX_HX_CACHE||[];
+  if(!datos.length){
+    alert("No hay horas extra para imprimir.");
+    return;
+  }
+
+  // En la app instalada de iPhone/iPad, window.print() puede no abrir nada.
+  // En ese caso entregamos un PDF real al menú del sistema, desde donde se puede elegir Imprimir.
+  if(esIOS() && esAppInstalada()){
+    compartirPDFHoras(datos,true);
+    return;
+  }
+
   window.print();
 };
 
 window.ZX_compartirVistaHorasExtra=function(){
-  compartirHoras(ZX_HX_CACHE||[]);
+  compartirPDFHoras(ZX_HX_CACHE||[],false);
 };
 
 window.ZX_imprimirHorasExtra=function(){
@@ -761,6 +1003,10 @@ window.ZX_imprimirHorasExtra=function(){
   asegurarEstiloVistaHoras();
   window.ZX_cerrarVistaHorasExtra();
 
+  const aviso=(esIOS() && esAppInstalada())
+    ? `<div id="zx_hx_preview_hint">En iPhone, “Imprimir” abre el PDF en las opciones del sistema. Allí puedes elegir Imprimir.</div>`
+    : "";
+
   const vista=document.createElement("div");
   vista.id="zx_hx_preview";
   vista.innerHTML=`
@@ -769,6 +1015,7 @@ window.ZX_imprimirHorasExtra=function(){
       <button id="zx_hx_preview_print" type="button" onclick="ZX_imprimirVistaHorasExtra()">🖨️ Imprimir</button>
       <button id="zx_hx_preview_share" type="button" onclick="ZX_compartirVistaHorasExtra()">Compartir</button>
     </div>
+    ${aviso}
     <div id="zx_hx_preview_scroll">
       <div id="zx_hx_print_doc">${cuerpoDocumento(datos)}</div>
     </div>
@@ -779,7 +1026,7 @@ window.ZX_imprimirHorasExtra=function(){
 };
 
 window.ZX_enviarHorasExtra=function(){
-  compartirHoras(ZX_HX_CACHE || []);
+  compartirPDFHoras(ZX_HX_CACHE || [],false);
 };
 
 function renderHoras(datos){
