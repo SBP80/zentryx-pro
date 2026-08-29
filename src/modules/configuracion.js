@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - AJUSTES
-// V3118 - CONTROL RETIRADO DE MÓDULOS DE EMPRESA
+// V3119 - AJUSTES OPERATIVOS Y ESTADOS NO EDITABLES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3118";
+const ZX_VERSION="3119";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
 const CONFIG_KEY="zentryx_config";
@@ -63,7 +63,6 @@ function configBase(){
       vehiculos:true,
       manual:true,
       horas_extra:true,
-      control_fichajes:false,
       configuracion:true
     },
     app:{
@@ -136,8 +135,8 @@ function getConfig(){
   // Inicio y Ajustes no pueden quedar desactivados.
   cfg.modulos.inicio=true;
   cfg.modulos.configuracion=true;
-  // Control se conserva solo como clave antigua; la gestión está dentro de Fichaje.
-  cfg.modulos.control_fichajes=false;
+  delete cfg.modulos.control_fichajes;
+  delete cfg.modulos.solicitudes;
 
   return cfg;
 }
@@ -169,9 +168,10 @@ function setTema(t){
 async function guardarTodo(cfg,t,st){
   cfg.modulos=Object.assign({},cfg.modulos || {},{
     inicio:true,
-    configuracion:true,
-    control_fichajes:false
+    configuracion:true
   });
+  delete cfg.modulos.control_fichajes;
+  delete cfg.modulos.solicitudes;
 
   guardar(CONFIG_KEY,cfg);
   guardar(SETTINGS_KEY,st);
@@ -246,6 +246,15 @@ function select(id,label,value,items){
         return `<option value="${limpiar(it[0])}" ${String(value)===String(it[0]) ? "selected" : ""}>${limpiar(it[1])}</option>`;
       }).join("")}
     </select>
+  `;
+}
+
+function estadoInfo(titulo,estado,detalle){
+  return `
+    <div class="zx_set_info">
+      <div><b>${limpiar(titulo)}</b>${detalle ? `<span>${limpiar(detalle)}</span>` : ""}</div>
+      <strong>${limpiar(estado)}</strong>
+    </div>
   `;
 }
 
@@ -330,58 +339,49 @@ function seccionLaboral(){
   `;
 }
 
-function seccionApp(cfg,st){
+function seccionApp(){
   return `
     <section class="zx_set_card" id="zx_set_app">
       <div class="zx_set_card_head">
         <div class="zx_set_icon cyan">📱</div>
-        <div><h3>Aplicación</h3><p>Opciones de uso, avisos y conexión.</p></div>
+        <div><h3>Aplicación</h3><p>Estado de funciones que no tienen un ajuste general operativo.</p></div>
       </div>
-      <div class="zx_set_grid2">
-        <div>
-          ${select("set_app_idioma","Idioma",cfg.app.idioma,[["es","Español"],["en","Inglés"]])}
-        </div>
-        <div>
-          ${select("set_app_fecha","Formato fecha",cfg.app.formato_fecha,[["DD/MM/AAAA","DD/MM/AAAA"],["AAAA-MM-DD","AAAA-MM-DD"]])}
-        </div>
-      </div>
-      ${toggle("set_app_offline","Trabajo sin conexión",!!cfg.app.offline,"Guarda cambios locales cuando no hay cobertura.")}
-      ${toggle("set_app_sync","Sincronización automática",!!cfg.app.sincronizacion_automatica,"Envía pendientes al volver Internet.")}
-      ${toggle("set_app_barra","Barra inferior",!!cfg.app.barra_inferior,"Accesos rápidos en móvil.")}
-      ${toggle("set_app_notas","Botón de notas",!!cfg.app.boton_notas,"Nota rápida desde cualquier pantalla.")}
-      ${toggle("set_notif_agenda","Avisos de agenda",!!st.notificaciones.agenda,"")}
-      ${toggle("set_notif_vehiculos","Avisos de vehículos",!!st.notificaciones.vehiculos,"")}
+      ${estadoInfo("Idioma","Español","No existe todavía un selector general de idioma operativo.")}
+      ${estadoInfo("Formato de fecha","DD/MM/AAAA","La interfaz actual usa el formato español; no hay un selector general operativo.")}
+      ${estadoInfo("Trabajo sin conexión","Activo","La cola local y la caché se utilizan automáticamente cuando falta conexión.")}
+      ${estadoInfo("Sincronización","Automática","Los cambios pendientes se reintentan al recuperar conexión y de forma periódica.")}
+      ${estadoInfo("Barra inferior","Gestionada por la interfaz","No existe un interruptor general conectado a su comportamiento.")}
+      ${estadoInfo("Avisos configurables","No disponible","Agenda y Vehículos no tienen todavía preferencias de aviso configurables aquí.")}
     </section>
   `;
 }
 
-function seccionFuturo(st){
+function seccionFuturo(){
   return `
     <section class="zx_set_card" id="zx_set_servicios">
       <div class="zx_set_card_head">
         <div class="zx_set_icon amber">✨</div>
-        <div><h3>Servicios preparados</h3><p>Bases para clima, tráfico y modo voz.</p></div>
+        <div><h3>Servicios</h3><p>Funciones que todavía no están disponibles como ajustes operativos.</p></div>
       </div>
-      ${toggle("set_fun_clima","Clima por obra",!!st.funciones.clima,"Preparado para activar previsión por dirección.")}
-      ${toggle("set_fun_trafico","Tráfico y rutas",!!st.funciones.trafico,"Preparado para tiempos de llegada.")}
-      ${toggle("set_fun_voz","Modo voz",!!st.funciones.voz,"Preparado para materiales, notas e incidencias hablando.")}
+      ${estadoInfo("Clima por obra","No disponible","No se muestra como interruptor hasta que exista una función real conectada.")}
+      ${estadoInfo("Tráfico y rutas","No disponible","No se muestra como interruptor hasta que exista una función real conectada.")}
+      ${estadoInfo("Modo voz","No disponible","No se muestra como interruptor hasta que exista una función real conectada.")}
     </section>
   `;
 }
 
-function seccionSeguridad(st){
+function seccionSeguridad(){
   return `
     <section class="zx_set_card" id="zx_set_seguridad">
       <div class="zx_set_card_head">
         <div class="zx_set_icon red">🔒</div>
-        <div><h3>Seguridad</h3><p>Validaciones, PIN y borrados.</p></div>
+        <div><h3>Seguridad</h3><p>Protecciones aplicadas por las operaciones sensibles.</p></div>
       </div>
-      ${toggle("set_seg_pin","PIN administrador",!!st.seguridad.pin_admin,"Operaciones críticas con validación.")}
-      ${toggle("set_seg_borrados","Confirmar borrados",!!st.seguridad.confirmar_borrados,"Evita eliminaciones accidentales.")}
+      ${estadoInfo("PIN administrador","Obligatorio donde corresponde","No se ofrece un interruptor porque las acciones protegidas exigen validación.")}
+      ${estadoInfo("Confirmación de borrados","Obligatoria donde corresponde","No se ofrece un interruptor si el flujo de borrado no admite desactivarla.")}
     </section>
   `;
 }
-
 function leerPantalla(){
   const cfg=getConfig();
   const t=getTheme();
@@ -397,25 +397,10 @@ function leerPantalla(){
   t.compacto=document.getElementById("set_theme_compacto").checked;
   t.alto_contraste=document.getElementById("set_theme_contraste").checked;
 
-  cfg.app.idioma=document.getElementById("set_app_idioma").value;
-  cfg.app.formato_fecha=document.getElementById("set_app_fecha").value;
-  cfg.app.offline=document.getElementById("set_app_offline").checked;
-  cfg.app.sincronizacion_automatica=document.getElementById("set_app_sync").checked;
-  cfg.app.barra_inferior=document.getElementById("set_app_barra").checked;
-  cfg.app.boton_notas=document.getElementById("set_app_notas").checked;
-
   Object.keys(cfg.modulos).forEach(function(k){
     const el=document.getElementById("set_mod_"+k);
     if(el) cfg.modulos[k]=el.checked;
   });
-
-  st.notificaciones.agenda=document.getElementById("set_notif_agenda").checked;
-  st.notificaciones.vehiculos=document.getElementById("set_notif_vehiculos").checked;
-  st.funciones.clima=document.getElementById("set_fun_clima").checked;
-  st.funciones.trafico=document.getElementById("set_fun_trafico").checked;
-  st.funciones.voz=document.getElementById("set_fun_voz").checked;
-  st.seguridad.pin_admin=document.getElementById("set_seg_pin").checked;
-  st.seguridad.confirmar_borrados=document.getElementById("set_seg_borrados").checked;
 
   return {cfg:cfg,t:t,st:st};
 }
@@ -430,9 +415,12 @@ function pintar(){
       <section class="zx_set_hero">
         <div>
           <h2>Ajustes</h2>
-          <p>Centro de control de empresa, módulos, apariencia, seguridad y servicios.</p>
+          <p>Empresa, módulos, apariencia, seguridad y estado de servicios.</p>
         </div>
-        <button id="set_guardar_top">Guardar</button>
+        <div class="zx_set_hero_actions">
+          <button class="zx_set_back" id="set_volver_top">← Volver</button>
+          <button id="set_guardar_top">Guardar</button>
+        </div>
       </section>
 
       <section class="zx_set_nav">
@@ -449,9 +437,9 @@ function pintar(){
       ${seccionApariencia(t)}
       ${seccionModulos(cfg)}
       ${seccionLaboral()}
-      ${seccionApp(cfg,st)}
-      ${seccionFuturo(st)}
-      ${seccionSeguridad(st)}
+      ${seccionApp()}
+      ${seccionFuturo()}
+      ${seccionSeguridad()}
 
       <section class="zx_set_card">
         <button class="zx_set_save" id="set_guardar_bottom">Guardar ajustes</button>
@@ -496,6 +484,8 @@ function conectar(){
 
   document.getElementById("set_guardar_top").onclick=guardarClick;
   document.getElementById("set_guardar_bottom").onclick=guardarClick;
+  const volver=document.getElementById("set_volver_top");
+  if(volver) volver.onclick=function(){if(typeof window.ZX_inicio==="function") window.ZX_inicio()};
 
   const laboral=document.getElementById("set_abrir_laboral");
   if(laboral){
@@ -518,18 +508,20 @@ function conectar(){
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_configuracion_css_v3116");
+  const old=document.getElementById("zx_configuracion_css_v3119");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_configuracion_css_v3116";
+  s.id="zx_configuracion_css_v3119";
   s.innerHTML=`
     .zx_set_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_set_hero,.zx_set_card,.zx_set_nav{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
     .zx_set_hero{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;background:linear-gradient(135deg,#ffffff,#f8fbff)}
     .zx_set_hero h2{margin:0;color:#071330;font-size:30px;line-height:1.05;font-weight:950;letter-spacing:-.5px}
     .zx_set_hero p{margin:8px 0 0;color:#64748b;font-size:15px;font-weight:850;line-height:1.35}
+    .zx_set_hero_actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
     .zx_set_hero button,.zx_set_save{border:0;border-radius:18px;background:#16a34a;color:white;padding:14px 16px;font-size:16px;font-weight:950;white-space:nowrap}
+    .zx_set_hero button.zx_set_back{background:#e2e8f0;color:#0f172a}
     .zx_set_save{width:100%;min-height:58px}
     .zx_set_nav{display:flex;gap:8px;overflow-x:auto;padding:12px}
     .zx_set_nav button{border:0;border-radius:999px;background:#f1f5f9;color:#334155;padding:10px 13px;font-size:13px;font-weight:950;white-space:nowrap}
@@ -547,13 +539,17 @@ function instalarCSS(){
     .zx_set_toggle b{display:block;color:#071330;font-size:15px;line-height:1.2;font-weight:950}
     .zx_set_toggle span{display:block;color:#64748b;font-size:13px;line-height:1.3;font-weight:800;margin-top:4px}
     .zx_set_toggle input{width:28px;height:28px;margin:0;accent-color:var(--zx-primary)}
+    .zx_set_info{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;background:#f8fafc;border:1px solid #dbe3ef;border-radius:18px;padding:14px;margin-top:10px}
+    .zx_set_info b{display:block;color:#071330;font-size:15px;line-height:1.2;font-weight:950}
+    .zx_set_info span{display:block;color:#64748b;font-size:13px;line-height:1.3;font-weight:800;margin-top:4px}
+    .zx_set_info strong{color:#334155;font-size:13px;font-weight:950;text-align:right;max-width:150px}
     .zx_set_modgrid{display:grid;grid-template-columns:1fr;gap:0}
     .zx_set_actions{display:grid;grid-template-columns:1fr;gap:10px}
     .zx_set_actions button{border:0;border-radius:18px;padding:15px;color:white;font-size:16px;font-weight:950}
     .zx_set_actions .blue{background:var(--zx-primary);color:var(--zx-primary-contrast)}.zx_set_actions .purple{background:#7c3aed}
     body.zx_compacto .zx_set_hero,body.zx_compacto .zx_set_card{padding:14px;border-radius:20px}
     body.zx_alto_contraste .zx_set_card,body.zx_alto_contraste .zx_set_hero{border-color:#0f172a}
-    @media(max-width:390px){.zx_set_hero{grid-template-columns:1fr}.zx_set_hero h2{font-size:27px}.zx_set_card_head{grid-template-columns:46px 1fr}.zx_set_icon{width:46px;height:46px;border-radius:16px}}
+    @media(max-width:390px){.zx_set_hero{grid-template-columns:1fr}.zx_set_hero_actions{justify-content:stretch}.zx_set_hero_actions button{flex:1}.zx_set_hero h2{font-size:27px}.zx_set_card_head{grid-template-columns:46px 1fr}.zx_set_icon{width:46px;height:46px;border-radius:16px}.zx_set_info{grid-template-columns:1fr}.zx_set_info strong{text-align:left;max-width:none}}
     @media(min-width:700px){.zx_set_shell{padding-bottom:32px;grid-template-columns:1fr 1fr}.zx_set_hero,.zx_set_nav{grid-column:1/-1}.zx_set_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_set_modgrid{grid-template-columns:1fr 1fr;gap:10px}.zx_set_actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_set_shell{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_set_hero,.zx_set_nav{grid-column:1/-1}.zx_set_card{padding:22px}.zx_set_hero{padding:22px}.zx_set_modgrid{grid-template-columns:1fr}}
   `;
