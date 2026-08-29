@@ -1,19 +1,20 @@
 // ===============================
 // ZENTRYX PRO - SESSION
-// V3153 - PERMISOS DE USUARIO EN SESIÓN
+// V3154 - SESIÓN LOCAL REDUCIDA Y PIN TEMPORAL AISLADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3403";
+const ZX_VERSION="3154";
+const ZX_APP_VERSION=String(window.ZX_VERSION || "3444");
 
 const SESSION_KEY="zentryx_session";
 const USER_KEY="usuario";
 const DEVICE_KEY="zentryx_device_id";
 const SESSION_EVENT_KEY="zentryx_session_event";
 
-const LOGIN_URL="index.html?v="+ZX_VERSION+"&t="+Date.now();
-const APP_URL="app.html?v="+ZX_VERSION+"&t="+Date.now();
+const LOGIN_URL="index.html?v="+ZX_APP_VERSION+"&t="+Date.now();
+const APP_URL="app.html?v="+ZX_APP_VERSION+"&t="+Date.now();
 
 // Duración máxima absoluta de una sesión.
 const MAX_SESSION_MS=12*60*60*1000;
@@ -72,6 +73,33 @@ function removeRaw(key){
   try{
     localStorage.removeItem(key);
   }catch(error){}
+}
+
+function sanitizeLocalUser(usuario){
+  if(!usuario || typeof usuario!=="object") return {};
+
+  const out={
+    id:usuario.id===null || usuario.id===undefined ? "" : String(usuario.id),
+    usuario:String(usuario.usuario || "").trim(),
+    nombre:String(usuario.nombre || usuario.usuario || "").trim(),
+    rol:String(usuario.rol || "Usuario").trim(),
+    empresa_id:usuario.empresa_id || "demo",
+    permisos:usuario.permisos && typeof usuario.permisos==="object" ? usuario.permisos : {}
+  };
+
+  if(usuario.foto_url) out.foto_url=String(usuario.foto_url);
+  if(usuario.estado!==undefined && usuario.estado!==null) out.estado=String(usuario.estado);
+  if(usuario.activo!==undefined) out.activo=usuario.activo!==false;
+  if(usuario.tecnico===true) out.tecnico=true;
+  if(usuario.desarrollador===true) out.desarrollador=true;
+
+  return out;
+}
+
+function sanitizeStoredUser(){
+  const actual=readRaw(USER_KEY);
+  if(!actual || typeof actual!=="object") return;
+  saveRaw(USER_KEY,sanitizeLocalUser(actual));
 }
 
 function safePathname(){
@@ -168,6 +196,9 @@ function clearSession(options){
   const opts=options || {};
   removeRaw(SESSION_KEY);
   removeRaw(USER_KEY);
+  if(window.ZENTRYX_SECURITY && typeof window.ZENTRYX_SECURITY.clearSessionPin==="function"){
+    window.ZENTRYX_SECURITY.clearSessionPin();
+  }
   lastActivityWrite=0;
 
   if(opts.broadcast!==false){
@@ -236,6 +267,10 @@ function createSession(usuario){
     return false;
   }
 
+  if(window.ZENTRYX_SECURITY && typeof window.ZENTRYX_SECURITY.clearSessionPin==="function"){
+    window.ZENTRYX_SECURITY.clearSessionPin();
+  }
+
   const current=now();
   const session={
     id:String(usuario.id),
@@ -254,7 +289,7 @@ function createSession(usuario){
   };
 
   const sessionSaved=saveRaw(SESSION_KEY,session);
-  const userSaved=saveRaw(USER_KEY,usuario);
+  const userSaved=saveRaw(USER_KEY,sanitizeLocalUser(usuario));
 
   if(!sessionSaved || !userSaved){
     clearSession({broadcast:false});
@@ -371,7 +406,9 @@ window.ZENTRYX_saveSession=saveSession;
 window.ZENTRYX_clearSession=clearSession;
 window.ZENTRYX_updateActivity=updateActivity;
 window.ZENTRYX_getDeviceId=getDeviceId;
+window.ZENTRYX_sanitizeLocalUser=sanitizeLocalUser;
 
+sanitizeStoredUser();
 protectApp();
 protectLogin();
 startActivityControl();
