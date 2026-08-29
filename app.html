@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V3457</title>
+<title>Zentryx PRO V3458</title>
 
 <link rel="manifest" href="manifest.json?v=3444">
 <meta name="theme-color" content="#2563eb">
@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3457";
+window.ZX_VERSION="3458";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -44,7 +44,7 @@ window.ZX_VERSION="3457";
 <script src="src/modules/desarrollador_diagnostico.js?v=1003&build=20260829a"></script>
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
-<script src="src/modules/trabajos.js?v=3228&build=20260827b"></script>
+<script src="src/modules/trabajos.js?v=3229&build=20260830a"></script>
 <script src="src/modules/almacen.js?v=1010&build=20260805d"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <script src="src/modules/vehiculos.js?v=3223&build=20260826t"></script>
@@ -232,7 +232,14 @@ if(document.readyState==="loading"){
     });
 
     const orden=["volver","editar","cerrar"];
-    const disponibles=orden.filter(function(k){return !!porTipo[k]});
+    let disponibles=orden.filter(function(k){return !!porTipo[k]});
+
+    // Trabajos ya incorpora su propio ← Volver fijo en la parte superior.
+    // Conservamos Editar/Cerrar globales cuando aportan valor, pero no
+    // clonamos Volver para evitar dos botones iguales en móvil.
+    if(root.id==="zx_modal_trabajo" && caja.querySelector(":scope > .zx_tr_modal_topbar")){
+      disponibles=disponibles.filter(function(k){return k!=="volver"});
+    }
     if(!disponibles.length) return;
 
     const bar=document.createElement("div");
