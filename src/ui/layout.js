@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3158 - CIERRE DE SESIÓN FIABLE Y CAMBIO DE USUARIO
+// V3159 - CIERRE DE SESIÓN FIABLE Y CAMBIO DE USUARIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3158";
+const ZX_VERSION="3159";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -2184,6 +2184,7 @@ function topbar(){
   };
 
   function cerrarSesionCompleta(cambiarUsuario){
+    try{ localStorage.setItem("zentryx_logout_guard",String(Date.now())); }catch(e){}
     // La sesión debe cerrarse mediante el gestor común para limpiar también
     // la prueba temporal de PIN y cualquier estado asociado a la sesión.
     if(cambiarUsuario){
@@ -2198,7 +2199,7 @@ function topbar(){
     try{ localStorage.removeItem("zentryx_session"); }catch(e){}
     try{ localStorage.removeItem("usuario"); }catch(e){}
     try{ sessionStorage.clear(); }catch(e){}
-    location.replace("index.html?v="+String(window.ZX_VERSION || ZX_VERSION)+"&t="+Date.now());
+    location.replace("index.html?logout=1&v="+String(window.ZX_VERSION || ZX_VERSION)+"&t="+Date.now());
   }
 
   $("zx_menu_cambiar").onclick=function(){ cerrarSesionCompleta(true); };
