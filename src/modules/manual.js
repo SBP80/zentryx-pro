@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1042 - AYUDA ACTUALIZADA A V3444
+// V1043 - BUSQUEDA DE CALENDARIO LABORAL CORREGIDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1042";
+const ZX_VERSION="1043";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -97,6 +97,7 @@ function puntuacionManual(item,consulta){
   if(tq.has("agenda") && item.id==="agenda") score+=18;
   if(tq.has("usuari") && item.id==="usuarios") score+=18;
   if(tq.has("configur") && item.id==="configuracion") score+=18;
+  if(tq.has("calendari") && item.id==="configuracion") score+=22;
 
   return score;
 }
@@ -1594,7 +1595,7 @@ const BASE=[
       "Revisa horarios, vacaciones, convenio y reglas laborales antes de guardar.",
       "Evita cambiar módulos o permisos mientras otros usuarios estén trabajando si el cambio puede afectarles."
     ],
-    palabras:"configuracion ajustes empresa laboral convenio vacaciones permisos modulo"
+    palabras:"configuracion ajustes empresa laboral convenio vacaciones permisos modulo calendario festivos pais comunidad provincia localidad"
   },
   {
     id:"monitor",icono:"🖥️",titulo:"Monitor de oficina",roles:["admin","encargado"],
