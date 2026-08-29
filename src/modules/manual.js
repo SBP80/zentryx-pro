@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1041 - CONTROL ADMINISTRATIVO UNIFICADO EN FICHAJE
+// V1042 - AYUDA ACTUALIZADA A V3444
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1041";
+const ZX_VERSION="1042";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -147,11 +147,9 @@ function abrirModuloManual(id){
   if(btn){btn.click();return true}
 
   const directos={
-    solicitudes:"ZX_solicitudes",
     monitor:"ZX_monitor_oficina",
     horas_extra:"ZX_horas_extra",
     almacen:"ZX_almacen",
-    control_fichajes:"ZX_abrirFichaje",
     configuracion:"ZX_configuracion",
     usuarios:"ZX_usuarios",
     vehiculos:"ZX_vehiculos",
@@ -563,8 +561,8 @@ const AYUDAS_DIRECTAS=[
   {
     id:"calendario_laboral_usuario", modulo:"usuarios", titulo:"Cambiar el calendario laboral de un usuario",
     consulta:"cambiar calendario laboral usuario pais comunidad autonoma provincia localidad festivos trabajador",
-    resumen:"El calendario laboral se configura por usuario en esta versión.",
-    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","En Calendario laboral selecciona País, Comunidad autónoma, Provincia y Localidad.","Pulsa Guardar laboral."]
+    resumen:"Cada usuario puede usar el calendario de empresa o tener un calendario propio.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","En Calendario laboral desactiva Usar calendario de empresa si esa persona necesita valores propios.","Selecciona País, Comunidad autónoma, Provincia y Localidad.","Pulsa Guardar laboral."]
   },
   {
     id:"horario_laboral_no_automatico", modulo:"usuarios", titulo:"Restablecer o asignar un horario laboral",
@@ -591,32 +589,32 @@ const AYUDAS_DIRECTAS=[
     pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Configura Horas por día, Horas por semana y los días de trabajo según el horario real.","No existe un campo independiente para elegir jornada completa, parcial u otro tipo en esta versión."]
   },
   {
-    id:"calendario_general_usuario", modulo:"usuarios", titulo:"Volver al calendario laboral general",
-    consulta:"calendario laboral general usuario volver asignar calendario general trabajador",
-    resumen:"Esta versión no tiene un calendario laboral general de empresa que pueda reasignarse con un botón; el calendario se guarda por usuario.",
-    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Configura País, Comunidad autónoma, Provincia y Localidad con los valores que deba usar esa persona.","Guarda los cambios."]
+    id:"calendario_general_usuario", modulo:"usuarios", titulo:"Volver al calendario laboral de empresa",
+    consulta:"calendario laboral general empresa usuario volver asignar calendario empresa trabajador",
+    resumen:"El usuario puede volver a heredar el calendario definido para la empresa.",
+    pasos:["Entra en Usuarios y abre el usuario.","Pulsa Laboral.","Activa Usar calendario de empresa.","Pulsa Guardar laboral y comprueba que los datos mostrados corresponden a la configuración de empresa."]
   },
   {
-    id:"config_idioma", modulo:"configuracion", titulo:"Cambiar el idioma de Zentryx",
+    id:"config_idioma", modulo:"configuracion", titulo:"Idioma de Zentryx",
     consulta:"cambiar idioma empresa aplicacion español ingles",
-    resumen:"El idioma se selecciona desde Configuración, en Aplicación.",
-    pasos:["Abre Configuración.","Entra en Aplicación.","En Idioma selecciona Español o Inglés.","Guarda la configuración."]
+    resumen:"La interfaz actual está disponible en español y Ajustes no ofrece un selector de idioma operativo.",
+    pasos:["Abre Ajustes.","Consulta Aplicación para ver el estado del idioma.","No cambies datos de empresa intentando modificar el idioma: esa opción todavía no está disponible."]
   },
   {
-    id:"config_formato_fecha", modulo:"configuracion", titulo:"Cambiar el formato de fecha",
+    id:"config_formato_fecha", modulo:"configuracion", titulo:"Formato de fecha",
     consulta:"cambiar formato fecha empresa dd mm aaaa aaaa mm dd",
-    resumen:"El formato de fecha se selecciona desde Configuración, en Aplicación.",
-    pasos:["Abre Configuración.","Entra en Aplicación.","En Formato fecha selecciona DD/MM/AAAA o AAAA-MM-DD.","Guarda la configuración."]
+    resumen:"La interfaz actual utiliza DD/MM/AAAA y Ajustes no ofrece un selector general de formato operativo.",
+    pasos:["Abre Ajustes.","Consulta Aplicación para ver el formato utilizado.","No existe en esta versión una opción general para cambiarlo a AAAA-MM-DD."]
   },
   {
-    id:"config_festivos_empresa", modulo:"configuracion", titulo:"Calendario de festivos de empresa",
+    id:"config_festivos_empresa", modulo:"configuracion", titulo:"Calendario laboral y festivos de empresa",
     consulta:"festivos empresa calendario festivos nacional autonomico provincial local municipio comunidad provincia pais laboral empresa",
-    resumen:"Esta versión no dispone de un calendario de festivos global único para toda la empresa; el calendario laboral se guarda por usuario.",
-    pasos:["Para cambiar el calendario de una persona, abre Usuarios y entra en su apartado Laboral.","Selecciona País, Comunidad autónoma, Provincia y Localidad.","Los festivos nacionales, autonómicos, provinciales y locales se aplican desde la configuración laboral disponible.","Si necesitas un calendario único global para toda la empresa, esa opción no está disponible en esta versión."]
+    resumen:"Ajustes > Laboral define la configuración laboral de empresa y el calendario que pueden heredar los usuarios.",
+    pasos:["Abre Ajustes.","Pulsa Abrir configuración laboral.","Revisa País, Comunidad autónoma, Provincia, Localidad y año.","Gestiona los festivos disponibles y guarda los cambios.","En Usuarios > Laboral, activa Usar calendario de empresa para quienes deban heredar esta configuración."]
   },
   {
     id:"config_numeracion", modulo:"configuracion", titulo:"Numeraciones y series",
-    consulta:"numeracion empresa serie series prefijo sufijo numero inicial reiniciar numeracion nuevo año facturas presupuestos albaranes pedidos partes ordenes incidencias clientes proveedores vehiculos usuarios trabajos solicitudes informes documentos contratos nominas fichajes jornadas gastos compras ventas cobros pagos recibos remesas domiciliaciones transferencias devoluciones abonos notas credito debito anticipos depositos reservas inventarios almacen lotes",
+    consulta:"numeracion empresa serie series prefijo sufijo numero inicial reiniciar numeracion nuevo año facturas presupuestos albaranes pedidos partes ordenes incidencias clientes proveedores vehiculos usuarios trabajos informes documentos contratos nominas fichajes jornadas gastos compras ventas cobros pagos recibos remesas domiciliaciones transferencias devoluciones abonos notas credito debito anticipos depositos reservas inventarios almacen lotes",
     resumen:"Esta versión no dispone de un panel para editar numeraciones, series, prefijos, sufijos ni el número inicial de documentos o registros.",
     pasos:["No cambies datos de Trabajos, Usuarios, Clientes, Vehículos o Almacén para intentar modificar una numeración.","La configuración de series, prefijos, sufijos, número inicial y reinicio anual no está disponible en esta versión.","Cuando se añada esta función deberá gestionarse desde Configuración y mostrar claramente qué numeración afecta a cada tipo de registro."]
   },
@@ -624,7 +622,7 @@ const AYUDAS_DIRECTAS=[
     id:"config_opcion_no_disponible", modulo:"configuracion", titulo:"Ajuste no disponible en esta versión",
     consulta:"zona horaria formato hora moneda simbolo moneda iva por defecto empresa",
     resumen:"El ajuste solicitado no aparece entre las opciones configurables actuales.",
-    pasos:["Abre Configuración para revisar las opciones disponibles.","Actualmente Aplicación permite cambiar Idioma y Formato fecha, además de otros ajustes operativos.","Zona horaria, formato de hora, moneda, símbolo de moneda e IVA por defecto no tienen un campo configurable en esta versión."]
+    pasos:["Abre Ajustes para revisar las opciones disponibles.","Aplicación muestra como información las funciones que todavía no tienen un ajuste operativo.","Zona horaria, formato de hora, moneda, símbolo de moneda e IVA por defecto no tienen un campo configurable en esta versión."]
   },
   {
     id:"usar_vehiculo",
@@ -929,53 +927,6 @@ const AYUDAS_DIRECTAS=[
     ]
   },
   {
-    id:"crear_solicitud", modulo:"solicitudes", titulo:"Enviar una solicitud laboral",
-    consulta:"crear solicitud enviar solicitud vacaciones permiso ausencia asuntos propios justificante",
-    resumen:"Envía una solicitud de vacaciones, permiso, ausencia u otro tipo disponible.",
-    pasos:[
-      "Abre Solicitudes.",
-      "En Nueva solicitud selecciona el tipo.",
-      "Indica fecha de inicio y fin; añade horas cuando corresponda.",
-      "Escribe el motivo y adjunta justificante si es necesario.",
-      "Pulsa Enviar solicitud y consulta después su estado."
-    ]
-  },
-  {
-    id:"aprobar_solicitud", modulo:"solicitudes", titulo:"Aprobar una solicitud",
-    consulta:"aprobar solicitud aceptar vacaciones aprobar permiso administrador",
-    resumen:"Un administrador puede aprobar una solicitud pendiente.",
-    pasos:[
-      "Abre Solicitudes con un usuario administrador.",
-      "Localiza la solicitud pendiente.",
-      "Pulsa Aprobar.",
-      "Escribe el comentario de aprobación si procede y confirma.",
-      "Comprueba que el estado cambia a aprobada."
-    ]
-  },
-  {
-    id:"rechazar_solicitud", modulo:"solicitudes", titulo:"Rechazar una solicitud",
-    consulta:"rechazar solicitud denegar vacaciones rechazar permiso administrador",
-    resumen:"Un administrador puede rechazar una solicitud pendiente dejando el motivo.",
-    pasos:[
-      "Abre Solicitudes con un usuario administrador.",
-      "Localiza la solicitud pendiente.",
-      "Pulsa Rechazar.",
-      "Indica el motivo del rechazo y confirma.",
-      "Comprueba que el estado queda actualizado."
-    ]
-  },
-  {
-    id:"borrar_solicitud", modulo:"solicitudes", titulo:"Eliminar una solicitud",
-    consulta:"borrar solicitud eliminar solicitud cancelar solicitud",
-    resumen:"Elimina una solicitud cuando la opción esté disponible para tu usuario.",
-    pasos:[
-      "Abre Solicitudes.",
-      "Localiza la solicitud.",
-      "Pulsa Borrar.",
-      "Confirma la eliminación cuando Zentryx lo solicite."
-    ]
-  },
-  {
     id:"entrada_almacen", modulo:"almacen", titulo:"Registrar una entrada de almacén",
     consulta:"entrada almacen añadir stock recibir material stock almacen",
     resumen:"Registra material que entra en una ubicación del almacén.",
@@ -1235,7 +1186,7 @@ function ayudaDirectaPara(consulta){
     return porIdRapido("config_festivos_empresa");
   }
 
-  // Usuarios: resolver antes que Solicitudes, Fichaje, Trabajos y tarjetas generales.
+  // Usuarios: resolver antes que Fichaje, Trabajos y tarjetas generales.
   if(/\b(usuario|usuarios|trabajador|trabajadores|empleado|empleados)\b/.test(textoNormalizado)){
     // La foto es un subobjeto del usuario: quitarla nunca debe convertirse en borrar la ficha.
     if(/\b(foto|imagen)\b/.test(textoNormalizado)){
@@ -1366,14 +1317,6 @@ function ayudaDirectaPara(consulta){
   const porId=(id)=>AYUDAS_DIRECTAS.find(x=>x.id===id) || null;
 
   // 1) ACCIONES FUERTES: tienen prioridad sobre el tipo de objeto.
-  // Solicitudes
-  if(tiene("solic")){
-    if(tiene("aprob") || tiene("acept") || tiene("valid")) return porId("aprobar_solicitud");
-    if(tiene("rechaz") || tiene("deneg")) return porId("rechazar_solicitud");
-    if(tiene("borr") || tiene("elimin") || tiene("cancel")) return porId("borrar_solicitud");
-    if(tiene("crear") || tiene("envi") || tiene("nuev") || tiene("vacacion") || tiene("permiso") || tiene("ausenc")) return porId("crear_solicitud");
-  }
-
   // Trabajos
   if(tiene("trabaj")){
     if(
@@ -1459,7 +1402,7 @@ function ayudaDirectaPara(consulta){
     if(tiene("crear") || tiene("nuevo") || tiene("alta") || tiene("anad")) return porId("crear_vehiculo");
   }
 
-  // Fichaje y control de fichajes
+  // Fichaje y administración de jornadas
   if(tiene("fich") || tiene("jornad")){
     if(tiene("borr") || tiene("elimin")){
       return porId("borrar_fichaje_admin");
@@ -1592,14 +1535,14 @@ const BASE=[
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
-    resumen:"Datos y documentación de clientes.",
+    resumen:"Consulta datos, contactos, direcciones, documentación e historial de clientes.",
     pasos:[
-      "Busca por los datos disponibles del cliente.",
-      "Abre su ficha cuando esté disponible el modo consulta.",
-      "La edición debe utilizarse solo cuando necesites modificar datos."
+      "Busca el cliente por los datos disponibles.",
+      "Pulsa el cliente para abrir su ficha en modo consulta.",
+      "Usa Volver y Editar desde la parte superior.",
+      "Entra en Editar solo cuando necesites modificar datos."
     ],
-    aviso:"Pendiente: permitir abrir la ficha del cliente en modo consulta sin entrar directamente en Editar.",
-    palabras:"cliente contacto teléfono email dirección documentos buscar"
+    palabras:"cliente contacto teléfono email dirección documentos historial buscar editar"
   },
   {
     id:"vehiculos",icono:"🚗",titulo:"Vehículos",roles:["todos"],
@@ -1612,16 +1555,6 @@ const BASE=[
       "La clasificación Laboral/Personal puede consultarse en el historial de uso cuando tengas permiso."
     ],
     palabras:"vehículo coche furgoneta usar devolver transferir kilometros km incidencia grua asistencia gps ruta laboral personal"
-  },
-  {
-    id:"solicitudes",icono:"📝",titulo:"Solicitudes",roles:["todos"],
-    resumen:"Vacaciones, permisos, ausencias y justificantes cuando estén habilitados.",
-    pasos:[
-      "Selecciona el tipo de solicitud.",
-      "Indica las fechas y añade justificante cuando corresponda.",
-      "Consulta posteriormente su estado."
-    ],
-    palabras:"solicitud vacaciones permiso ausencia justificante"
   },
   {
     id:"almacen",icono:"📦",titulo:"Almacén",roles:["admin","encargado"],
