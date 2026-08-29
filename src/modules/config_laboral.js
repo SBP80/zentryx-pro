@@ -8,11 +8,12 @@
 // V3071 - GUARDADO REAL INMEDIATO DEL CATALOGO DE CONVENIOS
 // V3072 - ESTADO REGCON GUARDADO DESDE EL SELECTOR VISUAL
 // V3073 - DESCARGA PDF CON CONTENT-DISPOSITION EN SUPABASE
+// V3074 - DESCARGA IPHONE COMO ARCHIVO + GUARDAR EN ARCHIVOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3073";
+const ZX_VERSION="3074";
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
 function laboral(){return window.ZENTRYX_LABORAL || null}
@@ -85,9 +86,12 @@ function urlDescargaDocumentoConvenio(c,url){
 }
 async function descargarDocumentoConvenio(c){
   const url=urlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
-  const descarga=urlDescargaDocumentoConvenio(c,url);
-  if(descarga){const a=document.createElement("a");a.href=descarga;a.download=nombreDocumentoConvenio(c);a.rel="noopener";document.body.appendChild(a);a.click();a.remove();return}
-  try{const b=await blobConvenio(c);const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=nombreDocumentoConvenio(c);document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),10000)}catch(e){window.open(url,"_blank","noopener")}
+  try{
+    const b=await blobConvenio(c),nombre=nombreDocumentoConvenio(c),file=new File([b],nombre,{type:b.type||"application/pdf"});
+    // En iPhone/PWA, la hoja nativa permite elegir «Guardar en Archivos».
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:nombre});return}
+    const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=nombre;a.rel="noopener";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),30000);
+  }catch(e){if(e?.name!=="AbortError")alert("No se pudo preparar el PDF para guardarlo.")}
 }
 async function compartirDocumentoConvenio(c){
   const url=urlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
