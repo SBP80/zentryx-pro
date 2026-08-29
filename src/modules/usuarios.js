@@ -23,11 +23,13 @@
 // V3164 - CONVENIO DEL TRABAJADOR DESDE CATALOGO DE EMPRESA
 // V3166 - PUBLICACION OFICIAL + DOCUMENTO APLICADO DEL CONVENIO
 // V3167 - DESCARGA PDF CON CONTENT-DISPOSITION EN SUPABASE
+// V3168 - DESCARGA IPHONE COMO ARCHIVO + GUARDAR EN ARCHIVOS
+// V3169 - IMPRESION IPHONE DESDE HOJA NATIVA CON PDF
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3168";
+window.ZX_USUARIOS_VERSION="3169";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -2899,7 +2901,12 @@ async function zxLabCompartirConvenio(c){
 }
 async function zxLabImprimirConvenio(c){
   const url=zxLabUrlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
-  try{const b=await zxLabBlobConvenio(c),u=URL.createObjectURL(b),w=window.open(u,"_blank");if(w){setTimeout(()=>{try{w.print()}catch(e){}},1200);setTimeout(()=>URL.revokeObjectURL(u),60000);return}}catch(e){}
+  try{
+    const b=await zxLabBlobConvenio(c),nombre=zxLabNombreDocumentoConvenio(c),f=new File([b],nombre,{type:b.type||"application/pdf"});
+    // iPhone/iPad PWA: la hoja nativa muestra la accion Imprimir para el PDF.
+    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[f]}))){await navigator.share({files:[f],title:nombre});return}
+    const u=URL.createObjectURL(b),w=window.open(u,"_blank");if(w){setTimeout(()=>{try{w.print()}catch(e){}},800);setTimeout(()=>URL.revokeObjectURL(u),60000);return}
+  }catch(e){if(e?.name==="AbortError")return}
   window.open(url,"_blank","noopener");
 }
 function zxLabActualizarDocumentoConvenio(baseEmpresa){
