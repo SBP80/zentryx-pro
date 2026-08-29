@@ -5,11 +5,12 @@
 // V3065 - CATALOGO DE CONVENIOS + SELECCION PRINCIPAL
 // V3067 - PUBLICACION OFICIAL + SUBIDA PDF + ACCIONES DE DOCUMENTO
 // V3070 - SELECTORES REGCON/DOCUMENTO PROPIOS PARA IPHONE
+// V3071 - GUARDADO REAL INMEDIATO DEL CATALOGO DE CONVENIOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3070";
+const ZX_VERSION="3071";
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
 function laboral(){return window.ZENTRYX_LABORAL || null}
@@ -146,7 +147,18 @@ function abrirModalConvenio(id=""){
         await borrarPdfConvenio(documento_path);documento_path="";
       }
       const nuevo={id:idNuevo,nombre,referencia:document.getElementById("zx_conv_ref").value.trim(),vigencia_desde:document.getElementById("zx_conv_desde").value||"",vigencia_hasta:document.getElementById("zx_conv_hasta").value||"",verificado:document.getElementById("zx_conv_verificado").checked===true,fuente_url:fuente,publicacion_url:publicacion,documento_url,documento_nombre,documento_path,documento_origen,ambito:document.getElementById("zx_conv_ambito").value.trim(),autoridad_laboral:document.getElementById("zx_conv_autoridad").value.trim(),vacaciones:num(document.getElementById("zx_conv_vac").value,0),vacaciones_tipo:document.getElementById("zx_conv_vac_tipo").value||"naturales",asuntos_horas:num(document.getElementById("zx_conv_asuntos").value,0)};
-      const idx=conveniosEdicion.findIndex(x=>String(x.id)===String(actual.id));if(idx>=0)conveniosEdicion[idx]=nuevo;else conveniosEdicion.push(nuevo);cerrarModalConvenio();repintarConvenios(nuevo.id);
+      const principalAntes=document.getElementById("convenio")?.value||"";
+      const idx=conveniosEdicion.findIndex(x=>String(x.id)===String(actual.id));
+      if(idx>=0)conveniosEdicion[idx]=nuevo;else conveniosEdicion.push(nuevo);
+      // Editar un convenio no debe convertirlo en principal por accidente.
+      // Si es el primero del catálogo, sí queda como principal.
+      const principalDespues=convenioPorId(principalAntes)?principalAntes:(conveniosEdicion[0]?.id||nuevo.id);
+      repintarConvenios(principalDespues);
+      // "Guardar convenio" debe persistir realmente el catálogo en la configuración de empresa.
+      // Antes solo modificaba la copia en memoria de esta pantalla y Usuarios seguía leyendo el valor anterior.
+      const ok=await guardarConfigSilencioso();
+      if(!ok){btn.disabled=false;btn.textContent=txt;return}
+      cerrarModalConvenio();
     }catch(e){alert("No se pudo guardar el documento: "+(e?.message||e));btn.disabled=false;btn.textContent=txt;return}
   };
 }
