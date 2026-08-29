@@ -20,11 +20,12 @@
 // V3158 - LABORAL PRO: HERENCIA DE JORNADA, CONVENIO, VACACIONES, ASUNTOS Y CALENDARIO
 // V3160 - CONTROL RETIRADO DE PERMISOS + MEJORAS V3159
 // V3163 - RESUMEN LABORAL COMPLETO EN TIEMPO REAL + CACHE OFFLINE SIN CREDENCIALES
+// V3164 - CONVENIO DEL TRABAJADOR DESDE CATALOGO DE EMPRESA
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3162";
+window.ZX_USUARIOS_VERSION="3164";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -2629,10 +2630,12 @@ function normalizarLaboralDesdeHorario(h,backup,baseEmpresa,efectivo){
     hereda_jornada:metaActiva ? meta.hereda_jornada===true : false,
 
     convenio:String(ef.convenio ?? h.convenio ?? ""),
+    convenio_id:String(ef.convenio_id ?? ""),
     convenio_referencia:String(ef.convenio_referencia ?? ""),
     convenio_vigencia_desde:String(ef.convenio_vigencia_desde ?? ""),
     convenio_vigencia_hasta:String(ef.convenio_vigencia_hasta ?? ""),
     convenio_propio:String(metaActiva ? (conv.nombre ?? h.convenio ?? "") : (h.convenio ?? "")),
+    convenio_propio_id:String(metaActiva ? (conv.id ?? "") : ""),
     convenio_propio_referencia:String(metaActiva ? (conv.referencia ?? "") : ""),
     convenio_propio_desde:String(metaActiva ? (conv.vigencia_desde ?? "") : ""),
     convenio_propio_hasta:String(metaActiva ? (conv.vigencia_hasta ?? "") : ""),
@@ -2691,7 +2694,7 @@ function normalizarLaboralDesdeConfig(c,baseEmpresa,efectivo){
     asuntos_propios:Number(c.asuntos_propios||0),asuntos_propios_personal:Number(c.asuntos_propios||0),hereda_asuntos:false,
     pais:c.pais||"España",comunidad:c.comunidad||"",provincia:c.provincia||"",localidad:c.localidad||"",
     calendario_propio:{pais:c.pais||"España",pais_codigo:"",comunidad:c.comunidad||"",provincia:c.provincia||"",localidad:c.localidad||""},hereda_calendario:false,
-    convenio:c.convenio||"",convenio_referencia:"",convenio_vigencia_desde:"",convenio_vigencia_hasta:"",convenio_propio:c.convenio||"",convenio_propio_referencia:"",convenio_propio_desde:"",convenio_propio_hasta:"",hereda_convenio:false,
+    convenio:c.convenio||"",convenio_id:"",convenio_referencia:"",convenio_vigencia_desde:"",convenio_vigencia_hasta:"",convenio_propio:c.convenio||"",convenio_propio_id:"",convenio_propio_referencia:"",convenio_propio_desde:"",convenio_propio_hasta:"",hereda_convenio:false,
     precio_extra:Number(c.precio_extra||0),precio_extra_nocturna:Number(c.precio_extra_nocturna||0),precio_extra_festiva:Number(c.precio_extra_festiva||0),
     precio_propio_extra:Number(c.precio_extra||0),precio_propio_extra_nocturna:Number(c.precio_extra_nocturna||0),precio_propio_extra_festiva:Number(c.precio_extra_festiva||0),
     hereda_precio_extra:false,hereda_precio_extra_nocturna:false,hereda_precio_extra_festiva:false,
@@ -2713,8 +2716,8 @@ function laboralDefault(u,baseEmpresa){
     asuntos_propios:Number(b.asuntos_horas??0),asuntos_propios_personal:Number(b.asuntos_horas??0),hereda_asuntos:true,
     pais:b.pais||u.pais||"España",comunidad:b.comunidad||"",provincia:b.provincia||u.provincia||"",localidad:b.localidad||u.poblacion||"",
     calendario_propio:{pais:b.pais||u.pais||"España",pais_codigo:b.pais_codigo||"",comunidad:b.comunidad||"",provincia:b.provincia||u.provincia||"",localidad:b.localidad||u.poblacion||""},hereda_calendario:true,
-    convenio:b.convenio||"",convenio_referencia:b.convenio_referencia||"",convenio_vigencia_desde:b.convenio_vigencia_desde||"",convenio_vigencia_hasta:b.convenio_vigencia_hasta||"",
-    convenio_propio:b.convenio||"",convenio_propio_referencia:b.convenio_referencia||"",convenio_propio_desde:b.convenio_vigencia_desde||"",convenio_propio_hasta:b.convenio_vigencia_hasta||"",hereda_convenio:true,
+    convenio:b.convenio||"",convenio_id:b.convenio_id||"",convenio_referencia:b.convenio_referencia||"",convenio_vigencia_desde:b.convenio_vigencia_desde||"",convenio_vigencia_hasta:b.convenio_vigencia_hasta||"",
+    convenio_propio:b.convenio||"",convenio_propio_id:b.convenio_id||"",convenio_propio_referencia:b.convenio_referencia||"",convenio_propio_desde:b.convenio_vigencia_desde||"",convenio_propio_hasta:b.convenio_vigencia_hasta||"",hereda_convenio:true,
     precio_extra:Number(b.precio_extra||0),precio_extra_nocturna:Number(b.precio_extra_nocturna||0),precio_extra_festiva:Number(b.precio_extra_festiva||0),
     precio_propio_extra:0,precio_propio_extra_nocturna:0,precio_propio_extra_festiva:0,
     hereda_precio_extra:true,hereda_precio_extra_nocturna:true,hereda_precio_extra_festiva:true,_base_empresa:b,_meta_inicializada:true
@@ -2843,6 +2846,29 @@ function zxLabTotalDias(dias){return ZX_LAB_DIAS_PRO.reduce((n,x)=>n+Number((dia
 function zxLabHorasInput(min){return Number((Number(min||0)/60).toFixed(2))}
 function zxLabResumenCalendario(c){return [c?.pais,c?.comunidad,c?.provincia,c?.localidad].filter(Boolean).join(" · ") || "Sin ubicación"}
 function zxLabTipoVacaciones(t){return String(t||"naturales")==="laborables" ? "laborables" : "naturales"}
+
+function zxLabConveniosEmpresa(base){
+  try{if(window.ZENTRYX_LABORAL?.normalizarConvenios)return window.ZENTRYX_LABORAL.normalizarConvenios(base)||[]}catch(e){}
+  return Array.isArray(base?.convenios)?base.convenios:[];
+}
+function zxLabConvenioEmpresa(base,idONombre){
+  try{if(window.ZENTRYX_LABORAL?.buscarConvenio)return window.ZENTRYX_LABORAL.buscarConvenio(base,idONombre)}catch(e){}
+  const q=normalizarTexto(idONombre);return zxLabConveniosEmpresa(base).find(x=>String(x.id)===String(idONombre)||normalizarTexto(x.nombre)===q)||null;
+}
+function zxLabRefrescarConvenioSeleccionado(baseEmpresa){
+  const sel=document.getElementById("lab_convenio");if(!sel)return;
+  const c=zxLabConvenioEmpresa(baseEmpresa,sel.value);if(!c)return;
+  const poner=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??""};
+  poner("lab_convenio_ref",c.referencia||"");poner("lab_convenio_desde",c.vigencia_desde||"");poner("lab_convenio_hasta",c.vigencia_hasta||"");
+  const hv=document.getElementById("lab_hereda_vacaciones"),ha=document.getElementById("lab_hereda_asuntos");
+  const lv=document.getElementById("lab_hereda_vacaciones_text"),la=document.getElementById("lab_hereda_asuntos_text");
+  const usaPropio=document.getElementById("lab_hereda_convenio")?.checked!==true;
+  const baseVac=usaPropio?c:{vacaciones:baseEmpresa.vacaciones,vacaciones_tipo:baseEmpresa.vacaciones_tipo,asuntos_horas:baseEmpresa.asuntos_horas,nombre:baseEmpresa.convenio};
+  if(lv)lv.textContent="Usar base "+(usaPropio?"del convenio · ":"de empresa · ")+Number(baseVac.vacaciones||0)+" días "+zxLabTipoVacaciones(baseVac.vacaciones_tipo);
+  if(la)la.textContent="Usar base "+(usaPropio?"del convenio · ":"de empresa · ")+Number(baseVac.asuntos_horas||0)+" h/año";
+  if(hv?.checked)zxLabRefrescarResumenVacaciones(baseEmpresa);
+  if(ha?.checked)zxLabRefrescarResumenAsuntos(baseEmpresa);
+}
 function zxLabCampoTexto(id,label,value,type){
   return `<label class="zx_label" for="${id}">${limpiar(label)}</label><input id="${id}" type="${type||"text"}" value="${limpiar(value||"")}" placeholder="${limpiar(label)}">`;
 }
@@ -2870,15 +2896,22 @@ function zxLabRefrescarResumenJornada(baseEmpresa){
   if(dia)dia.textContent=limpiar(Number((primer/60).toFixed(2)))+" h";
   if(semana)semana.textContent=limpiar(Number((total/60).toFixed(2)))+" h";
 }
+function zxLabBaseDerechosActual(baseEmpresa){
+  const usaConvenioPropio=document.getElementById("lab_hereda_convenio")?.checked!==true;
+  const seleccionado=usaConvenioPropio ? zxLabConvenioEmpresa(baseEmpresa,document.getElementById("lab_convenio")?.value||"") : null;
+  return seleccionado || baseEmpresa || {};
+}
 function zxLabRefrescarResumenVacaciones(baseEmpresa){
   const hereda=document.getElementById("lab_hereda_vacaciones")?.checked===true;
-  const valor=hereda ? Number((baseEmpresa||{}).vacaciones||0) : numVal("lab_vacaciones",0);
+  const base=zxLabBaseDerechosActual(baseEmpresa);
+  const valor=hereda ? Number(base.vacaciones||0) : numVal("lab_vacaciones",0);
   const el=document.getElementById("lab_res_vacaciones");
   if(el)el.textContent=limpiar(valor)+" días";
 }
 function zxLabRefrescarResumenAsuntos(baseEmpresa){
   const hereda=document.getElementById("lab_hereda_asuntos")?.checked===true;
-  const valor=hereda ? Number((baseEmpresa||{}).asuntos_horas||0) : numVal("lab_asuntos",0);
+  const base=zxLabBaseDerechosActual(baseEmpresa);
+  const valor=hereda ? Number(base.asuntos_horas||0) : numVal("lab_asuntos",0);
   const el=document.getElementById("lab_res_asuntos");
   if(el)el.textContent=limpiar(valor)+" h";
 }
@@ -2895,6 +2928,7 @@ function activarHerenciasLaboralPro(baseEmpresa){
     const f=()=>{
       zxLabDeshabilitar(ids,c.checked===true);
       if(checkId==="lab_hereda_jornada")zxLabRefrescarResumenJornada(baseEmpresa);
+      if(checkId==="lab_hereda_convenio")zxLabRefrescarConvenioSeleccionado(baseEmpresa);
       if(checkId==="lab_hereda_vacaciones")zxLabRefrescarResumenVacaciones(baseEmpresa);
       if(checkId==="lab_hereda_asuntos")zxLabRefrescarResumenAsuntos(baseEmpresa);
     };
@@ -2925,7 +2959,10 @@ async function verLaboralUsuario(u){
   const jp=l.jornada_propia||{};
   const cp=l.calendario_propio||{};
   const baseSemana=zxLabTotalDias(baseEmpresa);
+  window.__ZX_LAB_BASE_EMPRESA=baseEmpresa;
   const baseVacTipo=zxLabTipoVacaciones(baseEmpresa.vacaciones_tipo);
+  const conveniosEmpresa=zxLabConveniosEmpresa(baseEmpresa);
+  const convenioPropioActual=zxLabConvenioEmpresa(baseEmpresa,l.convenio_propio_id||l.convenio_propio);
   const baseCal=zxLabResumenCalendario(baseEmpresa);
 
   modal("Laboral",`
@@ -2950,23 +2987,23 @@ async function verLaboralUsuario(u){
     ${check("lab_hereda_convenio","Usar convenio de empresa · "+String(baseEmpresa.convenio||"Sin definir"),l.hereda_convenio===true)}
     ${baseEmpresa.convenio_referencia?`<div class="zx_text">Referencia empresa: ${limpiar(baseEmpresa.convenio_referencia)}</div>`:``}
     ${zxLabBloque("lab_convenio_personal",`
-      <label class="zx_label" for="lab_convenio">Convenio propio</label>
-      <input id="lab_convenio" list="lab_convenios_lista" value="${limpiar(l.convenio_propio||"")}" placeholder="Convenio propio">
-      <datalist id="lab_convenios_lista">${ZX_CONVENIOS.filter(Boolean).map(x=>`<option value="${limpiar(x)}"></option>`).join("")}</datalist>
-      ${zxLabCampoTexto("lab_convenio_ref","Referencia / código / publicación",l.convenio_propio_referencia||"")}
-      ${zxLabCampoTexto("lab_convenio_desde","Vigente desde",l.convenio_propio_desde||"","date")}
-      ${zxLabCampoTexto("lab_convenio_hasta","Vigente hasta",l.convenio_propio_hasta||"","date")}
+      <label class="zx_label" for="lab_convenio">Convenio del trabajador</label>
+      <select id="lab_convenio">${conveniosEmpresa.map(x=>`<option value="${limpiar(x.id)}" ${String(convenioPropioActual?.id||"")===String(x.id)?"selected":""}>${limpiar(x.nombre)}</option>`).join("")}</select>
+      ${conveniosEmpresa.length?``:`<div class="zx_text">No hay convenios guardados en Configuración laboral.</div>`}
+      <label class="zx_label">Referencia / código / publicación</label><input id="lab_convenio_ref" value="${limpiar(convenioPropioActual?.referencia||l.convenio_propio_referencia||"")}" readonly>
+      <label class="zx_label">Vigente desde</label><input id="lab_convenio_desde" type="date" value="${limpiar(convenioPropioActual?.vigencia_desde||l.convenio_propio_desde||"")}" readonly>
+      <label class="zx_label">Vigente hasta</label><input id="lab_convenio_hasta" type="date" value="${limpiar(convenioPropioActual?.vigencia_hasta||l.convenio_propio_hasta||"")}" readonly>
     `)}
 
     <h3 class="zx_form_subtitle">Vacaciones</h3>
-    ${check("lab_hereda_vacaciones","Usar base empresa/convenio · "+Number(baseEmpresa.vacaciones||0)+" días "+baseVacTipo,l.hereda_vacaciones===true)}
+    ${check("lab_hereda_vacaciones","Usar base empresa/convenio · "+Number(baseEmpresa.vacaciones||0)+" días "+baseVacTipo,l.hereda_vacaciones===true).replace('<span>','<span id="lab_hereda_vacaciones_text">')}
     ${zxLabBloque("lab_vacaciones_personal",`
       ${inputNum("lab_vacaciones","Vacaciones propias",l.vacaciones_propias,"0.5","días")}
       ${selectLaboral("lab_vacaciones_tipo","Cómputo de vacaciones",l.vacaciones_propias_tipo||"naturales",["naturales","laborables"])}
     `)}
 
     <h3 class="zx_form_subtitle">Asuntos propios</h3>
-    ${check("lab_hereda_asuntos","Usar base empresa/convenio · "+Number(baseEmpresa.asuntos_horas||0)+" h/año",l.hereda_asuntos===true)}
+    ${check("lab_hereda_asuntos","Usar base empresa/convenio · "+Number(baseEmpresa.asuntos_horas||0)+" h/año",l.hereda_asuntos===true).replace('<span>','<span id="lab_hereda_asuntos_text">')}
     ${zxLabBloque("lab_asuntos_personal",inputNum("lab_asuntos","Asuntos propios personales",l.asuntos_propios_personal,"0.25","h/año"))}
 
     ${puedeVerDatosLaboralesSensibles(u)?`
@@ -2995,6 +3032,7 @@ async function verLaboralUsuario(u){
   activarFiltrosUbicacion();
   activarHerenciasLaboralPro(baseEmpresa);
   activarHerenciaPreciosLaboral(baseEmpresa);
+  const convSel=document.getElementById("lab_convenio");if(convSel){convSel.onchange=function(){zxLabRefrescarConvenioSeleccionado(baseEmpresa)};zxLabRefrescarConvenioSeleccionado(baseEmpresa)}
 
   const guardar=document.getElementById("lab_guardar_top");
   if(guardar){guardar.onclick=function(){const datos=leerDatosLaboralesFormulario(u);pedirPinConPermiso("laboral",function(){guardarLaboralDatos(datos,u)})}}
@@ -3086,7 +3124,8 @@ function leerDatosLaboralesFormulario(u){
     jornada_propia:jornada,horas_dia:Number((primerMin/60).toFixed(2)),horas_semana:Number((totalMin/60).toFixed(2)),
     trabaja_lunes:jornada.lunes>0,trabaja_martes:jornada.martes>0,trabaja_miercoles:jornada.miercoles>0,trabaja_jueves:jornada.jueves>0,trabaja_viernes:jornada.viernes>0,trabaja_sabado:jornada.sabado>0,trabaja_domingo:jornada.domingo>0,
     hereda_jornada:document.getElementById("lab_hereda_jornada")?.checked===true,
-    convenio:(document.getElementById("lab_convenio")?.value||"").trim(),
+    convenio_id:(document.getElementById("lab_convenio")?.value||"").trim(),
+    convenio:(zxLabConvenioEmpresa(window.__ZX_LAB_BASE_EMPRESA||{},document.getElementById("lab_convenio")?.value)?.nombre || document.getElementById("lab_convenio")?.selectedOptions?.[0]?.textContent || "").trim(),
     convenio_referencia:(document.getElementById("lab_convenio_ref")?.value||"").trim(),
     convenio_vigencia_desde:document.getElementById("lab_convenio_desde")?.value||"",
     convenio_vigencia_hasta:document.getElementById("lab_convenio_hasta")?.value||"",
@@ -3257,11 +3296,14 @@ async function guardarHorarioUsuario(datos){
   try{if(window.ZENTRYX_LABORAL?.cargarBaseEmpresa)base=Object.assign(base,await window.ZENTRYX_LABORAL.cargarBaseEmpresa())}catch(e){}
   const propia=datos.jornada_propia||{};
   const dias={}; ZX_LAB_DIAS_PRO.forEach(([k])=>dias[k]=Math.max(0,Math.round(Number(datos.hereda_jornada?base[k]:propia[k])||0)));
+  const convenioPropioCatalogo=zxLabConvenioEmpresa(base,datos.convenio_id||datos.convenio);
+  const convPropio={id:String(convenioPropioCatalogo?.id||datos.convenio_id||""),nombre:String(convenioPropioCatalogo?.nombre||datos.convenio||""),referencia:String(convenioPropioCatalogo?.referencia||datos.convenio_referencia||""),vigencia_desde:String(convenioPropioCatalogo?.vigencia_desde||datos.convenio_vigencia_desde||""),vigencia_hasta:String(convenioPropioCatalogo?.vigencia_hasta||datos.convenio_vigencia_hasta||""),vacaciones:Number(convenioPropioCatalogo?.vacaciones??base.vacaciones??0),vacaciones_tipo:String(convenioPropioCatalogo?.vacaciones_tipo||base.vacaciones_tipo||"naturales"),asuntos_horas:Number(convenioPropioCatalogo?.asuntos_horas??base.asuntos_horas??0)};
+  const convenioEmpresa=zxLabConvenioEmpresa(base,base.convenio_id||base.convenio);
   const conv=datos.hereda_convenio?{
-    nombre:String(base.convenio||""),referencia:String(base.convenio_referencia||""),vigencia_desde:String(base.convenio_vigencia_desde||""),vigencia_hasta:String(base.convenio_vigencia_hasta||"")
-  }:{nombre:String(datos.convenio||""),referencia:String(datos.convenio_referencia||""),vigencia_desde:String(datos.convenio_vigencia_desde||""),vigencia_hasta:String(datos.convenio_vigencia_hasta||"")};
-  const vacaciones=datos.hereda_vacaciones?Number(base.vacaciones||0):Number(datos.vacaciones_dias||0);
-  const asuntos=datos.hereda_asuntos?Number(base.asuntos_horas||0):Number(datos.asuntos_propios||0);
+    id:String(convenioEmpresa?.id||base.convenio_id||""),nombre:String(base.convenio||""),referencia:String(base.convenio_referencia||""),vigencia_desde:String(base.convenio_vigencia_desde||""),vigencia_hasta:String(base.convenio_vigencia_hasta||""),vacaciones:Number(base.vacaciones||0),vacaciones_tipo:String(base.vacaciones_tipo||"naturales"),asuntos_horas:Number(base.asuntos_horas||0)
+  }:convPropio;
+  const vacaciones=datos.hereda_vacaciones?Number(conv.vacaciones||0):Number(datos.vacaciones_dias||0);
+  const asuntos=datos.hereda_asuntos?Number(conv.asuntos_horas||0):Number(datos.asuntos_propios||0);
   const cal=datos.hereda_calendario?{
     pais:String(base.pais||"España"),pais_codigo:String(base.pais_codigo||""),comunidad:String(base.comunidad||""),provincia:String(base.provincia||""),localidad:String(base.localidad||"")
   }:{pais:String(datos.pais||"España"),pais_codigo:String(datos.pais_codigo||""),comunidad:String(datos.comunidad||""),provincia:String(datos.provincia||""),localidad:String(datos.localidad||"")};
@@ -3269,7 +3311,7 @@ async function guardarHorarioUsuario(datos){
   const laboralMeta={
     version:1,inicializado:true,
     hereda_jornada:!!datos.hereda_jornada,jornada_propia:Object.fromEntries(ZX_LAB_DIAS_PRO.map(([k])=>[k,Math.max(0,Math.round(Number(propia[k])||0))])),
-    hereda_convenio:!!datos.hereda_convenio,convenio_propio:{nombre:String(datos.convenio||""),referencia:String(datos.convenio_referencia||""),vigencia_desde:String(datos.convenio_vigencia_desde||""),vigencia_hasta:String(datos.convenio_vigencia_hasta||"")},
+    hereda_convenio:!!datos.hereda_convenio,convenio_propio:{id:String(convPropio.id||datos.convenio_id||""),nombre:String(convPropio.nombre||datos.convenio||""),referencia:String(convPropio.referencia||datos.convenio_referencia||""),vigencia_desde:String(convPropio.vigencia_desde||datos.convenio_vigencia_desde||""),vigencia_hasta:String(convPropio.vigencia_hasta||datos.convenio_vigencia_hasta||""),vacaciones:Number(convPropio.vacaciones||0),vacaciones_tipo:String(convPropio.vacaciones_tipo||"naturales"),asuntos_horas:Number(convPropio.asuntos_horas||0)},
     hereda_vacaciones:!!datos.hereda_vacaciones,vacaciones_propias:{dias:Number(datos.vacaciones_dias||0),tipo:String(datos.vacaciones_tipo||"naturales")},
     hereda_asuntos:!!datos.hereda_asuntos,asuntos_propios_horas:Number(datos.asuntos_propios||0),
     hereda_calendario:!!datos.hereda_calendario,calendario_propio:{pais:String(datos.pais||"España"),pais_codigo:String(datos.pais_codigo||""),comunidad:String(datos.comunidad||""),provincia:String(datos.provincia||""),localidad:String(datos.localidad||"")}
