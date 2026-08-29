@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3229
+// ZENTRYX PRO - TRABAJOS V3230
+// V3230 - EVITA REGISTROS DE AUDITORÍA DUPLICADOS EN ACCIONES REPETIDAS
 // V3229 - AUDITORÍA PERSISTENTE DE NOTAS/PARTES + VOLVER SIN DUPLICADOS
 // V3228 - AVISO DE FESTIVOS POR TRABAJADOR ANTES DE PROGRAMAR
 // V3227 - NOTAS: EDITAR/BORRAR DESDE HISTORIAL Y CONTADOR ACTUALIZADO
@@ -9,7 +10,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3229";
+const ZX_VERSION="3230";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -881,13 +882,46 @@ async function registrarHistorial(trabajoId,tipo,notas,datos){
   }
 }
 
+const ZX_TR_AUDIT_RECENT=new Map();
+
 async function registrarAuditoriaTrabajo(trabajoId,entidad,accion,resumen,datos){
+  if(!trabajoId || !navigator.onLine || !sb()) return false;
+
+  const texto=String(resumen || "").trim();
+  const clave=[String(trabajoId),String(entidad || "actividad"),String(accion || "registro"),texto].join("|");
+  const ahora=Date.now();
+  const ultimo=Number(ZX_TR_AUDIT_RECENT.get(clave) || 0);
+
+  // Algunos botones pueden ser reenviados por las acciones superiores de la interfaz.
+  // Bloqueamos la misma auditoría durante unos segundos y además comprobamos Supabase.
+  if(ultimo && (ahora-ultimo)<10000) return true;
+  ZX_TR_AUDIT_RECENT.set(clave,ahora);
+  if(ZX_TR_AUDIT_RECENT.size>200){
+    for(const [k,t] of ZX_TR_AUDIT_RECENT){
+      if((ahora-Number(t || 0))>60000) ZX_TR_AUDIT_RECENT.delete(k);
+    }
+  }
+
+  try{
+    const desde=new Date(ahora-10000).toISOString();
+    const existente=await sb()
+      .from("trabajos_historial")
+      .select("id")
+      .eq("trabajo_id",String(trabajoId))
+      .eq("tipo","auditoria")
+      .eq("notas",texto)
+      .gte("created_at",desde)
+      .limit(1);
+
+    if(!existente.error && Array.isArray(existente.data) && existente.data.length) return true;
+  }catch(e){}
+
   const detalle=Object.assign({
     auditoria:true,
     entidad:String(entidad || "actividad"),
     accion:String(accion || "registro")
   },datos || {});
-  const ok=await registrarHistorial(trabajoId,"auditoria",resumen,detalle);
+  const ok=await registrarHistorial(trabajoId,"auditoria",texto,detalle);
   if(!ok) console.warn("No se pudo registrar la auditoría del trabajo:",entidad,accion);
   return ok;
 }
