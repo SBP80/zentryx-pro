@@ -1,9 +1,9 @@
 // ZENTRYX PRO - desarrollador_diagnostico.js
-// V1002 - DIAGNÓSTICO FIABLE DE COLA, SINCRONIZACIÓN, VERSIÓN, CACHÉ Y SALUD
+// V1003 - DIAGNÓSTICO SIN COMPONENTES RETIRADOS
 (function(){
 "use strict";
 
-const VERSION="1002";
+const VERSION="1003";
 const QUEUE_KEY="zentryx_backend_queue";
 const LOG_KEY="zentryx_dev_logs";
 
@@ -96,10 +96,10 @@ function modulosEsperados(){
     ["Almacén","ZX_almacen",true],
     ["Usuarios","ZENTRYX_UI_usuarios",true],
     ["Horas extra","ZX_horas_extra",true],
+    ["Manual","ZX_abrirManual",true],
     ["Vehículos","ZX_vehiculos",true],
     ["Ajustes","ZX_configuracion",true],
-    ["Desarrollador","ZX_desarrollador",true],
-    ["Control de fichajes antiguo","ZX_control_fichajes",false]
+    ["Desarrollador","ZX_desarrollador",true]
   ].map(function(x){
     const cargado=typeof window[x[1]]==="function";
     return {nombre:x[0],funcion:x[1],esperado:x[2],cargado:cargado,correcto:x[2]?cargado:!cargado};
