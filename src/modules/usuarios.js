@@ -19,11 +19,12 @@
 // V3157 - LABORAL: CONSERVA PRECIO PROPIO AL USAR BASE DE EMPRESA
 // V3158 - LABORAL PRO: HERENCIA DE JORNADA, CONVENIO, VACACIONES, ASUNTOS Y CALENDARIO
 // V3160 - CONTROL RETIRADO DE PERMISOS + MEJORAS V3159
+// V3161 - CACHE OFFLINE SIN CREDENCIALES + FECHA DE CALENDARIO LOCAL
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3160";
+window.ZX_USUARIOS_VERSION="3161";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -31,11 +32,39 @@ function zxUsuariosOffline(){
   return typeof navigator!=="undefined" && navigator.onLine===false;
 }
 
+function zxUsuariosCacheSeguro(usuario){
+  if(!usuario || typeof usuario!=="object" || Array.isArray(usuario)) return usuario;
+
+  const copia={...usuario};
+  [
+    "pin_hash",
+    "password",
+    "password_hash",
+    "access_token",
+    "refresh_token",
+    "token",
+    "session_token"
+  ].forEach(function(campo){ delete copia[campo]; });
+
+  return copia;
+}
+
+function zxUsuariosListaCacheSegura(datos){
+  return (Array.isArray(datos) ? datos : []).map(zxUsuariosCacheSeguro);
+}
+
 function zxUsuariosLeerCache(){
   try{
     const raw=localStorage.getItem(ZX_USUARIOS_CACHE_KEY);
     const data=raw ? JSON.parse(raw) : [];
-    return Array.isArray(data) ? data : [];
+    const segura=zxUsuariosListaCacheSegura(data);
+
+    // Limpia también cachés antiguas que pudieran contener pin_hash.
+    if(Array.isArray(data) && JSON.stringify(segura)!==JSON.stringify(data)){
+      localStorage.setItem(ZX_USUARIOS_CACHE_KEY,JSON.stringify(segura));
+    }
+
+    return segura;
   }catch(e){
     return [];
   }
@@ -43,9 +72,12 @@ function zxUsuariosLeerCache(){
 
 function zxUsuariosGuardarCache(datos){
   try{
-    localStorage.setItem(ZX_USUARIOS_CACHE_KEY,JSON.stringify(Array.isArray(datos) ? datos : []));
+    localStorage.setItem(ZX_USUARIOS_CACHE_KEY,JSON.stringify(zxUsuariosListaCacheSegura(datos)));
   }catch(e){}
 }
+
+// Al cargar el módulo, depura también una caché creada por versiones anteriores.
+zxUsuariosLeerCache();
 
 function zxUsuariosActualizarCacheUsuario(usuarioId,datos){
   const id=String(usuarioId || (datos && datos.id) || "");
@@ -817,7 +849,7 @@ async function cargarUsuarios(){
       return [];
     }
 
-    ZX_USUARIOS_CACHE=res.data || [];
+    ZX_USUARIOS_CACHE=zxUsuariosListaCacheSegura(res.data || []);
     zxUsuariosGuardarCache(ZX_USUARIOS_CACHE);
     return filtrarUsuariosEnMemoria();
   }catch(e){
@@ -1008,7 +1040,7 @@ function programarBusquedaEmailEmpresaRemota(busqueda){
       ZX_EMAIL_BUSQUEDA_REMOTA_RESULTADOS=remotos;
 
       // Renovamos también la cache general con las filas obtenidas.
-      ZX_USUARIOS_CACHE=res.data.slice();
+      ZX_USUARIOS_CACHE=zxUsuariosListaCacheSegura(res.data.slice());
       zxUsuariosGuardarCache(ZX_USUARIOS_CACHE);
 
       pintarListaUsuarios();
@@ -3505,7 +3537,7 @@ function fechaISO(v){
   if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
   const d=new Date(v);
   if(Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0,10);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
 
 function diasEntreFechas(inicio,fin){
