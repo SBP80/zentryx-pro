@@ -1,15 +1,18 @@
 // ===============================
-// ZENTRYX PRO - LABORAL CORE V1004
+// ZENTRYX PRO - LABORAL CORE V1005
 // Configuración base de empresa, calendario laboral y festivos aplicables.
 // ===============================
 (function(){
 "use strict";
 
-const VERSION="1004";
+const VERSION="1005";
 const EMPRESA_TABLE="config_empresa";
 const FESTIVOS_TABLE="festivos";
 const HORARIOS_TABLE="horarios_usuario";
 const GEO_CACHE_KEY="zentryx_geo_cache_v1";
+const EMPRESA_CACHE_PREFIX="zentryx_laboral_empresa_cache_v1:";
+const USUARIO_CACHE_PREFIX="zentryx_laboral_usuario_cache_v1:";
+const FESTIVOS_CACHE_PREFIX="zentryx_laboral_festivos_cache_v1:";
 const PAISES_ISO={"espana":"ES","portugal":"PT","francia":"FR","italia":"IT","alemania":"DE","andorra":"AD","reino unido":"GB","irlanda":"IE","belgica":"BE","paises bajos":"NL","suiza":"CH"};
 
 function sb(){return window.sb || window.supabaseClient || null}
@@ -19,6 +22,29 @@ function sesion(){
 function empresaId(){
   const s=sesion();
   return String(s.empresa_id || "demo").trim() || "demo";
+}
+function sinConexion(){
+  return typeof navigator!=="undefined" && navigator.onLine===false;
+}
+function leerCache(key){
+  try{
+    const raw=localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){return null}
+}
+function guardarCache(key,data){
+  try{
+    localStorage.setItem(key,JSON.stringify({saved_at:new Date().toISOString(),data:data}));
+    return true;
+  }catch(e){return false}
+}
+function borrarCache(key){try{localStorage.removeItem(key)}catch(e){}}
+function cacheEmpresaKey(){return EMPRESA_CACHE_PREFIX+empresaId()}
+function cacheUsuarioKey(usuarioId){return USUARIO_CACHE_PREFIX+empresaId()+":"+String(usuarioId || "")}
+function cacheFestivosKey(anio){return FESTIVOS_CACHE_PREFIX+empresaId()+":"+String(Number(anio) || "")}
+function datoCache(key){
+  const c=leerCache(key);
+  return c && Object.prototype.hasOwnProperty.call(c,"data") ? c.data : undefined;
 }
 function normalizar(v){
   return String(v ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
@@ -136,16 +162,31 @@ function totalSemanal(cfg){return ["lunes","martes","miercoles","jueves","vierne
 
 
 async function horarioUsuario(usuarioId){
-  const cliente=sb(); if(!cliente || !usuarioId) return null;
+  if(!usuarioId) return null;
+  const key=cacheUsuarioKey(usuarioId);
+  const cached=datoCache(key);
+  const cliente=sb();
+
+  if(!cliente || sinConexion()) return cached===undefined ? null : cached;
+
   try{
-    let r=await cliente.from(HORARIOS_TABLE).select("*").eq("usuario_id",String(usuarioId)).eq("activo",true).order("actualizado_en",{ascending:false}).limit(1);
-    if(!r.error && r.data && r.data.length) return r.data[0];
+    const r=await cliente.from(HORARIOS_TABLE).select("*").eq("usuario_id",String(usuarioId)).eq("activo",true).order("actualizado_en",{ascending:false}).limit(1);
+    if(!r.error && r.data && r.data.length){
+      guardarCache(key,r.data[0]);
+      return r.data[0];
+    }
   }catch(e){}
+
   try{
     const r=await cliente.from(HORARIOS_TABLE).select("*").eq("usuario_id",String(usuarioId)).eq("activo",true).limit(1);
-    if(!r.error && r.data && r.data.length) return r.data[0];
+    if(!r.error){
+      const fila=r.data && r.data.length ? r.data[0] : null;
+      guardarCache(key,fila);
+      return fila;
+    }
   }catch(e){}
-  return null;
+
+  return cached===undefined ? null : cached;
 }
 
 function baseDesdeHorario(h){
@@ -162,25 +203,47 @@ async function cargarBaseEmpresa(){
   const cliente=sb();
   // La base de empresa nunca depende de la fila personal del administrador.
   const fallback=baseLaboral();
-  if(!cliente || navigator.onLine===false) return fallback;
+  const key=cacheEmpresaKey();
+  const cached=datoCache(key);
+
+  if(!cliente || sinConexion()){
+    const out=unirLaboral(fallback,cached && typeof cached==="object" ? cached : {});
+    out.horas_semana=Number((totalSemanal(out)/60).toFixed(2));
+    out.pais_codigo=out.pais_codigo || codigoPais(out.pais);
+    return out;
+  }
+
   try{
     const r=await cliente.from(EMPRESA_TABLE).select("empresa_id,laboral").eq("empresa_id",empresaId()).maybeSingle();
-    if(!r.error && r.data && r.data.laboral && typeof r.data.laboral==="object"){
-      const out=unirLaboral(fallback,r.data.laboral);
+    if(!r.error){
+      const remoto=r.data && r.data.laboral && typeof r.data.laboral==="object" ? r.data.laboral : {};
+      const out=unirLaboral(fallback,remoto);
       out.horas_semana=Number((totalSemanal(out)/60).toFixed(2));
       out.pais_codigo=out.pais_codigo || codigoPais(out.pais);
+      guardarCache(key,out);
       return out;
     }
   }catch(e){}
-  return fallback;
+
+  const out=unirLaboral(fallback,cached && typeof cached==="object" ? cached : {});
+  out.horas_semana=Number((totalSemanal(out)/60).toFixed(2));
+  out.pais_codigo=out.pais_codigo || codigoPais(out.pais);
+  return out;
 }
 
 async function guardarBaseEmpresa(data){
   const cliente=sb();
-  if(!cliente) return {error:new Error("Sin conexión con la base de datos")};
+  if(!cliente || sinConexion()) return {error:new Error("Sin conexión con la base de datos")};
   const s=sesion();
-  const fila={empresa_id:empresaId(),laboral:unirLaboral(baseLaboral(),data),updated_at:new Date().toISOString(),updated_by:s.usuario||s.id||""};
-  try{return await cliente.from(EMPRESA_TABLE).upsert([fila],{onConflict:"empresa_id"})}catch(e){return {error:e}}
+  const laboral=unirLaboral(baseLaboral(),data);
+  laboral.horas_semana=Number((totalSemanal(laboral)/60).toFixed(2));
+  laboral.pais_codigo=laboral.pais_codigo || codigoPais(laboral.pais);
+  const fila={empresa_id:empresaId(),laboral:laboral,updated_at:new Date().toISOString(),updated_by:s.usuario||s.id||""};
+  try{
+    const r=await cliente.from(EMPRESA_TABLE).upsert([fila],{onConflict:"empresa_id"});
+    if(r && !r.error) guardarCache(cacheEmpresaKey(),laboral);
+    return r;
+  }catch(e){return {error:e}}
 }
 
 async function resolverUsuario(usuarioId){
@@ -277,14 +340,19 @@ function aplicaFestivo(f,cfg){
 }
 
 async function leerFestivosAnio(anio){
-  const cliente=sb(); if(!cliente) return [];
+  const key=cacheFestivosKey(anio);
+  const cached=datoCache(key);
+  const cliente=sb();
+  if(!cliente || sinConexion()) return Array.isArray(cached) ? cached : [];
   try{
-    let q=cliente.from(FESTIVOS_TABLE).select("*").eq("anio",Number(anio)).order("fecha",{ascending:true});
+    const q=cliente.from(FESTIVOS_TABLE).select("*").eq("anio",Number(anio)).order("fecha",{ascending:true});
     const r=await q;
-    if(r.error) return [];
+    if(r.error) return Array.isArray(cached) ? cached : [];
     const eid=empresaId();
-    return (r.data||[]).filter(f=>!f.empresa_id || String(f.empresa_id)===eid);
-  }catch(e){return []}
+    const lista=(r.data||[]).filter(f=>!f.empresa_id || String(f.empresa_id)===eid);
+    guardarCache(key,lista);
+    return lista;
+  }catch(e){return Array.isArray(cached) ? cached : []}
 }
 
 async function festivosAplicables(anio,cfg){
@@ -340,6 +408,7 @@ async function guardarFestivosOficiales(cfg){
     }
     const ins=await cliente.from(FESTIVOS_TABLE).insert(filas);
     if(ins.error) return {ok:false,mensaje:ins.error.message};
+    borrarCache(cacheFestivosKey(cfg.anio));
     return {ok:true,cantidad:filas.length,localesDisponibles:paquete.localesDisponibles,fuente:paquete.fuente};
   }catch(e){return {ok:false,mensaje:e.message||"Error guardando festivos."}}
 }
