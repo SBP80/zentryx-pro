@@ -6,11 +6,12 @@
 // V3067 - PUBLICACION OFICIAL + SUBIDA PDF + ACCIONES DE DOCUMENTO
 // V3070 - SELECTORES REGCON/DOCUMENTO PROPIOS PARA IPHONE
 // V3071 - GUARDADO REAL INMEDIATO DEL CATALOGO DE CONVENIOS
+// V3072 - ESTADO REGCON GUARDADO DESDE EL SELECTOR VISUAL
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3071";
+const ZX_VERSION="3072";
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
 function laboral(){return window.ZENTRYX_LABORAL || null}
@@ -146,7 +147,7 @@ function abrirModalConvenio(id=""){
       }else if(docEscrito && documento_path){
         await borrarPdfConvenio(documento_path);documento_path="";
       }
-      const nuevo={id:idNuevo,nombre,referencia:document.getElementById("zx_conv_ref").value.trim(),vigencia_desde:document.getElementById("zx_conv_desde").value||"",vigencia_hasta:document.getElementById("zx_conv_hasta").value||"",verificado:document.getElementById("zx_conv_verificado").checked===true,fuente_url:fuente,publicacion_url:publicacion,documento_url,documento_nombre,documento_path,documento_origen,ambito:document.getElementById("zx_conv_ambito").value.trim(),autoridad_laboral:document.getElementById("zx_conv_autoridad").value.trim(),vacaciones:num(document.getElementById("zx_conv_vac").value,0),vacaciones_tipo:document.getElementById("zx_conv_vac_tipo").value||"naturales",asuntos_horas:num(document.getElementById("zx_conv_asuntos").value,0)};
+      const nuevo={id:idNuevo,nombre,referencia:document.getElementById("zx_conv_ref").value.trim(),vigencia_desde:document.getElementById("zx_conv_desde").value||"",vigencia_hasta:document.getElementById("zx_conv_hasta").value||"",verificado:document.getElementById("zx_conv_verificado_btn")?.getAttribute("aria-pressed")==="true",fuente_url:fuente,publicacion_url:publicacion,documento_url,documento_nombre,documento_path,documento_origen,ambito:document.getElementById("zx_conv_ambito").value.trim(),autoridad_laboral:document.getElementById("zx_conv_autoridad").value.trim(),vacaciones:num(document.getElementById("zx_conv_vac").value,0),vacaciones_tipo:document.getElementById("zx_conv_vac_tipo").value||"naturales",asuntos_horas:num(document.getElementById("zx_conv_asuntos").value,0)};
       const principalAntes=document.getElementById("convenio")?.value||"";
       const idx=conveniosEdicion.findIndex(x=>String(x.id)===String(actual.id));
       if(idx>=0)conveniosEdicion[idx]=nuevo;else conveniosEdicion.push(nuevo);
