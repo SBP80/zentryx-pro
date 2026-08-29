@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - STORE CORE
-// V3109 - MODO COMPACTO GLOBAL
+// V3110 - AUDITORÍA CONSISTENTE Y MÓDULOS RETIRADOS BLOQUEADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3109";
+const ZX_VERSION="3110";
 const STORAGE_KEY="zentryx_state";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
@@ -36,7 +36,8 @@ const DEFAULT_STATE={
     usuarios:true,
     vehiculos:true,
     horas_extra:true,
-    control_fichajes:true,
+    control_fichajes:false,
+    solicitudes:false,
     configuracion:true
   },
   configuracion:{
@@ -102,7 +103,11 @@ function merge(base,data){
 }
 
 function loadState(){
-  return merge(DEFAULT_STATE,read(STORAGE_KEY,DEFAULT_STATE));
+  const s=merge(DEFAULT_STATE,read(STORAGE_KEY,DEFAULT_STATE));
+  s.modulos=s.modulos || {};
+  s.modulos.control_fichajes=false;
+  s.modulos.solicitudes=false;
+  return s;
 }
 
 function saveState(state){
@@ -536,11 +541,40 @@ function getEmpresa(){
   return loadState().empresa;
 }
 
+function valorIgual(a,b){
+  try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return a===b}
+}
+
+function appendAuditToState(s,tabla,accion,registro_id,descripcion,extra){
+  const ses=window.ZENTRYX_readSession ? window.ZENTRYX_readSession() : {};
+  s.auditoria=Array.isArray(s.auditoria) ? s.auditoria : [];
+  s.auditoria.unshift({
+    id:uuid(),
+    tabla:tabla || "",
+    accion:accion || "",
+    registro_id:String(registro_id || ""),
+    descripcion:descripcion || "",
+    extra:extra || null,
+    usuario_id:ses && ses.id ? ses.id : "",
+    usuario:ses && ses.usuario ? ses.usuario : "",
+    fecha:now()
+  });
+  s.auditoria=s.auditoria.slice(0,500);
+  return s;
+}
+
 function saveEmpresa(data){
   const s=loadState();
-  s.empresa=merge(s.empresa,data || {});
-  s.empresa.updated_at=now();
-  addAudit("empresa","update",s.empresa.id,"Empresa actualizada");
+  const cambios=data && typeof data==="object" ? data : {};
+  const anterior=clone(s.empresa || {});
+  const siguiente=merge(s.empresa,cambios);
+  const cambiado=Object.keys(cambios).some(function(k){return !valorIgual(anterior[k],siguiente[k])});
+
+  if(!cambiado) return true;
+
+  siguiente.updated_at=now();
+  s.empresa=siguiente;
+  appendAuditToState(s,"empresa","update",s.empresa.id,"Empresa actualizada",{antes:anterior,despues:clone(siguiente)});
   return saveState(s);
 }
 
@@ -555,33 +589,22 @@ function moduloActivo(nombre){
 
 function setModulo(nombre,activo){
   const s=loadState();
-  s.modulos[nombre]=!!activo;
-  addAudit("modulos","update",nombre,activo ? "Módulo activado" : "Módulo desactivado");
+  const id=String(nombre || "");
+  const retirado=id==="control_fichajes" || id==="solicitudes";
+  const siguiente=retirado ? false : !!activo;
+  const anterior=s.modulos[id]!==false;
+
+  if(anterior===siguiente) return true;
+
+  s.modulos[id]=siguiente;
+  appendAuditToState(s,"modulos","update",id,siguiente ? "Módulo activado" : "Módulo desactivado",{antes:anterior,despues:siguiente});
   return saveState(s);
 }
 
 function addAudit(tabla,accion,registro_id,descripcion,extra){
   const s=loadState();
-  const ses=window.ZENTRYX_readSession ? window.ZENTRYX_readSession() : {};
-
-  s.auditoria=s.auditoria || [];
-
-  s.auditoria.unshift({
-    id:uuid(),
-    tabla:tabla || "",
-    accion:accion || "",
-    registro_id:String(registro_id || ""),
-    descripcion:descripcion || "",
-    extra:extra || null,
-    usuario_id:ses && ses.id ? ses.id : "",
-    usuario:ses && ses.usuario ? ses.usuario : "",
-    fecha:now()
-  });
-
-  s.auditoria=s.auditoria.slice(0,500);
-  write(STORAGE_KEY,s);
-
-  return true;
+  appendAuditToState(s,tabla,accion,registro_id,descripcion,extra);
+  return saveState(s);
 }
 
 function getAudit(limit){
