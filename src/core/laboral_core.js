@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - LABORAL CORE V1006
+// ZENTRYX PRO - LABORAL CORE V1007
 // Configuración base de empresa, calendario laboral y festivos aplicables.
 // ===============================
 (function(){
 "use strict";
 
-const VERSION="1006";
+const VERSION="1007";
 const EMPRESA_TABLE="config_empresa";
 const FESTIVOS_TABLE="festivos";
 const HORARIOS_TABLE="horarios_usuario";
@@ -144,6 +144,7 @@ function baseLaboral(){
     version:2,
     lunes:480,martes:480,miercoles:480,jueves:480,viernes:480,sabado:0,domingo:0,horas_semana:40,
     convenio:"Metal",convenio_referencia:"",convenio_vigencia_desde:"",convenio_vigencia_hasta:"",
+    convenio_verificado:false,convenio_fuente_url:"",convenio_documento_url:"",convenio_documento_nombre:"",convenio_ambito:"",convenio_autoridad_laboral:"",
     convenios:[],
     vacaciones:30,vacaciones_tipo:"naturales",asuntos_horas:16,
     precio_hora:0,precio_extra:0,precio_extra_nocturna:0,precio_extra_festiva:0,
@@ -167,6 +168,12 @@ function normalizarConvenio(c,idx=0){
     referencia:String(x.referencia ?? x.convenio_referencia ?? "").trim(),
     vigencia_desde:String(x.vigencia_desde ?? x.convenio_vigencia_desde ?? "").slice(0,10),
     vigencia_hasta:String(x.vigencia_hasta ?? x.convenio_vigencia_hasta ?? "").slice(0,10),
+    verificado:x.verificado===true || x.convenio_verificado===true,
+    fuente_url:String(x.fuente_url ?? x.regcon_url ?? x.convenio_fuente_url ?? "").trim(),
+    documento_url:String(x.documento_url ?? x.pdf_url ?? x.convenio_documento_url ?? "").trim(),
+    documento_nombre:String(x.documento_nombre ?? x.convenio_documento_nombre ?? "").trim(),
+    ambito:String(x.ambito ?? x.convenio_ambito ?? "").trim(),
+    autoridad_laboral:String(x.autoridad_laboral ?? x.convenio_autoridad_laboral ?? "").trim(),
     vacaciones:numeroLaboral(x.vacaciones,30),
     vacaciones_tipo:String(x.vacaciones_tipo || "naturales")==="laborables" ? "laborables" : "naturales",
     asuntos_horas:numeroLaboral(x.asuntos_horas,0)
@@ -180,6 +187,7 @@ function normalizarConvenios(cfg){
     const migrado=normalizarConvenio({
       id:"principal",nombre:c.convenio,referencia:c.convenio_referencia,
       vigencia_desde:c.convenio_vigencia_desde,vigencia_hasta:c.convenio_vigencia_hasta,
+      verificado:c.convenio_verificado,fuente_url:c.convenio_fuente_url,documento_url:c.convenio_documento_url,documento_nombre:c.convenio_documento_nombre,ambito:c.convenio_ambito,autoridad_laboral:c.convenio_autoridad_laboral,
       vacaciones:c.vacaciones,vacaciones_tipo:c.vacaciones_tipo,asuntos_horas:c.asuntos_horas
     },0);
     if(migrado) lista.push(migrado);
@@ -203,6 +211,12 @@ function aplicarCatalogoConvenios(cfg){
     out.convenio_referencia=principal.referencia;
     out.convenio_vigencia_desde=principal.vigencia_desde;
     out.convenio_vigencia_hasta=principal.vigencia_hasta;
+    out.convenio_verificado=principal.verificado===true;
+    out.convenio_fuente_url=principal.fuente_url||"";
+    out.convenio_documento_url=principal.documento_url||"";
+    out.convenio_documento_nombre=principal.documento_nombre||"";
+    out.convenio_ambito=principal.ambito||"";
+    out.convenio_autoridad_laboral=principal.autoridad_laboral||"";
     out.vacaciones=principal.vacaciones;
     out.vacaciones_tipo=principal.vacaciones_tipo;
     out.asuntos_horas=principal.asuntos_horas;
