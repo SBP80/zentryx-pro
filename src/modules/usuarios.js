@@ -19,7 +19,7 @@
 // V3157 - LABORAL: CONSERVA PRECIO PROPIO AL USAR BASE DE EMPRESA
 // V3158 - LABORAL PRO: HERENCIA DE JORNADA, CONVENIO, VACACIONES, ASUNTOS Y CALENDARIO
 // V3160 - CONTROL RETIRADO DE PERMISOS + MEJORAS V3159
-// V3162 - RESUMEN LABORAL EN TIEMPO REAL + CACHE OFFLINE SIN CREDENCIALES
+// V3163 - RESUMEN LABORAL COMPLETO EN TIEMPO REAL + CACHE OFFLINE SIN CREDENCIALES
 // ===============================
 (function(){
 "use strict";
@@ -2728,8 +2728,8 @@ function resumenLaboral(l,consumo){
     <div class="zx_laboral_resumen">
       <div><b id="lab_res_horas_dia">${limpiar(l.horas_dia ?? 0)} h</b><span>Horas/día</span></div>
       <div><b id="lab_res_horas_semana">${limpiar(l.horas_semana ?? 0)} h</b><span>Horas/semana</span></div>
-      <div><b>${limpiar(l.vacaciones_dias ?? 0)} días</b><span>Vacaciones asignadas</span></div>
-      <div><b>${limpiar(l.asuntos_propios ?? 0)} h</b><span>Asuntos propios asignados</span></div>
+      <div><b id="lab_res_vacaciones">${limpiar(l.vacaciones_dias ?? 0)} días</b><span>Vacaciones asignadas</span></div>
+      <div><b id="lab_res_asuntos">${limpiar(l.asuntos_propios ?? 0)} h</b><span>Asuntos propios asignados</span></div>
     </div>
 
     ${bloqueConsumo}
@@ -2870,6 +2870,18 @@ function zxLabRefrescarResumenJornada(baseEmpresa){
   if(dia)dia.textContent=limpiar(Number((primer/60).toFixed(2)))+" h";
   if(semana)semana.textContent=limpiar(Number((total/60).toFixed(2)))+" h";
 }
+function zxLabRefrescarResumenVacaciones(baseEmpresa){
+  const hereda=document.getElementById("lab_hereda_vacaciones")?.checked===true;
+  const valor=hereda ? Number((baseEmpresa||{}).vacaciones||0) : numVal("lab_vacaciones",0);
+  const el=document.getElementById("lab_res_vacaciones");
+  if(el)el.textContent=limpiar(valor)+" días";
+}
+function zxLabRefrescarResumenAsuntos(baseEmpresa){
+  const hereda=document.getElementById("lab_hereda_asuntos")?.checked===true;
+  const valor=hereda ? Number((baseEmpresa||{}).asuntos_horas||0) : numVal("lab_asuntos",0);
+  const el=document.getElementById("lab_res_asuntos");
+  if(el)el.textContent=limpiar(valor)+" h";
+}
 function activarHerenciasLaboralPro(baseEmpresa){
   const grupos=[
     ["lab_hereda_jornada",ZX_LAB_DIAS_PRO.map(([k])=>"lab_j_"+k)],
@@ -2883,6 +2895,8 @@ function activarHerenciasLaboralPro(baseEmpresa){
     const f=()=>{
       zxLabDeshabilitar(ids,c.checked===true);
       if(checkId==="lab_hereda_jornada")zxLabRefrescarResumenJornada(baseEmpresa);
+      if(checkId==="lab_hereda_vacaciones")zxLabRefrescarResumenVacaciones(baseEmpresa);
+      if(checkId==="lab_hereda_asuntos")zxLabRefrescarResumenAsuntos(baseEmpresa);
     };
     c.onchange=f;f();
   });
@@ -2890,8 +2904,12 @@ function activarHerenciasLaboralPro(baseEmpresa){
     const el=document.getElementById("lab_j_"+k);
     if(el)el.addEventListener("input",()=>{zxLabRefrescarTotalPropio();zxLabRefrescarResumenJornada(baseEmpresa)});
   });
+  document.getElementById("lab_vacaciones")?.addEventListener("input",()=>zxLabRefrescarResumenVacaciones(baseEmpresa));
+  document.getElementById("lab_asuntos")?.addEventListener("input",()=>zxLabRefrescarResumenAsuntos(baseEmpresa));
   zxLabRefrescarTotalPropio();
   zxLabRefrescarResumenJornada(baseEmpresa);
+  zxLabRefrescarResumenVacaciones(baseEmpresa);
+  zxLabRefrescarResumenAsuntos(baseEmpresa);
 }
 
 async function verLaboralUsuario(u){
