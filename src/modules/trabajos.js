@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3228
+// ZENTRYX PRO - TRABAJOS V3229
+// V3229 - AUDITORÍA PERSISTENTE DE NOTAS/PARTES + VOLVER SIN DUPLICADOS
 // V3228 - AVISO DE FESTIVOS POR TRABAJADOR ANTES DE PROGRAMAR
 // V3227 - NOTAS: EDITAR/BORRAR DESDE HISTORIAL Y CONTADOR ACTUALIZADO
 // V3226 - CIERRE TOTAL: AVISO CORRECTO DE JORNADAS RESTANTES
@@ -8,7 +9,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3228";
+const ZX_VERSION="3229";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -878,6 +879,17 @@ async function registrarHistorial(trabajoId,tipo,notas,datos){
   }catch(e){
     return false;
   }
+}
+
+async function registrarAuditoriaTrabajo(trabajoId,entidad,accion,resumen,datos){
+  const detalle=Object.assign({
+    auditoria:true,
+    entidad:String(entidad || "actividad"),
+    accion:String(accion || "registro")
+  },datos || {});
+  const ok=await registrarHistorial(trabajoId,"auditoria",resumen,detalle);
+  if(!ok) console.warn("No se pudo registrar la auditoría del trabajo:",entidad,accion);
+  return ok;
 }
 
 async function cargarTrabajo(id){
@@ -3041,12 +3053,15 @@ async function abrirParteJornada(id,historialId){
       const datosParte={jornada_id:jornada?.id || datosExistentes.jornada_id || "",fecha_jornada:fecha,trabajo_realizado:trabajoRealizado,firmante:firmante,firma_url:firmaUrl,archivos:archivosGuardados,guardado_at:datosExistentes.guardado_at || new Date().toISOString(),actualizado_at:new Date().toISOString()};
       const notas=notasParteConDatos(trabajoRealizado || "Parte de jornada guardado.",datosParte);
       if(parteExistente){
+        const textoAnterior=String(datosExistentes.trabajo_realizado || notasParteSinDatos(parteExistente.notas || "")).trim();
         let r=await sb().from("trabajos_historial").update({notas:notas,datos:datosParte}).eq("id",String(parteExistente.id));
         if(r.error) r=await sb().from("trabajos_historial").update({notas:notas}).eq("id",String(parteExistente.id));
         if(r.error) throw r.error;
+        await registrarAuditoriaTrabajo(id,"parte","editar","Parte editado: "+textoAnterior+" → "+(trabajoRealizado || "Sin texto"),{historial_id:String(parteExistente.id),texto_anterior:textoAnterior,texto_nuevo:trabajoRealizado,fecha_jornada:fecha});
       }else{
         const ok=await registrarHistorial(id,"parte_jornada",notas,datosParte);
         if(!ok) throw new Error("No se pudo registrar el parte.");
+        await registrarAuditoriaTrabajo(id,"parte","crear","Parte creado: "+(trabajoRealizado || "Sin texto"),{texto_nuevo:trabajoRealizado,fecha_jornada:fecha});
       }
       window.dispatchEvent(new CustomEvent("zentryx:trabajos:actualizar",{detail:{trabajo_id:String(id),jornada_id:String(jornada?.id || "")}}));
       cerrarModal();await abrirFicha(id);
@@ -3095,6 +3110,7 @@ async function registrarNotaRapida(id){
       return;
     }
 
+    await registrarAuditoriaTrabajo(id,"nota","crear","Nota creada: "+nota,{texto_nuevo:nota});
     cerrarModal();
     abrirFicha(id);
   };
@@ -3156,9 +3172,11 @@ async function editarNotaRapidaExistente(historialId,trabajoId){
     if(!navigator.onLine || !sb()){alert("Necesitas conexión para modificar la nota.");return}
     const datos=Object.assign({},datosHistorial(h),{nota:nota});
     try{
+      const notaAnterior=String(h.notas || "").trim();
       let r=await sb().from("trabajos_historial").update({notas:nota,datos:datos}).eq("id",String(historialId));
       if(r.error) r=await sb().from("trabajos_historial").update({notas:nota}).eq("id",String(historialId));
       if(r.error) throw r.error;
+      await registrarAuditoriaTrabajo(idTrabajo,"nota","editar","Nota editada: "+notaAnterior+" → "+nota,{historial_id:String(historialId),texto_anterior:notaAnterior,texto_nuevo:nota});
       await abrirFicha(idTrabajo);
     }catch(e){
       alert("No se pudo modificar la nota.\n\n"+mensajeError(e));
@@ -3172,8 +3190,10 @@ async function borrarNotaRapida(historialId,trabajoId){
   try{
     const h=await cargarNotaPorId(historialId);
     const idTrabajo=trabajoId || h?.trabajo_id;
+    const textoAnterior=String(h?.notas || "").trim();
     const r=await sb().from("trabajos_historial").delete().eq("id",String(historialId));
     if(r.error) throw r.error;
+    await registrarAuditoriaTrabajo(idTrabajo,"nota","borrar","Nota eliminada: "+(textoAnterior || "Sin texto"),{historial_id:String(historialId),texto_anterior:textoAnterior});
     await abrirFicha(idTrabajo);
   }catch(e){
     alert("No se pudo eliminar la nota.\n\n"+mensajeError(e));
@@ -3843,7 +3863,7 @@ async function abrirFicha(id){
 }
 
 function renderNotasVisibles(hist){
-  const notas=(hist || []).filter(h=>normalizar(h.tipo).includes("nota") || normalizar(h.notas).startsWith("nota"));
+  const notas=(hist || []).filter(h=>normalizar(h.tipo || "")==="nota");
   if(!notas.length) return "";
   return `<details class="zx_tr_block zx_tr_notes_block zx_tr_secondary_details">
     <summary><span>📝 Notas</span><b>${notas.length}</b><em>Ver notas</em></summary>
@@ -5309,9 +5329,12 @@ async function borrarParteJornada(historialId,trabajoId){
     const r=await sb().from("trabajos_historial").select("*").eq("id",String(historialId)).maybeSingle();
     if(r.error || !r.data) throw r.error || new Error("No se encontró el parte.");
     const datos=datosHistorial(r.data);const rutas=(Array.isArray(datos.archivos)?datos.archivos:[]).map(a=>a.path || rutaStorageDesdeUrl(a.url||"")).filter(Boolean);
+    const idTrabajo=trabajoId || r.data.trabajo_id;
+    const textoAnterior=String(datos.trabajo_realizado || notasParteSinDatos(r.data.notas || "")).trim();
     const del=await sb().from("trabajos_historial").delete().eq("id",String(historialId));if(del.error) throw del.error;
     if(rutas.length){try{await sb().storage.from("zentryx-trabajos").remove(rutas)}catch(e){}}
-    await abrirFicha(trabajoId || r.data.trabajo_id);
+    await registrarAuditoriaTrabajo(idTrabajo,"parte","borrar","Parte eliminado: "+(textoAnterior || "Sin texto"),{historial_id:String(historialId),texto_anterior:textoAnterior,fecha_jornada:datos.fecha_jornada || "",archivos_eliminados:rutas.length,firma_eliminada:!!resumenFirmaParte(datos).firma});
+    await abrirFicha(idTrabajo);
   }catch(e){alert("No se pudo borrar el parte.\n\n"+mensajeError(e))}
 }
 function verFotoParte(url,nombre){
