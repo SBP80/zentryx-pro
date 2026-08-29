@@ -1,14 +1,15 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
-// V3119 - CONTROL UNIFICADO EN FICHAJE
+// V3120 - BACKEND CENTRALIZADO Y SESIÓN LOCAL REDUCIDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3119";
+const ZX_VERSION="3120";
 
-const SUPABASE_URL="https://idtaamivqbiuxtjywuux.supabase.co";
-const SUPABASE_KEY="sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx";
+const BACKEND_CONFIG=window.ZENTRYX_BACKEND_CONFIG || {};
+const SUPABASE_URL=String(BACKEND_CONFIG.url || "");
+const SUPABASE_KEY=String(BACKEND_CONFIG.publishableKey || "");
 
 const SESSION_KEY="zentryx_session";
 const USER_KEY="usuario";
@@ -104,7 +105,8 @@ function ahoraISO(){
 }
 
 function fechaISO(){
-  return new Date().toISOString().slice(0,10);
+  const d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
 
 function uuid(){
@@ -440,12 +442,14 @@ function getSupabase(){
   let cliente=window.sb || window.supabaseClient || null;
 
   if(!cliente){
-    if(!window.supabase || !window.supabase.createClient){
-      return null;
+    if(BACKEND_CONFIG && typeof BACKEND_CONFIG.createClient==="function"){
+      cliente=BACKEND_CONFIG.createClient();
+    }else if(window.supabase && typeof window.supabase.createClient==="function" && SUPABASE_URL && SUPABASE_KEY){
+      cliente=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
     }
-
-    cliente=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   }
+
+  if(!cliente) return null;
 
   const protegido=crearClienteSupabaseProtegido(cliente);
 
@@ -536,7 +540,7 @@ function configBase(){
       control_fichajes:false,
       configuracion:true,
       config_laboral:true,
-      solicitudes:true,
+      solicitudes:false,
       diagnostico:true
     }
   };
@@ -552,6 +556,8 @@ function leerConfig(){
   // Inicio y Ajustes son zonas protegidas para evitar dejar la aplicación sin salida.
   cfg.modulos.inicio=true;
   cfg.modulos.configuracion=true;
+  cfg.modulos.control_fichajes=false;
+  cfg.modulos.solicitudes=false;
 
   return cfg;
 }
@@ -563,6 +569,8 @@ function guardarConfig(config){
   next.modulos=Object.assign({},base.modulos,(config && config.modulos) || {});
   next.modulos.inicio=true;
   next.modulos.configuracion=true;
+  next.modulos.control_fichajes=false;
+  next.modulos.solicitudes=false;
 
   storageSet(CONFIG_KEY,next);
 
@@ -583,6 +591,8 @@ function modulosEmpresaNormalizados(modulos){
   const out=Object.assign({},base,modulos && typeof modulos==="object" ? modulos : {});
   out.inicio=true;
   out.configuracion=true;
+  out.control_fichajes=false;
+  out.solicitudes=false;
   return out;
 }
 
@@ -676,8 +686,21 @@ async function refrescarAccesoUsuarioActual(){
       });
       storageSet(SESSION_KEY,actualizado);
 
-      const local=usuarioLocal();
-      storageSet(USER_KEY,Object.assign({},local,r.data));
+      const local=Object.assign({},usuarioLocal(),r.data);
+      delete local.pin_hash;
+      const seguro=typeof window.ZENTRYX_sanitizeLocalUser==="function"
+        ? window.ZENTRYX_sanitizeLocalUser(local)
+        : {
+            id:local.id,
+            usuario:local.usuario || "",
+            nombre:local.nombre || local.usuario || "",
+            rol:local.rol || "Usuario",
+            empresa_id:local.empresa_id || "demo",
+            permisos:local.permisos && typeof local.permisos==="object" ? local.permisos : {},
+            activo:local.activo!==false,
+            estado:local.estado || ""
+          };
+      storageSet(USER_KEY,seguro);
       return usuarioActual();
     }
   }catch(e){
