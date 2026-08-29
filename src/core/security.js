@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - SECURITY
-// V3151
+// V3152 - PIN TEMPORAL LIGADO A USUARIO Y SESIÓN
 // ===============================
 (function(){
 "use strict";
@@ -37,6 +37,7 @@ function constantTimeEqual(a,b){
 
 
 const SESSION_PIN_PROOF_KEY="zentryx_session_pin_proof";
+const SESSION_PIN_PROOF_TTL_MS=30*60*1000;
 
 async function sha256Bytes(text){
   if(!window.crypto || !window.crypto.subtle) throw new Error("CRYPTO_UNAVAILABLE");
@@ -44,10 +45,39 @@ async function sha256Bytes(text){
   return new Uint8Array(result);
 }
 
+function currentSessionIdentity(){
+  try{
+    const session=JSON.parse(localStorage.getItem("zentryx_session") || "null");
+    if(!session || !session.id || !session.session_id) return null;
+    return {userId:String(session.id),sessionId:String(session.session_id)};
+  }catch(e){
+    return null;
+  }
+}
+
+function clearSessionPin(){
+  try{sessionStorage.removeItem(SESSION_PIN_PROOF_KEY)}catch(e){}
+}
+
 async function rememberSessionPin(pin){
+  const identity=currentSessionIdentity();
+  if(!identity){
+    clearSessionPin();
+    return false;
+  }
+
   const salt=window.crypto.getRandomValues(new Uint8Array(SALT_BYTES));
-  const proof=await sha256Bytes(bytesToBase64(salt)+":"+String(pin));
-  const data={salt:bytesToBase64(salt),proof:bytesToBase64(proof),createdAt:Date.now()};
+  const salt64=bytesToBase64(salt);
+  const proof=await sha256Bytes(salt64+":"+identity.userId+":"+identity.sessionId+":"+String(pin));
+  const createdAt=Date.now();
+  const data={
+    salt:salt64,
+    proof:bytesToBase64(proof),
+    userId:identity.userId,
+    sessionId:identity.sessionId,
+    createdAt:createdAt,
+    expiresAt:createdAt+SESSION_PIN_PROOF_TTL_MS
+  };
   try{sessionStorage.setItem(SESSION_PIN_PROOF_KEY,JSON.stringify(data));return true}
   catch(e){return false}
 }
@@ -57,15 +87,27 @@ async function verifySessionPin(pin){
     const raw=sessionStorage.getItem(SESSION_PIN_PROOF_KEY);
     if(!raw) return {ok:false,available:false};
     const data=JSON.parse(raw);
-    if(!data || !data.salt || !data.proof) return {ok:false,available:false};
-    const actual=await sha256Bytes(String(data.salt)+":"+String(pin));
-    const expected=base64ToBytes(data.proof);
-    return {ok:constantTimeEqual(actual,expected),available:true};
-  }catch(e){return {ok:false,available:false}}
-}
+    const identity=currentSessionIdentity();
+    const current=Date.now();
 
-function clearSessionPin(){
-  try{sessionStorage.removeItem(SESSION_PIN_PROOF_KEY)}catch(e){}
+    if(
+      !data || !identity || !data.salt || !data.proof ||
+      String(data.userId || "")!==identity.userId ||
+      String(data.sessionId || "")!==identity.sessionId ||
+      !Number.isFinite(Number(data.expiresAt)) || current>=Number(data.expiresAt)
+    ){
+      clearSessionPin();
+      return {ok:false,available:false};
+    }
+
+    const actual=await sha256Bytes(String(data.salt)+":"+identity.userId+":"+identity.sessionId+":"+String(pin));
+    const expected=base64ToBytes(data.proof);
+    const ok=constantTimeEqual(actual,expected);
+    return {ok:ok,available:true};
+  }catch(e){
+    clearSessionPin();
+    return {ok:false,available:false};
+  }
 }
 
 function legacyHash(pin){
