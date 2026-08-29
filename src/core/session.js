@@ -1,17 +1,18 @@
 // ===============================
 // ZENTRYX PRO - SESSION
-// V3154 - SESIÓN LOCAL REDUCIDA Y PIN TEMPORAL AISLADO
+// V3155 - CIERRE DE SESIÓN BLOQUEADO CONTRA RESTAURACIÓN PWA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3154";
+const ZX_VERSION="3155";
 const ZX_APP_VERSION=String(window.ZX_VERSION || "3444");
 
 const SESSION_KEY="zentryx_session";
 const USER_KEY="usuario";
 const DEVICE_KEY="zentryx_device_id";
 const SESSION_EVENT_KEY="zentryx_session_event";
+const LOGOUT_GUARD_KEY="zentryx_logout_guard";
 
 const LOGIN_URL="index.html?v="+ZX_APP_VERSION+"&t="+Date.now();
 const APP_URL="app.html?v="+ZX_APP_VERSION+"&t="+Date.now();
@@ -262,7 +263,25 @@ function updateActivity(force){
   return saved;
 }
 
+function logoutGuardActive(){
+  try{
+    const value=Number(localStorage.getItem(LOGOUT_GUARD_KEY) || 0);
+    return value>0 && (now()-value)<10*60*1000;
+  }catch(error){
+    return false;
+  }
+}
+
+function markLoggedOut(){
+  try{ localStorage.setItem(LOGOUT_GUARD_KEY,String(now())); }catch(error){}
+}
+
+function clearLogoutGuard(){
+  try{ localStorage.removeItem(LOGOUT_GUARD_KEY); }catch(error){}
+}
+
 function createSession(usuario){
+  clearLogoutGuard();
   if(!usuario || usuario.id===null || usuario.id===undefined || !usuario.usuario){
     return false;
   }
@@ -313,12 +332,19 @@ function redirect(url){
 }
 
 function logout(){
+  markLoggedOut();
   clearSession();
-  redirect(LOGIN_URL);
+  redirect("index.html?logout=1&v="+ZX_APP_VERSION+"&t="+Date.now());
 }
 
 function protectApp(){
   if(!isAppPage()) return true;
+
+  if(logoutGuardActive()){
+    clearSession({broadcast:false});
+    redirect("index.html?logout=1&v="+ZX_APP_VERSION+"&t="+Date.now());
+    return false;
+  }
 
   if(!sessionValid()){
     clearSession();
@@ -331,6 +357,13 @@ function protectApp(){
 
 function protectLogin(){
   if(!isLoginPage()) return false;
+
+  let forced=false;
+  try{ forced=new URLSearchParams(location.search).get("logout")==="1"; }catch(error){}
+  if(forced || logoutGuardActive()){
+    clearSession({broadcast:false});
+    return false;
+  }
 
   if(sessionValid()){
     updateActivity(true);
@@ -407,11 +440,19 @@ window.ZENTRYX_clearSession=clearSession;
 window.ZENTRYX_updateActivity=updateActivity;
 window.ZENTRYX_getDeviceId=getDeviceId;
 window.ZENTRYX_sanitizeLocalUser=sanitizeLocalUser;
+window.ZENTRYX_logoutGuardActive=logoutGuardActive;
 
 sanitizeStoredUser();
 protectApp();
 protectLogin();
 startActivityControl();
+
+window.addEventListener("pageshow",function(){
+  if(isAppPage() && logoutGuardActive()){
+    clearSession({broadcast:false});
+    redirect("index.html?logout=1&v="+ZX_APP_VERSION+"&t="+Date.now());
+  }
+});
 
 console.log("Zentryx session.js V"+ZX_VERSION+" cargado");
 
