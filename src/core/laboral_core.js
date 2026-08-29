@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - LABORAL CORE V1005
+// ZENTRYX PRO - LABORAL CORE V1006
 // Configuración base de empresa, calendario laboral y festivos aplicables.
 // ===============================
 (function(){
 "use strict";
 
-const VERSION="1005";
+const VERSION="1006";
 const EMPRESA_TABLE="config_empresa";
 const FESTIVOS_TABLE="festivos";
 const HORARIOS_TABLE="horarios_usuario";
@@ -144,6 +144,7 @@ function baseLaboral(){
     version:2,
     lunes:480,martes:480,miercoles:480,jueves:480,viernes:480,sabado:0,domingo:0,horas_semana:40,
     convenio:"Metal",convenio_referencia:"",convenio_vigencia_desde:"",convenio_vigencia_hasta:"",
+    convenios:[],
     vacaciones:30,vacaciones_tipo:"naturales",asuntos_horas:16,
     precio_hora:0,precio_extra:0,precio_extra_nocturna:0,precio_extra_festiva:0,
     regla_festivo_nocturno:"festivo",
@@ -152,6 +153,62 @@ function baseLaboral(){
   };
 }
 function unirLaboral(base,data){return Object.assign({},base||{},data&&typeof data==="object"?data:{})}
+
+function idConvenio(v){
+  return normalizar(v).replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || "convenio";
+}
+function normalizarConvenio(c,idx=0){
+  const x=objetoLaboral(c);
+  const nombre=String(x.nombre ?? x.convenio ?? "").trim();
+  if(!nombre) return null;
+  return {
+    id:String(x.id || (idConvenio(nombre)+"-"+String(idx+1))).trim(),
+    nombre,
+    referencia:String(x.referencia ?? x.convenio_referencia ?? "").trim(),
+    vigencia_desde:String(x.vigencia_desde ?? x.convenio_vigencia_desde ?? "").slice(0,10),
+    vigencia_hasta:String(x.vigencia_hasta ?? x.convenio_vigencia_hasta ?? "").slice(0,10),
+    vacaciones:numeroLaboral(x.vacaciones,30),
+    vacaciones_tipo:String(x.vacaciones_tipo || "naturales")==="laborables" ? "laborables" : "naturales",
+    asuntos_horas:numeroLaboral(x.asuntos_horas,0)
+  };
+}
+function normalizarConvenios(cfg){
+  const c=objetoLaboral(cfg);
+  const raw=Array.isArray(c.convenios) ? c.convenios : [];
+  const lista=raw.map((x,i)=>normalizarConvenio(x,i)).filter(Boolean);
+  if(!lista.length && String(c.convenio||"").trim()){
+    const migrado=normalizarConvenio({
+      id:"principal",nombre:c.convenio,referencia:c.convenio_referencia,
+      vigencia_desde:c.convenio_vigencia_desde,vigencia_hasta:c.convenio_vigencia_hasta,
+      vacaciones:c.vacaciones,vacaciones_tipo:c.vacaciones_tipo,asuntos_horas:c.asuntos_horas
+    },0);
+    if(migrado) lista.push(migrado);
+  }
+  const vistos=new Set();
+  return lista.filter(x=>{const k=normalizar(x.nombre)+"|"+normalizar(x.referencia);if(vistos.has(k))return false;vistos.add(k);return true});
+}
+function buscarConvenio(cfg,idONombre){
+  const q=String(idONombre||"").trim(); if(!q)return null;
+  const nq=normalizar(q);
+  return normalizarConvenios(cfg).find(x=>String(x.id)===q || normalizar(x.nombre)===nq) || null;
+}
+function aplicarCatalogoConvenios(cfg){
+  const out=cfg;
+  out.convenios=normalizarConvenios(out);
+  let principal=buscarConvenio(out,out.convenio_id || out.convenio);
+  if(!principal && out.convenios.length) principal=out.convenios[0];
+  if(principal){
+    out.convenio_id=principal.id;
+    out.convenio=principal.nombre;
+    out.convenio_referencia=principal.referencia;
+    out.convenio_vigencia_desde=principal.vigencia_desde;
+    out.convenio_vigencia_hasta=principal.vigencia_hasta;
+    out.vacaciones=principal.vacaciones;
+    out.vacaciones_tipo=principal.vacaciones_tipo;
+    out.asuntos_horas=principal.asuntos_horas;
+  }
+  return out;
+}
 
 function objetoLaboral(v){return v && typeof v==="object" && !Array.isArray(v) ? v : {}}
 function metaLaboral(h){return objetoLaboral(h && h.laboral_meta)}
@@ -207,7 +264,7 @@ async function cargarBaseEmpresa(){
   const cached=datoCache(key);
 
   if(!cliente || sinConexion()){
-    const out=unirLaboral(fallback,cached && typeof cached==="object" ? cached : {});
+    const out=aplicarCatalogoConvenios(unirLaboral(fallback,cached && typeof cached==="object" ? cached : {}));
     out.horas_semana=Number((totalSemanal(out)/60).toFixed(2));
     out.pais_codigo=out.pais_codigo || codigoPais(out.pais);
     return out;
@@ -217,7 +274,7 @@ async function cargarBaseEmpresa(){
     const r=await cliente.from(EMPRESA_TABLE).select("empresa_id,laboral").eq("empresa_id",empresaId()).maybeSingle();
     if(!r.error){
       const remoto=r.data && r.data.laboral && typeof r.data.laboral==="object" ? r.data.laboral : {};
-      const out=unirLaboral(fallback,remoto);
+      const out=aplicarCatalogoConvenios(unirLaboral(fallback,remoto));
       out.horas_semana=Number((totalSemanal(out)/60).toFixed(2));
       out.pais_codigo=out.pais_codigo || codigoPais(out.pais);
       guardarCache(key,out);
@@ -225,7 +282,7 @@ async function cargarBaseEmpresa(){
     }
   }catch(e){}
 
-  const out=unirLaboral(fallback,cached && typeof cached==="object" ? cached : {});
+  const out=aplicarCatalogoConvenios(unirLaboral(fallback,cached && typeof cached==="object" ? cached : {}));
   out.horas_semana=Number((totalSemanal(out)/60).toFixed(2));
   out.pais_codigo=out.pais_codigo || codigoPais(out.pais);
   return out;
@@ -235,7 +292,7 @@ async function guardarBaseEmpresa(data){
   const cliente=sb();
   if(!cliente || sinConexion()) return {error:new Error("Sin conexión con la base de datos")};
   const s=sesion();
-  const laboral=unirLaboral(baseLaboral(),data);
+  const laboral=aplicarCatalogoConvenios(unirLaboral(baseLaboral(),data));
   laboral.horas_semana=Number((totalSemanal(laboral)/60).toFixed(2));
   laboral.pais_codigo=laboral.pais_codigo || codigoPais(laboral.pais);
   const fila={empresa_id:empresaId(),laboral:laboral,updated_at:new Date().toISOString(),updated_by:s.usuario||s.id||""};
@@ -267,18 +324,31 @@ async function resolverUsuario(usuarioId){
       });
     }
 
+    let convenioPersonal=null;
     if(meta.hereda_convenio!==true){
       const c=objetoLaboral(meta.convenio_propio);
-      out.convenio=String(c.nombre ?? h.convenio ?? "");
-      out.convenio_referencia=String(c.referencia ?? "");
-      out.convenio_vigencia_desde=String(c.vigencia_desde ?? "");
-      out.convenio_vigencia_hasta=String(c.vigencia_hasta ?? "");
+      convenioPersonal=buscarConvenio(base,c.id || c.nombre) || normalizarConvenio(c,0);
+      if(convenioPersonal){
+        out.convenio_id=convenioPersonal.id;
+        out.convenio=convenioPersonal.nombre;
+        out.convenio_referencia=convenioPersonal.referencia;
+        out.convenio_vigencia_desde=convenioPersonal.vigencia_desde;
+        out.convenio_vigencia_hasta=convenioPersonal.vigencia_hasta;
+      }else{
+        out.convenio=String(c.nombre ?? h.convenio ?? "");
+        out.convenio_referencia=String(c.referencia ?? "");
+        out.convenio_vigencia_desde=String(c.vigencia_desde ?? "");
+        out.convenio_vigencia_hasta=String(c.vigencia_hasta ?? "");
+      }
     }
 
     if(meta.hereda_vacaciones!==true){
       const v=objetoLaboral(meta.vacaciones_propias);
       out.vacaciones=numeroLaboral(v.dias!==undefined ? v.dias : h.vacaciones,0);
       out.vacaciones_tipo=String(v.tipo || out.vacaciones_tipo || "naturales");
+    }else if(convenioPersonal){
+      out.vacaciones=numeroLaboral(convenioPersonal.vacaciones,out.vacaciones);
+      out.vacaciones_tipo=String(convenioPersonal.vacaciones_tipo || out.vacaciones_tipo || "naturales");
     }
 
     if(meta.hereda_asuntos!==true){
@@ -286,6 +356,8 @@ async function resolverUsuario(usuarioId){
         ? meta.asuntos_propios_horas
         : (h.asuntos_horas ?? h.asuntos);
       out.asuntos_horas=numeroLaboral(a,0);
+    }else if(convenioPersonal){
+      out.asuntos_horas=numeroLaboral(convenioPersonal.asuntos_horas,out.asuntos_horas);
     }
 
     if(meta.hereda_calendario!==true){
@@ -479,7 +551,7 @@ async function buscarLocalidades(texto,paisCodigo="ES"){
 }
 
 window.ZENTRYX_LABORAL={
-  version:VERSION,empresaId,baseLaboral,cargarBaseEmpresa,guardarBaseEmpresa,horarioUsuario,resolverUsuario,
+  version:VERSION,empresaId,baseLaboral,cargarBaseEmpresa,guardarBaseEmpresa,horarioUsuario,resolverUsuario,normalizarConvenios,buscarConvenio,
   festivosAplicables,festivosUsuarioEnFecha,eventosFestivosRango,avisosPlanificacion,guardarFestivosOficiales,oficialMadrid2026,
   ambitoFestivo,aplicaFestivo,comunidadDeProvincia,codigoPais,buscarLocalidades,
   geo:{comunidades:COMUNIDADES,provincias:PROVINCIAS,provinciasPorComunidad:PROVINCIAS_POR_COMUNIDAD,localidadesFallback:LOCALIDADES_FALLBACK}
