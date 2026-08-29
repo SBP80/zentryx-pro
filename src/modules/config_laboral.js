@@ -9,11 +9,12 @@
 // V3072 - ESTADO REGCON GUARDADO DESDE EL SELECTOR VISUAL
 // V3073 - DESCARGA PDF CON CONTENT-DISPOSITION EN SUPABASE
 // V3074 - DESCARGA IPHONE COMO ARCHIVO + GUARDAR EN ARCHIVOS
+// V3075 - IMPRESION IPHONE DESDE HOJA NATIVA CON PDF
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3074";
+const ZX_VERSION="3075";
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
 function laboral(){return window.ZENTRYX_LABORAL || null}
@@ -104,7 +105,12 @@ async function compartirDocumentoConvenio(c){
 }
 async function imprimirDocumentoConvenio(c){
   const url=urlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
-  try{const b=await blobConvenio(c);const u=URL.createObjectURL(b),w=window.open(u,"_blank");if(w){setTimeout(()=>{try{w.print()}catch(e){}},1200);setTimeout(()=>URL.revokeObjectURL(u),60000);return}}catch(e){}
+  try{
+    const b=await blobConvenio(c),nombre=nombreDocumentoConvenio(c),file=new File([b],nombre,{type:b.type||"application/pdf"});
+    // iPhone/iPad PWA: la hoja nativa muestra la accion Imprimir para el PDF.
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:nombre});return}
+    const u=URL.createObjectURL(b),w=window.open(u,"_blank");if(w){setTimeout(()=>{try{w.print()}catch(e){}},800);setTimeout(()=>URL.revokeObjectURL(u),60000);return}
+  }catch(e){if(e?.name==="AbortError")return}
   window.open(url,"_blank","noopener");
 }
 function actualizarAccionesDocumentoConvenio(c){
