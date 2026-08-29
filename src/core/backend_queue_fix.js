@@ -1,9 +1,9 @@
 // ZENTRYX PRO - backend_queue_fix.js
-// V1003 - REPARACIÓN DE COLA GPS Y MATERIALES ANTIGUOS
+// V1004 - NO REACTIVA OPERACIONES YA SINCRONIZADAS
 (function(){
 "use strict";
 
-const FIX_VERSION="1003";
+const FIX_VERSION="1004";
 const QUEUE_KEY="zentryx_backend_queue";
 let sincronizacionAutomaticaLanzada=false;
 
@@ -90,13 +90,15 @@ function esErrorReparable(item){
   );
 }
 
-function corregirOperacion(item){
+function corregirOperacion(item,opciones){
   if(!item || typeof item!=="object") return item;
 
   const copia={...item};
   copia.data=corregirDato(copia.table,copia.data);
 
-  if(esErrorReparable(copia) || copia.status==="error"){
+  const reintentarTodos=!!(opciones && opciones.reintentarTodosLosErrores);
+  const esError=copia.status==="error";
+  if(esError && (reintentarTodos || esErrorReparable(copia))){
     copia.status="pending";
     copia.attempts=0;
     copia.reason="";
@@ -218,27 +220,27 @@ function instalar(){
   const syncOriginal=typeof backend.sync==="function" ? backend.sync.bind(backend) : null;
   const addOriginal=typeof backend.queue.add==="function" ? backend.queue.add.bind(backend.queue) : null;
 
-  if(insertOriginal && !backend.insert.__zxV1003){
+  if(insertOriginal && !backend.insert.__zxV1004){
     const fn=function(tabla,data,opciones){
       return insertOriginal(tabla,corregirDato(tabla,data),opciones);
     };
-    fn.__zxV1003=true;
+    fn.__zxV1004=true;
     backend.insert=fn;
   }
 
-  if(upsertOriginal && !backend.upsert.__zxV1003){
+  if(upsertOriginal && !backend.upsert.__zxV1004){
     const fn=function(tabla,data,opciones){
       return upsertOriginal(tabla,corregirDato(tabla,data),opciones);
     };
-    fn.__zxV1003=true;
+    fn.__zxV1004=true;
     backend.upsert=fn;
   }
 
-  if(updateOriginal && !backend.update.__zxV1003){
+  if(updateOriginal && !backend.update.__zxV1004){
     const fn=function(tabla,data,opciones){
       return updateOriginal(tabla,corregirDato(tabla,data),opciones);
     };
-    fn.__zxV1003=true;
+    fn.__zxV1004=true;
     backend.update=fn;
   }
 
@@ -256,8 +258,8 @@ function instalar(){
     const antes=leerCola();
     let reactivadas=0;
     const nueva=antes.map(function(item){
-      const corregida=corregirOperacion(item);
-      if(JSON.stringify(item)!==JSON.stringify(corregida)) reactivadas++;
+      const corregida=corregirOperacion(item,{reintentarTodosLosErrores:true});
+      if(item && item.status==="error" && corregida && corregida.status==="pending") reactivadas++;
       return corregida;
     });
     guardarCola(nueva);
