@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V3447</title>
+<title>Zentryx PRO V3449</title>
 
 <link rel="manifest" href="manifest.json?v=3444">
 <meta name="theme-color" content="#2563eb">
@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3445";
+window.ZX_VERSION="3449";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -30,11 +30,11 @@ window.ZX_VERSION="3445";
 <script src="src/app.js?v=3120&build=20260829a"></script>
 <script src="src/core/laboral_core.js?v=1008&build=20260829d"></script>
 
-<script src="src/ui/layout.js?v=3157&build=20260829a"></script>
+<script src="src/ui/layout.js?v=3158&build=20260829f"></script>
 
 <script src="src/modules/inicio.js?v=3162&build=20260826c"></script>
 <script src="src/modules/usuarios.js?v=3166&build=20260829d"></script>
-<script src="src/modules/config_laboral.js?v=3067&build=20260829d"></script>
+<script src="src/modules/config_laboral.js?v=3068&build=20260829e"></script>
 <script src="src/modules/configuracion.js?v=3119&build=20260829a"></script>
 <script src="src/modules/fichaje.js?v=3151&build=20260827g"></script>
 <script src="src/modules/horas_extra.js?v=3087&build=20260828d"></script>
@@ -193,7 +193,7 @@ if(document.readyState==="loading"){
 
   function instalarEn(root){
     if(!root || !root.isConnected) return;
-    if(root.id==="zx_modal_vehiculo" || root.querySelector(".zx_modal_top_actions")) return;
+    if(root.id==="zx_modal_vehiculo" || root.id==="zx_modal_convenio" || root.querySelector(".zx_modal_top_actions")) return;
 
     const caja=cajaDe(root);
     if(!caja) return;
