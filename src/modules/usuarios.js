@@ -22,11 +22,12 @@
 // V3163 - RESUMEN LABORAL COMPLETO EN TIEMPO REAL + CACHE OFFLINE SIN CREDENCIALES
 // V3164 - CONVENIO DEL TRABAJADOR DESDE CATALOGO DE EMPRESA
 // V3166 - PUBLICACION OFICIAL + DOCUMENTO APLICADO DEL CONVENIO
+// V3167 - DESCARGA PDF CON CONTENT-DISPOSITION EN SUPABASE
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3166";
+window.ZX_USUARIOS_VERSION="3167";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -2875,9 +2876,18 @@ async function zxLabBlobConvenio(c){
   const url=zxLabUrlSegura(c?.documento_url);if(!url)throw new Error("Este convenio no tiene documento asociado.");
   const r=await fetch(url,{credentials:"omit"});if(!r.ok)throw new Error("No se pudo abrir el documento.");return await r.blob();
 }
+function zxLabUrlDescargaConvenio(c,url){
+  try{
+    const u=new URL(url,location.href);
+    if(/\.supabase\.co$/i.test(u.hostname)&&u.pathname.includes("/storage/v1/object/public/")){u.searchParams.set("download",zxLabNombreDocumentoConvenio(c));return u.toString()}
+  }catch(e){}
+  return "";
+}
 async function zxLabDescargarConvenio(c){
   const url=zxLabUrlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
-  try{const b=await zxLabBlobConvenio(c),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=zxLabNombreDocumentoConvenio(c);document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}catch(e){window.open(url,"_blank","noopener")}
+  const descarga=zxLabUrlDescargaConvenio(c,url);
+  if(descarga){const a=document.createElement("a");a.href=descarga;a.download=zxLabNombreDocumentoConvenio(c);a.rel="noopener";document.body.appendChild(a);a.click();a.remove();return}
+  try{const b=await zxLabBlobConvenio(c),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=zxLabNombreDocumentoConvenio(c);document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),10000)}catch(e){window.open(url,"_blank","noopener")}
 }
 async function zxLabCompartirConvenio(c){
   const url=zxLabUrlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
