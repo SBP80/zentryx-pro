@@ -7,11 +7,12 @@
 // V3070 - SELECTORES REGCON/DOCUMENTO PROPIOS PARA IPHONE
 // V3071 - GUARDADO REAL INMEDIATO DEL CATALOGO DE CONVENIOS
 // V3072 - ESTADO REGCON GUARDADO DESDE EL SELECTOR VISUAL
+// V3073 - DESCARGA PDF CON CONTENT-DISPOSITION EN SUPABASE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3072";
+const ZX_VERSION="3073";
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
 function laboral(){return window.ZENTRYX_LABORAL || null}
@@ -75,9 +76,18 @@ async function blobConvenio(c){
   return await r.blob();
 }
 function nombreDocumentoConvenio(c){return String(c?.documento_nombre||((c?.nombre||"convenio")+".pdf")).replace(/[\\/:*?"<>|]+/g,"-")}
+function urlDescargaDocumentoConvenio(c,url){
+  try{
+    const u=new URL(url,location.href);
+    if(/\.supabase\.co$/i.test(u.hostname)&&u.pathname.includes("/storage/v1/object/public/")){u.searchParams.set("download",nombreDocumentoConvenio(c));return u.toString()}
+  }catch(e){}
+  return "";
+}
 async function descargarDocumentoConvenio(c){
   const url=urlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
-  try{const b=await blobConvenio(c);const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=nombreDocumentoConvenio(c);document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}catch(e){window.open(url,"_blank","noopener")}
+  const descarga=urlDescargaDocumentoConvenio(c,url);
+  if(descarga){const a=document.createElement("a");a.href=descarga;a.download=nombreDocumentoConvenio(c);a.rel="noopener";document.body.appendChild(a);a.click();a.remove();return}
+  try{const b=await blobConvenio(c);const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=nombreDocumentoConvenio(c);document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),10000)}catch(e){window.open(url,"_blank","noopener")}
 }
 async function compartirDocumentoConvenio(c){
   const url=urlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
