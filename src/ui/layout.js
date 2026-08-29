@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3156 - CONTROL RETIRADO Y REDIRIGIDO A FICHAJE
+// V3157 - FECHA LOCAL Y RUTA ANTIGUA REDIRIGIDA A FICHAJE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3156";
+const ZX_VERSION="3157";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -126,7 +126,8 @@ function puedeUsarNotasRapidas(){
 }
 
 function hoyISO(){
-  return new Date().toISOString().slice(0,10);
+  const d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
 
 function formatoFechaES(f){
@@ -3297,7 +3298,9 @@ function activo(nombre){
 
 function zxRouterNormalizarModulo(modulo){
   const id=String(modulo || "").trim().toLowerCase();
-  return id==="horas" ? "horas_extra" : id;
+  if(id==="horas") return "horas_extra";
+  if(id==="control" || id==="control_fichajes") return "fichaje";
+  return id;
 }
 
 function zxRouterLeerJSON(clave,defecto){
@@ -3317,13 +3320,22 @@ function zxRouterSelectorSeguro(valor){
   try{return CSS.escape(String(valor || ""))}catch(e){return String(valor || "").replace(/["\\]/g,"\\$&")}
 }
 
+function zxRouterCampoSensible(el){
+  if(!el) return true;
+  const tipo=String(el.type || "").toLowerCase();
+  if(tipo==="password" || tipo==="file" || tipo==="hidden") return true;
+
+  const referencia=[el.id,el.name,el.autocomplete].filter(Boolean).join(" ").toLowerCase();
+  return /(^|[_\-\s])(pin|password|passwd|secret|token|hash|dni|nie|nif|cif|iban|firma|signature|telefono|phone|email|direccion|address)([_\-\s]|$)/i.test(referencia);
+}
+
 function zxRouterCapturarContexto(modulo){
   const id=zxRouterNormalizarModulo(modulo || leerModuloActual());
   if(!id || !app()) return null;
 
   const campos={};
   app().querySelectorAll('input[id],select[id],textarea[id]').forEach(function(el){
-    if(el.type==="password" || el.type==="file") return;
+    if(zxRouterCampoSensible(el)) return;
     campos[el.id]={
       value:el.type==="checkbox" || el.type==="radio" ? !!el.checked : el.value,
       tipo:el.type || el.tagName.toLowerCase()
@@ -3458,7 +3470,6 @@ function zxRouterEjecutarModulo(id){
     almacen:window.ZX_abrirAlmacen || window.ZX_almacen,
     usuarios:window.ZX_usuarios,
     horas_extra:window.ZX_abrirHorasExtra,
-    control_fichajes:window.ZX_abrirFichaje,
     vehiculos:window.ZX_vehiculos,
     manual:window.ZX_abrirManual || window.ZX_manual,
     desarrollador:window.ZX_abrirDesarrollador,
