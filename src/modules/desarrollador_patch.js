@@ -1,9 +1,9 @@
 // ZENTRYX PRO - desarrollador_patch.js
-// V1002 - TABLAS MÓVIL, CACHÉ Y ESTADOS
+// V1003 - TABLAS MÓVIL, CACHÉ Y ESTADOS
 (function(){
 "use strict";
 
-const PATCH_VERSION="1002";
+const PATCH_VERSION="1003";
 const VERSION_CACHE_KEEP=2;
 
 function esClaveCache(k){
@@ -11,9 +11,9 @@ function esClaveCache(k){
 }
 
 function instalarCSS(){
-  if(document.getElementById("zx_dev_patch_css_v1001")) return;
+  if(document.getElementById("zx_dev_patch_css_v1003")) return;
   const st=document.createElement("style");
-  st.id="zx_dev_patch_css_v1001";
+  st.id="zx_dev_patch_css_v1003";
   st.textContent=`
     .zx_dev_table{table-layout:fixed!important;width:100%!important}
     .zx_dev_table td{
@@ -206,23 +206,6 @@ function hacerDesplegable(card,titulo){
   card.appendChild(details);
 }
 
-function corregirModuloControl(root){
-  const card=root.querySelector('[data-zx-dev-section="modules"]');
-  if(!card) return;
-  card.querySelectorAll("tr").forEach(function(tr){
-    const celdas=tr.querySelectorAll("td");
-    if(celdas.length<3) return;
-    if((celdas[0].textContent||"").trim()!=="control_fichajes") return;
-    celdas[2].innerHTML='<span style="color:#64748b;font-weight:950">Desactivado</span>';
-    if(!tr.nextElementSibling || !tr.nextElementSibling.classList.contains("zx_dev_control_note")){
-      const nota=document.createElement("tr");
-      nota.className="zx_dev_control_note";
-      nota.innerHTML='<td colspan="3"><div class="zx_dev_note">Desactivado de forma intencionada: es una copia antigua que interfería con Fichaje.</div></td>';
-      tr.insertAdjacentElement("afterend",nota);
-    }
-  });
-}
-
 function mejorarPanel(){
   const root=document.getElementById("app");
   if(!root || !root.querySelector(".zx_dev_grid")) return;
@@ -262,7 +245,6 @@ function mejorarPanel(){
   const localCard=root.querySelector('[data-zx-dev-section="localstorage"]');
   if(localCard) hacerDesplegable(localCard,"Mostrar claves locales");
 
-  corregirModuloControl(root);
 }
 
 function envolverRender(){
