@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - PANEL DESARROLLADOR
-// V3125 - DIAGNÓSTICO DE COLA, META Y LOGS
+// V3126 - DIAGNÓSTICO SIN MÓDULOS RETIRADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_DEV_VERSION="3125";
+const ZX_DEV_VERSION="3126";
 const LOG_KEY="zentryx_dev_logs";
 const MAX_LOGS=180;
 const MAX_LOG_DAYS=14;
@@ -307,7 +307,7 @@ function renderAccesos(){
     ["Almacén","ZX_abrirAlmacen"],
     ["Usuarios","ZX_usuarios"],
     ["Horas","ZX_abrirHorasExtra"],
-    ["Control","ZX_abrirControlFichajes"],
+    ["Manual","ZX_abrirManual"],
     ["Vehículos","ZX_vehiculos"],
     ["Ajustes","ZX_configuracion"]
   ];
@@ -323,7 +323,7 @@ function renderAccesos(){
 }
 
 function modulos(){
-  const nombres=["inicio","fichaje","agenda","clientes","trabajos","almacen","usuarios","horas_extra","control_fichajes","vehiculos","configuracion","desarrollador"];
+  const nombres=["inicio","fichaje","agenda","clientes","trabajos","almacen","usuarios","horas_extra","manual","vehiculos","configuracion","desarrollador"];
   const funciones={
     inicio:"ZENTRYX_UI_inicio",
     fichaje:"ZX_fichaje_real",
@@ -333,7 +333,7 @@ function modulos(){
     almacen:"ZX_almacen",
     usuarios:"ZENTRYX_UI_usuarios",
     horas_extra:"ZX_horas_extra",
-    control_fichajes:"ZX_control_fichajes",
+    manual:"ZX_abrirManual",
     vehiculos:"ZX_vehiculos",
     configuracion:"ZX_configuracion",
     desarrollador:"ZX_desarrollador"
