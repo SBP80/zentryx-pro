@@ -6,20 +6,21 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO</title>
+<title>Zentryx PRO V3444</title>
 
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json?v=3444">
 <meta name="theme-color" content="#2563eb">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-const ZX_VERSION="3157";
-const ZX_APP_VERSION="3443";
+const ZX_VERSION="3444";
+const ZX_APP_VERSION="3444";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="src/core/backend_config.js?v=1001"></script>
 
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -58,7 +59,7 @@ input:disabled{opacity:.65;background:#f1f5f9}
 @media(max-width:430px){body{padding:18px;align-items:flex-start;padding-top:48px}.logo{width:82px;height:82px;font-size:48px;border-radius:24px}.brand h1{font-size:34px}.box{padding:22px;border-radius:26px}.box h2{font-size:30px}.user_name{font-size:18px}.user_card{grid-template-columns:58px 1fr}.user_avatar{width:58px;height:58px}}
 </style>
 
-<script src="src/core/store.js?v=3403"></script>
+<script src="src/core/store.js?v=3110&build=20260829a"></script>
 
 <style id="zx_login_theme_css">
 /* zx-theme-no-patch */
@@ -283,7 +284,7 @@ body.zx_login_page.zx_alto_contraste .user_card{
 
   <div class="box" id="app"></div>
 
-  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3157 LOGIN</div>
+  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3444 LOGIN</div>
 </div>
 
 <script>
@@ -293,16 +294,10 @@ const ZX_LOGIN_LOCKS="zentryx_login_locks";
 const ZX_DEV_PIN_KEY="zentryx_dev_pin_hash";
 const ZX_DEV_LAST_KEY="zentryx_dev_last_access";
 
-window.sb=supabase.createClient(
-  "https://idtaamivqbiuxtjywuux.supabase.co",
-  "sb_publishable_ToDLKonbF2QnTXi56o1nfQ_10IdaPJx"
-);
-window.supabaseClient=window.sb;
 </script>
 
-<script src="src/app.js?v=3117&build=20260826a"></script>
-<script src="src/core/security.js?v=3403"></script>
-<script src="src/core/session.js?v=3153&build=20260826a"></script>
+<script src="src/core/security.js?v=3152&build=20260829a"></script>
+<script src="src/core/session.js?v=3154&build=20260829a"></script>
 
 <script>
 let usuarioActual=null;
@@ -337,19 +332,23 @@ function guardarSesionDesarrollador(){
   const u=cuentaDesarrollador();
   const ahora=new Date().toISOString();
 
-  localStorage.setItem("zentryx_session",JSON.stringify({
-    id:u.id,
-    usuario:u.usuario,
-    nombre:u.nombre,
-    rol:u.rol,
-    empresa_id:u.empresa_id,
-    tecnico:true,
-    desarrollador:true,
-    inicio:ahora,
-    actividad:ahora
-  }));
+  if(typeof window.ZENTRYX_createSession==="function"){
+    window.ZENTRYX_createSession(u);
+  }else{
+    localStorage.setItem("zentryx_session",JSON.stringify({
+      id:u.id,
+      usuario:u.usuario,
+      nombre:u.nombre,
+      rol:u.rol,
+      empresa_id:u.empresa_id,
+      tecnico:true,
+      desarrollador:true,
+      inicio:ahora,
+      actividad:ahora
+    }));
+    localStorage.setItem("usuario",JSON.stringify(u));
+  }
 
-  localStorage.setItem("usuario",JSON.stringify(u));
   localStorage.setItem(ZX_DEV_LAST_KEY,ahora);
   localStorage.setItem(ZX_LOGIN_LAST_USER,JSON.stringify({
     id:u.id,
@@ -520,7 +519,19 @@ function guardarSesion(){
       inicio:new Date().toISOString(),
       actividad:new Date().toISOString()
     }));
-    localStorage.setItem("usuario",JSON.stringify(usuarioActual));
+    const usuarioLocal=typeof window.ZENTRYX_sanitizeLocalUser==="function"
+      ? window.ZENTRYX_sanitizeLocalUser(usuarioActual)
+      : {
+          id:usuarioActual.id,
+          usuario:usuarioActual.usuario,
+          nombre:usuarioActual.nombre || usuarioActual.usuario,
+          rol:usuarioActual.rol || "Usuario",
+          empresa_id:usuarioActual.empresa_id || "demo",
+          permisos:usuarioActual.permisos && typeof usuarioActual.permisos==="object" ? usuarioActual.permisos : {},
+          foto_url:usuarioActual.foto_url || "",
+          activo:usuarioActual.activo!==false
+        };
+    localStorage.setItem("usuario",JSON.stringify(usuarioLocal));
   }
 
   guardarUltimoUsuario(usuarioActual);
@@ -1019,6 +1030,9 @@ async function guardarPIN(){
 
   await registrarDispositivoSeguro();
   guardarSesion();
+  if(ZENTRYX_SECURITY && typeof ZENTRYX_SECURITY.rememberSessionPin==="function"){
+    await ZENTRYX_SECURITY.rememberSessionPin(p1);
+  }
   mostrarMsg("PIN creado correctamente.","ok");
   setTimeout(irApp,500);
 }
@@ -1107,12 +1121,12 @@ async function entrar(){
     usuarioActual.pin_bloqueado_hasta=null;
     usuarioActual.ultimo_login=new Date().toISOString();
 
+    await registrarDispositivoSeguro();
+    guardarSesion();
+
     if(ZENTRYX_SECURITY && typeof ZENTRYX_SECURITY.rememberSessionPin==="function"){
       await ZENTRYX_SECURITY.rememberSessionPin(pin);
     }
-
-    await registrarDispositivoSeguro();
-    guardarSesion();
     mostrarMsg("Acceso correcto.","ok");
     setTimeout(irApp,350);
     return;
