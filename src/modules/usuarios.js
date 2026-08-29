@@ -27,7 +27,7 @@
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3167";
+window.ZX_USUARIOS_VERSION="3168";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -2885,9 +2885,11 @@ function zxLabUrlDescargaConvenio(c,url){
 }
 async function zxLabDescargarConvenio(c){
   const url=zxLabUrlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
-  const descarga=zxLabUrlDescargaConvenio(c,url);
-  if(descarga){const a=document.createElement("a");a.href=descarga;a.download=zxLabNombreDocumentoConvenio(c);a.rel="noopener";document.body.appendChild(a);a.click();a.remove();return}
-  try{const b=await zxLabBlobConvenio(c),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=zxLabNombreDocumentoConvenio(c);document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),10000)}catch(e){window.open(url,"_blank","noopener")}
+  try{
+    const b=await zxLabBlobConvenio(c),nombre=zxLabNombreDocumentoConvenio(c),f=new File([b],nombre,{type:b.type||"application/pdf"});
+    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[f]}))){await navigator.share({files:[f],title:nombre});return}
+    const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=nombre;a.rel="noopener";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),30000);
+  }catch(e){if(e?.name!=="AbortError")alert("No se pudo preparar el PDF para guardarlo.")}
 }
 async function zxLabCompartirConvenio(c){
   const url=zxLabUrlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
