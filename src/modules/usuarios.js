@@ -24,6 +24,8 @@
 // V3166 - PUBLICACION OFICIAL + DOCUMENTO APLICADO DEL CONVENIO
 // V3167 - DESCARGA PDF CON CONTENT-DISPOSITION EN SUPABASE
 // V3168 - DESCARGA IPHONE COMO ARCHIVO + GUARDAR EN ARCHIVOS
+// V3169 - IMPRESION IPHONE MEDIANTE HOJA NATIVA
+// V3170 - IMPRIMIR CONVENIO REUTILIZA EL FLUJO DE COMPARTIR VALIDADO
 // V3169 - IMPRESION IPHONE DESDE HOJA NATIVA CON PDF
 // ===============================
 (function(){
@@ -2900,14 +2902,9 @@ async function zxLabCompartirConvenio(c){
   window.open(url,"_blank","noopener");
 }
 async function zxLabImprimirConvenio(c){
-  const url=zxLabUrlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
-  try{
-    const b=await zxLabBlobConvenio(c),nombre=zxLabNombreDocumentoConvenio(c),f=new File([b],nombre,{type:b.type||"application/pdf"});
-    // iPhone/iPad PWA: la hoja nativa muestra la accion Imprimir para el PDF.
-    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[f]}))){await navigator.share({files:[f],title:nombre});return}
-    const u=URL.createObjectURL(b),w=window.open(u,"_blank");if(w){setTimeout(()=>{try{w.print()}catch(e){}},800);setTimeout(()=>URL.revokeObjectURL(u),60000);return}
-  }catch(e){if(e?.name==="AbortError")return}
-  window.open(url,"_blank","noopener");
+  // Usa exactamente el mismo flujo de archivo que Compartir, ya validado en iPhone.
+  // La hoja nativa de iOS incluye la accion Imprimir.
+  return zxLabCompartirConvenio(c);
 }
 function zxLabActualizarDocumentoConvenio(baseEmpresa){
   const c=zxLabConvenioAplicado(baseEmpresa),url=zxLabUrlSegura(c?.documento_url),fuente=zxLabUrlSegura(c?.fuente_url)||ZX_REGCON_URL,publicacion=zxLabUrlSegura(c?.publicacion_url);
