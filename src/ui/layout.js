@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3157 - FECHA LOCAL Y RUTA ANTIGUA REDIRIGIDA A FICHAJE
+// V3158 - CIERRE DE SESIÓN FIABLE Y CAMBIO DE USUARIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3157";
+const ZX_VERSION="3158";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -2183,14 +2183,26 @@ function topbar(){
     abrirModuloDesdeMenu("ajustes");
   };
 
-  function cerrarSesion(){
-    localStorage.removeItem("zentryx_session");
-    localStorage.removeItem("usuario");
-    location.replace("index.html?v="+ZX_VERSION+"&t="+Date.now());
+  function cerrarSesionCompleta(cambiarUsuario){
+    // La sesión debe cerrarse mediante el gestor común para limpiar también
+    // la prueba temporal de PIN y cualquier estado asociado a la sesión.
+    if(cambiarUsuario){
+      try{ localStorage.removeItem("zentryx_last_user"); }catch(e){}
+    }
+
+    if(typeof window.ZENTRYX_logout==="function"){
+      window.ZENTRYX_logout();
+      return;
+    }
+
+    try{ localStorage.removeItem("zentryx_session"); }catch(e){}
+    try{ localStorage.removeItem("usuario"); }catch(e){}
+    try{ sessionStorage.clear(); }catch(e){}
+    location.replace("index.html?v="+String(window.ZX_VERSION || ZX_VERSION)+"&t="+Date.now());
   }
 
-  $("zx_menu_cambiar").onclick=cerrarSesion;
-  $("zx_menu_salir").onclick=cerrarSesion;
+  $("zx_menu_cambiar").onclick=function(){ cerrarSesionCompleta(true); };
+  $("zx_menu_salir").onclick=function(){ cerrarSesionCompleta(false); };
 }
 
 
