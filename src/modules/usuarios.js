@@ -19,12 +19,12 @@
 // V3157 - LABORAL: CONSERVA PRECIO PROPIO AL USAR BASE DE EMPRESA
 // V3158 - LABORAL PRO: HERENCIA DE JORNADA, CONVENIO, VACACIONES, ASUNTOS Y CALENDARIO
 // V3160 - CONTROL RETIRADO DE PERMISOS + MEJORAS V3159
-// V3161 - CACHE OFFLINE SIN CREDENCIALES + FECHA DE CALENDARIO LOCAL
+// V3162 - RESUMEN LABORAL EN TIEMPO REAL + CACHE OFFLINE SIN CREDENCIALES
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3161";
+window.ZX_USUARIOS_VERSION="3162";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -2726,8 +2726,8 @@ function resumenLaboral(l,consumo){
 
   return `
     <div class="zx_laboral_resumen">
-      <div><b>${limpiar(l.horas_dia ?? 0)} h</b><span>Horas/día</span></div>
-      <div><b>${limpiar(l.horas_semana ?? 0)} h</b><span>Horas/semana</span></div>
+      <div><b id="lab_res_horas_dia">${limpiar(l.horas_dia ?? 0)} h</b><span>Horas/día</span></div>
+      <div><b id="lab_res_horas_semana">${limpiar(l.horas_semana ?? 0)} h</b><span>Horas/semana</span></div>
       <div><b>${limpiar(l.vacaciones_dias ?? 0)} días</b><span>Vacaciones asignadas</span></div>
       <div><b>${limpiar(l.asuntos_propios ?? 0)} h</b><span>Asuntos propios asignados</span></div>
     </div>
@@ -2855,7 +2855,22 @@ function zxLabRefrescarTotalPropio(){
   ZX_LAB_DIAS_PRO.forEach(([k])=>{total+=Math.round(numVal("lab_j_"+k,0)*60)});
   const el=document.getElementById("lab_total_propio"); if(el)el.textContent=zxLabMinutosTexto(total);
 }
-function activarHerenciasLaboralPro(){
+function zxLabRefrescarResumenJornada(baseEmpresa){
+  const hereda=document.getElementById("lab_hereda_jornada")?.checked===true;
+  let minutos=[];
+  if(hereda){
+    minutos=ZX_LAB_DIAS_PRO.map(([k])=>Math.max(0,Number((baseEmpresa||{})[k]||0)));
+  }else{
+    minutos=ZX_LAB_DIAS_PRO.map(([k])=>Math.max(0,Math.round(numVal("lab_j_"+k,0)*60)));
+  }
+  const total=minutos.reduce((a,n)=>a+n,0);
+  const primer=minutos.find(n=>n>0)||0;
+  const dia=document.getElementById("lab_res_horas_dia");
+  const semana=document.getElementById("lab_res_horas_semana");
+  if(dia)dia.textContent=limpiar(Number((primer/60).toFixed(2)))+" h";
+  if(semana)semana.textContent=limpiar(Number((total/60).toFixed(2)))+" h";
+}
+function activarHerenciasLaboralPro(baseEmpresa){
   const grupos=[
     ["lab_hereda_jornada",ZX_LAB_DIAS_PRO.map(([k])=>"lab_j_"+k)],
     ["lab_hereda_convenio",["lab_convenio","lab_convenio_ref","lab_convenio_desde","lab_convenio_hasta"]],
@@ -2865,11 +2880,18 @@ function activarHerenciasLaboralPro(){
   ];
   grupos.forEach(([checkId,ids])=>{
     const c=document.getElementById(checkId); if(!c)return;
-    const f=()=>zxLabDeshabilitar(ids,c.checked===true);
+    const f=()=>{
+      zxLabDeshabilitar(ids,c.checked===true);
+      if(checkId==="lab_hereda_jornada")zxLabRefrescarResumenJornada(baseEmpresa);
+    };
     c.onchange=f;f();
   });
-  ZX_LAB_DIAS_PRO.forEach(([k])=>{const el=document.getElementById("lab_j_"+k);if(el)el.addEventListener("input",zxLabRefrescarTotalPropio)});
+  ZX_LAB_DIAS_PRO.forEach(([k])=>{
+    const el=document.getElementById("lab_j_"+k);
+    if(el)el.addEventListener("input",()=>{zxLabRefrescarTotalPropio();zxLabRefrescarResumenJornada(baseEmpresa)});
+  });
   zxLabRefrescarTotalPropio();
+  zxLabRefrescarResumenJornada(baseEmpresa);
 }
 
 async function verLaboralUsuario(u){
@@ -2953,7 +2975,7 @@ async function verLaboralUsuario(u){
   document.getElementById("lab_volver_top")?.addEventListener("click",cerrarModal);
   cargarDatalistLocalidades(cp.provincia||"",cp.localidad||"");
   activarFiltrosUbicacion();
-  activarHerenciasLaboralPro();
+  activarHerenciasLaboralPro(baseEmpresa);
   activarHerenciaPreciosLaboral(baseEmpresa);
 
   const guardar=document.getElementById("lab_guardar_top");
