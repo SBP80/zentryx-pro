@@ -3,11 +3,12 @@
 // V3063 - CABECERA MOVIL COMPLETA + AJUSTES VISUALES
 // V3064 - UNIDADES VISIBLES EN CANTIDADES LABORALES
 // V3065 - CATALOGO DE CONVENIOS + SELECCION PRINCIPAL
+// V3066 - REGCON + DOCUMENTO DEL CONVENIO + VER/DESCARGAR/COMPARTIR/IMPRIMIR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3065";
+const ZX_VERSION="3066";
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
 function laboral(){return window.ZENTRYX_LABORAL || null}
@@ -19,18 +20,19 @@ function anioActual(){return new Date().getFullYear()}
 function num(v,def=0){const n=Number(String(v??"").replace(",","."));return Number.isFinite(n)?n:def}
 
 const CONVENIOS_SUGERIDOS=["Metal","Construcción","Oficinas","Fontanería","Climatización","Electricidad","Comercio","Hostelería","Transporte","Otro / personalizado"];
+const REGCON_URL="https://expinterweb.mites.gob.es/regcon/pub/consultaPublicaEstat?language=es";
 const PAISES_SUGERIDOS=["España","Portugal","Francia","Italia","Alemania","Andorra","Reino Unido","Irlanda","Bélgica","Países Bajos","Suiza"];
 
 let conveniosEdicion=[];
 function idConvenioLocal(nombre){return normalizar(nombre).replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || ("conv-"+Date.now())}
 function convenioLimpio(c,idx=0){
   const x=c&&typeof c==="object"?c:{};const nombre=String(x.nombre||x.convenio||"").trim();if(!nombre)return null;
-  return {id:String(x.id||idConvenioLocal(nombre)+"-"+(idx+1)),nombre,referencia:String(x.referencia||x.convenio_referencia||"").trim(),vigencia_desde:String(x.vigencia_desde||x.convenio_vigencia_desde||"").slice(0,10),vigencia_hasta:String(x.vigencia_hasta||x.convenio_vigencia_hasta||"").slice(0,10),vacaciones:num(x.vacaciones,30),vacaciones_tipo:String(x.vacaciones_tipo||"naturales")==="laborables"?"laborables":"naturales",asuntos_horas:num(x.asuntos_horas,0)};
+  return {id:String(x.id||idConvenioLocal(nombre)+"-"+(idx+1)),nombre,referencia:String(x.referencia||x.convenio_referencia||"").trim(),vigencia_desde:String(x.vigencia_desde||x.convenio_vigencia_desde||"").slice(0,10),vigencia_hasta:String(x.vigencia_hasta||x.convenio_vigencia_hasta||"").slice(0,10),verificado:x.verificado===true||x.convenio_verificado===true,fuente_url:String(x.fuente_url||x.regcon_url||x.convenio_fuente_url||"").trim(),documento_url:String(x.documento_url||x.pdf_url||x.convenio_documento_url||"").trim(),documento_nombre:String(x.documento_nombre||x.convenio_documento_nombre||"").trim(),ambito:String(x.ambito||x.convenio_ambito||"").trim(),autoridad_laboral:String(x.autoridad_laboral||x.convenio_autoridad_laboral||"").trim(),vacaciones:num(x.vacaciones,30),vacaciones_tipo:String(x.vacaciones_tipo||"naturales")==="laborables"?"laborables":"naturales",asuntos_horas:num(x.asuntos_horas,0)};
 }
 function catalogoDesdeConfig(c){
   let lista=[];try{if(laboral()?.normalizarConvenios)lista=laboral().normalizarConvenios(c)}catch(e){}
   if(!lista.length && Array.isArray(c?.convenios))lista=c.convenios.map(convenioLimpio).filter(Boolean);
-  if(!lista.length && String(c?.convenio||"").trim())lista=[convenioLimpio({id:"principal",nombre:c.convenio,referencia:c.convenio_referencia,vigencia_desde:c.convenio_vigencia_desde,vigencia_hasta:c.convenio_vigencia_hasta,vacaciones:c.vacaciones,vacaciones_tipo:c.vacaciones_tipo,asuntos_horas:c.asuntos_horas},0)].filter(Boolean);
+  if(!lista.length && String(c?.convenio||"").trim())lista=[convenioLimpio({id:"principal",nombre:c.convenio,referencia:c.convenio_referencia,vigencia_desde:c.convenio_vigencia_desde,vigencia_hasta:c.convenio_vigencia_hasta,verificado:c.convenio_verificado,fuente_url:c.convenio_fuente_url,documento_url:c.convenio_documento_url,documento_nombre:c.convenio_documento_nombre,ambito:c.convenio_ambito,autoridad_laboral:c.convenio_autoridad_laboral,vacaciones:c.vacaciones,vacaciones_tipo:c.vacaciones_tipo,asuntos_horas:c.asuntos_horas},0)].filter(Boolean);
   return lista;
 }
 function convenioPorId(id){return conveniosEdicion.find(x=>String(x.id)===String(id))||null}
@@ -38,28 +40,78 @@ function sincronizarConvenioPrincipal(){
   const sel=document.getElementById("convenio");if(!sel)return;const c=convenioPorId(sel.value);if(!c)return;
   const poner=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??""};
   poner("convenio_referencia",c.referencia);poner("convenio_desde",c.vigencia_desde);poner("convenio_hasta",c.vigencia_hasta);poner("vacaciones",c.vacaciones);poner("vacaciones_tipo",c.vacaciones_tipo);poner("asuntos_horas",c.asuntos_horas);
+  const estado=document.getElementById("zx_convenio_estado");if(estado)estado.textContent=c.verificado?"✓ Comprobado en REGCON":"Sin comprobar en REGCON";
+  const info=document.getElementById("zx_convenio_info");if(info)info.textContent=[c.ambito,c.autoridad_laboral].filter(Boolean).join(" · ")||"Sin ámbito o autoridad laboral guardados";
+  actualizarAccionesDocumentoConvenio(c);
+}
+function urlSegura(v){const x=String(v||"").trim();return /^https?:\/\//i.test(x)?x:""}
+function abrirRegcon(url=""){window.open(urlSegura(url)||REGCON_URL,"_blank","noopener")}
+async function blobConvenio(c){
+  const url=urlSegura(c?.documento_url);if(!url)throw new Error("Este convenio no tiene documento asociado.");
+  const r=await fetch(url,{credentials:"omit"});if(!r.ok)throw new Error("No se pudo abrir el documento.");
+  return await r.blob();
+}
+function nombreDocumentoConvenio(c){return String(c?.documento_nombre||((c?.nombre||"convenio")+".pdf")).replace(/[\\/:*?"<>|]+/g,"-")}
+async function descargarDocumentoConvenio(c){
+  const url=urlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
+  try{const b=await blobConvenio(c);const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=nombreDocumentoConvenio(c);document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}catch(e){window.open(url,"_blank","noopener")}
+}
+async function compartirDocumentoConvenio(c){
+  const url=urlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
+  try{
+    const b=await blobConvenio(c),file=new File([b],nombreDocumentoConvenio(c),{type:b.type||"application/pdf"});
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){await navigator.share({title:c.nombre||"Convenio",files:[file]});return}
+  }catch(e){}
+  if(navigator.share){try{await navigator.share({title:c.nombre||"Convenio",url});return}catch(e){}}
+  window.open(url,"_blank","noopener");
+}
+async function imprimirDocumentoConvenio(c){
+  const url=urlSegura(c?.documento_url);if(!url){alert("Este convenio no tiene documento asociado.");return}
+  try{const b=await blobConvenio(c);const u=URL.createObjectURL(b),w=window.open(u,"_blank");if(w){setTimeout(()=>{try{w.print()}catch(e){}},1200);setTimeout(()=>URL.revokeObjectURL(u),60000);return}}catch(e){}
+  window.open(url,"_blank","noopener");
+}
+function actualizarAccionesDocumentoConvenio(c){
+  const tiene=!!urlSegura(c?.documento_url);
+  document.querySelectorAll("[data-conv-doc-principal]").forEach(b=>{b.disabled=!tiene;b.style.opacity=tiene?"1":".5"});
+  const fuente=document.getElementById("zx_conv_regcon_principal");if(fuente){fuente.disabled=false;fuente.dataset.url=c?.fuente_url||REGCON_URL}
 }
 function cerrarModalConvenio(){document.getElementById("zx_modal_convenio")?.remove()}
 function abrirModalConvenio(id=""){
-  cerrarModalConvenio();const actual=convenioPorId(id)||{id:"",nombre:"",referencia:"",vigencia_desde:"",vigencia_hasta:"",vacaciones:30,vacaciones_tipo:"naturales",asuntos_horas:0};
+  cerrarModalConvenio();const actual=convenioPorId(id)||{id:"",nombre:"",referencia:"",vigencia_desde:"",vigencia_hasta:"",verificado:false,fuente_url:"",documento_url:"",documento_nombre:"",ambito:"",autoridad_laboral:"",vacaciones:30,vacaciones_tipo:"naturales",asuntos_horas:0};
   document.body.insertAdjacentHTML("beforeend",`<div id="zx_modal_convenio" class="zx_modal_fondo"><div class="zx_modal_caja"><div class="zx_modal_top"><h2>${actual.id?"Editar convenio":"Nuevo convenio"}</h2><button id="zx_conv_cerrar">Cerrar</button></div>
-    <label class="zx_label">Nombre</label><input id="zx_conv_nombre" class="zx_input" list="zx_conv_sugeridos" value="${limpiar(actual.nombre)}" placeholder="Nombre del convenio"><datalist id="zx_conv_sugeridos">${CONVENIOS_SUGERIDOS.map(x=>`<option value="${limpiar(x)}"></option>`).join("")}</datalist>
-    <label class="zx_label">Referencia / código / publicación</label><input id="zx_conv_ref" class="zx_input" value="${limpiar(actual.referencia)}">
+    <div class="zx_lab_hint">Busca primero el registro oficial en REGCON. Después guarda aquí el convenio que realmente utiliza la empresa y, si existe, el enlace al documento publicado.</div>
+    <button type="button" class="zx_btn_big zx_azul" id="zx_conv_buscar_regcon">Buscar convenio oficial en REGCON</button>
+    <label class="zx_label">Nombre oficial</label><input id="zx_conv_nombre" class="zx_input" value="${limpiar(actual.nombre)}" placeholder="Denominación del convenio">
+    <label class="zx_label">Código / referencia oficial</label><input id="zx_conv_ref" class="zx_input" value="${limpiar(actual.referencia)}" placeholder="Código REGCON o referencia de publicación">
+    <div class="zx_lab_grid2"><div><label class="zx_label">Ámbito</label><input id="zx_conv_ambito" class="zx_input" value="${limpiar(actual.ambito)}" placeholder="Estatal, autonómico, provincial, empresa…"></div><div><label class="zx_label">Autoridad laboral</label><input id="zx_conv_autoridad" class="zx_input" value="${limpiar(actual.autoridad_laboral)}"></div></div>
+    <label class="zx_check_row"><input id="zx_conv_verificado" type="checkbox" ${actual.verificado?"checked":""}><span>He comprobado este convenio en REGCON</span></label>
+    <label class="zx_label">Enlace del registro oficial REGCON</label><input id="zx_conv_fuente" type="url" class="zx_input" value="${limpiar(actual.fuente_url)}" placeholder="https://expinterweb.mites.gob.es/…">
     <div class="zx_lab_grid2"><div><label class="zx_label">Vigente desde</label><input id="zx_conv_desde" type="date" class="zx_input" value="${limpiar(actual.vigencia_desde)}"></div><div><label class="zx_label">Vigente hasta</label><input id="zx_conv_hasta" type="date" class="zx_input" value="${limpiar(actual.vigencia_hasta)}"></div></div>
     <div class="zx_lab_grid2"><div><label class="zx_label">Vacaciones</label><div class="zx_num_unit_wrap"><input id="zx_conv_vac" type="number" step="0.5" class="zx_input" value="${limpiar(actual.vacaciones)}"><span class="zx_num_unit">días</span></div></div><div><label class="zx_label">Cómputo</label><select id="zx_conv_vac_tipo" class="zx_input"><option value="naturales" ${actual.vacaciones_tipo!=="laborables"?"selected":""}>Días naturales</option><option value="laborables" ${actual.vacaciones_tipo==="laborables"?"selected":""}>Días laborables</option></select></div></div>
     <label class="zx_label">Asuntos propios</label><div class="zx_num_unit_wrap"><input id="zx_conv_asuntos" type="number" step="0.25" class="zx_input" value="${limpiar(actual.asuntos_horas)}"><span class="zx_num_unit">h/año</span></div>
+    <h3>Documento del convenio</h3><div class="zx_lab_hint">Guarda el enlace directo al PDF o documento publicado. Con él Zentryx podrá abrirlo, descargarlo, compartirlo o imprimirlo desde Usuarios → Laboral.</div>
+    <label class="zx_label">URL del documento</label><input id="zx_conv_doc_url" type="url" class="zx_input" value="${limpiar(actual.documento_url)}" placeholder="https://…/convenio.pdf">
+    <label class="zx_label">Nombre del archivo</label><input id="zx_conv_doc_nombre" class="zx_input" value="${limpiar(actual.documento_nombre)}" placeholder="Convenio Metal Madrid.pdf">
     <div class="zx_modal_botones"><button class="zx_btn_big zx_verde" id="zx_conv_guardar">Guardar convenio</button><button class="zx_btn_big zx_gris" id="zx_conv_cancelar">Cancelar</button></div></div></div>`);
-  document.getElementById("zx_conv_cerrar").onclick=cerrarModalConvenio;document.getElementById("zx_conv_cancelar").onclick=cerrarModalConvenio;
+  document.getElementById("zx_conv_cerrar").onclick=cerrarModalConvenio;document.getElementById("zx_conv_cancelar").onclick=cerrarModalConvenio;document.getElementById("zx_conv_buscar_regcon").onclick=()=>abrirRegcon(actual.fuente_url);
   document.getElementById("zx_conv_guardar").onclick=function(){
     const nombre=document.getElementById("zx_conv_nombre").value.trim();if(!nombre){alert("Indica el nombre del convenio.");return}
-    const nuevo={id:actual.id||idConvenioLocal(nombre)+"-"+Date.now(),nombre,referencia:document.getElementById("zx_conv_ref").value.trim(),vigencia_desde:document.getElementById("zx_conv_desde").value||"",vigencia_hasta:document.getElementById("zx_conv_hasta").value||"",vacaciones:num(document.getElementById("zx_conv_vac").value,0),vacaciones_tipo:document.getElementById("zx_conv_vac_tipo").value||"naturales",asuntos_horas:num(document.getElementById("zx_conv_asuntos").value,0)};
+    const fuente=urlSegura(document.getElementById("zx_conv_fuente").value),doc=urlSegura(document.getElementById("zx_conv_doc_url").value);
+    if(document.getElementById("zx_conv_fuente").value.trim()&&!fuente){alert("El enlace REGCON debe empezar por http:// o https://");return}
+    if(document.getElementById("zx_conv_doc_url").value.trim()&&!doc){alert("La URL del documento debe empezar por http:// o https://");return}
+    const nuevo={id:actual.id||idConvenioLocal(nombre)+"-"+Date.now(),nombre,referencia:document.getElementById("zx_conv_ref").value.trim(),vigencia_desde:document.getElementById("zx_conv_desde").value||"",vigencia_hasta:document.getElementById("zx_conv_hasta").value||"",verificado:document.getElementById("zx_conv_verificado").checked===true,fuente_url:fuente,documento_url:doc,documento_nombre:document.getElementById("zx_conv_doc_nombre").value.trim(),ambito:document.getElementById("zx_conv_ambito").value.trim(),autoridad_laboral:document.getElementById("zx_conv_autoridad").value.trim(),vacaciones:num(document.getElementById("zx_conv_vac").value,0),vacaciones_tipo:document.getElementById("zx_conv_vac_tipo").value||"naturales",asuntos_horas:num(document.getElementById("zx_conv_asuntos").value,0)};
     const idx=conveniosEdicion.findIndex(x=>String(x.id)===String(actual.id));if(idx>=0)conveniosEdicion[idx]=nuevo;else conveniosEdicion.push(nuevo);cerrarModalConvenio();repintarConvenios(nuevo.id);
   };
 }
 function repintarConvenios(seleccionarId){
   const sel=document.getElementById("convenio"),lista=document.getElementById("zx_convenios_lista");if(!sel||!lista)return;
   const anterior=seleccionarId||sel.value;sel.innerHTML=conveniosEdicion.map(x=>`<option value="${limpiar(x.id)}">${limpiar(x.nombre)}</option>`).join("");if(convenioPorId(anterior))sel.value=anterior;else if(conveniosEdicion[0])sel.value=conveniosEdicion[0].id;
-  lista.innerHTML=conveniosEdicion.map(x=>`<div class="zx_conv_row"><div><b>${limpiar(x.nombre)}</b><small>${limpiar(x.referencia||"Sin referencia")} · ${limpiar(x.vacaciones)} días ${limpiar(x.vacaciones_tipo)} · ${limpiar(x.asuntos_horas)} h/año</small></div><div><button type="button" data-conv-edit="${limpiar(x.id)}">Editar</button><button type="button" data-conv-del="${limpiar(x.id)}">Borrar</button></div></div>`).join("") || `<div class="zx_lab_hint">No hay convenios guardados.</div>`;
+  lista.innerHTML=conveniosEdicion.map(x=>`<div class="zx_conv_row"><div><b>${limpiar(x.nombre)}</b><small>${x.verificado?"✓ REGCON":"Sin comprobar"} · ${limpiar(x.referencia||"Sin código")} · ${limpiar(x.vacaciones)} días ${limpiar(x.vacaciones_tipo)} · ${limpiar(x.asuntos_horas)} h/año</small>${x.ambito||x.autoridad_laboral?`<small>${limpiar([x.ambito,x.autoridad_laboral].filter(Boolean).join(" · "))}</small>`:""}</div><div><button type="button" data-conv-regcon="${limpiar(x.id)}">REGCON</button>${x.documento_url?`<button type="button" data-conv-ver="${limpiar(x.id)}">Ver</button><button type="button" data-conv-desc="${limpiar(x.id)}">Descargar</button><button type="button" data-conv-share="${limpiar(x.id)}">Compartir</button><button type="button" data-conv-print="${limpiar(x.id)}">Imprimir</button>`:""}<button type="button" data-conv-edit="${limpiar(x.id)}">Editar</button><button type="button" data-conv-del="${limpiar(x.id)}">Borrar</button></div></div>`).join("") || `<div class="zx_lab_hint">No hay convenios guardados.</div>`;
+  lista.querySelectorAll("[data-conv-regcon]").forEach(b=>b.onclick=()=>{const c=convenioPorId(b.dataset.convRegcon);abrirRegcon(c?.fuente_url)});
+  lista.querySelectorAll("[data-conv-ver]").forEach(b=>b.onclick=()=>{const c=convenioPorId(b.dataset.convVer);if(c?.documento_url)window.open(c.documento_url,"_blank","noopener")});
+  lista.querySelectorAll("[data-conv-desc]").forEach(b=>b.onclick=()=>descargarDocumentoConvenio(convenioPorId(b.dataset.convDesc)));
+  lista.querySelectorAll("[data-conv-share]").forEach(b=>b.onclick=()=>compartirDocumentoConvenio(convenioPorId(b.dataset.convShare)));
+  lista.querySelectorAll("[data-conv-print]").forEach(b=>b.onclick=()=>imprimirDocumentoConvenio(convenioPorId(b.dataset.convPrint)));
   lista.querySelectorAll("[data-conv-edit]").forEach(b=>b.onclick=()=>abrirModalConvenio(b.dataset.convEdit));lista.querySelectorAll("[data-conv-del]").forEach(b=>b.onclick=function(){if(conveniosEdicion.length<=1){alert("Debe quedar al menos un convenio para la base de empresa.");return}if(!confirm("¿Borrar este convenio del catálogo?"))return;conveniosEdicion=conveniosEdicion.filter(x=>String(x.id)!==String(b.dataset.convDel));repintarConvenios();});sincronizarConvenioPrincipal();
 }
 
@@ -89,6 +141,12 @@ function leerConfigPantalla(){
     convenio_referencia:document.getElementById("convenio_referencia")?.value.trim()||"",
     convenio_vigencia_desde:document.getElementById("convenio_desde")?.value||"",
     convenio_vigencia_hasta:document.getElementById("convenio_hasta")?.value||"",
+    convenio_verificado:convenioPorId(document.getElementById("convenio")?.value)?.verificado===true,
+    convenio_fuente_url:convenioPorId(document.getElementById("convenio")?.value)?.fuente_url||"",
+    convenio_documento_url:convenioPorId(document.getElementById("convenio")?.value)?.documento_url||"",
+    convenio_documento_nombre:convenioPorId(document.getElementById("convenio")?.value)?.documento_nombre||"",
+    convenio_ambito:convenioPorId(document.getElementById("convenio")?.value)?.ambito||"",
+    convenio_autoridad_laboral:convenioPorId(document.getElementById("convenio")?.value)?.autoridad_laboral||"",
     vacaciones:num(document.getElementById("vacaciones")?.value,0),
     vacaciones_tipo:document.getElementById("vacaciones_tipo")?.value||"naturales",
     asuntos_horas:num(document.getElementById("asuntos_horas")?.value,0),
@@ -250,6 +308,8 @@ window.ZX_configLaboralReal=async function(){
       <div class="zx_lab_grid2"><div><label class="zx_label">Vigente desde</label><input id="convenio_desde" type="date" class="zx_input" value="${limpiar(c.convenio_vigencia_desde||"")}" readonly></div><div><label class="zx_label">Vigente hasta</label><input id="convenio_hasta" type="date" class="zx_input" value="${limpiar(c.convenio_vigencia_hasta||"")}" readonly></div></div>
       <div class="zx_lab_grid2"><div><label class="zx_label">Vacaciones anuales</label><div class="zx_num_unit_wrap"><input id="vacaciones" type="number" class="zx_input" value="${limpiar(c.vacaciones)}" readonly><span class="zx_num_unit">días</span></div></div><div><label class="zx_label">Cómputo vacaciones</label><select id="vacaciones_tipo" class="zx_input" disabled><option value="naturales" ${c.vacaciones_tipo!=="laborables"?"selected":""}>Días naturales</option><option value="laborables" ${c.vacaciones_tipo==="laborables"?"selected":""}>Días laborables</option></select></div></div>
       <label class="zx_label">Asuntos propios</label><div class="zx_num_unit_wrap"><input id="asuntos_horas" type="number" class="zx_input" value="${limpiar(c.asuntos_horas)}" readonly><span class="zx_num_unit">h/año</span></div>
+      <div id="zx_convenio_estado" class="zx_lab_hint"></div><div id="zx_convenio_info" class="zx_lab_hint"></div>
+      <div class="zx_modal_botones"><button type="button" class="zx_btn_big zx_azul" id="zx_conv_regcon_principal">Buscar / comprobar en REGCON</button><button type="button" data-conv-doc-principal="ver">Ver documento</button><button type="button" data-conv-doc-principal="descargar">Descargar</button><button type="button" data-conv-doc-principal="compartir">Compartir</button><button type="button" data-conv-doc-principal="imprimir">Imprimir</button></div>
       <button type="button" class="zx_btn_big zx_azul" id="zx_nuevo_convenio">Añadir convenio</button><div id="zx_convenios_lista"></div>
     </div>
 
@@ -278,7 +338,10 @@ window.ZX_configLaboralReal=async function(){
   </div>`;
 
   document.getElementById("zx_lab_volver").onclick=volverAjustes;document.getElementById("zx_volver_bottom").onclick=volverAjustes;document.getElementById("zx_guardar_top").onclick=guardarConfig;document.getElementById("zx_guardar_config").onclick=guardarConfig;document.getElementById("zx_descargar_festivos").onclick=descargarFestivos;document.getElementById("zx_nuevo_festivo").onclick=()=>abrirModalFestivo(null);
-  document.getElementById("convenio").onchange=sincronizarConvenioPrincipal;document.getElementById("zx_nuevo_convenio").onclick=()=>abrirModalConvenio("");repintarConvenios(document.getElementById("convenio").value);
+  document.getElementById("convenio").onchange=sincronizarConvenioPrincipal;document.getElementById("zx_nuevo_convenio").onclick=()=>abrirModalConvenio("");
+  document.getElementById("zx_conv_regcon_principal").onclick=function(){const c=convenioPorId(document.getElementById("convenio")?.value);abrirRegcon(c?.fuente_url)};
+  document.querySelectorAll("[data-conv-doc-principal]").forEach(b=>b.onclick=function(){const c=convenioPorId(document.getElementById("convenio")?.value);const a=b.dataset.convDocPrincipal;if(a==="ver"&&c?.documento_url)window.open(c.documento_url,"_blank","noopener");if(a==="descargar")descargarDocumentoConvenio(c);if(a==="compartir")compartirDocumentoConvenio(c);if(a==="imprimir")imprimirDocumentoConvenio(c)});
+  repintarConvenios(document.getElementById("convenio").value);
   document.querySelectorAll("[data-del-festivo]").forEach(b=>b.onclick=()=>borrarFestivo(b.dataset.delFestivo));document.querySelectorAll("[data-edit-festivo]").forEach(b=>{const f=festivos.find(x=>String(x.id)===String(b.dataset.editFestivo));b.onclick=()=>abrirModalFestivo(f)});
   ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"].forEach(k=>["_h","_m"].forEach(suf=>{const el=document.getElementById(k+suf);if(el)el.onchange=function(){document.getElementById("zx_total_semana").textContent=textoMinutos(["lunes","martes","miercoles","jueves","viernes","sabado","domingo"].reduce((n,x)=>n+leerTiempo(x),0))}}));
   activarGeo();
