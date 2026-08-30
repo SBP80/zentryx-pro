@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3231
+// ZENTRYX PRO - TRABAJOS V3232
+// V3232 - NOTAS/PARTES: UNA SOLA ENTRADA AL CREAR; AUDITORÍA SOLO EN EDITAR/BORRAR
 // V3231 - ARCHIVOS DE BIBLIOTECA: QUITAR VÍNCULO SIN BORRAR EL ORIGINAL
 // V3230 - EVITA REGISTROS DE AUDITORÍA DUPLICADOS EN ACCIONES REPETIDAS
 // V3229 - AUDITORÍA PERSISTENTE DE NOTAS/PARTES + VOLVER SIN DUPLICADOS
@@ -11,7 +12,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3231";
+const ZX_VERSION="3232";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -3094,9 +3095,10 @@ async function abrirParteJornada(id,historialId){
         if(r.error) throw r.error;
         await registrarAuditoriaTrabajo(id,"parte","editar","Parte editado: "+textoAnterior+" → "+(trabajoRealizado || "Sin texto"),{historial_id:String(parteExistente.id),texto_anterior:textoAnterior,texto_nuevo:trabajoRealizado,fecha_jornada:fecha});
       }else{
+        // La propia fila parte_jornada ya es el registro de creación visible.
+        // No añadimos una segunda fila de auditoría para la misma acción.
         const ok=await registrarHistorial(id,"parte_jornada",notas,datosParte);
         if(!ok) throw new Error("No se pudo registrar el parte.");
-        await registrarAuditoriaTrabajo(id,"parte","crear","Parte creado: "+(trabajoRealizado || "Sin texto"),{texto_nuevo:trabajoRealizado,fecha_jornada:fecha});
       }
       window.dispatchEvent(new CustomEvent("zentryx:trabajos:actualizar",{detail:{trabajo_id:String(id),jornada_id:String(jornada?.id || "")}}));
       cerrarModal();await abrirFicha(id);
@@ -3145,7 +3147,8 @@ async function registrarNotaRapida(id){
       return;
     }
 
-    await registrarAuditoriaTrabajo(id,"nota","crear","Nota creada: "+nota,{texto_nuevo:nota});
+    // La propia fila tipo nota ya registra la creación. Evitamos duplicar
+    // el movimiento con otra fila de auditoría para la misma acción.
     cerrarModal();
     abrirFicha(id);
   };
