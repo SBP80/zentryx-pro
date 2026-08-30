@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3230
+// ZENTRYX PRO - TRABAJOS V3231
+// V3231 - ARCHIVOS DE BIBLIOTECA: QUITAR VÍNCULO SIN BORRAR EL ORIGINAL
 // V3230 - EVITA REGISTROS DE AUDITORÍA DUPLICADOS EN ACCIONES REPETIDAS
 // V3229 - AUDITORÍA PERSISTENTE DE NOTAS/PARTES + VOLVER SIN DUPLICADOS
 // V3228 - AVISO DE FESTIVOS POR TRABAJADOR ANTES DE PROGRAMAR
@@ -10,7 +11,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3230";
+const ZX_VERSION="3231";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -5854,22 +5855,66 @@ async function renombrarArchivo(archivo){
   };
 }
 
+async function analizarReferenciasArchivo(archivo){
+  const cliente=sb();
+  const url=String(archivo && (archivo.url || archivo.archivo_url) || "").trim();
+  if(!cliente) return {conocido:false,compartido:false,total:0};
+  if(!url) return {conocido:true,compartido:false,total:0};
+
+  const campo=archivo && archivo.url ? "url" : "archivo_url";
+  try{
+    let q=cliente.from("trabajos_archivos")
+      .select("id,trabajo_id")
+      .eq(campo,url)
+      .neq("id",String(archivo.id))
+      .limit(5);
+    const r=await q;
+    if(r.error) throw r.error;
+    const filas=Array.isArray(r.data) ? r.data : [];
+    return {conocido:true,compartido:filas.length>0,total:filas.length,referencias:filas};
+  }catch(e){
+    return {conocido:false,compartido:false,total:0,error:e};
+  }
+}
+
 async function eliminarArchivoGestion(archivo){
   const nombre=archivo.nombre || archivo.filename || "Archivo";
-  if(!confirm(`¿Eliminar definitivamente “${nombre}”?`)) return;
   if(!navigator.onLine || !sb()){alert("Necesitas conexión para eliminar archivos.");return}
+
+  const refs=await analizarReferenciasArchivo(archivo);
+  if(!refs.conocido){
+    alert("No se ha podido comprobar si este documento también está usado en la Biblioteca documental. No se eliminará para evitar perder el original.");
+    return;
+  }
+
+  const esCompartido=!!refs.compartido;
+  const pregunta=esCompartido
+    ? `¿Quitar “${nombre}” de este trabajo?\n\nEl documento original seguirá disponible en la Biblioteca documental.`
+    : `¿Eliminar definitivamente “${nombre}”?`;
+  if(!confirm(pregunta)) return;
+
   try{
     const r=await sb().from("trabajos_archivos").delete().eq("id",String(archivo.id));
     if(r.error) throw r.error;
-    const ruta=rutaStorageDesdeUrl(archivo.url || archivo.archivo_url || "");
-    if(ruta){
-      try{await sb().storage.from("zentryx-trabajos").remove([ruta])}catch(e){}
+
+    let ruta="";
+    if(!esCompartido){
+      ruta=rutaStorageDesdeUrl(archivo.url || archivo.archivo_url || "");
+      if(ruta){
+        try{await sb().storage.from("zentryx-trabajos").remove([ruta])}catch(e){}
+      }
     }
-    await registrarHistorial(archivo.trabajo_id,"archivo","Archivo eliminado: "+nombre,{archivo_id:archivo.id,ruta:ruta});
+
+    await registrarHistorial(
+      archivo.trabajo_id,
+      "archivo",
+      esCompartido ? "Documento quitado del trabajo: "+nombre : "Archivo eliminado: "+nombre,
+      {archivo_id:archivo.id,ruta:ruta,biblioteca_conservada:esCompartido}
+    );
     cerrarModal();
     await abrirFicha(archivo.trabajo_id);
   }catch(e){
-    alert("No se pudo eliminar el archivo."+(mensajeError(e) ? "\n\n"+mensajeError(e) : ""));
+    alert((esCompartido ? "No se pudo quitar el documento del trabajo." : "No se pudo eliminar el archivo.")+(mensajeError(e) ? "\n\n"+mensajeError(e) : ""));
   }
 }
 
@@ -5905,6 +5950,8 @@ async function abrirMenuArchivo(archivoId,trabajoId){
   const tamano=tamanoArchivoVisible(archivo);
   const metaPrincipal=[tipoArchivoVisible(archivo),tamano].filter(Boolean).join(" · ");
   const metaFecha=[fecha,hora].filter(Boolean).join(" · ");
+  const refs=await analizarReferenciasArchivo(archivo);
+  const esCompartido=refs.conocido && refs.compartido;
   modal(`
     <h2>${limpiar(nombre)}</h2>
     ${esImagenArchivo(archivo) && url ? `<img class="zx_tr_file_preview" src="${limpiar(url)}" alt="Vista previa de ${limpiar(nombre)}">` : ""}
@@ -5912,7 +5959,8 @@ async function abrirMenuArchivo(archivoId,trabajoId){
     <button class="zx_btn_big zx_azul" id="tr_file_view">👁 Ver archivo</button>
     <button class="zx_btn_big" id="tr_file_rename_btn" style="background:#ffffff!important;color:#0f2348!important;-webkit-text-fill-color:#0f2348!important;border:2px solid #b9d2f3!important;box-shadow:0 2px 8px rgba(15,35,72,.08)!important;opacity:1!important;">✏️ Renombrar</button>
     <button class="zx_btn_big" id="tr_file_share" style="background:#ffffff!important;color:#0f2348!important;-webkit-text-fill-color:#0f2348!important;border:2px solid #b9d2f3!important;box-shadow:0 2px 8px rgba(15,35,72,.08)!important;opacity:1!important;">📤 Compartir</button>
-    <button class="zx_btn_big zx_rojo" id="tr_file_delete">🗑️ Eliminar</button>
+    ${esCompartido ? `<div class="zx_tr_file_info" style="margin-top:10px"><strong>📚 Documento de Biblioteca</strong><span>Al quitarlo de este trabajo, el original seguirá disponible en la Biblioteca documental.</span></div>` : ""}
+    <button class="zx_btn_big zx_rojo" id="tr_file_delete">${esCompartido ? "↩️ Quitar del trabajo" : "🗑️ Eliminar"}</button>
     <button class="zx_btn_big zx_gris" id="tr_file_close">Cerrar</button>
   `);
   document.getElementById("tr_file_close").onclick=function(){abrirFicha(archivo.trabajo_id || trabajoId)};
