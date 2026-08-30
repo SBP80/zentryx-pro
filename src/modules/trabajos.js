@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3233
+// ZENTRYX PRO - TRABAJOS V3234
+// V3234 - AUDITORÍA PERSISTENTE SIN DOBLE TARJETA: METADATOS TAMBIÉN EN NOTAS PARA COMPATIBILIDAD
 // V3233 - NOTAS/PARTES: UNA SOLA ENTRADA AL CREAR; AUDITORÍA SOLO EN EDITAR/BORRAR
 // V3231 - ARCHIVOS DE BIBLIOTECA: QUITAR VÍNCULO SIN BORRAR EL ORIGINAL
 // V3230 - EVITA REGISTROS DE AUDITORÍA DUPLICADOS EN ACCIONES REPETIDAS
@@ -12,7 +13,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3232";
+const ZX_VERSION="3234";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -955,7 +956,11 @@ async function registrarAuditoriaTrabajo(trabajoId,entidad,accion,resumen,datos)
     entidad:String(entidad || "actividad"),
     accion:String(accion || "registro")
   },datos || {});
-  const ok=await registrarHistorial(trabajoId,"auditoria",texto,detalle);
+  // Guardamos también el detalle dentro de `notas` mediante la marca interna ya usada por los partes.
+  // Así la relación historial_id sigue disponible aunque la tabla no tenga columna `datos`
+  // o el backend rechace ese campo y registrarHistorial tenga que usar su fallback.
+  const notasAuditoria=notasParteConDatos(texto,detalle);
+  const ok=await registrarHistorial(trabajoId,"auditoria",notasAuditoria,detalle);
   if(!ok) console.warn("No se pudo registrar la auditoría del trabajo:",entidad,accion);
   return ok;
 }
