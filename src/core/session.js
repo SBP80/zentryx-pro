@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - SESSION
-// V3155 - CIERRE DE SESIÓN BLOQUEADO CONTRA RESTAURACIÓN PWA
+// V3156 - CIERRE DE SESIÓN PERSISTENTE HASTA NUEVO LOGIN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3155";
+const ZX_VERSION="3156";
 const ZX_APP_VERSION=String(window.ZX_VERSION || "3444");
 
 const SESSION_KEY="zentryx_session";
@@ -265,8 +265,10 @@ function updateActivity(force){
 
 function logoutGuardActive(){
   try{
-    const value=Number(localStorage.getItem(LOGOUT_GUARD_KEY) || 0);
-    return value>0 && (now()-value)<10*60*1000;
+    // El cierre manual permanece activo hasta que createSession()
+    // complete un nuevo login. Así una PWA restaurada por iOS no puede
+    // volver a mostrar app.html pasado un tiempo desde el cierre.
+    return !!localStorage.getItem(LOGOUT_GUARD_KEY);
   }catch(error){
     return false;
   }
