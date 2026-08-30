@@ -1,6 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3232
-// V3232 - NOTAS/PARTES: UNA SOLA ENTRADA AL CREAR; AUDITORÍA SOLO EN EDITAR/BORRAR
+// ZENTRYX PRO - TRABAJOS V3233
+// V3233 - NOTAS/PARTES: UNA SOLA ENTRADA AL CREAR; AUDITORÍA SOLO EN EDITAR/BORRAR
 // V3231 - ARCHIVOS DE BIBLIOTECA: QUITAR VÍNCULO SIN BORRAR EL ORIGINAL
 // V3230 - EVITA REGISTROS DE AUDITORÍA DUPLICADOS EN ACCIONES REPETIDAS
 // V3229 - AUDITORÍA PERSISTENTE DE NOTAS/PARTES + VOLVER SIN DUPLICADOS
@@ -881,6 +881,38 @@ async function registrarHistorial(trabajoId,tipo,notas,datos){
 
   }catch(e){
     return false;
+  }
+}
+
+async function registrarHistorialConId(trabajoId,tipo,notas,datos){
+  if(!trabajoId || !navigator.onLine || !sb()) return null;
+
+  const s=sesion();
+
+  try{
+    const data={
+      trabajo_id:String(trabajoId),
+      usuario_id:String(s.id || ""),
+      usuario:String(s.usuario || s.nombre || "sistema"),
+      fecha:hoy(),
+      hora_inicio:horaAhora(),
+      hora_fin:null,
+      tipo:String(tipo || "sistema"),
+      notas:String(notas || ""),
+      datos:datos || {},
+      created_at:new Date().toISOString()
+    };
+
+    let r=await sb().from("trabajos_historial").insert([data]).select("id,trabajo_id,created_at").single();
+
+    if(r.error){
+      delete data.datos;
+      r=await sb().from("trabajos_historial").insert([data]).select("id,trabajo_id,created_at").single();
+    }
+
+    return r.error ? null : (r.data || null);
+  }catch(e){
+    return null;
   }
 }
 
@@ -3095,10 +3127,11 @@ async function abrirParteJornada(id,historialId){
         if(r.error) throw r.error;
         await registrarAuditoriaTrabajo(id,"parte","editar","Parte editado: "+textoAnterior+" → "+(trabajoRealizado || "Sin texto"),{historial_id:String(parteExistente.id),texto_anterior:textoAnterior,texto_nuevo:trabajoRealizado,fecha_jornada:fecha});
       }else{
-        // La propia fila parte_jornada ya es el registro de creación visible.
-        // No añadimos una segunda fila de auditoría para la misma acción.
-        const ok=await registrarHistorial(id,"parte_jornada",notas,datosParte);
-        if(!ok) throw new Error("No se pudo registrar el parte.");
+        const creada=await registrarHistorialConId(id,"parte_jornada",notas,datosParte);
+        if(!creada?.id) throw new Error("No se pudo registrar el parte.");
+        // Conservamos el evento de creación para que siga visible tras borrar el parte.
+        // Mientras el parte exista, este evento se oculta del Historial para no contar dos movimientos.
+        await registrarAuditoriaTrabajo(id,"parte","crear","Parte creado: "+(trabajoRealizado || "Sin texto"),{historial_id:String(creada.id),texto_nuevo:trabajoRealizado,fecha_jornada:fecha,ocultar_mientras_exista:true});
       }
       window.dispatchEvent(new CustomEvent("zentryx:trabajos:actualizar",{detail:{trabajo_id:String(id),jornada_id:String(jornada?.id || "")}}));
       cerrarModal();await abrirFicha(id);
@@ -3140,15 +3173,16 @@ async function registrarNotaRapida(id){
       return;
     }
 
-    const ok=await registrarHistorial(id,"nota",nota,{nota:nota});
+    const creada=await registrarHistorialConId(id,"nota",nota,{nota:nota});
 
-    if(!ok){
+    if(!creada?.id){
       alert("No se pudo guardar la nota.");
       return;
     }
 
-    // La propia fila tipo nota ya registra la creación. Evitamos duplicar
-    // el movimiento con otra fila de auditoría para la misma acción.
+    // Guardamos también el evento de creación para conservar la trazabilidad si la nota se borra.
+    // Se oculta mientras la nota siga existiendo, por lo que visualmente cuenta una sola vez.
+    await registrarAuditoriaTrabajo(id,"nota","crear","Nota creada: "+nota,{historial_id:String(creada.id),texto_nuevo:nota,ocultar_mientras_exista:true});
     cerrarModal();
     abrirFicha(id);
   };
@@ -3742,7 +3776,7 @@ async function abrirFicha(id){
 <details class="zx_tr_followup_details">
         <summary>
           <span>Información y seguimiento</span>
-          <b>${mat.length} mat. · ${arch.length} arch. · ${hist.length} mov.</b>
+          <b>${mat.length} mat. · ${arch.length} arch. · ${historialVisibleProfesional(hist).length} mov.</b>
           <em>Planificación, materiales, archivos, partes e historial</em>
         </summary>
         <div class="zx_tr_followup_panel">
@@ -4990,8 +5024,28 @@ function fechaHoraHistorial(h){
   return fecha+(hora ? " · "+hora : "");
 }
 
-function renderHistorialProfesional(lista){
+function historialVisibleProfesional(lista){
   const hist=Array.isArray(lista) ? lista : [];
+  const vivos=new Set();
+
+  hist.forEach(function(h){
+    const tipo=normalizar(h?.tipo || "");
+    if(tipo==="nota" || tipo.includes("parte jornada") || tipo.includes("parte_jornada")){
+      if(h?.id!=null) vivos.add(String(h.id));
+    }
+  });
+
+  return hist.filter(function(h){
+    if(normalizar(h?.tipo || "")!=="auditoria") return true;
+    const datos=datosHistorial(h);
+    if(!datos?.ocultar_mientras_exista) return true;
+    const ref=String(datos.historial_id || "");
+    return !ref || !vivos.has(ref);
+  });
+}
+
+function renderHistorialProfesional(lista){
+  const hist=historialVisibleProfesional(lista);
   const contenido=hist.length ? `
     <div class="zx_tr_history_list">
       ${hist.map(function(h){
