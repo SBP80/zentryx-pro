@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1001
-// V1001 - LISTADO, ALTA, FICHA Y EDICIÓN BASE
+// ZENTRYX PRO - PROYECTOS V1002
+// V1002 - INSTALACIÓN EXISTENTE Y GENERADORES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1001";
+const ZX_VERSION="1002";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -14,6 +14,7 @@ let FILTRO="todos";
 let CLIENTES=[];
 let DIRECCIONES=[];
 let USUARIOS=[];
+let GENERADORES=[];
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -35,6 +36,15 @@ function nombreCliente(id){const c=CLIENTES.find(x=>String(x.id)===String(id));r
 function nombreUsuario(id){const u=USUARIOS.find(x=>String(x.id)===String(id));return u?(u.nombre||u.usuario||"Usuario"):""}
 function dirTexto(d){if(!d)return "";return [d.via_tipo,d.direccion,d.numero,d.portal,d.escalera,d.piso,d.puerta,d.codigo_postal,d.poblacion,d.provincia,d.pais].filter(Boolean).join(" ").replace(/\s+/g," ")}
 function proyectoDir(p){const d=DIRECCIONES.find(x=>String(x.id)===String(p.direccion_id));return d?dirTexto(d):""}
+function textoGenerador(v){return ({aerotermia:"Aerotermia",bomba_calor:"Bomba de calor",geotermia:"Geotermia",gas_natural:"Gas natural",glp:"GLP / propano",gasoleo:"Gasóleo",lena:"Leña",pellet:"Pellet",biomasa:"Biomasa",resistencia:"Resistencia eléctrica",solar_termica:"Solar térmica",fotovoltaica:"Fotovoltaica",chimenea:"Chimenea",estufa:"Estufa",otro:"Otro"})[v]||v||"Generador"}
+function textoRol(v){return ({principal:"Principal",apoyo:"Apoyo",emergencia:"Emergencia / reserva",alternativo:"Alternativo",simultaneo:"Simultáneo",solo_acs:"Solo ACS",solo_calefaccion:"Solo calefacción",manual:"Manual / normalmente desactivado"})[v]||v||"Sin definir"}
+function listaFunciones(x){return Array.isArray(x)?x:[]}
+async function cargarGeneradores(proyectoId){
+  GENERADORES=[];
+  if(!sb()||!navigator.onLine)return GENERADORES;
+  try{const r=await sb().from("proyectos_generadores").select("*").eq("proyecto_id",proyectoId).order("orden",{ascending:true}).order("created_at",{ascending:true});if(r.error)throw r.error;GENERADORES=r.data||[]}catch(e){}
+  return GENERADORES;
+}
 
 async function cargarAuxiliares(){
   if(!sb()||!navigator.onLine)return;
@@ -135,23 +145,91 @@ async function guardarFormulario(p){
     await cargar();cerrarModal();shell();abrirFicha(r.data.id);
   }catch(e){alert("No se pudo guardar el proyecto.\n"+(e&&e.message?e.message:""));btn.disabled=false;btn.textContent="Guardar"}
 }
+function generadoresHTML(){
+  if(!GENERADORES.length)return `<div class="zx_pr_empty zx_pr_gen_empty">Todavía no hay generadores registrados.</div>`;
+  return GENERADORES.map(g=>{
+    const meta=g.tecnico_meta||{},fs=listaFunciones(g.funciones),situacion=g.existente!==false?"Existente":"Propuesto";
+    return `<div class="zx_pr_gen_card">
+      <div class="zx_pr_gen_top"><div><b>${limpiar(textoGenerador(g.tipo))}</b><span>${limpiar(situacion)}${g.subtipo?" · "+limpiar(g.subtipo):""}</span></div>${puedeEditar()?`<button type="button" data-pr-gen-edit="${limpiar(g.id)}">Editar</button>`:""}</div>
+      <div class="zx_pr_gen_grid">
+        <div><span>Marca / modelo</span><b>${limpiar([g.marca,g.modelo].filter(Boolean).join(" ")||"Sin indicar")}</b></div>
+        <div><span>Potencia</span><b>${g.potencia_kw!=null?limpiar(g.potencia_kw)+" kW":"Sin indicar"}</b></div>
+        <div><span>Estado</span><b>${limpiar(g.estado||"Sin indicar")}</b></div>
+        <div><span>Futuro papel</span><b>${limpiar(textoRol(meta.rol_futuro))}</b></div>
+      </div>
+      ${fs.length?`<div class="zx_pr_gen_tags">${fs.map(x=>`<span>${limpiar(({calefaccion:"Calefacción",acs:"ACS",refrigeracion:"Refrigeración",piscina:"Piscina"})[x]||x)}</span>`).join("")}</div>`:""}
+      <div class="zx_pr_gen_decision">${g.se_retira?"Se retirará":g.se_mantiene?"Se conserva":"Pendiente de decidir"}</div>
+      ${g.notas?`<p>${limpiar(g.notas)}</p>`:""}
+    </div>`;
+  }).join("");
+}
+function conectarGeneradores(p){
+  document.querySelectorAll("[data-pr-gen-edit]").forEach(b=>b.onclick=()=>{const g=GENERADORES.find(x=>String(x.id)===String(b.dataset.prGenEdit));if(g)formularioGenerador(p,g)});
+  const n=document.getElementById("pr_gen_nuevo");if(n)n.onclick=()=>formularioGenerador(p,null);
+}
+function opcionesTipoGenerador(sel){return ["aerotermia","bomba_calor","geotermia","gas_natural","glp","gasoleo","lena","pellet","biomasa","resistencia","solar_termica","fotovoltaica","chimenea","estufa","otro"].map(x=>`<option value="${x}" ${sel===x?"selected":""}>${limpiar(textoGenerador(x))}</option>`).join("")}
+function formularioGenerador(p,g){
+  const meta=Object.assign({},g&&g.tecnico_meta||{}),fs=listaFunciones(g&&g.funciones),nuevo=!g;
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_gen_back" type="button">← Volver</button><button id="pr_gen_save" class="primary" type="button">Guardar</button></div>
+    <div class="zx_pr_form_head"><span>${nuevo?"NUEVO GENERADOR":"EDITAR GENERADOR"}</span><h2>${nuevo?"Añadir generador":limpiar(textoGenerador(g.tipo))}</h2></div>
+    <div class="zx_pr_grid2"><label>Situación<select id="pr_gen_existente"><option value="1" ${(g?g.existente!==false:true)?"selected":""}>Instalación existente</option><option value="0" ${g&&g.existente===false?"selected":""}>Equipo nuevo / previsto</option></select></label><label>Tipo<select id="pr_gen_tipo">${opcionesTipoGenerador(g&&g.tipo||"aerotermia")}</select></label></div>
+    <div class="zx_pr_grid2"><label>Subtipo<input id="pr_gen_subtipo" value="${limpiar(g&&g.subtipo||"")}" placeholder="Caldera, bomba de calor, estufa…"></label><label>Estado<input id="pr_gen_estado" value="${limpiar(g&&g.estado||"")}" placeholder="Bueno, regular, averiado…"></label></div>
+    <div class="zx_pr_grid2"><label>Marca<input id="pr_gen_marca" value="${limpiar(g&&g.marca||"")}"></label><label>Modelo<input id="pr_gen_modelo" value="${limpiar(g&&g.modelo||"")}"></label></div>
+    <div class="zx_pr_grid2"><label>Referencia<input id="pr_gen_ref" value="${limpiar(g&&g.referencia||"")}"></label><label>Potencia <span class="zx_pr_unit">kW</span><input id="pr_gen_kw" type="number" min="0" step="0.01" inputmode="decimal" value="${g&&g.potencia_kw!=null?limpiar(g.potencia_kw):""}"></label></div>
+    <div class="zx_pr_section"><h3>Servicios que cubre</h3><div class="zx_pr_checks">
+      ${[["calefaccion","Calefacción"],["acs","ACS"],["refrigeracion","Refrigeración"],["piscina","Piscina"]].map(([v,t])=>`<label><input type="checkbox" data-pr-func="${v}" ${fs.includes(v)?"checked":""}><span>${t}</span></label>`).join("")}
+    </div></div>
+    <div class="zx_pr_section"><h3>Decisión sobre este equipo</h3><div class="zx_pr_checks zx_pr_checks_decision">
+      <label><input id="pr_gen_mantiene" type="checkbox" ${g?g.se_mantiene!==false:"checked"}><span>Se conserva</span></label>
+      <label><input id="pr_gen_retira" type="checkbox" ${g&&g.se_retira?"checked":""}><span>Se retira</span></label>
+    </div><label class="zx_pr_role">Papel previsto si se conserva<select id="pr_gen_rol"><option value="">Sin definir</option>${["principal","apoyo","emergencia","alternativo","simultaneo","solo_acs","solo_calefaccion","manual"].map(x=>`<option value="${x}" ${meta.rol_futuro===x?"selected":""}>${limpiar(textoRol(x))}</option>`).join("")}</select></label></div>
+    <label>Notas<textarea id="pr_gen_notas" rows="4" placeholder="Estado, conexión actual, observaciones de visita…">${limpiar(g&&g.notas||"")}</textarea></label>
+    ${!nuevo?`<button id="pr_gen_delete" class="zx_pr_danger" type="button">Eliminar generador</button>`:""}`);
+  m.querySelector("#pr_gen_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};
+  const man=m.querySelector("#pr_gen_mantiene"),ret=m.querySelector("#pr_gen_retira");
+  man.onchange=()=>{if(man.checked)ret.checked=false};ret.onchange=()=>{if(ret.checked)man.checked=false};
+  m.querySelector("#pr_gen_save").onclick=()=>guardarGenerador(p,g);
+  const del=m.querySelector("#pr_gen_delete");if(del)del.onclick=()=>eliminarGenerador(p,g);
+}
+async function guardarGenerador(p,g){
+  if(!sb()||!navigator.onLine){alert("Necesitas conexión para guardar el generador.");return}
+  const tipo=document.getElementById("pr_gen_tipo").value;
+  const funciones=[...document.querySelectorAll("[data-pr-func]:checked")].map(x=>x.dataset.prFunc);
+  const potencia=document.getElementById("pr_gen_kw").value.trim();
+  const payload={proyecto_id:p.id,propuesta_id:null,tipo,subtipo:document.getElementById("pr_gen_subtipo").value.trim()||null,existente:document.getElementById("pr_gen_existente").value==="1",marca:document.getElementById("pr_gen_marca").value.trim()||null,modelo:document.getElementById("pr_gen_modelo").value.trim()||null,referencia:document.getElementById("pr_gen_ref").value.trim()||null,potencia_kw:potencia===""?null:Number(potencia),estado:document.getElementById("pr_gen_estado").value.trim()||null,se_mantiene:document.getElementById("pr_gen_mantiene").checked,se_retira:document.getElementById("pr_gen_retira").checked,funciones,tecnico_meta:Object.assign({},g&&g.tecnico_meta||{},{rol_futuro:document.getElementById("pr_gen_rol").value||null}),notas:document.getElementById("pr_gen_notas").value.trim()||null,orden:g&&Number.isFinite(Number(g.orden))?Number(g.orden):GENERADORES.length};
+  if(payload.se_mantiene&&payload.se_retira){alert("No puede marcarse a la vez conservar y retirar.");return}
+  const btn=document.getElementById("pr_gen_save");btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    const r=g?await sb().from("proyectos_generadores").update(payload).eq("id",g.id).select("*").single():await sb().from("proyectos_generadores").insert([payload]).select("*").single();
+    if(r.error)throw r.error;
+    const u=sesion();try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"generador",accion:g?"editado":"creado",resumen:(g?"Generador modificado: ":"Generador añadido: ")+textoGenerador(tipo),usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{generador_id:r.data.id,tipo:r.data.tipo,existente:r.data.existente,se_mantiene:r.data.se_mantiene,se_retira:r.data.se_retira}}])}catch(e){}
+    cerrarModal();await abrirFicha(p.id);
+  }catch(e){alert("No se pudo guardar el generador.\n"+(e&&e.message?e.message:""));btn.disabled=false;btn.textContent="Guardar"}
+}
+async function eliminarGenerador(p,g){
+  if(!confirm("¿Eliminar este generador del proyecto?"))return;
+  try{const r=await sb().from("proyectos_generadores").delete().eq("id",g.id);if(r.error)throw r.error;const u=sesion();try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"generador",accion:"eliminado",resumen:"Generador eliminado: "+textoGenerador(g.tipo),usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{generador_id:g.id,tipo:g.tipo}}])}catch(e){}cerrarModal();await abrirFicha(p.id)}catch(e){alert("No se pudo eliminar el generador.\n"+(e&&e.message?e.message:""))}
+}
 async function abrirFicha(id){
   let p=CACHE.find(x=>String(x.id)===String(id));
   if(!p&&sb()&&navigator.onLine){const r=await sb().from(TABLA).select("*").eq("id",id).maybeSingle();if(!r.error)p=r.data}
   if(!p){alert("Proyecto no encontrado.");return}
+  await cargarGeneradores(p.id);
   const meta=p.inmueble_meta||{},d=proyectoDir(p);
   const m=modal(`<div class="zx_pr_top_actions"><button id="pr_ficha_back" type="button">← Volver</button>${puedeEditar()?`<button id="pr_ficha_edit" class="primary" type="button">✏️ Editar</button>`:"<button id=\"pr_ficha_close\" type=\"button\">Cerrar</button>"}</div>
     <div class="zx_pr_ficha_head"><span>FICHA DE PROYECTO</span><h2>${limpiar(p.nombre)}</h2><div><span class="${estadoClass(p.estado)}">${limpiar(textoEstado(p.estado))}</span></div></div>
     <section class="zx_pr_section"><h3>Datos principales</h3><div class="zx_pr_viewgrid"><div><span>Cliente</span><b>${limpiar(nombreCliente(p.cliente_id))}</b></div><div><span>Tipo</span><b>${limpiar(textoTipo(p.tipo))}</b></div><div><span>Dirección</span><b>${limpiar(d||"Sin dirección seleccionada")}</b></div><div><span>Comercial</span><b>${limpiar(nombreUsuario(p.comercial_id)||"Sin asignar")}</b></div><div><span>Técnico</span><b>${limpiar(nombreUsuario(p.tecnico_id)||"Sin asignar")}</b></div><div><span>Creado</span><b>${limpiar(fechaES(p.created_at))}</b></div></div></section>
     <section class="zx_pr_section"><h3>Inmueble</h3><div class="zx_pr_viewgrid"><div><span>Tipo</span><b>${limpiar(meta.tipo_inmueble||"Sin indicar")}</b></div><div><span>Superficie calefactada</span><b>${meta.superficie_calefactada_m2!=null?limpiar(meta.superficie_calefactada_m2)+" m²":"Sin indicar"}</b></div><div><span>Plantas</span><b>${meta.plantas!=null?limpiar(meta.plantas)+" ud":"Sin indicar"}</b></div><div><span>Año construcción</span><b>${limpiar(meta.ano_construccion||"Sin indicar")}</b></div><div><span>Ocupantes</span><b>${meta.ocupantes!=null?limpiar(meta.ocupantes)+" personas":"Sin indicar"}</b></div><div><span>Baños</span><b>${meta.banos!=null?limpiar(meta.banos)+" ud":"Sin indicar"}</b></div></div></section>
     ${p.notas_internas?`<section class="zx_pr_section"><h3>Notas internas</h3><p class="zx_pr_notes">${limpiar(p.notas_internas)}</p></section>`:""}
-    <section class="zx_pr_next"><b>Siguiente fase</b><span>Generadores, emisores, cálculo, propuestas y presupuesto se añadirán después de validar esta ficha base.</span></section>`);
+    <section class="zx_pr_section"><div class="zx_pr_section_head"><div><h3>Instalación y generadores</h3><span>${GENERADORES.length} registrado(s)</span></div>${puedeEditar()?`<button id="pr_gen_nuevo" class="zx_pr_small_primary" type="button">＋ Añadir generador</button>`:""}</div><div class="zx_pr_generadores">${generadoresHTML()}</div></section>
+    <section class="zx_pr_next"><b>Próximas partes</b><span>Después añadiremos emisores, cálculo, estrategia híbrida, propuestas y presupuesto.</span></section>`);
   m.querySelector("#pr_ficha_back").onclick=cerrarModal;
   const e=m.querySelector("#pr_ficha_edit");if(e)e.onclick=()=>{cerrarModal();formulario(p)};
   const c=m.querySelector("#pr_ficha_close");if(c)c.onclick=cerrarModal;
+  conectarGeneradores(p);
 }
 function instalarCSS(){if(document.getElementById("zx_proyectos_css"))return;const s=document.createElement("style");s.id="zx_proyectos_css";s.textContent=`
-.zx_pr_shell{max-width:1180px;margin:0 auto;padding:14px 14px 90px;display:grid;gap:14px}.zx_pr_panel{background:#fff;border:1px solid #e2e8f0;border-radius:24px;padding:17px;box-shadow:0 8px 26px rgba(15,23,42,.05)}.zx_pr_head{display:flex;align-items:center;justify-content:space-between;gap:14px}.zx_pr_head h2{margin:0;color:#071330;font-size:28px}.zx_pr_head p{margin:5px 0 0;color:#64748b;font-weight:750}.zx_pr_primary,.zx_pr_top_actions .primary{border:0;border-radius:15px;background:#0f766e;color:#fff;min-height:46px;padding:11px 16px;font-weight:950;font-size:14px}.zx_pr_kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:13px}.zx_pr_kpis div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:10px;text-align:center}.zx_pr_kpis b{display:block;color:#071330;font-size:21px}.zx_pr_kpis span{color:#64748b;font-size:11px;font-weight:900}.zx_pr_tools{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:9px}.zx_pr_tools input,.zx_pr_tools select,.zx_pr_modal_box input,.zx_pr_modal_box select,.zx_pr_modal_box textarea{box-sizing:border-box;width:100%;border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc;color:#0f172a;padding:12px;font-size:15px;font-weight:750}.zx_pr_list_head{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}.zx_pr_list_head h3{margin:0;color:#071330}.zx_pr_list_head span{color:#64748b;font-size:12px;font-weight:900}.zx_pr_list{display:grid;gap:9px}.zx_pr_card{width:100%;text-align:left;border:1px solid #dbe3ef;border-radius:18px;background:#fff;padding:14px;color:#0f172a}.zx_pr_card_top{display:flex;align-items:flex-start;justify-content:space-between;gap:9px}.zx_pr_card_top>b{font-size:16px}.zx_pr_client{font-weight:900;color:#334155;margin-top:7px}.zx_pr_meta{display:flex;flex-wrap:wrap;gap:7px 14px;color:#64748b;font-size:12px;font-weight:800;margin-top:7px}.zx_pr_estado{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;background:#e2e8f0;color:#334155;font-size:10px;font-weight:950;white-space:nowrap}.zx_pr_e_aceptado,.zx_pr_e_terminado{background:#dcfce7;color:#166534}.zx_pr_e_rechazado{background:#fee2e2;color:#991b1b}.zx_pr_e_enviado,.zx_pr_e_presupuestado{background:#dbeafe;color:#1d4ed8}.zx_pr_empty{padding:24px;text-align:center;color:#64748b;font-weight:850}.zx_pr_modal{position:fixed;inset:0;z-index:100250;background:rgba(15,23,42,.68);padding:12px;display:flex;align-items:flex-start;justify-content:center;overflow:auto}.zx_pr_modal_box{width:min(760px,100%);margin:auto;background:#fff;border-radius:26px;padding:18px;box-shadow:0 28px 80px rgba(15,23,42,.4);display:grid;gap:13px}.zx_pr_top_actions{position:sticky;top:-18px;z-index:4;display:grid;grid-template-columns:1fr 1fr;gap:9px;background:rgba(255,255,255,.98);padding:3px 0 12px;border-bottom:1px solid #e2e8f0}.zx_pr_top_actions button{border:1px solid #cbd5e1;border-radius:15px;background:#fff;color:#334155;min-height:46px;padding:10px;font-weight:950}.zx_pr_top_actions .primary{background:#0f766e;color:#fff;border-color:#0f766e}.zx_pr_form_head span,.zx_pr_ficha_head>span{color:#0f766e;font-size:11px;font-weight:950;letter-spacing:.08em}.zx_pr_form_head h2,.zx_pr_ficha_head h2{margin:3px 0 0;color:#071330;font-size:26px}.zx_pr_modal_box label{display:grid;gap:6px;color:#475569;font-size:13px;font-weight:950}.zx_pr_grid2,.zx_pr_viewgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.zx_pr_section{border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc;padding:14px}.zx_pr_section h3{margin:0 0 12px;color:#071330;font-size:17px}.zx_pr_unit{color:#0f766e;font-size:11px}.zx_pr_viewgrid>div{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:11px;min-width:0}.zx_pr_viewgrid span{display:block;color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase}.zx_pr_viewgrid b{display:block;color:#0f172a;font-size:14px;margin-top:4px;word-break:break-word}.zx_pr_notes{margin:0;color:#334155;white-space:pre-wrap}.zx_pr_next{border:1px dashed #99f6e4;border-radius:17px;background:#f0fdfa;padding:13px}.zx_pr_next b,.zx_pr_next span{display:block}.zx_pr_next b{color:#115e59}.zx_pr_next span{color:#475569;font-size:12px;font-weight:800;margin-top:4px;line-height:1.4}@media(max-width:620px){.zx_pr_head{align-items:stretch;flex-direction:column}.zx_pr_primary{width:100%}.zx_pr_tools,.zx_pr_grid2,.zx_pr_viewgrid{grid-template-columns:1fr}.zx_pr_modal_box{padding:15px;border-radius:22px}.zx_pr_card_top{display:grid}.zx_pr_kpis{gap:5px}.zx_pr_kpis span{font-size:9px}}`;
+.zx_pr_shell{max-width:1180px;margin:0 auto;padding:14px 14px 90px;display:grid;gap:14px}.zx_pr_panel{background:#fff;border:1px solid #e2e8f0;border-radius:24px;padding:17px;box-shadow:0 8px 26px rgba(15,23,42,.05)}.zx_pr_head{display:flex;align-items:center;justify-content:space-between;gap:14px}.zx_pr_head h2{margin:0;color:#071330;font-size:28px}.zx_pr_head p{margin:5px 0 0;color:#64748b;font-weight:750}.zx_pr_primary,.zx_pr_top_actions .primary{border:0;border-radius:15px;background:#0f766e;color:#fff;min-height:46px;padding:11px 16px;font-weight:950;font-size:14px}.zx_pr_kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:13px}.zx_pr_kpis div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:10px;text-align:center}.zx_pr_kpis b{display:block;color:#071330;font-size:21px}.zx_pr_kpis span{color:#64748b;font-size:11px;font-weight:900}.zx_pr_tools{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:9px}.zx_pr_tools input,.zx_pr_tools select,.zx_pr_modal_box input,.zx_pr_modal_box select,.zx_pr_modal_box textarea{box-sizing:border-box;width:100%;border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc;color:#0f172a;padding:12px;font-size:15px;font-weight:750}.zx_pr_list_head{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}.zx_pr_list_head h3{margin:0;color:#071330}.zx_pr_list_head span{color:#64748b;font-size:12px;font-weight:900}.zx_pr_list{display:grid;gap:9px}.zx_pr_card{width:100%;text-align:left;border:1px solid #dbe3ef;border-radius:18px;background:#fff;padding:14px;color:#0f172a}.zx_pr_card_top{display:flex;align-items:flex-start;justify-content:space-between;gap:9px}.zx_pr_card_top>b{font-size:16px}.zx_pr_client{font-weight:900;color:#334155;margin-top:7px}.zx_pr_meta{display:flex;flex-wrap:wrap;gap:7px 14px;color:#64748b;font-size:12px;font-weight:800;margin-top:7px}.zx_pr_estado{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;background:#e2e8f0;color:#334155;font-size:10px;font-weight:950;white-space:nowrap}.zx_pr_e_aceptado,.zx_pr_e_terminado{background:#dcfce7;color:#166534}.zx_pr_e_rechazado{background:#fee2e2;color:#991b1b}.zx_pr_e_enviado,.zx_pr_e_presupuestado{background:#dbeafe;color:#1d4ed8}.zx_pr_empty{padding:24px;text-align:center;color:#64748b;font-weight:850}.zx_pr_modal{position:fixed;inset:0;z-index:100250;background:rgba(15,23,42,.68);padding:12px;display:flex;align-items:flex-start;justify-content:center;overflow:auto}.zx_pr_modal_box{width:min(760px,100%);margin:auto;background:#fff;border-radius:26px;padding:18px;box-shadow:0 28px 80px rgba(15,23,42,.4);display:grid;gap:13px}.zx_pr_top_actions{position:sticky;top:-18px;z-index:4;display:grid;grid-template-columns:1fr 1fr;gap:9px;background:rgba(255,255,255,.98);padding:3px 0 12px;border-bottom:1px solid #e2e8f0}.zx_pr_top_actions button{border:1px solid #cbd5e1;border-radius:15px;background:#fff;color:#334155;min-height:46px;padding:10px;font-weight:950}.zx_pr_top_actions .primary{background:#0f766e;color:#fff;border-color:#0f766e}.zx_pr_form_head span,.zx_pr_ficha_head>span{color:#0f766e;font-size:11px;font-weight:950;letter-spacing:.08em}.zx_pr_form_head h2,.zx_pr_ficha_head h2{margin:3px 0 0;color:#071330;font-size:26px}.zx_pr_modal_box label{display:grid;gap:6px;color:#475569;font-size:13px;font-weight:950}.zx_pr_grid2,.zx_pr_viewgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.zx_pr_section{border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc;padding:14px}.zx_pr_section h3{margin:0 0 12px;color:#071330;font-size:17px}.zx_pr_unit{color:#0f766e;font-size:11px}.zx_pr_viewgrid>div{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:11px;min-width:0}.zx_pr_viewgrid span{display:block;color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase}.zx_pr_viewgrid b{display:block;color:#0f172a;font-size:14px;margin-top:4px;word-break:break-word}.zx_pr_notes{margin:0;color:#334155;white-space:pre-wrap}.zx_pr_next{border:1px dashed #99f6e4;border-radius:17px;background:#f0fdfa;padding:13px}.zx_pr_next b,.zx_pr_next span{display:block}.zx_pr_next b{color:#115e59}.zx_pr_next span{color:#475569;font-size:12px;font-weight:800;margin-top:4px;line-height:1.4}.zx_pr_section_head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.zx_pr_section_head h3{margin:0}.zx_pr_section_head span{display:block;color:#64748b;font-size:11px;font-weight:850;margin-top:3px}.zx_pr_small_primary{border:0;border-radius:12px;background:#0f766e;color:#fff;padding:9px 11px;font-weight:950}.zx_pr_generadores{display:grid;gap:9px}.zx_pr_gen_card{background:#fff;border:1px solid #dbe3ef;border-radius:16px;padding:12px}.zx_pr_gen_top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.zx_pr_gen_top b{display:block;color:#071330;font-size:16px}.zx_pr_gen_top span{display:block;color:#64748b;font-size:11px;font-weight:850;margin-top:2px}.zx_pr_gen_top button{border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:7px 9px;color:#334155;font-weight:900}.zx_pr_gen_grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.zx_pr_gen_grid>div{border-radius:11px;background:#f8fafc;padding:8px}.zx_pr_gen_grid span{display:block;color:#64748b;font-size:9px;font-weight:950;text-transform:uppercase}.zx_pr_gen_grid b{display:block;color:#0f172a;font-size:12px;margin-top:3px}.zx_pr_gen_tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}.zx_pr_gen_tags span{background:#ecfeff;color:#155e75;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:900}.zx_pr_gen_decision{margin-top:9px;color:#0f766e;font-size:11px;font-weight:950}.zx_pr_gen_card p{margin:7px 0 0;color:#475569;font-size:11px;font-weight:700;white-space:pre-wrap}.zx_pr_checks{display:grid;grid-template-columns:1fr 1fr;gap:8px}.zx_pr_checks label{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #dbe3ef;border-radius:12px;padding:10px;color:#334155}.zx_pr_checks input{width:20px!important;height:20px;margin:0;padding:0}.zx_pr_checks span{font-size:12px;font-weight:900}.zx_pr_role{margin-top:12px}.zx_pr_danger{width:100%;border:1px solid #fecaca;border-radius:13px;background:#fff1f2;color:#991b1b;padding:11px;font-weight:950}@media(max-width:620px){.zx_pr_head{align-items:stretch;flex-direction:column}.zx_pr_primary{width:100%}.zx_pr_tools,.zx_pr_grid2,.zx_pr_viewgrid,.zx_pr_gen_grid{grid-template-columns:1fr}.zx_pr_modal_box{padding:15px;border-radius:22px}.zx_pr_card_top{display:grid}.zx_pr_section_head{align-items:stretch;flex-direction:column}.zx_pr_small_primary{width:100%}.zx_pr_checks{grid-template-columns:1fr}.zx_pr_kpis{gap:5px}.zx_pr_kpis span{font-size:9px}}`;
 document.head.appendChild(s)}
 
 window.ZX_proyectos=async function(){
