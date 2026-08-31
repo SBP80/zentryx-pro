@@ -1,21 +1,27 @@
 // ===============================
 // ZENTRYX PRO - AJUSTES
-// V3120 - AÑADE PROYECTOS A MÓDULOS DE EMPRESA
+// V3121 - PRESUPUESTOS: VALORES DE DOSIER POR EMPRESA
 // V3119 - AJUSTES OPERATIVOS Y ESTADOS NO EDITABLES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3120";
+const ZX_VERSION="3121";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
 const CONFIG_KEY="zentryx_config";
+const DOSIER_EMPRESA_CACHE_PREFIX="zentryx_presupuestos_empresa_cache_v1:";
 
 const ZX_CONFIG_LABORAL_ANTERIOR=window.ZX_configLaboral || window.ZX_config_laboral || null;
 
 function app(){return document.getElementById("app")}
 function zx(){return window.ZENTRYX || window.ZX || null}
 function store(){return window.ZENTRYX_STORE || window.ZX_STORE || null}
+function sb(){return window.sb || window.supabaseClient || null}
+function sesion(){try{return JSON.parse(localStorage.getItem("zentryx_session")||"{}")}catch(e){return {}}}
+function empresaId(){const s=sesion();return String(s.empresa_id||"demo").trim()||"demo"}
+function dosierEmpresaCacheKey(){return DOSIER_EMPRESA_CACHE_PREFIX+empresaId()}
+function guardarDosierEmpresaCache(x){try{localStorage.setItem(dosierEmpresaCacheKey(),JSON.stringify(x||{}))}catch(e){}}
 
 function limpiar(v){
   return String(v ?? "")
@@ -74,7 +80,8 @@ function configBase(){
       sincronizacion_automatica:true,
       barra_inferior:true,
       boton_notas:true
-    }
+    },
+    presupuestos:{dosier:{}}
   };
 }
 
@@ -124,6 +131,76 @@ function unir(base,data){
   return out;
 }
 
+function dosierEmpresaBase(cfg){
+  const e=cfg&&cfg.empresa||{};
+  return {
+    version:1,
+    marca_nombre:String(e.nombre||"Zentryx PRO"),
+    logo_url:String(e.logo||""),
+    telefono:String(e.telefono||""),
+    email:String(e.email||""),
+    web:String(e.web||""),
+    estilo:"comercial",
+    color_primario:"#0f766e",
+    color_acento:"#14b8a6",
+    titulo:"Propuesta de climatización y ACS",
+    etiqueta:"Propuesta recomendada",
+    foto_portada_url:"",
+    introduccion:"Una propuesta preparada a partir de los datos del inmueble, la instalación existente y las necesidades registradas en el proyecto.",
+    beneficios:"Confort estable durante todo el año\nSolución adaptada a la instalación existente\nFuncionamiento claro y preparado para mantenimiento",
+    texto_empresa:"",
+    modo_precios:"capitulos",
+    incluye:"Suministro de los elementos incluidos en la oferta\nInstalación y puesta en marcha según las partidas indicadas",
+    no_incluye:"Trabajos no descritos expresamente en esta oferta",
+    garantia:"Garantías según fabricante y normativa aplicable. Las condiciones concretas se indicarán en la documentación final.",
+    forma_pago:"A definir con el cliente",
+    plazo:"A concretar según disponibilidad de equipos y planificación de obra",
+    validez_dias:30,
+    cierre:"Si esta propuesta encaja con lo que necesitas, el siguiente paso es confirmar la opción elegida y programar la instalación.",
+    recomendada:true,
+    mostrar_inmueble:true,
+    mostrar_calculo:false,
+    mostrar_equipos:true,
+    mostrar_funcionamiento:true,
+    mostrar_incluye:true,
+    mostrar_no_incluye:true,
+    mostrar_garantia:true,
+    mostrar_pago:true,
+    mostrar_plazo:true,
+    mostrar_firma:true,
+    mostrar_contacto:true
+  };
+}
+function normalizarDosierEmpresa(cfg,data){return unir(dosierEmpresaBase(cfg),data&&typeof data==="object"&&!Array.isArray(data)?data:{})}
+async function cargarPresupuestosEmpresa(){
+  let cfg=getConfig();
+  if(!sb()||!navigator.onLine)return cfg;
+  try{
+    const r=await sb().from("config_empresa").select("empresa_id,presupuestos_meta").eq("empresa_id",empresaId()).maybeSingle();
+    if(r.error)throw r.error;
+    const pm=r.data&&r.data.presupuestos_meta&&typeof r.data.presupuestos_meta==="object"&&!Array.isArray(r.data.presupuestos_meta)?r.data.presupuestos_meta:{};
+    cfg.presupuestos=cfg.presupuestos&&typeof cfg.presupuestos==="object"?cfg.presupuestos:{};
+    cfg.presupuestos.dosier=normalizarDosierEmpresa(cfg,pm.dosier||{});
+    guardar(CONFIG_KEY,cfg);guardarDosierEmpresaCache(cfg.presupuestos.dosier);
+  }catch(e){console.warn("Zentryx Ajustes: no se pudo cargar la configuración de presupuestos de empresa",e)}
+  return cfg;
+}
+async function guardarPresupuestosEmpresa(cfg){
+  if(!sb()||!navigator.onLine)return {offline:true};
+  const d=normalizarDosierEmpresa(cfg,cfg&&cfg.presupuestos&&cfg.presupuestos.dosier||{});
+  const pm={version:1,dosier:d},u=sesion(),fila={presupuestos_meta:pm,updated_at:new Date().toISOString(),updated_by:u.usuario||u.id||""};
+  try{
+    let r=await sb().from("config_empresa").update(fila).eq("empresa_id",empresaId()).select("empresa_id").maybeSingle();
+    if(r.error)throw r.error;
+    if(!r.data){
+      r=await sb().from("config_empresa").upsert([{empresa_id:empresaId(),...fila}],{onConflict:"empresa_id"}).select("empresa_id").single();
+      if(r.error)throw r.error;
+    }
+    guardarDosierEmpresaCache(d);
+    return {error:null};
+  }catch(e){return {error:e}}
+}
+
 function getConfig(){
   let cfg=unir(configBase(),leer(CONFIG_KEY,{}));
 
@@ -139,6 +216,8 @@ function getConfig(){
   cfg.modulos.configuracion=true;
   delete cfg.modulos.control_fichajes;
   delete cfg.modulos.solicitudes;
+  cfg.presupuestos=cfg.presupuestos&&typeof cfg.presupuestos==="object"?cfg.presupuestos:{};
+  cfg.presupuestos.dosier=normalizarDosierEmpresa(cfg,cfg.presupuestos.dosier||{});
 
   return cfg;
 }
@@ -200,12 +279,18 @@ async function guardarTodo(cfg,t,st){
     zx().guardarConfig(cfg);
   }
 
+  const presupuestosRemoto=await guardarPresupuestosEmpresa(cfg);
+
   if(remoto && remoto.error){
     alert("Los ajustes se han guardado en este dispositivo, pero no se pudieron guardar todavía para la empresa: "+(remoto.error.message || remoto.error));
     return false;
   }
+  if(presupuestosRemoto && presupuestosRemoto.error){
+    alert("Los ajustes generales se han guardado, pero no se pudo guardar la configuración de presupuestos para la empresa: "+(presupuestosRemoto.error.message || presupuestosRemoto.error));
+    return false;
+  }
 
-  alert(remoto && (remoto.offline || remoto.degradada)
+  alert((remoto && (remoto.offline || remoto.degradada)) || (presupuestosRemoto&&presupuestosRemoto.offline)
     ? "Ajustes guardados. La copia de empresa queda pendiente de sincronizar."
     : "Ajustes guardados.");
   return true;
@@ -215,6 +300,13 @@ function campoTexto(id,label,value,placeholder){
   return `
     <label class="zx_set_label" for="${id}">${limpiar(label)}</label>
     <input id="${id}" value="${limpiar(value || "")}" placeholder="${limpiar(placeholder || label)}">
+  `;
+}
+
+function campoArea(id,label,value,rows,placeholder){
+  return `
+    <label class="zx_set_label" for="${id}">${limpiar(label)}</label>
+    <textarea id="${id}" rows="${Number(rows)||3}" placeholder="${limpiar(placeholder || label)}">${limpiar(value || "")}</textarea>
   `;
 }
 
@@ -327,6 +419,68 @@ function seccionModulos(cfg){
   `;
 }
 
+function seccionPresupuestos(cfg){
+  const d=normalizarDosierEmpresa(cfg,cfg.presupuestos&&cfg.presupuestos.dosier||{});
+  return `
+    <section class="zx_set_card zx_set_budget_card" id="zx_set_presupuestos">
+      <div class="zx_set_card_head">
+        <div class="zx_set_icon cyan">💼</div>
+        <div><h3>Presupuestos</h3><p>Valores de empresa usados como base para los dosieres comerciales.</p></div>
+      </div>
+      <div class="zx_set_info"><div><b>Base común para nuevas ofertas</b><span>Cada presupuesto en borrador puede cambiar estos valores sin afectar a los demás.</span></div><strong>Empresa</strong></div>
+      <h4 class="zx_set_subtitle">Identidad comercial</h4>
+      <div class="zx_set_grid2">
+        <div>${campoTexto("set_dos_marca","Nombre mostrado",d.marca_nombre,"Nombre comercial")}</div>
+        <div>${campoTexto("set_dos_logo","URL del logo",d.logo_url,"https://...")}</div>
+        <div>${campoTexto("set_dos_telefono","Teléfono",d.telefono,"Teléfono comercial")}</div>
+        <div>${campoTexto("set_dos_email","Email",d.email,"correo@empresa.es")}</div>
+      </div>
+      ${campoTexto("set_dos_web","Web",d.web,"www.empresa.es")}
+      <div class="zx_set_grid2">
+        <div>${select("set_dos_estilo","Estilo por defecto",d.estilo,[["comercial","Comercial visual"],["profesional","Profesional"],["tecnico","Técnico"]])}</div>
+        <div>${select("set_dos_precios","Precios por defecto",d.modo_precios,[["total","Solo total"],["capitulos","Por capítulos"],["detallado","Partidas detalladas"]])}</div>
+      </div>
+      <div class="zx_set_grid2">
+        <div>${campoColor("set_dos_primario","Color principal",d.color_primario)}</div>
+        <div>${campoColor("set_dos_acento","Color de apoyo",d.color_acento)}</div>
+      </div>
+      ${campoTexto("set_dos_portada","Imagen de portada · URL",d.foto_portada_url,"https://...")}
+      <h4 class="zx_set_subtitle">Texto comercial</h4>
+      ${campoTexto("set_dos_titulo","Título por defecto",d.titulo)}
+      ${campoTexto("set_dos_etiqueta","Etiqueta destacada",d.etiqueta)}
+      ${campoArea("set_dos_intro","Texto inicial",d.introduccion,4)}
+      ${campoArea("set_dos_beneficios","Beneficios · uno por línea",d.beneficios,5)}
+      ${campoArea("set_dos_empresa_txt","Texto sobre la empresa · opcional",d.texto_empresa,3)}
+      <h4 class="zx_set_subtitle">Apartados visibles</h4>
+      <div class="zx_set_checks2">
+        ${toggle("set_dos_recomendada","Destacar como recomendada",d.recomendada!==false,"")}
+        ${toggle("set_dos_inmueble","Mostrar inmueble",d.mostrar_inmueble!==false,"")}
+        ${toggle("set_dos_calculo","Mostrar cálculo",d.mostrar_calculo===true,"")}
+        ${toggle("set_dos_equipos","Mostrar equipos",d.mostrar_equipos!==false,"")}
+        ${toggle("set_dos_func","Mostrar funcionamiento",d.mostrar_funcionamiento!==false,"")}
+        ${toggle("set_dos_incluye","Mostrar qué incluye",d.mostrar_incluye!==false,"")}
+        ${toggle("set_dos_noincluye","Mostrar qué no incluye",d.mostrar_no_incluye!==false,"")}
+        ${toggle("set_dos_garantia","Mostrar garantías",d.mostrar_garantia!==false,"")}
+        ${toggle("set_dos_pago","Mostrar forma de pago",d.mostrar_pago!==false,"")}
+        ${toggle("set_dos_plazo","Mostrar plazo",d.mostrar_plazo!==false,"")}
+        ${toggle("set_dos_firma","Mostrar zona de aceptación",d.mostrar_firma!==false,"")}
+        ${toggle("set_dos_contacto","Mostrar contacto al final",d.mostrar_contacto!==false,"")}
+      </div>
+      <h4 class="zx_set_subtitle">Condiciones por defecto</h4>
+      ${campoArea("set_dos_incluye_txt","Qué incluye",d.incluye,4)}
+      ${campoArea("set_dos_noincluye_txt","Qué no incluye",d.no_incluye,3)}
+      ${campoArea("set_dos_garantia_txt","Garantías",d.garantia,3)}
+      <div class="zx_set_grid2">
+        <div>${campoArea("set_dos_pago_txt","Forma de pago",d.forma_pago,3)}</div>
+        <div>${campoArea("set_dos_plazo_txt","Plazo estimado",d.plazo,3)}</div>
+      </div>
+      <label class="zx_set_label" for="set_dos_validez">Validez de la oferta · días</label>
+      <input id="set_dos_validez" type="number" min="1" step="1" inputmode="numeric" value="${limpiar(d.validez_dias)}">
+      ${campoArea("set_dos_cierre","Cierre comercial",d.cierre,4)}
+    </section>
+  `;
+}
+
 function seccionLaboral(){
   return `
     <section class="zx_set_card" id="zx_set_laboral">
@@ -394,6 +548,44 @@ function leerPantalla(){
   cfg.empresa.sector=document.getElementById("set_empresa_sector").value.trim();
   cfg.empresa.logo=document.getElementById("set_empresa_logo").value.trim();
 
+  const d=cfg.presupuestos&&cfg.presupuestos.dosier?cfg.presupuestos.dosier:{};
+  d.version=1;
+  d.marca_nombre=document.getElementById("set_dos_marca").value.trim()||cfg.empresa.nombre;
+  d.logo_url=document.getElementById("set_dos_logo").value.trim();
+  d.telefono=document.getElementById("set_dos_telefono").value.trim();
+  d.email=document.getElementById("set_dos_email").value.trim();
+  d.web=document.getElementById("set_dos_web").value.trim();
+  d.estilo=document.getElementById("set_dos_estilo").value;
+  d.modo_precios=document.getElementById("set_dos_precios").value;
+  d.color_primario=document.getElementById("set_dos_primario_txt").value.trim()||document.getElementById("set_dos_primario").value;
+  d.color_acento=document.getElementById("set_dos_acento_txt").value.trim()||document.getElementById("set_dos_acento").value;
+  d.foto_portada_url=document.getElementById("set_dos_portada").value.trim();
+  d.titulo=document.getElementById("set_dos_titulo").value.trim();
+  d.etiqueta=document.getElementById("set_dos_etiqueta").value.trim();
+  d.introduccion=document.getElementById("set_dos_intro").value.trim();
+  d.beneficios=document.getElementById("set_dos_beneficios").value.trim();
+  d.texto_empresa=document.getElementById("set_dos_empresa_txt").value.trim();
+  d.recomendada=document.getElementById("set_dos_recomendada").checked;
+  d.mostrar_inmueble=document.getElementById("set_dos_inmueble").checked;
+  d.mostrar_calculo=document.getElementById("set_dos_calculo").checked;
+  d.mostrar_equipos=document.getElementById("set_dos_equipos").checked;
+  d.mostrar_funcionamiento=document.getElementById("set_dos_func").checked;
+  d.mostrar_incluye=document.getElementById("set_dos_incluye").checked;
+  d.mostrar_no_incluye=document.getElementById("set_dos_noincluye").checked;
+  d.mostrar_garantia=document.getElementById("set_dos_garantia").checked;
+  d.mostrar_pago=document.getElementById("set_dos_pago").checked;
+  d.mostrar_plazo=document.getElementById("set_dos_plazo").checked;
+  d.mostrar_firma=document.getElementById("set_dos_firma").checked;
+  d.mostrar_contacto=document.getElementById("set_dos_contacto").checked;
+  d.incluye=document.getElementById("set_dos_incluye_txt").value.trim();
+  d.no_incluye=document.getElementById("set_dos_noincluye_txt").value.trim();
+  d.garantia=document.getElementById("set_dos_garantia_txt").value.trim();
+  d.forma_pago=document.getElementById("set_dos_pago_txt").value.trim();
+  d.plazo=document.getElementById("set_dos_plazo_txt").value.trim();
+  d.validez_dias=Math.max(1,Math.round(Number(document.getElementById("set_dos_validez").value)||30));
+  d.cierre=document.getElementById("set_dos_cierre").value.trim();
+  cfg.presupuestos={dosier:d};
+
   t.modo=document.getElementById("set_theme_modo").value;
   t.radio=document.getElementById("set_theme_radio").value;
   t.color=document.getElementById("set_theme_color_txt").value.trim() || document.getElementById("set_theme_color").value || "#2563eb";
@@ -430,6 +622,7 @@ function pintar(){
         <button data-go="zx_set_empresa">🏢 Empresa</button>
         <button data-go="zx_set_apariencia">🎨 Apariencia</button>
         <button data-go="zx_set_modulos">🧩 Módulos</button>
+        <button data-go="zx_set_presupuestos">💼 Presupuestos</button>
         <button data-go="zx_set_laboral">🕒 Laboral</button>
         <button data-go="zx_set_app">📱 App</button>
         <button data-go="zx_set_servicios">✨ Servicios</button>
@@ -439,6 +632,7 @@ function pintar(){
       ${seccionEmpresa(cfg)}
       ${seccionApariencia(t)}
       ${seccionModulos(cfg)}
+      ${seccionPresupuestos(cfg)}
       ${seccionLaboral()}
       ${seccionApp()}
       ${seccionFuturo()}
@@ -468,6 +662,10 @@ function conectar(){
     color.oninput=function(){colorTxt.value=color.value;setTema(Object.assign(getTheme(),{color:color.value}))};
     colorTxt.onchange=function(){color.value=colorTxt.value || "#2563eb";setTema(Object.assign(getTheme(),{color:color.value}))};
   }
+  [["set_dos_primario","#0f766e"],["set_dos_acento","#14b8a6"]].forEach(function(par){
+    const c=document.getElementById(par[0]),t=document.getElementById(par[0]+"_txt");
+    if(c&&t){c.oninput=function(){t.value=c.value};t.onchange=function(){if(/^#[0-9a-fA-F]{6}$/.test(t.value.trim()))c.value=t.value.trim();else t.value=c.value||par[1]}}
+  });
 
   ["set_theme_modo","set_theme_compacto","set_theme_contraste","set_theme_radio"].forEach(function(id){
     const el=document.getElementById(id);
@@ -511,11 +709,11 @@ function conectar(){
 }
 
 function instalarCSS(){
-  const old=document.getElementById("zx_configuracion_css_v3119");
+  const old=document.getElementById("zx_configuracion_css_v3121");
   if(old) old.remove();
 
   const s=document.createElement("style");
-  s.id="zx_configuracion_css_v3119";
+  s.id="zx_configuracion_css_v3121";
   s.innerHTML=`
     .zx_set_shell{display:grid;grid-template-columns:1fr;gap:14px;padding-bottom:calc(env(safe-area-inset-bottom) + 118px)}
     .zx_set_hero,.zx_set_card,.zx_set_nav{background:white;border:1px solid #dbe3ef;border-radius:26px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}
@@ -534,7 +732,7 @@ function instalarCSS(){
     .zx_set_card h3{margin:0;color:#071330;font-size:23px;line-height:1.12;font-weight:950;letter-spacing:-.25px}
     .zx_set_card p{margin:5px 0 0;color:#64748b;font-size:14px;line-height:1.35;font-weight:850}
     .zx_set_label{display:block;margin:12px 0 6px;color:#475569;font-size:14px;font-weight:950}
-    .zx_set_card input,.zx_set_card select{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}
+    .zx_set_card input,.zx_set_card select,.zx_set_card textarea{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:13px;font-size:16px;font-weight:800;color:#071330;background:#f8fafc}.zx_set_card textarea{resize:vertical;min-height:84px;line-height:1.4}
     .zx_set_grid2{display:grid;grid-template-columns:1fr;gap:10px}
     .zx_set_colorrow{display:grid;grid-template-columns:74px 1fr;gap:10px;align-items:center}
     .zx_set_colorrow input[type=color]{height:50px;padding:5px}
@@ -550,16 +748,18 @@ function instalarCSS(){
     .zx_set_actions{display:grid;grid-template-columns:1fr;gap:10px}
     .zx_set_actions button{border:0;border-radius:18px;padding:15px;color:white;font-size:16px;font-weight:950}
     .zx_set_actions .blue{background:var(--zx-primary);color:var(--zx-primary-contrast)}.zx_set_actions .purple{background:#7c3aed}
+    .zx_set_subtitle{margin:18px 0 4px;color:#071330;font-size:16px;font-weight:950}
+    .zx_set_checks2{display:grid;grid-template-columns:1fr;gap:0}
     body.zx_compacto .zx_set_hero,body.zx_compacto .zx_set_card{padding:14px;border-radius:20px}
     body.zx_alto_contraste .zx_set_card,body.zx_alto_contraste .zx_set_hero{border-color:#0f172a}
     @media(max-width:390px){.zx_set_hero{grid-template-columns:1fr}.zx_set_hero_actions{justify-content:stretch}.zx_set_hero_actions button{flex:1}.zx_set_hero h2{font-size:27px}.zx_set_card_head{grid-template-columns:46px 1fr}.zx_set_icon{width:46px;height:46px;border-radius:16px}.zx_set_info{grid-template-columns:1fr}.zx_set_info strong{text-align:left;max-width:none}}
-    @media(min-width:700px){.zx_set_shell{padding-bottom:32px;grid-template-columns:1fr 1fr}.zx_set_hero,.zx_set_nav{grid-column:1/-1}.zx_set_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_set_modgrid{grid-template-columns:1fr 1fr;gap:10px}.zx_set_actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(min-width:700px){.zx_set_shell{padding-bottom:32px;grid-template-columns:1fr 1fr}.zx_set_hero,.zx_set_nav{grid-column:1/-1}.zx_set_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_set_modgrid{grid-template-columns:1fr 1fr;gap:10px}.zx_set_actions{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_set_budget_card{grid-column:1/-1}.zx_set_checks2{grid-template-columns:1fr 1fr;gap:10px}}
     @media(min-width:1100px){.zx_set_shell{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_set_hero,.zx_set_nav{grid-column:1/-1}.zx_set_card{padding:22px}.zx_set_hero{padding:22px}.zx_set_modgrid{grid-template-columns:1fr}}
   `;
   document.head.appendChild(s);
 }
 
-window.ZX_configuracion=function(){
+window.ZX_configuracion=async function(){
   instalarCSS();
 
   if(zx() && typeof zx().marcarModuloActivo==="function"){
@@ -571,6 +771,7 @@ window.ZX_configuracion=function(){
     });
   }
 
+  await cargarPresupuestosEmpresa();
   pintar();
 };
 
