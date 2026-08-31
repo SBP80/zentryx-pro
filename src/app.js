@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - APP BASE
+// V3121 - AÑADE PROYECTOS A LA CONFIGURACIÓN DE MÓDULOS
 // V3120 - BACKEND CENTRALIZADO Y SESIÓN LOCAL REDUCIDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3120";
+const ZX_VERSION="3121";
 
 const BACKEND_CONFIG=window.ZENTRYX_BACKEND_CONFIG || {};
 const SUPABASE_URL=String(BACKEND_CONFIG.url || "");
@@ -533,6 +534,7 @@ function configBase(){
       agenda:true,
       clientes:true,
       trabajos:true,
+      proyectos:true,
       almacen:true,
       usuarios:true,
       vehiculos:true,
