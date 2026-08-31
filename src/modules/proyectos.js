@@ -1,6 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1002
-// V1002 - INSTALACIÓN EXISTENTE Y GENERADORES
+// ZENTRYX PRO - PROYECTOS V1003
+// V1003 - INSTALACIÓN EXISTENTE Y GENERADORES
 // ===============================
 (function(){
 "use strict";
@@ -158,7 +158,7 @@ function generadoresHTML(){
         <div><span>Futuro papel</span><b>${limpiar(textoRol(meta.rol_futuro))}</b></div>
       </div>
       ${fs.length?`<div class="zx_pr_gen_tags">${fs.map(x=>`<span>${limpiar(({calefaccion:"Calefacción",acs:"ACS",refrigeracion:"Refrigeración",piscina:"Piscina"})[x]||x)}</span>`).join("")}</div>`:""}
-      <div class="zx_pr_gen_decision">${g.se_retira?"Se retirará":g.se_mantiene?"Se conserva":"Pendiente de decidir"}</div>
+      <div class="zx_pr_gen_decision">${g.existente===false?"Equipo previsto":(g.se_retira?"Se retirará":g.se_mantiene?"Se conserva":"Pendiente de decidir")}</div>
       ${g.notas?`<p>${limpiar(g.notas)}</p>`:""}
     </div>`;
   }).join("");
@@ -179,15 +179,16 @@ function formularioGenerador(p,g){
     <div class="zx_pr_section"><h3>Servicios que cubre</h3><div class="zx_pr_checks">
       ${[["calefaccion","Calefacción"],["acs","ACS"],["refrigeracion","Refrigeración"],["piscina","Piscina"]].map(([v,t])=>`<label><input type="checkbox" data-pr-func="${v}" ${fs.includes(v)?"checked":""}><span>${t}</span></label>`).join("")}
     </div></div>
-    <div class="zx_pr_section"><h3>Decisión sobre este equipo</h3><div class="zx_pr_checks zx_pr_checks_decision">
+    <div class="zx_pr_section" id="pr_gen_decision_section"><h3>Decisión sobre este equipo</h3><div class="zx_pr_checks zx_pr_checks_decision">
       <label><input id="pr_gen_mantiene" type="checkbox" ${g?g.se_mantiene!==false:"checked"}><span>Se conserva</span></label>
       <label><input id="pr_gen_retira" type="checkbox" ${g&&g.se_retira?"checked":""}><span>Se retira</span></label>
     </div><label class="zx_pr_role">Papel previsto si se conserva<select id="pr_gen_rol"><option value="">Sin definir</option>${["principal","apoyo","emergencia","alternativo","simultaneo","solo_acs","solo_calefaccion","manual"].map(x=>`<option value="${x}" ${meta.rol_futuro===x?"selected":""}>${limpiar(textoRol(x))}</option>`).join("")}</select></label></div>
     <label>Notas<textarea id="pr_gen_notas" rows="4" placeholder="Estado, conexión actual, observaciones de visita…">${limpiar(g&&g.notas||"")}</textarea></label>
     ${!nuevo?`<button id="pr_gen_delete" class="zx_pr_danger" type="button">Eliminar generador</button>`:""}`);
   m.querySelector("#pr_gen_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};
-  const man=m.querySelector("#pr_gen_mantiene"),ret=m.querySelector("#pr_gen_retira");
-  man.onchange=()=>{if(man.checked)ret.checked=false};ret.onchange=()=>{if(ret.checked)man.checked=false};
+  const man=m.querySelector("#pr_gen_mantiene"),ret=m.querySelector("#pr_gen_retira"),sit=m.querySelector("#pr_gen_existente"),dec=m.querySelector("#pr_gen_decision_section");
+  const ajustarDecision=()=>{const existente=sit.value==="1";dec.style.display=existente?"":"none";if(!existente){man.checked=false;ret.checked=false}};
+  man.onchange=()=>{if(man.checked)ret.checked=false};ret.onchange=()=>{if(ret.checked)man.checked=false};sit.onchange=ajustarDecision;ajustarDecision();
   m.querySelector("#pr_gen_save").onclick=()=>guardarGenerador(p,g);
   const del=m.querySelector("#pr_gen_delete");if(del)del.onclick=()=>eliminarGenerador(p,g);
 }
@@ -196,7 +197,8 @@ async function guardarGenerador(p,g){
   const tipo=document.getElementById("pr_gen_tipo").value;
   const funciones=[...document.querySelectorAll("[data-pr-func]:checked")].map(x=>x.dataset.prFunc);
   const potencia=document.getElementById("pr_gen_kw").value.trim();
-  const payload={proyecto_id:p.id,propuesta_id:null,tipo,subtipo:document.getElementById("pr_gen_subtipo").value.trim()||null,existente:document.getElementById("pr_gen_existente").value==="1",marca:document.getElementById("pr_gen_marca").value.trim()||null,modelo:document.getElementById("pr_gen_modelo").value.trim()||null,referencia:document.getElementById("pr_gen_ref").value.trim()||null,potencia_kw:potencia===""?null:Number(potencia),estado:document.getElementById("pr_gen_estado").value.trim()||null,se_mantiene:document.getElementById("pr_gen_mantiene").checked,se_retira:document.getElementById("pr_gen_retira").checked,funciones,tecnico_meta:Object.assign({},g&&g.tecnico_meta||{},{rol_futuro:document.getElementById("pr_gen_rol").value||null}),notas:document.getElementById("pr_gen_notas").value.trim()||null,orden:g&&Number.isFinite(Number(g.orden))?Number(g.orden):GENERADORES.length};
+  const existente=document.getElementById("pr_gen_existente").value==="1";
+  const payload={proyecto_id:p.id,propuesta_id:null,tipo,subtipo:document.getElementById("pr_gen_subtipo").value.trim()||null,existente,marca:document.getElementById("pr_gen_marca").value.trim()||null,modelo:document.getElementById("pr_gen_modelo").value.trim()||null,referencia:document.getElementById("pr_gen_ref").value.trim()||null,potencia_kw:potencia===""?null:Number(potencia),estado:document.getElementById("pr_gen_estado").value.trim()||null,se_mantiene:existente&&document.getElementById("pr_gen_mantiene").checked,se_retira:existente&&document.getElementById("pr_gen_retira").checked,funciones,tecnico_meta:Object.assign({},g&&g.tecnico_meta||{},{rol_futuro:document.getElementById("pr_gen_rol").value||null}),notas:document.getElementById("pr_gen_notas").value.trim()||null,orden:g&&Number.isFinite(Number(g.orden))?Number(g.orden):GENERADORES.length};
   if(payload.se_mantiene&&payload.se_retira){alert("No puede marcarse a la vez conservar y retirar.");return}
   const btn=document.getElementById("pr_gen_save");btn.disabled=true;btn.textContent="Guardando…";
   try{
