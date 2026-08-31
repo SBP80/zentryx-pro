@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1056 - PROYECTOS: DOSIER COMERCIAL CONFIGURABLE
+// V1057 - PROYECTOS: DOSIER COMERCIAL CONFIGURABLE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1056";
+const ZX_VERSION="1057";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1577,6 +1577,7 @@ const BASE=[
       "El dosier permite mostrar u ocultar inmueble, cálculo, equipos, funcionamiento, alcance, garantías, forma de pago, plazo y zona de aceptación. El importe final del presupuesto permanece visible.",
       "Los precios pueden mostrarse solo como total, por capítulos o con partidas detalladas. El total para el cliente siempre conserva los impuestos calculados.",
       "La Vista dosier sirve para revisar la presentación antes de enviarla. La portada puede usar una imagen mediante URL y muestra la identidad de empresa disponible en Zentryx.",
+      "En cada generador puedes guardar una foto para el dosier y un texto breve dirigido al cliente. Si no hay foto, la tarjeta mantiene un bloque visual neutro.",
       "Al marcar una oferta como enviada, Zentryx guarda una copia cerrada del dosier, sus reglas, partidas, equipos, cálculo, importes y textos comerciales. Los cambios posteriores no alteran esa copia.",
       "Una opción enviada o aceptada permite consultar el dosier guardado, pero ya no cambiar su diseño."
     ],
