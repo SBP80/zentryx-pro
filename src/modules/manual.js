@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1046 - DOCUMENTACIÓN DE PROYECTOS V1
+// V1047 - PROYECTOS: CÁLCULOS VERSIONADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1044";
+const ZX_VERSION="1047";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1549,9 +1549,13 @@ const BASE=[
       "En equipos existentes puedes indicar si se conservan o se retiran. Los equipos nuevos o previstos no muestran esa decisión.",
       "Indica el papel previsto cuando corresponda: principal, apoyo, emergencia, alternativo, simultáneo, solo ACS, solo calefacción o manual.",
       "En Emisores y circuitos registra cada sistema por zona: suelo radiante, radiadores, fancoils, conductos, aerotermos, piscina u otro.",
-      "Para cada emisor puedes indicar si ya existe o está previsto, temperaturas de impulsión y retorno, potencia, cantidad con su unidad y si trabaja en calefacción o refrigeración."
+      "Para cada emisor puedes indicar si ya existe o está previsto, temperaturas de impulsión y retorno, potencia, cantidad con su unidad y si trabaja en calefacción o refrigeración.",
+      "En Cálculo térmico pulsa Nuevo cálculo para registrar una versión del estudio sin modificar las versiones anteriores.",
+      "Selecciona si es estimación rápida, cálculo técnico, cálculo manual u otro, e indica la superficie y temperaturas utilizadas.",
+      "Registra las cargas de calefacción y refrigeración en kW, el ACS recomendado en L y la temperatura de impulsión recomendada en °C.",
+      "Cada cálculo queda fechado, asociado al usuario y registrado también en el historial del proyecto."
     ],
-    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno"
+    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
