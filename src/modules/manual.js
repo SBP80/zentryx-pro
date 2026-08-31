@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1044 - DOCUMENTACIÓN DE PROYECTOS V1
+// V1045 - DOCUMENTACIÓN DE PROYECTOS V1
 // ===============================
 (function(){
 "use strict";
@@ -1545,8 +1545,9 @@ const BASE=[
       "Indica el tipo y estado del proyecto, y asigna comercial o técnico si corresponde.",
       "Registra los datos iniciales del inmueble; las cantidades muestran su unidad junto al campo.",
       "Guarda para abrir la ficha en modo consulta. Usa Editar desde la parte superior cuando necesites cambiar datos.",
-      "En Instalación y generadores puedes añadir varias fuentes existentes o previstas, indicar sus servicios, potencia, estado y si se conservan o retiran.",
-      "Para los equipos que se conservan, indica su papel previsto: principal, apoyo, emergencia, alternativo, simultáneo, solo ACS, solo calefacción o manual."
+      "En Instalación y generadores puedes añadir varias fuentes existentes o previstas e indicar sus servicios, potencia y estado.",
+      "En equipos existentes puedes indicar si se conservan o se retiran. Los equipos nuevos o previstos no muestran esa decisión.",
+      "Indica el papel previsto cuando corresponda: principal, apoyo, emergencia, alternativo, simultáneo, solo ACS, solo calefacción o manual."
     ],
     palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion"
   },
