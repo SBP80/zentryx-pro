@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1053 - PROYECTOS: PRESUPUESTO COMERCIAL DE OPCIÓN
+// V1054 - PROYECTOS: ENVÍO, ACEPTACIÓN Y BLOQUEO DE OPCIÓN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1053";
+const ZX_VERSION="1054";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1567,9 +1567,13 @@ const BASE=[
       "Las partidas y sus cambios quedan anotados en el historial del proyecto.",
       "En la tarjeta de cada opción pulsa Presupuesto para abrir el borrador comercial de esa solución.",
       "El borrador muestra proyecto, cliente, dirección, cálculo de referencia, solución propuesta, funcionamiento previsto, partidas, base imponible, IVA y total.",
-      "La vista de presupuesto destinada al cliente no muestra costes de compra ni margen interno."
+      "La vista de presupuesto destinada al cliente no muestra costes de compra ni margen interno.",
+      "Desde el presupuesto puedes marcar una opción como enviada. Esta acción registra el estado, pero no envía un archivo por sí sola.",
+      "Cuando el cliente aprueba una opción marcada como enviada, pulsa Aceptar opción y confirma la operación.",
+      "Al aceptar, la opción queda bloqueada: sus reglas de funcionamiento y partidas ya no pueden editarse ni eliminarse.",
+      "La aceptación guarda también una copia de los datos principales del presupuesto y anota fecha, usuario y total en el historial del proyecto."
     ],
-    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente"
+    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
