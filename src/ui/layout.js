@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
+// V3160 - NAVEGACIÓN Y MENÚ DEL MÓDULO PROYECTOS
 // V3159 - CIERRE DE SESIÓN FIABLE Y CAMBIO DE USUARIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3159";
+const ZX_VERSION="3160";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -2426,6 +2427,7 @@ const MODULOS=[
   {id:"agenda",texto:"Agenda",icono:"📅",color:"#7c3aed",bg:"#f3e8ff",admin:false},
   {id:"clientes",texto:"Clientes",icono:"👥",color:"#f97316",bg:"#ffedd5",admin:false},
   {id:"trabajos",texto:"Trabajos",icono:"🛠️",color:"#2563eb",bg:"#dbeafe",admin:false},
+  {id:"proyectos",texto:"Proyectos",icono:"📐",color:"#0f766e",bg:"#ccfbf1",admin:false},
   {id:"almacen",texto:"Almacén",icono:"📦",color:"#0f766e",bg:"#ccfbf1",admin:true},
   {id:"usuarios",texto:"Usuarios",icono:"👤",color:"#0891b2",bg:"#cffafe",admin:true},
   {id:"horas_extra",texto:"Horas",icono:"➕",color:"#f59e0b",bg:"#fef3c7",admin:true},
@@ -3469,6 +3471,7 @@ function zxRouterPrepararRegistro(modulo,recordId){
   const id=String(recordId || "").trim();
   if(!id) return;
   if(modulo==="trabajos") window.ZX_TRABAJO_ABRIR_ID=id;
+  if(modulo==="proyectos") window.ZX_PROYECTO_ABRIR_ID=id;
   window.ZX_ROUTER_RECORD={modulo:modulo,id:id,timestamp:Date.now()};
   try{sessionStorage.setItem("zentryx_router_record",JSON.stringify(window.ZX_ROUTER_RECORD))}catch(e){}
 }
@@ -3480,6 +3483,7 @@ function zxRouterEjecutarModulo(id){
     agenda:window.ZX_abrirAgenda,
     clientes:window.ZX_abrirClientes,
     trabajos:window.ZX_abrirTrabajos,
+    proyectos:window.ZX_abrirProyectos,
     almacen:window.ZX_abrirAlmacen || window.ZX_almacen,
     usuarios:window.ZX_usuarios,
     horas_extra:window.ZX_abrirHorasExtra,
