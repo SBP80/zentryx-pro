@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1045 - DOCUMENTACIÓN DE PROYECTOS V1
+// V1046 - DOCUMENTACIÓN DE PROYECTOS V1
 // ===============================
 (function(){
 "use strict";
@@ -1547,9 +1547,11 @@ const BASE=[
       "Guarda para abrir la ficha en modo consulta. Usa Editar desde la parte superior cuando necesites cambiar datos.",
       "En Instalación y generadores puedes añadir varias fuentes existentes o previstas e indicar sus servicios, potencia y estado.",
       "En equipos existentes puedes indicar si se conservan o se retiran. Los equipos nuevos o previstos no muestran esa decisión.",
-      "Indica el papel previsto cuando corresponda: principal, apoyo, emergencia, alternativo, simultáneo, solo ACS, solo calefacción o manual."
+      "Indica el papel previsto cuando corresponda: principal, apoyo, emergencia, alternativo, simultáneo, solo ACS, solo calefacción o manual.",
+      "En Emisores y circuitos registra cada sistema por zona: suelo radiante, radiadores, fancoils, conductos, aerotermos, piscina u otro.",
+      "Para cada emisor puedes indicar si ya existe o está previsto, temperaturas de impulsión y retorno, potencia, cantidad con su unidad y si trabaja en calefacción o refrigeración."
     ],
-    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion"
+    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
