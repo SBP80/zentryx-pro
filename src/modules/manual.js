@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1052 - PROYECTOS: DESCUENTO DE PROVEEDOR EN PARTIDAS
+// V1053 - PROYECTOS: PRESUPUESTO COMERCIAL DE OPCIÓN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1052";
+const ZX_VERSION="1053";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1564,9 +1564,12 @@ const BASE=[
       "En materiales puedes elegir un artículo del catálogo existente; el presupuesto conserva sus propios precios aunque el catálogo cambie después.",
       "Indica cantidad y unidad, coste unitario en €/unidad, descuento de proveedor en %, precio de venta en €/unidad e IVA en %.",
       "La pantalla calcula el coste, la venta sin IVA, el margen y el total para el cliente. Al editar o eliminar una partida los totales se recalculan.",
-      "Las partidas y sus cambios quedan anotados en el historial del proyecto."
+      "Las partidas y sus cambios quedan anotados en el historial del proyecto.",
+      "En la tarjeta de cada opción pulsa Presupuesto para abrir el borrador comercial de esa solución.",
+      "El borrador muestra proyecto, cliente, dirección, cálculo de referencia, solución propuesta, funcionamiento previsto, partidas, base imponible, IVA y total.",
+      "La vista de presupuesto destinada al cliente no muestra costes de compra ni margen interno."
     ],
-    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento"
+    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
