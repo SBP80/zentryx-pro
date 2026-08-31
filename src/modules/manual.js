@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1047 - PROYECTOS: CÁLCULOS VERSIONADOS
+// V1048 - PROYECTOS: TEMPERATURAS EXTERIORES CON SIGNO EN IPHONE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1047";
+const ZX_VERSION="1048";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
