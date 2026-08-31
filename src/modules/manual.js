@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1057 - PROYECTOS: DOSIER COMERCIAL CONFIGURABLE
+// V1058 - PROYECTOS: DOSIER ACEPTADO SIN MARCA DE VISTA PREVIA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1057";
+const ZX_VERSION="1058";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1579,7 +1579,8 @@ const BASE=[
       "La Vista dosier sirve para revisar la presentación antes de enviarla. La portada puede usar una imagen mediante URL y muestra la identidad de empresa disponible en Zentryx.",
       "En cada generador puedes guardar una foto para el dosier y un texto breve dirigido al cliente. Si no hay foto, la tarjeta mantiene un bloque visual neutro.",
       "Al marcar una oferta como enviada, Zentryx guarda una copia cerrada del dosier, sus reglas, partidas, equipos, cálculo, importes y textos comerciales. Los cambios posteriores no alteran esa copia.",
-      "Una opción enviada o aceptada permite consultar el dosier guardado, pero ya no cambiar su diseño."
+      "Una opción enviada o aceptada permite consultar el dosier guardado, pero ya no cambiar su diseño.",
+      "Cuando la opción está aceptada, el cierre del dosier muestra la aceptación registrada y el pie del documento la identifica como propuesta aceptada, no como vista previa."
     ],
     palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot"
   },
