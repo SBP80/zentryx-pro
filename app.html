@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>Zentryx PRO V3473</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Zentryx PRO V3474</title>
 
 <link rel="manifest" href="manifest.json?v=3444">
 <meta name="theme-color" content="#2563eb">
@@ -12,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3473";
+window.ZX_VERSION="3474";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -70,8 +73,26 @@ function mostrarErrorArranque(){
     "</main>";
 }
 
+async function comprobarVersionPublicada(){
+  if(!navigator.onLine) return false;
+  try{
+    const r=await fetch("app.html?zx_version_probe="+Date.now(),{cache:"no-store"});
+    if(!r.ok) return false;
+    const html=await r.text();
+    const m=html.match(/window\.ZX_VERSION\s*=\s*["'](\d+)["']/);
+    const publicada=m?Number(m[1]):0;
+    const actual=Number(window.ZX_VERSION||0);
+    if(publicada>actual){
+      location.replace("app.html?v="+publicada+"&t="+Date.now());
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+
 async function iniciar(){
   if(iniciado) return;
+  if(await comprobarVersionPublicada()) return;
   if(typeof window.ZENTRYX_sessionValid!=="function" || !window.ZENTRYX_sessionValid()){
     if(typeof window.ZENTRYX_logout==="function") window.ZENTRYX_logout();
     else location.replace("index.html?v="+window.ZX_VERSION+"&t="+Date.now());
