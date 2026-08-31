@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1012
-// V1012 - PARTIDAS, COSTES, PRECIOS Y TOTALES POR OPCIÓN
+// ZENTRYX PRO - PROYECTOS V1013
+// V1013 - PARTIDAS: ACLARACIÓN DESCUENTO PROVEEDOR
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1012";
+const ZX_VERSION="1013";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -459,7 +459,7 @@ function partidasHTML(op,xs){
   return xs.map((x,i)=>{const q=numValor(x.cantidad),cu=numValor(x.coste_unitario),pu=numValor(x.precio_unitario),iva=numValor(x.iva),coste=x.coste_neto!=null?numValor(x.coste_neto):q*cu*(1-numValor(x.descuento)/100),venta=q*pu,total=venta*(1+iva/100),margen=venta-coste;
     return `<div class="zx_pr_part_card">
       <div class="zx_pr_gen_top"><div><b>${i+1}. ${limpiar(x.descripcion)}</b><span>${limpiar(textoTipoPartida(x.tipo))}${x.grupo?" · "+limpiar(x.grupo):""}</span></div>${puedeEditar()&&op.estado!=="aceptada"?`<button type="button" data-pr-part-edit="${limpiar(x.id)}">Editar</button>`:""}</div>
-      <div class="zx_pr_gen_grid"><div><span>Cantidad</span><b>${limpiar(x.cantidad)} ${limpiar(x.unidad||"ud")}</b></div><div><span>Coste unitario</span><b>${eur(cu)}/${limpiar(x.unidad||"ud")}</b></div><div><span>Venta unitaria</span><b>${eur(pu)}/${limpiar(x.unidad||"ud")}</b></div><div><span>IVA</span><b>${limpiar(iva)} %</b></div><div><span>Coste</span><b>${eur(coste)}</b></div><div><span>Venta</span><b>${eur(venta)}</b></div><div><span>Margen</span><b>${eur(margen)}</b></div><div><span>Total cliente</span><b>${eur(total)}</b></div></div>
+      <div class="zx_pr_gen_grid"><div><span>Cantidad</span><b>${limpiar(x.cantidad)} ${limpiar(x.unidad||"ud")}</b></div><div><span>Coste unitario</span><b>${eur(cu)}/${limpiar(x.unidad||"ud")}</b></div><div><span>Venta unitaria</span><b>${eur(pu)}/${limpiar(x.unidad||"ud")}</b></div><div><span>Descuento proveedor</span><b>${limpiar(numValor(x.descuento))} %</b></div><div><span>IVA</span><b>${limpiar(iva)} %</b></div><div><span>Coste</span><b>${eur(coste)}</b></div><div><span>Venta</span><b>${eur(venta)}</b></div><div><span>Margen</span><b>${eur(margen)}</b></div><div><span>Total cliente</span><b>${eur(total)}</b></div></div>
       ${x.referencia?`<p>Referencia: ${limpiar(x.referencia)}</p>`:""}
       ${puedeEditar()&&op.estado!=="aceptada"?`<div class="zx_pr_rule_actions"><button type="button" data-pr-part-del="${limpiar(x.id)}">Eliminar</button></div>`:""}
     </div>`;
@@ -489,7 +489,7 @@ function formularioPartida(p,op,x,xs){
     <label>Descripción<input id="pr_part_desc" value="${limpiar(x.descripcion||"")}" placeholder="Descripción de la partida"></label>
     <div class="zx_pr_grid2"><label>Referencia<input id="pr_part_ref" value="${limpiar(x.referencia||"")}"></label><label>Unidad<select id="pr_part_unidad">${["ud","h","m","m²","m³","kg","L","km","día","servicio"].map(v=>`<option value="${v}" ${unidad===v?"selected":""}>${v}</option>`).join("")}</select></label></div>
     <div class="zx_pr_grid2"><label>Cantidad <span class="zx_pr_unit" id="pr_part_qty_unit">${limpiar(unidad)}</span><input id="pr_part_qty" type="number" min="0" step="0.01" inputmode="decimal" value="${x.cantidad!=null?limpiar(x.cantidad):"1"}"></label><label>Coste unitario <span class="zx_pr_unit">€/<span id="pr_part_cost_unit">${limpiar(unidad)}</span></span><input id="pr_part_cost" type="number" min="0" step="0.01" inputmode="decimal" value="${x.coste_unitario!=null?limpiar(x.coste_unitario):"0"}"></label></div>
-    <div class="zx_pr_grid2"><label>Descuento <span class="zx_pr_unit">%</span><input id="pr_part_descuento" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="${x.descuento!=null?limpiar(x.descuento):"0"}"></label><label>Precio de venta <span class="zx_pr_unit">€/<span id="pr_part_sale_unit">${limpiar(unidad)}</span></span><input id="pr_part_sale" type="number" min="0" step="0.01" inputmode="decimal" value="${x.precio_unitario!=null?limpiar(x.precio_unitario):"0"}"></label></div>
+    <div class="zx_pr_grid2"><label>Descuento proveedor <span class="zx_pr_unit">%</span><input id="pr_part_descuento" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="${x.descuento!=null?limpiar(x.descuento):"0"}"></label><label>Precio de venta <span class="zx_pr_unit">€/<span id="pr_part_sale_unit">${limpiar(unidad)}</span></span><input id="pr_part_sale" type="number" min="0" step="0.01" inputmode="decimal" value="${x.precio_unitario!=null?limpiar(x.precio_unitario):"0"}"></label></div>
     <label>IVA <span class="zx_pr_unit">%</span><input id="pr_part_iva" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="${x.iva!=null?limpiar(x.iva):"21"}"></label>
     <div id="pr_part_preview" class="zx_pr_part_preview"></div>`);
   const tipo=m.querySelector("#pr_part_tipo"),mw=m.querySelector("#pr_part_mat_wrap"),ms=m.querySelector("#pr_part_mat"),desc=m.querySelector("#pr_part_desc"),ref=m.querySelector("#pr_part_ref"),un=m.querySelector("#pr_part_unidad");
