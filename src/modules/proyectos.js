@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1021
-// V1021 - DOSIER ACEPTADO/ENVIADO: SNAPSHOT ESTRICTO SIN HEREDAR CAMBIOS POSTERIORES
+// ZENTRYX PRO - PROYECTOS V1022
+// V1022 - DOSIER: LOS EQUIPOS DE CADA OPCIÓN SE TOMAN DE SU ESTRATEGIA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1021";
+const ZX_VERSION="1022";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -701,6 +701,15 @@ function dossierReglasHTML(rs){
 }
 function serviciosEquipo(g){return listaFunciones(g&&g.funciones).map(x=>({calefaccion:"Calefacción",acs:"ACS",refrigeracion:"Refrigeración",piscina:"Piscina"})[x]||x)}
 function papelEquipo(g){const meta=g&&g.tecnico_meta||{};return meta.rol_futuro?textoRol(meta.rol_futuro):(g&&g.existente===false?"Equipo previsto":"Equipo existente")}
+function generadoresDossierPropuesta(op,gs){
+  const rs=reglasPropuesta(op),ids=new Set();
+  rs.forEach(r=>{
+    if(r&&r.generador_id!=null&&r.generador_id!=="")ids.add(String(r.generador_id));
+    if(r&&r.generador_referencia_id!=null&&r.generador_referencia_id!=="")ids.add(String(r.generador_referencia_id));
+  });
+  if(!ids.size)return [];
+  return (gs||[]).filter(g=>g&&ids.has(String(g.id)));
+}
 function dossierEquiposHTML(gs){
   const visibles=(gs||[]).filter(g=>g.existente===false||g.se_mantiene!==false);
   if(!visibles.length)return "";
@@ -714,7 +723,7 @@ function dossierCalculoHTML(calc){
 }
 function snapshotDossier(p,op,xs,calc,cfg){
   const t=totalesPartidas(xs),emp=empresaDosier();
-  return {version:1,creado_at:new Date().toISOString(),config:{...cfg},empresa:{...emp},proyecto:p.nombre||"",cliente:nombreCliente(p.cliente_id),direccion:proyectoDir(p)||"",inmueble_meta:p.inmueble_meta||{},descripcion:op.descripcion||"",calculo:calc?JSON.parse(JSON.stringify(calc)):null,generadores:GENERADORES.map(g=>JSON.parse(JSON.stringify(g))),reglas:reglasPropuesta(op).map(r=>({...r,generador_nombre_snapshot:r.generador_nombre_snapshot||nombreGeneradorId(r.generador_id),generador_referencia_nombre_snapshot:r.generador_referencia_id?(r.generador_referencia_nombre_snapshot||nombreGeneradorId(r.generador_referencia_id)):null})),partidas:(xs||[]).map(x=>JSON.parse(JSON.stringify(x))),totales:{...t}};
+  return {version:1,creado_at:new Date().toISOString(),config:{...cfg},empresa:{...emp},proyecto:p.nombre||"",cliente:nombreCliente(p.cliente_id),direccion:proyectoDir(p)||"",inmueble_meta:p.inmueble_meta||{},descripcion:op.descripcion||"",calculo:calc?JSON.parse(JSON.stringify(calc)):null,generadores:generadoresDossierPropuesta(op,GENERADORES).map(g=>JSON.parse(JSON.stringify(g))),reglas:reglasPropuesta(op).map(r=>({...r,generador_nombre_snapshot:r.generador_nombre_snapshot||nombreGeneradorId(r.generador_id),generador_referencia_nombre_snapshot:r.generador_referencia_id?(r.generador_referencia_nombre_snapshot||nombreGeneradorId(r.generador_referencia_id)):null})),partidas:(xs||[]).map(x=>JSON.parse(JSON.stringify(x))),totales:{...t}};
 }
 function datosDossierVista(p,op,xs,calc){
   const snap=dossierSnapshot(op),est=estadoPropuesta(op),bloqueada=est==="enviada"||est==="aceptada";
@@ -728,7 +737,7 @@ function datosDossierVista(p,op,xs,calc){
     const empAnterior=empresaDosierAnterior(),cfgAnterior={...dossierBaseHistorico(p,op),color_primario:empAnterior.color};
     return {cfg:cfgAnterior,emp:empAnterior,proyecto:ps.proyecto||p.nombre||"",cliente:ps.cliente||nombreCliente(p.cliente_id),direccion:ps.direccion||proyectoDir(p)||"",inmueble:p.inmueble_meta||{},descripcion:ps.descripcion||op.descripcion||"",calc,generadores:GENERADORES,reglas:reglasPropuesta(op),partidas:xs,totales:totalesPartidas(xs),snapshot:false,historico:true};
   }
-  return {cfg:dossierMeta(p,op),emp:empresaDosier(),proyecto:p.nombre||"",cliente:nombreCliente(p.cliente_id),direccion:proyectoDir(p)||"",inmueble:p.inmueble_meta||{},descripcion:op.descripcion||"",calc, generadores:GENERADORES,reglas:reglasPropuesta(op),partidas:xs,totales:totalesPartidas(xs),snapshot:false};
+  return {cfg:dossierMeta(p,op),emp:empresaDosier(),proyecto:p.nombre||"",cliente:nombreCliente(p.cliente_id),direccion:proyectoDir(p)||"",inmueble:p.inmueble_meta||{},descripcion:op.descripcion||"",calc, generadores:generadoresDossierPropuesta(op,GENERADORES),reglas:reglasPropuesta(op),partidas:xs,totales:totalesPartidas(xs),snapshot:false};
 }
 function tieneDosierPropio(op){
   const cm=op&&op.control_meta&&typeof op.control_meta==="object"&&!Array.isArray(op.control_meta)?op.control_meta:{};
