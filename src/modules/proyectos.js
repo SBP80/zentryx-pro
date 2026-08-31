@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1014
-// V1014 - PRESUPUESTO COMERCIAL DE OPCIÓN
+// ZENTRYX PRO - PROYECTOS V1015
+// V1015 - ENVÍO, ACEPTACIÓN Y BLOQUEO DE OPCIÓN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1014";
+const ZX_VERSION="1015";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -65,6 +65,11 @@ function textoServicioRegla(v){return ({calefaccion:"Calefacción",acs:"ACS",ref
 function textoCondicionRegla(v){return ({siempre:"Siempre",manual:"Orden manual",fallo_generador:"Fallo de otro generador",temp_ext_menor:"Temperatura exterior menor que",temp_ext_mayor:"Temperatura exterior mayor que",demanda_mayor:"Demanda mayor que",deposito_menor:"Temperatura de depósito menor que",excedente_fv_mayor:"Excedente fotovoltaico mayor que",coste_energia:"Coste de energía",horario:"Horario"})[v]||v||"Condición"}
 function textoAccionRegla(v){return ({usar:"Usar",priorizar:"Priorizar",apoyo:"Entrar como apoyo",simultaneo:"Trabajar simultáneamente",reserva:"Entrar como reserva",bloquear:"Bloquear",activar:"Activar"})[v]||v||"Acción"}
 function nombreGeneradorId(id){const g=GENERADORES.find(x=>String(x.id)===String(id));if(!g)return "Generador";const potencia=(g.potencia_kw!=null&&g.potencia_kw!=="")?limpiar(g.potencia_kw)+" kW":"";return [textoGenerador(g.tipo),potencia,g.marca,g.modelo].filter(Boolean).join(" · ")}
+function estadoPropuesta(op){return normalizar(op&&op.estado||"borrador")}
+function propuestaAceptada(op){return estadoPropuesta(op)==="aceptada"}
+function textoEstadoPropuesta(v){return ({borrador:"Borrador",enviada:"Enviada",aceptada:"Aceptada",rechazada:"Rechazada",archivada:"Archivada"})[normalizar(v)]||v||"Borrador"}
+function nombreGeneradorRegla(r){return r&&r.generador_nombre_snapshot?r.generador_nombre_snapshot:nombreGeneradorId(r&&r.generador_id)}
+function nombreGeneradorRelacionadoRegla(r){return r&&r.generador_referencia_nombre_snapshot?r.generador_referencia_nombre_snapshot:nombreGeneradorId(r&&r.generador_referencia_id)}
 function uidRegla(){return "rg_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8)}
 
 function textoTipoPartida(v){return ({material:"Material",mano_obra:"Mano de obra",servicio:"Servicio",transporte:"Transporte",subcontrata:"Subcontrata",ingenieria:"Ingeniería",legalizacion:"Legalización",rite:"RITE",cae:"CAE",otro:"Otro"})[v]||v||"Partida"}
@@ -383,12 +388,12 @@ function conectarCalculos(p){const n=document.getElementById("pr_calc_nuevo");if
 function propuestasEstrategiaHTML(){
   if(!PROPUESTAS.length)return `<div class="zx_pr_empty">Todavía no hay opciones técnicas creadas.</div>`;
   return PROPUESTAS.map((op,i)=>{
-    const rs=reglasPropuesta(op),calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id));
+    const rs=reglasPropuesta(op),calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id)),est=estadoPropuesta(op);
     return `<div class="zx_pr_strategy_card">
       <div class="zx_pr_gen_top"><div><b>${limpiar(op.nombre)}</b><span>${calc?"Cálculo de referencia · Versión "+limpiar(calc.version):"Sin cálculo de referencia"}</span></div><div class="zx_pr_strategy_actions">${puedeEditar()?`<button type="button" data-pr-strategy-open="${limpiar(op.id)}">Estrategia</button><button type="button" data-pr-budget-open="${limpiar(op.id)}">Partidas</button><button type="button" data-pr-quote-open="${limpiar(op.id)}">Presupuesto</button>`:""}</div></div>
       ${op.descripcion?`<p>${limpiar(op.descripcion)}</p>`:""}
-      <div class="zx_pr_strategy_count">${rs.length} regla(s) de funcionamiento · Total cliente ${eur(op.total_cliente||0)}</div>
-      ${rs.slice(0,3).map((r,n)=>`<div class="zx_pr_rule_resume"><b>${n+1}. ${limpiar(nombreGeneradorId(r.generador_id))}</b><span>${limpiar(textoServicioRegla(r.servicio))} · ${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.valor!=null&&r.valor!==""?" "+limpiar(r.valor)+(r.unidad?" "+limpiar(r.unidad):""):""}${r.condicion_tipo==="fallo_generador"&&r.generador_referencia_id?" · si falla "+limpiar(nombreGeneradorId(r.generador_referencia_id)):""}</span></div>`).join("")}
+      <div class="zx_pr_strategy_count">${limpiar(textoEstadoPropuesta(est))} · ${rs.length} regla(s) de funcionamiento · Total cliente ${eur(op.total_cliente||0)}</div>
+      ${rs.slice(0,3).map((r,n)=>`<div class="zx_pr_rule_resume"><b>${n+1}. ${limpiar(nombreGeneradorRegla(r))}</b><span>${limpiar(textoServicioRegla(r.servicio))} · ${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.valor!=null&&r.valor!==""?" "+limpiar(r.valor)+(r.unidad?" "+limpiar(r.unidad):""):""}${r.condicion_tipo==="fallo_generador"&&r.generador_referencia_id?" · si falla "+limpiar(nombreGeneradorRelacionadoRegla(r)):""}</span></div>`).join("")}
       ${rs.length>3?`<div class="zx_pr_calc_by">+ ${rs.length-3} regla(s) más</div>`:""}
     </div>`;
   }).join("");
@@ -415,21 +420,23 @@ async function guardarOpcionTecnica(p){
 }
 function detalleReglaHTML(r){
   const partes=[];
-  if(r.condicion_tipo==="fallo_generador"&&r.generador_referencia_id)partes.push("Si falla: "+nombreGeneradorId(r.generador_referencia_id));
+  if(r.condicion_tipo==="fallo_generador"&&r.generador_referencia_id)partes.push("Si falla: "+nombreGeneradorRelacionadoRegla(r));
   if(r.notas)partes.push(r.notas);
   return partes.length?`<div class="zx_pr_rule_detail">${partes.map(x=>`<span>${limpiar(x)}</span>`).join("")}</div>`:"";
 }
-function reglasHTML(op){const rs=reglasPropuesta(op);if(!rs.length)return `<div class="zx_pr_empty">Todavía no hay reglas definidas.</div>`;return rs.map((r,i)=>`<div class="zx_pr_rule_card"><div><b>${i+1}. ${limpiar(nombreGeneradorId(r.generador_id))}</b><span>${limpiar(textoServicioRegla(r.servicio))}</span></div><p>${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.valor!=null&&r.valor!==""?" "+limpiar(r.valor)+(r.unidad?" "+limpiar(r.unidad):""):""}</p>${detalleReglaHTML(r)}<div class="zx_pr_rule_actions"><button type="button" data-pr-rule-edit="${limpiar(r.id)}">Editar</button><button type="button" data-pr-rule-del="${limpiar(r.id)}">Eliminar</button></div></div>`).join("")}
+function reglasHTML(op){const rs=reglasPropuesta(op),bloqueada=propuestaAceptada(op);if(!rs.length)return `<div class="zx_pr_empty">Todavía no hay reglas definidas.</div>`;return rs.map((r,i)=>`<div class="zx_pr_rule_card"><div><b>${i+1}. ${limpiar(nombreGeneradorRegla(r))}</b><span>${limpiar(textoServicioRegla(r.servicio))}</span></div><p>${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.valor!=null&&r.valor!==""?" "+limpiar(r.valor)+(r.unidad?" "+limpiar(r.unidad):""):""}</p>${detalleReglaHTML(r)}${!bloqueada?`<div class="zx_pr_rule_actions"><button type="button" data-pr-rule-edit="${limpiar(r.id)}">Editar</button><button type="button" data-pr-rule-del="${limpiar(r.id)}">Eliminar</button></div>`:`<div class="zx_pr_calc_by">Opción aceptada · regla bloqueada</div>`}</div>`).join("")}
 function abrirEstrategia(p,opId){
   const op=PROPUESTAS.find(x=>String(x.id)===String(opId));if(!op)return;
-  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_st_back" type="button">← Volver</button><button id="pr_st_add" class="primary" type="button">＋ Añadir regla</button></div><div class="zx_pr_form_head"><span>ESTRATEGIA HÍBRIDA</span><h2>${limpiar(op.nombre)}</h2></div><div class="zx_pr_info"><b>Ordena cómo debe trabajar cada generador.</b><span>Las reglas describen la lógica prevista. El técnico debe comprobar que la hidráulica, el control y los equipos permiten ese funcionamiento.</span></div><div class="zx_pr_rules">${reglasHTML(op)}</div>`);
-  m.querySelector("#pr_st_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};m.querySelector("#pr_st_add").onclick=()=>formularioRegla(p,op,null);
+  const bloqueada=propuestaAceptada(op);
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_st_back" type="button">← Volver</button>${bloqueada?`<button type="button" disabled>Opción aceptada</button>`:`<button id="pr_st_add" class="primary" type="button">＋ Añadir regla</button>`}</div><div class="zx_pr_form_head"><span>ESTRATEGIA HÍBRIDA</span><h2>${limpiar(op.nombre)}</h2></div><div class="zx_pr_info"><b>Ordena cómo debe trabajar cada generador.</b><span>${bloqueada?"Esta opción está aceptada y sus reglas quedan bloqueadas.":"Las reglas describen la lógica prevista. El técnico debe comprobar que la hidráulica, el control y los equipos permiten ese funcionamiento."}</span></div><div class="zx_pr_rules">${reglasHTML(op)}</div>`);
+  m.querySelector("#pr_st_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};const add=m.querySelector("#pr_st_add");if(add)add.onclick=()=>formularioRegla(p,op,null);
   m.querySelectorAll("[data-pr-rule-edit]").forEach(b=>b.onclick=()=>formularioRegla(p,op,reglasPropuesta(op).find(r=>String(r.id)===String(b.dataset.prRuleEdit))));
   m.querySelectorAll("[data-pr-rule-del]").forEach(b=>b.onclick=()=>eliminarRegla(p,op,b.dataset.prRuleDel));
 }
 function opcionesGeneradores(sel){return `<option value="">Selecciona generador</option>`+GENERADORES.filter(g=>g.existente===false||g.se_mantiene!==false).map(g=>`<option value="${limpiar(g.id)}" ${String(sel)===String(g.id)?"selected":""}>${limpiar(nombreGeneradorId(g.id))}</option>`).join("")}
 function unidadCondicion(tipo){return ({temp_ext_menor:"°C",temp_ext_mayor:"°C",demanda_mayor:"kW",deposito_menor:"°C",excedente_fv_mayor:"kW",coste_energia:"€/kWh",horario:"h"})[tipo]||""}
 function formularioRegla(p,op,r){
+  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
   r=r||{};const nueva=!r.id;
   const m=modal(`<div class="zx_pr_top_actions"><button id="pr_rule_back" type="button">← Volver</button><button id="pr_rule_save" class="primary" type="button">Guardar regla</button></div><div class="zx_pr_form_head"><span>${nueva?"NUEVA REGLA":"EDITAR REGLA"}</span><h2>Funcionamiento híbrido</h2></div>
     <label>Generador<select id="pr_rule_gen">${opcionesGeneradores(r.generador_id)}</select></label>
@@ -445,6 +452,7 @@ function formularioRegla(p,op,r){
   m.querySelector("#pr_rule_back").onclick=()=>abrirEstrategia(p,op.id);m.querySelector("#pr_rule_save").onclick=()=>guardarRegla(p,op,r);
 }
 async function guardarRegla(p,op,r){
+  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
   const gen=document.getElementById("pr_rule_gen").value;if(!gen){alert("Selecciona un generador.");return}
   const cond=document.getElementById("pr_rule_cond").value,valor=document.getElementById("pr_rule_val").value.trim(),unidad=unidadCondicion(cond);
   const regla={id:r.id||uidRegla(),generador_id:gen,servicio:document.getElementById("pr_rule_serv").value,prioridad:Number(document.getElementById("pr_rule_prio").value)||1,accion:document.getElementById("pr_rule_acc").value,condicion_tipo:cond,valor:unidad&&valor!==""?valor:null,unidad:unidad||null,generador_referencia_id:cond==="fallo_generador"?(document.getElementById("pr_rule_ref").value||null):null,notas:document.getElementById("pr_rule_notes").value.trim()||null};
@@ -452,7 +460,7 @@ async function guardarRegla(p,op,r){
   const btn=document.getElementById("pr_rule_save");btn.disabled=true;btn.textContent="Guardando…";
   try{const q=await sb().from("proyectos_propuestas").update({estrategia_meta:rs}).eq("id",op.id).select("*").single();if(q.error)throw q.error;const u=sesion();try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"estrategia",accion:r.id?"editada":"creada",resumen:(r.id?"Regla híbrida modificada: ":"Regla híbrida añadida: ")+nombreGeneradorId(gen),usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{propuesta_id:op.id,regla_id:regla.id,generador_id:gen,condicion:cond,accion:regla.accion}}])}catch(e){}await cargarPropuestas(p.id);abrirEstrategia(p,op.id)}catch(e){alert("No se pudo guardar la regla.\n"+(e&&e.message?e.message:""));btn.disabled=false;btn.textContent="Guardar regla"}
 }
-async function eliminarRegla(p,op,id){if(!confirm("¿Eliminar esta regla de funcionamiento?"))return;const rs=reglasPropuesta(op).filter(x=>String(x.id)!==String(id));try{const q=await sb().from("proyectos_propuestas").update({estrategia_meta:rs}).eq("id",op.id).select("*").single();if(q.error)throw q.error;const u=sesion();try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"estrategia",accion:"eliminada",resumen:"Regla híbrida eliminada",usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{propuesta_id:op.id,regla_id:id}}])}catch(e){}await cargarPropuestas(p.id);abrirEstrategia(p,op.id)}catch(e){alert("No se pudo eliminar la regla.\n"+(e&&e.message?e.message:""))}}
+async function eliminarRegla(p,op,id){if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}if(!confirm("¿Eliminar esta regla de funcionamiento?"))return;const rs=reglasPropuesta(op).filter(x=>String(x.id)!==String(id));try{const q=await sb().from("proyectos_propuestas").update({estrategia_meta:rs}).eq("id",op.id).select("*").single();if(q.error)throw q.error;const u=sesion();try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"estrategia",accion:"eliminada",resumen:"Regla híbrida eliminada",usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{propuesta_id:op.id,regla_id:id}}])}catch(e){}await cargarPropuestas(p.id);abrirEstrategia(p,op.id)}catch(e){alert("No se pudo eliminar la regla.\n"+(e&&e.message?e.message:""))}}
 
 function partidasHTML(op,xs){
   if(!xs.length)return `<div class="zx_pr_empty">Todavía no hay partidas añadidas.</div>`;
@@ -480,6 +488,7 @@ async function abrirPartidas(p,opId){
   m.querySelectorAll("[data-pr-part-del]").forEach(b=>b.onclick=()=>eliminarPartida(p,op,b.dataset.prPartDel));
 }
 function formularioPartida(p,op,x,xs){
+  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
   x=x||{};const nueva=!x.id,unidad=x.unidad||"ud";
   const m=modal(`<div class="zx_pr_top_actions"><button id="pr_part_back" type="button">← Volver</button><button id="pr_part_save" class="primary" type="button">Guardar partida</button></div>
     <div class="zx_pr_form_head"><span>${nueva?"NUEVA PARTIDA":"EDITAR PARTIDA"}</span><h2>Costes y precio de venta</h2></div>
@@ -502,6 +511,7 @@ function formularioPartida(p,op,x,xs){
   m.querySelector("#pr_part_save").onclick=()=>guardarPartida(p,op,x);
 }
 async function guardarPartida(p,op,x){
+  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para guardar la partida.");return}
   const descripcion=document.getElementById("pr_part_desc").value.trim();if(!descripcion){alert("Escribe la descripción de la partida.");return}
   const cantidad=numValor(document.getElementById("pr_part_qty").value);if(cantidad<=0){alert("La cantidad debe ser mayor que 0.");return}
@@ -519,6 +529,7 @@ async function guardarPartida(p,op,x){
   }catch(e){alert("No se pudo guardar la partida.\n"+(e&&e.message?e.message:""));btn.disabled=false;btn.textContent="Guardar partida"}
 }
 async function eliminarPartida(p,op,id){
+  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
   if(!confirm("¿Eliminar esta partida?"))return;
   try{
     const actual=(await cargarPartidas(op.id)).find(x=>String(x.id)===String(id));
@@ -532,19 +543,54 @@ function presupuestoPartidasHTML(xs){
   if(!xs.length)return `<div class="zx_pr_empty">Todavía no hay partidas en esta opción.</div>`;
   return xs.map((x,i)=>{const q=numValor(x.cantidad),pu=numValor(x.precio_unitario),iva=numValor(x.iva),venta=q*pu,total=venta*(1+iva/100);return `<div class="zx_pr_quote_line"><div><b>${i+1}. ${limpiar(x.descripcion)}</b><span>${limpiar(textoTipoPartida(x.tipo))}${x.grupo?" · "+limpiar(x.grupo):""}</span></div><div class="zx_pr_quote_nums"><span>${limpiar(x.cantidad)} ${limpiar(x.unidad||"ud")} × ${eur(pu)}/${limpiar(x.unidad||"ud")}</span><b>${eur(venta)}</b><small>IVA ${limpiar(iva)} % · ${eur(total)}</small></div></div>`}).join("");
 }
+async function marcarPropuestaEnviada(p,op){
+  if(!sb()||!navigator.onLine){alert("Necesitas conexión para cambiar el estado del presupuesto.");return}
+  if(propuestaAceptada(op))return;
+  if(!confirm("¿Marcar esta opción como enviada al cliente? Esta acción registra el estado, pero no envía ningún archivo por sí sola."))return;
+  const u=sesion(),ahora=new Date().toISOString();
+  try{
+    const q=await sb().from("proyectos_propuestas").update({estado:"enviada"}).eq("id",op.id).select("*").single();if(q.error)throw q.error;
+    const qp=await sb().from("proyectos").update({estado:"enviado",updated_at:ahora}).eq("id",p.id);if(qp.error)throw qp.error;
+    try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"presupuesto",accion:"enviado",resumen:"Presupuesto marcado como enviado: "+op.nombre,usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{propuesta_id:op.id,estado:"enviada",fecha:ahora}}])}catch(e){}
+    await cargar();await cargarPropuestas(p.id);abrirPresupuesto(CACHE.find(x=>String(x.id)===String(p.id))||p,op.id);
+  }catch(e){alert("No se pudo cambiar el estado del presupuesto.\n"+(e&&e.message?e.message:""))}
+}
+async function aceptarPropuesta(p,op){
+  if(!sb()||!navigator.onLine){alert("Necesitas conexión para aceptar la opción.");return}
+  if(estadoPropuesta(op)!=="enviada"){alert("Primero marca el presupuesto como enviado.");return}
+  if(!confirm("¿Confirmar la aceptación de esta opción? Al aceptar se bloquean sus reglas y partidas para conservar la versión aprobada."))return;
+  const xs=await cargarPartidas(op.id),t=totalesPartidas(xs),u=sesion(),ahora=new Date().toISOString(),calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id));
+  const rs=reglasPropuesta(op).map(r=>({...r,generador_nombre_snapshot:r.generador_nombre_snapshot||nombreGeneradorId(r.generador_id),generador_referencia_nombre_snapshot:r.generador_referencia_id?(r.generador_referencia_nombre_snapshot||nombreGeneradorId(r.generador_referencia_id)):null}));
+  const cm=op.control_meta&&typeof op.control_meta==="object"&&!Array.isArray(op.control_meta)?{...op.control_meta}:{};
+  cm.presupuesto_snapshot={aceptado_at:ahora,aceptado_por:u.nombre||u.usuario||"",proyecto:p.nombre||"",cliente:nombreCliente(p.cliente_id),direccion:proyectoDir(p)||"",calculo:calc?"Versión "+calc.version:"Sin cálculo asociado",descripcion:op.descripcion||"",base_imponible:t.venta,iva:t.total-t.venta,total:t.total};
+  try{
+    const q=await sb().from("proyectos_propuestas").update({estado:"aceptada",estrategia_meta:rs,control_meta:cm,coste_total:t.coste,precio_venta:t.venta,total_cliente:t.total}).eq("id",op.id).select("*").single();if(q.error)throw q.error;
+    const qp=await sb().from("proyectos").update({estado:"aceptado",updated_at:ahora}).eq("id",p.id);if(qp.error)throw qp.error;
+    try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"presupuesto",accion:"aceptado",resumen:"Opción aceptada y bloqueada: "+op.nombre,usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{propuesta_id:op.id,estado:"aceptada",fecha:ahora,total:t.total}}])}catch(e){}
+    await cargar();await cargarPropuestas(p.id);abrirPresupuesto(CACHE.find(x=>String(x.id)===String(p.id))||p,op.id);
+  }catch(e){alert("No se pudo aceptar la opción.\n"+(e&&e.message?e.message:""))}
+}
 async function abrirPresupuesto(p,opId){
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para consultar el presupuesto.");return}
   const op=PROPUESTAS.find(x=>String(x.id)===String(opId));if(!op)return;
-  const xs=await cargarPartidas(op.id),t=totalesPartidas(xs),calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id)),ivaTotal=t.total-t.venta,rs=reglasPropuesta(op);
-  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_quote_back" type="button">← Volver</button><button type="button" disabled>Borrador</button></div>
-    <div class="zx_pr_form_head"><span>PRESUPUESTO COMERCIAL</span><h2>${limpiar(op.nombre)}</h2></div>
-    <div class="zx_pr_quote_head"><div><span>Proyecto</span><b>${limpiar(p.nombre)}</b></div><div><span>Cliente</span><b>${limpiar(nombreCliente(p.cliente_id))}</b></div><div><span>Dirección</span><b>${limpiar(proyectoDir(p)||"Sin dirección seleccionada")}</b></div><div><span>Cálculo</span><b>${calc?"Versión "+limpiar(calc.version):"Sin cálculo asociado"}</b></div></div>
+  const xs=await cargarPartidas(op.id),t=totalesPartidas(xs),calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id)),ivaTotal=t.total-t.venta,rs=reglasPropuesta(op),est=estadoPropuesta(op),snap=op.control_meta&&op.control_meta.presupuesto_snapshot;
+  const proyectoVista=est==="aceptada"&&snap&&snap.proyecto?snap.proyecto:p.nombre;
+  const clienteVista=est==="aceptada"&&snap&&snap.cliente?snap.cliente:nombreCliente(p.cliente_id);
+  const direccionVista=est==="aceptada"&&snap&&snap.direccion?snap.direccion:(proyectoDir(p)||"Sin dirección seleccionada");
+  const calculoVista=est==="aceptada"&&snap&&snap.calculo?snap.calculo:(calc?"Versión "+calc.version:"Sin cálculo asociado");
+  const accionTop=est==="aceptada"?`<button type="button" disabled>Aceptada</button>`:est==="enviada"?`<button id="pr_quote_accept" class="primary" type="button">✓ Aceptar opción</button>`:`<button id="pr_quote_send" class="primary" type="button">Marcar enviada</button>`;
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_quote_back" type="button">← Volver</button>${accionTop}</div>
+    <div class="zx_pr_form_head"><span>PRESUPUESTO COMERCIAL · ${limpiar(textoEstadoPropuesta(est).toUpperCase())}</span><h2>${limpiar(op.nombre)}</h2></div>
+    ${est==="aceptada"?`<div class="zx_pr_info"><b>Opción aceptada y bloqueada</b><span>${snap&&snap.aceptado_at?"Aceptada el "+limpiar(fechaES(snap.aceptado_at))+(snap.aceptado_por?" por "+limpiar(snap.aceptado_por):""):"Las reglas y partidas no se pueden modificar."}</span></div>`:""}
+    <div class="zx_pr_quote_head"><div><span>Proyecto</span><b>${limpiar(proyectoVista)}</b></div><div><span>Cliente</span><b>${limpiar(clienteVista)}</b></div><div><span>Dirección</span><b>${limpiar(direccionVista)}</b></div><div><span>Cálculo</span><b>${limpiar(calculoVista)}</b></div></div>
     ${op.descripcion?`<div class="zx_pr_info"><b>Solución propuesta</b><span>${limpiar(op.descripcion)}</span></div>`:""}
-    ${rs.length?`<div class="zx_pr_section"><h3>Funcionamiento previsto</h3>${rs.map((r,i)=>`<div class="zx_pr_rule_resume"><b>${i+1}. ${limpiar(nombreGeneradorId(r.generador_id))}</b><span>${limpiar(textoServicioRegla(r.servicio))} · ${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.condicion_tipo==="fallo_generador"&&r.generador_referencia_id?" · si falla "+limpiar(nombreGeneradorId(r.generador_referencia_id)):""}</span></div>`).join("")}</div>`:""}
+    ${rs.length?`<div class="zx_pr_section"><h3>Funcionamiento previsto</h3>${rs.map((r,i)=>`<div class="zx_pr_rule_resume"><b>${i+1}. ${limpiar(nombreGeneradorRegla(r))}</b><span>${limpiar(textoServicioRegla(r.servicio))} · ${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.condicion_tipo==="fallo_generador"&&r.generador_referencia_id?" · si falla "+limpiar(nombreGeneradorRelacionadoRegla(r)):""}</span></div>`).join("")}</div>`:""}
     <div class="zx_pr_section"><h3>Partidas</h3><div class="zx_pr_quote_lines">${presupuestoPartidasHTML(xs)}</div></div>
     <div class="zx_pr_quote_totals"><div><span>Base imponible</span><b>${eur(t.venta)}</b></div><div><span>IVA</span><b>${eur(ivaTotal)}</b></div><div class="total"><span>Total presupuesto</span><b>${eur(t.total)}</b></div></div>
-    <div class="zx_pr_info"><b>Vista para cliente</b><span>Este borrador no muestra costes de compra ni margen interno. El envío, la aceptación y el bloqueo de versión se añadirán en la siguiente fase.</span></div>`);
+    <div class="zx_pr_info"><b>Vista para cliente</b><span>${est==="aceptada"?"Esta opción queda bloqueada como versión aceptada. El PDF y la creación del Trabajo se prepararán después.":est==="enviada"?"El presupuesto figura como enviado. Si el cliente lo aprueba, usa Aceptar opción para bloquear esta versión.":"Marcar enviada solo registra el estado. El envío real del documento se añadirá junto con el PDF."}</span></div>`);
   m.querySelector("#pr_quote_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};
+  const send=m.querySelector("#pr_quote_send");if(send)send.onclick=()=>marcarPropuestaEnviada(p,op);
+  const accept=m.querySelector("#pr_quote_accept");if(accept)accept.onclick=()=>aceptarPropuesta(p,op);
 }
 function conectarEstrategia(p){const n=document.getElementById("pr_op_nueva");if(n)n.onclick=()=>formularioOpcionTecnica(p);document.querySelectorAll("[data-pr-strategy-open]").forEach(b=>b.onclick=()=>abrirEstrategia(p,b.dataset.prStrategyOpen));document.querySelectorAll("[data-pr-budget-open]").forEach(b=>b.onclick=()=>abrirPartidas(p,b.dataset.prBudgetOpen));document.querySelectorAll("[data-pr-quote-open]").forEach(b=>b.onclick=()=>abrirPresupuesto(p,b.dataset.prQuoteOpen))}
 
@@ -563,7 +609,7 @@ async function abrirFicha(id){
     <section class="zx_pr_section"><div class="zx_pr_section_head"><div><h3>Emisores y circuitos</h3><span>${listaEmisores(p).length} registrado(s)</span></div>${puedeEditar()?`<button id="pr_em_nuevo" class="zx_pr_small_primary" type="button">＋ Añadir emisor</button>`:""}</div><div class="zx_pr_emisores">${emisoresHTML(p)}</div></section>
     <section class="zx_pr_section"><div class="zx_pr_section_head"><div><h3>Cálculo térmico</h3><span>${CALCULOS.length} versión(es) guardada(s)</span></div>${puedeEditar()?`<button id="pr_calc_nuevo" class="zx_pr_small_primary" type="button">＋ Nuevo cálculo</button>`:""}</div><div class="zx_pr_calculos">${calculosHTML()}</div></section>
     <section class="zx_pr_section"><div class="zx_pr_section_head"><div><h3>Estrategia híbrida</h3><span>${PROPUESTAS.length} opción(es) técnica(s)</span></div>${puedeEditar()?`<button id="pr_op_nueva" class="zx_pr_small_primary" type="button">＋ Nueva opción</button>`:""}</div><div class="zx_pr_strategies">${propuestasEstrategiaHTML()}</div></section>
-    <section class="zx_pr_next"><b>Próximas partes</b><span>Después añadiremos envío, aceptación, bloqueo de versión y creación de Trabajo.</span></section>`);
+    <section class="zx_pr_next"><b>Próximas partes</b><span>Después añadiremos PDF, compartir el documento y creación de Trabajo.</span></section>`);
   m.querySelector("#pr_ficha_back").onclick=cerrarModal;
   const e=m.querySelector("#pr_ficha_edit");if(e)e.onclick=()=>{cerrarModal();formulario(p)};
   const c=m.querySelector("#pr_ficha_close");if(c)c.onclick=cerrarModal;
