@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1043 - BUSQUEDA DE CALENDARIO LABORAL CORREGIDA
+// V1044 - DOCUMENTACIÓN DE PROYECTOS V1
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1043";
+const ZX_VERSION="1044";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -94,6 +94,7 @@ function puntuacionManual(item,consulta){
   if(tq.has("vehicul") && item.id==="vehiculos") score+=18;
   if(tq.has("fich") && item.id==="fichaje") score+=18;
   if(tq.has("client") && item.id==="clientes") score+=18;
+  if((tq.has("proyect") || tq.has("generador") || tq.has("aerotermi")) && item.id==="proyectos") score+=22;
   if(tq.has("agenda") && item.id==="agenda") score+=18;
   if(tq.has("usuari") && item.id==="usuarios") score+=18;
   if(tq.has("configur") && item.id==="configuracion") score+=18;
@@ -155,6 +156,7 @@ function abrirModuloManual(id){
     usuarios:"ZX_usuarios",
     vehiculos:"ZX_vehiculos",
     clientes:"ZX_clientes",
+    proyectos:"ZX_proyectos",
     agenda:"ZX_agenda",
     trabajos:"ZX_trabajos",
     fichaje:"ZX_fichaje_real",
@@ -1535,6 +1537,20 @@ const BASE=[
     palabras:"trabajo obra servicio cliente material archivo foto nota historial equipo planificación estado finalizar finalizo finalice terminar termino cerrar cierro completar realizado finalizado finalizar jornada"
   },
   {
+    id:"proyectos",icono:"📐",titulo:"Proyectos",roles:["todos"],
+    resumen:"Estudios técnicos vinculados a clientes, direcciones e instalaciones existentes.",
+    pasos:[
+      "Entra en Proyectos y pulsa Crear proyecto.",
+      "Selecciona un cliente existente y una de sus direcciones guardadas.",
+      "Indica el tipo y estado del proyecto, y asigna comercial o técnico si corresponde.",
+      "Registra los datos iniciales del inmueble; las cantidades muestran su unidad junto al campo.",
+      "Guarda para abrir la ficha en modo consulta. Usa Editar desde la parte superior cuando necesites cambiar datos.",
+      "En Instalación y generadores puedes añadir varias fuentes existentes o previstas, indicar sus servicios, potencia, estado y si se conservan o retiran.",
+      "Para los equipos que se conservan, indica su papel previsto: principal, apoyo, emergencia, alternativo, simultáneo, solo ACS, solo calefacción o manual."
+    ],
+    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion"
+  },
+  {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
     resumen:"Consulta datos, contactos, direcciones, documentación e historial de clientes.",
     pasos:[
@@ -1620,7 +1636,7 @@ const BASE=[
 ];
 
 const ZX_MANUAL_MODULOS_CON_ACCESO=new Set([
-  "inicio","fichaje","agenda","clientes","trabajos","almacen","usuarios",
+  "inicio","fichaje","agenda","clientes","trabajos","proyectos","almacen","usuarios",
   "vehiculos","horas_extra","manual","configuracion"
 ]);
 
