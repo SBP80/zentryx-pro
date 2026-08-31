@@ -1,0 +1,168 @@
+// ===============================
+// ZENTRYX PRO - PROYECTOS V1001
+// V1001 - LISTADO, ALTA, FICHA Y EDICIÓN BASE
+// ===============================
+(function(){
+"use strict";
+
+const ZX_VERSION="1001";
+const TABLA="proyectos";
+const CACHE_KEY="zentryx_cache_proyectos_v1";
+let CACHE=[];
+let BUSQUEDA="";
+let FILTRO="todos";
+let CLIENTES=[];
+let DIRECCIONES=[];
+let USUARIOS=[];
+
+function app(){return document.getElementById("app")}
+function sb(){return window.sb || window.supabaseClient || null}
+function zx(){return window.ZENTRYX || window.ZX || null}
+function sesion(){
+  if(zx() && typeof zx().usuarioActual==="function") return zx().usuarioActual();
+  try{return JSON.parse(localStorage.getItem("zentryx_session") || "{}")}catch(e){return {}}
+}
+function limpiar(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
+function normalizar(v){return String(v??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim()}
+function puedeEntrar(){return zx() && typeof zx().puede==="function" ? zx().puede("ver","proyectos")===true : normalizar(sesion().rol)!=="invitado"}
+function puedeEditar(){return puedeEntrar()}
+function leerCache(){try{const x=JSON.parse(localStorage.getItem(CACHE_KEY)||"[]");return Array.isArray(x)?x:[]}catch(e){return []}}
+function guardarCache(x){try{localStorage.setItem(CACHE_KEY,JSON.stringify(x||[]))}catch(e){}}
+function fechaES(v){if(!v)return "";const s=String(v).slice(0,10),p=s.split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:s}
+function textoTipo(v){return ({nueva:"Nueva instalación",sustitucion:"Sustitución",reforma:"Reforma",ampliacion:"Ampliación",hibridacion:"Hibridación",estudio:"Solo estudio",otro:"Otro"})[v]||v||"Estudio"}
+function textoEstado(v){return ({borrador:"Borrador",estudio:"Estudio",visita:"Pendiente visita",calculado:"Calculado",presupuestado:"Presupuestado",enviado:"Enviado",aceptado:"Aceptado",ejecucion:"En ejecución",terminado:"Terminado",rechazado:"Rechazado",archivado:"Archivado"})[v]||v||"Borrador"}
+function nombreCliente(id){const c=CLIENTES.find(x=>String(x.id)===String(id));return c?c.nombre:"Cliente"}
+function nombreUsuario(id){const u=USUARIOS.find(x=>String(x.id)===String(id));return u?(u.nombre||u.usuario||"Usuario"):""}
+function dirTexto(d){if(!d)return "";return [d.via_tipo,d.direccion,d.numero,d.portal,d.escalera,d.piso,d.puerta,d.codigo_postal,d.poblacion,d.provincia,d.pais].filter(Boolean).join(" ").replace(/\s+/g," ")}
+function proyectoDir(p){const d=DIRECCIONES.find(x=>String(x.id)===String(p.direccion_id));return d?dirTexto(d):""}
+
+async function cargarAuxiliares(){
+  if(!sb()||!navigator.onLine)return;
+  try{
+    const [c,d,u]=await Promise.all([
+      sb().from("clientes").select("id,nombre,estado").order("nombre",{ascending:true}),
+      sb().from("clientes_direcciones").select("*").eq("activa",true).order("principal",{ascending:false}).order("orden",{ascending:true}),
+      sb().from("usuarios").select("id,usuario,nombre,activo,estado").order("nombre",{ascending:true})
+    ]);
+    if(!c.error)CLIENTES=(c.data||[]).filter(x=>normalizar(x.estado)!=="archivado");
+    if(!d.error)DIRECCIONES=d.data||[];
+    if(!u.error)USUARIOS=(u.data||[]).filter(x=>x.activo!==false && normalizar(x.estado)!=="inactivo");
+  }catch(e){}
+}
+async function cargar(){
+  CACHE=leerCache();
+  if(!sb()||!navigator.onLine)return CACHE;
+  try{
+    let q=sb().from(TABLA).select("*").order("updated_at",{ascending:false});
+    const emp=sesion().empresa_id;
+    if(emp)q=q.eq("empresa_id",emp);
+    const r=await q;
+    if(r.error)throw r.error;
+    CACHE=r.data||[];guardarCache(CACHE);
+  }catch(e){}
+  return CACHE;
+}
+function listaFiltrada(){
+  let x=CACHE.filter(p=>p.archivado!==true);
+  if(FILTRO!=="todos")x=x.filter(p=>p.estado===FILTRO);
+  const q=normalizar(BUSQUEDA);
+  if(q)x=x.filter(p=>normalizar([p.nombre,nombreCliente(p.cliente_id),textoTipo(p.tipo),textoEstado(p.estado),proyectoDir(p)].join(" ")).includes(q));
+  return x;
+}
+function estadoClass(v){return "zx_pr_estado zx_pr_e_"+limpiar(v||"borrador")}
+function renderTarjetas(lista){
+  if(!lista.length)return `<div class="zx_pr_empty">${BUSQUEDA?"No hay proyectos que coincidan con la búsqueda.":"No hay proyectos creados."}</div>`;
+  return lista.map(p=>`<button class="zx_pr_card" type="button" data-pr-open="${limpiar(p.id)}">
+    <div class="zx_pr_card_top"><b>${limpiar(p.nombre)}</b><span class="${estadoClass(p.estado)}">${limpiar(textoEstado(p.estado))}</span></div>
+    <div class="zx_pr_client">${limpiar(nombreCliente(p.cliente_id))}</div>
+    <div class="zx_pr_meta"><span>${limpiar(textoTipo(p.tipo))}</span>${proyectoDir(p)?`<span>📍 ${limpiar(proyectoDir(p))}</span>`:""}</div>
+  </button>`).join("");
+}
+function shell(){
+  const lista=listaFiltrada();
+  app().innerHTML=`<div class="zx_pr_shell">
+    <section class="zx_pr_panel zx_pr_head"><div><h2>Proyectos</h2><p>Estudios técnicos, propuestas y presupuestos.</p></div><button id="pr_nuevo" class="zx_pr_primary" type="button">＋ Crear proyecto</button></section>
+    <section class="zx_pr_panel"><div class="zx_pr_kpis"><div><b>${CACHE.filter(x=>x.archivado!==true).length}</b><span>Activos</span></div><div><b>${CACHE.filter(x=>x.estado==="borrador"&&x.archivado!==true).length}</b><span>Borrador</span></div><div><b>${CACHE.filter(x=>x.estado==="aceptado"&&x.archivado!==true).length}</b><span>Aceptados</span></div></div>
+      <div class="zx_pr_tools"><input id="zx_buscar_proyectos" type="search" placeholder="Buscar proyecto, cliente o dirección" value="${limpiar(BUSQUEDA)}"><select id="pr_filtro"><option value="todos">Todos los estados</option>${["borrador","estudio","visita","calculado","presupuestado","enviado","aceptado","ejecucion","terminado","rechazado"].map(x=>`<option value="${x}" ${FILTRO===x?"selected":""}>${limpiar(textoEstado(x))}</option>`).join("")}</select></div>
+    </section>
+    <section class="zx_pr_panel"><div class="zx_pr_list_head"><h3>Listado</h3><span>${lista.length} proyecto(s)</span></div><div class="zx_pr_list">${renderTarjetas(lista)}</div></section>
+  </div>`;
+  document.getElementById("pr_nuevo").onclick=()=>formulario(null);
+  document.getElementById("zx_buscar_proyectos").oninput=e=>{BUSQUEDA=e.target.value||"";repintarLista()};
+  document.getElementById("pr_filtro").onchange=e=>{FILTRO=e.target.value;shell()};
+  conectarTarjetas();
+}
+function repintarLista(){const l=listaFiltrada(),box=document.querySelector(".zx_pr_list"),h=document.querySelector(".zx_pr_list_head span");if(box)box.innerHTML=renderTarjetas(l);if(h)h.textContent=l.length+" proyecto(s)";conectarTarjetas()}
+function conectarTarjetas(){document.querySelectorAll("[data-pr-open]").forEach(b=>b.onclick=()=>abrirFicha(b.dataset.prOpen))}
+function opcionesClientes(sel){return `<option value="">Selecciona cliente</option>`+CLIENTES.map(c=>`<option value="${limpiar(c.id)}" ${String(sel)===String(c.id)?"selected":""}>${limpiar(c.nombre)}</option>`).join("")}
+function opcionesUsuarios(sel){return `<option value="">Sin asignar</option>`+USUARIOS.map(u=>`<option value="${limpiar(u.id)}" ${String(sel)===String(u.id)?"selected":""}>${limpiar(u.nombre||u.usuario)}</option>`).join("")}
+function opcionesDirecciones(clienteId,sel){const ds=DIRECCIONES.filter(d=>String(d.cliente_id)===String(clienteId));return `<option value="">${ds.length?"Selecciona dirección":"Cliente sin direcciones guardadas"}</option>`+ds.map(d=>`<option value="${limpiar(d.id)}" ${String(sel)===String(d.id)?"selected":""}>${limpiar((d.etiqueta?d.etiqueta+" · ":"")+dirTexto(d))}</option>`).join("")}
+function modal(html){let m=document.getElementById("zx_pr_modal");if(m)m.remove();m=document.createElement("div");m.id="zx_pr_modal";m.className="zx_pr_modal";m.innerHTML=`<div class="zx_pr_modal_box">${html}</div>`;document.body.appendChild(m);return m}
+function cerrarModal(){const m=document.getElementById("zx_pr_modal");if(m)m.remove()}
+function autoNombre(clienteId,tipo){const c=CLIENTES.find(x=>String(x.id)===String(clienteId));return c?textoTipo(tipo)+" · "+c.nombre:""}
+function formulario(p){
+  const nuevo=!p,meta=Object.assign({},p&&p.inmueble_meta||{});
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_form_cancel" type="button">← Volver</button><button id="pr_form_save" class="primary" type="button">Guardar</button></div>
+    <div class="zx_pr_form_head"><span>${nuevo?"NUEVO PROYECTO":"EDITAR PROYECTO"}</span><h2>${nuevo?"Crear proyecto":limpiar(p.nombre)}</h2></div>
+    <div class="zx_pr_grid2"><label>Cliente<select id="pr_cliente">${opcionesClientes(p&&p.cliente_id)}</select></label><label>Dirección<select id="pr_direccion">${opcionesDirecciones(p&&p.cliente_id,p&&p.direccion_id)}</select></label></div>
+    <div class="zx_pr_grid2"><label>Tipo<select id="pr_tipo">${["nueva","sustitucion","reforma","ampliacion","hibridacion","estudio","otro"].map(x=>`<option value="${x}" ${(p&&p.tipo||"estudio")===x?"selected":""}>${limpiar(textoTipo(x))}</option>`).join("")}</select></label><label>Estado<select id="pr_estado">${["borrador","estudio","visita","calculado","presupuestado","enviado","aceptado","ejecucion","terminado","rechazado"].map(x=>`<option value="${x}" ${(p&&p.estado||"borrador")===x?"selected":""}>${limpiar(textoEstado(x))}</option>`).join("")}</select></label></div>
+    <label>Nombre del proyecto<input id="pr_nombre" value="${limpiar(p&&p.nombre||"")}" placeholder="Se propone automáticamente"></label>
+    <div class="zx_pr_grid2"><label>Comercial<select id="pr_comercial">${opcionesUsuarios(p&&p.comercial_id)}</select></label><label>Técnico responsable<select id="pr_tecnico">${opcionesUsuarios(p&&p.tecnico_id)}</select></label></div>
+    <div class="zx_pr_section"><h3>Datos iniciales del inmueble</h3><div class="zx_pr_grid2"><label>Tipo de inmueble<input id="pr_inm_tipo" value="${limpiar(meta.tipo_inmueble||"")}" placeholder="Chalet, piso, local…"></label><label>Superficie calefactada <span class="zx_pr_unit">m²</span><input id="pr_m2" type="number" min="0" step="0.1" inputmode="decimal" value="${limpiar(meta.superficie_calefactada_m2??"")}"></label><label>Nº de plantas <span class="zx_pr_unit">ud</span><input id="pr_plantas" type="number" min="0" step="1" inputmode="numeric" value="${limpiar(meta.plantas??"")}"></label><label>Año de construcción<input id="pr_ano" type="number" min="1800" max="2200" step="1" inputmode="numeric" value="${limpiar(meta.ano_construccion??"")}"></label><label>Ocupantes <span class="zx_pr_unit">personas</span><input id="pr_ocupantes" type="number" min="0" step="1" inputmode="numeric" value="${limpiar(meta.ocupantes??"")}"></label><label>Nº de baños <span class="zx_pr_unit">ud</span><input id="pr_banos" type="number" min="0" step="1" inputmode="numeric" value="${limpiar(meta.banos??"")}"></label></div></div>
+    <label>Notas internas<textarea id="pr_notas" rows="4">${limpiar(p&&p.notas_internas||"")}</textarea></label>`);
+  const cli=m.querySelector("#pr_cliente"),dir=m.querySelector("#pr_direccion"),tipo=m.querySelector("#pr_tipo"),nom=m.querySelector("#pr_nombre");
+  cli.onchange=()=>{dir.innerHTML=opcionesDirecciones(cli.value,"");if(!nom.value.trim())nom.value=autoNombre(cli.value,tipo.value)};
+  tipo.onchange=()=>{if(nuevo && (!nom.value.trim() || nom.dataset.auto==="1")){nom.value=autoNombre(cli.value,tipo.value);nom.dataset.auto="1"}};
+  if(nuevo)nom.dataset.auto="1";nom.oninput=()=>{nom.dataset.auto="0"};
+  m.querySelector("#pr_form_cancel").onclick=cerrarModal;
+  m.querySelector("#pr_form_save").onclick=()=>guardarFormulario(p);
+}
+function numero(id){const v=document.getElementById(id).value.trim();return v===""?null:Number(v)}
+async function guardarFormulario(p){
+  if(!sb()||!navigator.onLine){alert("Necesitas conexión para guardar este proyecto.");return}
+  const cliente_id=document.getElementById("pr_cliente").value;
+  const nombre=document.getElementById("pr_nombre").value.trim();
+  if(!cliente_id){alert("Selecciona un cliente.");return}
+  if(!nombre){alert("Escribe el nombre del proyecto.");return}
+  const u=sesion();
+  const payload={empresa_id:u.empresa_id||"demo",cliente_id,direccion_id:document.getElementById("pr_direccion").value||null,nombre,tipo:document.getElementById("pr_tipo").value,estado:document.getElementById("pr_estado").value,comercial_id:document.getElementById("pr_comercial").value||null,tecnico_id:document.getElementById("pr_tecnico").value||null,notas_internas:document.getElementById("pr_notas").value.trim()||null,inmueble_meta:{tipo_inmueble:document.getElementById("pr_inm_tipo").value.trim(),superficie_calefactada_m2:numero("pr_m2"),plantas:numero("pr_plantas"),ano_construccion:numero("pr_ano"),ocupantes:numero("pr_ocupantes"),banos:numero("pr_banos")}};
+  if(!p)payload.creado_por=u.nombre||u.usuario||"";
+  const btn=document.getElementById("pr_form_save");btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    const r=p?await sb().from(TABLA).update(payload).eq("id",p.id).select("*").single():await sb().from(TABLA).insert([payload]).select("*").single();
+    if(r.error)throw r.error;
+    try{await sb().from("proyectos_historial").insert([{proyecto_id:r.data.id,tipo:"proyecto",accion:p?"editado":"creado",resumen:p?"Datos principales modificados":"Proyecto creado",usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{estado:r.data.estado,tipo:r.data.tipo}}])}catch(e){}
+    await cargar();cerrarModal();shell();abrirFicha(r.data.id);
+  }catch(e){alert("No se pudo guardar el proyecto.\n"+(e&&e.message?e.message:""));btn.disabled=false;btn.textContent="Guardar"}
+}
+async function abrirFicha(id){
+  let p=CACHE.find(x=>String(x.id)===String(id));
+  if(!p&&sb()&&navigator.onLine){const r=await sb().from(TABLA).select("*").eq("id",id).maybeSingle();if(!r.error)p=r.data}
+  if(!p){alert("Proyecto no encontrado.");return}
+  const meta=p.inmueble_meta||{},d=proyectoDir(p);
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_ficha_back" type="button">← Volver</button>${puedeEditar()?`<button id="pr_ficha_edit" class="primary" type="button">✏️ Editar</button>`:"<button id=\"pr_ficha_close\" type=\"button\">Cerrar</button>"}</div>
+    <div class="zx_pr_ficha_head"><span>FICHA DE PROYECTO</span><h2>${limpiar(p.nombre)}</h2><div><span class="${estadoClass(p.estado)}">${limpiar(textoEstado(p.estado))}</span></div></div>
+    <section class="zx_pr_section"><h3>Datos principales</h3><div class="zx_pr_viewgrid"><div><span>Cliente</span><b>${limpiar(nombreCliente(p.cliente_id))}</b></div><div><span>Tipo</span><b>${limpiar(textoTipo(p.tipo))}</b></div><div><span>Dirección</span><b>${limpiar(d||"Sin dirección seleccionada")}</b></div><div><span>Comercial</span><b>${limpiar(nombreUsuario(p.comercial_id)||"Sin asignar")}</b></div><div><span>Técnico</span><b>${limpiar(nombreUsuario(p.tecnico_id)||"Sin asignar")}</b></div><div><span>Creado</span><b>${limpiar(fechaES(p.created_at))}</b></div></div></section>
+    <section class="zx_pr_section"><h3>Inmueble</h3><div class="zx_pr_viewgrid"><div><span>Tipo</span><b>${limpiar(meta.tipo_inmueble||"Sin indicar")}</b></div><div><span>Superficie calefactada</span><b>${meta.superficie_calefactada_m2!=null?limpiar(meta.superficie_calefactada_m2)+" m²":"Sin indicar"}</b></div><div><span>Plantas</span><b>${meta.plantas!=null?limpiar(meta.plantas)+" ud":"Sin indicar"}</b></div><div><span>Año construcción</span><b>${limpiar(meta.ano_construccion||"Sin indicar")}</b></div><div><span>Ocupantes</span><b>${meta.ocupantes!=null?limpiar(meta.ocupantes)+" personas":"Sin indicar"}</b></div><div><span>Baños</span><b>${meta.banos!=null?limpiar(meta.banos)+" ud":"Sin indicar"}</b></div></div></section>
+    ${p.notas_internas?`<section class="zx_pr_section"><h3>Notas internas</h3><p class="zx_pr_notes">${limpiar(p.notas_internas)}</p></section>`:""}
+    <section class="zx_pr_next"><b>Siguiente fase</b><span>Generadores, emisores, cálculo, propuestas y presupuesto se añadirán después de validar esta ficha base.</span></section>`);
+  m.querySelector("#pr_ficha_back").onclick=cerrarModal;
+  const e=m.querySelector("#pr_ficha_edit");if(e)e.onclick=()=>{cerrarModal();formulario(p)};
+  const c=m.querySelector("#pr_ficha_close");if(c)c.onclick=cerrarModal;
+}
+function instalarCSS(){if(document.getElementById("zx_proyectos_css"))return;const s=document.createElement("style");s.id="zx_proyectos_css";s.textContent=`
+.zx_pr_shell{max-width:1180px;margin:0 auto;padding:14px 14px 90px;display:grid;gap:14px}.zx_pr_panel{background:#fff;border:1px solid #e2e8f0;border-radius:24px;padding:17px;box-shadow:0 8px 26px rgba(15,23,42,.05)}.zx_pr_head{display:flex;align-items:center;justify-content:space-between;gap:14px}.zx_pr_head h2{margin:0;color:#071330;font-size:28px}.zx_pr_head p{margin:5px 0 0;color:#64748b;font-weight:750}.zx_pr_primary,.zx_pr_top_actions .primary{border:0;border-radius:15px;background:#0f766e;color:#fff;min-height:46px;padding:11px 16px;font-weight:950;font-size:14px}.zx_pr_kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:13px}.zx_pr_kpis div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:10px;text-align:center}.zx_pr_kpis b{display:block;color:#071330;font-size:21px}.zx_pr_kpis span{color:#64748b;font-size:11px;font-weight:900}.zx_pr_tools{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:9px}.zx_pr_tools input,.zx_pr_tools select,.zx_pr_modal_box input,.zx_pr_modal_box select,.zx_pr_modal_box textarea{box-sizing:border-box;width:100%;border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc;color:#0f172a;padding:12px;font-size:15px;font-weight:750}.zx_pr_list_head{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}.zx_pr_list_head h3{margin:0;color:#071330}.zx_pr_list_head span{color:#64748b;font-size:12px;font-weight:900}.zx_pr_list{display:grid;gap:9px}.zx_pr_card{width:100%;text-align:left;border:1px solid #dbe3ef;border-radius:18px;background:#fff;padding:14px;color:#0f172a}.zx_pr_card_top{display:flex;align-items:flex-start;justify-content:space-between;gap:9px}.zx_pr_card_top>b{font-size:16px}.zx_pr_client{font-weight:900;color:#334155;margin-top:7px}.zx_pr_meta{display:flex;flex-wrap:wrap;gap:7px 14px;color:#64748b;font-size:12px;font-weight:800;margin-top:7px}.zx_pr_estado{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;background:#e2e8f0;color:#334155;font-size:10px;font-weight:950;white-space:nowrap}.zx_pr_e_aceptado,.zx_pr_e_terminado{background:#dcfce7;color:#166534}.zx_pr_e_rechazado{background:#fee2e2;color:#991b1b}.zx_pr_e_enviado,.zx_pr_e_presupuestado{background:#dbeafe;color:#1d4ed8}.zx_pr_empty{padding:24px;text-align:center;color:#64748b;font-weight:850}.zx_pr_modal{position:fixed;inset:0;z-index:100250;background:rgba(15,23,42,.68);padding:12px;display:flex;align-items:flex-start;justify-content:center;overflow:auto}.zx_pr_modal_box{width:min(760px,100%);margin:auto;background:#fff;border-radius:26px;padding:18px;box-shadow:0 28px 80px rgba(15,23,42,.4);display:grid;gap:13px}.zx_pr_top_actions{position:sticky;top:-18px;z-index:4;display:grid;grid-template-columns:1fr 1fr;gap:9px;background:rgba(255,255,255,.98);padding:3px 0 12px;border-bottom:1px solid #e2e8f0}.zx_pr_top_actions button{border:1px solid #cbd5e1;border-radius:15px;background:#fff;color:#334155;min-height:46px;padding:10px;font-weight:950}.zx_pr_top_actions .primary{background:#0f766e;color:#fff;border-color:#0f766e}.zx_pr_form_head span,.zx_pr_ficha_head>span{color:#0f766e;font-size:11px;font-weight:950;letter-spacing:.08em}.zx_pr_form_head h2,.zx_pr_ficha_head h2{margin:3px 0 0;color:#071330;font-size:26px}.zx_pr_modal_box label{display:grid;gap:6px;color:#475569;font-size:13px;font-weight:950}.zx_pr_grid2,.zx_pr_viewgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.zx_pr_section{border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc;padding:14px}.zx_pr_section h3{margin:0 0 12px;color:#071330;font-size:17px}.zx_pr_unit{color:#0f766e;font-size:11px}.zx_pr_viewgrid>div{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:11px;min-width:0}.zx_pr_viewgrid span{display:block;color:#64748b;font-size:10px;font-weight:950;text-transform:uppercase}.zx_pr_viewgrid b{display:block;color:#0f172a;font-size:14px;margin-top:4px;word-break:break-word}.zx_pr_notes{margin:0;color:#334155;white-space:pre-wrap}.zx_pr_next{border:1px dashed #99f6e4;border-radius:17px;background:#f0fdfa;padding:13px}.zx_pr_next b,.zx_pr_next span{display:block}.zx_pr_next b{color:#115e59}.zx_pr_next span{color:#475569;font-size:12px;font-weight:800;margin-top:4px;line-height:1.4}@media(max-width:620px){.zx_pr_head{align-items:stretch;flex-direction:column}.zx_pr_primary{width:100%}.zx_pr_tools,.zx_pr_grid2,.zx_pr_viewgrid{grid-template-columns:1fr}.zx_pr_modal_box{padding:15px;border-radius:22px}.zx_pr_card_top{display:grid}.zx_pr_kpis{gap:5px}.zx_pr_kpis span{font-size:9px}}`;
+document.head.appendChild(s)}
+
+window.ZX_proyectos=async function(){
+  instalarCSS();
+  if(zx()&&typeof zx().marcarModuloActivo==="function")zx().marcarModuloActivo("proyectos");
+  if(!puedeEntrar()){app().innerHTML=`<div class="zx_pr_panel"><h2>Proyectos</h2><div>No tienes permiso para acceder a Proyectos.</div></div>`;return}
+  CACHE=leerCache();shell();
+  await cargarAuxiliares();await cargar();shell();
+  const abrir=window.ZX_PROYECTO_ABRIR_ID;window.ZX_PROYECTO_ABRIR_ID="";if(abrir)abrirFicha(abrir);
+};
+window.ZX_abrirProyectos=window.ZX_proyectos;
+if(zx()&&typeof zx().registrarModulo==="function")zx().registrarModulo("proyectos",{nombre:"Proyectos",activo:true,version:ZX_VERSION});
+console.log("ZENTRYX proyectos.js V"+ZX_VERSION+" cargado");
+})();
