@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1050 - PROYECTOS: DETALLE DE REGLAS HÍBRIDAS Y GENERADOR RELACIONADO
+// V1051 - PROYECTOS: PARTIDAS, COSTES, PRECIOS Y TOTALES POR OPCIÓN
 // ===============================
 (function(){
 "use strict";
@@ -1558,9 +1558,15 @@ const BASE=[
       "Añade reglas por generador, servicio y prioridad. Puedes definir uso habitual, prioridad, apoyo, trabajo simultáneo, reserva, activación o bloqueo.",
       "Las condiciones pueden depender de fallo de otro generador, temperatura exterior, demanda, temperatura de depósito, excedente fotovoltaico, coste de energía, horario u orden manual.",
       "Cuando una regla depende del fallo de otro generador, la tarjeta muestra qué equipo provoca la entrada de la reserva y también las notas guardadas.",
-      "Las reglas describen el funcionamiento previsto; antes de ejecutar una instalación deben comprobarse la hidráulica, el control y las limitaciones de los equipos."
+      "Las reglas describen el funcionamiento previsto; antes de ejecutar una instalación deben comprobarse la hidráulica, el control y las limitaciones de los equipos.",
+      "Dentro de cada opción pulsa Partidas para registrar el coste y el precio de esa solución.",
+      "Cada partida puede ser material, mano de obra, servicio, transporte, subcontrata, ingeniería, legalización, RITE, CAE u otro concepto.",
+      "En materiales puedes elegir un artículo del catálogo existente; el presupuesto conserva sus propios precios aunque el catálogo cambie después.",
+      "Indica cantidad y unidad, coste unitario en €/unidad, descuento en %, precio de venta en €/unidad e IVA en %.",
+      "La pantalla calcula el coste, la venta sin IVA, el margen y el total para el cliente. Al editar o eliminar una partida los totales se recalculan.",
+      "Las partidas y sus cambios quedan anotados en el historial del proyecto."
     ],
-    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion"
+    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
