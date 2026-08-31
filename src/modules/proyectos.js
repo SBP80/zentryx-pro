@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1018
-// V1018 - DOSIER COMERCIAL REVISADO: LENGUAJE CLIENTE, MARCA Y CIERRE ACEPTADO
+// ZENTRYX PRO - PROYECTOS V1019
+// V1019 - DOSIER: ESTADO CORRECTO EN PIE PARA OFERTAS ACEPTADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1018";
+const ZX_VERSION="1019";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -706,7 +706,7 @@ async function abrirVistaDosier(p,opId){
       ${dossierPrecioHTML(d.partidas,c,t)}
       ${infoHTML}
       ${cierreAceptado}${firma}
-      <footer class="zx_pr_dos_footer"><b>${limpiar(footerBrand)}</b><span>${limpiar(d.proyecto||op.nombre)}</span>${d.snapshot?`<small>Versión comercial guardada</small>`:"<small>Vista previa</small>"}</footer>
+      <footer class="zx_pr_dos_footer"><b>${limpiar(footerBrand)}</b><span>${limpiar(d.proyecto||op.nombre)}</span>${aceptada?`<small>Propuesta aceptada</small>`:d.snapshot?`<small>Versión comercial guardada</small>`:"<small>Vista previa</small>"}</footer>
     </div>`);
   m.querySelector("#pr_dview_back").onclick=()=>{cerrarModal();abrirPresupuesto(p,op.id)};const b=m.querySelector("#pr_dview_config");if(b)b.onclick=()=>formularioDosier(p,op.id);
 }
