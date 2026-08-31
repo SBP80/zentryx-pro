@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1008
-// V1008 - ESTRATEGIA HÍBRIDA POR OPCIÓN TÉCNICA
+// ZENTRYX PRO - PROYECTOS V1009
+// V1009 - IDENTIFICACIÓN COMPLETA DE GENERADORES EN ESTRATEGIA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1008";
+const ZX_VERSION="1009";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -63,7 +63,7 @@ function reglasPropuesta(x){return Array.isArray(x&&x.estrategia_meta)?x.estrate
 function textoServicioRegla(v){return ({calefaccion:"Calefacción",acs:"ACS",refrigeracion:"Refrigeración",piscina:"Piscina",todos:"Todos los servicios"})[v]||v||"Servicio"}
 function textoCondicionRegla(v){return ({siempre:"Siempre",manual:"Orden manual",fallo_generador:"Fallo de otro generador",temp_ext_menor:"Temperatura exterior menor que",temp_ext_mayor:"Temperatura exterior mayor que",demanda_mayor:"Demanda mayor que",deposito_menor:"Temperatura de depósito menor que",excedente_fv_mayor:"Excedente fotovoltaico mayor que",coste_energia:"Coste de energía",horario:"Horario"})[v]||v||"Condición"}
 function textoAccionRegla(v){return ({usar:"Usar",priorizar:"Priorizar",apoyo:"Entrar como apoyo",simultaneo:"Trabajar simultáneamente",reserva:"Entrar como reserva",bloquear:"Bloquear",activar:"Activar"})[v]||v||"Acción"}
-function nombreGeneradorId(id){const g=GENERADORES.find(x=>String(x.id)===String(id));return g?[textoGenerador(g.tipo),g.marca,g.modelo].filter(Boolean).join(" · "):"Generador"}
+function nombreGeneradorId(id){const g=GENERADORES.find(x=>String(x.id)===String(id));if(!g)return "Generador";const potencia=(g.potencia_kw!=null&&g.potencia_kw!=="")?limpiar(g.potencia_kw)+" kW":"";return [textoGenerador(g.tipo),g.marca,g.modelo,potencia].filter(Boolean).join(" · ")}
 function uidRegla(){return "rg_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8)}
 
 async function cargarGeneradores(proyectoId){
