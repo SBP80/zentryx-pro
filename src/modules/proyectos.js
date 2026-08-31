@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1005
-// V1005 - GENERADORES + EMISORES + CÁLCULOS VERSIONADOS
+// ZENTRYX PRO - PROYECTOS V1006
+// V1006 - CÁLCULOS: TEMPERATURAS NEGATIVAS EN IPHONE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1005";
+const ZX_VERSION="1006";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -314,8 +314,8 @@ function formularioCalculo(p){
     <label>Tipo de cálculo<select id="pr_calc_tipo"><option value="estimacion">Estimación rápida</option><option value="tecnico">Cálculo técnico</option><option value="manual">Cálculo manual</option><option value="otro">Otro</option></select></label>
     <div class="zx_pr_section"><h3>Datos utilizados</h3>
       <label>Superficie utilizada <span class="zx_pr_unit">m²</span><input id="pr_calc_sup" type="number" min="0" step="0.01" inputmode="decimal" value="${meta.superficie_calefactada_m2!=null?limpiar(meta.superficie_calefactada_m2):""}"></label>
-      <div class="zx_pr_grid2"><label>Exterior invierno <span class="zx_pr_unit">°C</span><input id="pr_calc_te_inv" type="number" step="0.1" inputmode="decimal"></label><label>Interior calefacción <span class="zx_pr_unit">°C</span><input id="pr_calc_ti_cal" type="number" step="0.1" inputmode="decimal" value="21"></label></div>
-      <div class="zx_pr_grid2"><label>Exterior verano <span class="zx_pr_unit">°C</span><input id="pr_calc_te_ver" type="number" step="0.1" inputmode="decimal"></label><label>Interior refrigeración <span class="zx_pr_unit">°C</span><input id="pr_calc_ti_ref" type="number" step="0.1" inputmode="decimal" value="25"></label></div>
+      <div class="zx_pr_grid2"><label>Exterior invierno <span class="zx_pr_unit">°C</span><input id="pr_calc_te_inv" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Ej. -2"></label><label>Interior calefacción <span class="zx_pr_unit">°C</span><input id="pr_calc_ti_cal" type="number" step="0.1" inputmode="decimal" value="21"></label></div>
+      <div class="zx_pr_grid2"><label>Exterior verano <span class="zx_pr_unit">°C</span><input id="pr_calc_te_ver" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Ej. 35"></label><label>Interior refrigeración <span class="zx_pr_unit">°C</span><input id="pr_calc_ti_ref" type="number" step="0.1" inputmode="decimal" value="25"></label></div>
     </div>
     <div class="zx_pr_section"><h3>Resultados</h3>
       <div class="zx_pr_grid2"><label>Carga de calefacción <span class="zx_pr_unit">kW</span><input id="pr_calc_cal" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Carga de refrigeración <span class="zx_pr_unit">kW</span><input id="pr_calc_ref" type="number" min="0" step="0.01" inputmode="decimal"></label></div>
