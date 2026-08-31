@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1054 - PROYECTOS: ENVÍO, ACEPTACIÓN Y BLOQUEO DE OPCIÓN
+// V1056 - PROYECTOS: DOSIER COMERCIAL CONFIGURABLE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1054";
+const ZX_VERSION="1056";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1571,9 +1571,16 @@ const BASE=[
       "Desde el presupuesto puedes marcar una opción como enviada. Esta acción registra el estado, pero no envía un archivo por sí sola.",
       "Cuando el cliente aprueba una opción marcada como enviada, pulsa Aceptar opción y confirma la operación.",
       "Al aceptar, la opción queda bloqueada: sus reglas de funcionamiento y partidas ya no pueden editarse ni eliminarse.",
-      "La aceptación guarda también una copia de los datos principales del presupuesto y anota fecha, usuario y total en el historial del proyecto."
+      "La aceptación guarda también una copia de los datos principales del presupuesto y anota fecha, usuario y total en el historial del proyecto.",
+      "Antes de enviar una opción, entra en Presupuesto y usa Configurar dosier para preparar la presentación comercial.",
+      "Puedes elegir estilo Comercial visual, Profesional o Técnico, cambiar colores, título y subtítulo, y decidir qué apartados verá el cliente.",
+      "El dosier permite mostrar u ocultar inmueble, cálculo, equipos, funcionamiento, alcance, garantías, forma de pago, plazo y zona de aceptación. El importe final del presupuesto permanece visible.",
+      "Los precios pueden mostrarse solo como total, por capítulos o con partidas detalladas. El total para el cliente siempre conserva los impuestos calculados.",
+      "La Vista dosier sirve para revisar la presentación antes de enviarla. La portada puede usar una imagen mediante URL y muestra la identidad de empresa disponible en Zentryx.",
+      "Al marcar una oferta como enviada, Zentryx guarda una copia cerrada del dosier, sus reglas, partidas, equipos, cálculo, importes y textos comerciales. Los cambios posteriores no alteran esa copia.",
+      "Una opción enviada o aceptada permite consultar el dosier guardado, pero ya no cambiar su diseño."
     ],
-    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada"
+    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
