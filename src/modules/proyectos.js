@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1020
-// V1020 - DOSIER: CONFIGURACIÓN DE EMPRESA + AJUSTES POR PRESUPUESTO
+// ZENTRYX PRO - PROYECTOS V1021
+// V1021 - DOSIER ACEPTADO/ENVIADO: SNAPSHOT ESTRICTO SIN HEREDAR CAMBIOS POSTERIORES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1020";
+const ZX_VERSION="1021";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -629,6 +629,46 @@ function dossierMeta(p,op){
   const saved=cm.dossier_meta&&typeof cm.dossier_meta==="object"&&!Array.isArray(cm.dossier_meta)?cm.dossier_meta:{};
   return {...base,...saved,color_primario:hexValido(saved.color_primario,base.color_primario),color_acento:hexValido(saved.color_acento,base.color_acento)};
 }
+function dossierBaseHistorico(p,op){
+  return {
+    estilo:"comercial",
+    titulo:"Propuesta de climatización y ACS",
+    subtitulo:op&&op.descripcion?op.descripcion:"Solución preparada para "+nombreCliente(p.cliente_id),
+    etiqueta:"Propuesta recomendada",
+    recomendada:true,
+    foto_portada_url:"",
+    color_primario:"#0f766e",
+    color_acento:"#14b8a6",
+    introduccion:"Una propuesta preparada a partir de los datos del inmueble, la instalación existente y las necesidades registradas en el proyecto.",
+    beneficios:"Confort estable durante todo el año\nSolución adaptada a la instalación existente\nFuncionamiento claro y preparado para mantenimiento",
+    texto_empresa:"",
+    mostrar_inmueble:true,
+    mostrar_calculo:false,
+    mostrar_equipos:true,
+    mostrar_funcionamiento:true,
+    mostrar_partidas:true,
+    modo_precios:"capitulos",
+    incluye:"Suministro de los elementos incluidos en la oferta\nInstalación y puesta en marcha según las partidas indicadas",
+    no_incluye:"Trabajos no descritos expresamente en esta oferta",
+    garantia:"Garantías según fabricante y normativa aplicable. Las condiciones concretas se indicarán en la documentación final.",
+    forma_pago:"A definir con el cliente",
+    plazo:"A concretar según disponibilidad de equipos y planificación de obra",
+    validez_dias:30,
+    cierre:"Si esta propuesta encaja con lo que necesitas, el siguiente paso es confirmar la opción elegida y programar la instalación.",
+    mostrar_incluye:true,
+    mostrar_no_incluye:true,
+    mostrar_garantia:true,
+    mostrar_pago:true,
+    mostrar_plazo:true,
+    mostrar_firma:true,
+    mostrar_contacto:false
+  };
+}
+function empresaHistoricaVacia(){return {nombre:"",logo:"",color:"#0f766e",sector:"",telefono:"",email:"",web:"",texto_empresa:""}}
+function empresaDosierAnterior(){
+  const cfg=leerConfigLocal(),e=cfg.empresa||{},n=String(e.nombre||"").trim();
+  return {nombre:n&&n.toLowerCase()!=="zentryx pro"?n:"",logo:e.logo||"",color:hexValido(e.color,"#0f766e"),sector:e.sector||"",telefono:e.telefono||"",email:e.email||"",web:e.web||"",texto_empresa:""};
+}
 function dossierSnapshot(op){const cm=op&&op.control_meta&&typeof op.control_meta==="object"&&!Array.isArray(op.control_meta)?op.control_meta:{};return cm.dossier_snapshot&&typeof cm.dossier_snapshot==="object"&&!Array.isArray(cm.dossier_snapshot)?cm.dossier_snapshot:null}
 function valorCheck(id){const e=document.getElementById(id);return !!(e&&e.checked)}
 function campoCheck(id,txt,checked){return `<label class="zx_pr_dossier_check"><input id="${id}" type="checkbox" ${checked?"checked":""}><span>${limpiar(txt)}</span></label>`}
@@ -677,8 +717,17 @@ function snapshotDossier(p,op,xs,calc,cfg){
   return {version:1,creado_at:new Date().toISOString(),config:{...cfg},empresa:{...emp},proyecto:p.nombre||"",cliente:nombreCliente(p.cliente_id),direccion:proyectoDir(p)||"",inmueble_meta:p.inmueble_meta||{},descripcion:op.descripcion||"",calculo:calc?JSON.parse(JSON.stringify(calc)):null,generadores:GENERADORES.map(g=>JSON.parse(JSON.stringify(g))),reglas:reglasPropuesta(op).map(r=>({...r,generador_nombre_snapshot:r.generador_nombre_snapshot||nombreGeneradorId(r.generador_id),generador_referencia_nombre_snapshot:r.generador_referencia_id?(r.generador_referencia_nombre_snapshot||nombreGeneradorId(r.generador_referencia_id)):null})),partidas:(xs||[]).map(x=>JSON.parse(JSON.stringify(x))),totales:{...t}};
 }
 function datosDossierVista(p,op,xs,calc){
-  const snap=dossierSnapshot(op),est=estadoPropuesta(op);
-  if((est==="enviada"||est==="aceptada")&&snap){return {cfg:{...dossierBase(p,op),...(snap.config||{})},emp:snap.empresa||empresaDosier(),proyecto:snap.proyecto||p.nombre||"",cliente:snap.cliente||nombreCliente(p.cliente_id),direccion:snap.direccion||proyectoDir(p)||"",inmueble:snap.inmueble_meta||{},descripcion:snap.descripcion||op.descripcion||"",calc:snap.calculo||null,generadores:snap.generadores||[],reglas:snap.reglas||[],partidas:snap.partidas||[],totales:snap.totales||totalesPartidas(snap.partidas||[]),snapshot:true};}
+  const snap=dossierSnapshot(op),est=estadoPropuesta(op),bloqueada=est==="enviada"||est==="aceptada";
+  if(bloqueada&&snap){
+    const cfgSnap=snap.config&&typeof snap.config==="object"&&!Array.isArray(snap.config)?snap.config:{};
+    const empSnap=snap.empresa&&typeof snap.empresa==="object"&&!Array.isArray(snap.empresa)?snap.empresa:empresaHistoricaVacia();
+    return {cfg:{...dossierBaseHistorico(p,op),...cfgSnap},emp:empSnap,proyecto:snap.proyecto||p.nombre||"",cliente:snap.cliente||nombreCliente(p.cliente_id),direccion:snap.direccion||proyectoDir(p)||"",inmueble:snap.inmueble_meta||{},descripcion:snap.descripcion||op.descripcion||"",calc:snap.calculo||null,generadores:snap.generadores||[],reglas:snap.reglas||[],partidas:snap.partidas||[],totales:snap.totales||totalesPartidas(snap.partidas||[]),snapshot:true};
+  }
+  if(bloqueada){
+    const ps=op&&op.control_meta&&op.control_meta.presupuesto_snapshot&&typeof op.control_meta.presupuesto_snapshot==="object"?op.control_meta.presupuesto_snapshot:{};
+    const empAnterior=empresaDosierAnterior(),cfgAnterior={...dossierBaseHistorico(p,op),color_primario:empAnterior.color};
+    return {cfg:cfgAnterior,emp:empAnterior,proyecto:ps.proyecto||p.nombre||"",cliente:ps.cliente||nombreCliente(p.cliente_id),direccion:ps.direccion||proyectoDir(p)||"",inmueble:p.inmueble_meta||{},descripcion:ps.descripcion||op.descripcion||"",calc,generadores:GENERADORES,reglas:reglasPropuesta(op),partidas:xs,totales:totalesPartidas(xs),snapshot:false,historico:true};
+  }
   return {cfg:dossierMeta(p,op),emp:empresaDosier(),proyecto:p.nombre||"",cliente:nombreCliente(p.cliente_id),direccion:proyectoDir(p)||"",inmueble:p.inmueble_meta||{},descripcion:op.descripcion||"",calc, generadores:GENERADORES,reglas:reglasPropuesta(op),partidas:xs,totales:totalesPartidas(xs),snapshot:false};
 }
 function tieneDosierPropio(op){
