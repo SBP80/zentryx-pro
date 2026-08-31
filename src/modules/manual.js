@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1049 - PROYECTOS: TEMPERATURAS EXTERIORES CON SIGNO EN IPHONE
+// V1050 - PROYECTOS: DETALLE DE REGLAS HÍBRIDAS Y GENERADOR RELACIONADO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1049";
+const ZX_VERSION="1050";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1557,6 +1557,7 @@ const BASE=[
       "En Estrategia híbrida crea una opción técnica. Cada opción puede usar un cálculo de referencia distinto y mantiene sus propias reglas.",
       "Añade reglas por generador, servicio y prioridad. Puedes definir uso habitual, prioridad, apoyo, trabajo simultáneo, reserva, activación o bloqueo.",
       "Las condiciones pueden depender de fallo de otro generador, temperatura exterior, demanda, temperatura de depósito, excedente fotovoltaico, coste de energía, horario u orden manual.",
+      "Cuando una regla depende del fallo de otro generador, la tarjeta muestra qué equipo provoca la entrada de la reserva y también las notas guardadas.",
       "Las reglas describen el funcionamiento previsto; antes de ejecutar una instalación deben comprobarse la hidráulica, el control y las limitaciones de los equipos."
     ],
     palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion"
