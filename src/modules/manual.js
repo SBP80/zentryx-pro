@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1058 - PROYECTOS: DOSIER ACEPTADO SIN MARCA DE VISTA PREVIA
+// V1059 - PRESUPUESTOS: BASE DE DOSIER POR EMPRESA Y AJUSTES POR OFERTA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1058";
+const ZX_VERSION="1059";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1078,6 +1078,20 @@ const AYUDAS_DIRECTAS=[
     ]
   },
   {
+    id:"config_presupuestos", modulo:"configuracion", titulo:"Configurar los dosieres comerciales de empresa",
+    consulta:"configurar presupuestos dosier comercial empresa logo colores portada condiciones forma pago validez",
+    resumen:"Define la presentación que usarán como base los nuevos presupuestos comerciales.",
+    pasos:[
+      "Abre Ajustes y entra en Presupuestos.",
+      "Indica el nombre comercial, logo, teléfono, correo y web que deben aparecer en las propuestas.",
+      "Elige el estilo, los colores, la imagen de portada, el título y la etiqueta destacada.",
+      "Configura el texto inicial, beneficios, apartados visibles y la forma de mostrar los precios.",
+      "Revisa qué incluye, qué no incluye, garantías, forma de pago, plazo, validez y cierre comercial.",
+      "Pulsa Guardar. Los valores se guardan para la empresa y sirven como base de los presupuestos en borrador.",
+      "Dentro de un presupuesto puedes cambiar solo esa oferta. Si quieres volver a la base común, usa Usar valores de empresa."
+    ]
+  },
+  {
     id:"config_apariencia", modulo:"configuracion", titulo:"Cambiar la apariencia de Zentryx",
     consulta:"cambiar apariencia tema colores configuracion apariencia",
     resumen:"Modifica las opciones visuales disponibles de la aplicación.",
@@ -1573,16 +1587,20 @@ const BASE=[
       "Al aceptar, la opción queda bloqueada: sus reglas de funcionamiento y partidas ya no pueden editarse ni eliminarse.",
       "La aceptación guarda también una copia de los datos principales del presupuesto y anota fecha, usuario y total en el historial del proyecto.",
       "Antes de enviar una opción, entra en Presupuesto y usa Configurar dosier para preparar la presentación comercial.",
-      "Puedes elegir estilo Comercial visual, Profesional o Técnico, cambiar colores, título y subtítulo, y decidir qué apartados verá el cliente.",
+      "Los nuevos dosieres parten de los valores definidos en Ajustes → Presupuestos para la empresa.",
+      "Un presupuesto en borrador puede tener cambios propios sin modificar la base de empresa ni las demás ofertas.",
+      "Si una oferta tiene ajustes propios, usa Usar valores de empresa para volver a la configuración común.",
+      "Puedes elegir estilo Comercial visual, Profesional o Técnico, cambiar colores, título, etiqueta, subtítulo y decidir qué apartados verá el cliente.",
       "El dosier permite mostrar u ocultar inmueble, cálculo, equipos, funcionamiento, alcance, garantías, forma de pago, plazo y zona de aceptación. El importe final del presupuesto permanece visible.",
       "Los precios pueden mostrarse solo como total, por capítulos o con partidas detalladas. El total para el cliente siempre conserva los impuestos calculados.",
-      "La Vista dosier sirve para revisar la presentación antes de enviarla. La portada puede usar una imagen mediante URL y muestra la identidad de empresa disponible en Zentryx.",
+      "La Vista dosier sirve para revisar la presentación antes de enviarla. La portada puede usar una imagen mediante URL y muestra la identidad comercial configurada para la empresa.",
+      "El dosier puede mostrar un texto breve sobre la empresa y, al final, teléfono, correo y web si están configurados.",
       "En cada generador puedes guardar una foto para el dosier y un texto breve dirigido al cliente. Si no hay foto, la tarjeta mantiene un bloque visual neutro.",
       "Al marcar una oferta como enviada, Zentryx guarda una copia cerrada del dosier, sus reglas, partidas, equipos, cálculo, importes y textos comerciales. Los cambios posteriores no alteran esa copia.",
       "Una opción enviada o aceptada permite consultar el dosier guardado, pero ya no cambiar su diseño.",
       "Cuando la opción está aceptada, el cierre del dosier muestra la aceptación registrada y el pie del documento la identifica como propuesta aceptada, no como vista previa."
     ],
-    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot"
+    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot empresa configuracion valores comunes contacto telefono email web"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
