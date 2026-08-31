@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1051 - PROYECTOS: PARTIDAS, COSTES, PRECIOS Y TOTALES POR OPCIÓN
+// V1052 - PROYECTOS: DESCUENTO DE PROVEEDOR EN PARTIDAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1050";
+const ZX_VERSION="1052";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1562,7 +1562,7 @@ const BASE=[
       "Dentro de cada opción pulsa Partidas para registrar el coste y el precio de esa solución.",
       "Cada partida puede ser material, mano de obra, servicio, transporte, subcontrata, ingeniería, legalización, RITE, CAE u otro concepto.",
       "En materiales puedes elegir un artículo del catálogo existente; el presupuesto conserva sus propios precios aunque el catálogo cambie después.",
-      "Indica cantidad y unidad, coste unitario en €/unidad, descuento en %, precio de venta en €/unidad e IVA en %.",
+      "Indica cantidad y unidad, coste unitario en €/unidad, descuento de proveedor en %, precio de venta en €/unidad e IVA en %.",
       "La pantalla calcula el coste, la venta sin IVA, el margen y el total para el cliente. Al editar o eliminar una partida los totales se recalculan.",
       "Las partidas y sus cambios quedan anotados en el historial del proyecto."
     ],
