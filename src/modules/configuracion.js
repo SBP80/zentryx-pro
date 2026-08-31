@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - AJUSTES
+// V3120 - AÑADE PROYECTOS A MÓDULOS DE EMPRESA
 // V3119 - AJUSTES OPERATIVOS Y ESTADOS NO EDITABLES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3119";
+const ZX_VERSION="3120";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
 const CONFIG_KEY="zentryx_config";
@@ -58,6 +59,7 @@ function configBase(){
       agenda:true,
       clientes:true,
       trabajos:true,
+      proyectos:true,
       almacen:true,
       usuarios:true,
       vehiculos:true,
@@ -302,6 +304,7 @@ function seccionModulos(cfg){
     agenda:"Agenda",
     clientes:"Clientes",
     trabajos:"Trabajos",
+    proyectos:"Proyectos",
     almacen:"Almacén",
     usuarios:"Usuarios",
     vehiculos:"Vehículos",
