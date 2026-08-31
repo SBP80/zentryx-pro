@@ -1,11 +1,11 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1048 - PROYECTOS: TEMPERATURAS EXTERIORES CON SIGNO EN IPHONE
+// V1049 - PROYECTOS: TEMPERATURAS EXTERIORES CON SIGNO EN IPHONE
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1048";
+const ZX_VERSION="1049";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1553,9 +1553,13 @@ const BASE=[
       "En Cálculo térmico pulsa Nuevo cálculo para registrar una versión del estudio sin modificar las versiones anteriores.",
       "Selecciona si es estimación rápida, cálculo técnico, cálculo manual u otro, e indica la superficie y temperaturas utilizadas.",
       "Registra las cargas de calefacción y refrigeración en kW, el ACS recomendado en L y la temperatura de impulsión recomendada en °C.",
-      "Cada cálculo queda fechado, asociado al usuario y registrado también en el historial del proyecto."
+      "Cada cálculo queda fechado, asociado al usuario y registrado también en el historial del proyecto.",
+      "En Estrategia híbrida crea una opción técnica. Cada opción puede usar un cálculo de referencia distinto y mantiene sus propias reglas.",
+      "Añade reglas por generador, servicio y prioridad. Puedes definir uso habitual, prioridad, apoyo, trabajo simultáneo, reserva, activación o bloqueo.",
+      "Las condiciones pueden depender de fallo de otro generador, temperatura exterior, demanda, temperatura de depósito, excedente fotovoltaico, coste de energía, horario u orden manual.",
+      "Las reglas describen el funcionamiento previsto; antes de ejecutar una instalación deben comprobarse la hidráulica, el control y las limitaciones de los equipos."
     ],
-    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura"
+    palabras:"proyecto estudio presupuesto aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
