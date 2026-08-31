@@ -26,12 +26,13 @@
 // V3168 - DESCARGA IPHONE COMO ARCHIVO + GUARDAR EN ARCHIVOS
 // V3169 - IMPRESION IPHONE MEDIANTE HOJA NATIVA
 // V3170 - IMPRIMIR CONVENIO REUTILIZA EL FLUJO DE COMPARTIR VALIDADO
+// V3172 - AÑADE PERMISO INDIVIDUAL PARA PROYECTOS
 // V3171 - VERSION INTERNA ALINEADA CON EL ARCHIVO INSTALADO
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3171";
+window.ZX_USUARIOS_VERSION="3172";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -283,6 +284,7 @@ const ZX_MODULOS_ASIGNABLES=[
   {id:"agenda",label:"Agenda"},
   {id:"clientes",label:"Clientes"},
   {id:"trabajos",label:"Trabajos"},
+  {id:"proyectos",label:"Proyectos"},
   {id:"almacen",label:"Almacén"},
   {id:"usuarios",label:"Usuarios"},
   {id:"vehiculos",label:"Vehículos"},
