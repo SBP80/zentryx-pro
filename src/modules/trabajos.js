@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3237
+// ZENTRYX PRO - TRABAJOS V3238
+// V3238 - VOLVER DIRECTO AL ORIGEN CORRECTO AL ABRIR DESDE PROYECTOS
 // V3237 - RECUPERA IMPORTES POR VÍNCULO PROYECTO/PROPUESTA + APERTURA DIRECTA CON ORIGEN
 // V3236 - CONSERVA DATOS ECONÓMICOS DE MATERIALES DE PROYECTO EN METADATOS COMPATIBLES
 // V3235 - ALTA PREFILL DESDE PROYECTO ACEPTADO + COPIA DE MATERIALES Y ENLACE DE ORIGEN
@@ -16,7 +17,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3237";
+const ZX_VERSION="3238";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -136,6 +137,7 @@ function puedeBorrar(){return esAdmin()}
 let ZX_TR_AGENDA_EVENTO_ID="";
 let ZX_TR_AGENDA_EVENTO_FECHA="";
 let ZX_TR_ORIGEN_APERTURA_DIRECTA="";
+let ZX_TR_VOLVER_APERTURA_DIRECTA=null;
 
 function idTrabajoUnico(){return String(window.ZX_TRABAJO_ABRIR_ID || "").trim()}
 function accionTrabajoDirecta(){return String(window.ZX_TRABAJO_ACCION_DIRECTA || "ver").trim().toLowerCase()}
@@ -3718,11 +3720,18 @@ async function abrirFicha(id){
   }
 
   const volverAgendaDesdeTrabajo=function(){
+    const volverDirecto=ZX_TR_VOLVER_APERTURA_DIRECTA;
     cerrarModal();
     if(modoTrabajoUnico()){
       salirTrabajoUnico();
     }
     ZX_TR_ORIGEN_APERTURA_DIRECTA="";
+    ZX_TR_VOLVER_APERTURA_DIRECTA=null;
+    if(typeof volverDirecto==="function"){
+      Promise.resolve().then(function(){return volverDirecto()}).catch(function(e){
+        console.warn("Trabajos: no se pudo volver al origen de apertura directa",e);
+      });
+    }
   };
 
   document.getElementById("tr_ficha_cerrar").onclick=volverAgendaDesdeTrabajo;
@@ -7136,6 +7145,7 @@ window.ZX_TRABAJOS_ABRIR_TRABAJO=async function(id,opciones){
   if(!trabajoId)return false;
   const opts=opciones&&typeof opciones==="object"?opciones:{};
   ZX_TR_ORIGEN_APERTURA_DIRECTA=String(opts.origen || window.ZX_MODULO_ACTUAL || "").trim().toLowerCase();
+  ZX_TR_VOLVER_APERTURA_DIRECTA=typeof opts.volver==="function"?opts.volver:null;
   const t=await cargarTrabajo(trabajoId);
   if(!t){ZX_TR_ORIGEN_APERTURA_DIRECTA="";alert("Trabajo no encontrado.");return false}
   await abrirFicha(trabajoId);
@@ -7145,6 +7155,7 @@ window.ZX_TRABAJOS_ABRIR_TRABAJO=async function(id,opciones){
 window.ZX_trabajos=async function(){
   instalarCSS();
   ZX_TR_ORIGEN_APERTURA_DIRECTA="";
+  ZX_TR_VOLVER_APERTURA_DIRECTA=null;
 
   const entradaDesdeAgenda=window.ZX_TRABAJO_DESDE_AGENDA===true;
   if(entradaDesdeAgenda){
