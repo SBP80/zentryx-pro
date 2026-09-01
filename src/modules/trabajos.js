@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3235
+// ZENTRYX PRO - TRABAJOS V3236
+// V3236 - CONSERVA DATOS ECONÓMICOS DE MATERIALES DE PROYECTO EN METADATOS COMPATIBLES
 // V3235 - ALTA PREFILL DESDE PROYECTO ACEPTADO + COPIA DE MATERIALES Y ENLACE DE ORIGEN
 // V3234 - AUDITORÍA PERSISTENTE SIN DOBLE TARJETA: METADATOS TAMBIÉN EN NOTAS PARA COMPATIBILIDAD
 // V3233 - NOTAS/PARTES: UNA SOLA ENTRADA AL CREAR; AUDITORÍA SOLO EN EDITAR/BORRAR
@@ -14,7 +15,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3235";
+const ZX_VERSION="3236";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -452,6 +453,7 @@ function aprenderMaterial(material){
 async function cargarBibliotecaMateriales(){
   const mapa=new Map();
   const agregar=function(x){
+    x=enriquecerMaterialDesdeMeta(x);
     const nombre=String((x && (x.nombre || x.material)) || "").trim();
     if(!nombre) return;
     const k=normalizar(nombre);
@@ -702,7 +704,8 @@ async function cargarSugerenciasMaterialesTrabajo(t,materialesActuales){
     const trabajos=new Map((rt.error ? [] : (rt.data || [])).map(x=>[String(x.id),x]));
     const actuales=new Set((materialesActuales || []).map(m=>normalizar(m.nombre || m.material || "")));
     const agrupados=new Map();
-    for(const m of (rm.data || [])){
+    for(const fila of (rm.data || [])){
+      const m=enriquecerMaterialDesdeMeta(fila);
       if(String(m.trabajo_id)===String(t.id)) continue;
       const nombre=String(m.nombre || m.material || "").trim();
       if(!nombre || actuales.has(normalizar(nombre))) continue;
@@ -816,7 +819,9 @@ async function cargarMateriales(id){
       .eq("trabajo_id",String(id))
       .order("created_at",{ascending:false});
 
-    return r.error ? [] : (r.data || []);
+    if(r.error) return [];
+    const filas=(r.data || []).map(enriquecerMaterialDesdeMeta);
+    return await completarMaterialesProyectoDesdeOrigen(id,filas);
   }catch(e){
     return [];
   }
@@ -1988,6 +1993,7 @@ async function copiarMaterialesDesdeProyecto(trabajoId,ctx){
       preparado:false,
       created_at:new Date().toISOString()
     };
+    data.notas=notasConMetaMaterial(data.notas,data);
     try{
       const r=await insertarMaterialCompatible(data);
       if(r&&r.error)throw r.error;
@@ -4252,6 +4258,144 @@ function renderPartesJornada(hist,archivosTrabajo,t,jornadas){
 const ZX_MATERIAL_PREPARADO_RE=/\[\[ZX_PREPARADO:([0-9]+(?:[.,][0-9]+)?)\]\]/i;
 
 const ZX_MATERIAL_IMAGEN_RE=/\[\[ZX_MAT_IMG:([^\]]+)\]\]/i;
+const ZX_MATERIAL_META_RE=/\[\[ZX_MAT_META:([^\]]+)\]\]/i;
+
+function metaMaterialDesdeNotas(notas){
+  const match=String(notas || "").match(ZX_MATERIAL_META_RE);
+  if(!match) return {};
+  try{
+    const data=JSON.parse(decodeURIComponent(String(match[1] || "")));
+    return data && typeof data==="object" && !Array.isArray(data) ? data : {};
+  }catch(e){
+    return {};
+  }
+}
+
+function tieneMetaMaterial(notas){
+  return ZX_MATERIAL_META_RE.test(String(notas || ""));
+}
+
+function datosPersistentesMaterial(material){
+  const m=material || {};
+  const data={};
+  ["referencia","proveedor","fabricante","alias"].forEach(function(campo){
+    const valor=String(m[campo] ?? "").trim();
+    if(valor) data[campo]=valor;
+  });
+  ["iva","precio_compra","precio_venta"].forEach(function(campo){
+    if(m[campo]===null || m[campo]===undefined || m[campo]==="") return;
+    const valor=Number(m[campo]);
+    if(Number.isFinite(valor)) data[campo]=valor;
+  });
+  return data;
+}
+
+function notasConMetaMaterial(notas,material){
+  const base=String(notas || "")
+    .replace(/\[\[ZX_MAT_META:[^\]]*\]\]/gi,"")
+    .replace(/\n{3,}/g,"\n\n")
+    .trim();
+  const meta=datosPersistentesMaterial(material);
+  if(!Object.keys(meta).length) return base;
+  const codificado=encodeURIComponent(JSON.stringify(meta));
+  return [base,"[[ZX_MAT_META:"+codificado+"]]"].filter(Boolean).join("\n");
+}
+
+function enriquecerMaterialDesdeMeta(material){
+  if(!material || typeof material!=="object") return material;
+  const salida={...material};
+  const meta=metaMaterialDesdeNotas(salida.notas);
+  ["referencia","proveedor","fabricante","alias","iva","precio_compra","precio_venta"].forEach(function(campo){
+    const actual=salida[campo];
+    if((actual===null || actual===undefined || actual==="") && meta[campo]!==null && meta[campo]!==undefined && meta[campo]!==""){
+      salida[campo]=meta[campo];
+    }
+  });
+  return salida;
+}
+
+function notasOperativasMaterial(material){
+  return notasConMetaMaterial(limpiarMetadatosInternosMaterial((material && material.notas) || ""),material);
+}
+
+async function completarMaterialesProyectoDesdeOrigen(trabajoId,filas){
+  const lista=Array.isArray(filas) ? filas.map(enriquecerMaterialDesdeMeta) : [];
+  if(!trabajoId || !lista.length || !navigator.onLine || !sb()) return lista;
+
+  const pendientes=lista.filter(function(m){
+    return !tieneMetaMaterial(m.notas) && /(^|\s)Proyecto\s*[·-]/i.test(notasVisiblesMaterial(m));
+  });
+  if(!pendientes.length) return lista;
+
+  let partidas=[];
+  try{
+    const rh=await sb().from("trabajos_historial")
+      .select("datos,created_at")
+      .eq("trabajo_id",String(trabajoId))
+      .eq("tipo","proyecto")
+      .order("created_at",{ascending:false})
+      .limit(1)
+      .maybeSingle();
+
+    if(!rh.error && rh.data){
+      let datos=rh.data.datos || {};
+      if(typeof datos==="string"){try{datos=JSON.parse(datos)}catch(e){datos={}}}
+      const propuestaId=String(datos && datos.propuesta_id || "").trim();
+      if(propuestaId){
+        const rp=await sb().from("proyectos_partidas")
+          .select("id,descripcion,referencia,cantidad,unidad,coste_unitario,descuento,precio_unitario,iva,grupo,tipo")
+          .eq("propuesta_id",propuestaId)
+          .eq("tipo","material");
+        if(!rp.error && Array.isArray(rp.data)) partidas=rp.data;
+      }
+    }
+  }catch(e){
+    console.warn("Trabajos: no se pudo consultar la propuesta de origen de los materiales",e);
+  }
+
+  const biblioteca=leerBibliotecaMaterialesLocal();
+  for(const material of pendientes){
+    const nombre=normalizar(material.nombre || material.material || "");
+    const candidatas=partidas.filter(function(p){return normalizar(p.descripcion || "")===nombre});
+    let meta=null;
+
+    if(candidatas.length){
+      const partida=candidatas.find(function(p){
+        return normalizar(p.unidad || "ud")===normalizar(material.unidad || "ud") && Number(p.cantidad || 0)===Number(material.cantidad || 0);
+      }) || candidatas[0];
+      const costeUnitario=Number(partida.coste_unitario || 0);
+      const descuento=Math.min(100,Math.max(0,Number(partida.descuento || 0)));
+      meta={
+        referencia:String(partida.referencia || ""),
+        iva:partida.iva!==null && partida.iva!==undefined ? Number(partida.iva) : null,
+        precio_compra:Number.isFinite(costeUnitario) ? costeUnitario*(1-descuento/100) : null,
+        precio_venta:partida.precio_unitario!==null && partida.precio_unitario!==undefined ? Number(partida.precio_unitario) : null
+      };
+    }else{
+      // Compatibilidad con el trabajo creado justo antes de instalar V3236.
+      // V3235 aprendió los importes en la biblioteca local aunque la tabla básica
+      // trabajos_materiales descartara las columnas comerciales no existentes.
+      const item=biblioteca.find(function(x){return normalizar(x.nombre || x.material || "")===nombre});
+      const tm=Date.parse(String(material.created_at || ""));
+      const tb=Date.parse(String(item && (item.ultimo_uso || item.actualizado) || ""));
+      if(item && Number.isFinite(tm) && Number.isFinite(tb) && Math.abs(tb-tm)<=15*60*1000){
+        meta=datosPersistentesMaterial(item);
+      }
+    }
+
+    if(!meta || !Object.keys(meta).length) continue;
+    Object.assign(material,meta);
+    const nuevasNotas=notasConMetaMaterial(material.notas,material);
+    if(nuevasNotas!==String(material.notas || "")){
+      material.notas=nuevasNotas;
+      if(material.id){
+        const guardado=await actualizarMaterialCompatible(material.id,{notas:nuevasNotas});
+        if(guardado && guardado.error) console.warn("Trabajos: no se pudieron conservar los datos económicos del material",guardado.error);
+      }
+    }
+  }
+  return lista;
+}
 
 function imagenMaterial(material){
   const notas=String((material && material.notas) || "");
@@ -4432,7 +4576,7 @@ async function establecerPreparacionMaterial(trabajoId,material,modo){
   }
 
   const notas=notasConUsado(
-    notasConPreparado(notasVisiblesMaterial(material),nueva,imagenMaterial(material)),
+    notasConPreparado(notasOperativasMaterial(material),nueva,imagenMaterial(material)),
     cantidadUsadaMaterial(material)
   );
   const r=await actualizarMaterialCompatible(material.id,{
@@ -4535,9 +4679,11 @@ async function consolidarMaterialesDuplicados(trabajoId,lista){
       proveedor:items.map(m=>String(m.proveedor||"").trim()).find(Boolean) || "",
       fabricante:items.map(m=>String(m.fabricante||"").trim()).find(Boolean) || "",
       alias:items.map(m=>String(m.alias||"").trim()).find(Boolean) || "",
+      iva:items.map(m=>m.iva).find(v=>v!==null&&v!==undefined&&v!=="") ?? null,
       precio_compra:items.map(m=>m.precio_compra).find(v=>v!==null&&v!==undefined&&v!=="") ?? null,
       precio_venta:items.map(m=>m.precio_venta).find(v=>v!==null&&v!==undefined&&v!=="") ?? null
     };
+    fusionado.notas=notasConMetaMaterial(fusionado.notas,fusionado);
     salida.push(fusionado);
 
     // La interfaz queda consolidada inmediatamente. Después se persiste la limpieza.
@@ -4547,7 +4693,7 @@ async function consolidarMaterialesDuplicados(trabajoId,lista){
           nombre:fusionado.nombre,material:fusionado.material,cantidad:fusionado.cantidad,
           unidad:fusionado.unidad,notas:fusionado.notas,referencia:fusionado.referencia,
           proveedor:fusionado.proveedor,fabricante:fusionado.fabricante,alias:fusionado.alias,
-          precio_compra:fusionado.precio_compra,precio_venta:fusionado.precio_venta
+          iva:fusionado.iva,precio_compra:fusionado.precio_compra,precio_venta:fusionado.precio_venta
         });
         if(actualizado && actualizado.error) throw actualizado.error;
 
@@ -4651,7 +4797,7 @@ async function cambiarCantidadMaterial(trabajoId,material,cambio){
   const preparada=Math.min(nueva,cantidadPreparadaMaterial(material));
   const usado=Math.min(nueva,cantidadUsadaMaterial(material));
   const notasActualizadas=notasConUsado(
-    notasConPreparado(notasVisiblesMaterial(material),preparada,imagenMaterial(material)),
+    notasConPreparado(notasOperativasMaterial(material),preparada,imagenMaterial(material)),
     usado
   );
   const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasActualizadas,preparado:preparada>=nueva&&nueva>0});
@@ -4677,7 +4823,7 @@ async function establecerCantidadMaterial(trabajoId,material){
   const preparada=Math.min(nueva,cantidadPreparadaMaterial(material));
   const usado=Math.min(nueva,cantidadUsadaMaterial(material));
   const notasActualizadas=notasConUsado(
-    notasConPreparado(notasVisiblesMaterial(material),preparada,imagenMaterial(material)),
+    notasConPreparado(notasOperativasMaterial(material),preparada,imagenMaterial(material)),
     usado
   );
   const r=await actualizarMaterialCompatible(material.id,{cantidad:nueva,notas:notasActualizadas,preparado:preparada>=nueva&&nueva>0});
@@ -4757,7 +4903,7 @@ async function establecerUsoMaterial(trabajoId,material,modo){
   if(nueva===actual) return;
 
   const notas=notasConUsado(
-    notasConPreparado(notasVisiblesMaterial(material),cantidadPreparadaMaterial(material),imagenMaterial(material)),
+    notasConPreparado(notasOperativasMaterial(material),cantidadPreparadaMaterial(material),imagenMaterial(material)),
     nueva
   );
   const r=await actualizarMaterialCompatible(material.id,{notas:notas});
@@ -5688,7 +5834,7 @@ function marcarFavoritoMaterial(nombre,valor){
 }
 
 async function abrirMaterial(id,material){
-  material=material || null;
+  material=material ? enriquecerMaterialDesdeMeta(material) : null;
   const duplicando=!!(material && material.__duplicar);
   const editando=!!material && !duplicando;
   modal(`
@@ -5718,7 +5864,7 @@ async function abrirMaterial(id,material){
       <label class="zx_tr_label">Proveedor</label><input id="tr_mat_proveedor" value="${limpiar(material ? (material.proveedor || "") : "")}">
       <label class="zx_tr_label">Fabricante</label><input id="tr_mat_fabricante" value="${limpiar(material ? (material.fabricante || "") : "")}">
       <label class="zx_tr_label">Alias o palabras de búsqueda</label><input id="tr_mat_alias" placeholder="Ej.: llave media, válvula corte" value="${limpiar(material ? (material.alias || "") : "")}">
-      <div class="zx_tr_grid2"><div><label class="zx_tr_label">Precio compra</label><input id="tr_mat_precio_compra" type="number" step="0.01" value="${limpiar(material && material.precio_compra!=null ? material.precio_compra : "")}"></div><div><label class="zx_tr_label">Precio venta</label><input id="tr_mat_precio_venta" type="number" step="0.01" value="${limpiar(material && material.precio_venta!=null ? material.precio_venta : "")}"></div></div>
+      <div class="zx_tr_grid2"><div><label class="zx_tr_label">Precio compra (<span data-tr-price-unit>€/${limpiar(material ? (material.unidad || "ud") : "ud")}</span>)</label><input id="tr_mat_precio_compra" type="number" step="0.01" value="${limpiar(material && material.precio_compra!=null ? material.precio_compra : "")}"></div><div><label class="zx_tr_label">Precio venta (<span data-tr-price-unit>€/${limpiar(material ? (material.unidad || "ud") : "ud")}</span>)</label><input id="tr_mat_precio_venta" type="number" step="0.01" value="${limpiar(material && material.precio_venta!=null ? material.precio_venta : "")}"></div></div>
       <label class="zx_tr_label">IVA (%)</label><input id="tr_mat_iva" type="number" step="0.01" value="${limpiar(material && material.iva!=null ? material.iva : "")}">
     </details>
     <details class="zx_tr_material_extra" ${material && (imagenMaterial(material) || notasVisiblesMaterial(material)) ? "open" : ""}>
@@ -5750,6 +5896,14 @@ async function abrirMaterial(id,material){
     reader.onload=function(){if(preview) preview.innerHTML=`<img src="${reader.result}" alt="">`};
     reader.readAsDataURL(file);
   };
+
+  const unidadInput=document.getElementById("tr_mat_unidad");
+  const actualizarUnidadPrecios=function(){
+    const unidad=String(unidadInput && unidadInput.value || "ud").trim() || "ud";
+    document.querySelectorAll("[data-tr-price-unit]").forEach(function(x){x.textContent="€/"+unidad});
+  };
+  if(unidadInput) unidadInput.addEventListener("input",actualizarUnidadPrecios);
+  actualizarUnidadPrecios();
 
   const nombreInput=document.getElementById("tr_mat_nombre");
   const sugerenciasBox=document.getElementById("tr_mat_sugerencias");
@@ -5834,6 +5988,7 @@ async function abrirMaterial(id,material){
       preparado:false,
       created_at:new Date().toISOString()
     };
+    data.notas=notasConMetaMaterial(data.notas,data);
 
     const boton=document.getElementById("tr_mat_guardar");
     if(boton){boton.disabled=true;boton.textContent="Guardando...";}
@@ -5870,7 +6025,8 @@ async function abrirMaterial(id,material){
           unidad:data.unidad,
           notas:notasConEstado,
           preparado:preparadaConservada>=cantidadNueva && cantidadNueva>0,
-          referencia:data.referencia,proveedor:data.proveedor,precio_compra:data.precio_compra,precio_venta:data.precio_venta
+          referencia:data.referencia,proveedor:data.proveedor,fabricante:data.fabricante,alias:data.alias,
+          iva:data.iva,precio_compra:data.precio_compra,precio_venta:data.precio_venta
         };
         r=await actualizarMaterialCompatible(material.id,cambios);
       }else{
@@ -5888,16 +6044,32 @@ async function abrirMaterial(id,material){
           },0);
           cantidadFinal=cantidadAnterior + Number(data.cantidad || 0);
 
+          const datosAcumulados={
+            ...principal,
+            ...data,
+            cantidad:cantidadFinal,
+            unidad:data.unidad || principal.unidad || "ud",
+            referencia:data.referencia || principal.referencia || "",
+            proveedor:data.proveedor || principal.proveedor || "",
+            fabricante:data.fabricante || principal.fabricante || "",
+            alias:data.alias || principal.alias || "",
+            iva:data.iva ?? principal.iva ?? null,
+            precio_compra:data.precio_compra ?? principal.precio_compra ?? null,
+            precio_venta:data.precio_venta ?? principal.precio_venta ?? null
+          };
           const cambios={
             nombre:nombre,
             material:nombre,
             cantidad:cantidadFinal,
-            unidad:data.unidad || principal.unidad || "ud",
-            notas:data.notas || principal.notas || "",
-            referencia:data.referencia || principal.referencia || "",
-            proveedor:data.proveedor || principal.proveedor || "",
-            precio_compra:data.precio_compra ?? principal.precio_compra ?? null,
-            precio_venta:data.precio_venta ?? principal.precio_venta ?? null
+            unidad:datosAcumulados.unidad,
+            notas:notasConMetaMaterial(notasVisiblesMaterial({notas:data.notas || principal.notas || ""}),datosAcumulados),
+            referencia:datosAcumulados.referencia,
+            proveedor:datosAcumulados.proveedor,
+            fabricante:datosAcumulados.fabricante,
+            alias:datosAcumulados.alias,
+            iva:datosAcumulados.iva,
+            precio_compra:datosAcumulados.precio_compra,
+            precio_venta:datosAcumulados.precio_venta
           };
           r=await actualizarMaterialCompatible(principal.id,cambios);
           if(r && r.error) throw r.error;
