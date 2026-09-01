@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1061 - PROYECTOS: CONTROL TODOS EN SERVICIOS DEL CATÁLOGO TÉCNICO
 // V1060 - PROYECTOS: CATÁLOGO TÉCNICO Y USO DE EQUIPOS EN GENERADORES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1060";
+const ZX_VERSION="1061";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1075,7 +1076,7 @@ const AYUDAS_DIRECTAS=[
       "Busca el artículo que quieras preparar o usa el filtro para ver artículos con ficha técnica o pendientes de ficha.",
       "Abre el artículo y activa Usar este artículo como equipo técnico en Proyectos.",
       "Selecciona el tipo de generador y, si hace falta, indica el subtipo.",
-      "Marca los servicios que cubre: calefacción, ACS, refrigeración o piscina.",
+      "Marca los servicios que cubre: calefacción, ACS, refrigeración o piscina. Usa Todos para marcarlos o desmarcarlos de una vez; Todos no se guarda como un servicio adicional.",
       "Registra las prestaciones disponibles: potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER.",
       "Puedes añadir una URL de foto para el dosier, un texto breve para el cliente y notas técnicas.",
       "Pulsa Guardar. La ficha queda asociada al mismo artículo de Materiales; no se crea otro artículo.",
@@ -1575,7 +1576,7 @@ const BASE=[
       "El Catálogo técnico usa los artículos activos que ya existen en Materiales y permite buscar por artículo, marca, modelo o referencia.",
       "Puedes filtrar entre todos los artículos, los que ya tienen ficha técnica y los que todavía no la tienen.",
       "Abre un artículo y activa Usar este artículo como equipo técnico en Proyectos para dejarlo disponible en la selección de generadores.",
-      "En su ficha técnica puedes indicar tipo y subtipo de generador, servicios, potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER.",
+      "En su ficha técnica puedes indicar tipo y subtipo de generador, servicios, potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER. En Servicios, Todos marca o desmarca de una vez Calefacción, ACS, Refrigeración y Piscina, sin guardarse como un servicio adicional.",
       "La ficha también admite una URL de foto para el dosier, texto para el cliente y notas técnicas. Guardarla modifica los datos técnicos del artículo existente y no crea otro artículo.",
       "La edición del Catálogo técnico necesita conexión.",
       "Al añadir o editar un generador, el campo Equipo del catálogo técnico es opcional. Si eliges uno, se rellenan los datos disponibles de su ficha.",
