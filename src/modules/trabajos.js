@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3234
+// ZENTRYX PRO - TRABAJOS V3235
+// V3235 - ALTA PREFILL DESDE PROYECTO ACEPTADO + COPIA DE MATERIALES Y ENLACE DE ORIGEN
 // V3234 - AUDITORÍA PERSISTENTE SIN DOBLE TARJETA: METADATOS TAMBIÉN EN NOTAS PARA COMPATIBILIDAD
 // V3233 - NOTAS/PARTES: UNA SOLA ENTRADA AL CREAR; AUDITORÍA SOLO EN EDITAR/BORRAR
 // V3231 - ARCHIVOS DE BIBLIOTECA: QUITAR VÍNCULO SIN BORRAR EL ORIGINAL
@@ -13,7 +14,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3234";
+const ZX_VERSION="3235";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -25,6 +26,7 @@ let ZX_TR_FILTRO="todos";
 let ZX_TR_FECHA_DESDE="";
 let ZX_TR_FECHA_HASTA="";
 let ZX_TR_CARGANDO=false;
+let ZX_TR_PROYECTO_CONTEXT=null;
 
 function app(){return document.getElementById("app")}
 function sb(){return window.sb || window.supabaseClient || null}
@@ -1836,8 +1838,13 @@ async function abrirFormulario(t){
     .filter(Boolean);
   const jornadasActuales=jornadasDesdePlanificacion(planificacion,t);
 
+  const avisoProyecto=!t.id&&ZX_TR_PROYECTO_CONTEXT
+    ? `<div class="zx_tr_notice" style="background:#ecfdf5;border-color:#a7f3d0;color:#065f46"><b>Trabajo preparado desde una propuesta aceptada.</b><br>Revisa responsable, fecha, horario y personas asignadas antes de guardar.</div>`
+    : "";
+
   modal(`
     <h2>${t.id ? "Editar trabajo" : "Nuevo trabajo"}</h2>
+    ${avisoProyecto}
 
     <div class="zx_tr_form">
       <h3>Datos principales</h3>
@@ -1912,7 +1919,10 @@ async function abrirFormulario(t){
 
   const cancelarFormulario=function(){
     if(t.id) abrirFicha(t.id);
-    else cerrarModal();
+    else{
+      ZX_TR_PROYECTO_CONTEXT=null;
+      cerrarModal();
+    }
   };
   document.getElementById("tr_cancelar").onclick=cancelarFormulario;
   document.getElementById("tr_guardar").onclick=function(){guardarTrabajo(t.id || null,clientes,usuarios)};
@@ -1949,7 +1959,50 @@ async function confirmarPlanificacionFestivos(jornadas,equipo){
   }
 }
 
+
+async function copiarMaterialesDesdeProyecto(trabajoId,ctx){
+  const materiales=ctx&&Array.isArray(ctx.materiales)?ctx.materiales:[];
+  if(!materiales.length)return {copiados:0,errores:0};
+
+  let copiados=0,errores=0;
+  for(const m of materiales){
+    const nombre=String(m&&m.nombre||"").trim();
+    const cantidad=Number(m&&m.cantidad||0);
+    if(!nombre||!Number.isFinite(cantidad)||cantidad<=0)continue;
+
+    const data={
+      id:idLocal(),
+      trabajo_id:String(trabajoId),
+      nombre:nombre,
+      material:nombre,
+      cantidad:cantidad,
+      unidad:String(m.unidad||"ud"),
+      notas:String(m.notas||""),
+      referencia:String(m.referencia||""),
+      proveedor:String(m.proveedor||""),
+      fabricante:String(m.fabricante||""),
+      alias:String(m.alias||""),
+      iva:m.iva!=null&&m.iva!==""?Number(m.iva):null,
+      precio_compra:m.precio_compra!=null&&m.precio_compra!==""?Number(m.precio_compra):null,
+      precio_venta:m.precio_venta!=null&&m.precio_venta!==""?Number(m.precio_venta):null,
+      preparado:false,
+      created_at:new Date().toISOString()
+    };
+    try{
+      const r=await insertarMaterialCompatible(data);
+      if(r&&r.error)throw r.error;
+      copiados++;
+      try{aprenderMaterial(data)}catch(e){}
+    }catch(e){
+      errores++;
+      console.warn("Trabajos: no se pudo copiar un material desde Proyecto",nombre,e);
+    }
+  }
+  return {copiados,errores};
+}
+
 async function guardarTrabajo(id,clientes,usuarios){
+  const ctxProyecto=!id&&ZX_TR_PROYECTO_CONTEXT?JSON.parse(JSON.stringify(ZX_TR_PROYECTO_CONTEXT)):null;
   const titulo=valor("tr_titulo");
 
   if(!titulo){
@@ -2034,6 +2087,29 @@ async function guardarTrabajo(id,clientes,usuarios){
     if(r && r.error) throw r.error;
 
     await guardarEquipoTrabajo(trabajoId,equipo,data,jornadas);
+
+    if(!id&&ctxProyecto){
+      const importacion=await copiarMaterialesDesdeProyecto(trabajoId,ctxProyecto);
+      await registrarHistorial(
+        trabajoId,
+        "proyecto",
+        "Trabajo creado desde propuesta aceptada: "+String(ctxProyecto.propuesta_nombre||""),
+        {
+          proyecto_id:String(ctxProyecto.proyecto_id||""),
+          propuesta_id:String(ctxProyecto.propuesta_id||""),
+          propuesta_nombre:String(ctxProyecto.propuesta_nombre||""),
+          materiales_importados:importacion.copiados,
+          materiales_con_error:importacion.errores
+        }
+      );
+      if(typeof window.ZX_PROYECTOS_VINCULAR_TRABAJO==="function"){
+        const vinculado=await window.ZX_PROYECTOS_VINCULAR_TRABAJO(ctxProyecto,trabajoId);
+        if(!vinculado){
+          setTimeout(()=>alert("El trabajo se ha creado, pero no se pudo guardar el enlace con el proyecto. No crees otro trabajo para esta propuesta hasta revisar este registro."),80);
+        }
+      }
+      ZX_TR_PROYECTO_CONTEXT=null;
+    }
 
     if(id){
       await registrarHistorial(
@@ -6821,6 +6897,27 @@ if(!window.__ZX_TRABAJOS_REALTIME_LISTENER){
     }
   });
 }
+
+
+window.ZX_TRABAJOS_CREAR_DESDE_PROYECTO=async function(prefill,contexto){
+  instalarCSS();
+  if(!puedeGestionar()){alert("No tienes permiso para crear trabajos.");return false}
+  ZX_TR_PROYECTO_CONTEXT=contexto&&typeof contexto==="object"?JSON.parse(JSON.stringify(contexto)):null;
+  const datos=prefill&&typeof prefill==="object"?{...prefill}:{};
+  await abrirFormulario(datos);
+  return true;
+};
+
+window.ZX_TRABAJOS_ABRIR_TRABAJO=async function(id){
+  instalarCSS();
+  if(!puedeEntrar()){alert("No tienes permiso para acceder a Trabajos.");return false}
+  const trabajoId=String(id||"").trim();
+  if(!trabajoId)return false;
+  const t=await cargarTrabajo(trabajoId);
+  if(!t){alert("Trabajo no encontrado.");return false}
+  await abrirFicha(trabajoId);
+  return true;
+};
 
 window.ZX_trabajos=async function(){
   instalarCSS();
