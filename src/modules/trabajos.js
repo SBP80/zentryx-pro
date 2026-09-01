@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3236
+// ZENTRYX PRO - TRABAJOS V3237
+// V3237 - RECUPERA IMPORTES POR VÍNCULO PROYECTO/PROPUESTA + APERTURA DIRECTA CON ORIGEN
 // V3236 - CONSERVA DATOS ECONÓMICOS DE MATERIALES DE PROYECTO EN METADATOS COMPATIBLES
 // V3235 - ALTA PREFILL DESDE PROYECTO ACEPTADO + COPIA DE MATERIALES Y ENLACE DE ORIGEN
 // V3234 - AUDITORÍA PERSISTENTE SIN DOBLE TARJETA: METADATOS TAMBIÉN EN NOTAS PARA COMPATIBILIDAD
@@ -15,7 +16,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3236";
+const ZX_VERSION="3237";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -134,10 +135,19 @@ function puedeBorrar(){return esAdmin()}
 
 let ZX_TR_AGENDA_EVENTO_ID="";
 let ZX_TR_AGENDA_EVENTO_FECHA="";
+let ZX_TR_ORIGEN_APERTURA_DIRECTA="";
 
 function idTrabajoUnico(){return String(window.ZX_TRABAJO_ABRIR_ID || "").trim()}
 function accionTrabajoDirecta(){return String(window.ZX_TRABAJO_ACCION_DIRECTA || "ver").trim().toLowerCase()}
 function modoTrabajoUnico(){return !!idTrabajoUnico()}
+function origenAperturaDirectaTrabajo(){return String(ZX_TR_ORIGEN_APERTURA_DIRECTA || "").trim().toLowerCase()}
+function textoVolverFichaTrabajo(){
+  if(modoTrabajoUnico()) return "← Agenda";
+  const origen=origenAperturaDirectaTrabajo();
+  if(origen==="inicio") return "← Inicio";
+  if(origen==="proyectos" || origen==="proyecto") return "← Proyecto";
+  return "← Trabajos";
+}
 
 function guardarContextoAgendaTrabajo(){
   const id=String(window.ZX_AGENDA_EVENTO_ID || "").trim();
@@ -3693,7 +3703,7 @@ async function abrirFicha(id){
 
   modal(`
     <div class="zx_tr_full_header">
-      <button type="button" class="zx_tr_back_agenda" id="tr_back_agenda">${modoTrabajoUnico() ? "← Agenda" : "← Trabajos"}</button>
+      <button type="button" class="zx_tr_back_agenda" id="tr_back_agenda">${textoVolverFichaTrabajo()}</button>
       <h2 title="${limpiar(t.titulo || "Trabajo")}">${limpiar(t.titulo || "Trabajo")}</h2>
     </div>
     <div id="tr_ficha_contenido">
@@ -3712,6 +3722,7 @@ async function abrirFicha(id){
     if(modoTrabajoUnico()){
       salirTrabajoUnico();
     }
+    ZX_TR_ORIGEN_APERTURA_DIRECTA="";
   };
 
   document.getElementById("tr_ficha_cerrar").onclick=volverAgendaDesdeTrabajo;
@@ -4328,6 +4339,9 @@ async function completarMaterialesProyectoDesdeOrigen(trabajoId,filas){
   if(!pendientes.length) return lista;
 
   let partidas=[];
+  let propuestaId="";
+
+  // 1) Historial del Trabajo, cuando esta instalación dispone de columna `datos`.
   try{
     const rh=await sb().from("trabajos_historial")
       .select("datos,created_at")
@@ -4340,17 +4354,52 @@ async function completarMaterialesProyectoDesdeOrigen(trabajoId,filas){
     if(!rh.error && rh.data){
       let datos=rh.data.datos || {};
       if(typeof datos==="string"){try{datos=JSON.parse(datos)}catch(e){datos={}}}
-      const propuestaId=String(datos && datos.propuesta_id || "").trim();
-      if(propuestaId){
-        const rp=await sb().from("proyectos_partidas")
-          .select("id,descripcion,referencia,cantidad,unidad,coste_unitario,descuento,precio_unitario,iva,grupo,tipo")
-          .eq("propuesta_id",propuestaId)
-          .eq("tipo","material");
-        if(!rp.error && Array.isArray(rp.data)) partidas=rp.data;
-      }
+      propuestaId=String(datos && datos.propuesta_id || "").trim();
     }
-  }catch(e){
-    console.warn("Trabajos: no se pudo consultar la propuesta de origen de los materiales",e);
+  }catch(e){}
+
+  // 2) Vínculo oficial guardado por Proyectos en control_meta.
+  // Es el camino de recuperación para trabajos creados con V3235, incluso si
+  // trabajos_historial no admite la columna `datos` y el historial usó fallback.
+  if(!propuestaId){
+    try{
+      const rq=await sb().from("proyectos_propuestas")
+        .select("id,control_meta")
+        .contains("control_meta",{trabajo_id:String(trabajoId)})
+        .limit(1)
+        .maybeSingle();
+      if(!rq.error && rq.data) propuestaId=String(rq.data.id || "").trim();
+    }catch(e){}
+  }
+
+  // 3) Historial propio de Proyectos. SQL_PROYECTOS_V1 sí define `datos` JSONB.
+  if(!propuestaId){
+    try{
+      const rph=await sb().from("proyectos_historial")
+        .select("datos,created_at")
+        .eq("tipo","trabajo")
+        .contains("datos",{trabajo_id:String(trabajoId)})
+        .order("created_at",{ascending:false})
+        .limit(1)
+        .maybeSingle();
+      if(!rph.error && rph.data){
+        let datos=rph.data.datos || {};
+        if(typeof datos==="string"){try{datos=JSON.parse(datos)}catch(e){datos={}}}
+        propuestaId=String(datos && datos.propuesta_id || "").trim();
+      }
+    }catch(e){}
+  }
+
+  if(propuestaId){
+    try{
+      const rp=await sb().from("proyectos_partidas")
+        .select("id,descripcion,referencia,cantidad,unidad,coste_unitario,descuento,precio_unitario,iva,grupo,tipo")
+        .eq("propuesta_id",propuestaId)
+        .eq("tipo","material");
+      if(!rp.error && Array.isArray(rp.data)) partidas=rp.data;
+    }catch(e){
+      console.warn("Trabajos: no se pudieron recuperar las partidas de la propuesta de origen",e);
+    }
   }
 
   const biblioteca=leerBibliotecaMaterialesLocal();
@@ -7080,19 +7129,22 @@ window.ZX_TRABAJOS_CREAR_DESDE_PROYECTO=async function(prefill,contexto){
   return true;
 };
 
-window.ZX_TRABAJOS_ABRIR_TRABAJO=async function(id){
+window.ZX_TRABAJOS_ABRIR_TRABAJO=async function(id,opciones){
   instalarCSS();
   if(!puedeEntrar()){alert("No tienes permiso para acceder a Trabajos.");return false}
   const trabajoId=String(id||"").trim();
   if(!trabajoId)return false;
+  const opts=opciones&&typeof opciones==="object"?opciones:{};
+  ZX_TR_ORIGEN_APERTURA_DIRECTA=String(opts.origen || window.ZX_MODULO_ACTUAL || "").trim().toLowerCase();
   const t=await cargarTrabajo(trabajoId);
-  if(!t){alert("Trabajo no encontrado.");return false}
+  if(!t){ZX_TR_ORIGEN_APERTURA_DIRECTA="";alert("Trabajo no encontrado.");return false}
   await abrirFicha(trabajoId);
   return true;
 };
 
 window.ZX_trabajos=async function(){
   instalarCSS();
+  ZX_TR_ORIGEN_APERTURA_DIRECTA="";
 
   const entradaDesdeAgenda=window.ZX_TRABAJO_DESDE_AGENDA===true;
   if(entradaDesdeAgenda){
