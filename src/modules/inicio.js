@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
+// V3163 - ABRIR TRABAJO DESDE INICIO ENTRA DIRECTAMENTE EN SU FICHA
 // V3162 - VEHÍCULOS RESPETA PERMISO DE MÓDULO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3162";
+const ZX_VERSION="3163";
 const CACHE_PREFIX="zentryx_mi_dia_v3161";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
@@ -539,7 +540,13 @@ function proximoTrabajo(lista){
 }
 
 function abrirTrabajo(id){
-  window.ZX_TRABAJO_ABRIR_ID=String(id || "");
+  const trabajoId=String(id || "").trim();
+  if(!trabajoId) return;
+  if(typeof window.ZX_TRABAJOS_ABRIR_TRABAJO==="function"){
+    window.ZX_TRABAJOS_ABRIR_TRABAJO(trabajoId,{origen:"inicio"});
+    return;
+  }
+  window.ZX_TRABAJO_ABRIR_ID=trabajoId;
   if(typeof window.ZX_trabajos==="function") window.ZX_trabajos();
 }
 
