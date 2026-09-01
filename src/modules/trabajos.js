@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3239
+// ZENTRYX PRO - TRABAJOS V3240
+// V3240 - HISTORIAL ANTIGUO PROYECTO→TRABAJO RECUPERA PROYECTO/PROPUESTA DESDE VÍNCULOS DE PROYECTOS SIN DEPENDER DE trabajos_historial.datos
 // V3239 - HISTORIAL PROYECTO→TRABAJO MUESTRA PROYECTO Y PROPUESTA, TAMBIÉN EN REGISTROS EXISTENTES
 // V3238 - VOLVER DIRECTO AL ORIGEN CORRECTO AL ABRIR DESDE PROYECTOS
 // V3237 - RECUPERA IMPORTES POR VÍNCULO PROYECTO/PROPUESTA + APERTURA DIRECTA CON ORIGEN
@@ -18,7 +19,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3239";
+const ZX_VERSION="3240";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -860,15 +861,107 @@ async function enriquecerHistorialProyecto(lista){
   const hist=Array.isArray(lista) ? lista : [];
   if(!hist.length || !navigator.onLine || !sb()) return hist;
 
-  const ids=[...new Set(hist.map(function(h){
+  const idsProyecto=new Set();
+  const origenPorTrabajo=new Map();
+
+  hist.forEach(function(h){
     const datos=datosHistorial(h);
-    return String(datos && datos.proyecto_id || "").trim();
+    const proyectoId=String(datos && datos.proyecto_id || "").trim();
+    if(proyectoId) idsProyecto.add(proyectoId);
+  });
+
+  const trabajosSinOrigen=[...new Set(hist.filter(function(h){
+    if(normalizar(h && h.tipo || "")!=="proyecto") return false;
+    const datos=datosHistorial(h);
+    return !String(datos && datos.proyecto_id || "").trim();
+  }).map(function(h){
+    return String(h && h.trabajo_id || "").trim();
   }).filter(Boolean))];
 
-  if(!ids.length) return hist;
-
   try{
-    const r=await sb().from("proyectos").select("id,nombre").in("id",ids);
+    for(const trabajoId of trabajosSinOrigen){
+      let origen=null;
+
+      // 1) Vínculo oficial de la propuesta aceptada: control_meta.trabajo_id.
+      try{
+        const rq=await sb().from("proyectos_propuestas")
+          .select("id,proyecto_id,nombre,control_meta")
+          .contains("control_meta",{trabajo_id:String(trabajoId)})
+          .limit(1)
+          .maybeSingle();
+
+        if(!rq.error && rq.data){
+          origen={
+            proyecto_id:String(rq.data.proyecto_id || "").trim(),
+            propuesta_id:String(rq.data.id || "").trim(),
+            propuesta_nombre:String(rq.data.nombre || "").trim()
+          };
+        }
+      }catch(e){}
+
+      // 2) Historial propio de Proyectos, que sí guarda trabajo_id/propuesta_id.
+      if(!origen || !origen.proyecto_id){
+        try{
+          const rh=await sb().from("proyectos_historial")
+            .select("proyecto_id,datos,created_at")
+            .eq("tipo","trabajo")
+            .contains("datos",{trabajo_id:String(trabajoId)})
+            .order("created_at",{ascending:false})
+            .limit(1)
+            .maybeSingle();
+
+          if(!rh.error && rh.data){
+            let datos=rh.data.datos || {};
+            if(typeof datos==="string"){try{datos=JSON.parse(datos)}catch(e){datos={}}}
+            origen={
+              proyecto_id:String(rh.data.proyecto_id || "").trim(),
+              propuesta_id:String(datos && datos.propuesta_id || "").trim(),
+              propuesta_nombre:""
+            };
+          }
+        }catch(e){}
+      }
+
+      // 3) Tabla de relación, si está poblada en esta instalación.
+      if(!origen || !origen.proyecto_id){
+        try{
+          const rv=await sb().from("proyectos_trabajos")
+            .select("proyecto_id,trabajo_id")
+            .eq("trabajo_id",String(trabajoId))
+            .limit(1)
+            .maybeSingle();
+
+          if(!rv.error && rv.data){
+            origen={
+              proyecto_id:String(rv.data.proyecto_id || "").trim(),
+              propuesta_id:"",
+              propuesta_nombre:""
+            };
+          }
+        }catch(e){}
+      }
+
+      if(origen && origen.proyecto_id){
+        idsProyecto.add(origen.proyecto_id);
+
+        // Si solo conocemos propuesta_id, recuperamos su nombre.
+        if(origen.propuesta_id && !origen.propuesta_nombre){
+          try{
+            const rp=await sb().from("proyectos_propuestas")
+              .select("id,nombre")
+              .eq("id",origen.propuesta_id)
+              .maybeSingle();
+            if(!rp.error && rp.data) origen.propuesta_nombre=String(rp.data.nombre || "").trim();
+          }catch(e){}
+        }
+
+        origenPorTrabajo.set(String(trabajoId),origen);
+      }
+    }
+
+    if(!idsProyecto.size) return hist;
+
+    const r=await sb().from("proyectos").select("id,nombre").in("id",[...idsProyecto]);
     if(r.error) return hist;
 
     const mapa=new Map((r.data || []).map(function(p){
@@ -877,16 +970,25 @@ async function enriquecerHistorialProyecto(lista){
 
     hist.forEach(function(h){
       const datos=datosHistorial(h);
-      const proyectoId=String(datos && datos.proyecto_id || "").trim();
+      let proyectoId=String(datos && datos.proyecto_id || "").trim();
+      const trabajoId=String(h && h.trabajo_id || "").trim();
+      const origen=origenPorTrabajo.get(trabajoId);
+
+      if(!proyectoId && origen) proyectoId=String(origen.proyecto_id || "").trim();
+
       if(proyectoId && mapa.has(proyectoId)){
+        h.__zx_proyecto_id=proyectoId;
         h.__zx_proyecto_nombre=mapa.get(proyectoId);
+      }
+
+      if(origen && origen.propuesta_nombre){
+        h.__zx_propuesta_nombre=String(origen.propuesta_nombre).trim();
       }
     });
   }catch(e){}
 
   return hist;
 }
-
 async function cargarHistorial(id){
   if(!id || !navigator.onLine || !sb()) return [];
 
@@ -5374,9 +5476,16 @@ function notasHistorialProfesional(h){
 
   const datos=datosHistorial(h);
   const proyectoNombre=String((datos && datos.proyecto_nombre) || (h && h.__zx_proyecto_nombre) || "").trim();
-  const propuestaNombre=String(datos && datos.propuesta_nombre || "").trim();
-  if(!proyectoNombre) return base;
+  let propuestaNombre=String((datos && datos.propuesta_nombre) || (h && h.__zx_propuesta_nombre) || "").trim();
 
+  // Compatibilidad con registros creados antes de guardar metadatos del Proyecto:
+  // el nombre de la propuesta sí quedó en el texto visible.
+  if(!propuestaNombre){
+    const m=base.match(/propuesta aceptada\s*:\s*(.+)$/i);
+    if(m && m[1]) propuestaNombre=String(m[1]).trim();
+  }
+
+  if(!proyectoNombre) return base;
   return "Trabajo creado desde Proyecto: "+proyectoNombre+(propuestaNombre ? " · Propuesta aceptada: "+propuestaNombre : "");
 }
 
