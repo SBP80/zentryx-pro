@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3238
+// ZENTRYX PRO - TRABAJOS V3239
+// V3239 - HISTORIAL PROYECTO→TRABAJO MUESTRA PROYECTO Y PROPUESTA, TAMBIÉN EN REGISTROS EXISTENTES
 // V3238 - VOLVER DIRECTO AL ORIGEN CORRECTO AL ABRIR DESDE PROYECTOS
 // V3237 - RECUPERA IMPORTES POR VÍNCULO PROYECTO/PROPUESTA + APERTURA DIRECTA CON ORIGEN
 // V3236 - CONSERVA DATOS ECONÓMICOS DE MATERIALES DE PROYECTO EN METADATOS COMPATIBLES
@@ -17,7 +18,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3238";
+const ZX_VERSION="3239";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -855,6 +856,37 @@ async function cargarArchivos(id){
   }
 }
 
+async function enriquecerHistorialProyecto(lista){
+  const hist=Array.isArray(lista) ? lista : [];
+  if(!hist.length || !navigator.onLine || !sb()) return hist;
+
+  const ids=[...new Set(hist.map(function(h){
+    const datos=datosHistorial(h);
+    return String(datos && datos.proyecto_id || "").trim();
+  }).filter(Boolean))];
+
+  if(!ids.length) return hist;
+
+  try{
+    const r=await sb().from("proyectos").select("id,nombre").in("id",ids);
+    if(r.error) return hist;
+
+    const mapa=new Map((r.data || []).map(function(p){
+      return [String(p.id),String(p.nombre || "").trim()];
+    }));
+
+    hist.forEach(function(h){
+      const datos=datosHistorial(h);
+      const proyectoId=String(datos && datos.proyecto_id || "").trim();
+      if(proyectoId && mapa.has(proyectoId)){
+        h.__zx_proyecto_nombre=mapa.get(proyectoId);
+      }
+    });
+  }catch(e){}
+
+  return hist;
+}
+
 async function cargarHistorial(id){
   if(!id || !navigator.onLine || !sb()) return [];
 
@@ -865,7 +897,8 @@ async function cargarHistorial(id){
       .eq("trabajo_id",String(id))
       .order("created_at",{ascending:false});
 
-    return r.error ? [] : (r.data || []);
+    if(r.error) return [];
+    return await enriquecerHistorialProyecto(r.data || []);
   }catch(e){
     return [];
   }
@@ -2108,14 +2141,20 @@ async function guardarTrabajo(id,clientes,usuarios){
 
     if(!id&&ctxProyecto){
       const importacion=await copiarMaterialesDesdeProyecto(trabajoId,ctxProyecto);
+      const proyectoNombreHist=String(ctxProyecto.proyecto_nombre||"").trim();
+      const propuestaNombreHist=String(ctxProyecto.propuesta_nombre||"").trim();
+      const textoOrigenHist=proyectoNombreHist
+        ? "Trabajo creado desde Proyecto: "+proyectoNombreHist+(propuestaNombreHist ? " · Propuesta aceptada: "+propuestaNombreHist : "")
+        : "Trabajo creado desde propuesta aceptada: "+propuestaNombreHist;
       await registrarHistorial(
         trabajoId,
         "proyecto",
-        "Trabajo creado desde propuesta aceptada: "+String(ctxProyecto.propuesta_nombre||""),
+        textoOrigenHist,
         {
           proyecto_id:String(ctxProyecto.proyecto_id||""),
           propuesta_id:String(ctxProyecto.propuesta_id||""),
-          propuesta_nombre:String(ctxProyecto.propuesta_nombre||""),
+          proyecto_nombre:proyectoNombreHist,
+          propuesta_nombre:propuestaNombreHist,
           materiales_importados:importacion.copiados,
           materiales_con_error:importacion.errores
         }
@@ -5329,12 +5368,24 @@ function historialVisibleProfesional(lista){
   });
 }
 
+function notasHistorialProfesional(h){
+  const base=notasParteSinDatos(h && h.notas || "") || "Actividad registrada";
+  if(normalizar(h && h.tipo || "")!=="proyecto") return base;
+
+  const datos=datosHistorial(h);
+  const proyectoNombre=String((datos && datos.proyecto_nombre) || (h && h.__zx_proyecto_nombre) || "").trim();
+  const propuestaNombre=String(datos && datos.propuesta_nombre || "").trim();
+  if(!proyectoNombre) return base;
+
+  return "Trabajo creado desde Proyecto: "+proyectoNombre+(propuestaNombre ? " · Propuesta aceptada: "+propuestaNombre : "");
+}
+
 function renderHistorialProfesional(lista){
   const hist=historialVisibleProfesional(lista);
   const contenido=hist.length ? `
     <div class="zx_tr_history_list">
       ${hist.map(function(h){
-        const notasVisibles=notasParteSinDatos(h.notas || "") || "Actividad registrada";
+        const notasVisibles=notasHistorialProfesional(h);
         const cfg=configHistorial(h.tipo,notasVisibles);
         const usuario=h.usuario || h.usuario_nombre || h.nombre_usuario || "Sistema";
         const esNota=normalizar(h.tipo || "")==="nota";
