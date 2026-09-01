@@ -1,11 +1,11 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1022
-// V1022 - DOSIER: LOS EQUIPOS DE CADA OPCIÓN SE TOMAN DE SU ESTRATEGIA
+// ZENTRYX PRO - PROYECTOS V1023
+// V1023 - UNA SOLA PROPUESTA ACEPTADA; LAS ANTERIORES QUEDAN SUSTITUIDAS Y BLOQUEADAS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1022";
+const ZX_VERSION="1023";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -89,7 +89,9 @@ function textoAccionRegla(v){return ({usar:"Usar",priorizar:"Priorizar",apoyo:"E
 function nombreGeneradorId(id){const g=GENERADORES.find(x=>String(x.id)===String(id));if(!g)return "Generador";const potencia=(g.potencia_kw!=null&&g.potencia_kw!=="")?limpiar(g.potencia_kw)+" kW":"";return [textoGenerador(g.tipo),potencia,g.marca,g.modelo].filter(Boolean).join(" · ")}
 function estadoPropuesta(op){return normalizar(op&&op.estado||"borrador")}
 function propuestaAceptada(op){return estadoPropuesta(op)==="aceptada"}
-function textoEstadoPropuesta(v){return ({borrador:"Borrador",enviada:"Enviada",aceptada:"Aceptada",rechazada:"Rechazada",archivada:"Archivada"})[normalizar(v)]||v||"Borrador"}
+function propuestaSustituida(op){return estadoPropuesta(op)==="sustituida"}
+function propuestaBloqueada(op){const e=estadoPropuesta(op);return e==="aceptada"||e==="sustituida"}
+function textoEstadoPropuesta(v){return ({borrador:"Borrador",calculada:"Calculada",presupuestada:"Presupuestada",enviada:"Enviada",aceptada:"Aceptada",rechazada:"Rechazada",sustituida:"Sustituida",archivada:"Archivada"})[normalizar(v)]||v||"Borrador"}
 function nombreGeneradorRegla(r){return r&&r.generador_nombre_snapshot?r.generador_nombre_snapshot:nombreGeneradorId(r&&r.generador_id)}
 function nombreGeneradorRelacionadoRegla(r){return r&&r.generador_referencia_nombre_snapshot?r.generador_referencia_nombre_snapshot:nombreGeneradorId(r&&r.generador_referencia_id)}
 function uidRegla(){return "rg_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8)}
@@ -448,11 +450,11 @@ function detalleReglaHTML(r){
   if(r.notas)partes.push(r.notas);
   return partes.length?`<div class="zx_pr_rule_detail">${partes.map(x=>`<span>${limpiar(x)}</span>`).join("")}</div>`:"";
 }
-function reglasHTML(op){const rs=reglasPropuesta(op),bloqueada=propuestaAceptada(op);if(!rs.length)return `<div class="zx_pr_empty">Todavía no hay reglas definidas.</div>`;return rs.map((r,i)=>`<div class="zx_pr_rule_card"><div><b>${i+1}. ${limpiar(nombreGeneradorRegla(r))}</b><span>${limpiar(textoServicioRegla(r.servicio))}</span></div><p>${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.valor!=null&&r.valor!==""?" "+limpiar(r.valor)+(r.unidad?" "+limpiar(r.unidad):""):""}</p>${detalleReglaHTML(r)}${!bloqueada?`<div class="zx_pr_rule_actions"><button type="button" data-pr-rule-edit="${limpiar(r.id)}">Editar</button><button type="button" data-pr-rule-del="${limpiar(r.id)}">Eliminar</button></div>`:`<div class="zx_pr_calc_by">Opción aceptada · regla bloqueada</div>`}</div>`).join("")}
+function reglasHTML(op){const rs=reglasPropuesta(op),bloqueada=propuestaBloqueada(op);if(!rs.length)return `<div class="zx_pr_empty">Todavía no hay reglas definidas.</div>`;return rs.map((r,i)=>`<div class="zx_pr_rule_card"><div><b>${i+1}. ${limpiar(nombreGeneradorRegla(r))}</b><span>${limpiar(textoServicioRegla(r.servicio))}</span></div><p>${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.valor!=null&&r.valor!==""?" "+limpiar(r.valor)+(r.unidad?" "+limpiar(r.unidad):""):""}</p>${detalleReglaHTML(r)}${!bloqueada?`<div class="zx_pr_rule_actions"><button type="button" data-pr-rule-edit="${limpiar(r.id)}">Editar</button><button type="button" data-pr-rule-del="${limpiar(r.id)}">Eliminar</button></div>`:`<div class="zx_pr_calc_by">${propuestaSustituida(op)?"Opción sustituida":"Opción aceptada"} · regla bloqueada</div>`}</div>`).join("")}
 function abrirEstrategia(p,opId){
   const op=PROPUESTAS.find(x=>String(x.id)===String(opId));if(!op)return;
-  const bloqueada=propuestaAceptada(op);
-  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_st_back" type="button">← Volver</button>${bloqueada?`<button type="button" disabled>Opción aceptada</button>`:`<button id="pr_st_add" class="primary" type="button">＋ Añadir regla</button>`}</div><div class="zx_pr_form_head"><span>ESTRATEGIA HÍBRIDA</span><h2>${limpiar(op.nombre)}</h2></div><div class="zx_pr_info"><b>Ordena cómo debe trabajar cada generador.</b><span>${bloqueada?"Esta opción está aceptada y sus reglas quedan bloqueadas.":"Las reglas describen la lógica prevista. El técnico debe comprobar que la hidráulica, el control y los equipos permiten ese funcionamiento."}</span></div><div class="zx_pr_rules">${reglasHTML(op)}</div>`);
+  const bloqueada=propuestaBloqueada(op),sustituida=propuestaSustituida(op);
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_st_back" type="button">← Volver</button>${bloqueada?`<button type="button" disabled>${sustituida?"Opción sustituida":"Opción aceptada"}</button>`:`<button id="pr_st_add" class="primary" type="button">＋ Añadir regla</button>`}</div><div class="zx_pr_form_head"><span>ESTRATEGIA HÍBRIDA</span><h2>${limpiar(op.nombre)}</h2></div><div class="zx_pr_info"><b>Ordena cómo debe trabajar cada generador.</b><span>${bloqueada?(sustituida?"Esta versión fue aceptada anteriormente y ha sido sustituida. Sus reglas quedan bloqueadas.":"Esta opción está aceptada y sus reglas quedan bloqueadas."):"Las reglas describen la lógica prevista. El técnico debe comprobar que la hidráulica, el control y los equipos permiten ese funcionamiento."}</span></div><div class="zx_pr_rules">${reglasHTML(op)}</div>`);
   m.querySelector("#pr_st_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};const add=m.querySelector("#pr_st_add");if(add)add.onclick=()=>formularioRegla(p,op,null);
   m.querySelectorAll("[data-pr-rule-edit]").forEach(b=>b.onclick=()=>formularioRegla(p,op,reglasPropuesta(op).find(r=>String(r.id)===String(b.dataset.prRuleEdit))));
   m.querySelectorAll("[data-pr-rule-del]").forEach(b=>b.onclick=()=>eliminarRegla(p,op,b.dataset.prRuleDel));
@@ -460,7 +462,7 @@ function abrirEstrategia(p,opId){
 function opcionesGeneradores(sel){return `<option value="">Selecciona generador</option>`+GENERADORES.filter(g=>g.existente===false||g.se_mantiene!==false).map(g=>`<option value="${limpiar(g.id)}" ${String(sel)===String(g.id)?"selected":""}>${limpiar(nombreGeneradorId(g.id))}</option>`).join("")}
 function unidadCondicion(tipo){return ({temp_ext_menor:"°C",temp_ext_mayor:"°C",demanda_mayor:"kW",deposito_menor:"°C",excedente_fv_mayor:"kW",coste_energia:"€/kWh",horario:"h"})[tipo]||""}
 function formularioRegla(p,op,r){
-  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
+  if(propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}
   r=r||{};const nueva=!r.id;
   const m=modal(`<div class="zx_pr_top_actions"><button id="pr_rule_back" type="button">← Volver</button><button id="pr_rule_save" class="primary" type="button">Guardar regla</button></div><div class="zx_pr_form_head"><span>${nueva?"NUEVA REGLA":"EDITAR REGLA"}</span><h2>Funcionamiento híbrido</h2></div>
     <label>Generador<select id="pr_rule_gen">${opcionesGeneradores(r.generador_id)}</select></label>
@@ -476,7 +478,7 @@ function formularioRegla(p,op,r){
   m.querySelector("#pr_rule_back").onclick=()=>abrirEstrategia(p,op.id);m.querySelector("#pr_rule_save").onclick=()=>guardarRegla(p,op,r);
 }
 async function guardarRegla(p,op,r){
-  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
+  if(propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}
   const gen=document.getElementById("pr_rule_gen").value;if(!gen){alert("Selecciona un generador.");return}
   const cond=document.getElementById("pr_rule_cond").value,valor=document.getElementById("pr_rule_val").value.trim(),unidad=unidadCondicion(cond);
   const regla={id:r.id||uidRegla(),generador_id:gen,servicio:document.getElementById("pr_rule_serv").value,prioridad:Number(document.getElementById("pr_rule_prio").value)||1,accion:document.getElementById("pr_rule_acc").value,condicion_tipo:cond,valor:unidad&&valor!==""?valor:null,unidad:unidad||null,generador_referencia_id:cond==="fallo_generador"?(document.getElementById("pr_rule_ref").value||null):null,notas:document.getElementById("pr_rule_notes").value.trim()||null};
@@ -484,24 +486,24 @@ async function guardarRegla(p,op,r){
   const btn=document.getElementById("pr_rule_save");btn.disabled=true;btn.textContent="Guardando…";
   try{const q=await sb().from("proyectos_propuestas").update({estrategia_meta:rs}).eq("id",op.id).select("*").single();if(q.error)throw q.error;const u=sesion();try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"estrategia",accion:r.id?"editada":"creada",resumen:(r.id?"Regla híbrida modificada: ":"Regla híbrida añadida: ")+nombreGeneradorId(gen),usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{propuesta_id:op.id,regla_id:regla.id,generador_id:gen,condicion:cond,accion:regla.accion}}])}catch(e){}await cargarPropuestas(p.id);abrirEstrategia(p,op.id)}catch(e){alert("No se pudo guardar la regla.\n"+(e&&e.message?e.message:""));btn.disabled=false;btn.textContent="Guardar regla"}
 }
-async function eliminarRegla(p,op,id){if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}if(!confirm("¿Eliminar esta regla de funcionamiento?"))return;const rs=reglasPropuesta(op).filter(x=>String(x.id)!==String(id));try{const q=await sb().from("proyectos_propuestas").update({estrategia_meta:rs}).eq("id",op.id).select("*").single();if(q.error)throw q.error;const u=sesion();try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"estrategia",accion:"eliminada",resumen:"Regla híbrida eliminada",usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{propuesta_id:op.id,regla_id:id}}])}catch(e){}await cargarPropuestas(p.id);abrirEstrategia(p,op.id)}catch(e){alert("No se pudo eliminar la regla.\n"+(e&&e.message?e.message:""))}}
+async function eliminarRegla(p,op,id){if(propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}if(!confirm("¿Eliminar esta regla de funcionamiento?"))return;const rs=reglasPropuesta(op).filter(x=>String(x.id)!==String(id));try{const q=await sb().from("proyectos_propuestas").update({estrategia_meta:rs}).eq("id",op.id).select("*").single();if(q.error)throw q.error;const u=sesion();try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"estrategia",accion:"eliminada",resumen:"Regla híbrida eliminada",usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{propuesta_id:op.id,regla_id:id}}])}catch(e){}await cargarPropuestas(p.id);abrirEstrategia(p,op.id)}catch(e){alert("No se pudo eliminar la regla.\n"+(e&&e.message?e.message:""))}}
 
 function partidasHTML(op,xs){
   if(!xs.length)return `<div class="zx_pr_empty">Todavía no hay partidas añadidas.</div>`;
   return xs.map((x,i)=>{const q=numValor(x.cantidad),cu=numValor(x.coste_unitario),pu=numValor(x.precio_unitario),iva=numValor(x.iva),coste=x.coste_neto!=null?numValor(x.coste_neto):q*cu*(1-numValor(x.descuento)/100),venta=q*pu,total=venta*(1+iva/100),margen=venta-coste;
     return `<div class="zx_pr_part_card">
-      <div class="zx_pr_gen_top"><div><b>${i+1}. ${limpiar(x.descripcion)}</b><span>${limpiar(textoTipoPartida(x.tipo))}${x.grupo?" · "+limpiar(x.grupo):""}</span></div>${puedeEditar()&&op.estado!=="aceptada"?`<button type="button" data-pr-part-edit="${limpiar(x.id)}">Editar</button>`:""}</div>
+      <div class="zx_pr_gen_top"><div><b>${i+1}. ${limpiar(x.descripcion)}</b><span>${limpiar(textoTipoPartida(x.tipo))}${x.grupo?" · "+limpiar(x.grupo):""}</span></div>${puedeEditar()&&!propuestaBloqueada(op)?`<button type="button" data-pr-part-edit="${limpiar(x.id)}">Editar</button>`:""}</div>
       <div class="zx_pr_gen_grid"><div><span>Cantidad</span><b>${limpiar(x.cantidad)} ${limpiar(x.unidad||"ud")}</b></div><div><span>Coste unitario</span><b>${eur(cu)}/${limpiar(x.unidad||"ud")}</b></div><div><span>Venta unitaria</span><b>${eur(pu)}/${limpiar(x.unidad||"ud")}</b></div><div><span>Descuento proveedor</span><b>${limpiar(numValor(x.descuento))} %</b></div><div><span>IVA</span><b>${limpiar(iva)} %</b></div><div><span>Coste</span><b>${eur(coste)}</b></div><div><span>Venta</span><b>${eur(venta)}</b></div><div><span>Margen</span><b>${eur(margen)}</b></div><div><span>Total cliente</span><b>${eur(total)}</b></div></div>
       ${x.referencia?`<p>Referencia: ${limpiar(x.referencia)}</p>`:""}
-      ${puedeEditar()&&op.estado!=="aceptada"?`<div class="zx_pr_rule_actions"><button type="button" data-pr-part-del="${limpiar(x.id)}">Eliminar</button></div>`:""}
+      ${puedeEditar()&&!propuestaBloqueada(op)?`<div class="zx_pr_rule_actions"><button type="button" data-pr-part-del="${limpiar(x.id)}">Eliminar</button></div>`:""}
     </div>`;
   }).join("");
 }
 async function abrirPartidas(p,opId){
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para consultar las partidas.");return}
   const op=PROPUESTAS.find(x=>String(x.id)===String(opId));if(!op)return;
-  const xs=await cargarPartidas(op.id),t=totalesPartidas(xs),bloqueada=op.estado==="aceptada";
-  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_budget_back" type="button">← Volver</button>${puedeEditar()&&!bloqueada?`<button id="pr_budget_add" class="primary" type="button">＋ Añadir partida</button>`:`<button type="button" disabled>Opción aceptada</button>`}</div>
+  const xs=await cargarPartidas(op.id),t=totalesPartidas(xs),bloqueada=propuestaBloqueada(op),sustituida=propuestaSustituida(op);
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_budget_back" type="button">← Volver</button>${puedeEditar()&&!bloqueada?`<button id="pr_budget_add" class="primary" type="button">＋ Añadir partida</button>`:`<button type="button" disabled>${sustituida?"Opción sustituida":"Opción aceptada"}</button>`}</div>
     <div class="zx_pr_form_head"><span>PARTIDAS Y PRECIOS</span><h2>${limpiar(op.nombre)}</h2></div>
     <div class="zx_pr_info"><b>Los precios quedan guardados en esta opción.</b><span>Los cambios posteriores del catálogo no modifican las partidas ya registradas.</span></div>
     <div class="zx_pr_budget_totals"><div><span>Coste</span><b>${eur(t.coste)}</b></div><div><span>Venta sin IVA</span><b>${eur(t.venta)}</b></div><div><span>Margen</span><b>${eur(t.margen)}</b></div><div><span>Total cliente</span><b>${eur(t.total)}</b></div></div>
@@ -512,7 +514,7 @@ async function abrirPartidas(p,opId){
   m.querySelectorAll("[data-pr-part-del]").forEach(b=>b.onclick=()=>eliminarPartida(p,op,b.dataset.prPartDel));
 }
 function formularioPartida(p,op,x,xs){
-  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
+  if(propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}
   x=x||{};const nueva=!x.id,unidad=x.unidad||"ud";
   const m=modal(`<div class="zx_pr_top_actions"><button id="pr_part_back" type="button">← Volver</button><button id="pr_part_save" class="primary" type="button">Guardar partida</button></div>
     <div class="zx_pr_form_head"><span>${nueva?"NUEVA PARTIDA":"EDITAR PARTIDA"}</span><h2>Costes y precio de venta</h2></div>
@@ -535,7 +537,7 @@ function formularioPartida(p,op,x,xs){
   m.querySelector("#pr_part_save").onclick=()=>guardarPartida(p,op,x);
 }
 async function guardarPartida(p,op,x){
-  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
+  if(propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para guardar la partida.");return}
   const descripcion=document.getElementById("pr_part_desc").value.trim();if(!descripcion){alert("Escribe la descripción de la partida.");return}
   const cantidad=numValor(document.getElementById("pr_part_qty").value);if(cantidad<=0){alert("La cantidad debe ser mayor que 0.");return}
@@ -553,7 +555,7 @@ async function guardarPartida(p,op,x){
   }catch(e){alert("No se pudo guardar la partida.\n"+(e&&e.message?e.message:""));btn.disabled=false;btn.textContent="Guardar partida"}
 }
 async function eliminarPartida(p,op,id){
-  if(propuestaAceptada(op)){alert("La opción aceptada está bloqueada.");return}
+  if(propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}
   if(!confirm("¿Eliminar esta partida?"))return;
   try{
     const actual=(await cargarPartidas(op.id)).find(x=>String(x.id)===String(id));
@@ -805,13 +807,13 @@ async function abrirVistaDosier(p,opId){
   const contactoHTML=c.mostrar_contacto!==false&&contactos.length?`<section class="zx_pr_dos_contact"><b>${limpiar(d.emp.nombre||"Contacto")}</b><span>${contactos.join(" · ")}</span></section>`:"";
   const est=estadoPropuesta(op),cm=op.control_meta&&typeof op.control_meta==="object"&&!Array.isArray(op.control_meta)?op.control_meta:{},ps=cm.presupuesto_snapshot||{},ds=dossierSnapshot(op)||{};
   const fechaDoc=ds.enviado_at||ds.aceptado_at||ps.aceptado_at||ds.creado_at||new Date().toISOString();
-  const aceptada=est==="aceptada";
-  const firma=c.mostrar_firma&&!aceptada?`<section class="zx_pr_dos_accept"><span>SIGUIENTE PASO</span><h3>${limpiar(c.cierre||"Confirmar la opción elegida")}</h3><div><p>Cliente / firma</p><p>Fecha</p></div></section>`:"";
-  const cierreAceptado=aceptada?`<section class="zx_pr_dos_accepted"><span>PROPUESTA ACEPTADA</span><h3>Esta opción ha sido confirmada.</h3><p>${ps.aceptado_at?`Aceptada el <b>${limpiar(fechaES(ps.aceptado_at))}</b>${ps.aceptado_por?` por <b>${limpiar(ps.aceptado_por)}</b>`:""}.`:"La opción figura como aceptada y queda guardada sin cambios."}</p></section>`:"";
+  const aceptada=est==="aceptada",sustituida=est==="sustituida",cerrada=aceptada||sustituida;
+  const firma=c.mostrar_firma&&!cerrada?`<section class="zx_pr_dos_accept"><span>SIGUIENTE PASO</span><h3>${limpiar(c.cierre||"Confirmar la opción elegida")}</h3><div><p>Cliente / firma</p><p>Fecha</p></div></section>`:"";
+  const cierreAceptado=aceptada?`<section class="zx_pr_dos_accepted"><span>PROPUESTA ACEPTADA</span><h3>Esta opción ha sido confirmada.</h3><p>${ps.aceptado_at?`Aceptada el <b>${limpiar(fechaES(ps.aceptado_at))}</b>${ps.aceptado_por?` por <b>${limpiar(ps.aceptado_por)}</b>`:""}.`:"La opción figura como aceptada y queda guardada sin cambios."}</p></section>`:sustituida?`<section class="zx_pr_dos_accepted"><span>PROPUESTA SUSTITUIDA</span><h3>Esta versión ya no es la opción aceptada actual.</h3><p>Se conserva como versión histórica cerrada para consulta.</p></section>`:"";
   const brandName=d.emp.nombre||"";
   const brandHTML=d.emp.logo||brandName?`<div class="zx_pr_dos_brand">${d.emp.logo?`<img src="${limpiar(d.emp.logo)}" alt="Logo" onerror="this.style.display='none'">`:""}${brandName?`<b>${limpiar(brandName)}</b>`:""}</div>`:`<div class="zx_pr_dos_brand zx_pr_dos_brand_generic"><b>PROPUESTA PERSONALIZADA</b></div>`;
   const footerBrand=brandName||"Propuesta comercial";
-  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_dview_back" type="button">← Volver</button>${est==="borrador"?`<button id="pr_dview_config" class="primary" type="button">⚙️ Configurar</button>`:`<button type="button" disabled>${aceptada?"Aceptada":"Enviada"}</button>`}</div>
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_dview_back" type="button">← Volver</button>${est==="borrador"?`<button id="pr_dview_config" class="primary" type="button">⚙️ Configurar</button>`:`<button type="button" disabled>${aceptada?"Aceptada":sustituida?"Sustituida":"Enviada"}</button>`}</div>
     <div class="zx_pr_dos_wrap zx_pr_dos_${limpiar(c.estilo)}" style="--dos-primary:${pri};--dos-accent:${acc}">
       <section class="zx_pr_dos_cover">${portadaFoto}<div class="zx_pr_dos_cover_overlay"></div>${brandHTML}<div class="zx_pr_dos_cover_text">${c.recomendada?`<span class="zx_pr_dos_badge">${limpiar(c.etiqueta||"Propuesta recomendada")}</span>`:""}<small>PROPUESTA COMERCIAL · ${limpiar(op.nombre||"")}</small><h1>${limpiar(c.titulo)}</h1><p>${limpiar(c.subtitulo||d.descripcion||d.proyecto)}</p><div>${limpiar(d.cliente)} · ${limpiar(fechaES(fechaDoc))}</div></div></section>
       <section class="zx_pr_dos_intro"><h2>Una propuesta pensada para tu instalación</h2><p>${limpiar(c.introduccion)}</p>${benef.length?`<div>${benef.map(x=>`<span>✓ ${limpiar(x)}</span>`).join("")}</div>`:""}</section>
@@ -824,14 +826,14 @@ async function abrirVistaDosier(p,opId){
       ${infoHTML}
       ${empresaHTML}${contactoHTML}
       ${cierreAceptado}${firma}
-      <footer class="zx_pr_dos_footer"><b>${limpiar(footerBrand)}</b><span>${limpiar(d.proyecto||op.nombre)}</span>${aceptada?`<small>Propuesta aceptada</small>`:d.snapshot?`<small>Versión comercial guardada</small>`:"<small>Vista previa</small>"}</footer>
+      <footer class="zx_pr_dos_footer"><b>${limpiar(footerBrand)}</b><span>${limpiar(d.proyecto||op.nombre)}</span>${aceptada?`<small>Propuesta aceptada</small>`:sustituida?`<small>Propuesta sustituida</small>`:d.snapshot?`<small>Versión comercial guardada</small>`:"<small>Vista previa</small>"}</footer>
     </div>`);
   m.querySelector("#pr_dview_back").onclick=()=>{cerrarModal();abrirPresupuesto(p,op.id)};const b=m.querySelector("#pr_dview_config");if(b)b.onclick=()=>formularioDosier(p,op.id);
 }
 
 async function marcarPropuestaEnviada(p,op){
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para cambiar el estado del presupuesto.");return}
-  if(propuestaAceptada(op))return;
+  if(propuestaBloqueada(op))return;
   if(!confirm("¿Marcar esta opción como enviada al cliente? Se guardará una copia cerrada del dosier y del presupuesto. Esta acción registra el estado, pero todavía no envía un archivo por sí sola."))return;
   const u=sesion(),ahora=new Date().toISOString(),xs=await cargarPartidas(op.id),calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id)),cfg=dossierMeta(p,op),cm=op.control_meta&&typeof op.control_meta==="object"&&!Array.isArray(op.control_meta)?{...op.control_meta}:{};
   cm.dossier_meta=cfg;cm.dossier_snapshot=snapshotDossier(p,op,xs,calc,cfg);cm.dossier_snapshot.enviado_at=ahora;cm.dossier_snapshot.enviado_por=u.nombre||u.usuario||"";
@@ -846,16 +848,17 @@ async function aceptarPropuesta(p,op){
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para aceptar la opción.");return}
   if(estadoPropuesta(op)!=="enviada"){alert("Primero marca el presupuesto como enviado.");return}
   if(!confirm("¿Confirmar la aceptación de esta opción? Al aceptar se bloquean sus reglas y partidas para conservar la versión aprobada."))return;
-  const xs=await cargarPartidas(op.id),t=totalesPartidas(xs),u=sesion(),ahora=new Date().toISOString(),calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id));
+  const xs=await cargarPartidas(op.id),t=totalesPartidas(xs),u=sesion(),ahora=new Date().toISOString(),aceptadoPor=u.nombre||u.usuario||"",calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id));
+  const anteriorAceptada=PROPUESTAS.find(x=>String(x.id)!==String(op.id)&&propuestaAceptada(x))||null;
   const rs=reglasPropuesta(op).map(r=>({...r,generador_nombre_snapshot:r.generador_nombre_snapshot||nombreGeneradorId(r.generador_id),generador_referencia_nombre_snapshot:r.generador_referencia_id?(r.generador_referencia_nombre_snapshot||nombreGeneradorId(r.generador_referencia_id)):null}));
   const cm=op.control_meta&&typeof op.control_meta==="object"&&!Array.isArray(op.control_meta)?{...op.control_meta}:{};
   if(!cm.dossier_snapshot){const cfg=dossierMeta(p,op);cm.dossier_meta=cfg;cm.dossier_snapshot=snapshotDossier(p,op,xs,calc,cfg)}
-  cm.dossier_snapshot.aceptado_at=ahora;cm.dossier_snapshot.aceptado_por=u.nombre||u.usuario||"";
-  cm.presupuesto_snapshot={aceptado_at:ahora,aceptado_por:u.nombre||u.usuario||"",proyecto:p.nombre||"",cliente:nombreCliente(p.cliente_id),direccion:proyectoDir(p)||"",calculo:calc?"Versión "+calc.version:"Sin cálculo asociado",descripcion:op.descripcion||"",base_imponible:t.venta,iva:t.total-t.venta,total:t.total};
+  cm.dossier_snapshot.aceptado_at=ahora;cm.dossier_snapshot.aceptado_por=aceptadoPor;
+  cm.presupuesto_snapshot={aceptado_at:ahora,aceptado_por:aceptadoPor,proyecto:p.nombre||"",cliente:nombreCliente(p.cliente_id),direccion:proyectoDir(p)||"",calculo:calc?"Versión "+calc.version:"Sin cálculo asociado",descripcion:op.descripcion||"",base_imponible:t.venta,iva:t.total-t.venta,total:t.total};
   try{
-    const q=await sb().from("proyectos_propuestas").update({estado:"aceptada",estrategia_meta:rs,control_meta:cm,coste_total:t.coste,precio_venta:t.venta,total_cliente:t.total}).eq("id",op.id).select("*").single();if(q.error)throw q.error;
+    const q=await sb().from("proyectos_propuestas").update({estado:"aceptada",aceptada_at:ahora,aceptada_por:aceptadoPor,estrategia_meta:rs,control_meta:cm,coste_total:t.coste,precio_venta:t.venta,total_cliente:t.total}).eq("id",op.id).select("*").single();if(q.error)throw q.error;
     const qp=await sb().from("proyectos").update({estado:"aceptado",updated_at:ahora}).eq("id",p.id);if(qp.error)throw qp.error;
-    try{await sb().from("proyectos_historial").insert([{proyecto_id:p.id,tipo:"presupuesto",accion:"aceptado",resumen:"Opción aceptada y bloqueada: "+op.nombre,usuario_id:u.id||null,usuario:u.nombre||u.usuario||"",datos:{propuesta_id:op.id,estado:"aceptada",fecha:ahora,total:t.total}}])}catch(e){}
+    try{const hist=[{proyecto_id:p.id,tipo:"presupuesto",accion:"aceptado",resumen:"Opción aceptada y bloqueada: "+op.nombre,usuario_id:u.id||null,usuario:aceptadoPor,datos:{propuesta_id:op.id,estado:"aceptada",fecha:ahora,total:t.total,sustituye_propuesta_id:anteriorAceptada&&anteriorAceptada.id||null}}];if(anteriorAceptada)hist.unshift({proyecto_id:p.id,tipo:"presupuesto",accion:"sustituido",resumen:"Opción sustituida por una aceptación posterior: "+anteriorAceptada.nombre,usuario_id:u.id||null,usuario:aceptadoPor,datos:{propuesta_id:anteriorAceptada.id,nueva_propuesta_id:op.id,estado:"sustituida",fecha:ahora}});await sb().from("proyectos_historial").insert(hist)}catch(e){}
     await cargar();await cargarPropuestas(p.id);abrirPresupuesto(CACHE.find(x=>String(x.id)===String(p.id))||p,op.id);
   }catch(e){alert("No se pudo aceptar la opción.\n"+(e&&e.message?e.message:""))}
 }
@@ -863,21 +866,22 @@ async function abrirPresupuesto(p,opId){
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para consultar el presupuesto.");return}
   const op=PROPUESTAS.find(x=>String(x.id)===String(opId));if(!op)return;
   const xs=await cargarPartidas(op.id),t=totalesPartidas(xs),calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id)),ivaTotal=t.total-t.venta,rs=reglasPropuesta(op),est=estadoPropuesta(op),snap=op.control_meta&&op.control_meta.presupuesto_snapshot,dosSnap=dossierSnapshot(op);
-  const proyectoVista=est==="aceptada"&&snap&&snap.proyecto?snap.proyecto:p.nombre;
-  const clienteVista=est==="aceptada"&&snap&&snap.cliente?snap.cliente:nombreCliente(p.cliente_id);
-  const direccionVista=est==="aceptada"&&snap&&snap.direccion?snap.direccion:(proyectoDir(p)||"Sin dirección seleccionada");
-  const calculoVista=est==="aceptada"&&snap&&snap.calculo?snap.calculo:(calc?"Versión "+calc.version:"Sin cálculo asociado");
-  const accionTop=est==="aceptada"?`<button type="button" disabled>Aceptada</button>`:est==="enviada"?`<button id="pr_quote_accept" class="primary" type="button">✓ Aceptar opción</button>`:`<button id="pr_quote_send" class="primary" type="button">Marcar enviada</button>`;
+  const cerrada=est==="aceptada"||est==="sustituida";
+  const proyectoVista=cerrada&&snap&&snap.proyecto?snap.proyecto:p.nombre;
+  const clienteVista=cerrada&&snap&&snap.cliente?snap.cliente:nombreCliente(p.cliente_id);
+  const direccionVista=cerrada&&snap&&snap.direccion?snap.direccion:(proyectoDir(p)||"Sin dirección seleccionada");
+  const calculoVista=cerrada&&snap&&snap.calculo?snap.calculo:(calc?"Versión "+calc.version:"Sin cálculo asociado");
+  const accionTop=est==="aceptada"?`<button type="button" disabled>Aceptada</button>`:est==="sustituida"?`<button type="button" disabled>Sustituida</button>`:est==="enviada"?`<button id="pr_quote_accept" class="primary" type="button">✓ Aceptar opción</button>`:`<button id="pr_quote_send" class="primary" type="button">Marcar enviada</button>`;
   const m=modal(`<div class="zx_pr_top_actions"><button id="pr_quote_back" type="button">← Volver</button>${accionTop}</div>
     <div class="zx_pr_form_head"><span>PRESUPUESTO COMERCIAL · ${limpiar(textoEstadoPropuesta(est).toUpperCase())}</span><h2>${limpiar(op.nombre)}</h2></div>
-    ${est==="aceptada"?`<div class="zx_pr_info"><b>Opción aceptada y bloqueada</b><span>${snap&&snap.aceptado_at?"Aceptada el "+limpiar(fechaES(snap.aceptado_at))+(snap.aceptado_por?" por "+limpiar(snap.aceptado_por):""):"Las reglas y partidas no se pueden modificar."}</span></div>`:""}
+    ${est==="aceptada"?`<div class="zx_pr_info"><b>Opción aceptada y bloqueada</b><span>${snap&&snap.aceptado_at?"Aceptada el "+limpiar(fechaES(snap.aceptado_at))+(snap.aceptado_por?" por "+limpiar(snap.aceptado_por):""):"Las reglas y partidas no se pueden modificar."}</span></div>`:est==="sustituida"?`<div class="zx_pr_info"><b>Opción sustituida y bloqueada</b><span>Esta versión fue aceptada anteriormente y ha sido sustituida por otra opción posterior. Se conserva sin cambios.</span></div>`:""}
     <div class="zx_pr_dossier_tools"><button id="pr_quote_dossier" type="button">✨ Vista dosier</button>${est==="borrador"?`<button id="pr_quote_dossier_cfg" type="button">⚙️ Configurar dosier</button>`:dosSnap?`<span>Dosier comercial guardado con esta versión</span>`:`<span>Esta opción es anterior al dosier; la vista se genera con sus datos bloqueados</span>`}</div>
     <div class="zx_pr_quote_head"><div><span>Proyecto</span><b>${limpiar(proyectoVista)}</b></div><div><span>Cliente</span><b>${limpiar(clienteVista)}</b></div><div><span>Dirección</span><b>${limpiar(direccionVista)}</b></div><div><span>Cálculo</span><b>${limpiar(calculoVista)}</b></div></div>
     ${op.descripcion?`<div class="zx_pr_info"><b>Solución propuesta</b><span>${limpiar(op.descripcion)}</span></div>`:""}
     ${rs.length?`<div class="zx_pr_section"><h3>Funcionamiento previsto</h3>${rs.map((r,i)=>`<div class="zx_pr_rule_resume"><b>${i+1}. ${limpiar(nombreGeneradorRegla(r))}</b><span>${limpiar(textoServicioRegla(r.servicio))} · ${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.condicion_tipo==="fallo_generador"&&r.generador_referencia_id?" · si falla "+limpiar(nombreGeneradorRelacionadoRegla(r)):""}</span></div>`).join("")}</div>`:""}
     <div class="zx_pr_section"><h3>Partidas</h3><div class="zx_pr_quote_lines">${presupuestoPartidasHTML(xs)}</div></div>
     <div class="zx_pr_quote_totals"><div><span>Base imponible</span><b>${eur(t.venta)}</b></div><div><span>IVA</span><b>${eur(ivaTotal)}</b></div><div class="total"><span>Total presupuesto</span><b>${eur(t.total)}</b></div></div>
-    <div class="zx_pr_info"><b>Vista para cliente</b><span>${est==="aceptada"?"Esta opción queda bloqueada como versión aceptada. La vista del dosier conserva la copia comercial guardada al enviar.":est==="enviada"?"El presupuesto figura como enviado y el dosier comercial ya tiene una copia cerrada. Si el cliente lo aprueba, usa Aceptar opción.":"Configura y revisa el dosier antes de marcar la oferta como enviada. Al hacerlo se guardará una copia cerrada de esta presentación."}</span></div>`);
+    <div class="zx_pr_info"><b>Vista para cliente</b><span>${est==="aceptada"?"Esta opción queda bloqueada como versión aceptada. La vista del dosier conserva la copia comercial guardada al enviar.":est==="sustituida"?"Esta versión queda bloqueada como propuesta histórica sustituida. Su dosier se conserva para consulta.":est==="enviada"?"El presupuesto figura como enviado y el dosier comercial ya tiene una copia cerrada. Si el cliente lo aprueba, usa Aceptar opción.":"Configura y revisa el dosier antes de marcar la oferta como enviada. Al hacerlo se guardará una copia cerrada de esta presentación."}</span></div>`);
   m.querySelector("#pr_quote_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};
   const dv=m.querySelector("#pr_quote_dossier");if(dv)dv.onclick=()=>abrirVistaDosier(p,op.id);
   const dc=m.querySelector("#pr_quote_dossier_cfg");if(dc)dc.onclick=()=>formularioDosier(p,op.id);
