@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3240
+// ZENTRYX PRO - TRABAJOS V3241
+// V3241 - HISTORIAL ANTIGUO PROYECTO→TRABAJO USA TAMBIÉN LAS NOTAS DE ORIGEN DEL PROPIO TRABAJO COMO RESPALDO LOCAL
 // V3240 - HISTORIAL ANTIGUO PROYECTO→TRABAJO RECUPERA PROYECTO/PROPUESTA DESDE VÍNCULOS DE PROYECTOS SIN DEPENDER DE trabajos_historial.datos
 // V3239 - HISTORIAL PROYECTO→TRABAJO MUESTRA PROYECTO Y PROPUESTA, TAMBIÉN EN REGISTROS EXISTENTES
 // V3238 - VOLVER DIRECTO AL ORIGEN CORRECTO AL ABRIR DESDE PROYECTOS
@@ -989,6 +990,30 @@ async function enriquecerHistorialProyecto(lista){
 
   return hist;
 }
+function completarHistorialProyectoDesdeTrabajo(lista,trabajo){
+  const hist=Array.isArray(lista) ? lista : [];
+  const notasTrabajo=String(trabajo && trabajo.notas || "");
+  if(!hist.length || !notasTrabajo) return hist;
+
+  const matchProyecto=notasTrabajo.match(/(?:^|\n)\s*Proyecto\s*:\s*([^\n]+)/i);
+  const matchPropuesta=notasTrabajo.match(/(?:^|\n)\s*Propuesta aceptada\s*:\s*([^\n]+)/i);
+  const proyectoNombre=matchProyecto && matchProyecto[1] ? String(matchProyecto[1]).trim() : "";
+  const propuestaNombre=matchPropuesta && matchPropuesta[1] ? String(matchPropuesta[1]).trim() : "";
+  if(!proyectoNombre && !propuestaNombre) return hist;
+
+  hist.forEach(function(h){
+    if(normalizar(h && h.tipo || "")!=="proyecto") return;
+    const datos=datosHistorial(h);
+    if(!String(datos && datos.proyecto_nombre || "").trim() && !String(h && h.__zx_proyecto_nombre || "").trim() && proyectoNombre){
+      h.__zx_proyecto_nombre=proyectoNombre;
+    }
+    if(!String(datos && datos.propuesta_nombre || "").trim() && !String(h && h.__zx_propuesta_nombre || "").trim() && propuestaNombre){
+      h.__zx_propuesta_nombre=propuestaNombre;
+    }
+  });
+  return hist;
+}
+
 async function cargarHistorial(id){
   if(!id || !navigator.onLine || !sb()) return [];
 
@@ -3888,6 +3913,11 @@ async function abrirFicha(id){
     cargarHistorial(id),
     cargarJornadasAgendaTrabajo(id)
   ]);
+
+  // Respaldo para trabajos históricos creados desde Proyecto cuando la tabla
+  // trabajos_historial no conservó `datos`: el propio Trabajo ya guarda en
+  // sus notas el Proyecto y la propuesta aceptada usados al prepararlo.
+  completarHistorialProyectoDesdeTrabajo(hist,t);
 
   // Reparar estados antiguos que quedaron guardados como "en_curso" aunque
   // la jornada activa ya se hubiera finalizado. La ficha se pinta desde el
