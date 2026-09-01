@@ -1,12 +1,13 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1025
+// ZENTRYX PRO - PROYECTOS V1026
+// V1026 - ABRIR TRABAJO VINCULADO CONSERVANDO ORIGEN Y VOLVER AL PROYECTO
 // V1025 - CREAR TRABAJO DESDE LA PROPUESTA ACEPTADA, SIN DUPLICAR OPCIONES
 // V1024 - DOSIER COMERCIAL EN PDF REAL Y COMPARTIBLE EN IPHONE / PWA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1025";
+const ZX_VERSION="1026";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -152,15 +153,19 @@ function materialesTrabajoDesdePartidas(xs){
     };
   }).filter(x=>x.cantidad>0);
 }
-async function abrirTrabajoVinculado(id){
+async function abrirTrabajoVinculado(id,p){
   const trabajoId=String(id||"").trim();
   if(!trabajoId)return;
   if(typeof window.ZX_TRABAJOS_ABRIR_TRABAJO!=="function"){
     alert("No se pudo abrir el trabajo desde Proyectos.");
     return;
   }
+  const proyectoId=String(p&&p.id||"").trim();
   cerrarModal();
-  await window.ZX_TRABAJOS_ABRIR_TRABAJO(trabajoId);
+  await window.ZX_TRABAJOS_ABRIR_TRABAJO(trabajoId,{
+    origen:"proyectos",
+    volver:proyectoId?function(){return abrirFicha(proyectoId)}:null
+  });
 }
 async function crearTrabajoDesdePropuesta(p,op){
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para preparar el trabajo.");return}
@@ -173,7 +178,7 @@ async function crearTrabajoDesdePropuesta(p,op){
     const yaCreado=trabajoIdPropuesta(opActual);
     if(yaCreado){
       await cargarPropuestas(p.id);
-      return abrirTrabajoVinculado(yaCreado);
+      return abrirTrabajoVinculado(yaCreado,p);
     }
 
     if(typeof window.ZX_TRABAJOS_CREAR_DESDE_PROYECTO!=="function"){
@@ -1132,7 +1137,7 @@ async function abrirPresupuesto(p,opId){
   const dc=m.querySelector("#pr_quote_dossier_cfg");if(dc)dc.onclick=()=>formularioDosier(p,op.id);
   const send=m.querySelector("#pr_quote_send");if(send)send.onclick=()=>marcarPropuestaEnviada(p,op);
   const accept=m.querySelector("#pr_quote_accept");if(accept)accept.onclick=()=>aceptarPropuesta(p,op);
-  const work=m.querySelector("#pr_quote_work");if(work)work.onclick=()=>{const id=trabajoIdPropuesta(op);return id?abrirTrabajoVinculado(id):crearTrabajoDesdePropuesta(p,op)};
+  const work=m.querySelector("#pr_quote_work");if(work)work.onclick=()=>{const id=trabajoIdPropuesta(op);return id?abrirTrabajoVinculado(id,p):crearTrabajoDesdePropuesta(p,op)};
 }
 function conectarEstrategia(p){const n=document.getElementById("pr_op_nueva");if(n)n.onclick=()=>formularioOpcionTecnica(p);document.querySelectorAll("[data-pr-strategy-open]").forEach(b=>b.onclick=()=>abrirEstrategia(p,b.dataset.prStrategyOpen));document.querySelectorAll("[data-pr-budget-open]").forEach(b=>b.onclick=()=>abrirPartidas(p,b.dataset.prBudgetOpen));document.querySelectorAll("[data-pr-quote-open]").forEach(b=>b.onclick=()=>abrirPresupuesto(p,b.dataset.prQuoteOpen))}
 
