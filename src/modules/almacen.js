@@ -1,12 +1,13 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
+// V1011 - MEDIDAS VISIBLES Y DINÁMICAS EN CANTIDADES DE STOCK
 // V1010 - CURSOR NATURAL EN RECUENTO IPHONE
 // Base: materiales + tablas definitivas de almacén
 // ============================================================
 (function(){
 "use strict";
 
-const ZX_VERSION="1010";
+const ZX_VERSION="1011";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
@@ -444,11 +445,15 @@ function instalarBuscadorMaterial(){
       input.value=elegido.nombre;
       selected.textContent=`Seleccionado: ${elegido.nombre} · ${elegido.unidad||"ud"}`;
       selected.classList.add("show");
+      if(typeof window.ZENTRYX_setInputUnit==="function"){
+        window.ZENTRYX_setInputUnit("al_qty",elegido.unidad||"ud");
+        window.ZENTRYX_setInputUnit("al_min",elegido.unidad||"ud");
+      }
       results.classList.remove("show");
     });
   };
   input.onfocus=pintar;
-  input.oninput=function(){hidden.value="";selected.classList.remove("show");pintar()};
+  input.oninput=function(){hidden.value="";selected.classList.remove("show");if(typeof window.ZENTRYX_setInputUnit==="function"){window.ZENTRYX_setInputUnit("al_qty","");window.ZENTRYX_setInputUnit("al_min","")}pintar()};
   setTimeout(()=>document.addEventListener("click",function cerrar(e){if(!input.closest(".zx_al_material_search")?.contains(e.target)) results.classList.remove("show")},{once:false}),0);
 }
 function materialElegidoFormulario(){
@@ -1060,7 +1065,7 @@ function abrirRecuentoInventario(existenciaId){
     </div>
 
     <label>Cantidad física contada
-      <input id="al_inventory_real" type="number" min="0" step="0.001" inputmode="decimal" value="${limpiar(esperado)}">
+      <input id="al_inventory_real" type="number" min="0" step="0.001" inputmode="decimal" data-zx-unit="${limpiar(vista.unidad||"ud")}" value="${limpiar(esperado)}">
     </label>
     <div id="al_inventory_difference" class="zx_al_difference ok">Sin diferencia</div>
     <label>Observaciones
@@ -1184,7 +1189,7 @@ function abrirMovimientoExistencia(existenciaId,tipo){
       <span>${limpiar(vista.ubicacion)} · Stock físico: ${formatoNumero(vista.stock_fisico)} ${limpiar(vista.unidad||"ud")}</span>
       ${salida?`<span>Disponible: ${formatoNumero(vista.stock_disponible)} ${limpiar(vista.unidad||"ud")}</span>`:""}
     </div>
-    <label>Cantidad<input id="al_qty" type="number" min="0.001" step="0.001"></label>
+    <label>Cantidad<input id="al_qty" type="number" min="0.001" step="0.001" data-zx-unit="${limpiar(vista.unidad||"ud")}"></label>
     <label>Motivo<textarea id="al_reason" rows="3"></textarea></label>
     <button class="zx_al_full_btn zx_al_save" id="al_save">Guardar</button>
     <button class="zx_al_full_btn zx_al_cancel" id="al_cancel">Cancelar</button>
@@ -1246,7 +1251,7 @@ function abrirTransferencia(vista){
   modal(`<h2>Transferir stock</h2><div class="zx_al_form">
     <div class="zx_al_modal_summary"><strong>${limpiar(vista.material)}</strong><span>Origen: ${limpiar(vista.ubicacion)}</span><span>Disponible: ${formatoNumero(vista.stock_disponible)} ${limpiar(vista.unidad||"ud")}</span></div>
     <label>Destino<select id="al_destination"><option value="">Selecciona destino</option>${opcionesUbicaciones("",vista.ubicacion_id)}</select></label>
-    <label>Cantidad<input id="al_qty" type="number" min="0.001" step="0.001"></label>
+    <label>Cantidad<input id="al_qty" type="number" min="0.001" step="0.001" data-zx-unit="${limpiar(vista.unidad||"ud")}"></label>
     <label>Motivo<textarea id="al_reason" rows="3"></textarea></label>
     <button class="zx_al_full_btn zx_al_save" id="al_save">Transferir</button>
     <button class="zx_al_full_btn zx_al_cancel" id="al_cancel">Cancelar</button>
@@ -1294,7 +1299,7 @@ function abrirTransferencia(vista){
 function abrirAjuste(vista){
   modal(`<h2>Ajustar stock físico</h2><div class="zx_al_form">
     <div class="zx_al_modal_summary"><strong>${limpiar(vista.material)}</strong><span>${limpiar(vista.ubicacion)} · Actual: ${formatoNumero(vista.stock_fisico)} ${limpiar(vista.unidad||"ud")}</span></div>
-    <label>Stock real<input id="al_real" type="number" min="0" step="0.001" value="${limpiar(vista.stock_fisico)}"></label>
+    <label>Stock real<input id="al_real" type="number" min="0" step="0.001" data-zx-unit="${limpiar(vista.unidad||"ud")}" value="${limpiar(vista.stock_fisico)}"></label>
     <label>Motivo<textarea id="al_reason" rows="3" placeholder="Recuento, rotura, pérdida..."></textarea></label>
     <button class="zx_al_full_btn zx_al_save" id="al_save">Guardar ajuste</button>
     <button class="zx_al_full_btn zx_al_cancel" id="al_cancel">Cancelar</button>
@@ -1328,7 +1333,7 @@ function abrirAjuste(vista){
 function abrirMinimo(vista){
   modal(`<h2>Stock mínimo</h2><div class="zx_al_form">
     <div class="zx_al_modal_summary"><strong>${limpiar(vista.material)}</strong><span>${limpiar(vista.ubicacion)}</span></div>
-    <label>Nuevo mínimo<input id="al_min" type="number" min="0" step="0.001" value="${limpiar(vista.stock_minimo)}"></label>
+    <label>Nuevo mínimo<input id="al_min" type="number" min="0" step="0.001" data-zx-unit="${limpiar(vista.unidad||"ud")}" value="${limpiar(vista.stock_minimo)}"></label>
     <label>Ubicación interna<input id="al_internal" value="${limpiar(vista.ubicacion_interna||"")}"></label>
     <button class="zx_al_full_btn zx_al_save" id="al_save">Guardar</button>
     <button class="zx_al_full_btn zx_al_cancel" id="al_cancel">Cancelar</button>
@@ -1359,6 +1364,8 @@ function abrirNuevaReserva(){
     <button class="zx_al_full_btn zx_al_cancel" id="al_cancel">Cancelar</button>
   </div>`);
   document.getElementById("al_cancel").onclick=cerrarModal;
+  const stockLine=document.getElementById("al_stock_line");
+  if(stockLine) stockLine.onchange=function(){const linea=existenciaVistaPorId(stockLine.value);if(typeof window.ZENTRYX_setInputUnit==="function")window.ZENTRYX_setInputUnit("al_qty",linea?.unidad||"")};
   document.getElementById("al_save").onclick=async function(){
     const trabajoId=document.getElementById("al_job").value;
     const linea=existenciaVistaPorId(document.getElementById("al_stock_line").value);
