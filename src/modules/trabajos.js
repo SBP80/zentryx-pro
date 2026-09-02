@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3242
+// ZENTRYX PRO - TRABAJOS V3243
+// V3243 - GUARDAR VISIBLE ARRIBA EN MODALES + SELECTOR DE MEDIDA CON PERSONALIZAR EN MATERIALES
 // V3242 - MEDIDA DEL MATERIAL VISIBLE JUNTO A CANTIDAD Y ACTUALIZADA AL CAMBIARLA
 // V3241 - HISTORIAL ANTIGUO PROYECTO→TRABAJO USA TAMBIÉN LAS NOTAS DE ORIGEN DEL PROPIO TRABAJO COMO RESPALDO LOCAL
 // V3240 - HISTORIAL ANTIGUO PROYECTO→TRABAJO RECUPERA PROYECTO/PROPUESTA DESDE VÍNCULOS DE PROYECTOS SIN DEPENDER DE trabajos_historial.datos
@@ -21,7 +22,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3242";
+const ZX_VERSION="3243";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -6082,10 +6083,40 @@ function marcarFavoritoMaterial(nombre,valor){
   guardarBibliotecaMaterialesLocal(lista);
 }
 
+function normalizarMedidaMaterial(v){
+  const raw=String(v==null?"":v).trim();
+  const k=raw.toLowerCase().replace(/\s+/g,"");
+  const mapa={
+    "u":"ud","uds":"ud","unidad":"ud","unidades":"ud",
+    "mm2":"mm²","cm2":"cm²","m2":"m²",
+    "mm3":"mm³","cm3":"cm³","m3":"m³",
+    "m3/h":"m³/h","l":"L","lt":"L","litro":"L","litros":"L",
+    "w/m2k":"W/m²K"
+  };
+  return mapa[k] || raw || "ud";
+}
+
+const ZX_TR_MEDIDAS_MATERIAL=[
+  "ud","m","cm","mm","m²","cm²","mm²","m³","cm³","mm³",
+  "L","ml","L/min","L/h","m³/h","kg","g","h","min","s",
+  "W","kW","V","A","mA","Ω","Hz","bar","mbar","Pa","kPa","MPa","m.c.a.",
+  "°C","K","%","Nm","rpm","dB(A)","W/mK","W/m²K","W/K"
+];
+
+function opcionesMedidaMaterial(actual){
+  const valor=normalizarMedidaMaterial(actual);
+  const comun=ZX_TR_MEDIDAS_MATERIAL.includes(valor);
+  return ZX_TR_MEDIDAS_MATERIAL.map(function(x){
+    return `<option value="${limpiar(x)}" ${comun && x===valor ? "selected" : ""}>${limpiar(x)}</option>`;
+  }).join("")+`<option value="__personalizar__" ${!comun ? "selected" : ""}>Personalizar…</option>`;
+}
+
 async function abrirMaterial(id,material){
   material=material ? enriquecerMaterialDesdeMeta(material) : null;
   const duplicando=!!(material && material.__duplicar);
   const editando=!!material && !duplicando;
+  const medidaActual=normalizarMedidaMaterial(material ? (material.unidad || "ud") : "ud");
+  const medidaComun=ZX_TR_MEDIDAS_MATERIAL.includes(medidaActual);
   modal(`
     <div class="zx_tr_subnav"><button type="button" id="tr_mat_form_top_back">‹ Materiales</button></div>
     <h2>${editando ? "Editar material" : duplicando ? "Duplicar material" : "Nuevo material"}</h2>
@@ -6103,8 +6134,10 @@ async function abrirMaterial(id,material){
         <input id="tr_mat_cantidad" type="number" step="0.01" data-zx-unit="${limpiar(material ? (material.unidad || "ud") : "ud")}" value="${limpiar(material && material.cantidad!=null ? material.cantidad : 1)}">
       </div>
       <div>
-        <label class="zx_tr_label">Unidad</label>
-        <input id="tr_mat_unidad" value="${limpiar(material ? (material.unidad || "ud") : "ud")}">
+        <label class="zx_tr_label">Medida</label>
+        <select id="tr_mat_unidad_select" aria-label="Medida del material">${opcionesMedidaMaterial(medidaActual)}</select>
+        <input id="tr_mat_unidad_custom" placeholder="Escribe una medida..." value="${limpiar(medidaComun ? "" : medidaActual)}" ${medidaComun ? "hidden" : ""} style="margin-top:8px">
+        <input id="tr_mat_unidad" type="hidden" value="${limpiar(medidaActual)}">
       </div>
     </div>
     <details class="zx_tr_material_extra">
@@ -6147,13 +6180,40 @@ async function abrirMaterial(id,material){
   };
 
   const unidadInput=document.getElementById("tr_mat_unidad");
+  const unidadSelect=document.getElementById("tr_mat_unidad_select");
+  const unidadCustom=document.getElementById("tr_mat_unidad_custom");
   const actualizarUnidadPrecios=function(){
-    const unidad=String(unidadInput && unidadInput.value || "ud").trim() || "ud";
+    const unidad=normalizarMedidaMaterial(unidadInput && unidadInput.value || "ud");
+    if(unidadInput) unidadInput.value=unidad;
     document.querySelectorAll("[data-tr-price-unit]").forEach(function(x){x.textContent="€/"+unidad});
     if(typeof window.ZENTRYX_setInputUnit==="function") window.ZENTRYX_setInputUnit("tr_mat_cantidad",unidad);
   };
-  if(unidadInput) unidadInput.addEventListener("input",actualizarUnidadPrecios);
-  actualizarUnidadPrecios();
+  const aplicarMedidaMaterial=function(nueva){
+    const unidad=normalizarMedidaMaterial(nueva);
+    const comun=ZX_TR_MEDIDAS_MATERIAL.includes(unidad);
+    if(unidadInput) unidadInput.value=unidad;
+    if(unidadSelect) unidadSelect.value=comun ? unidad : "__personalizar__";
+    if(unidadCustom){
+      unidadCustom.hidden=comun;
+      unidadCustom.value=comun ? "" : unidad;
+    }
+    actualizarUnidadPrecios();
+  };
+  if(unidadSelect) unidadSelect.addEventListener("change",function(){
+    if(unidadSelect.value==="__personalizar__"){
+      if(unidadCustom){unidadCustom.hidden=false;unidadCustom.focus();}
+      if(unidadInput) unidadInput.value=normalizarMedidaMaterial(unidadCustom && unidadCustom.value || "ud");
+    }else{
+      if(unidadCustom){unidadCustom.hidden=true;unidadCustom.value="";}
+      if(unidadInput) unidadInput.value=normalizarMedidaMaterial(unidadSelect.value);
+    }
+    actualizarUnidadPrecios();
+  });
+  if(unidadCustom) unidadCustom.addEventListener("input",function(){
+    if(unidadInput) unidadInput.value=String(unidadCustom.value||"").trim();
+    actualizarUnidadPrecios();
+  });
+  aplicarMedidaMaterial(medidaActual);
 
   const nombreInput=document.getElementById("tr_mat_nombre");
   const sugerenciasBox=document.getElementById("tr_mat_sugerencias");
@@ -6187,7 +6247,7 @@ async function abrirMaterial(id,material){
       const x=items[Number(btn.dataset.matSug)]; if(!x)return;
       materialSeleccionado=x;
       nombreInput.value=x.nombre || "";
-      document.getElementById("tr_mat_unidad").value=x.unidad || "ud";
+      aplicarMedidaMaterial(x.unidad || "ud");
       document.getElementById("tr_mat_referencia").value=x.referencia || "";
       document.getElementById("tr_mat_proveedor").value=x.proveedor || "";
       document.getElementById("tr_mat_fabricante").value=x.fabricante || "";
