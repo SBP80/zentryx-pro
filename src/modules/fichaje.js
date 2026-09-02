@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
+// V3153 - DURACIONES CON FORMATO h:min:s VISIBLE + km NORMALIZADO EN RESÚMENES
 // V3152 - MEDIDA KM VISIBLE EN CAMPOS DE VEHÍCULO
 // V3151 - IMPORTE EXACTO POR MINUTOS + PRECIO HISTÓRICO INMUTABLE EN HORAS EXTRA
 // V3149 - PRECIOS PERSONALES O HEREDADOS DE EMPRESA EN EL SNAPSHOT DE JORNADA
@@ -465,7 +466,7 @@ async function marcarVehiculoSalida(id,km){
 
 function textoVehiculoJornada(j){
   if(!j || !j.vehiculo_matricula) return "";
-  return `<br>🚗 <b>${limpiar(j.vehiculo_matricula)}</b> · Km ${limpiar(j.km_entrada??"-")} / ${limpiar(j.km_salida??"-")}`;
+  return `<br>🚗 <b>${limpiar(j.vehiculo_matricula)}</b> · ${limpiar(j.km_entrada??"-")} / ${limpiar(j.km_salida??"-")} km`;
 }
 
 function textoVehiculoFichaje(f){
@@ -2939,14 +2940,14 @@ function resumenHTML(resumen,objetivoSeg,laboral=null,jornada=null){
   const tarjetas=[
     ["Entrada",horaCorta(resumen.entrada||jornada?.entrada),"entrada_hora","zx_resumen_info"],
     ["Salida",horaCorta(resumen.salida||jornada?.salida),"salida_hora","zx_resumen_info"],
-    ["Trabajado",formatoSeg(resumen.trabajadoSeg),"trabajado","zx_resumen_ok"],
-    ["Ordinario",formatoSeg(ordinarioSeg),"ordinario","zx_resumen_obj"],
-    ["Descanso",formatoSeg(resumen.descansoSeg),"descanso","zx_resumen_pause"],
-    ["Comida",formatoSeg(resumen.comidaSeg),"comida","zx_resumen_food"],
-    ["Justificado",formatoMin(minutosJustificados),"justificado","zx_resumen_info"],
-    ["Objetivo",formatoSeg(objetivoMostradoSeg),"objetivo","zx_resumen_obj"],
-    ["Extra",formatoSeg(extraSeg),"extra",extraSeg>0?"zx_resumen_extra":"zx_resumen_neutral"],
-    ["Falta",formatoSeg(faltaSeg),"falta",faltaSeg>0?"zx_resumen_warn":"zx_resumen_neutral"]
+    ["Trabajado · h:min:s",formatoSeg(resumen.trabajadoSeg),"trabajado","zx_resumen_ok"],
+    ["Ordinario · h:min:s",formatoSeg(ordinarioSeg),"ordinario","zx_resumen_obj"],
+    ["Descanso · h:min:s",formatoSeg(resumen.descansoSeg),"descanso","zx_resumen_pause"],
+    ["Comida · h:min:s",formatoSeg(resumen.comidaSeg),"comida","zx_resumen_food"],
+    ["Justificado · h:min:s",formatoMin(minutosJustificados),"justificado","zx_resumen_info"],
+    ["Objetivo · h:min:s",formatoSeg(objetivoMostradoSeg),"objetivo","zx_resumen_obj"],
+    ["Extra · h:min:s",formatoSeg(extraSeg),"extra",extraSeg>0?"zx_resumen_extra":"zx_resumen_neutral"],
+    ["Falta · h:min:s",formatoSeg(faltaSeg),"falta",faltaSeg>0?"zx_resumen_warn":"zx_resumen_neutral"]
   ];
 
   return `
@@ -2954,7 +2955,7 @@ function resumenHTML(resumen,objetivoSeg,laboral=null,jornada=null){
       ${laboral && laboral.festivo ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">Día festivo${laboral.nombreFestivo ? ": "+limpiar(laboral.nombreFestivo) : ""}</div>` : ""}
       ${laboral && laboral.tipoAusencia ? `<div style="color:#2563eb;font-weight:900;margin-bottom:8px;">${limpiar(laboral.observacion)}</div>` : ""}
       ${bloqueo.bloqueado ? `<div style="color:#dc2626;font-weight:900;margin-bottom:8px;">Permiso activo: ${limpiar(bloqueo.inicio)} - ${limpiar(bloqueo.fin)}</div>` : ""}
-      ${jornada && jornada.vehiculo_matricula ? `<div class="zx_resumen_vehiculo">🚗 <b>${limpiar(jornada.vehiculo_matricula)}</b> · Km ${limpiar(jornada.km_entrada??"-")} / ${limpiar(jornada.km_salida??"-")}</div>` : ""}
+      ${jornada && jornada.vehiculo_matricula ? `<div class="zx_resumen_vehiculo">🚗 <b>${limpiar(jornada.vehiculo_matricula)}</b> · ${limpiar(jornada.km_entrada??"-")} / ${limpiar(jornada.km_salida??"-")} km</div>` : ""}
     </div>
 
     <div class="zx_resumen_grid">
@@ -2975,13 +2976,13 @@ function resumenLineaHTML(resumen,objetivoSeg,j=null){
 
   return `
     <div class="zx_jornada_resumen_grid">
-      <div><span>Trabajado</span><b>${formatoSeg(resumen.trabajadoSeg)}</b></div>
-      <div><span>Objetivo</span><b>${formatoSeg(objetivoMostradoSeg)}</b></div>
-      <div><span>Descanso</span><b>${formatoSeg(resumen.descansoSeg)}</b></div>
-      <div><span>Comida</span><b>${formatoSeg(resumen.comidaSeg)}</b></div>
-      <div><span>Justificado</span><b>${formatoMin(j ? (j.minutos_justificados||0) : 0)}</b></div>
-      <div class="${extraSeg>0 ? "zx_extra_destacado" : ""}"><span>Extra</span><b>${formatoSeg(extraSeg)}</b></div>
-      <div class="${faltaSeg>0 ? "zx_falta_destacada" : ""}"><span>Falta</span><b>${formatoSeg(faltaSeg)}</b></div>
+      <div><span>Trabajado · h:min:s</span><b>${formatoSeg(resumen.trabajadoSeg)}</b></div>
+      <div><span>Objetivo · h:min:s</span><b>${formatoSeg(objetivoMostradoSeg)}</b></div>
+      <div><span>Descanso · h:min:s</span><b>${formatoSeg(resumen.descansoSeg)}</b></div>
+      <div><span>Comida · h:min:s</span><b>${formatoSeg(resumen.comidaSeg)}</b></div>
+      <div><span>Justificado · h:min:s</span><b>${formatoMin(j ? (j.minutos_justificados||0) : 0)}</b></div>
+      <div class="${extraSeg>0 ? "zx_extra_destacado" : ""}"><span>Extra · h:min:s</span><b>${formatoSeg(extraSeg)}</b></div>
+      <div class="${faltaSeg>0 ? "zx_falta_destacada" : ""}"><span>Falta · h:min:s</span><b>${formatoSeg(faltaSeg)}</b></div>
     </div>
     ${textoVehiculoJornada(j)}
     ${j && j.es_festivo ? `<br><b style="color:#dc2626;">Festivo</b>` : ""}
@@ -3063,7 +3064,7 @@ function renderJornadaMini(j,admin){
 
       <div class="zx_jornada_chips">
         <span class="zx_admin_estado ${limpiar(j.estado||"")}">${limpiar(estadoTxt)}</span>
-        ${extraSeg>0 ? `<span class="zx_chip zx_chip_extra">Extra ${formatoSeg(extraSeg)}</span>` : ""}
+        ${extraSeg>0 ? `<span class="zx_chip zx_chip_extra">Extra ${formatoSeg(extraSeg)} h:min:s</span>` : ""}
         ${j.vehiculo_matricula ? `<span class="zx_chip">🚗 ${limpiar(j.vehiculo_matricula)}</span>` : ""}
       </div>
 
@@ -3101,9 +3102,9 @@ function renderAdminResumen(jornadasHoy){
       <div><b>${jornadasHoy.length}</b><span>Jornadas</span></div>
       <div><b>${abiertas}</b><span>Abiertas</span></div>
       <div><b>${cerradas}</b><span>Cerradas</span></div>
-      <div><b>${formatoSeg(totalTrabSeg)}</b><span>Trabajado</span></div>
-      <div><b>${formatoSeg(totalExtraSeg)}</b><span>Extra</span></div>
-      <div><b>${formatoSeg(totalFaltaSeg)}</b><span>Falta</span></div>
+      <div><b>${formatoSeg(totalTrabSeg)}</b><span>Trabajado · h:min:s</span></div>
+      <div><b>${formatoSeg(totalExtraSeg)}</b><span>Extra · h:min:s</span></div>
+      <div><b>${formatoSeg(totalFaltaSeg)}</b><span>Falta · h:min:s</span></div>
       <div><b>${festivas}</b><span>Festivas</span></div>
       <div><b>${justificadas}</b><span>Justificadas</span></div>
     </div>
