@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1065 - ACCIONES SUPERIORES COMPLETAS + MEDIDA GUIADA EN MATERIALES DE TRABAJOS
 // V1064 - DATOS TÉCNICOS AUTOMÁTICOS + ACCIONES SUPERIORES Y MEDIDAS VISIBLES
 // V1063 - PROYECTOS: DATOS TÉCNICOS GUIADOS CON DESPLEGABLES Y PERSONALIZAR
 // V1062 - PROYECTOS: CATÁLOGO TÉCNICO PARA CUALQUIER MATERIAL Y DATOS LIBRES
@@ -9,7 +10,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1064";
+const ZX_VERSION="1065";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -204,6 +205,7 @@ const AYUDAS_DIRECTAS=[
     pasos:[
       "Los campos de distancia, stock, cantidades, precios, horas, días, potencia, temperatura y otras magnitudes muestran su medida de forma visible.",
       "Cuando la medida depende del artículo elegido, Zentryx la actualiza al seleccionar o cambiar ese artículo.",
+      "En Trabajos → Materiales, Cantidad muestra siempre su medida y el campo Medida ofrece opciones habituales con Personalizar para casos no previstos.",
       "En Catálogo técnico, al cambiar el Dato se limpian valores o medidas incompatibles y se propone la medida principal cuando es clara.",
       "Si una medida no está prevista, usa Personalizar para escribirla."
     ]
