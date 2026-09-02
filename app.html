@@ -6,16 +6,16 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3505</title>
+<title>Zentryx PRO V3506</title>
 
-<link rel="manifest" href="manifest.json?v=3504">
+<link rel="manifest" href="manifest.json?v=3506">
 <meta name="theme-color" content="#2563eb">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3504";
+window.ZX_VERSION="3506";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -47,12 +47,12 @@ window.ZX_VERSION="3504";
 <script src="src/modules/desarrollador_diagnostico.js?v=1003&build=20260829a"></script>
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
-<script src="src/modules/trabajos.js?v=3242&build=20260902f"></script>
+<script src="src/modules/trabajos.js?v=3243&build=20260902g"></script>
 <script src="src/modules/proyectos.js?v=1032&build=20260902f"></script>
 <script src="src/modules/almacen.js?v=1011&build=20260902f"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <script src="src/modules/vehiculos.js?v=3224&build=20260902f"></script>
-<script src="src/modules/manual.js?v=1064&build=20260902f"></script>
+<script src="src/modules/manual.js?v=1065&build=20260902g"></script>
 <script src="src/modules/asistente.js?v=1010&build=20260827d"></script>
 
 <script>
@@ -130,7 +130,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3505 - CABECERAS COMPLETAS + MEDIDAS GUIADAS -->
+<!-- ZENTRYX PRO V3506 - CABECERAS FIJAS SIN BUCLE + MEDIDAS GUIADAS -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
@@ -318,6 +318,7 @@ if(document.readyState==="loading"){
   function completarCabeceraPropia(caja,cabecera){
     if(!caja||!cabecera) return;
     const accionesCabecera=Array.from(cabecera.querySelectorAll("button,a,[role='button']"))
+      .filter(function(el){return !el.hasAttribute("data-zx-top-mirror");})
       .map(function(el){return tipoAccion(texto(el));})
       .filter(Boolean);
     if(accionesCabecera.includes("guardar") || accionesCabecera.includes("editar")){
