@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1066 - FICHAJE: DURACIONES h:min:s Y KILOMETRAJE EN km
 // V1065 - ACCIONES SUPERIORES COMPLETAS + MEDIDA GUIADA EN MATERIALES DE TRABAJOS
 // V1064 - DATOS TÉCNICOS AUTOMÁTICOS + ACCIONES SUPERIORES Y MEDIDAS VISIBLES
 // V1063 - PROYECTOS: DATOS TÉCNICOS GUIADOS CON DESPLEGABLES Y PERSONALIZAR
@@ -10,7 +11,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1065";
+const ZX_VERSION="1066";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -870,13 +871,13 @@ const AYUDAS_DIRECTAS=[
   {
     id:"mis_jornadas", modulo:"fichaje", titulo:"Consultar Mis jornadas",
     consulta:"mis jornadas ver jornadas horas trabajadas historial fichaje",
-    resumen:"Consulta tus jornadas y fichajes anteriores.",
+    resumen:"Consulta tus jornadas y fichajes anteriores. Las duraciones muestran el formato h:min:s y el kilometraje se expresa en km.",
     pasos:["Pulsa Ir a Fichaje.","Abre Ver mis jornadas.","Selecciona la jornada que quieras revisar.","Consulta horas, movimientos y demás información registrada."]
   },
   {
     id:"panel_admin_fichaje", modulo:"fichaje", titulo:"Abrir el panel de administración de Fichaje",
     consulta:"panel admin fichaje jornadas trabajadores revisar fichajes administrador",
-    resumen:"Consulta y administra las jornadas de los usuarios.",
+    resumen:"Consulta y administra las jornadas de los usuarios. Las duraciones muestran el formato h:min:s y el kilometraje se expresa en km.",
     pasos:["Entra en Fichaje con un usuario autorizado.","Pulsa Ver panel admin.","Busca o selecciona el usuario y la jornada que quieras revisar.","Usa las acciones administrativas disponibles respetando PIN y motivos cuando Zentryx los solicite."]
   },
   {
