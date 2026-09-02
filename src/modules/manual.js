@@ -1,12 +1,13 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1062 - PROYECTOS: CATÁLOGO TÉCNICO PARA CUALQUIER MATERIAL Y DATOS LIBRES
 // V1061 - PROYECTOS: CONTROL TODOS EN SERVICIOS DEL CATÁLOGO TÉCNICO
 // V1060 - PROYECTOS: CATÁLOGO TÉCNICO Y USO DE EQUIPOS EN GENERADORES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="1061";
+const ZX_VERSION="1062";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1069,19 +1070,21 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"catalogo_tecnico_proyectos", modulo:"proyectos", titulo:"Usar el Catálogo técnico de Proyectos",
-    consulta:"catalogo tecnico proyectos ficha tecnica equipo termico generador material potencia cop scop eer seer temperatura impulsion",
-    resumen:"Añade datos técnicos a artículos existentes de Materiales para poder seleccionarlos después como equipos de un proyecto.",
+    consulta:"catalogo tecnico proyectos ficha tecnica material tornillo cable tuberia valvula deposito bomba generador datos libres medida potencia cop scop eer seer temperatura impulsion",
+    resumen:"Guarda datos técnicos de cualquier artículo existente en Materiales, desde consumibles y fijaciones hasta equipos y generadores.",
     pasos:[
       "Abre Proyectos y pulsa Catálogo técnico.",
       "Busca el artículo que quieras preparar o usa el filtro para ver artículos con ficha técnica o pendientes de ficha.",
-      "Abre el artículo y activa Usar este artículo como equipo técnico en Proyectos.",
-      "Selecciona el tipo de generador y, si hace falta, indica el subtipo.",
-      "Marca los servicios que cubre: calefacción, ACS, refrigeración o piscina. Usa Todos para marcarlos o desmarcarlos de una vez; Todos no se guarda como un servicio adicional.",
-      "Registra las prestaciones disponibles: potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER.",
-      "Puedes añadir una URL de foto para el dosier, un texto breve para el cliente y notas técnicas.",
+      "Abre el artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
+      "Elige su clase técnica: material o consumible, fijación, tubería, hidráulica, aislamiento, electricidad, control, bomba, depósito, emisor, generador, ventilación, solar, herramienta u otro.",
+      "Indica un subtipo o descripción técnica si ayuda a identificarlo.",
+      "En Datos técnicos libres puedes añadir tantos datos como necesites. Cada fila admite nombre del dato, valor y medida, por lo que sirve para tornillos, cables, tuberías, válvulas, depósitos y cualquier otro artículo.",
+      "Si la clase es Generador / climatización aparecen además Tipo de generador, Servicios y Prestaciones del generador. En Servicios, Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina de una vez y no se guarda como servicio adicional.",
+      "Las prestaciones propias de generadores incluyen potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER.",
+      "Puedes añadir una URL de foto para el dosier, texto para el cliente y notas técnicas en cualquier clase.",
       "Pulsa Guardar. La ficha queda asociada al mismo artículo de Materiales; no se crea otro artículo.",
-      "Al añadir o editar un generador de un proyecto, usa Equipo del catálogo técnico si quieres partir de una ficha ya preparada.",
-      "Al seleccionar el equipo se rellenan sus datos disponibles. Al guardar el generador, el proyecto conserva una copia de los datos técnicos usados en ese momento, por lo que cambios posteriores del catálogo no cambian ese proyecto."
+      "Al añadir o editar un generador de un proyecto, el campo Generador del catálogo técnico muestra solo artículos clasificados como Generador / climatización.",
+      "Al guardar un generador, el proyecto conserva una copia de los datos usados en ese momento, por lo que cambios posteriores del catálogo no cambian ese proyecto."
     ]
   },
   {
@@ -1572,14 +1575,16 @@ const BASE=[
     id:"proyectos",icono:"📐",titulo:"Proyectos",roles:["todos"],
     resumen:"Estudios técnicos vinculados a clientes, direcciones e instalaciones existentes.",
     pasos:[
-      "Entra en Proyectos. Si necesitas preparar fichas de equipos, pulsa Catálogo técnico; para iniciar un estudio, pulsa Crear proyecto.",
-      "El Catálogo técnico usa los artículos activos que ya existen en Materiales y permite buscar por artículo, marca, modelo o referencia.",
+      "Entra en Proyectos. Si necesitas preparar datos técnicos de materiales o equipos, pulsa Catálogo técnico; para iniciar un estudio, pulsa Crear proyecto.",
+      "El Catálogo técnico usa los artículos activos que ya existen en Materiales y permite buscar por artículo, categoría, dato técnico o referencia.",
       "Puedes filtrar entre todos los artículos, los que ya tienen ficha técnica y los que todavía no la tienen.",
-      "Abre un artículo y activa Usar este artículo como equipo técnico en Proyectos para dejarlo disponible en la selección de generadores.",
-      "En su ficha técnica puedes indicar tipo y subtipo de generador, servicios, potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER. En Servicios, Todos marca o desmarca de una vez Calefacción, ACS, Refrigeración y Piscina, sin guardarse como un servicio adicional.",
+      "Abre un artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
+      "Selecciona una clase técnica. El catálogo admite materiales, consumibles, fijaciones, tuberías, hidráulica, aislamiento, electricidad, control, bombas, depósitos, emisores, generadores, ventilación, solar, herramientas y la opción Otro.",
+      "Datos técnicos libres permite registrar cualquier dato con su valor y medida, sin limitar la ficha a campos prefijados.",
+      "Solo al elegir Generador / climatización aparecen Tipo de generador, Servicios y sus prestaciones específicas. Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina sin guardarse como servicio adicional.",
       "La ficha también admite una URL de foto para el dosier, texto para el cliente y notas técnicas. Guardarla modifica los datos técnicos del artículo existente y no crea otro artículo.",
       "La edición del Catálogo técnico necesita conexión.",
-      "Al añadir o editar un generador, el campo Equipo del catálogo técnico es opcional. Si eliges uno, se rellenan los datos disponibles de su ficha.",
+      "Al añadir o editar un generador, Generador del catálogo técnico es opcional y muestra solo artículos clasificados como generadores.",
       "Cuando guardas el generador, el proyecto conserva una copia de los datos técnicos usados. Si después cambia la ficha del catálogo, el generador ya guardado mantiene su copia anterior.",
       "Selecciona un cliente existente y una de sus direcciones guardadas.",
       "Indica el tipo y estado del proyecto, y asigna comercial o técnico si corresponde.",
