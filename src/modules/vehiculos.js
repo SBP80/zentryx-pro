@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
+// V3224 - MEDIDA KM VISIBLE EN RECORRIDOS Y PUNTO KILOMÉTRICO
 // V3223 - ACTIVACIÓN Y DESACTIVACIÓN DEL VEHÍCULO VISIBLES EN MOVIMIENTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3223";
+const ZX_VERSION="3224";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -2186,7 +2187,7 @@ async function abrirAvisoGrua(id){
       <label class="zx_veh_label" for="zx_grua_carretera">Carretera / vía</label>
       <input id="zx_grua_carretera" placeholder="Ej.: A-3, M-219…">
       <label class="zx_veh_label" for="zx_grua_pk">Punto kilométrico (si lo conoces)</label>
-      <input id="zx_grua_pk" inputmode="decimal" placeholder="Ej.: 41,5">
+      <input id="zx_grua_pk" inputmode="decimal" data-zx-unit="km" placeholder="Ej.: 41,5">
       <small>El punto kilométrico solo se muestra cuando se introduce o puede identificarse con fiabilidad.</small>
     </div>
 
@@ -3433,7 +3434,7 @@ async function tomarVehiculo(id){
       <p><b>Km registrados</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
     </div>
     <label class="zx_veh_label" for="veh_km_inicio_uso">Kilómetros al recogerlo</label>
-    <input id="veh_km_inicio_uso" type="number" inputmode="decimal" value="${limpiar(v.km_actual ?? 0)}">
+    <input id="veh_km_inicio_uso" type="number" inputmode="decimal" data-zx-unit="km" value="${limpiar(v.km_actual ?? 0)}">
     <label class="zx_veh_label" for="veh_motivo_uso">Observación opcional</label>
     <textarea id="veh_motivo_uso" rows="3" placeholder="Solo si necesitas indicar algo"></textarea>
     <button class="zx_btn_big zx_verde" id="veh_tomar_ok">${ocupado ? "Sí, utilizarlo" : "Confirmar uso"}</button>
@@ -3618,7 +3619,7 @@ async function devolverVehiculo(id){
       <p><b>Responsable</b><span>${limpiar(responsableNombre(v) || "-")}</span></p>
     </div>
     <label class="zx_veh_label" for="veh_km_salida">Kilómetros actuales</label>
-    <input id="veh_km_salida" type="number" inputmode="decimal" value="${limpiar(v.km_actual ?? 0)}">
+    <input id="veh_km_salida" type="number" inputmode="decimal" data-zx-unit="km" value="${limpiar(v.km_actual ?? 0)}">
     <label class="zx_veh_label" for="veh_observacion_salida">Incidencia u observación</label>
     <textarea id="veh_observacion_salida" rows="3" placeholder="Déjalo vacío si todo está correcto"></textarea>
 
