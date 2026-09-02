@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3504</title>
+<title>Zentryx PRO V3505</title>
 
 <link rel="manifest" href="manifest.json?v=3504">
 <meta name="theme-color" content="#2563eb">
@@ -130,7 +130,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3504 - ACCIONES SUPERIORES FIJAS + MEDIDAS VISIBLES -->
+<!-- ZENTRYX PRO V3505 - CABECERAS COMPLETAS + MEDIDAS GUIADAS -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
@@ -189,7 +189,29 @@ if(document.readyState==="loading"){
   .zx_tr_part_full_header,
   .zx_modules_head,
   .zx_favorites_editor_head{
+    position:sticky!important;
     top:0!important;
+  }
+  .zx_global_completed_top{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+    align-items:center!important;
+  }
+  .zx_global_completed_top>[data-zx-top-mirror]{
+    appearance:none;
+    width:100%;
+    min-height:46px;
+    border:1px solid #0f766e;
+    border-radius:14px;
+    padding:9px 12px;
+    background:#0f766e;
+    color:#fff;
+    font:inherit;
+    font-size:.9rem;
+    font-weight:900;
+    line-height:1.15;
+    cursor:pointer;
   }
 
   /* Sufijo visible compartido para cantidades, distancias, precios y otras magnitudes. */
@@ -284,14 +306,57 @@ if(document.readyState==="loading"){
     return root.querySelector(":scope > .zx_modal_caja, :scope > .zx_al_modal_box, :scope > .zx_pr_modal_box, .zx_modal_caja, .zx_al_modal_box, .zx_pr_modal_box") || root.firstElementChild || root;
   }
 
-  function tieneCabeceraPropia(root,caja){
-    if(!root||!caja) return false;
-    if(root.id==="zx_modal_trabajo" && caja.querySelector(".zx_tr_full_header,.zx_tr_part_full_header,.zx_tr_modal_topbar")) return true;
-    if(root.id==="zx_modal_cliente" && caja.querySelector(".zx_cli_top_actions")) return true;
-    if(root.id==="zx_modal_vehiculo" && caja.querySelector(".zx_modal_top_actions")) return true;
-    if(root.id==="zx_pr_modal" && caja.querySelector(".zx_pr_top_actions")) return true;
-    if(caja.querySelector(".zx_user_top_actions,.zx_lab_top,.zx_modal_top_actions")) return true;
-    return false;
+  function cabeceraPropia(root,caja){
+    if(!root||!caja) return null;
+    if(root.id==="zx_modal_trabajo") return caja.querySelector(".zx_tr_full_header,.zx_tr_part_full_header,.zx_tr_modal_topbar");
+    if(root.id==="zx_modal_cliente") return caja.querySelector(".zx_cli_top_actions");
+    if(root.id==="zx_modal_vehiculo") return caja.querySelector(".zx_modal_top_actions");
+    if(root.id==="zx_pr_modal") return caja.querySelector(".zx_pr_top_actions");
+    return caja.querySelector(".zx_user_top_actions,.zx_lab_top,.zx_modal_top_actions");
+  }
+
+  function completarCabeceraPropia(caja,cabecera){
+    if(!caja||!cabecera) return;
+    const accionesCabecera=Array.from(cabecera.querySelectorAll("button,a,[role='button']"))
+      .map(function(el){return tipoAccion(texto(el));})
+      .filter(Boolean);
+    if(accionesCabecera.includes("guardar") || accionesCabecera.includes("editar")){
+      const espejoPrevio=cabecera.querySelector("[data-zx-top-mirror]");
+      if(espejoPrevio) espejoPrevio.remove();
+      cabecera.classList.remove("zx_global_completed_top");
+      return;
+    }
+
+    const candidatos=Array.from(caja.querySelectorAll("button,a,[role='button']"))
+      .filter(function(el){
+        if(el.closest(".zx_global_top_actions") || cabecera.contains(el)) return false;
+        const tipo=tipoAccion(texto(el));
+        return tipo==="guardar" || tipo==="editar";
+      });
+    const original=candidatos.find(function(el){return tipoAccion(texto(el))==="guardar";})
+      || candidatos.find(function(el){return tipoAccion(texto(el))==="editar";});
+    if(!original){
+      const espejoPrevio=cabecera.querySelector("[data-zx-top-mirror]");
+      if(espejoPrevio) espejoPrevio.remove();
+      cabecera.classList.remove("zx_global_completed_top");
+      return;
+    }
+
+    const tipo=tipoAccion(texto(original));
+    let espejo=cabecera.querySelector("[data-zx-top-mirror]");
+    if(!espejo){
+      espejo=document.createElement("button");
+      espejo.type="button";
+      espejo.setAttribute("data-zx-top-mirror","1");
+      cabecera.appendChild(espejo);
+    }
+    espejo.textContent=tipo==="guardar" ? "Guardar" : "Editar";
+    espejo.onclick=function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      if(original && original.isConnected && !original.disabled) original.click();
+    };
+    cabecera.classList.add("zx_global_completed_top");
   }
 
   function instalarEn(root){
@@ -299,9 +364,11 @@ if(document.readyState==="loading"){
     const caja=cajaDe(root);
     if(!caja) return;
 
-    if(tieneCabeceraPropia(root,caja)){
+    const propia=cabeceraPropia(root,caja);
+    if(propia){
       const previa=caja.querySelector(":scope > .zx_global_top_actions");
       if(previa) previa.remove();
+      completarCabeceraPropia(caja,propia);
       return;
     }
 
