@@ -6,16 +6,16 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3503</title>
+<title>Zentryx PRO V3504</title>
 
-<link rel="manifest" href="manifest.json?v=3503">
+<link rel="manifest" href="manifest.json?v=3504">
 <meta name="theme-color" content="#2563eb">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3500";
+window.ZX_VERSION="3504";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -39,7 +39,7 @@ window.ZX_VERSION="3500";
 <script src="src/modules/usuarios.js?v=3172&build=20260831a"></script>
 <script src="src/modules/config_laboral.js?v=3075&build=20260829i"></script>
 <script src="src/modules/configuracion.js?v=3121&build=20260831q"></script>
-<script src="src/modules/fichaje.js?v=3151&build=20260827g"></script>
+<script src="src/modules/fichaje.js?v=3152&build=20260902f"></script>
 <script src="src/modules/horas_extra.js?v=3087&build=20260828d"></script>
 <script src="src/modules/desarrollador.js?v=3126&build=20260829a"></script>
 <script src="src/modules/desarrollador_patch.js?v=1003&build=20260829a"></script>
@@ -47,12 +47,12 @@ window.ZX_VERSION="3500";
 <script src="src/modules/desarrollador_diagnostico.js?v=1003&build=20260829a"></script>
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
-<script src="src/modules/trabajos.js?v=3241&build=20260901j"></script>
-<script src="src/modules/proyectos.js?v=1031&build=20260902e"></script>
-<script src="src/modules/almacen.js?v=1010&build=20260805d"></script>
+<script src="src/modules/trabajos.js?v=3242&build=20260902f"></script>
+<script src="src/modules/proyectos.js?v=1032&build=20260902f"></script>
+<script src="src/modules/almacen.js?v=1011&build=20260902f"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
-<script src="src/modules/vehiculos.js?v=3223&build=20260826t"></script>
-<script src="src/modules/manual.js?v=1063&build=20260902e"></script>
+<script src="src/modules/vehiculos.js?v=3224&build=20260902f"></script>
+<script src="src/modules/manual.js?v=1064&build=20260902f"></script>
 <script src="src/modules/asistente.js?v=1010&build=20260827d"></script>
 
 <script>
@@ -130,51 +130,117 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3301 - ACCIONES SUPERIORES GLOBALES EN VISTAS LARGAS -->
-<style id="zx-global-top-actions-style">
+<!-- ZENTRYX PRO V3504 - ACCIONES SUPERIORES FIJAS + MEDIDAS VISIBLES -->
+<style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
     top:0;
     z-index:2147483000;
-    display:flex;
-    justify-content:flex-end;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
     align-items:center;
     gap:8px;
-    flex-wrap:wrap;
     padding:8px 4px 10px;
     margin:-2px 0 8px;
-    background:linear-gradient(#fff 82%,rgba(255,255,255,.94));
-    border-bottom:1px solid rgba(226,232,240,.82);
+    background:linear-gradient(#fff 82%,rgba(255,255,255,.96));
+    border-bottom:1px solid rgba(226,232,240,.9);
+    backdrop-filter:blur(12px);
   }
   .zx_global_top_actions button{
     appearance:none;
+    width:100%;
+    min-height:46px;
     border:1px solid #cbd5e1;
-    border-radius:12px;
+    border-radius:14px;
     padding:9px 12px;
-    background:#f8fafc;
+    background:#fff;
     color:#0f172a;
     font:inherit;
     font-size:.9rem;
-    font-weight:850;
+    font-weight:900;
     line-height:1.15;
     cursor:pointer;
-    white-space:nowrap;
+    white-space:normal;
     box-shadow:0 2px 8px rgba(15,23,42,.06);
   }
+  .zx_global_top_actions button[data-zx-global-action="guardar"],
   .zx_global_top_actions button[data-zx-global-action="editar"]{
-    border-color:#bfdbfe;
-    background:#2563eb;
+    border-color:#0f766e;
+    background:#0f766e;
     color:#fff;
   }
-  .zx_global_top_actions button[data-zx-global-action="volver"]{
+  .zx_global_top_actions button[data-zx-global-action="volver"],
+  .zx_global_top_actions button[data-zx-global-action="cancelar"],
+  .zx_global_top_actions button[data-zx-global-action="cerrar"]{
     border-color:#cbd5e1;
     background:#fff;
+    color:#0f172a;
   }
+
+  /* Las cabeceras propias de los módulos deben quedar siempre visibles. */
+  .zx_pr_top_actions,
+  .zx_cli_top_actions,
+  .zx_user_top_actions,
+  .zx_modal_top_actions,
+  .zx_modal_top,
+  .zx_lab_top,
+  .zx_tr_modal_topbar,
+  .zx_tr_full_header,
+  .zx_tr_part_full_header,
+  .zx_modules_head,
+  .zx_favorites_editor_head{
+    top:0!important;
+  }
+
+  /* Sufijo visible compartido para cantidades, distancias, precios y otras magnitudes. */
+  .zx_global_num_unit_wrap{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:8px;
+    align-items:stretch;
+    width:100%;
+  }
+  .zx_global_num_unit_wrap>input{
+    min-width:0;
+    width:100%;
+  }
+  .zx_global_num_unit{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-width:56px;
+    padding:0 11px;
+    border:1px solid var(--zx-line,#cbd5e1);
+    border-radius:14px;
+    background:var(--zx-soft,#f1f5f9);
+    color:var(--zx-text,#334155);
+    font-size:14px;
+    font-weight:950;
+    white-space:nowrap;
+  }
+  html[data-zx-theme="dark"] .zx_global_top_actions{
+    background:linear-gradient(var(--zx-card,#111827) 82%,rgba(17,24,39,.96));
+    border-color:var(--zx-line,#334155);
+  }
+  html[data-zx-theme="dark"] .zx_global_top_actions button[data-zx-global-action="volver"],
+  html[data-zx-theme="dark"] .zx_global_top_actions button[data-zx-global-action="cancelar"],
+  html[data-zx-theme="dark"] .zx_global_top_actions button[data-zx-global-action="cerrar"]{
+    background:var(--zx-soft,#1f2937);
+    color:var(--zx-text,#f8fafc);
+    border-color:var(--zx-line,#475569);
+  }
+  html[data-zx-theme="dark"] .zx_global_num_unit{
+    background:var(--zx-soft,#1f2937);
+    color:var(--zx-text,#f8fafc);
+    border-color:var(--zx-line,#475569);
+  }
+
   #zx_modal_trabajo.zx_tr_fullscreen .zx_global_top_actions,
   #zx_modal_trabajo:has(.zx_tr_full_header) .zx_global_top_actions{display:none!important}
+
   @media(max-width:560px){
-    .zx_global_top_actions{padding-top:5px;gap:6px}
-    .zx_global_top_actions button{padding:8px 10px;font-size:.84rem}
+    .zx_global_top_actions{padding-top:calc(6px + env(safe-area-inset-top,0px));gap:7px}
+    .zx_global_top_actions button{padding:9px 8px;font-size:.86rem}
   }
 </style>
 <script>
@@ -187,6 +253,9 @@ if(document.readyState==="loading"){
     "#zx_modal_trabajo",
     "#zx_modal_fichaje",
     "#zx_modal_festivo",
+    "#zx_modal_vehiculo",
+    "#zx_modal_convenio",
+    "#zx_pr_modal",
     "#zx_modal",
     "#zx_al_modal",
     ".zx_modal_fondo",
@@ -202,49 +271,47 @@ if(document.readyState==="loading"){
 
   function tipoAccion(t){
     const s=String(t||"").toLowerCase();
-    if(/\bcerrar\b|^✕|^×/.test(s)) return "cerrar";
-    if(/\bvolver\b|^←/.test(s)) return "volver";
+    if(/\bguardar\b/.test(s)) return "guardar";
     if(/\beditar\b|^✏/.test(s)) return "editar";
+    if(/\bvolver\b|^←|^‹/.test(s)) return "volver";
+    if(/\bcancelar\b/.test(s)) return "cancelar";
+    if(/\bcerrar\b|^✕|^×/.test(s)) return "cerrar";
     return "";
   }
 
   function cajaDe(root){
     if(!root) return null;
-    return root.querySelector(":scope > .zx_modal_caja, :scope > .zx_al_modal_box, .zx_modal_caja, .zx_al_modal_box") || root.firstElementChild || root;
+    return root.querySelector(":scope > .zx_modal_caja, :scope > .zx_al_modal_box, :scope > .zx_pr_modal_box, .zx_modal_caja, .zx_al_modal_box, .zx_pr_modal_box") || root.firstElementChild || root;
+  }
+
+  function tieneCabeceraPropia(root,caja){
+    if(!root||!caja) return false;
+    if(root.id==="zx_modal_trabajo" && caja.querySelector(".zx_tr_full_header,.zx_tr_part_full_header,.zx_tr_modal_topbar")) return true;
+    if(root.id==="zx_modal_cliente" && caja.querySelector(".zx_cli_top_actions")) return true;
+    if(root.id==="zx_modal_vehiculo" && caja.querySelector(".zx_modal_top_actions")) return true;
+    if(root.id==="zx_pr_modal" && caja.querySelector(".zx_pr_top_actions")) return true;
+    if(caja.querySelector(".zx_user_top_actions,.zx_lab_top,.zx_modal_top_actions")) return true;
+    return false;
   }
 
   function instalarEn(root){
     if(!root || !root.isConnected) return;
-    if(root.id==="zx_modal_vehiculo" || root.id==="zx_modal_convenio" || root.querySelector(".zx_modal_top_actions")) return;
-
     const caja=cajaDe(root);
     if(!caja) return;
 
-    // Las vistas que ya tienen su propia cabecera superior no necesitan
-    // una segunda barra global de Volver/Editar/Guardar.
-    if(root.id==="zx_modal_trabajo" && caja.querySelector(".zx_tr_full_header")){
-      const previa=caja.querySelector(":scope > .zx_global_top_actions");
-      if(previa) previa.remove();
-      return;
-    }
-    if(root.id==="zx_modal_cliente" && caja.querySelector(".zx_cli_top_actions")){
-      const previa=caja.querySelector(":scope > .zx_global_top_actions");
-      if(previa) previa.remove();
-      return;
-    }
-    if(root.id==="zx_modal" && caja.querySelector(".zx_user_top_actions")){
+    if(tieneCabeceraPropia(root,caja)){
       const previa=caja.querySelector(":scope > .zx_global_top_actions");
       if(previa) previa.remove();
       return;
     }
 
-    if(caja.querySelector(":scope > .zx_global_top_actions")) return;
+    const existente=caja.querySelector(":scope > .zx_global_top_actions");
+    if(existente) return;
 
     const candidatos=Array.from(caja.querySelectorAll("button,a,[role='button']"))
       .filter(function(el){
         if(el.closest(".zx_global_top_actions")) return false;
-        const tipo=tipoAccion(texto(el));
-        return !!tipo;
+        return !!tipoAccion(texto(el));
       });
 
     const porTipo={};
@@ -253,27 +320,22 @@ if(document.readyState==="loading"){
       if(tipo && !porTipo[tipo]) porTipo[tipo]=el;
     });
 
-    const orden=["volver","editar","cerrar"];
-    let disponibles=orden.filter(function(k){return !!porTipo[k]});
-
-    // Trabajos ya incorpora su propio ← Volver fijo en la parte superior.
-    // Conservamos Editar/Cerrar globales cuando aportan valor, pero no
-    // clonamos Volver para evitar dos botones iguales en móvil.
-    if(root.id==="zx_modal_trabajo" && caja.querySelector(":scope > .zx_tr_modal_topbar")){
-      disponibles=disponibles.filter(function(k){return k!=="volver"});
-    }
+    const salida=porTipo.volver ? "volver" : porTipo.cancelar ? "cancelar" : porTipo.cerrar ? "cerrar" : "";
+    const principal=porTipo.guardar ? "guardar" : porTipo.editar ? "editar" : "";
+    const disponibles=[salida,principal].filter(Boolean);
     if(!disponibles.length) return;
 
     const bar=document.createElement("div");
     bar.className="zx_global_top_actions";
     bar.setAttribute("data-zx-global-actions","1");
+    if(disponibles.length===1) bar.style.gridTemplateColumns="1fr";
 
     disponibles.forEach(function(tipo){
       const original=porTipo[tipo];
       const b=document.createElement("button");
       b.type="button";
       b.setAttribute("data-zx-global-action",tipo);
-      b.textContent=texto(original) || (tipo==="cerrar"?"Cerrar":tipo==="volver"?"Volver":"Editar");
+      b.textContent=texto(original) || ({cerrar:"Cerrar",cancelar:"Cancelar",volver:"← Volver",guardar:"Guardar",editar:"Editar"}[tipo]||tipo);
       b.onclick=function(ev){
         ev.preventDefault();
         ev.stopPropagation();
@@ -288,8 +350,60 @@ if(document.readyState==="loading"){
     caja.insertBefore(bar,caja.firstChild);
   }
 
+  function unidadVisible(v){
+    const raw=String(v||"").trim();
+    const k=raw.toLowerCase().replace(/\s+/g,"");
+    const mapa={
+      "mm2":"mm²","cm2":"cm²","m2":"m²",
+      "mm3":"mm³","cm3":"cm³","m3":"m³",
+      "m3/h":"m³/h","w/m2k":"W/m²K",
+      "l":"L","lt":"L","litro":"L","litros":"L",
+      "u":"ud","uds":"ud","unidad":"ud","unidades":"ud"
+    };
+    return mapa[k]||raw;
+  }
+
+  function aplicarUnidad(input){
+    if(!input || !input.isConnected) return;
+    const unidad=unidadVisible(input.getAttribute("data-zx-unit"));
+    let wrap=input.parentElement && input.parentElement.classList.contains("zx_global_num_unit_wrap") ? input.parentElement : null;
+    if(!unidad){
+      if(wrap){
+        const parent=wrap.parentNode;
+        parent.insertBefore(input,wrap);
+        wrap.remove();
+      }
+      return;
+    }
+    if(!wrap){
+      wrap=document.createElement("div");
+      wrap.className="zx_global_num_unit_wrap";
+      input.parentNode.insertBefore(wrap,input);
+      wrap.appendChild(input);
+      const span=document.createElement("span");
+      span.className="zx_global_num_unit";
+      wrap.appendChild(span);
+    }
+    const span=wrap.querySelector(".zx_global_num_unit");
+    if(span) span.textContent=unidad;
+  }
+
+  function aplicarUnidades(root){
+    (root||document).querySelectorAll("input[data-zx-unit]").forEach(aplicarUnidad);
+  }
+
+  window.ZENTRYX_setInputUnit=function(ref,unidad){
+    const input=typeof ref==="string" ? document.getElementById(ref) : ref;
+    if(!input) return;
+    const valor=unidadVisible(unidad);
+    if(valor) input.setAttribute("data-zx-unit",valor);
+    else input.removeAttribute("data-zx-unit");
+    aplicarUnidad(input);
+  };
+
   function revisar(){
     document.querySelectorAll(ROOT_SELECTOR).forEach(instalarEn);
+    aplicarUnidades(document);
   }
 
   let pendiente=false;
@@ -312,6 +426,5 @@ if(document.readyState==="loading"){
   }
 })();
 </script>
-
 </body>
 </html>
