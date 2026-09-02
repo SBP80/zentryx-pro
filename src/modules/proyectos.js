@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1028
+// ZENTRYX PRO - PROYECTOS V1029
+// V1029 - EDICIÓN DE GENERADOR: CONSERVA DECISIÓN SI NO SE MODIFICA
 // V1028 - CATÁLOGO TÉCNICO: CONTROL TODOS EN SERVICIOS
 // V1027 - CATÁLOGO TÉCNICO SOBRE materiales.tecnico_meta + SELECCIÓN CON SNAPSHOT EN GENERADORES
 // V1026 - ABRIR TRABAJO VINCULADO CONSERVANDO ORIGEN Y VOLVER AL PROYECTO
@@ -9,7 +10,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1028";
+const ZX_VERSION="1029";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -437,7 +438,11 @@ function formularioGenerador(p,g){
   const man=m.querySelector("#pr_gen_mantiene"),ret=m.querySelector("#pr_gen_retira"),sit=m.querySelector("#pr_gen_existente"),dec=m.querySelector("#pr_gen_decision_section"),cat=m.querySelector("#pr_gen_catalogo"),catInfo=m.querySelector("#pr_gen_catalogo_info");
   const ajustarDecision=()=>{const existente=sit.value==="1";dec.style.display=existente?"":"none";if(!existente){man.checked=false;ret.checked=false}};
   const aplicarCatalogo=()=>{const mat=MATERIALES.find(x=>String(x.id)===String(cat.value));if(!mat){catInfo.textContent="Opcional · selecciona un equipo para rellenar sus datos.";catInfo.classList.add("is-empty");return}const t=tecnicoMaterial(mat);m.querySelector("#pr_gen_tipo").value=t.tipo_generador||"otro";m.querySelector("#pr_gen_subtipo").value=t.subtipo||"";m.querySelector("#pr_gen_marca").value=mat.marca||"";m.querySelector("#pr_gen_modelo").value=mat.modelo||"";m.querySelector("#pr_gen_ref").value=mat.referencia||"";const kw=t.potencia_calefaccion_kw!=null?t.potencia_calefaccion_kw:(t.potencia_refrigeracion_kw!=null?t.potencia_refrigeracion_kw:"");m.querySelector("#pr_gen_kw").value=kw;document.querySelectorAll("[data-pr-func]").forEach(x=>x.checked=serviciosTecnicosMeta(t).includes(x.dataset.prFunc));m.querySelector("#pr_gen_foto_dosier").value=t.foto_comercial_url||t.foto_url||"";m.querySelector("#pr_gen_desc_cliente").value=t.descripcion_cliente||"";catInfo.textContent="Datos copiados de "+(materialTexto(mat)||mat.nombre||"equipo")+". Se guardará una foto fija en el proyecto.";catInfo.classList.remove("is-empty")};
-  cat.onchange=aplicarCatalogo;man.onchange=()=>{if(man.checked)ret.checked=false};ret.onchange=()=>{if(ret.checked)man.checked=false};sit.onchange=ajustarDecision;ajustarDecision();
+  man.dataset.prDecisionTouched="0";ret.dataset.prDecisionTouched="0";sit.dataset.prDecisionTouched="0";
+  cat.onchange=aplicarCatalogo;
+  man.onchange=()=>{man.dataset.prDecisionTouched="1";ret.dataset.prDecisionTouched="1";if(man.checked)ret.checked=false};
+  ret.onchange=()=>{man.dataset.prDecisionTouched="1";ret.dataset.prDecisionTouched="1";if(ret.checked)man.checked=false};
+  sit.onchange=()=>{sit.dataset.prDecisionTouched="1";ajustarDecision()};ajustarDecision();
   m.querySelector("#pr_gen_save").onclick=()=>guardarGenerador(p,g);
   const del=m.querySelector("#pr_gen_delete");if(del)del.onclick=()=>eliminarGenerador(p,g);
 }
@@ -453,7 +458,13 @@ async function guardarGenerador(p,g){
   const mismoCatalogo=String(metaAnterior.material_catalogo_id||"")===String(materialCatalogoId||"");
   const catalogoSnapshot=materialCatalogoId?(mismoCatalogo&&metaAnterior.catalogo_snapshot?metaAnterior.catalogo_snapshot:snapshotMaterialTecnico(materialCatalogo)):null;
   const tecnicoMeta=Object.assign({},metaAnterior,{rol_futuro:document.getElementById("pr_gen_rol").value||null,foto_comercial_url:document.getElementById("pr_gen_foto_dosier").value.trim()||null,descripcion_cliente:document.getElementById("pr_gen_desc_cliente").value.trim()||null,material_catalogo_id:materialCatalogoId,catalogo_snapshot:catalogoSnapshot});
-  const payload={proyecto_id:p.id,propuesta_id:null,tipo,subtipo:document.getElementById("pr_gen_subtipo").value.trim()||null,existente,marca:document.getElementById("pr_gen_marca").value.trim()||null,modelo:document.getElementById("pr_gen_modelo").value.trim()||null,referencia:document.getElementById("pr_gen_ref").value.trim()||null,potencia_kw:potencia===""?null:Number(potencia),estado:document.getElementById("pr_gen_estado").value.trim()||null,se_mantiene:existente&&document.getElementById("pr_gen_mantiene").checked,se_retira:existente&&document.getElementById("pr_gen_retira").checked,funciones,tecnico_meta:tecnicoMeta,notas:document.getElementById("pr_gen_notas").value.trim()||null,orden:g&&Number.isFinite(Number(g.orden))?Number(g.orden):GENERADORES.length};
+  const mantieneEl=document.getElementById("pr_gen_mantiene"),retiraEl=document.getElementById("pr_gen_retira"),situacionEl=document.getElementById("pr_gen_existente");
+  const decisionTocada=mantieneEl.dataset.prDecisionTouched==="1"||retiraEl.dataset.prDecisionTouched==="1"||situacionEl.dataset.prDecisionTouched==="1";
+  const mantieneGuardado=g&&typeof g.se_mantiene==="boolean"?g.se_mantiene:mantieneEl.checked;
+  const retiraGuardado=g&&typeof g.se_retira==="boolean"?g.se_retira:retiraEl.checked;
+  const seMantiene=existente&&(g&&!decisionTocada?mantieneGuardado:mantieneEl.checked);
+  const seRetira=existente&&(g&&!decisionTocada?retiraGuardado:retiraEl.checked);
+  const payload={proyecto_id:p.id,propuesta_id:null,tipo,subtipo:document.getElementById("pr_gen_subtipo").value.trim()||null,existente,marca:document.getElementById("pr_gen_marca").value.trim()||null,modelo:document.getElementById("pr_gen_modelo").value.trim()||null,referencia:document.getElementById("pr_gen_ref").value.trim()||null,potencia_kw:potencia===""?null:Number(potencia),estado:document.getElementById("pr_gen_estado").value.trim()||null,se_mantiene:seMantiene,se_retira:seRetira,funciones,tecnico_meta:tecnicoMeta,notas:document.getElementById("pr_gen_notas").value.trim()||null,orden:g&&Number.isFinite(Number(g.orden))?Number(g.orden):GENERADORES.length};
   if(payload.se_mantiene&&payload.se_retira){alert("No puede marcarse a la vez conservar y retirar.");return}
   const btn=document.getElementById("pr_gen_save");btn.disabled=true;btn.textContent="Guardando…";
   try{
