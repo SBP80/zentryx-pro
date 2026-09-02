@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
+// V3152 - MEDIDA KM VISIBLE EN CAMPOS DE VEHÍCULO
 // V3151 - IMPORTE EXACTO POR MINUTOS + PRECIO HISTÓRICO INMUTABLE EN HORAS EXTRA
 // V3149 - PRECIOS PERSONALES O HEREDADOS DE EMPRESA EN EL SNAPSHOT DE JORNADA
 // V3148 - OBJETIVO 0 EN FESTIVOS/AUSENCIAS + EXTRA FESTIVA REAL
@@ -693,7 +694,7 @@ async function usarVehiculoRapido(id,info,onSuccess){
       <span>${ocupado ? "Ahora lo usa "+limpiar(responsableVehiculoRapido(v)||"otro usuario") : "Disponible"}</span>
     </div>
     <label class="zx_label">Kilómetros actuales</label>
-    <input id="zx_vehicle_km_start" type="number" inputmode="decimal" value="${limpiar(kmBase)}">
+    <input id="zx_vehicle_km_start" type="number" inputmode="decimal" data-zx-unit="km" value="${limpiar(kmBase)}">
     <button class="zx_btn_big zx_verde" id="zx_vehicle_use_ok">🚗 Confirmar</button>
     <button class="zx_btn_big zx_gris" id="zx_vehicle_use_cancel">Cancelar</button>
   `);
@@ -744,7 +745,7 @@ async function devolverVehiculoRapido(info){
       <span>${habitual ? "Asignación habitual · se mantendrá asignado" : "Uso actual"}</span>
     </div>
     <label class="zx_label">Kilómetros finales</label>
-    <input id="zx_vehicle_km_end" type="number" inputmode="decimal" value="${limpiar(kmBase)}">
+    <input id="zx_vehicle_km_end" type="number" inputmode="decimal" data-zx-unit="km" value="${limpiar(kmBase)}">
     <button class="zx_btn_big zx_verde" id="zx_vehicle_return_ok">${textoAccion}</button>
     <button class="zx_btn_big zx_gris" id="zx_vehicle_return_cancel">Cancelar</button>
   `);
@@ -817,7 +818,7 @@ function abrirInicioJornadaSimple(info){
       <div class="zx_start_vehicle_choice">
         <div class="zx_start_vehicle_title"><span>🚗</span><div><small>Vehículo habitual</small><b>${limpiar(rec.matricula||"Vehículo")}</b></div></div>
         <label class="zx_label">Kilómetros actuales</label>
-        <input id="zx_start_vehicle_km" type="number" inputmode="decimal" value="${limpiar(kmBase)}">
+        <input id="zx_start_vehicle_km" type="number" inputmode="decimal" data-zx-unit="km" value="${limpiar(kmBase)}">
         <button class="zx_btn_big zx_verde" id="zx_start_with_vehicle">🚗 Empezar con ${limpiar(rec.matricula||"vehículo")}</button>
       </div>` : ``}
     <button class="zx_btn_big zx_azul" id="zx_start_without_vehicle">👤 Empezar sin vehículo</button>
@@ -2746,7 +2747,7 @@ async function editarFichaje(id){
           </select>
 
           <label class="zx_label">Kilómetros</label>
-          <input id="zx_edit_km" type="number" inputmode="numeric" value="${limpiar(kmActual??"")}" placeholder="Km del vehículo">
+          <input id="zx_edit_km" type="number" inputmode="numeric" data-zx-unit="km" value="${limpiar(kmActual??"")}" placeholder="Km del vehículo">
         </div>
 
         <label class="zx_label">Dirección</label>
