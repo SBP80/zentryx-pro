@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3241
+// ZENTRYX PRO - TRABAJOS V3242
+// V3242 - MEDIDA DEL MATERIAL VISIBLE JUNTO A CANTIDAD Y ACTUALIZADA AL CAMBIARLA
 // V3241 - HISTORIAL ANTIGUO PROYECTO→TRABAJO USA TAMBIÉN LAS NOTAS DE ORIGEN DEL PROPIO TRABAJO COMO RESPALDO LOCAL
 // V3240 - HISTORIAL ANTIGUO PROYECTO→TRABAJO RECUPERA PROYECTO/PROPUESTA DESDE VÍNCULOS DE PROYECTOS SIN DEPENDER DE trabajos_historial.datos
 // V3239 - HISTORIAL PROYECTO→TRABAJO MUESTRA PROYECTO Y PROPUESTA, TAMBIÉN EN REGISTROS EXISTENTES
@@ -20,7 +21,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3240";
+const ZX_VERSION="3242";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -6099,7 +6100,7 @@ async function abrirMaterial(id,material){
     <div class="zx_tr_grid2">
       <div>
         <label class="zx_tr_label">Cantidad</label>
-        <input id="tr_mat_cantidad" type="number" step="0.01" value="${limpiar(material && material.cantidad!=null ? material.cantidad : 1)}">
+        <input id="tr_mat_cantidad" type="number" step="0.01" data-zx-unit="${limpiar(material ? (material.unidad || "ud") : "ud")}" value="${limpiar(material && material.cantidad!=null ? material.cantidad : 1)}">
       </div>
       <div>
         <label class="zx_tr_label">Unidad</label>
@@ -6149,6 +6150,7 @@ async function abrirMaterial(id,material){
   const actualizarUnidadPrecios=function(){
     const unidad=String(unidadInput && unidadInput.value || "ud").trim() || "ud";
     document.querySelectorAll("[data-tr-price-unit]").forEach(function(x){x.textContent="€/"+unidad});
+    if(typeof window.ZENTRYX_setInputUnit==="function") window.ZENTRYX_setInputUnit("tr_mat_cantidad",unidad);
   };
   if(unidadInput) unidadInput.addEventListener("input",actualizarUnidadPrecios);
   actualizarUnidadPrecios();
