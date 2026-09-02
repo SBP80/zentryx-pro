@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1064 - DATOS TÉCNICOS AUTOMÁTICOS + ACCIONES SUPERIORES Y MEDIDAS VISIBLES
 // V1063 - PROYECTOS: DATOS TÉCNICOS GUIADOS CON DESPLEGABLES Y PERSONALIZAR
 // V1062 - PROYECTOS: CATÁLOGO TÉCNICO PARA CUALQUIER MATERIAL Y DATOS LIBRES
 // V1061 - PROYECTOS: CONTROL TODOS EN SERVICIOS DEL CATÁLOGO TÉCNICO
@@ -8,7 +9,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1063";
+const ZX_VERSION="1064";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -182,6 +183,31 @@ function salirManual(){
 }
 
 const AYUDAS_DIRECTAS=[
+  {
+    id:"acciones_superiores_moviles",
+    modulo:"inicio",
+    titulo:"Acciones superiores siempre visibles",
+    consulta:"volver guardar editar cerrar botones arriba scroll desplazamiento movil iphone formulario largo",
+    resumen:"En pantallas largas de móvil, las acciones principales permanecen accesibles mientras te desplazas.",
+    pasos:[
+      "En formularios y fichas largas, Volver, Guardar, Editar o Cerrar permanecen en la parte superior mientras haces scroll.",
+      "Usa Volver o Cancelar para salir sin completar la acción y Guardar para confirmar los cambios cuando corresponda.",
+      "Los módulos que ya tienen una cabecera propia conservan esa cabecera y no muestran una segunda barra duplicada."
+    ]
+  },
+  {
+    id:"medidas_visibles_campos",
+    modulo:"inicio",
+    titulo:"Medidas visibles en campos numéricos",
+    consulta:"medidas campos numeros km horas dias euros kw grados litros cantidades precios",
+    resumen:"Las cantidades físicas, económicas y laborales muestran su medida junto al valor cuando corresponde.",
+    pasos:[
+      "Los campos de distancia, stock, cantidades, precios, horas, días, potencia, temperatura y otras magnitudes muestran su medida de forma visible.",
+      "Cuando la medida depende del artículo elegido, Zentryx la actualiza al seleccionar o cambiar ese artículo.",
+      "En Catálogo técnico, al cambiar el Dato se limpian valores o medidas incompatibles y se propone la medida principal cuando es clara.",
+      "Si una medida no está prevista, usa Personalizar para escribirla."
+    ]
+  },
   {
     id:"finalizar_trabajo",
     modulo:"trabajos",
@@ -1079,7 +1105,8 @@ const AYUDAS_DIRECTAS=[
       "Abre el artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
       "Elige su clase técnica: material o consumible, fijación, tubería, hidráulica, aislamiento, electricidad, control, bomba, depósito, emisor, generador, ventilación, solar, herramienta u otro.",
       "Indica un subtipo o descripción técnica si ayuda a identificarlo.",
-      "En Datos técnicos libres puedes añadir tantos datos como necesites. Dato, valor y medida ofrecen desplegables con opciones habituales; las sugerencias cambian según la clase y el dato elegido.",
+      "En Datos técnicos libres puedes añadir tantos datos como necesites. Dato y medida ofrecen opciones habituales; Valor usa opciones cuando existen valores típicos y escritura directa cuando el dato es numérico o libre.",
+      "Al cambiar el Dato, Zentryx limpia valores o medidas que ya no correspondan y selecciona automáticamente la medida principal cuando es inequívoca. Por ejemplo, Sección propone mm² y Tensión nominal propone V.",
       "Si una opción no aparece, selecciona Personalizar y escribe el dato, valor o medida que necesites. Así la ficha no queda limitada por las opciones propuestas.",
       "Si la clase es Generador / climatización aparecen además Tipo de generador, Servicios y Prestaciones del generador. En Servicios, Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina de una vez y no se guarda como servicio adicional.",
       "Las prestaciones propias de generadores incluyen potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER.",
@@ -1582,7 +1609,7 @@ const BASE=[
       "Puedes filtrar entre todos los artículos, los que ya tienen ficha técnica y los que todavía no la tienen.",
       "Abre un artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
       "Selecciona una clase técnica. El catálogo admite materiales, consumibles, fijaciones, tuberías, hidráulica, aislamiento, electricidad, control, bombas, depósitos, emisores, generadores, ventilación, solar, herramientas y la opción Otro.",
-      "Datos técnicos libres permite registrar cualquier dato con su valor y medida. Los tres campos ofrecen opciones habituales y Personalizar para escribir cualquier alternativa no incluida.",
+      "Datos técnicos libres permite registrar cualquier dato con su valor y medida. El formulario adapta Valor y Medida al Dato elegido, evita arrastrar datos incompatibles y mantiene Personalizar para alternativas no incluidas.",
       "Solo al elegir Generador / climatización aparecen Tipo de generador, Servicios y sus prestaciones específicas. Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina sin guardarse como servicio adicional.",
       "La ficha también admite una URL de foto para el dosier, texto para el cliente y notas técnicas. Guardarla modifica los datos técnicos del artículo existente y no crea otro artículo.",
       "La edición del Catálogo técnico necesita conexión.",
