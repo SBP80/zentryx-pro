@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1063 - PROYECTOS: DATOS TÉCNICOS GUIADOS CON DESPLEGABLES Y PERSONALIZAR
 // V1062 - PROYECTOS: CATÁLOGO TÉCNICO PARA CUALQUIER MATERIAL Y DATOS LIBRES
 // V1061 - PROYECTOS: CONTROL TODOS EN SERVICIOS DEL CATÁLOGO TÉCNICO
 // V1060 - PROYECTOS: CATÁLOGO TÉCNICO Y USO DE EQUIPOS EN GENERADORES
@@ -7,7 +8,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1062";
+const ZX_VERSION="1063";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1078,7 +1079,8 @@ const AYUDAS_DIRECTAS=[
       "Abre el artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
       "Elige su clase técnica: material o consumible, fijación, tubería, hidráulica, aislamiento, electricidad, control, bomba, depósito, emisor, generador, ventilación, solar, herramienta u otro.",
       "Indica un subtipo o descripción técnica si ayuda a identificarlo.",
-      "En Datos técnicos libres puedes añadir tantos datos como necesites. Cada fila admite nombre del dato, valor y medida, por lo que sirve para tornillos, cables, tuberías, válvulas, depósitos y cualquier otro artículo.",
+      "En Datos técnicos libres puedes añadir tantos datos como necesites. Dato, valor y medida ofrecen desplegables con opciones habituales; las sugerencias cambian según la clase y el dato elegido.",
+      "Si una opción no aparece, selecciona Personalizar y escribe el dato, valor o medida que necesites. Así la ficha no queda limitada por las opciones propuestas.",
       "Si la clase es Generador / climatización aparecen además Tipo de generador, Servicios y Prestaciones del generador. En Servicios, Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina de una vez y no se guarda como servicio adicional.",
       "Las prestaciones propias de generadores incluyen potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER.",
       "Puedes añadir una URL de foto para el dosier, texto para el cliente y notas técnicas en cualquier clase.",
@@ -1580,7 +1582,7 @@ const BASE=[
       "Puedes filtrar entre todos los artículos, los que ya tienen ficha técnica y los que todavía no la tienen.",
       "Abre un artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
       "Selecciona una clase técnica. El catálogo admite materiales, consumibles, fijaciones, tuberías, hidráulica, aislamiento, electricidad, control, bombas, depósitos, emisores, generadores, ventilación, solar, herramientas y la opción Otro.",
-      "Datos técnicos libres permite registrar cualquier dato con su valor y medida, sin limitar la ficha a campos prefijados.",
+      "Datos técnicos libres permite registrar cualquier dato con su valor y medida. Los tres campos ofrecen opciones habituales y Personalizar para escribir cualquier alternativa no incluida.",
       "Solo al elegir Generador / climatización aparecen Tipo de generador, Servicios y sus prestaciones específicas. Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina sin guardarse como servicio adicional.",
       "La ficha también admite una URL de foto para el dosier, texto para el cliente y notas técnicas. Guardarla modifica los datos técnicos del artículo existente y no crea otro artículo.",
       "La edición del Catálogo técnico necesita conexión.",
