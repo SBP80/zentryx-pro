@@ -1,12 +1,13 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
+// V3225 - CORRECCIONES UI MÓVIL, KM, CONTADORES Y MAPAS
 // V3224 - MEDIDA KM VISIBLE EN RECORRIDOS Y PUNTO KILOMÉTRICO
 // V3223 - ACTIVACIÓN Y DESACTIVACIÓN DEL VEHÍCULO VISIBLES EN MOVIMIENTOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3224";
+const ZX_VERSION="3225";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -250,7 +251,7 @@ function textoAvisoGrua(v,seg,pos,dir,pkManual,carreteraManual){
     combustible?"Combustible: "+combustible:"",
     tipoVehiculo?"Tipo: "+tipoVehiculo:"",
     propietario?"Propietario: "+propietario:"",
-    "Kilómetros: "+(v.km_actual??"-"),
+    "Kilómetros: "+(v.km_actual!=null?v.km_actual+" km":"-"),
     "Responsable: "+(responsableNombre(v)||"Sin responsable"),
     "Solicitante: "+(identidadActual().nombre||"-"),
     "Aseguradora: "+(seg.compania||"No configurada"),
@@ -1071,18 +1072,21 @@ async function cargarDetalleVehiculo(id){
   return out;
 }
 
+function asegurarCSSLeaflet(){
+  if(document.getElementById("zx_leaflet_css")) return;
+  const link=document.createElement("link");
+  link.id="zx_leaflet_css";
+  link.rel="stylesheet";
+  link.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+  link.crossOrigin="";
+  document.head.appendChild(link);
+}
+
 function cargarLeaflet(){
+  asegurarCSSLeaflet();
   if(window.L) return Promise.resolve(window.L);
   if(ZX_LEAFLET_PROMISE) return ZX_LEAFLET_PROMISE;
   ZX_LEAFLET_PROMISE=new Promise(function(resolve,reject){
-    if(!document.getElementById("zx_leaflet_css")){
-      const link=document.createElement("link");
-      link.id="zx_leaflet_css";
-      link.rel="stylesheet";
-      link.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      link.crossOrigin="";
-      document.head.appendChild(link);
-    }
     const existente=document.getElementById("zx_leaflet_js");
     if(existente){
       const esperar=setInterval(function(){
@@ -1512,7 +1516,7 @@ async function abrirMapaFlota(){
   try{
     const L=await cargarLeaflet();
     if(!document.getElementById("zx_flota_mapa")) return;
-    ZX_FLOTA_MAPA=L.map("zx_flota_mapa",{zoomControl:true,attributionControl:true});
+    ZX_FLOTA_MAPA=L.map("zx_flota_mapa",{zoomControl:true,attributionControl:true}).setView([40.4168,-3.7038],6);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
       maxZoom:19,
       attribution:"&copy; OpenStreetMap"
@@ -1612,6 +1616,11 @@ function prepararVehiculo(v){
   return v;
 }
 
+function textoCantidad(n,singular,plural){
+  const num=Number(n)||0;
+  return num+" "+(Math.abs(num)===1?singular:plural);
+}
+
 function diasHasta(fecha){
   if(!fecha) return null;
   const f=new Date(String(fecha).slice(0,10)+"T12:00:00");
@@ -1629,16 +1638,16 @@ function avisosVehiculo(v){
   const kmRevision=numero(v.proxima_revision_km);
 
   if(itv!==null){
-    if(itv<0) avisos.push({nivel:"critico",texto:"ITV caducada",detalle:Math.abs(itv)+" día(s)"});
-    else if(itv<=45) avisos.push({nivel:"aviso",texto:"ITV próxima",detalle:itv+" día(s)"});
+    if(itv<0) avisos.push({nivel:"critico",texto:"ITV caducada",detalle:textoCantidad(Math.abs(itv),"día","días")});
+    else if(itv<=45) avisos.push({nivel:"aviso",texto:"ITV próxima",detalle:textoCantidad(itv,"día","días")});
   }
   if(seguro!==null){
-    if(seguro<0) avisos.push({nivel:"critico",texto:"Seguro caducado",detalle:Math.abs(seguro)+" día(s)"});
-    else if(seguro<=45) avisos.push({nivel:"aviso",texto:"Seguro próximo",detalle:seguro+" día(s)"});
+    if(seguro<0) avisos.push({nivel:"critico",texto:"Seguro caducado",detalle:textoCantidad(Math.abs(seguro),"día","días")});
+    else if(seguro<=45) avisos.push({nivel:"aviso",texto:"Seguro próximo",detalle:textoCantidad(seguro,"día","días")});
   }
   if(revision!==null){
-    if(revision<0) avisos.push({nivel:"critico",texto:"Revisión vencida",detalle:Math.abs(revision)+" día(s)"});
-    else if(revision<=30) avisos.push({nivel:"aviso",texto:"Revisión próxima",detalle:revision+" día(s)"});
+    if(revision<0) avisos.push({nivel:"critico",texto:"Revisión vencida",detalle:textoCantidad(Math.abs(revision),"día","días")});
+    else if(revision<=30) avisos.push({nivel:"aviso",texto:"Revisión próxima",detalle:textoCantidad(revision,"día","días")});
   }
   if(kmRevision>0){
     const restantes=kmRevision-kmActual;
@@ -1765,7 +1774,7 @@ function resumen(){
       <button type="button" class="zx_veh_kpi_alert ${avisos.criticos ? "has-critical" : avisos.proximos ? "has-warning" : ""}" id="zx_veh_kpi_avisos">
         <b>${avisos.criticos+avisos.proximos}</b>
         <span>Avisos</span>
-        <small>${avisos.criticos ? avisos.criticos+" urgente(s)" : avisos.proximos ? avisos.proximos+" próximo(s)" : "Todo al día"}</small>
+        <small>${avisos.criticos ? textoCantidad(avisos.criticos,"urgente","urgentes") : avisos.proximos ? textoCantidad(avisos.proximos,"próximo","próximos") : "Todo al día"}</small>
       </button>
     </div>
   `;
@@ -1798,7 +1807,7 @@ function toolbar(total){
         }).join("")}
       </div>
 
-      <div class="zx_veh_resume">${total} resultado(s)</div>
+      <div class="zx_veh_resume">${textoCantidad(total,"resultado","resultados")}</div>
     </div>
   `;
 }
@@ -1951,7 +1960,7 @@ function pintarShell(lista){
       <section class="zx_veh_panel">
         <div class="zx_veh_list_head">
           <h3>Listado</h3>
-          <span>${lista.length} vehículo(s)</span>
+          <span>${textoCantidad(lista.length,"vehículo","vehículos")}</span>
         </div>
         <div id="zx_vehiculos_lista" class="zx_veh_list">${renderListado(lista)}</div>
       </section>
@@ -1981,6 +1990,10 @@ function pintarShell(lista){
 function repintarLista(){
   const lista=filtrarVehiculos();
   const box=document.getElementById("zx_vehiculos_lista");
+  const resumenFiltro=document.querySelector(".zx_veh_resume");
+  const contadorListado=document.querySelector(".zx_veh_list_head span");
+  if(resumenFiltro) resumenFiltro.textContent=textoCantidad(lista.length,"resultado","resultados");
+  if(contadorListado) contadorListado.textContent=textoCantidad(lista.length,"vehículo","vehículos");
   if(box){
     box.innerHTML=renderListado(lista);
     conectarEventos();
@@ -2044,10 +2057,10 @@ function conectarEventos(){
   });
 }
 
-function input(id,label,value,type){
+function input(id,label,value,type,medida){
   return `
     <label class="zx_veh_label" for="${id}">${limpiar(label)}</label>
-    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${limpiar(label)}">
+    <input id="${id}" type="${type || "text"}" value="${limpiar(value || "")}" placeholder="${limpiar(label)}"${medida?` data-zx-unit="${limpiar(medida)}"`:""}>
   `;
 }
 
@@ -2089,7 +2102,7 @@ function mensajeAsistencia(v,seg,pos,dir,pk,carretera){
     "Vehículo: "+([v.marca,v.modelo].filter(Boolean).join(" ")||"-"),
     "Responsable: "+(responsableNombre(v)||"Sin responsable"),
     "Solicitante: "+(identidadActual().nombre||"-"),
-    "Kilómetros: "+(v.km_actual??"-"),
+    "Kilómetros: "+(v.km_actual!=null?v.km_actual+" km":"-"),
     "Aseguradora: "+(seg.compania||"-"),
     "Póliza: "+(seg.poliza||"-"),
     "Teléfono asistencia: "+(seg.telefono||"-"),
@@ -2151,7 +2164,7 @@ async function abrirAvisoGrua(id){
         <div><small>Combustible</small><b>${limpiar(v.combustible||v.tipo_combustible||"-")}</b></div>
         <div><small>Tipo</small><b>${limpiar(v.tipo||v.tipo_vehiculo||"-")}</b></div>
         <div><small>Propietario</small><b>${limpiar(v.empresa_propietaria||v.propietario||"-")}</b></div>
-        <div><small>Kilómetros</small><b>${limpiar(v.km_actual??"-")}</b></div>
+        <div><small>Kilómetros</small><b>${v.km_actual!=null?limpiar(v.km_actual)+" km":"-"}</b></div>
         <div><small>Responsable</small><b>${limpiar(responsableNombre(v)||"Sin responsable")}</b></div>
         <div class="wide"><small>Última revisión</small><b>${limpiar(fechaES(v.fecha_revision||v.ultima_revision)||"-")}</b></div>
       </div>
@@ -2673,7 +2686,7 @@ async function abrirIncidenciasVehiculo(vehiculoId){
   const box=document.getElementById("zx_veh_incidencias_lista");
   const nota=document.querySelector("#zx_modal_vehiculo .zx_veh_nota_form");
   if(nota) nota.textContent=lista.length
-    ? lista.length+" incidencia(s) registrada(s) en este vehículo."
+    ? textoCantidad(lista.length,"incidencia registrada","incidencias registradas")+" en este vehículo."
     : "No hay incidencias registradas para este vehículo.";
 
   if(!box) return;
@@ -3093,7 +3106,7 @@ function abrirFormulario(v){
         <div>${input("veh_marca","Marca",v.marca)}</div>
         <div>${input("veh_modelo","Modelo",v.modelo)}</div>
       </div>
-      ${input("veh_km","Km actuales",v.km_actual || 0,"number")}
+      ${input("veh_km","Km actuales",v.km_actual || 0,"number","km")}
 
       <div class="zx_veh_grid2">
         <div>
@@ -3115,11 +3128,15 @@ function abrirFormulario(v){
       <div class="zx_veh_nota_form">Los datos de asistencia se configuran desde <b>Aviso grúa</b>.</div>
       <div class="zx_veh_grid2">
         <div>${input("veh_revision","Próxima revisión",v.proxima_revision_fecha,"date")}</div>
-        <div>${input("veh_revision_km","Km próxima revisión",v.proxima_revision_km,"number")}</div>
+        <div>${input("veh_revision_km","Km próxima revisión",v.proxima_revision_km,"number","km")}</div>
       </div>
 
       <label class="zx_veh_label" for="veh_doc">Documento</label>
-      <div class="zx_veh_file_wrap"><input id="veh_doc" type="file" accept="image/*,.pdf,.doc,.docx"></div>
+      <div class="zx_veh_file_wrap">
+        <input id="veh_doc" class="zx_veh_file_native" type="file" accept="image/*,.pdf,.doc,.docx">
+        <label class="zx_veh_file_btn" for="veh_doc">Seleccionar archivo</label>
+        <span class="zx_veh_file_name" id="veh_doc_nombre">${v.documento_url?"Ningún archivo nuevo":"Ningún archivo seleccionado"}</span>
+      </div>
       ${v.documento_url ? `<a class="zx_btn_big zx_azul" href="${limpiar(v.documento_url)}" target="_blank">Ver documento actual</a>` : ""}
 
       <label class="zx_veh_label" for="veh_notas">Notas</label>
@@ -3131,6 +3148,14 @@ function abrirFormulario(v){
   `);
 
   document.getElementById("veh_cancelar").onclick=cerrarModal;
+  const docInput=document.getElementById("veh_doc");
+  const docNombre=document.getElementById("veh_doc_nombre");
+  if(docInput && docNombre){
+    docInput.onchange=function(){
+      const archivo=docInput.files&&docInput.files[0];
+      docNombre.textContent=archivo?archivo.name:(v.documento_url?"Ningún archivo nuevo":"Ningún archivo seleccionado");
+    };
+  }
   document.getElementById("veh_guardar").onclick=function(){guardarVehiculo(v.id || null,v.documento_url || null,v.documento_nombre || null)};
 }
 
@@ -3417,7 +3442,7 @@ async function tomarVehiculo(id){
   const incidenciaBloqueante=["alta","critica"].includes(nivelIncidencia);
   const avisoIncidencias=incidenciasActivas.length
     ? `<div class="zx_veh_aviso ${incidenciaBloqueante?"danger":""}">
-        <b>⚠️ ${incidenciasActivas.length} incidencia(s) activa(s)</b>
+        <b>⚠️ ${textoCantidad(incidenciasActivas.length,"incidencia activa","incidencias activas")}</b>
         <small>${limpiar(resumenIncidenciasParaUso(incidenciasActivas)).replaceAll("\n","<br>")}</small>
         ${incidenciaBloqueante
           ? `<strong>Severidad ${nivelIncidencia==="critica"?"crítica":"alta"}: requiere autorización de administrador para utilizar el vehículo.</strong>`
@@ -3431,7 +3456,7 @@ async function tomarVehiculo(id){
     ${avisoIncidencias}
     <div class="zx_veh_info ficha">
       <p><b>Vehículo</b><span>${limpiar(nombreVehiculo(v))}</span></p>
-      <p><b>Km registrados</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
+      <p><b>Km registrados</b><span>${limpiar(v.km_actual ?? 0)} km</span></p>
     </div>
     <label class="zx_veh_label" for="veh_km_inicio_uso">Kilómetros al recogerlo</label>
     <input id="veh_km_inicio_uso" type="number" inputmode="decimal" data-zx-unit="km" value="${limpiar(v.km_actual ?? 0)}">
@@ -4143,8 +4168,8 @@ async function abrirDetalleUso(vehiculoId,usoId){
       ${campo("Estado",uso.estado||"-")}
       ${campo("Inicio",fechaHoraES(uso.inicio_at))}
       ${campo("Fin",uso.fin_at?fechaHoraES(uso.fin_at):"Pendiente")}
-      ${campo("Km iniciales",uso.km_inicio)}
-      ${campo("Km finales",uso.km_fin!=null?uso.km_fin:"Pendiente")}
+      ${campo("Km iniciales",uso.km_inicio!=null?limpiar(uso.km_inicio)+" km":"-")}
+      ${campo("Km finales",uso.km_fin!=null?limpiar(uso.km_fin)+" km":"Pendiente")}
       ${campo("Recorrido",uso.km_fin!=null?recorrido+" km":"Pendiente")}
       ${campo("Motivo de inicio",uso.motivo_inicio||"-")}
       ${campo("Motivo de fin",uso.motivo_fin||"-")}
@@ -4298,7 +4323,7 @@ async function abrirFicha(id,tabInicial){
     const filtro=abierto?"en_curso":tipoNormal;
     const km=kmUso(u);
     const puedeClasificar=esAdmin() || (identidadActual().id && String(u.usuario_id||"")===identidadActual().id);
-    const kmTxt=(u.km_inicio!=null?u.km_inicio:"-")+" → "+(u.km_fin!=null?u.km_fin:"-");
+    const kmTxt=(u.km_inicio!=null?limpiar(u.km_inicio)+" km":"-")+" → "+(u.km_fin!=null?limpiar(u.km_fin)+" km":"-");
     const controles=puedeClasificar && u.km_fin!=null ? `<div class="zx_uso_selector" role="group" aria-label="Clasificación del recorrido">
       <button class="${tipoNormal==="laboral"?"activo laboral":""}" aria-pressed="${tipoNormal==="laboral"?"true":"false"}" data-uso-clasificar="laboral" data-uso-id="${limpiar(u.id)}">${tipoNormal==="laboral"?"✓ ":""}🚗 Laboral</button>
       <button class="${tipoNormal==="personal"?"activo personal":""}" aria-pressed="${tipoNormal==="personal"?"true":"false"}" data-uso-clasificar="personal" data-uso-id="${limpiar(u.id)}">${tipoNormal==="personal"?"✓ ":""}🏠 Personal</button>
@@ -4310,7 +4335,7 @@ async function abrirFicha(id,tabInicial){
       </div>
       <div class="zx_uso_meta">
         <span>${limpiar(textoEstadoUso(u.estado))}</span>
-        <b>${u.km_fin!=null && km===0 ? "Sin desplazamiento · Km "+limpiar(kmTxt) : "Km "+limpiar(kmTxt)+(u.km_fin!=null?" · "+limpiar(km)+" km":"")}</b>
+        <b>${u.km_fin!=null && km===0 ? "Sin desplazamiento · "+kmTxt : kmTxt+(u.km_fin!=null?" · "+limpiar(km)+" km":"")}</b>
       </div>
       <button type="button" class="zx_uso_detalle" data-uso-detalle-boton="${limpiar(u.id)}">Ver detalle ›</button>
       ${controles}
@@ -4360,8 +4385,8 @@ async function abrirFicha(id,tabInicial){
     const filas=[];
     if(m.responsable) filas.push(celda("Responsable",limpiar(m.responsable),false));
     if(m.clasificacion) filas.push(celda("Clasificación",limpiar(m.clasificacion),false));
-    if(m.kmInicio!==""&&m.kmInicio!=null) filas.push(celda("Km iniciales",limpiar(m.kmInicio),false));
-    if(m.kmFin!==""&&m.kmFin!=null) filas.push(celda("Km finales",limpiar(m.kmFin),false));
+    if(m.kmInicio!==""&&m.kmInicio!=null) filas.push(celda("Km iniciales",limpiar(m.kmInicio)+" km",false));
+    if(m.kmFin!==""&&m.kmFin!=null) filas.push(celda("Km finales",limpiar(m.kmFin)+" km",false));
     if(m.kmRecorridos!==""&&m.kmRecorridos!=null) filas.push(celda("Recorrido",limpiar(m.kmRecorridos)+" km",false));
     if(m.ubicacion) filas.push(celda("Ubicación",limpiar(m.ubicacion),true));
     if(m.dispositivo) filas.push(celda("Dispositivo",limpiar(m.dispositivo),true));
@@ -4558,7 +4583,7 @@ async function abrirFicha(id,tabInicial){
       <div class="zx_veh_info ficha">
         <p><b>Matrícula</b><span>${limpiar(v.matricula || "-")}</span></p>
         <p><b>Marca / modelo</b><span>${limpiar([v.marca,v.modelo].filter(Boolean).join(" ") || "-")}</span></p>
-        <p><b>Km actuales</b><span>${limpiar(v.km_actual ?? 0)}</span></p>
+        <p><b>Km actuales</b><span>${limpiar(v.km_actual ?? 0)} km</span></p>
         <p><b>Km registrados en usos</b><span>${limpiar(resumenKm.total)} km</span></p>
         <p><b>Km laborales</b><span>${limpiar(resumenKm.laboral)} km</span></p>
         <p><b>Km personales</b><span>${limpiar(resumenKm.personal)} km</span></p>
@@ -4568,7 +4593,7 @@ async function abrirFicha(id,tabInicial){
         <p><b>ITV</b><span>${limpiar(fechaES(v.itv_fecha) || "-")}</span></p>
         <p><b>Seguro</b><span>${limpiar(fechaES(v.seguro_fecha) || "-")}</span></p>
         <p><b>Revisión</b><span>${limpiar(fechaES(v.proxima_revision_fecha) || "-")}</span></p>
-        <p><b>Km revisión</b><span>${limpiar(v.proxima_revision_km || "-")}</span></p>
+        <p><b>Km revisión</b><span>${v.proxima_revision_km?limpiar(v.proxima_revision_km)+" km":"-"}</span></p>
         ${v.notas ? `<p><b>Notas</b><span>${limpiar(v.notas)}</span></p>` : ""}
       </div>
     </div>
@@ -4745,6 +4770,11 @@ function instalarCSS(){
     .zx_flota_marker{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 3px 10px rgba(15,23,42,.4);font-size:17px}
     .zx_flota_marker_label{position:absolute;left:50%;top:36px;transform:translateX(-50%);background:#071330;color:white;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:950;white-space:nowrap;box-shadow:0 2px 7px rgba(15,23,42,.25)}
     .zx_flota_popup{display:grid;gap:4px;min-width:170px}.zx_flota_popup b{font-size:15px;color:#071330}.zx_flota_popup span{font-size:12px;color:#475569;font-weight:800}
+    #zx_modal_vehiculo .leaflet-control-zoom a{display:block!important;width:30px!important;height:30px!important;min-width:30px!important;min-height:30px!important;padding:0!important;margin:0!important;line-height:30px!important;border-radius:0!important;background:#fff!important;color:#111!important;font-size:22px!important;font-weight:400!important;text-align:center!important;text-decoration:none!important;box-shadow:none!important;transform:none!important}
+    #zx_modal_vehiculo .leaflet-control-zoom a:first-child{border-radius:4px 4px 0 0!important}
+    #zx_modal_vehiculo .leaflet-control-zoom a:last-child{border-radius:0 0 4px 4px!important}
+    #zx_modal_vehiculo .leaflet-control-attribution{margin:0!important;padding:0 5px!important;border-radius:0!important;background:rgba(255,255,255,.8)!important;color:#333!important;font-size:11px!important;line-height:20px!important;font-weight:400!important}
+    #zx_modal_vehiculo .leaflet-control-attribution a{display:inline!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:#0078a8!important;font:inherit!important;font-weight:400!important;text-decoration:none!important;box-shadow:none!important;transform:none!important}
     .zx_veh_kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
     .zx_veh_kpi_alert{border:1px solid #dbe3ef;background:#f8fafc;border-radius:20px;padding:14px;text-align:center;grid-column:1/-1}
     .zx_veh_kpi_alert b{display:block;color:#071330;font-size:27px;font-weight:950;line-height:1}
@@ -4811,7 +4841,7 @@ function instalarCSS(){
     .zx_veh_more_panel button,.zx_veh_actions button{border:0;border-radius:16px;padding:13px 8px;color:white;font-size:14px;font-weight:950;min-height:46px}
     .zx_veh_more_panel .green,.zx_veh_actions .green{background:#16a34a}.zx_veh_more_panel .blue,.zx_veh_actions .blue{background:#2563eb}.zx_veh_more_panel .purple,.zx_veh_actions .purple{background:#7c3aed}.zx_veh_more_panel .orange,.zx_veh_actions .orange{background:#f97316}.zx_veh_more_panel .gray,.zx_veh_actions .gray{background:#64748b}.zx_veh_more_panel .red,.zx_veh_actions .red{background:#dc2626}
     .zx_veh_actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
-    .zx_veh_aviso{margin:12px 0;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:16px;padding:13px;font-weight:850;line-height:1.35}.zx_veh_file_wrap{width:100%;overflow:hidden}.zx_veh_file_wrap input[type="file"]{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;font-size:14px}
+    .zx_veh_aviso{margin:12px 0;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:16px;padding:13px;font-weight:850;line-height:1.35}.zx_veh_file_wrap{position:relative;width:100%;display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;border:1px solid #dbe3ef;border-radius:16px;padding:10px;background:#f8fafc}.zx_veh_file_native{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}.zx_veh_file_btn{display:flex;align-items:center;justify-content:center;margin:0!important;border-radius:12px;padding:10px 12px;background:#e2e8f0;color:#0f172a;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap}.zx_veh_file_name{min-width:0;color:#334155;font-size:13px;font-weight:850;line-height:1.25;overflow-wrap:anywhere}
     .zx_veh_uso_filtros{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px}.zx_veh_uso_filtros button{border:1px solid var(--zx-line);border-radius:999px;padding:9px 12px;background:var(--zx-soft);color:var(--zx-text);font-weight:900;white-space:nowrap}.zx_veh_uso_filtros button.on{background:var(--zx-primary);color:var(--zx-primary-contrast);border-color:var(--zx-primary)}.zx_veh_uso_click{cursor:pointer;position:relative}.zx_veh_uso_click>em{display:block;margin-top:7px;color:#2563eb;font-style:normal;font-size:13px;font-weight:950}.zx_veh_uso_click:active{transform:scale(.995)}
     .zx_veh_nota_form{margin-top:10px;background:var(--zx-primary-soft);border:1px solid var(--zx-primary-border);color:var(--zx-text);border-radius:14px;padding:11px;font-size:13px;font-weight:800;line-height:1.4}.zx_veh_readonly{width:100%;border:2px solid var(--zx-line);border-radius:16px;padding:13px;font-size:16px;font-weight:900;color:var(--zx-text);-webkit-text-fill-color:var(--zx-text);background:var(--zx-soft)}.zx_veh_uso_resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 14px}.zx_veh_uso_resumen>div{background:#f8fafc;border:1px solid #dbe3ef;border-radius:14px;padding:10px;text-align:center}.zx_veh_uso_resumen strong{display:block;font-size:20px;color:#071330}.zx_veh_uso_resumen small{display:block;margin-top:3px;color:#64748b;font-weight:850;font-size:11px}.zx_veh_clasificar{display:flex;gap:7px;margin-top:9px}.zx_veh_clasificar button{flex:1;border:2px solid transparent;border-radius:11px;padding:9px 7px;font-weight:900;background:#eef2f7;color:#64748b}.zx_veh_clasificar button:first-child.seleccionado{background:#2563eb;color:#fff;border-color:#1d4ed8;box-shadow:0 0 0 2px rgba(37,99,235,.12)}.zx_veh_clasificar button:last-child.seleccionado{background:#f59e0b;color:#fff;border-color:#d97706;box-shadow:0 0 0 2px rgba(245,158,11,.12)}.zx_usos_resumen_wrap{margin:2px 0 14px}.zx_usos_resumen_wrap h3{margin:0 0 9px;font-size:15px;color:var(--zx-text)}.zx_veh_uso_resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}.zx_veh_uso_resumen>div{background:var(--zx-soft);border:2px solid var(--zx-line);border-radius:14px;padding:10px 7px;text-align:center}.zx_veh_uso_resumen>div.laboral{border-color:var(--zx-primary-border);background:var(--zx-primary-soft)}.zx_veh_uso_resumen>div.personal{border-color:#d97706;background:color-mix(in srgb,#f59e0b 16%,var(--zx-card))}.zx_veh_uso_resumen>div.sin{border-color:var(--zx-line);background:var(--zx-soft)}.zx_veh_uso_resumen strong{display:block;font-size:18px;color:var(--zx-text);white-space:nowrap}.zx_veh_uso_resumen small{display:block;margin-top:3px;color:var(--zx-muted);font-weight:850;font-size:10px}.zx_veh_hist_usos{display:grid;gap:12px}.zx_uso_card{border:2px solid #dbe3ef;border-left-width:7px;border-radius:18px;padding:14px;background:#fff}.zx_uso_card.laboral{border-left-color:#2563eb}.zx_uso_card.personal{border-left-color:#f59e0b}.zx_uso_card.sin_clasificar{border-left-color:#94a3b8}.zx_uso_card_top{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}.zx_uso_card_top>div{min-width:0}.zx_uso_card_top strong{display:block;color:#071330;font-size:16px;line-height:1.15}.zx_uso_card_top time{display:block;color:#64748b;font-size:12px;font-weight:800;margin-top:4px}.zx_uso_tipo{flex:0 0 auto;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:950}.zx_uso_tipo.laboral{background:#dbeafe;color:#1d4ed8}.zx_uso_tipo.personal{background:#fef3c7;color:#92400e}.zx_uso_tipo.sin_clasificar{background:#e2e8f0;color:#475569}.zx_uso_meta{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;color:#64748b;font-size:12px;font-weight:850}.zx_uso_meta span{background:#f1f5f9;border-radius:999px;padding:5px 8px;white-space:nowrap}.zx_uso_meta b{color:#334155;text-align:right}.zx_uso_detalle{display:block;border:0;background:transparent;color:#2563eb;font-weight:950;font-size:14px;padding:10px 0 3px;text-align:left}.zx_uso_selector{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.zx_uso_selector button{border:2px solid #e2e8f0;border-radius:12px;padding:10px 7px;font-weight:950;background:#f8fafc;color:#64748b}.zx_uso_selector button.activo.laboral{background:#2563eb;color:#fff;border-color:#1d4ed8}.zx_uso_selector button.activo.personal{background:#f59e0b;color:#fff;border-color:#d97706}@media(max-width:430px){.zx_veh_uso_resumen strong{font-size:16px}.zx_veh_uso_resumen small{font-size:9px}.zx_uso_card_top{align-items:center}.zx_uso_tipo{max-width:110px;text-align:center}}.zx_veh_empty{color:#64748b;font-size:16px;font-weight:850;padding:12px 0}
     .zx_veh_form h3{margin:20px 0 8px;color:#071330;font-size:22px;font-weight:950}
@@ -4883,7 +4913,7 @@ function instalarCSS(){
     .zx_view_action{appearance:none;border:0;border-radius:12px;padding:9px 12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0}
     .zx_view_action.blue{background:#2563eb;color:#fff}
 
-    @media(max-width:560px){.zx_veh_tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:8px}.zx_veh_tabs button{width:100%;min-width:0;white-space:normal;line-height:1.15;min-height:46px}.zx_veh_uso_filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:7px;padding-bottom:12px}.zx_veh_uso_filtros button{width:100%;min-width:0;white-space:normal;line-height:1.15;min-height:42px}.zx_veh_incident_grid,.zx_inc_detail_grid,.zx_inc_manage_grid{grid-template-columns:1fr}.zx_veh_incident_grid .wide,.zx_inc_detail_grid .wide{grid-column:auto}.zx_inc_audit_top{display:block}}
+    @media(max-width:560px){.zx_veh_filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible;gap:7px;padding-bottom:3px}.zx_veh_filters button{width:100%;min-width:0;padding:9px 5px;font-size:12px;white-space:normal;line-height:1.05}.zx_veh_tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:8px}.zx_veh_tabs button{width:100%;min-width:0;white-space:normal;line-height:1.15;min-height:46px}.zx_veh_uso_filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:7px;padding-bottom:12px}.zx_veh_uso_filtros button{width:100%;min-width:0;white-space:normal;line-height:1.15;min-height:42px}.zx_veh_incident_grid,.zx_inc_detail_grid,.zx_inc_manage_grid{grid-template-columns:1fr}.zx_veh_incident_grid .wide,.zx_inc_detail_grid .wide{grid-column:auto}.zx_inc_audit_top{display:block}}
     @media(max-width:390px){.zx_veh_header{grid-template-columns:1fr}.zx_veh_header_actions{grid-template-columns:1fr 1fr}.zx_flota_head{display:grid}.zx_flota_stats{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(5,minmax(0,1fr))}.zx_veh_kpi_alert{grid-column:auto}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
