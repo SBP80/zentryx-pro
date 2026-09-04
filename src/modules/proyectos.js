@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1036
+// ZENTRYX PRO - PROYECTOS V1037
+// V1037 - ESTRATEGIA: MOSTRAR EN LA PROPIA PANTALLA EL CÁLCULO DE REFERENCIA Y SUS RESULTADOS PRINCIPALES
 // V1036 - OPCIONES TÉCNICAS: PERMITIR CAMBIAR NOMBRE, CÁLCULO DE REFERENCIA Y DESCRIPCIÓN MIENTRAS ESTÉN EN BORRADOR/EDITABLES
 // V1035 - CÁLCULO 'OTRO': MOSTRAR EL MÉTODO GUARDADO EN LA TARJETA DE LA VERSIÓN
 // V1034 - FECHAS: TIMESTAMPS MOSTRADOS EN FECHA LOCAL DEL DISPOSITIVO SIN DESPLAZAR FECHAS PURAS
@@ -891,10 +892,21 @@ function detalleReglaHTML(r){
   return partes.length?`<div class="zx_pr_rule_detail">${partes.map(x=>`<span>${limpiar(x)}</span>`).join("")}</div>`:"";
 }
 function reglasHTML(op){const rs=reglasPropuesta(op),bloqueada=propuestaBloqueada(op);if(!rs.length)return `<div class="zx_pr_empty">Todavía no hay reglas definidas.</div>`;return rs.map((r,i)=>`<div class="zx_pr_rule_card"><div><b>${i+1}. ${limpiar(nombreGeneradorRegla(r))}</b><span>${limpiar(textoServicioRegla(r.servicio))}</span></div><p>${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.valor!=null&&r.valor!==""?" "+limpiar(r.valor)+(r.unidad?" "+limpiar(r.unidad):""):""}</p>${detalleReglaHTML(r)}${!bloqueada?`<div class="zx_pr_rule_actions"><button type="button" data-pr-rule-edit="${limpiar(r.id)}">Editar</button><button type="button" data-pr-rule-del="${limpiar(r.id)}">Eliminar</button></div>`:`<div class="zx_pr_calc_by">${propuestaSustituida(op)?"Opción sustituida":"Opción aceptada"} · regla bloqueada</div>`}</div>`).join("")}
+function resumenCalculoReferenciaHTML(op){
+  const c=CALCULOS.find(x=>String(x.id)===String(op&&op.calculo_id));
+  if(!c)return `<div class="zx_pr_info"><b>Sin cálculo de referencia</b><span>Puedes asociarlo desde Editar opción.</span></div>`;
+  const partes=[];
+  if(c.superficie_m2!=null)partes.push(limpiar(c.superficie_m2)+" m²");
+  if(c.calefaccion_kw!=null)partes.push(limpiar(c.calefaccion_kw)+" kW calefacción");
+  if(c.refrigeracion_kw!=null)partes.push(limpiar(c.refrigeracion_kw)+" kW refrigeración");
+  if(c.acs_litros!=null)partes.push(limpiar(c.acs_litros)+" L ACS");
+  if(c.temperatura_impulsion_c!=null)partes.push(limpiar(c.temperatura_impulsion_c)+" °C impulsión");
+  return `<div class="zx_pr_info"><b>Cálculo de referencia · Versión ${limpiar(c.version)} · ${limpiar(textoTipoCalculo(c.tipo_calculo))}</b><span>${partes.length?partes.join(" · "):"Cálculo asociado sin resultados principales registrados."}</span></div>`;
+}
 function abrirEstrategia(p,opId){
   const op=PROPUESTAS.find(x=>String(x.id)===String(opId));if(!op)return;
   const bloqueada=propuestaBloqueada(op),sustituida=propuestaSustituida(op);
-  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_st_back" type="button">← Volver</button>${bloqueada?`<button type="button" disabled>${sustituida?"Opción sustituida":"Opción aceptada"}</button>`:`<button id="pr_st_add" class="primary" type="button">＋ Añadir regla</button>`}</div><div class="zx_pr_form_head"><span>ESTRATEGIA HÍBRIDA</span><h2>${limpiar(op.nombre)}</h2></div><div class="zx_pr_info"><b>Ordena cómo debe trabajar cada generador.</b><span>${bloqueada?(sustituida?"Esta versión fue aceptada anteriormente y ha sido sustituida. Sus reglas quedan bloqueadas.":"Esta opción está aceptada y sus reglas quedan bloqueadas."):"Las reglas describen la lógica prevista. El técnico debe comprobar que la hidráulica, el control y los equipos permiten ese funcionamiento."}</span></div><div class="zx_pr_rules">${reglasHTML(op)}</div>`);
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_st_back" type="button">← Volver</button>${bloqueada?`<button type="button" disabled>${sustituida?"Opción sustituida":"Opción aceptada"}</button>`:`<button id="pr_st_add" class="primary" type="button">＋ Añadir regla</button>`}</div><div class="zx_pr_form_head"><span>ESTRATEGIA HÍBRIDA</span><h2>${limpiar(op.nombre)}</h2></div>${resumenCalculoReferenciaHTML(op)}<div class="zx_pr_info"><b>Ordena cómo debe trabajar cada generador.</b><span>${bloqueada?(sustituida?"Esta versión fue aceptada anteriormente y ha sido sustituida. Sus reglas quedan bloqueadas.":"Esta opción está aceptada y sus reglas quedan bloqueadas."):"Las reglas describen la lógica prevista. El técnico debe comprobar que la hidráulica, el control y los equipos permiten ese funcionamiento."}</span></div><div class="zx_pr_rules">${reglasHTML(op)}</div>`);
   m.querySelector("#pr_st_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};const add=m.querySelector("#pr_st_add");if(add)add.onclick=()=>formularioRegla(p,op,null);
   m.querySelectorAll("[data-pr-rule-edit]").forEach(b=>b.onclick=()=>formularioRegla(p,op,reglasPropuesta(op).find(r=>String(r.id)===String(b.dataset.prRuleEdit))));
   m.querySelectorAll("[data-pr-rule-del]").forEach(b=>b.onclick=()=>eliminarRegla(p,op,b.dataset.prRuleDel));
