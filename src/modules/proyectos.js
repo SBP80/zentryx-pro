@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1034
+// ZENTRYX PRO - PROYECTOS V1035
+// V1035 - CÁLCULO 'OTRO': MOSTRAR EL MÉTODO GUARDADO EN LA TARJETA DE LA VERSIÓN
 // V1034 - FECHAS: TIMESTAMPS MOSTRADOS EN FECHA LOCAL DEL DISPOSITIVO SIN DESPLAZAR FECHAS PURAS
 // V1033 - CÁLCULO TÉRMICO: ESTIMACIÓN RÁPIDA AUTOMÁTICA + MODOS SIMPLES Y DIFERENCIADOS
 // V1032 - DATOS TÉCNICOS AUTOMÁTICOS: LIMPIA DATOS INCOMPATIBLES + MEDIDA SUGERIDA + VALOR DIRECTO O GUIADO
@@ -670,6 +671,8 @@ function calculosHTML(){
     const rn=c.resultado_meta&&typeof c.resultado_meta==="object"?c.resultado_meta:{};
     const detalleRapido=c.tipo_calculo==="estimacion"&&(en.coef_calefaccion_w_m2!=null||en.coef_refrigeracion_w_m2!=null)
       ?`<div class="zx_pr_calc_by">Estimación: ${en.coef_calefaccion_w_m2!=null?limpiar(en.coef_calefaccion_w_m2)+" W/m² calefacción":"sin coeficiente de calefacción"} · ${en.coef_refrigeracion_w_m2!=null?limpiar(en.coef_refrigeracion_w_m2)+" W/m² refrigeración":"sin coeficiente de refrigeración"}${en.ocupantes!=null?" · "+limpiar(en.ocupantes)+" personas":""}</div>`:"";
+    const detalleMetodo=c.tipo_calculo==="otro"&&en.metodo_nombre
+      ?`<div class="zx_pr_calc_by">Método: ${limpiar(en.metodo_nombre)}</div>`:"";
     return `<div class="zx_pr_calc_card">
       <div class="zx_pr_calc_top"><div><b>Versión ${limpiar(c.version)}</b><span>${limpiar(textoTipoCalculo(c.tipo_calculo))} · ${limpiar(fechaES(c.created_at))}</span></div><span class="zx_pr_calc_badge">Guardado</span></div>
       <div class="zx_pr_gen_grid">
@@ -681,6 +684,7 @@ function calculosHTML(){
         <div><span>Condiciones calefacción</span><b>${en.temp_ext_invierno_c!=null||en.temp_int_calefaccion_c!=null?numeroVisible(en.temp_ext_invierno_c,"°C")+" / "+numeroVisible(en.temp_int_calefaccion_c,"°C"):"Sin indicar"}</b></div>
       </div>
       ${detalleRapido}
+      ${detalleMetodo}
       ${rn.creado_por_nombre?`<div class="zx_pr_calc_by">Registrado por ${limpiar(rn.creado_por_nombre)}</div>`:""}
       ${c.observaciones?`<p>${limpiar(c.observaciones)}</p>`:""}
     </div>`;
