@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1035
+// ZENTRYX PRO - PROYECTOS V1036
+// V1036 - OPCIONES TÉCNICAS: PERMITIR CAMBIAR NOMBRE, CÁLCULO DE REFERENCIA Y DESCRIPCIÓN MIENTRAS ESTÉN EN BORRADOR/EDITABLES
 // V1035 - CÁLCULO 'OTRO': MOSTRAR EL MÉTODO GUARDADO EN LA TARJETA DE LA VERSIÓN
 // V1034 - FECHAS: TIMESTAMPS MOSTRADOS EN FECHA LOCAL DEL DISPOSITIVO SIN DESPLAZAR FECHAS PURAS
 // V1033 - CÁLCULO TÉRMICO: ESTIMACIÓN RÁPIDA AUTOMÁTICA + MODOS SIMPLES Y DIFERENCIADOS
@@ -807,7 +808,7 @@ function propuestasEstrategiaHTML(){
   return PROPUESTAS.map((op,i)=>{
     const rs=reglasPropuesta(op),calc=CALCULOS.find(c=>String(c.id)===String(op.calculo_id)),est=estadoPropuesta(op);
     return `<div class="zx_pr_strategy_card">
-      <div class="zx_pr_gen_top"><div><b>${limpiar(op.nombre)}</b><span>${calc?"Cálculo de referencia · Versión "+limpiar(calc.version):"Sin cálculo de referencia"}</span></div><div class="zx_pr_strategy_actions">${puedeEditar()?`<button type="button" data-pr-strategy-open="${limpiar(op.id)}">Estrategia</button><button type="button" data-pr-budget-open="${limpiar(op.id)}">Partidas</button><button type="button" data-pr-quote-open="${limpiar(op.id)}">Presupuesto</button>`:""}</div></div>
+      <div class="zx_pr_gen_top"><div><b>${limpiar(op.nombre)}</b><span>${calc?"Cálculo de referencia · Versión "+limpiar(calc.version):"Sin cálculo de referencia"}</span></div><div class="zx_pr_strategy_actions">${puedeEditar()?`${!propuestaBloqueada(op)?`<button type="button" data-pr-option-edit="${limpiar(op.id)}">Editar opción</button>`:""}<button type="button" data-pr-strategy-open="${limpiar(op.id)}">Estrategia</button><button type="button" data-pr-budget-open="${limpiar(op.id)}">Partidas</button><button type="button" data-pr-quote-open="${limpiar(op.id)}">Presupuesto</button>`:""}</div></div>
       ${op.descripcion?`<p>${limpiar(op.descripcion)}</p>`:""}
       <div class="zx_pr_strategy_count">${limpiar(textoEstadoPropuesta(est))} · ${rs.length} regla(s) de funcionamiento · Total cliente ${eur(op.total_cliente||0)}</div>
       ${rs.slice(0,3).map((r,n)=>`<div class="zx_pr_rule_resume"><b>${n+1}. ${limpiar(nombreGeneradorRegla(r))}</b><span>${limpiar(textoServicioRegla(r.servicio))} · ${limpiar(textoAccionRegla(r.accion))} · ${limpiar(textoCondicionRegla(r.condicion_tipo))}${r.valor!=null&&r.valor!==""?" "+limpiar(r.valor)+(r.unidad?" "+limpiar(r.unidad):""):""}${r.condicion_tipo==="fallo_generador"&&r.generador_referencia_id?" · si falla "+limpiar(nombreGeneradorRelacionadoRegla(r)):""}</span></div>`).join("")}
@@ -816,6 +817,54 @@ function propuestasEstrategiaHTML(){
   }).join("");
 }
 function opcionesCalculo(sel){return `<option value="">Sin cálculo asociado</option>`+CALCULOS.map(c=>`<option value="${limpiar(c.id)}" ${String(sel)===String(c.id)?"selected":""}>Versión ${limpiar(c.version)} · ${limpiar(textoTipoCalculo(c.tipo_calculo))}</option>`).join("")}
+function formularioEditarOpcionTecnica(p,op){
+  if(!op||propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_op_edit_back" type="button">← Volver</button><button id="pr_op_edit_save" class="primary" type="button">Guardar cambios</button></div>
+    <div class="zx_pr_form_head"><span>EDITAR OPCIÓN TÉCNICA</span><h2>${limpiar(op.nombre)}</h2></div>
+    <div class="zx_pr_info"><b>Puedes actualizar la referencia del estudio mientras la opción siga editable.</b><span>Las partidas, reglas y presupuesto de esta opción no se borran al cambiar el cálculo de referencia.</span></div>
+    <label>Nombre de la opción<input id="pr_op_edit_nombre" value="${limpiar(op.nombre||"")}"></label>
+    <label>Cálculo de referencia<select id="pr_op_edit_calc">${opcionesCalculo(op.calculo_id)}</select></label>
+    <label>Descripción<textarea id="pr_op_edit_desc" rows="4" placeholder="Descripción de la solución propuesta">${limpiar(op.descripcion||"")}</textarea></label>`);
+  m.querySelector("#pr_op_edit_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};
+  m.querySelector("#pr_op_edit_save").onclick=()=>guardarEdicionOpcionTecnica(p,op);
+}
+async function guardarEdicionOpcionTecnica(p,op){
+  if(!sb()||!navigator.onLine){alert("Necesitas conexión para guardar los cambios.");return}
+  if(!op||propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}
+  const nombre=(document.getElementById("pr_op_edit_nombre")?.value||"").trim();
+  if(!nombre){alert("Escribe un nombre para la opción.");return}
+  const calculo_id=document.getElementById("pr_op_edit_calc")?.value||null;
+  const descripcion=(document.getElementById("pr_op_edit_desc")?.value||"").trim()||null;
+  const btn=document.getElementById("pr_op_edit_save");
+  btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    const q=await sb().from("proyectos_propuestas").update({nombre,calculo_id,descripcion}).eq("id",op.id).select("*").single();
+    if(q.error)throw q.error;
+    const u=sesion();
+    try{
+      await sb().from("proyectos_historial").insert([{
+        proyecto_id:p.id,
+        tipo:"propuesta",
+        accion:"editada",
+        resumen:"Opción técnica editada: "+nombre,
+        usuario_id:u.id||null,
+        usuario:u.nombre||u.usuario||"",
+        datos:{
+          propuesta_id:op.id,
+          nombre_anterior:op.nombre||"",
+          nombre_nuevo:nombre,
+          calculo_id_anterior:op.calculo_id||null,
+          calculo_id_nuevo:calculo_id||null
+        }
+      }])
+    }catch(e){}
+    cerrarModal();
+    await abrirFicha(p.id);
+  }catch(e){
+    alert("No se pudieron guardar los cambios.\n"+(e&&e.message?e.message:""));
+    btn.disabled=false;btn.textContent="Guardar cambios";
+  }
+}
 function formularioOpcionTecnica(p){
   const letra=String.fromCharCode(65+Math.min(PROPUESTAS.length,25));
   const m=modal(`<div class="zx_pr_top_actions"><button id="pr_op_back" type="button">← Volver</button><button id="pr_op_save" class="primary" type="button">Guardar opción</button></div>
@@ -1400,7 +1449,7 @@ async function abrirPresupuesto(p,opId){
   const accept=m.querySelector("#pr_quote_accept");if(accept)accept.onclick=()=>aceptarPropuesta(p,op);
   const work=m.querySelector("#pr_quote_work");if(work)work.onclick=()=>{const id=trabajoIdPropuesta(op);return id?abrirTrabajoVinculado(id,p):crearTrabajoDesdePropuesta(p,op)};
 }
-function conectarEstrategia(p){const n=document.getElementById("pr_op_nueva");if(n)n.onclick=()=>formularioOpcionTecnica(p);document.querySelectorAll("[data-pr-strategy-open]").forEach(b=>b.onclick=()=>abrirEstrategia(p,b.dataset.prStrategyOpen));document.querySelectorAll("[data-pr-budget-open]").forEach(b=>b.onclick=()=>abrirPartidas(p,b.dataset.prBudgetOpen));document.querySelectorAll("[data-pr-quote-open]").forEach(b=>b.onclick=()=>abrirPresupuesto(p,b.dataset.prQuoteOpen))}
+function conectarEstrategia(p){const n=document.getElementById("pr_op_nueva");if(n)n.onclick=()=>formularioOpcionTecnica(p);document.querySelectorAll("[data-pr-option-edit]").forEach(b=>b.onclick=()=>formularioEditarOpcionTecnica(p,PROPUESTAS.find(x=>String(x.id)===String(b.dataset.prOptionEdit))));document.querySelectorAll("[data-pr-strategy-open]").forEach(b=>b.onclick=()=>abrirEstrategia(p,b.dataset.prStrategyOpen));document.querySelectorAll("[data-pr-budget-open]").forEach(b=>b.onclick=()=>abrirPartidas(p,b.dataset.prBudgetOpen));document.querySelectorAll("[data-pr-quote-open]").forEach(b=>b.onclick=()=>abrirPresupuesto(p,b.dataset.prQuoteOpen))}
 
 
 window.ZX_PROYECTOS_VINCULAR_TRABAJO=async function(ctx,trabajoId){
