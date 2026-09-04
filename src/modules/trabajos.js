@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3243
+// ZENTRYX PRO - TRABAJOS V3244
+// V3244 - CONTADORES COHERENTES + PLURALES CORRECTOS + FILTROS VISIBLES SIN SCROLL LATERAL EN MÓVIL
 // V3243 - GUARDAR VISIBLE ARRIBA EN MODALES + SELECTOR DE MEDIDA CON PERSONALIZAR EN MATERIALES
 // V3242 - MEDIDA DEL MATERIAL VISIBLE JUNTO A CANTIDAD Y ACTUALIZADA AL CAMBIARLA
 // V3241 - HISTORIAL ANTIGUO PROYECTO→TRABAJO USA TAMBIÉN LAS NOTAS DE ORIGEN DEL PROPIO TRABAJO COMO RESPALDO LOCAL
@@ -22,7 +23,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3243";
+const ZX_VERSION="3244";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -1376,19 +1377,20 @@ async function cargarTrabajos(){
 }
 
 function resumen(){
-  const total=ZX_TR_CACHE.length;
-  const activos=ZX_TR_CACHE.filter(t=>t.archivado!==true && t.archivado!=="true").length;
-  const curso=ZX_TR_CACHE.filter(t=>String(t.estado || "")==="en_curso").length;
-  const urgentes=ZX_TR_CACHE.filter(t=>String(t.prioridad || "")==="urgente").length;
-
+  const counts=contarFiltros();
   return `
     <div class="zx_tr_kpis">
-      <div><b>${total}</b><span>Total</span></div>
-      <div><b>${activos}</b><span>Activos</span></div>
-      <div><b>${curso}</b><span>En curso</span></div>
-      <div><b>${urgentes}</b><span>Urgentes</span></div>
+      <div><b>${counts.todos}</b><span>Total</span></div>
+      <div><b>${counts.activos}</b><span>Activos</span></div>
+      <div><b>${counts.curso}</b><span>En curso</span></div>
+      <div><b>${counts.urgentes}</b><span>Urgentes</span></div>
     </div>
   `;
+}
+
+function textoCantidad(cantidad,singular,plural){
+  const n=Number(cantidad) || 0;
+  return n+" "+(n===1 ? singular : plural);
 }
 
 function toolbar(total){
@@ -1433,7 +1435,7 @@ function toolbar(total){
       </div>
 
       <div class="zx_tr_toolbar_bottom">
-        <div id="zx_tr_resume" class="zx_tr_resume">${total} resultado(s)</div>
+        <div id="zx_tr_resume" class="zx_tr_resume">${textoCantidad(total,"resultado","resultados")}</div>
       </div>
       ${!modoTrabajoUnico() ? `<div class="zx_tr_toolbar_tools">
         <button type="button" class="zx_tr_library_btn" id="zx_tr_library">📚 Biblioteca documental</button>
@@ -1506,7 +1508,7 @@ function pintarShell(lista){
       <section class="zx_tr_panel">
         <div class="zx_tr_list_head">
           <h3>${modoTrabajoUnico() ? "Ficha" : "Listado"}</h3>
-          <span>${lista.length} trabajo(s)</span>
+          <span>${textoCantidad(lista.length,"trabajo","trabajos")}</span>
         </div>
         <div id="zx_trabajos_lista" class="zx_tr_list">${renderListado(lista)}</div>
       </section>
@@ -1534,8 +1536,8 @@ function repintarLista(){
   const head=document.querySelector(".zx_tr_list_head span");
 
   if(box) box.innerHTML=renderListado(lista);
-  if(resume) resume.textContent=lista.length+" resultado(s)";
-  if(head) head.textContent=lista.length+" trabajo(s)";
+  if(resume) resume.textContent=textoCantidad(lista.length,"resultado","resultados");
+  if(head) head.textContent=textoCantidad(lista.length,"trabajo","trabajos");
 
   const counts=contarFiltros();
   document.querySelectorAll("[data-tr-filter]").forEach(function(btn){
@@ -7354,7 +7356,9 @@ function instalarCSS(){
       .zx_tr_date_filters label{font-size:10px;gap:3px}
       .zx_tr_date_filters input{padding:8px 5px;border-radius:12px;font-size:12px}
       .zx_tr_date_filters button,.zx_tr_monitor_btn{padding:9px 6px;border-radius:12px;font-size:12px}
-      .zx_tr_filters{margin-inline:-2px}
+      .zx_tr_filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;overflow:visible;padding:2px 0 4px;margin-inline:0;scroll-snap-type:none}
+      .zx_tr_filters button{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;min-width:0;padding:9px 4px;font-size:11px;line-height:1.1;white-space:normal;text-align:center}
+      .zx_tr_filters button b{flex:0 0 auto;min-width:20px;height:20px;padding:0 5px;font-size:10px}
       .zx_tr_resume{font-size:12px}
       .zx_tr_list_head{margin-bottom:9px}
       .zx_tr_list_head h3{font-size:23px}
