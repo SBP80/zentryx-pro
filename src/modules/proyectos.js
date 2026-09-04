@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1033
+// ZENTRYX PRO - PROYECTOS V1034
+// V1034 - FECHAS: TIMESTAMPS MOSTRADOS EN FECHA LOCAL DEL DISPOSITIVO SIN DESPLAZAR FECHAS PURAS
 // V1033 - CÁLCULO TÉRMICO: ESTIMACIÓN RÁPIDA AUTOMÁTICA + MODOS SIMPLES Y DIFERENCIADOS
 // V1032 - DATOS TÉCNICOS AUTOMÁTICOS: LIMPIA DATOS INCOMPATIBLES + MEDIDA SUGERIDA + VALOR DIRECTO O GUIADO
 // V1031 - DATOS TÉCNICOS GUIADOS: DESPLEGABLES POR CLASE + PERSONALIZAR + VALORES/MEDIDAS CONTEXTUALES
@@ -63,7 +64,27 @@ function puedeEntrar(){return zx() && typeof zx().puede==="function" ? zx().pued
 function puedeEditar(){return puedeEntrar()}
 function leerCache(){try{const x=JSON.parse(localStorage.getItem(CACHE_KEY)||"[]");return Array.isArray(x)?x:[]}catch(e){return []}}
 function guardarCache(x){try{localStorage.setItem(CACHE_KEY,JSON.stringify(x||[]))}catch(e){}}
-function fechaES(v){if(!v)return "";const s=String(v).slice(0,10),p=s.split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:s}
+function fechaES(v){
+  if(!v)return "";
+  const raw=String(v).trim();
+
+  // Las fechas puras YYYY-MM-DD no deben desplazarse por zona horaria.
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){
+    const p=raw.split("-");
+    return p[2]+"/"+p[1]+"/"+p[0];
+  }
+
+  // Los timestamps se muestran con la fecha local del dispositivo.
+  const d=new Date(raw);
+  if(!Number.isNaN(d.getTime())){
+    try{
+      return d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"});
+    }catch(e){}
+  }
+
+  const s=raw.slice(0,10),p=s.split("-");
+  return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:s;
+}
 function textoTipo(v){return ({nueva:"Nueva instalación",sustitucion:"Sustitución",reforma:"Reforma",ampliacion:"Ampliación",hibridacion:"Hibridación",estudio:"Solo estudio",otro:"Otro"})[v]||v||"Estudio"}
 function textoEstado(v){return ({borrador:"Borrador",estudio:"Estudio",visita:"Pendiente visita",calculado:"Calculado",presupuestado:"Presupuestado",enviado:"Enviado",aceptado:"Aceptado",ejecucion:"En ejecución",terminado:"Terminado",rechazado:"Rechazado",archivado:"Archivado"})[v]||v||"Borrador"}
 function nombreCliente(id){const c=CLIENTES.find(x=>String(x.id)===String(id));return c?c.nombre:"Cliente"}
