@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1068 - PROYECTOS: EXTRACCIÓN V1 CON ZONAS, CAUDALES, CONDUCTOS Y EXTRACTOR
 // V1067 - PROYECTOS MULTIDISCIPLINARES + CÁLCULO TÉCNICO POR ESTANCIAS
 // V1066 - FICHAJE: DURACIONES h:min:s Y KILOMETRAJE EN km
 // V1065 - ACCIONES SUPERIORES COMPLETAS + MEDIDA GUIADA EN MATERIALES DE TRABAJOS
@@ -12,7 +13,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1067";
+const ZX_VERSION="1068";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1612,7 +1613,7 @@ const BASE=[
       "El Catálogo técnico usa los artículos activos que ya existen en Materiales y permite buscar por artículo, categoría, dato técnico o referencia.",
       "Puedes filtrar entre todos los artículos, los que ya tienen ficha técnica y los que todavía no la tienen.",
       "Abre un artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
-      "Selecciona una clase técnica. El catálogo admite materiales, consumibles, fijaciones, tuberías, hidráulica, aislamiento, electricidad, control, bombas, depósitos, emisores, generadores, ventilación, solar, herramientas y la opción Otro.",
+      "Selecciona una clase técnica. El catálogo admite materiales, consumibles, fijaciones, tuberías, hidráulica, aislamiento, electricidad, control, bombas, depósitos, emisores, generadores, ventilación, extracción, solar, herramientas y la opción Otro.",
       "Datos técnicos libres permite registrar cualquier dato con su valor y medida. El formulario adapta Valor y Medida al Dato elegido, evita arrastrar datos incompatibles y mantiene Personalizar para alternativas no incluidas.",
       "Solo al elegir Generador / climatización aparecen Tipo de generador, Servicios y sus prestaciones específicas. Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina sin guardarse como servicio adicional.",
       "La ficha también admite una URL de foto para el dosier, texto para el cliente y notas técnicas. Guardarla modifica los datos técnicos del artículo existente y no crea otro artículo.",
@@ -1624,6 +1625,14 @@ const BASE=[
       "Registra los datos iniciales del inmueble; las cantidades muestran su medida junto al campo.",
       "En Especialidades del proyecto puedes activar una o varias áreas dentro del mismo expediente: climatización/aerotermia, fontanería, electricidad, ventilación, extracción, aire acondicionado y control de humedad.",
       "Las especialidades comparten cliente, inmueble, catálogo técnico, propuestas, partidas, presupuesto, dosier, documentos e historial.",
+      "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
+      "En Configurar extracción añade una o varias zonas e indica nombre o uso, tipo de captación, superficie y altura.",
+      "El caudal de cada zona puede obtenerse mediante renovaciones por hora o escribirse directamente en m³/h.",
+      "Para un recorrido con conducto puedes indicar forma circular o rectangular, dimensiones en mm, longitud en m, codos, bocas o rejillas, compuertas y una presión adicional en Pa.",
+      "Zentryx calcula de forma preliminar el volumen de la zona, el caudal, la velocidad del aire y una pérdida de presión aproximada. El resultado debe contrastarse con el método reglamentario y con los datos reales del fabricante cuando corresponda.",
+      "La extracción permite indicar simultaneidad y margen de selección. El resumen muestra caudal de diseño y presión de diseño del recorrido más desfavorable.",
+      "En Extractor del catálogo técnico aparecen los artículos clasificados como Extracción. Si la ficha contiene Caudal de aire y Presión disponible, Zentryx los compara con el cálculo y avisa si la selección necesita revisión.",
+      "Al guardar la extracción se conserva una copia de la ficha técnica del extractor seleccionado. Los cambios posteriores del catálogo no alteran esa copia mientras no cambies expresamente el extractor.",
       "Guarda para abrir la ficha en modo consulta. Usa Editar desde la parte superior cuando necesites cambiar datos.",
       "En Instalación y generadores puedes añadir varias fuentes existentes o previstas e indicar sus servicios, potencia y estado.",
       "En equipos existentes puedes indicar si se conservan o se retiran. Los equipos nuevos o previstos no muestran esa decisión.",
@@ -1668,7 +1677,7 @@ const BASE=[
       "Una opción enviada o aceptada permite consultar el dosier guardado, pero ya no cambiar su diseño.",
       "Cuando la opción está aceptada, el cierre del dosier muestra la aceptación registrada y el pie del documento la identifica como propuesta aceptada, no como vista previa."
     ],
-    palabras:"proyecto multidisciplinar especialidades fontaneria electricidad ventilacion extraccion aire acondicionado humedad estancias calculo por estancias estudio presupuesto catalogo tecnico ficha tecnica equipo termico materiales marca modelo referencia cop scop eer seer rendimiento temperatura maxima impulsion foto cliente notas aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot empresa configuracion valores comunes contacto telefono email web"
+    palabras:"proyecto multidisciplinar especialidades fontaneria electricidad ventilacion extraccion extractor caudal m3h renovaciones conducto circular rectangular velocidad aire presion pa codos rejillas compuertas simultaneidad margen aire acondicionado humedad estancias calculo por estancias estudio presupuesto catalogo tecnico ficha tecnica equipo termico materiales marca modelo referencia cop scop eer seer rendimiento temperatura maxima impulsion foto cliente notas aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot empresa configuracion valores comunes contacto telefono email web"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
