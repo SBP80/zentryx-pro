@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1069 - PROYECTOS: EXTRACCIÓN V2 CON ASISTENTE NORMATIVO CTE HS 3 / RITE Y CONTROL TERRITORIAL
 // V1068 - PROYECTOS: EXTRACCIÓN V1 CON ZONAS, CAUDALES, CONDUCTOS Y EXTRACTOR
 // V1067 - PROYECTOS MULTIDISCIPLINARES + CÁLCULO TÉCNICO POR ESTANCIAS
 // V1066 - FICHAJE: DURACIONES h:min:s Y KILOMETRAJE EN km
@@ -13,7 +14,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1068";
+const ZX_VERSION="1069";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1626,12 +1627,17 @@ const BASE=[
       "En Especialidades del proyecto puedes activar una o varias áreas dentro del mismo expediente: climatización/aerotermia, fontanería, electricidad, ventilación, extracción, aire acondicionado y control de humedad.",
       "Las especialidades comparten cliente, inmueble, catálogo técnico, propuestas, partidas, presupuesto, dosier, documentos e historial.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
-      "En Configurar extracción añade una o varias zonas e indica nombre o uso, tipo de captación, superficie y altura.",
-      "El caudal de cada zona puede obtenerse mediante renovaciones por hora o escribirse directamente en m³/h.",
-      "Para un recorrido con conducto puedes indicar forma circular o rectangular, dimensiones en mm, longitud en m, codos, bocas o rejillas, compuertas y una presión adicional en Pa.",
-      "Zentryx calcula de forma preliminar el volumen de la zona, el caudal, la velocidad del aire y una pérdida de presión aproximada. El resultado debe contrastarse con el método reglamentario y con los datos reales del fabricante cuando corresponda.",
-      "La extracción permite indicar simultaneidad y margen de selección. El resumen muestra caudal de diseño y presión de diseño del recorrido más desfavorable.",
+      "Extracción abre por defecto en Asistente normativo. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
+      "Para obras en España, el asistente aplica CTE DB HS 3 a viviendas, cocinas, garajes, trasteros y almacenes de residuos; para otros locales usa los criterios de calidad de aire del RITE cuando el método seleccionado es aplicable.",
+      "En viviendas, selecciona el grupo de dormitorios y clasifica cada zona como baño, aseo, cocina de ventilación general o zona de cocción. Zentryx calcula el caudal mínimo exigido por CTE DB HS 3.",
+      "La zona de cocción se identifica como extracción independiente y usa el mínimo reglamentario específico. Los garajes se calculan por plazas; trasteros y almacenes de residuos por superficie útil.",
+      "Para conductos de extracción mecánica cubiertos por CTE DB HS 3, Zentryx calcula la sección mínima reglamentaria y propone el siguiente diámetro circular comercial que la cumple.",
+      "Solo necesitas indicar el recorrido aproximado y los elementos físicos que realmente existan, como longitud, codos, bocas o rejillas y compuertas. La velocidad y la pérdida aproximada se calculan automáticamente.",
+      "El Modo avanzado conserva renovaciones por hora, caudal directo, dimensiones manuales del conducto y presión adicional para casos en los que existan datos concretos de proyecto, fabricante o técnico.",
+      "En Asistente normativo la simultaneidad no puede reducir el caudal mínimo reglamentario. El margen se aplica únicamente para seleccionar el extractor.",
       "En Extractor del catálogo técnico aparecen los artículos clasificados como Extracción. Si la ficha contiene Caudal de aire y Presión disponible, Zentryx los compara con el cálculo y avisa si la selección necesita revisión.",
+      "Cada guardado normativo conserva la norma, el conjunto de reglas, fecha de verificación, ubicación, datos usados y resultados. Para obras en Madrid ciudad, Zentryx identifica además la Ordenanza 4/2021 de Calidad del Aire y Sostenibilidad y la Guía municipal de comprobaciones de ventilación versión enero de 2026; las comprobaciones del punto de evacuación quedan marcadas como pendientes hasta registrarlas.",
+      "Si la revisión autonómica o municipal no está completada, la ficha lo muestra como pendiente y el cálculo no debe considerarse cierre normativo definitivo.",
       "Al guardar la extracción se conserva una copia de la ficha técnica del extractor seleccionado. Los cambios posteriores del catálogo no alteran esa copia mientras no cambies expresamente el extractor.",
       "Guarda para abrir la ficha en modo consulta. Usa Editar desde la parte superior cuando necesites cambiar datos.",
       "En Instalación y generadores puedes añadir varias fuentes existentes o previstas e indicar sus servicios, potencia y estado.",
@@ -1642,7 +1648,7 @@ const BASE=[
       "En Cálculo térmico pulsa Nuevo cálculo para registrar una versión del estudio sin modificar las versiones anteriores.",
       "Selecciona si es estimación rápida, cálculo técnico, cálculo manual u otro.",
       "En Cálculo técnico puedes añadir estancias y registrar nombre o uso, superficie, altura, orientación, paredes exteriores, huecos, aislamiento, ventilación o infiltraciones y ocupantes.",
-      "Zentryx calcula de forma orientativa la carga de calefacción y refrigeración de cada estancia y el total del inmueble. El formulario avisa de que este cálculo preliminar no sustituye un cálculo reglamentario o una herramienta de ingeniería cuando sea exigible.",
+      "El cálculo térmico por estancias actual queda identificado como preliminar. No debe cerrarse como cálculo reglamentario hasta que el motor normativo de climatización aplique las condiciones vigentes correspondientes a la ubicación de la obra y registre las normas empleadas.",
       "Registra las cargas de calefacción y refrigeración en kW, el ACS recomendado en L y la temperatura de impulsión recomendada en °C.",
       "Cada cálculo queda fechado, asociado al usuario y registrado también en el historial del proyecto.",
       "En Estrategia híbrida crea una opción técnica. Cada opción puede usar un cálculo de referencia distinto y mantiene sus propias reglas.",
