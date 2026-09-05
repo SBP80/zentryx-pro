@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1039
+// ZENTRYX PRO - PROYECTOS V1040
+// V1040 - REGLAS: CONTROL DE SIGNO +/- PARA TEMPERATURAS EN IPHONE/PWA
 // V1039 - GENERADORES NUEVOS: PAPEL PREVISTO SIEMPRE VISIBLE Y EDITABLE
 // V1038 - ESTRATEGIA: EXCLUIR ARTÍCULOS NO GENERADORES DE LAS REGLAS HÍBRIDAS + ETIQUETAS MÁS CLARAS
 // V1037 - ESTRATEGIA: MOSTRAR EN LA PROPIA PANTALLA EL CÁLCULO DE REFERENCIA Y SUS RESULTADOS PRINCIPALES
@@ -20,7 +21,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1039";
+const ZX_VERSION="1040";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -943,6 +944,17 @@ function opcionesGeneradores(sel){
   return html+xs.map(g=>`<option value="${limpiar(g.id)}" ${String(sel)===String(g.id)?"selected":""}>${limpiar(nombreGeneradorId(g.id))}</option>`).join("");
 }
 function unidadCondicion(tipo){return ({temp_ext_menor:"°C",temp_ext_mayor:"°C",demanda_mayor:"kW",deposito_menor:"°C",excedente_fv_mayor:"kW",coste_energia:"€/kWh",horario:"h"})[tipo]||""}
+function condicionTemperatura(tipo){return ["temp_ext_menor","temp_ext_mayor","deposito_menor"].includes(tipo)}
+function magnitudValorRegla(r){
+  if(!r||r.valor==null||r.valor==="")return "";
+  const s=String(r.valor).trim();
+  return condicionTemperatura(r.condicion_tipo)?s.replace(/^[-+]/,""):s;
+}
+function signoValorRegla(r){
+  if(!r||r.valor==null||r.valor==="")return r&&r.condicion_tipo==="temp_ext_menor"?"-1":"1";
+  const n=Number(String(r.valor).trim().replace(",","."));
+  return Number.isFinite(n)&&n<0?"-1":"1";
+}
 function formularioRegla(p,op,r){
   if(propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}
   r=r||{};const nueva=!r.id;
@@ -952,17 +964,25 @@ function formularioRegla(p,op,r){
     <div class="zx_pr_grid2"><label>Servicio<select id="pr_rule_serv">${[["calefaccion","Calefacción"],["acs","ACS"],["refrigeracion","Refrigeración"],["piscina","Piscina"],["todos","Todos los servicios"]].map(([v,t])=>`<option value="${v}" ${r.servicio===v?"selected":""}>${t}</option>`).join("")}</select></label><label>Prioridad <span class="zx_pr_unit">orden</span><input id="pr_rule_prio" type="number" min="1" step="1" inputmode="numeric" value="${r.prioridad||reglasPropuesta(op).length+1}"></label></div>
     <label>Acción<select id="pr_rule_acc">${[["usar","Usar"],["priorizar","Priorizar"],["apoyo","Entrar como apoyo"],["simultaneo","Trabajar simultáneamente"],["reserva","Entrar como reserva"],["activar","Activar"],["bloquear","Bloquear"]].map(([v,t])=>`<option value="${v}" ${r.accion===v?"selected":""}>${t}</option>`).join("")}</select></label>
     <label>Condición<select id="pr_rule_cond">${[["siempre","Siempre"],["manual","Orden manual"],["fallo_generador","Fallo de otro generador"],["temp_ext_menor","Temperatura exterior menor que"],["temp_ext_mayor","Temperatura exterior mayor que"],["demanda_mayor","Demanda mayor que"],["deposito_menor","Temperatura de depósito menor que"],["excedente_fv_mayor","Excedente fotovoltaico mayor que"],["coste_energia","Coste de energía"],["horario","Horario"]].map(([v,t])=>`<option value="${v}" ${r.condicion_tipo===v?"selected":""}>${t}</option>`).join("")}</select></label>
-    <div id="pr_rule_value_wrap" class="zx_pr_grid2"><label>Valor <span id="pr_rule_unit" class="zx_pr_unit"></span><input id="pr_rule_val" type="text" inputmode="decimal" value="${r.valor!=null?limpiar(r.valor):""}"></label><label id="pr_rule_ref_wrap">Generador relacionado<select id="pr_rule_ref">${opcionesGeneradores(r.generador_referencia_id)}</select></label></div>
+    <div id="pr_rule_value_wrap" class="zx_pr_grid2"><label>Valor <span id="pr_rule_unit" class="zx_pr_unit"></span><div id="pr_rule_signed" class="zx_pr_signed"><button id="pr_rule_sign" type="button" class="zx_pr_sign" data-sign="${signoValorRegla(r)}" aria-label="Cambiar signo">${signoValorRegla(r)==="-1"?"−":"+"}</button><input id="pr_rule_val" type="text" inputmode="decimal" value="${limpiar(magnitudValorRegla(r))}"></div></label><label id="pr_rule_ref_wrap">Generador relacionado<select id="pr_rule_ref">${opcionesGeneradores(r.generador_referencia_id)}</select></label></div>
     <label>Notas<textarea id="pr_rule_notes" rows="4" placeholder="Explicación o condición adicional…">${limpiar(r.notas||"")}</textarea></label>`);
-  const cond=m.querySelector("#pr_rule_cond"),wrap=m.querySelector("#pr_rule_value_wrap"),unit=m.querySelector("#pr_rule_unit"),ref=m.querySelector("#pr_rule_ref_wrap"),genSel=m.querySelector("#pr_rule_gen"),genInfo=m.querySelector("#pr_rule_gen_info");
+  const cond=m.querySelector("#pr_rule_cond"),wrap=m.querySelector("#pr_rule_value_wrap"),unit=m.querySelector("#pr_rule_unit"),ref=m.querySelector("#pr_rule_ref_wrap"),genSel=m.querySelector("#pr_rule_gen"),genInfo=m.querySelector("#pr_rule_gen_info"),signed=m.querySelector("#pr_rule_signed"),signBtn=m.querySelector("#pr_rule_sign"),valInput=m.querySelector("#pr_rule_val");
   const syncGen=()=>{const id=genSel.value,hay=generadoresValidosEstrategia().length>0;genInfo.textContent=id?"Seleccionado · "+nombreGeneradorId(id):(hay?"Selecciona un generador":"No hay generadores térmicos válidos en este proyecto.");genInfo.classList.toggle("is-empty",!id)};genSel.onchange=syncGen;syncGen();
-  const sync=()=>{const t=cond.value,u=unidadCondicion(t),needsVal=!!u,needsRef=t==="fallo_generador";unit.textContent=u;wrap.style.display=(needsVal||needsRef)?"grid":"none";m.querySelector("#pr_rule_val").closest("label").style.display=needsVal?"grid":"none";ref.style.display=needsRef?"grid":"none"};cond.onchange=sync;sync();
+  const sync=()=>{const t=cond.value,u=unidadCondicion(t),needsVal=!!u,needsRef=t==="fallo_generador",isTemp=condicionTemperatura(t);unit.textContent=u;wrap.style.display=(needsVal||needsRef)?"grid":"none";valInput.closest("label").style.display=needsVal?"grid":"none";ref.style.display=needsRef?"grid":"none";signed.style.gridTemplateColumns=isTemp?"54px minmax(0,1fr)":"1fr";signBtn.style.display=isTemp?"":"none";if(isTemp&&valInput.value===""&&t==="temp_ext_menor"){signBtn.dataset.sign="-1";signBtn.textContent="−"}};
+  signBtn.onclick=()=>{const neg=signBtn.dataset.sign!=="-1";signBtn.dataset.sign=neg?"-1":"1";signBtn.textContent=neg?"−":"+"};
+  cond.onchange=sync;sync();
   m.querySelector("#pr_rule_back").onclick=()=>abrirEstrategia(p,op.id);m.querySelector("#pr_rule_save").onclick=()=>guardarRegla(p,op,r);
 }
 async function guardarRegla(p,op,r){
   if(propuestaBloqueada(op)){alert("Esta opción está bloqueada.");return}
   const gen=document.getElementById("pr_rule_gen").value;if(!gen){alert("Selecciona un generador.");return}
-  const cond=document.getElementById("pr_rule_cond").value,valor=document.getElementById("pr_rule_val").value.trim(),unidad=unidadCondicion(cond);
+  const cond=document.getElementById("pr_rule_cond").value,unidad=unidadCondicion(cond),valorBase=document.getElementById("pr_rule_val").value.trim();
+  let valor=valorBase;
+  if(unidad&&valorBase!==""&&condicionTemperatura(cond)){
+    const limpio=valorBase.replace(/^[-+]/,"");
+    const neg=document.getElementById("pr_rule_sign").dataset.sign==="-1";
+    valor=(neg?"-":"")+limpio;
+  }
   const regla={id:r.id||uidRegla(),generador_id:gen,servicio:document.getElementById("pr_rule_serv").value,prioridad:Number(document.getElementById("pr_rule_prio").value)||1,accion:document.getElementById("pr_rule_acc").value,condicion_tipo:cond,valor:unidad&&valor!==""?valor:null,unidad:unidad||null,generador_referencia_id:cond==="fallo_generador"?(document.getElementById("pr_rule_ref").value||null):null,notas:document.getElementById("pr_rule_notes").value.trim()||null};
   const rs=reglasPropuesta(op).filter(x=>String(x.id)!==String(regla.id));rs.push(regla);rs.sort((a,b)=>(Number(a.prioridad)||99)-(Number(b.prioridad)||99));
   const btn=document.getElementById("pr_rule_save");btn.disabled=true;btn.textContent="Guardando…";
