@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1038
+// ZENTRYX PRO - PROYECTOS V1039
+// V1039 - GENERADORES NUEVOS: PAPEL PREVISTO SIEMPRE VISIBLE Y EDITABLE
 // V1038 - ESTRATEGIA: EXCLUIR ARTÍCULOS NO GENERADORES DE LAS REGLAS HÍBRIDAS + ETIQUETAS MÁS CLARAS
 // V1037 - ESTRATEGIA: MOSTRAR EN LA PROPIA PANTALLA EL CÁLCULO DE REFERENCIA Y SUS RESULTADOS PRINCIPALES
 // V1036 - OPCIONES TÉCNICAS: PERMITIR CAMBIAR NOMBRE, CÁLCULO DE REFERENCIA Y DESCRIPCIÓN MIENTRAS ESTÉN EN BORRADOR/EDITABLES
@@ -19,7 +20,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1038";
+const ZX_VERSION="1039";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -534,7 +535,7 @@ function generadoresHTML(){
         <div><span>Marca / modelo</span><b>${limpiar([g.marca,g.modelo].filter(Boolean).join(" ")||"Sin indicar")}</b></div>
         <div><span>Potencia</span><b>${g.potencia_kw!=null?limpiar(g.potencia_kw)+" kW":"Sin indicar"}</b></div>
         <div><span>Estado</span><b>${limpiar(g.estado||"Sin indicar")}</b></div>
-        <div><span>Futuro papel</span><b>${limpiar(textoRol(meta.rol_futuro))}</b></div>
+        <div><span>Papel previsto</span><b>${limpiar(textoRol(meta.rol_futuro))}</b></div>
       </div>
       ${fs.length?`<div class="zx_pr_gen_tags">${fs.map(x=>`<span>${limpiar(({calefaccion:"Calefacción",acs:"ACS",refrigeracion:"Refrigeración",piscina:"Piscina"})[x]||x)}</span>`).join("")}</div>`:""}
       <div class="zx_pr_gen_decision">${g.existente===false?"Equipo previsto":(g.se_retira?"Se retirará":g.se_mantiene?"Se conserva":"Pendiente de decidir")}${meta.material_catalogo_id?" · Catálogo técnico":""}</div>
@@ -565,12 +566,13 @@ function formularioGenerador(p,g){
     <div class="zx_pr_section" id="pr_gen_decision_section"><h3>Decisión sobre este equipo</h3><div class="zx_pr_checks zx_pr_checks_decision">
       <label><input id="pr_gen_mantiene" type="checkbox" ${g?g.se_mantiene!==false:"checked"}><span>Se conserva</span></label>
       <label><input id="pr_gen_retira" type="checkbox" ${g&&g.se_retira?"checked":""}><span>Se retira</span></label>
-    </div><label class="zx_pr_role">Papel previsto si se conserva<select id="pr_gen_rol"><option value="">Sin definir</option>${["principal","apoyo","emergencia","alternativo","simultaneo","solo_acs","solo_calefaccion","manual"].map(x=>`<option value="${x}" ${meta.rol_futuro===x?"selected":""}>${limpiar(textoRol(x))}</option>`).join("")}</select></label></div>
+    </div></div>
+    <label class="zx_pr_role"><span id="pr_gen_role_label">Papel previsto${g&&g.existente!==false?" si se conserva":""}</span><select id="pr_gen_rol"><option value="">Sin definir</option>${["principal","apoyo","emergencia","alternativo","simultaneo","solo_acs","solo_calefaccion","manual"].map(x=>`<option value="${x}" ${meta.rol_futuro===x?"selected":""}>${limpiar(textoRol(x))}</option>`).join("")}</select></label>
     <label>Notas<textarea id="pr_gen_notas" rows="4" placeholder="Estado, conexión actual, observaciones de visita…">${limpiar(g&&g.notas||"")}</textarea></label>
     ${!nuevo?`<button id="pr_gen_delete" class="zx_pr_danger" type="button">Eliminar generador</button>`:""}`);
   m.querySelector("#pr_gen_back").onclick=()=>{cerrarModal();abrirFicha(p.id)};
-  const man=m.querySelector("#pr_gen_mantiene"),ret=m.querySelector("#pr_gen_retira"),sit=m.querySelector("#pr_gen_existente"),dec=m.querySelector("#pr_gen_decision_section"),cat=m.querySelector("#pr_gen_catalogo"),catInfo=m.querySelector("#pr_gen_catalogo_info");
-  const ajustarDecision=()=>{const existente=sit.value==="1";dec.style.display=existente?"":"none";if(!existente){man.checked=false;ret.checked=false}};
+  const man=m.querySelector("#pr_gen_mantiene"),ret=m.querySelector("#pr_gen_retira"),sit=m.querySelector("#pr_gen_existente"),dec=m.querySelector("#pr_gen_decision_section"),roleLabel=m.querySelector("#pr_gen_role_label"),cat=m.querySelector("#pr_gen_catalogo"),catInfo=m.querySelector("#pr_gen_catalogo_info");
+  const ajustarDecision=()=>{const existente=sit.value==="1";dec.style.display=existente?"":"none";if(roleLabel)roleLabel.textContent=existente?"Papel previsto si se conserva":"Papel previsto";if(!existente){man.checked=false;ret.checked=false}};
   const aplicarCatalogo=()=>{const mat=MATERIALES.find(x=>String(x.id)===String(cat.value));if(!mat){catInfo.textContent="Opcional · selecciona un generador para rellenar sus datos.";catInfo.classList.add("is-empty");return}const t=tecnicoMaterial(mat);m.querySelector("#pr_gen_tipo").value=t.tipo_generador||"otro";m.querySelector("#pr_gen_subtipo").value=t.subtipo||"";m.querySelector("#pr_gen_marca").value=mat.marca||"";m.querySelector("#pr_gen_modelo").value=mat.modelo||"";m.querySelector("#pr_gen_ref").value=mat.referencia||"";const kw=t.potencia_calefaccion_kw!=null?t.potencia_calefaccion_kw:(t.potencia_refrigeracion_kw!=null?t.potencia_refrigeracion_kw:"");m.querySelector("#pr_gen_kw").value=kw;document.querySelectorAll("[data-pr-func]").forEach(x=>x.checked=serviciosTecnicosMeta(t).includes(x.dataset.prFunc));m.querySelector("#pr_gen_foto_dosier").value=t.foto_comercial_url||t.foto_url||"";m.querySelector("#pr_gen_desc_cliente").value=t.descripcion_cliente||"";catInfo.textContent="Datos copiados de "+(materialTexto(mat)||mat.nombre||"generador")+". Se guardará una foto fija en el proyecto.";catInfo.classList.remove("is-empty")};
   man.dataset.prDecisionTouched="0";ret.dataset.prDecisionTouched="0";sit.dataset.prDecisionTouched="0";
   cat.onchange=aplicarCatalogo;
