@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1067 - PROYECTOS MULTIDISCIPLINARES + CÁLCULO TÉCNICO POR ESTANCIAS
 // V1066 - FICHAJE: DURACIONES h:min:s Y KILOMETRAJE EN km
 // V1065 - ACCIONES SUPERIORES COMPLETAS + MEDIDA GUIADA EN MATERIALES DE TRABAJOS
 // V1064 - DATOS TÉCNICOS AUTOMÁTICOS + ACCIONES SUPERIORES Y MEDIDAS VISIBLES
@@ -11,7 +12,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1066";
+const ZX_VERSION="1067";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1605,7 +1606,7 @@ const BASE=[
   },
   {
     id:"proyectos",icono:"📐",titulo:"Proyectos",roles:["todos"],
-    resumen:"Estudios técnicos vinculados a clientes, direcciones e instalaciones existentes.",
+    resumen:"Estudios técnicos multidisciplinares vinculados a clientes, direcciones e instalaciones existentes.",
     pasos:[
       "Entra en Proyectos. Si necesitas preparar datos técnicos de materiales o equipos, pulsa Catálogo técnico; para iniciar un estudio, pulsa Crear proyecto.",
       "El Catálogo técnico usa los artículos activos que ya existen en Materiales y permite buscar por artículo, categoría, dato técnico o referencia.",
@@ -1620,7 +1621,9 @@ const BASE=[
       "Cuando guardas el generador, el proyecto conserva una copia de los datos técnicos usados. Si después cambia la ficha del catálogo, el generador ya guardado mantiene su copia anterior.",
       "Selecciona un cliente existente y una de sus direcciones guardadas.",
       "Indica el tipo y estado del proyecto, y asigna comercial o técnico si corresponde.",
-      "Registra los datos iniciales del inmueble; las cantidades muestran su unidad junto al campo.",
+      "Registra los datos iniciales del inmueble; las cantidades muestran su medida junto al campo.",
+      "En Especialidades del proyecto puedes activar una o varias áreas dentro del mismo expediente: climatización/aerotermia, fontanería, electricidad, ventilación, extracción, aire acondicionado y control de humedad.",
+      "Las especialidades comparten cliente, inmueble, catálogo técnico, propuestas, partidas, presupuesto, dosier, documentos e historial.",
       "Guarda para abrir la ficha en modo consulta. Usa Editar desde la parte superior cuando necesites cambiar datos.",
       "En Instalación y generadores puedes añadir varias fuentes existentes o previstas e indicar sus servicios, potencia y estado.",
       "En equipos existentes puedes indicar si se conservan o se retiran. Los equipos nuevos o previstos no muestran esa decisión.",
@@ -1628,7 +1631,9 @@ const BASE=[
       "En Emisores y circuitos registra cada sistema por zona: suelo radiante, radiadores, fancoils, conductos, aerotermos, piscina u otro.",
       "Para cada emisor puedes indicar si ya existe o está previsto, temperaturas de impulsión y retorno, potencia, cantidad con su unidad y si trabaja en calefacción o refrigeración.",
       "En Cálculo térmico pulsa Nuevo cálculo para registrar una versión del estudio sin modificar las versiones anteriores.",
-      "Selecciona si es estimación rápida, cálculo técnico, cálculo manual u otro, e indica la superficie y temperaturas utilizadas.",
+      "Selecciona si es estimación rápida, cálculo técnico, cálculo manual u otro.",
+      "En Cálculo técnico puedes añadir estancias y registrar nombre o uso, superficie, altura, orientación, paredes exteriores, huecos, aislamiento, ventilación o infiltraciones y ocupantes.",
+      "Zentryx calcula de forma orientativa la carga de calefacción y refrigeración de cada estancia y el total del inmueble. El formulario avisa de que este cálculo preliminar no sustituye un cálculo reglamentario o una herramienta de ingeniería cuando sea exigible.",
       "Registra las cargas de calefacción y refrigeración en kW, el ACS recomendado en L y la temperatura de impulsión recomendada en °C.",
       "Cada cálculo queda fechado, asociado al usuario y registrado también en el historial del proyecto.",
       "En Estrategia híbrida crea una opción técnica. Cada opción puede usar un cálculo de referencia distinto y mantiene sus propias reglas.",
@@ -1663,7 +1668,7 @@ const BASE=[
       "Una opción enviada o aceptada permite consultar el dosier guardado, pero ya no cambiar su diseño.",
       "Cuando la opción está aceptada, el cierre del dosier muestra la aceptación registrada y el pie del documento la identifica como propuesta aceptada, no como vista previa."
     ],
-    palabras:"proyecto estudio presupuesto catalogo tecnico ficha tecnica equipo termico materiales marca modelo referencia cop scop eer seer rendimiento temperatura maxima impulsion foto cliente notas aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot empresa configuracion valores comunes contacto telefono email web"
+    palabras:"proyecto multidisciplinar especialidades fontaneria electricidad ventilacion extraccion aire acondicionado humedad estancias calculo por estancias estudio presupuesto catalogo tecnico ficha tecnica equipo termico materiales marca modelo referencia cop scop eer seer rendimiento temperatura maxima impulsion foto cliente notas aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot empresa configuracion valores comunes contacto telefono email web"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
