@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1072 - EXTRACCIÓN GUIADA: SOLO CAMPOS APLICABLES SEGÚN EL USO
 // V1071 - PROYECTOS: ASISTENTE GUIADO + TÉCNICO EN EXTRACCIÓN Y CLIMATIZACIÓN
 // V1070 - PROYECTOS: EXTRACCIÓN V3 CON SISTEMAS SEPARADOS, EXTRACTOR POR SISTEMA Y ALTA GUIADA
 // V1069 - PROYECTOS: EXTRACCIÓN V2 CON ASISTENTE NORMATIVO CTE HS 3 / RITE Y CONTROL TERRITORIAL
@@ -16,7 +17,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1070";
+const ZX_VERSION="1072";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1635,7 +1636,7 @@ const BASE=[
       "Al pulsar Añadir zona, la pantalla se desplaza hasta la nueva zona y la marca brevemente para evitar altas repetidas por error. Al seleccionar un uso reglamentario, Zentryx propone automáticamente un nombre si el campo está vacío; puedes cambiarlo después.",
       "La zona de cocción se identifica como extracción independiente y usa el mínimo reglamentario específico. Los garajes se calculan por plazas; trasteros y almacenes de residuos por superficie útil.",
       "Para conductos de extracción mecánica cubiertos por CTE DB HS 3, Zentryx calcula la sección mínima reglamentaria y propone el siguiente diámetro circular comercial que la cumple.",
-      "En Asistente guiado solo necesitas indicar datos observables: qué espacio es, longitud aproximada del recorrido, giros, bocas o rejillas y compuertas si existen. Cada campo explica cómo obtener el dato. La velocidad, la pérdida aproximada, el caudal y la propuesta de conducto se calculan automáticamente.",
+      "En Asistente guiado solo necesitas indicar datos observables que correspondan al uso elegido: qué espacio es y, cuando haga falta, superficie, plazas u ocupantes; después el recorrido que puedas medir o contar. Los campos que no intervienen en la regla aplicable se ocultan. Cada campo explica cómo obtener el dato. La velocidad, la pérdida aproximada, el caudal y la propuesta de conducto se calculan automáticamente.",
       "Técnico muestra renovaciones por hora, caudal directo, dimensiones manuales del conducto y presión adicional para casos en los que existan datos concretos de proyecto, medición, fabricante o técnico.",
       "En Asistente guiado la simultaneidad no puede reducir el caudal mínimo reglamentario. El margen se aplica únicamente para seleccionar el extractor.",
       "Zentryx separa los sistemas que no deben compartir extractor. La ventilación general de vivienda y la extracción independiente de la zona de cocción muestran por separado su caudal de diseño, presión de diseño y extractor.",
