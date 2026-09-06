@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1073 - EXTRACCIÓN: SEPARAR AIRE EXTERIOR RITE DE LOS CÁLCULOS DE EXTRACCIÓN
 // V1072 - EXTRACCIÓN GUIADA: SOLO CAMPOS APLICABLES SEGÚN EL USO
 // V1071 - PROYECTOS: ASISTENTE GUIADO + TÉCNICO EN EXTRACCIÓN Y CLIMATIZACIÓN
 // V1070 - PROYECTOS: EXTRACCIÓN V3 CON SISTEMAS SEPARADOS, EXTRACTOR POR SISTEMA Y ALTA GUIADA
@@ -17,7 +18,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1072";
+const ZX_VERSION="1073";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1631,12 +1632,12 @@ const BASE=[
       "Las especialidades comparten cliente, inmueble, catálogo técnico, propuestas, partidas, presupuesto, dosier, documentos e historial.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
-      "Para obras en España, el asistente aplica CTE DB HS 3 a viviendas, cocinas, garajes, trasteros y almacenes de residuos; para otros locales usa los criterios de calidad de aire del RITE cuando el método seleccionado es aplicable.",
+      "Para obras en España, el asistente aplica CTE DB HS 3 a viviendas, cocinas, garajes, trasteros y almacenes de residuos. El caudal por persona asociado a categorías IDA del RITE corresponde al aire exterior de ventilación y no se usa como si fuera caudal de extracción. Los locales no residenciales que requieran RITE deben tratar la ventilación exterior por separado; la extracción se comprueba con IT 1.1.4.2.5 y con el método que corresponda al uso.",
       "En viviendas, selecciona el grupo de dormitorios y clasifica cada zona como baño, aseo, cocina de ventilación general o zona de cocción. Zentryx calcula el caudal mínimo exigido por CTE DB HS 3 y muestra el reparto entre locales húmedos como propuesta de Zentryx.",
       "Al pulsar Añadir zona, la pantalla se desplaza hasta la nueva zona y la marca brevemente para evitar altas repetidas por error. Al seleccionar un uso reglamentario, Zentryx propone automáticamente un nombre si el campo está vacío; puedes cambiarlo después.",
       "La zona de cocción se identifica como extracción independiente y usa el mínimo reglamentario específico. Los garajes se calculan por plazas; trasteros y almacenes de residuos por superficie útil.",
       "Para conductos de extracción mecánica cubiertos por CTE DB HS 3, Zentryx calcula la sección mínima reglamentaria y propone el siguiente diámetro circular comercial que la cumple.",
-      "En Asistente guiado solo necesitas indicar datos observables que correspondan al uso elegido: qué espacio es y, cuando haga falta, superficie, plazas u ocupantes; después el recorrido que puedas medir o contar. Los campos que no intervienen en la regla aplicable se ocultan. Cada campo explica cómo obtener el dato. La velocidad, la pérdida aproximada, el caudal y la propuesta de conducto se calculan automáticamente.",
+      "En Asistente guiado solo necesitas indicar datos observables que correspondan al uso elegido: qué espacio es y, cuando haga falta, superficie o plazas; después el recorrido que puedas medir o contar. Los campos que no intervienen en la regla aplicable se ocultan. Cada campo explica cómo obtener el dato. La velocidad, la pérdida aproximada, el caudal y la propuesta de conducto se calculan automáticamente.",
       "Técnico muestra renovaciones por hora, caudal directo, dimensiones manuales del conducto y presión adicional para casos en los que existan datos concretos de proyecto, medición, fabricante o técnico.",
       "En Asistente guiado la simultaneidad no puede reducir el caudal mínimo reglamentario. El margen se aplica únicamente para seleccionar el extractor.",
       "Zentryx separa los sistemas que no deben compartir extractor. La ventilación general de vivienda y la extracción independiente de la zona de cocción muestran por separado su caudal de diseño, presión de diseño y extractor.",
