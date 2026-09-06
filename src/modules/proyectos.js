@@ -1,6 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1050
-// V1050 - EXTRACCIÓN TÉCNICA: CAUDAL MANUAL + MÍNIMO LOCAL CTE + REPARTO REGLAMENTARIO + CAUDAL ADOPTADO
+// ZENTRYX PRO - PROYECTOS V1051
+// V1051 - EXTRACCIÓN: CONSERVA PRESIÓN ADICIONAL TÉCNICA TRAS GUARDAR
 // V1049 - EXTRACCIÓN TÉCNICA: COMPARAR CAUDAL MANUAL CON REGLA APLICADA + ADOPTAR CAUDAL REQUERIDO + TEXTO POR MODO + ALTA DE ZONA EN FOCO
 // V1048 - EXTRACCIÓN: RETIRAR CÁLCULO IDA/RITE DE APORTE DE AIRE DEL FLUJO DE EXTRACCIÓN
 // V1047 - EXTRACCIÓN GUIADA: OCULTAR CAMPOS NO APLICABLES SEGÚN EL USO
@@ -31,7 +31,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1050";
+const ZX_VERSION="1051";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -1821,7 +1821,7 @@ function calcZonaExtraccion(z,caudalForzado=null,diametroForzado=null){
 }
 function resumenExtraccion(p){
   const x=metaExtraccionProyecto(p),items=x.zonas.map((z,i)=>{
-    const qGuardado=Math.max(0,nExt(z.caudal_adoptado_m3h!=null?z.caudal_adoptado_m3h:z.caudal_calculo_m3h)),qNorm=Math.max(0,nExt(z.caudal_normativo_m3h)),qMinLocal=Math.max(0,nExt(z.caudal_minimo_local_m3h!=null?z.caudal_minimo_local_m3h:qNorm)),manualCalc=calcZonaExtraccion(z),normGuardado=!!(z.normativa_ref&&qGuardado>0),zz=normGuardado?Object.assign({},z,{presion_adicional_pa:0}):z,calc=qGuardado>0?calcZonaExtraccion(zz,qGuardado,z.diametro_recomendado_mm||null):manualCalc,norm={tipo:tipoNormativoZona(z),independiente:!!z.independiente_normativa,ref:z.normativa_ref||"",caudal_m3h:qNorm,minimo_local_m3h:qMinLocal,estado:qNorm>0?"ok":""};
+    const qGuardado=Math.max(0,nExt(z.caudal_adoptado_m3h!=null?z.caudal_adoptado_m3h:z.caudal_calculo_m3h)),qNorm=Math.max(0,nExt(z.caudal_normativo_m3h)),qMinLocal=Math.max(0,nExt(z.caudal_minimo_local_m3h!=null?z.caudal_minimo_local_m3h:qNorm)),manualCalc=calcZonaExtraccion(z),zonaCalculo=x.modo_asistente==="avanzado"?z:Object.assign({},z,{presion_adicional_pa:0}),calc=qGuardado>0?calcZonaExtraccion(zonaCalculo,qGuardado,z.diametro_recomendado_mm||null):manualCalc,norm={tipo:tipoNormativoZona(z),independiente:!!z.independiente_normativa,ref:z.normativa_ref||"",caudal_m3h:qNorm,minimo_local_m3h:qMinLocal,estado:qNorm>0?"ok":""};
     return {zona:z,norm,dim:null,manualCalc,caudal_minimo_local_m3h:qMinLocal,caudal_reglamentario_m3h:qNorm,caudal_adoptado_m3h:calc.caudal_m3h,manual_bajo_minimo:!!z.manual_bajo_minimo,calc};
   }).filter(x=>x.calc.caudal_m3h>0),modo=x.modo_asistente||"normativa",sim=modo==="normativa"?100:Math.min(100,Math.max(0,nExt(x.simultaneidad_pct,100))),margen=Math.max(0,nExt(x.margen_pct,10)),sistemas=sistemasExtraccionCalculados(items,modo,sim,margen);
   sistemas.forEach(sys=>{const g=seleccionSistemaGuardada(x,sys.clave),datos=datosExtractorTecnico(g.snapshot);sys.extractor_material_id=g.material_id;sys.extractor_snapshot=g.snapshot;sys.extractor=datos;sys.cumpleQ=datos.caudal_m3h==null?null:datos.caudal_m3h>=sys.caudal_diseno_m3h;sys.cumpleP=datos.presion_pa==null?null:datos.presion_pa>=sys.presion_diseno_pa});
