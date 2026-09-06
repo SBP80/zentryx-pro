@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1070 - PROYECTOS: EXTRACCIÓN V3 CON SISTEMAS SEPARADOS, EXTRACTOR POR SISTEMA Y ALTA GUIADA
 // V1069 - PROYECTOS: EXTRACCIÓN V2 CON ASISTENTE NORMATIVO CTE HS 3 / RITE Y CONTROL TERRITORIAL
 // V1068 - PROYECTOS: EXTRACCIÓN V1 CON ZONAS, CAUDALES, CONDUCTOS Y EXTRACTOR
 // V1067 - PROYECTOS MULTIDISCIPLINARES + CÁLCULO TÉCNICO POR ESTANCIAS
@@ -14,7 +15,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1069";
+const ZX_VERSION="1070";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1629,16 +1630,18 @@ const BASE=[
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente normativo. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
       "Para obras en España, el asistente aplica CTE DB HS 3 a viviendas, cocinas, garajes, trasteros y almacenes de residuos; para otros locales usa los criterios de calidad de aire del RITE cuando el método seleccionado es aplicable.",
-      "En viviendas, selecciona el grupo de dormitorios y clasifica cada zona como baño, aseo, cocina de ventilación general o zona de cocción. Zentryx calcula el caudal mínimo exigido por CTE DB HS 3.",
+      "En viviendas, selecciona el grupo de dormitorios y clasifica cada zona como baño, aseo, cocina de ventilación general o zona de cocción. Zentryx calcula el caudal mínimo exigido por CTE DB HS 3 y muestra el reparto entre locales húmedos como propuesta de Zentryx.",
+      "Al pulsar Añadir zona, la pantalla se desplaza hasta la nueva zona y la marca brevemente para evitar altas repetidas por error. Al seleccionar un uso reglamentario, Zentryx propone automáticamente un nombre si el campo está vacío; puedes cambiarlo después.",
       "La zona de cocción se identifica como extracción independiente y usa el mínimo reglamentario específico. Los garajes se calculan por plazas; trasteros y almacenes de residuos por superficie útil.",
       "Para conductos de extracción mecánica cubiertos por CTE DB HS 3, Zentryx calcula la sección mínima reglamentaria y propone el siguiente diámetro circular comercial que la cumple.",
       "Solo necesitas indicar el recorrido aproximado y los elementos físicos que realmente existan, como longitud, codos, bocas o rejillas y compuertas. La velocidad y la pérdida aproximada se calculan automáticamente.",
       "El Modo avanzado conserva renovaciones por hora, caudal directo, dimensiones manuales del conducto y presión adicional para casos en los que existan datos concretos de proyecto, fabricante o técnico.",
       "En Asistente normativo la simultaneidad no puede reducir el caudal mínimo reglamentario. El margen se aplica únicamente para seleccionar el extractor.",
-      "En Extractor del catálogo técnico aparecen los artículos clasificados como Extracción. Si la ficha contiene Caudal de aire y Presión disponible, Zentryx los compara con el cálculo y avisa si la selección necesita revisión.",
+      "Zentryx separa los sistemas que no deben compartir extractor. La ventilación general de vivienda y la extracción independiente de la zona de cocción muestran por separado su caudal de diseño, presión de diseño y extractor.",
+      "En cada selector de extractor aparecen los artículos clasificados como Extracción. Si la ficha contiene Caudal de aire y Presión disponible, Zentryx los compara con el cálculo de ese sistema y avisa si la selección necesita revisión.",
       "Cada guardado normativo conserva la norma, el conjunto de reglas, fecha de verificación, ubicación, datos usados y resultados. Para obras en Madrid ciudad, Zentryx identifica además la Ordenanza 4/2021 de Calidad del Aire y Sostenibilidad y la Guía municipal de comprobaciones de ventilación versión enero de 2026; las comprobaciones del punto de evacuación quedan marcadas como pendientes hasta registrarlas.",
       "Si la revisión autonómica o municipal no está completada, la ficha lo muestra como pendiente y el cálculo no debe considerarse cierre normativo definitivo.",
-      "Al guardar la extracción se conserva una copia de la ficha técnica del extractor seleccionado. Los cambios posteriores del catálogo no alteran esa copia mientras no cambies expresamente el extractor.",
+      "Al guardar la extracción se conserva una copia de la ficha técnica de cada extractor seleccionado. Los cambios posteriores del catálogo no alteran esas copias mientras no cambies expresamente el extractor de cada sistema.",
       "Guarda para abrir la ficha en modo consulta. Usa Editar desde la parte superior cuando necesites cambiar datos.",
       "En Instalación y generadores puedes añadir varias fuentes existentes o previstas e indicar sus servicios, potencia y estado.",
       "En equipos existentes puedes indicar si se conservan o se retiran. Los equipos nuevos o previstos no muestran esa decisión.",
