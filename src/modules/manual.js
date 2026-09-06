@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1071 - PROYECTOS: ASISTENTE GUIADO + TÉCNICO EN EXTRACCIÓN Y CLIMATIZACIÓN
 // V1070 - PROYECTOS: EXTRACCIÓN V3 CON SISTEMAS SEPARADOS, EXTRACTOR POR SISTEMA Y ALTA GUIADA
 // V1069 - PROYECTOS: EXTRACCIÓN V2 CON ASISTENTE NORMATIVO CTE HS 3 / RITE Y CONTROL TERRITORIAL
 // V1068 - PROYECTOS: EXTRACCIÓN V1 CON ZONAS, CAUDALES, CONDUCTOS Y EXTRACTOR
@@ -1628,15 +1629,15 @@ const BASE=[
       "En Especialidades del proyecto puedes activar una o varias áreas dentro del mismo expediente: climatización/aerotermia, fontanería, electricidad, ventilación, extracción, aire acondicionado y control de humedad.",
       "Las especialidades comparten cliente, inmueble, catálogo técnico, propuestas, partidas, presupuesto, dosier, documentos e historial.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
-      "Extracción abre por defecto en Asistente normativo. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
+      "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
       "Para obras en España, el asistente aplica CTE DB HS 3 a viviendas, cocinas, garajes, trasteros y almacenes de residuos; para otros locales usa los criterios de calidad de aire del RITE cuando el método seleccionado es aplicable.",
       "En viviendas, selecciona el grupo de dormitorios y clasifica cada zona como baño, aseo, cocina de ventilación general o zona de cocción. Zentryx calcula el caudal mínimo exigido por CTE DB HS 3 y muestra el reparto entre locales húmedos como propuesta de Zentryx.",
       "Al pulsar Añadir zona, la pantalla se desplaza hasta la nueva zona y la marca brevemente para evitar altas repetidas por error. Al seleccionar un uso reglamentario, Zentryx propone automáticamente un nombre si el campo está vacío; puedes cambiarlo después.",
       "La zona de cocción se identifica como extracción independiente y usa el mínimo reglamentario específico. Los garajes se calculan por plazas; trasteros y almacenes de residuos por superficie útil.",
       "Para conductos de extracción mecánica cubiertos por CTE DB HS 3, Zentryx calcula la sección mínima reglamentaria y propone el siguiente diámetro circular comercial que la cumple.",
-      "Solo necesitas indicar el recorrido aproximado y los elementos físicos que realmente existan, como longitud, codos, bocas o rejillas y compuertas. La velocidad y la pérdida aproximada se calculan automáticamente.",
-      "El Modo avanzado conserva renovaciones por hora, caudal directo, dimensiones manuales del conducto y presión adicional para casos en los que existan datos concretos de proyecto, fabricante o técnico.",
-      "En Asistente normativo la simultaneidad no puede reducir el caudal mínimo reglamentario. El margen se aplica únicamente para seleccionar el extractor.",
+      "En Asistente guiado solo necesitas indicar datos observables: qué espacio es, longitud aproximada del recorrido, giros, bocas o rejillas y compuertas si existen. Cada campo explica cómo obtener el dato. La velocidad, la pérdida aproximada, el caudal y la propuesta de conducto se calculan automáticamente.",
+      "Técnico muestra renovaciones por hora, caudal directo, dimensiones manuales del conducto y presión adicional para casos en los que existan datos concretos de proyecto, medición, fabricante o técnico.",
+      "En Asistente guiado la simultaneidad no puede reducir el caudal mínimo reglamentario. El margen se aplica únicamente para seleccionar el extractor.",
       "Zentryx separa los sistemas que no deben compartir extractor. La ventilación general de vivienda y la extracción independiente de la zona de cocción muestran por separado su caudal de diseño, presión de diseño y extractor.",
       "En cada selector de extractor aparecen los artículos clasificados como Extracción. Si la ficha contiene Caudal de aire y Presión disponible, Zentryx los compara con el cálculo de ese sistema y avisa si la selección necesita revisión.",
       "Cada guardado normativo conserva la norma, el conjunto de reglas, fecha de verificación, ubicación, datos usados y resultados. Para obras en Madrid ciudad, Zentryx identifica además la Ordenanza 4/2021 de Calidad del Aire y Sostenibilidad y la Guía municipal de comprobaciones de ventilación versión enero de 2026; las comprobaciones del punto de evacuación quedan marcadas como pendientes hasta registrarlas.",
@@ -1649,9 +1650,9 @@ const BASE=[
       "En Emisores y circuitos registra cada sistema por zona: suelo radiante, radiadores, fancoils, conductos, aerotermos, piscina u otro.",
       "Para cada emisor puedes indicar si ya existe o está previsto, temperaturas de impulsión y retorno, potencia, cantidad con su unidad y si trabaja en calefacción o refrigeración.",
       "En Cálculo térmico pulsa Nuevo cálculo para registrar una versión del estudio sin modificar las versiones anteriores.",
-      "Selecciona si es estimación rápida, cálculo técnico, cálculo manual u otro.",
-      "En Cálculo técnico puedes añadir estancias y registrar nombre o uso, superficie, altura, orientación, paredes exteriores, huecos, aislamiento, ventilación o infiltraciones y ocupantes.",
-      "El cálculo térmico por estancias actual queda identificado como preliminar. No debe cerrarse como cálculo reglamentario hasta que el motor normativo de climatización aplique las condiciones vigentes correspondientes a la ubicación de la obra y registre las normas empleadas.",
+      "En Cálculo térmico selecciona la forma de trabajo: Asistente guiado o una de las entradas de Técnico. El Asistente guiado pide superficie, una descripción sencilla del aislamiento y ocupantes; los coeficientes internos quedan ocultos bajo Ver criterios técnicos usados.",
+      "En Técnico · por estancias puedes registrar nombre o uso, superficie, altura, orientación, paredes exteriores, huecos, aislamiento, ventilación o infiltraciones y ocupantes. Las condiciones de cálculo deben proceder del proyecto, mediciones o documentación técnica y corresponder a los criterios aplicables a la ubicación de la obra.",
+      "Las estimaciones del Asistente guiado y el cálculo actual por estancias quedan marcados visualmente como Preliminar · no usar como cierre reglamentario. No deben cerrarse como cálculo reglamentario hasta que el motor normativo de climatización aplique las condiciones vigentes de la ubicación de la obra y registre las normas empleadas.",
       "Registra las cargas de calefacción y refrigeración en kW, el ACS recomendado en L y la temperatura de impulsión recomendada en °C.",
       "Cada cálculo queda fechado, asociado al usuario y registrado también en el historial del proyecto.",
       "En Estrategia híbrida crea una opción técnica. Cada opción puede usar un cálculo de referencia distinto y mantiene sus propias reglas.",
