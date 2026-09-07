@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1077 - CATÁLOGO TÉCNICO: CREAR ARTÍCULOS NUEVOS SIN AÑADIR STOCK
 // V1076 - EXTRACCIÓN TÉCNICA: DIMENSIONES VISIBLES SEGÚN FORMA DE CONDUCTO
 // V1074 - EXTRACCIÓN TÉCNICA: COMPARAR CAUDAL TÉCNICO, REGLA APLICADA Y CAUDAL ADOPTADO
 // V1073 - EXTRACCIÓN: SEPARAR AIRE EXTERIOR RITE DE LOS CÁLCULOS DE EXTRACCIÓN
@@ -20,7 +21,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1076";
+const ZX_VERSION="1077";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1110,12 +1111,13 @@ const AYUDAS_DIRECTAS=[
   {
     id:"catalogo_tecnico_proyectos", modulo:"proyectos", titulo:"Usar el Catálogo técnico de Proyectos",
     consulta:"catalogo tecnico proyectos ficha tecnica material tornillo cable tuberia valvula deposito bomba generador datos libres medida potencia cop scop eer seer temperatura impulsion",
-    resumen:"Guarda datos técnicos de cualquier artículo existente en Materiales, desde consumibles y fijaciones hasta equipos y generadores.",
+    resumen:"Crea o prepara artículos de Materiales y guarda sus datos técnicos, desde consumibles y fijaciones hasta equipos y generadores.",
     pasos:[
       "Abre Proyectos y pulsa Catálogo técnico.",
       "Busca el artículo que quieras preparar o usa el filtro para ver artículos con ficha técnica o pendientes de ficha.",
+      "Si el artículo todavía no existe, pulsa Nuevo artículo, indica al menos Nombre y Unidad y créalo. Esta acción crea el artículo en Materiales pero no añade stock.",
       "Abre el artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
-      "Elige su clase técnica: material o consumible, fijación, tubería, hidráulica, aislamiento, electricidad, control, bomba, depósito, emisor, generador, ventilación, solar, herramienta u otro.",
+      "Elige su clase técnica: material o consumible, fijación, tubería, hidráulica, aislamiento, electricidad, control, bomba, depósito, emisor, generador, ventilación, extracción, solar, herramienta u otro.",
       "Indica un subtipo o descripción técnica si ayuda a identificarlo.",
       "En Datos técnicos libres puedes añadir tantos datos como necesites. Dato y medida ofrecen opciones habituales; Valor usa opciones cuando existen valores típicos y escritura directa cuando el dato es numérico o libre.",
       "Al cambiar el Dato, Zentryx limpia valores o medidas que ya no correspondan y selecciona automáticamente la medida principal cuando es inequívoca. Por ejemplo, Sección propone mm² y Tensión nominal propone V.",
@@ -1123,7 +1125,7 @@ const AYUDAS_DIRECTAS=[
       "Si la clase es Generador / climatización aparecen además Tipo de generador, Servicios y Prestaciones del generador. En Servicios, Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina de una vez y no se guarda como servicio adicional.",
       "Las prestaciones propias de generadores incluyen potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER.",
       "Puedes añadir una URL de foto para el dosier, texto para el cliente y notas técnicas en cualquier clase.",
-      "Pulsa Guardar. La ficha queda asociada al mismo artículo de Materiales; no se crea otro artículo.",
+      "Pulsa Guardar. La ficha técnica queda asociada al mismo artículo de Materiales y no crea otra copia.",
       "Al añadir o editar un generador de un proyecto, el campo Generador del catálogo técnico muestra solo artículos clasificados como Generador / climatización.",
       "Al guardar un generador, el proyecto conserva una copia de los datos usados en ese momento, por lo que cambios posteriores del catálogo no cambian ese proyecto."
     ]
@@ -1617,7 +1619,8 @@ const BASE=[
     resumen:"Estudios técnicos multidisciplinares vinculados a clientes, direcciones e instalaciones existentes.",
     pasos:[
       "Entra en Proyectos. Si necesitas preparar datos técnicos de materiales o equipos, pulsa Catálogo técnico; para iniciar un estudio, pulsa Crear proyecto.",
-      "El Catálogo técnico usa los artículos activos que ya existen en Materiales y permite buscar por artículo, categoría, dato técnico o referencia.",
+      "El Catálogo técnico usa los artículos activos de Materiales y permite buscar por artículo, categoría, dato técnico o referencia.",
+      "Si necesitas un artículo que todavía no existe, pulsa Nuevo artículo. Se crea en Materiales sin generar stock y después se abre su ficha técnica.",
       "Puedes filtrar entre todos los artículos, los que ya tienen ficha técnica y los que todavía no la tienen.",
       "Abre un artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
       "Selecciona una clase técnica. El catálogo admite materiales, consumibles, fijaciones, tuberías, hidráulica, aislamiento, electricidad, control, bombas, depósitos, emisores, generadores, ventilación, extracción, solar, herramientas y la opción Otro.",
