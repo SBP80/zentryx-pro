@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1056
+// ZENTRYX PRO - PROYECTOS V1057
+// V1057 - CATÁLOGO TÉCNICO: ALTA DIRECTA DE ARTÍCULO EN MATERIALES + VERSIONADO INTERNO COHERENTE
 // V1056 - EXTRACCIÓN TÉCNICA: MOSTRAR SOLO LAS DIMENSIONES QUE CORRESPONDEN A LA FORMA DEL CONDUCTO
 // V1054 - EXTRACCIÓN GUIADA: NO MOSTRAR VOLUMEN TÉCNICO RESIDUAL; RESULTADOS TÉCNICOS SOLO CUANDO CORRESPONDEN
 // V1053 - EXTRACCIÓN GUIADA: OCULTACIÓN ROBUSTA DE CAMPOS CONDICIONALES EN SAFARI/IPHONE
@@ -35,7 +36,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1051";
+const ZX_VERSION="1057";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -326,11 +327,26 @@ function fichaTecnicaResumenHTML(m){
   return `<span class="zx_pr_cat_badge">${limpiar(textoCategoriaTecnica(cat))}</span>${t.subtipo?`<div class="zx_pr_cat_meta"><span>Tipo <b>${limpiar(t.subtipo)}</b></span></div>`:""}${esp.length?`<div class="zx_pr_cat_meta">${esp.slice(0,4).map(x=>`<span>${limpiar(x.nombre)}${x.valor?` <b>${limpiar(x.valor)}${x.medida?" "+limpiar(x.medida):""}</b>`:""}</span>`).join("")}</div>`:""}`;
 }
 function listaCatalogoTecnicoHTML(xs){if(!xs.length)return `<div class="zx_pr_empty">No hay artículos que coincidan.</div>`;return xs.map(m=>`<button type="button" class="zx_pr_cat_card" data-pr-cat-edit="${limpiar(m.id)}"><div><b>${limpiar(materialTexto(m)||m.nombre||"Material")}</b><span>${limpiar(m.referencia||"Sin referencia")}</span></div>${fichaTecnicaResumenHTML(m)}</button>`).join("")}
+function formularioNuevoMaterialCatalogo(){
+  if(!sb()||!navigator.onLine){alert("Necesitas conexión para crear un artículo.");return}
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_cat_new_back" type="button">← Volver</button><button id="pr_cat_new_save" class="primary" type="button">Crear artículo</button></div><div class="zx_pr_form_head"><span>MATERIALES · ALTA</span><h2>Nuevo artículo</h2></div><div class="zx_pr_info"><b>Crea un artículo real en Materiales.</b><span>No añade stock ni crea una copia técnica separada. Después podrás completar su ficha y clasificarlo en el Catálogo técnico.</span></div><label>Nombre del artículo<input id="pr_cat_new_nombre" autocomplete="off" placeholder="Extractor de prueba, válvula, bomba…"></label><div class="zx_pr_grid2"><label>Marca<input id="pr_cat_new_marca" autocomplete="off" placeholder="Opcional"></label><label>Modelo<input id="pr_cat_new_modelo" autocomplete="off" placeholder="Opcional"></label><label>Referencia<input id="pr_cat_new_ref" autocomplete="off" placeholder="Opcional"></label><label>Unidad<input id="pr_cat_new_unidad" autocomplete="off" value="ud" placeholder="ud, m, m², L…"></label></div><label>Familia / categoría general<input id="pr_cat_new_familia" autocomplete="off" placeholder="Opcional"></label>`);
+  m.querySelector("#pr_cat_new_back").onclick=abrirCatalogoTecnico;
+  m.querySelector("#pr_cat_new_save").onclick=async()=>{
+    const nombre=String(m.querySelector("#pr_cat_new_nombre").value||"").trim(),marca=String(m.querySelector("#pr_cat_new_marca").value||"").trim(),modelo=String(m.querySelector("#pr_cat_new_modelo").value||"").trim(),referencia=String(m.querySelector("#pr_cat_new_ref").value||"").trim(),unidad=String(m.querySelector("#pr_cat_new_unidad").value||"ud").trim()||"ud",familia=String(m.querySelector("#pr_cat_new_familia").value||"").trim();
+    if(!nombre){alert("Indica el nombre del artículo.");m.querySelector("#pr_cat_new_nombre").focus();return}
+    const repetido=MATERIALES.find(x=>normalizar(x.nombre)===normalizar(nombre)&&normalizar(x.marca||"")===normalizar(marca)&&normalizar(x.modelo||"")===normalizar(modelo)&&normalizar(x.referencia||"")===normalizar(referencia));
+    if(repetido){alert("Ya existe un artículo con estos mismos datos. Se abrirá su ficha técnica.");formularioMaterialTecnico(repetido);return}
+    const btn=m.querySelector("#pr_cat_new_save");btn.disabled=true;btn.textContent="Creando…";
+    const ahora=new Date().toISOString(),payload={nombre,unidad,activo:true,created_at:ahora,updated_at:ahora};if(marca)payload.marca=marca;if(modelo)payload.modelo=modelo;if(referencia)payload.referencia=referencia;if(familia)payload.familia=familia;
+    try{const r=await sb().from("materiales").insert([payload]).select("id,nombre,marca,modelo,referencia,unidad,familia,activo,tecnico_meta").single();if(r.error)throw r.error;MATERIALES.push(r.data);MATERIALES.sort((a,b)=>String(a.nombre||"").localeCompare(String(b.nombre||""),"es",{sensitivity:"base"}));formularioMaterialTecnico(r.data)}catch(e){alert("No se pudo crear el artículo.\n"+(e&&e.message?e.message:""));btn.disabled=false;btn.textContent="Crear artículo"}
+  };
+  setTimeout(()=>m.querySelector("#pr_cat_new_nombre")?.focus(),60);
+}
 function abrirCatalogoTecnico(){
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para editar el catálogo técnico.");return}
-  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_cat_back" type="button">← Volver</button><button type="button" disabled>Catálogo técnico</button></div><div class="zx_pr_form_head"><span>ARTÍCULOS Y DATOS TÉCNICOS</span><h2>Catálogo técnico</h2></div><div class="zx_pr_info"><b>Admite cualquier artículo existente en Materiales.</b><span>Puedes preparar desde tornillería, cableado, tuberías o válvulas hasta depósitos, bombas y generadores. Si un dato no tiene un campo específico, añádelo en Datos técnicos libres con su medida correspondiente.</span></div><div class="zx_pr_tools zx_pr_cat_tools"><input id="pr_cat_search" type="search" placeholder="Buscar artículo, categoría, dato técnico o referencia"><select id="pr_cat_filter"><option value="todos">Todos</option><option value="tecnicos">Con ficha técnica</option><option value="pendientes">Sin ficha técnica</option></select></div><div class="zx_pr_cat_stats"><b>${MATERIALES.filter(materialTecnicoActivo).length}</b><span>artículos con ficha técnica de ${MATERIALES.length} artículos activos</span></div><div id="pr_cat_list" class="zx_pr_cat_list">${listaCatalogoTecnicoHTML(MATERIALES)}</div>`);
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_cat_back" type="button">← Volver</button><button id="pr_cat_new" class="primary" type="button">＋ Nuevo artículo</button></div><div class="zx_pr_form_head"><span>ARTÍCULOS Y DATOS TÉCNICOS</span><h2>Catálogo técnico</h2></div><div class="zx_pr_info"><b>Admite cualquier artículo existente en Materiales.</b><span>Puedes abrir uno existente o crear uno nuevo aquí sin añadir stock. Después clasifícalo y completa sus datos técnicos.</span></div><div class="zx_pr_tools zx_pr_cat_tools"><input id="pr_cat_search" type="search" placeholder="Buscar artículo, categoría, dato técnico o referencia"><select id="pr_cat_filter"><option value="todos">Todos</option><option value="tecnicos">Con ficha técnica</option><option value="pendientes">Sin ficha técnica</option></select></div><div class="zx_pr_cat_stats"><b>${MATERIALES.filter(materialTecnicoActivo).length}</b><span>artículos con ficha técnica de ${MATERIALES.length} artículos activos</span></div><div id="pr_cat_list" class="zx_pr_cat_list">${listaCatalogoTecnicoHTML(MATERIALES)}</div>`);
   const pintar=()=>{const q=normalizar(m.querySelector("#pr_cat_search").value),f=m.querySelector("#pr_cat_filter").value;let xs=MATERIALES.slice();if(f==="tecnicos")xs=xs.filter(materialTecnicoActivo);if(f==="pendientes")xs=xs.filter(x=>!materialTecnicoActivo(x));if(q)xs=xs.filter(x=>{const t=tecnicoMaterial(x),esp=especificacionesTecnicas(t).map(e=>[e.nombre,e.valor,e.medida].join(" ")).join(" ");return normalizar([x.nombre,x.marca,x.modelo,x.referencia,x.familia,textoCategoriaTecnica(categoriaTecnicaMaterial(t)),textoGenerador(t.tipo_generador),t.subtipo,esp].join(" ")).includes(q)});m.querySelector("#pr_cat_list").innerHTML=listaCatalogoTecnicoHTML(xs);m.querySelectorAll("[data-pr-cat-edit]").forEach(b=>b.onclick=()=>{const x=MATERIALES.find(z=>String(z.id)===String(b.dataset.prCatEdit));if(x)formularioMaterialTecnico(x)})};
-  m.querySelector("#pr_cat_back").onclick=()=>{cerrarModal();shell()};m.querySelector("#pr_cat_search").oninput=pintar;m.querySelector("#pr_cat_filter").onchange=pintar;pintar();
+  m.querySelector("#pr_cat_back").onclick=()=>{cerrarModal();shell()};m.querySelector("#pr_cat_new").onclick=formularioNuevoMaterialCatalogo;m.querySelector("#pr_cat_search").oninput=pintar;m.querySelector("#pr_cat_filter").onchange=pintar;pintar();
 }
 const DATOS_TECNICOS_SUGERIDOS={
   general:["Material","Acabado","Color","Marca","Modelo","Referencia","Norma","Compatibilidad","Peso","Dimensiones"],
