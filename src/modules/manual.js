@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1082 - BUSCADOR TÉCNICO GENERAL: TEXTO LIBRE, FOTO + TEXTO Y ACCESOS DESDE PROYECTOS, PRESUPUESTOS, CATÁLOGO Y ALMACÉN
 // V1081 - CATÁLOGO TÉCNICO: BÚSQUEDA VISUAL POR FOTO CON GOOGLE LENS Y FOTO TEMPORAL
 // V1080 - CATÁLOGO TÉCNICO: BÚSQUEDA DE PRODUCTO/PROVEEDOR EN WEB Y CERCA DEL DISPOSITIVO
 // V1079 - CATÁLOGO TÉCNICO: FOTOS DEL ARTÍCULO, FOTO PRINCIPAL, MINIATURA Y GALERÍA
@@ -25,7 +26,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1081";
+const ZX_VERSION="1082";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1114,18 +1115,18 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"catalogo_tecnico_proyectos", modulo:"proyectos", titulo:"Usar el Catálogo técnico de Proyectos",
-    consulta:"catalogo tecnico proyectos ficha tecnica material tornillo cable tuberia valvula deposito bomba generador datos libres medida potencia cop scop eer seer temperatura impulsion fotos fotografias camara miniatura galeria foto principal buscar producto proveedor web cerca cercano tienda comprar precio lens busqueda visual buscar por foto imagen etiqueta marca modelo referencia",
+    consulta:"catalogo tecnico proyectos ficha tecnica material tornillo cable tuberia valvula deposito bomba generador datos libres medida potencia cop scop eer seer temperatura impulsion fotos fotografias camara miniatura galeria foto principal buscador tecnico buscar producto proveedor web cerca cercano tienda comprar precio lens busqueda visual buscar por foto imagen etiqueta marca modelo referencia descripcion libre tension voltaje presion medidas equivalente averia repuesto",
     resumen:"Crea o prepara artículos de Materiales y guarda sus datos técnicos, desde consumibles y fijaciones hasta equipos y generadores.",
     pasos:[
       "Abre Proyectos y pulsa Catálogo técnico.",
       "Busca el artículo que quieras preparar o usa el filtro para ver artículos con ficha técnica o pendientes de ficha.",
       "Si el artículo todavía no existe, pulsa Nuevo artículo, indica al menos Nombre y Unidad y créalo. Esta acción crea el artículo en Materiales pero no añade stock.",
-      "Antes de crear un artículo puedes usar Buscar en web o Cerca de mí con el Nombre, Marca, Modelo y Referencia que hayas escrito, o Buscar por foto para hacer una fotografía o elegir una imagen sin crear todavía el artículo.",
+      "Antes de crear un artículo puedes usar el Buscador técnico. Admite Nombre, Marca, Modelo y Referencia, pero también cualquier descripción: potencia, tensión, presión, medidas, uso, avería, repuesto o cualquier otro dato que conozcas.",
       "Abre el artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
-      "En Buscar producto / proveedor, revisa o edita la búsqueda preparada con nombre, marca, modelo y referencia. Buscar en web abre resultados de compra, precios y proveedores; Cerca de mí intenta usar la ubicación del dispositivo y abre comercios próximos en el mapa.",
-      "Buscar por foto abre un selector con las fotografías actuales del artículo. Puedes buscar con cualquiera de ellas, incluida una foto preparada pero todavía sin guardar, o hacer/elegir una imagen nueva solo para buscar.",
+      "En Buscador técnico puedes usar solo texto, solo una fotografía o ambos. Buscar en web abre una consulta general con el texto indicado; Proveedores cercanos usa la ubicación del dispositivo cuando está disponible.",
+      "Buscar por foto abre las fotografías actuales del artículo y también permite hacer una foto o elegir una imagen nueva aunque no exista ningún artículo guardado. La descripción escrita es opcional y se envía junto a la búsqueda visual para afinar los resultados.",
       "La búsqueda visual se realiza con Google Lens. Una imagen nueva usada solo para buscar se sube temporalmente al almacenamiento actual para que Lens pueda leerla y Zentryx programa su borrado; esa imagen no se añade a la ficha.",
-      "Estas búsquedas son externas: no cambian la ficha, el stock ni los precios guardados en Zentryx.",
+      "Estas búsquedas son externas: no crean artículos ni cambian la ficha, el stock, los precios o el presupuesto que estés editando.",
       "Elige su clase técnica: material o consumible, fijación, tubería, hidráulica, aislamiento, electricidad, control, bomba, depósito, emisor, generador, ventilación, extracción, solar, herramienta u otro.",
       "Indica un subtipo o descripción técnica si ayuda a identificarlo.",
       "En Datos técnicos libres puedes añadir tantos datos como necesites. Dato y medida ofrecen opciones habituales; Valor usa opciones cuando existen valores típicos y escritura directa cuando el dato es numérico o libre.",
@@ -1629,12 +1630,12 @@ const BASE=[
     id:"proyectos",icono:"📐",titulo:"Proyectos",roles:["todos"],
     resumen:"Estudios técnicos multidisciplinares vinculados a clientes, direcciones e instalaciones existentes.",
     pasos:[
-      "Entra en Proyectos. Si necesitas preparar datos técnicos de materiales o equipos, pulsa Catálogo técnico; para iniciar un estudio, pulsa Crear proyecto.",
+      "Entra en Proyectos. Puedes pulsar Buscar equipo/material para abrir el Buscador técnico sin crear antes un proyecto o artículo; Catálogo técnico sirve para preparar fichas y Crear proyecto inicia un estudio.",
       "El Catálogo técnico usa los artículos activos de Materiales y permite buscar por artículo, categoría, dato técnico o referencia.",
       "Si necesitas un artículo que todavía no existe, pulsa Nuevo artículo. Se crea en Materiales sin generar stock y después se abre su ficha técnica. Antes de crearlo puedes buscarlo en web o cerca del dispositivo con los datos escritos.",
       "Puedes filtrar entre todos los artículos, los que ya tienen ficha técnica y los que todavía no la tienen.",
-      "Dentro de una ficha técnica, Buscar producto / proveedor permite abrir una búsqueda de compra y precios en web, una búsqueda de comercios próximos o una búsqueda visual por foto con Google Lens. El texto se puede editar y la consulta externa no cambia los datos guardados.",
-      "Buscar por foto puede usar una foto guardada, una foto preparada aún sin guardar o una imagen nueva hecha/elegida solo para buscar. Las imágenes nuevas usadas solo para buscar se suben de forma temporal y no pasan a la ficha.",
+      "El Buscador técnico acepta cualquier texto o descripción, además de los datos habituales del artículo. También permite búsqueda visual con Google Lens, proveedores próximos y combinar fotografía con texto. La consulta externa no cambia los datos guardados.",
+      "Buscar por foto puede usar una foto guardada, una foto preparada aún sin guardar o una imagen nueva hecha/elegida solo para buscar. No hace falta que el equipo exista en Zentryx. Las imágenes nuevas usadas solo para buscar se suben de forma temporal y no pasan a la ficha.",
       "Abre un artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
       "Selecciona una clase técnica. El catálogo admite materiales, consumibles, fijaciones, tuberías, hidráulica, aislamiento, electricidad, control, bombas, depósitos, emisores, generadores, ventilación, extracción, solar, herramientas y la opción Otro.",
       "Datos técnicos libres permite registrar cualquier dato con su valor y medida. El formulario adapta Valor y Medida al Dato elegido, evita arrastrar datos incompatibles y mantiene Personalizar para alternativas no incluidas.",
@@ -1685,7 +1686,7 @@ const BASE=[
       "Las reglas describen el funcionamiento previsto; antes de ejecutar una instalación deben comprobarse la hidráulica, el control y las limitaciones de los equipos.",
       "Dentro de cada opción pulsa Partidas para registrar el coste y el precio de esa solución.",
       "Cada partida puede ser material, mano de obra, servicio, transporte, subcontrata, ingeniería, legalización, RITE, CAE u otro concepto.",
-      "En materiales puedes elegir un artículo del catálogo existente; el presupuesto conserva sus propios precios aunque el catálogo cambie después.",
+      "En materiales puedes elegir un artículo del catálogo existente; el presupuesto conserva sus propios precios aunque el catálogo cambie después. En la edición de una partida, Buscar equipo / material abre el Buscador técnico usando la descripción, referencia y artículo seleccionados como punto de partida, sin guardar la partida.",
       "Indica cantidad y unidad, coste unitario en €/unidad, descuento de proveedor en %, precio de venta en €/unidad e IVA en %.",
       "La pantalla calcula el coste, la venta sin IVA, el margen y el total para el cliente. Al editar o eliminar una partida los totales se recalculan.",
       "Las partidas y sus cambios quedan anotados en el historial del proyecto.",
@@ -1710,7 +1711,7 @@ const BASE=[
       "Una opción enviada o aceptada permite consultar el dosier guardado, pero ya no cambiar su diseño.",
       "Cuando la opción está aceptada, el cierre del dosier muestra la aceptación registrada y el pie del documento la identifica como propuesta aceptada, no como vista previa."
     ],
-    palabras:"proyecto multidisciplinar especialidades fontaneria electricidad ventilacion extraccion extractor caudal m3h renovaciones conducto circular rectangular velocidad aire presion pa codos rejillas compuertas simultaneidad margen aire acondicionado humedad estancias calculo por estancias estudio presupuesto catalogo tecnico ficha tecnica equipo termico materiales marca modelo referencia cop scop eer seer rendimiento temperatura maxima impulsion foto fotos fotografias camara miniatura galeria principal cliente notas aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot empresa configuracion valores comunes contacto telefono email web"
+    palabras:"buscador tecnico busqueda general descripcion libre foto texto equipo material repuesto equivalente proveedor cercano lens potencia tension presion medidas averia proyecto multidisciplinar especialidades fontaneria electricidad ventilacion extraccion extractor caudal m3h renovaciones conducto circular rectangular velocidad aire presion pa codos rejillas compuertas simultaneidad margen aire acondicionado humedad estancias calculo por estancias estudio presupuesto catalogo tecnico ficha tecnica equipo termico materiales marca modelo referencia cop scop eer seer rendimiento temperatura maxima impulsion foto fotos fotografias camara miniatura galeria principal cliente notas aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot empresa configuracion valores comunes contacto telefono email web"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
@@ -1739,11 +1740,12 @@ const BASE=[
     id:"almacen",icono:"📦",titulo:"Almacén",roles:["admin","encargado"],
     resumen:"Gestión de existencias y movimientos de material.",
     pasos:[
+      "Pulsa Buscar equipo/material cuando necesites localizar un equipo, repuesto o material aunque todavía no exista en Zentryx. Puedes escribir cualquier descripción o buscar mediante fotografía.",
       "Consulta existencias antes de registrar movimientos.",
       "Registra entradas o salidas con la información solicitada.",
       "Revisa el historial cuando necesites comprobar un movimiento."
     ],
-    palabras:"almacen stock material existencia entrada salida"
+    palabras:"almacen stock material existencia entrada salida buscador tecnico foto descripcion repuesto equipo proveedor"
   },
   {
     id:"usuarios",icono:"👤",titulo:"Usuarios",roles:["admin"],
