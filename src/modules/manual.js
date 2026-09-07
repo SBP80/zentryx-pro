@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1078 - EXTRACTORES: DATOS VACÍOS PENDIENTES + DIAGNÓSTICO DE CAUDAL/PRESIÓN
 // V1077 - CATÁLOGO TÉCNICO: CREAR ARTÍCULOS NUEVOS SIN AÑADIR STOCK
 // V1076 - EXTRACCIÓN TÉCNICA: DIMENSIONES VISIBLES SEGÚN FORMA DE CONDUCTO
 // V1074 - EXTRACCIÓN TÉCNICA: COMPARAR CAUDAL TÉCNICO, REGLA APLICADA Y CAUDAL ADOPTADO
@@ -21,7 +22,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1077";
+const ZX_VERSION="1078";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1649,7 +1650,7 @@ const BASE=[
       "En Técnico Zentryx conserva por separado el caudal técnico calculado, el mínimo reglamentario del local, el caudal que corresponde a la regla aplicada y el caudal adoptado para diseño. En vivienda, el CTE puede exigir a la vez un mínimo por local y un mínimo total para los locales húmedos; Zentryx muestra ambos criterios y diferencia el reparto propuesto del mínimo individual. Si el valor técnico queda por debajo de la regla aplicable, se muestra un aviso y se mantiene visible el dato técnico introducido.",
       "En Asistente guiado la simultaneidad no puede reducir el caudal reglamentario aplicado. En Técnico, si se usa simultaneidad, tampoco puede dejar el sistema por debajo del mínimo reglamentario conocido. El margen se aplica después para seleccionar el extractor.",
       "Zentryx separa los sistemas que no deben compartir extractor. La ventilación general de vivienda y la extracción independiente de la zona de cocción muestran por separado su caudal de diseño, presión de diseño y extractor.",
-      "En cada selector de extractor aparecen los artículos clasificados como Extracción. Si la ficha contiene Caudal de aire y Presión disponible, Zentryx los compara con el cálculo de ese sistema y avisa si la selección necesita revisión.",
+      "En cada selector de extractor aparecen los artículos clasificados como Extracción. Si la ficha contiene Caudal de aire y Presión disponible, Zentryx los compara con el cálculo de ese sistema. Un campo técnico vacío queda como dato pendiente, no como valor cero. Si falta caudal o presión, la selección no se considera comprobada; si alguno resulta insuficiente, Zentryx indica cuál falla y compara el valor disponible con el requerido.",
       "Cada guardado normativo conserva la norma, el conjunto de reglas, fecha de verificación, ubicación, datos usados y resultados. Para obras en Madrid ciudad, Zentryx identifica además la Ordenanza 4/2021 de Calidad del Aire y Sostenibilidad y la Guía municipal de comprobaciones de ventilación versión enero de 2026; las comprobaciones del punto de evacuación quedan marcadas como pendientes hasta registrarlas.",
       "Si la revisión autonómica o municipal no está completada, la ficha lo muestra como pendiente y el cálculo no debe considerarse cierre normativo definitivo.",
       "Al guardar la extracción se conserva una copia de la ficha técnica de cada extractor seleccionado. Los cambios posteriores del catálogo no alteran esas copias mientras no cambies expresamente el extractor de cada sistema.",
