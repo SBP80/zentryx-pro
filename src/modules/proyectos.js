@@ -1,5 +1,7 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1063
+// ZENTRYX PRO - PROYECTOS V1065
+// V1065 - CATÁLOGO TÉCNICO: BÚSQUEDA VISUAL POR FOTO CON GOOGLE LENS + FOTO TEMPORAL DE CÁMARA/GALERÍA
+// V1064 - CATÁLOGO TÉCNICO: BÚSQUEDA DE PRODUCTO/PROVEEDOR EN WEB Y CERCA DEL DISPOSITIVO
 // V1063 - CATÁLOGO TÉCNICO: GALERÍA ABRE EN FOTO PRINCIPAL DESDE MINIATURA + OCULTA FLECHAS CON UNA SOLA FOTO
 // V1062 - CATÁLOGO TÉCNICO: FOTOS MÚLTIPLES DEL ARTÍCULO + PRINCIPAL + MINIATURA Y GALERÍA
 // V1061 - EXTRACCIÓN: LA FICHA REVALIDA EL EXTRACTOR CONTRA EL CATÁLOGO ACTUAL; SNAPSHOT SOLO COMO RESPALDO
@@ -42,7 +44,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1063";
+const ZX_VERSION="1065";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -59,6 +61,7 @@ let DOSIER_EMPRESA=null;
 const DOSIER_EMPRESA_CACHE_PREFIX="zentryx_presupuestos_empresa_cache_v1:";
 const CATALOGO_FOTOS_BUCKET="zentryx-trabajos";
 const CATALOGO_FOTOS_MAX=12;
+const CATALOGO_BUSQUEDA_FOTO_TEMP_KEY="zentryx_catalogo_busqueda_foto_temp_v1";
 let CATALOGO_FOTOS_EDICION=null;
 
 function app(){return document.getElementById("app")}
@@ -294,6 +297,31 @@ function eur(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString("es
 function numValor(v){const s=String(v??"").trim().replace(",",".");if(s==="")return 0;const n=Number(s);return Number.isFinite(n)?n:0}
 function nombreMaterialVisible(v){return String(v??"").replace(/^(?:\s*nombre\s+del\s+art[ií]culo\s*:\s*)+/i,"").trim()}
 function materialTexto(m){return [nombreMaterialVisible(m&&m.nombre),m&&m.marca,m&&m.modelo].filter(Boolean).join(" · ")}
+function consultaBusquedaMaterial(m){
+  const partes=[nombreMaterialVisible(m&&m.nombre),m&&m.marca,m&&m.modelo,m&&m.referencia].map(x=>String(x||"").trim()).filter(Boolean),out=[];
+  partes.forEach(x=>{if(!out.some(y=>normalizar(y)===normalizar(x)))out.push(x)});
+  return out.join(" ");
+}
+function abrirBusquedaWebMaterial(texto){
+  const q=String(texto||"").trim();if(!q){alert("Escribe al menos el nombre, marca, modelo o referencia del producto.");return}
+  const url="https://www.google.com/search?q="+encodeURIComponent(q+" comprar precio proveedor");
+  try{window.open(url,"_blank","noopener,noreferrer")}catch(e){location.href=url}
+}
+function navegarVentanaBusqueda(win,url){
+  if(win&&!win.closed){try{win.opener=null}catch(e){}try{win.location.href=url;return}catch(e){}}
+  try{window.open(url,"_blank","noopener,noreferrer")}catch(e){location.href=url}
+}
+function abrirBusquedaCercanaMaterial(texto){
+  const q=String(texto||"").trim();if(!q){alert("Escribe al menos el nombre, marca, modelo o referencia del producto.");return}
+  const busqueda=q+" proveedor tienda suministros",fallback="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(busqueda);
+  let win=null;try{win=window.open("about:blank","_blank")}catch(e){}
+  if(!navigator.geolocation){navegarVentanaBusqueda(win,fallback);return}
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const lat=Number(pos.coords.latitude),lon=Number(pos.coords.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lon)){navegarVentanaBusqueda(win,fallback);return}
+    const url="https://www.google.com/maps/search/"+encodeURIComponent(busqueda)+"/@"+lat.toFixed(6)+","+lon.toFixed(6)+",12z";
+    navegarVentanaBusqueda(win,url);
+  },()=>navegarVentanaBusqueda(win,fallback),{enableHighAccuracy:false,timeout:7000,maximumAge:300000});
+}
 function opcionesMateriales(sel){return `<option value="">Sin artículo del catálogo</option>`+MATERIALES.map(m=>`<option value="${limpiar(m.id)}" ${String(sel)===String(m.id)?"selected":""}>${limpiar(materialTexto(m))}${m.referencia?" · "+limpiar(m.referencia):""}</option>`).join("")}
 function tecnicoMaterial(m){const x=m&&m.tecnico_meta;return x&&typeof x==="object"&&!Array.isArray(x)?x:{}}
 function fotosMaterialTecnico(t){
@@ -412,6 +440,71 @@ async function subirFotoCatalogo(mat,x){
   const pub=sb().storage.from(CATALOGO_FOTOS_BUCKET).getPublicUrl(path),url=pub&&pub.data&&pub.data.publicUrl?pub.data.publicUrl:"";if(!url){try{await sb().storage.from(CATALOGO_FOTOS_BUCKET).remove([path])}catch(e){}throw new Error("No se pudo obtener la dirección de la fotografía.")}
   return {id:"foto_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),url,path,bucket:CATALOGO_FOTOS_BUCKET,nombre:x.nombre||"Foto.jpg",principal:x.principal===true,created_at:new Date().toISOString()};
 }
+function cerrarBusquedaFotoMaterial(){const g=document.getElementById("zx_pr_cat_photo_search");if(g)g.remove()}
+function temporalesBusquedaFoto(){try{const xs=JSON.parse(localStorage.getItem(CATALOGO_BUSQUEDA_FOTO_TEMP_KEY)||"[]");return Array.isArray(xs)?xs.filter(x=>x&&x.path):[]}catch(e){return []}}
+function guardarTemporalesBusquedaFoto(xs){try{localStorage.setItem(CATALOGO_BUSQUEDA_FOTO_TEMP_KEY,JSON.stringify((xs||[]).slice(-30)))}catch(e){}}
+function registrarTemporalBusquedaFoto(path,bucket){const xs=temporalesBusquedaFoto();xs.push({path,bucket:bucket||CATALOGO_FOTOS_BUCKET,at:Date.now()});guardarTemporalesBusquedaFoto(xs)}
+async function borrarTemporalBusquedaFoto(path,bucket){
+  if(!path||!sb()||!navigator.onLine)return false;
+  try{const r=await sb().storage.from(bucket||CATALOGO_FOTOS_BUCKET).remove([path]);if(r&&r.error)throw r.error;return true}catch(e){return false}
+}
+async function limpiarTemporalesBusquedaFoto(){
+  if(!sb()||!navigator.onLine)return;
+  const ahora=Date.now(),xs=temporalesBusquedaFoto(),keep=[];
+  for(const x of xs){if(ahora-Number(x.at||0)<300000){keep.push(x);continue}const ok=await borrarTemporalBusquedaFoto(x.path,x.bucket);if(!ok)keep.push(x)}
+  guardarTemporalesBusquedaFoto(keep);
+}
+function programarLimpiezaTemporalBusquedaFoto(path,bucket){
+  registrarTemporalBusquedaFoto(path,bucket);
+  setTimeout(async()=>{const ok=await borrarTemporalBusquedaFoto(path,bucket);if(ok)guardarTemporalesBusquedaFoto(temporalesBusquedaFoto().filter(x=>x.path!==path))},300000);
+}
+function abrirBusquedaLensURL(url,win){
+  const u=String(url||"").trim();if(!u){if(win&&!win.closed)try{win.close()}catch(e){}alert("No hay una imagen disponible para buscar.");return}
+  navegarVentanaBusqueda(win,"https://lens.google.com/uploadbyurl?url="+encodeURIComponent(u));
+}
+async function subirFotoTemporalBusqueda(preparada,materialId){
+  if(!sb()||!navigator.onLine)throw new Error("Necesitas conexión para buscar una foto nueva.");
+  const carpeta=limpiarNombreArchivo(materialId||empresaId()||"sin_articulo"),path="catalogo-busquedas/"+carpeta+"/"+Date.now()+"_"+Math.random().toString(36).slice(2,9)+".jpg";
+  const up=await sb().storage.from(CATALOGO_FOTOS_BUCKET).upload(path,preparada.blob,{upsert:false,contentType:"image/jpeg"});if(up.error)throw up.error;
+  const pub=sb().storage.from(CATALOGO_FOTOS_BUCKET).getPublicUrl(path),url=pub&&pub.data&&pub.data.publicUrl?pub.data.publicUrl:"";
+  if(!url){try{await sb().storage.from(CATALOGO_FOTOS_BUCKET).remove([path])}catch(e){}throw new Error("No se pudo preparar la búsqueda por foto.")}
+  programarLimpiezaTemporalBusquedaFoto(path,CATALOGO_FOTOS_BUCKET);
+  return url;
+}
+function itemsBusquedaFotoMaterial(mat){
+  const xs=[];
+  if(CATALOGO_FOTOS_EDICION&&(!mat||String(CATALOGO_FOTOS_EDICION.material_id)===String(mat.id))){
+    (CATALOGO_FOTOS_EDICION.existentes||[]).forEach(x=>xs.push({id:x.id,url:x.url,nombre:x.nombre||"Foto",principal:x.principal===true,nueva:false}));
+    (CATALOGO_FOTOS_EDICION.nuevas||[]).forEach(x=>xs.push({id:x.id,url:x.preview,nombre:x.nombre||"Foto nueva",principal:x.principal===true,nueva:true,blob:x.blob}));
+  }else if(mat){
+    fotosMaterialTecnico(tecnicoMaterial(mat)).forEach(x=>xs.push({id:x.id,url:x.url,nombre:x.nombre||"Foto",principal:x.principal===true,nueva:false}));
+  }
+  const externa=String(document.getElementById("pr_cat_foto")?.value||(!xs.length&&mat?fotoPrincipalMaterialTecnico(tecnicoMaterial(mat)):"")||"").trim();
+  if(externa&&!xs.some(x=>String(x.url)===externa))xs.push({id:"externa",url:externa,nombre:"Foto externa",principal:xs.length===0,nueva:false});
+  return xs.sort((a,b)=>Number(b.principal)-Number(a.principal));
+}
+async function buscarItemFotoMaterial(x,materialId,btn){
+  let win=null;try{win=window.open("about:blank","_blank")}catch(e){}
+  if(btn){btn.disabled=true;btn.textContent="Preparando…"}
+  try{
+    if(x&&x.nueva&&x.blob){const url=await subirFotoTemporalBusqueda(x,materialId);abrirBusquedaLensURL(url,win)}
+    else abrirBusquedaLensURL(x&&x.url,win);
+    cerrarBusquedaFotoMaterial();
+  }catch(e){if(win&&!win.closed)try{win.close()}catch(err){}alert("No se pudo buscar por foto.\n"+(e&&e.message?e.message:""));if(btn){btn.disabled=false;btn.textContent="🔎 Buscar esta foto"}}
+}
+function abrirBusquedaFotoMaterial(mat,titulo){
+  cerrarBusquedaFotoMaterial();
+  const xs=itemsBusquedaFotoMaterial(mat),g=document.createElement("div");g.id="zx_pr_cat_photo_search";g.className="zx_pr_cat_gallery";
+  const cards=xs.length?xs.map((x,i)=>`<article class="zx_pr_cat_photo_item ${x.principal?"is-main":""}"><div class="zx_pr_cat_photo_open"><img src="${limpiar(x.url)}" alt="${limpiar(x.nombre||("Foto "+(i+1)))}"></div><div class="zx_pr_cat_photo_info"><span>${x.principal?"★ Principal":limpiar(x.nombre||("Foto "+(i+1)))}</span><div style="grid-template-columns:1fr"><button type="button" data-pr-cat-photo-search="${limpiar(x.id)}">🔎 Buscar esta foto</button></div></div></article>`).join(""):`<div class="zx_pr_cat_photos_empty">No hay fotos guardadas. Puedes hacer una foto o elegir una imagen solo para la búsqueda.</div>`;
+  g.innerHTML=`<div class="zx_pr_cat_gallery_box" style="grid-template-rows:auto minmax(0,1fr) auto"><div class="zx_pr_cat_gallery_top"><button type="button" data-pr-cat-photo-search-close>← Volver</button><div><b>${limpiar(titulo||"Buscar por foto")}</b><span>Búsqueda visual externa con Google Lens</span></div></div><div style="overflow:auto;padding:12px"><div class="zx_pr_info" style="margin-bottom:10px"><b>Elige una foto del artículo o usa una nueva.</b><span>La imagen seleccionada se envía a Google Lens para localizar coincidencias visuales, marca, modelo, referencia o productos similares.</span></div><div class="zx_pr_cat_photos_grid">${cards}</div></div><div style="padding:12px;border-top:1px solid #e2e8f0"><div class="zx_pr_cat_photo_actions" style="margin:0"><button type="button" data-pr-cat-photo-search-camera>📷 Hacer foto para buscar</button><button type="button" data-pr-cat-photo-search-library>🖼️ Elegir foto para buscar</button></div><input class="zx_pr_hidden_file" data-pr-cat-photo-search-camera-input type="file" accept="image/*" capture="environment"><input class="zx_pr_hidden_file" data-pr-cat-photo-search-library-input type="file" accept="image/*"><div class="zx_pr_info" style="margin-top:10px"><b>Las fotos nuevas usadas solo para buscar no se añaden a la ficha.</b><span>Zentryx crea una copia temporal en el almacenamiento actual para que Lens pueda leerla y programa su borrado después.</span></div></div></div>`;
+  document.body.appendChild(g);
+  const cerrar=()=>cerrarBusquedaFotoMaterial();g.querySelector("[data-pr-cat-photo-search-close]").onclick=cerrar;g.onclick=e=>{if(e.target===g)cerrar()};
+  g.querySelectorAll("[data-pr-cat-photo-search]").forEach(b=>{b.onclick=()=>{const x=xs.find(z=>String(z.id)===String(b.dataset.prCatPhotoSearch));if(x)buscarItemFotoMaterial(x,mat&&mat.id,b)}});
+  const cam=g.querySelector("[data-pr-cat-photo-search-camera-input]"),lib=g.querySelector("[data-pr-cat-photo-search-library-input]");
+  g.querySelector("[data-pr-cat-photo-search-camera]").onclick=()=>cam.click();g.querySelector("[data-pr-cat-photo-search-library]").onclick=()=>lib.click();
+  const buscarArchivo=async(input)=>{const f=input.files&&input.files[0];input.value="";if(!f)return;let win=null;try{win=window.open("about:blank","_blank")}catch(e){};try{const preparada=await prepararFotoCatalogo(f),url=await subirFotoTemporalBusqueda(preparada,mat&&mat.id);if(preparada.preview)try{URL.revokeObjectURL(preparada.preview)}catch(e){}abrirBusquedaLensURL(url,win);cerrar()}catch(e){if(win&&!win.closed)try{win.close()}catch(err){}alert("No se pudo buscar por foto.\n"+(e&&e.message?e.message:""))}};
+  cam.onchange=()=>buscarArchivo(cam);lib.onchange=()=>buscarArchivo(lib);
+}
 const CATEGORIAS_TECNICAS=[
   ["general","Material / consumible"],
   ["fijacion","Fijación y tornillería"],
@@ -461,8 +554,12 @@ function listaCatalogoTecnicoHTML(xs){
 }
 function formularioNuevoMaterialCatalogo(){
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para crear un artículo.");return}
-  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_cat_new_back" type="button">← Volver</button><button id="pr_cat_new_save" class="primary" type="button">Crear artículo</button></div><div class="zx_pr_form_head"><span>MATERIALES · ALTA</span><h2>Nuevo artículo</h2></div><div class="zx_pr_info"><b>Crea un artículo real en Materiales.</b><span>No añade stock ni crea una copia técnica separada. Después podrás completar su ficha y clasificarlo en el Catálogo técnico.</span></div><label>Nombre del artículo<input id="pr_cat_new_nombre" autocomplete="off" placeholder="Extractor de prueba, válvula, bomba…"></label><div class="zx_pr_grid2"><label>Marca<input id="pr_cat_new_marca" autocomplete="off" placeholder="Opcional"></label><label>Modelo<input id="pr_cat_new_modelo" autocomplete="off" placeholder="Opcional"></label><label>Referencia<input id="pr_cat_new_ref" autocomplete="off" placeholder="Opcional"></label><label>Unidad<input id="pr_cat_new_unidad" autocomplete="off" value="ud" placeholder="ud, m, m², L…"></label></div><label>Familia / categoría general<input id="pr_cat_new_familia" autocomplete="off" placeholder="Opcional"></label>`);
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_cat_new_back" type="button">← Volver</button><button id="pr_cat_new_save" class="primary" type="button">Crear artículo</button></div><div class="zx_pr_form_head"><span>MATERIALES · ALTA</span><h2>Nuevo artículo</h2></div><div class="zx_pr_info"><b>Crea un artículo real en Materiales.</b><span>No añade stock ni crea una copia técnica separada. Después podrás completar su ficha y clasificarlo en el Catálogo técnico.</span></div><label>Nombre del artículo<input id="pr_cat_new_nombre" autocomplete="off" placeholder="Extractor de prueba, válvula, bomba…"></label><div class="zx_pr_grid2"><label>Marca<input id="pr_cat_new_marca" autocomplete="off" placeholder="Opcional"></label><label>Modelo<input id="pr_cat_new_modelo" autocomplete="off" placeholder="Opcional"></label><label>Referencia<input id="pr_cat_new_ref" autocomplete="off" placeholder="Opcional"></label><label>Unidad<input id="pr_cat_new_unidad" autocomplete="off" value="ud" placeholder="ud, m, m², L…"></label></div><label>Familia / categoría general<input id="pr_cat_new_familia" autocomplete="off" placeholder="Opcional"></label><div class="zx_pr_section"><h3>Buscar producto / proveedor</h3><div class="zx_pr_info"><b>Puedes buscar antes de crear el artículo.</b><span>Zentryx usa lo escrito en Nombre, Marca, Modelo y Referencia para abrir resultados externos.</span></div><div class="zx_pr_cat_photo_actions"><button id="pr_cat_new_search_web" type="button">🌐 Buscar en web</button><button id="pr_cat_new_search_near" type="button">📍 Cerca de mí</button><button id="pr_cat_new_search_photo" type="button" style="grid-column:1/-1">🔎 Buscar por foto</button></div></div>`);
   m.querySelector("#pr_cat_new_back").onclick=abrirCatalogoTecnico;
+  const consultaNueva=()=>consultaBusquedaMaterial({nombre:m.querySelector("#pr_cat_new_nombre").value,marca:m.querySelector("#pr_cat_new_marca").value,modelo:m.querySelector("#pr_cat_new_modelo").value,referencia:m.querySelector("#pr_cat_new_ref").value});
+  m.querySelector("#pr_cat_new_search_web").onclick=()=>abrirBusquedaWebMaterial(consultaNueva());
+  m.querySelector("#pr_cat_new_search_near").onclick=()=>abrirBusquedaCercanaMaterial(consultaNueva());
+  m.querySelector("#pr_cat_new_search_photo").onclick=()=>abrirBusquedaFotoMaterial(null,"Buscar producto por foto");
   m.querySelector("#pr_cat_new_save").onclick=async()=>{
     const nombre=String(m.querySelector("#pr_cat_new_nombre").value||"").trim(),marca=String(m.querySelector("#pr_cat_new_marca").value||"").trim(),modelo=String(m.querySelector("#pr_cat_new_modelo").value||"").trim(),referencia=String(m.querySelector("#pr_cat_new_ref").value||"").trim(),unidad=String(m.querySelector("#pr_cat_new_unidad").value||"ud").trim()||"ud",familia=String(m.querySelector("#pr_cat_new_familia").value||"").trim();
     if(!nombre){alert("Indica el nombre del artículo.");m.querySelector("#pr_cat_new_nombre").focus();return}
@@ -476,6 +573,7 @@ function formularioNuevoMaterialCatalogo(){
 }
 function abrirCatalogoTecnico(){
   liberarFotosPendientesCatalogo();
+  limpiarTemporalesBusquedaFoto();
   if(!sb()||!navigator.onLine){alert("Necesitas conexión para editar el catálogo técnico.");return}
   const m=modal(`<div class="zx_pr_top_actions"><button id="pr_cat_back" type="button">← Volver</button><button id="pr_cat_new" class="primary" type="button">＋ Nuevo artículo</button></div><div class="zx_pr_form_head"><span>ARTÍCULOS Y DATOS TÉCNICOS</span><h2>Catálogo técnico</h2></div><div class="zx_pr_info"><b>Admite cualquier artículo existente en Materiales.</b><span>Puedes abrir uno existente o crear uno nuevo aquí sin añadir stock. Después clasifícalo y completa sus datos técnicos.</span></div><div class="zx_pr_tools zx_pr_cat_tools"><input id="pr_cat_search" type="search" placeholder="Buscar artículo, categoría, dato técnico o referencia"><select id="pr_cat_filter"><option value="todos">Todos</option><option value="tecnicos">Con ficha técnica</option><option value="pendientes">Sin ficha técnica</option></select></div><div class="zx_pr_cat_stats"><b>${MATERIALES.filter(materialTecnicoActivo).length}</b><span>artículos con ficha técnica de ${MATERIALES.length} artículos activos</span></div><div id="pr_cat_list" class="zx_pr_cat_list">${listaCatalogoTecnicoHTML(MATERIALES)}</div>`);
   const pintar=()=>{
@@ -561,7 +659,11 @@ function formularioMaterialTecnico(mat){
   const fotos=fotosMaterialTecnico(t).map(x=>Object.assign({},x));if(fotos.length&&!fotos.some(x=>x.principal))fotos[0].principal=true;
   CATALOGO_FOTOS_EDICION={material_id:String(mat.id||""),existentes:fotos,nuevas:[],borrar:[]};
   const fotoExterna=String(t.foto_externa_url||(!fotos.length?(t.foto_comercial_url||t.foto_url||""):"")||"");
-  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_cat_form_back" type="button">← Volver</button><button id="pr_cat_form_save" class="primary" type="button">Guardar</button></div><div class="zx_pr_form_head"><span>FICHA TÉCNICA</span><h2>${limpiar(materialTexto(mat)||mat.nombre||"Material")}</h2></div><div class="zx_pr_info"><b>${limpiar(mat.referencia?"Referencia · "+mat.referencia:"Sin referencia")}</b><span>La ficha queda asociada al artículo actual de Materiales. No crea otro artículo.</span></div><label class="zx_pr_dossier_check"><input id="pr_cat_activo" type="checkbox" ${materialTecnicoActivo(mat)?"checked":""}><span>Usar este artículo en el Catálogo técnico de Proyectos</span></label><div class="zx_pr_section"><h3>Clasificación técnica</h3><div class="zx_pr_grid2"><label>Clase de artículo<select id="pr_cat_categoria">${opcionesCategoriaTecnica(categoria)}</select></label><label>Subtipo / descripción técnica<input id="pr_cat_subtipo" value="${limpiar(t.subtipo||"")}" placeholder="Cable, tornillo, válvula, depósito…"></label></div><div class="zx_pr_info zx_pr_cat_hint"><b>La clase decide qué campos específicos se muestran.</b><span>Para cualquier dato adicional usa Datos técnicos libres.</span></div></div><div id="pr_cat_generador" class="zx_pr_cat_generator"><div class="zx_pr_grid2"><label>Tipo de generador<select id="pr_cat_tipo">${opcionesTipoGenerador(t.tipo_generador||"aerotermia")}</select></label><span></span></div><div class="zx_pr_section"><h3>Servicios</h3><div class="zx_pr_checks"><label><input id="pr_cat_func_todos" type="checkbox"><span>Todos</span></label>${[["calefaccion","Calefacción"],["acs","ACS"],["refrigeracion","Refrigeración"],["piscina","Piscina"]].map(([v,n])=>`<label><input type="checkbox" data-pr-cat-func="${v}" ${fs.includes(v)?"checked":""}><span>${n}</span></label>`).join("")}</div></div><div class="zx_pr_section"><h3>Prestaciones del generador</h3><div class="zx_pr_grid2"><label>Potencia calefacción <span class="zx_pr_unit">kW</span><input id="pr_cat_kw_cal" type="number" min="0" step="0.01" inputmode="decimal" value="${t.potencia_calefaccion_kw!=null?limpiar(t.potencia_calefaccion_kw):""}"></label><label>Potencia refrigeración <span class="zx_pr_unit">kW</span><input id="pr_cat_kw_ref" type="number" min="0" step="0.01" inputmode="decimal" value="${t.potencia_refrigeracion_kw!=null?limpiar(t.potencia_refrigeracion_kw):""}"></label><label>Rendimiento <span class="zx_pr_unit">%</span><input id="pr_cat_rend" type="number" min="0" step="0.01" inputmode="decimal" value="${t.rendimiento_pct!=null?limpiar(t.rendimiento_pct):""}"></label><label>Temperatura máxima de impulsión <span class="zx_pr_unit">°C</span><input id="pr_cat_tmax" type="number" step="0.1" inputmode="decimal" value="${t.temperatura_impulsion_max_c!=null?limpiar(t.temperatura_impulsion_max_c):""}"></label></div><div class="zx_pr_grid2"><label>COP<input id="pr_cat_cop" type="number" min="0" step="0.01" inputmode="decimal" value="${t.cop!=null?limpiar(t.cop):""}"></label><label>SCOP<input id="pr_cat_scop" type="number" min="0" step="0.01" inputmode="decimal" value="${t.scop!=null?limpiar(t.scop):""}"></label><label>EER<input id="pr_cat_eer" type="number" min="0" step="0.01" inputmode="decimal" value="${t.eer!=null?limpiar(t.eer):""}"></label><label>SEER<input id="pr_cat_seer" type="number" min="0" step="0.01" inputmode="decimal" value="${t.seer!=null?limpiar(t.seer):""}"></label></div></div></div><div class="zx_pr_section"><div class="zx_pr_section_head"><div><h3>Datos técnicos libres</h3><span>Elige opciones habituales o usa Personalizar para cualquier dato, valor o medida no previsto.</span></div><button id="pr_cat_spec_add" class="zx_pr_small_primary" type="button">＋ Añadir dato</button></div><div id="pr_cat_specs" class="zx_pr_cat_specs">${(esp.length?esp:[{}]).map(x=>filaEspecificacionHTML(x,categoria)).join("")}</div></div><div class="zx_pr_section zx_pr_cat_photos"><div class="zx_pr_section_head"><div><h3>Fotos del artículo</h3><span id="pr_cat_photos_count">${fotos.length} foto${fotos.length===1?"":"s"} · pulsa una imagen para verla grande</span></div><button id="pr_cat_photos_view" class="zx_pr_small_primary" type="button" ${fotos.length?"":"disabled"}>Ver fotos</button></div><div class="zx_pr_cat_photo_actions"><button id="pr_cat_photo_camera" type="button">📷 Hacer foto</button><button id="pr_cat_photo_library" type="button">🖼️ Elegir fotos</button></div><input id="pr_cat_photo_camera_input" class="zx_pr_hidden_file" type="file" accept="image/*" capture="environment"><input id="pr_cat_photo_library_input" class="zx_pr_hidden_file" type="file" accept="image/*" multiple><div id="pr_cat_photos_grid" class="zx_pr_cat_photos_grid">${fotosEdicionHTML()}</div><div class="zx_pr_info zx_pr_cat_photo_help"><b>La foto principal se usa como miniatura y en el dosier.</b><span>Puedes guardar hasta ${CATALOGO_FOTOS_MAX} fotos. Zentryx reduce el tamaño antes de subirlas para que funcionen mejor desde el móvil.</span></div></div><label>Foto externa para dosier · URL opcional<input id="pr_cat_foto" value="${limpiar(fotoExterna)}" placeholder="https://..."></label><label>Texto para cliente<textarea id="pr_cat_desc" rows="4" placeholder="Descripción breve del artículo o equipo">${limpiar(t.descripcion_cliente||"")}</textarea></label><label>Notas técnicas<textarea id="pr_cat_notas" rows="4" placeholder="Observaciones, montaje, compatibilidades, certificaciones…">${limpiar(t.notas||"")}</textarea></label>`);
+  const m=modal(`<div class="zx_pr_top_actions"><button id="pr_cat_form_back" type="button">← Volver</button><button id="pr_cat_form_save" class="primary" type="button">Guardar</button></div><div class="zx_pr_form_head"><span>FICHA TÉCNICA</span><h2>${limpiar(materialTexto(mat)||mat.nombre||"Material")}</h2></div><div class="zx_pr_info"><b>${limpiar(mat.referencia?"Referencia · "+mat.referencia:"Sin referencia")}</b><span>La ficha queda asociada al artículo actual de Materiales. No crea otro artículo.</span></div><label class="zx_pr_dossier_check"><input id="pr_cat_activo" type="checkbox" ${materialTecnicoActivo(mat)?"checked":""}><span>Usar este artículo en el Catálogo técnico de Proyectos</span></label><div class="zx_pr_section"><h3>Buscar producto / proveedor</h3><label>Búsqueda<input id="pr_cat_supplier_query" autocomplete="off" value="${limpiar(consultaBusquedaMaterial(mat))}" placeholder="Nombre, marca, modelo o referencia"></label><div class="zx_pr_cat_photo_actions"><button id="pr_cat_supplier_web" type="button">🌐 Buscar en web</button><button id="pr_cat_supplier_near" type="button">📍 Cerca de mí</button><button id="pr_cat_supplier_photo" type="button" style="grid-column:1/-1">🔎 Buscar por foto</button></div><div class="zx_pr_info"><b>La búsqueda no modifica la ficha.</b><span>Web abre resultados de compra y precios. Cerca de mí usa la ubicación del dispositivo cuando está disponible. Buscar por foto permite usar una foto guardada, una foto aún sin guardar o una imagen nueva solo para la búsqueda visual.</span></div></div><div class="zx_pr_section"><h3>Clasificación técnica</h3><div class="zx_pr_grid2"><label>Clase de artículo<select id="pr_cat_categoria">${opcionesCategoriaTecnica(categoria)}</select></label><label>Subtipo / descripción técnica<input id="pr_cat_subtipo" value="${limpiar(t.subtipo||"")}" placeholder="Cable, tornillo, válvula, depósito…"></label></div><div class="zx_pr_info zx_pr_cat_hint"><b>La clase decide qué campos específicos se muestran.</b><span>Para cualquier dato adicional usa Datos técnicos libres.</span></div></div><div id="pr_cat_generador" class="zx_pr_cat_generator"><div class="zx_pr_grid2"><label>Tipo de generador<select id="pr_cat_tipo">${opcionesTipoGenerador(t.tipo_generador||"aerotermia")}</select></label><span></span></div><div class="zx_pr_section"><h3>Servicios</h3><div class="zx_pr_checks"><label><input id="pr_cat_func_todos" type="checkbox"><span>Todos</span></label>${[["calefaccion","Calefacción"],["acs","ACS"],["refrigeracion","Refrigeración"],["piscina","Piscina"]].map(([v,n])=>`<label><input type="checkbox" data-pr-cat-func="${v}" ${fs.includes(v)?"checked":""}><span>${n}</span></label>`).join("")}</div></div><div class="zx_pr_section"><h3>Prestaciones del generador</h3><div class="zx_pr_grid2"><label>Potencia calefacción <span class="zx_pr_unit">kW</span><input id="pr_cat_kw_cal" type="number" min="0" step="0.01" inputmode="decimal" value="${t.potencia_calefaccion_kw!=null?limpiar(t.potencia_calefaccion_kw):""}"></label><label>Potencia refrigeración <span class="zx_pr_unit">kW</span><input id="pr_cat_kw_ref" type="number" min="0" step="0.01" inputmode="decimal" value="${t.potencia_refrigeracion_kw!=null?limpiar(t.potencia_refrigeracion_kw):""}"></label><label>Rendimiento <span class="zx_pr_unit">%</span><input id="pr_cat_rend" type="number" min="0" step="0.01" inputmode="decimal" value="${t.rendimiento_pct!=null?limpiar(t.rendimiento_pct):""}"></label><label>Temperatura máxima de impulsión <span class="zx_pr_unit">°C</span><input id="pr_cat_tmax" type="number" step="0.1" inputmode="decimal" value="${t.temperatura_impulsion_max_c!=null?limpiar(t.temperatura_impulsion_max_c):""}"></label></div><div class="zx_pr_grid2"><label>COP<input id="pr_cat_cop" type="number" min="0" step="0.01" inputmode="decimal" value="${t.cop!=null?limpiar(t.cop):""}"></label><label>SCOP<input id="pr_cat_scop" type="number" min="0" step="0.01" inputmode="decimal" value="${t.scop!=null?limpiar(t.scop):""}"></label><label>EER<input id="pr_cat_eer" type="number" min="0" step="0.01" inputmode="decimal" value="${t.eer!=null?limpiar(t.eer):""}"></label><label>SEER<input id="pr_cat_seer" type="number" min="0" step="0.01" inputmode="decimal" value="${t.seer!=null?limpiar(t.seer):""}"></label></div></div></div><div class="zx_pr_section"><div class="zx_pr_section_head"><div><h3>Datos técnicos libres</h3><span>Elige opciones habituales o usa Personalizar para cualquier dato, valor o medida no previsto.</span></div><button id="pr_cat_spec_add" class="zx_pr_small_primary" type="button">＋ Añadir dato</button></div><div id="pr_cat_specs" class="zx_pr_cat_specs">${(esp.length?esp:[{}]).map(x=>filaEspecificacionHTML(x,categoria)).join("")}</div></div><div class="zx_pr_section zx_pr_cat_photos"><div class="zx_pr_section_head"><div><h3>Fotos del artículo</h3><span id="pr_cat_photos_count">${fotos.length} foto${fotos.length===1?"":"s"} · pulsa una imagen para verla grande</span></div><button id="pr_cat_photos_view" class="zx_pr_small_primary" type="button" ${fotos.length?"":"disabled"}>Ver fotos</button></div><div class="zx_pr_cat_photo_actions"><button id="pr_cat_photo_camera" type="button">📷 Hacer foto</button><button id="pr_cat_photo_library" type="button">🖼️ Elegir fotos</button></div><input id="pr_cat_photo_camera_input" class="zx_pr_hidden_file" type="file" accept="image/*" capture="environment"><input id="pr_cat_photo_library_input" class="zx_pr_hidden_file" type="file" accept="image/*" multiple><div id="pr_cat_photos_grid" class="zx_pr_cat_photos_grid">${fotosEdicionHTML()}</div><div class="zx_pr_info zx_pr_cat_photo_help"><b>La foto principal se usa como miniatura y en el dosier.</b><span>Puedes guardar hasta ${CATALOGO_FOTOS_MAX} fotos. Zentryx reduce el tamaño antes de subirlas para que funcionen mejor desde el móvil.</span></div></div><label>Foto externa para dosier · URL opcional<input id="pr_cat_foto" value="${limpiar(fotoExterna)}" placeholder="https://..."></label><label>Texto para cliente<textarea id="pr_cat_desc" rows="4" placeholder="Descripción breve del artículo o equipo">${limpiar(t.descripcion_cliente||"")}</textarea></label><label>Notas técnicas<textarea id="pr_cat_notas" rows="4" placeholder="Observaciones, montaje, compatibilidades, certificaciones…">${limpiar(t.notas||"")}</textarea></label>`);
+  const consultaProveedor=m.querySelector("#pr_cat_supplier_query");
+  m.querySelector("#pr_cat_supplier_web").onclick=()=>abrirBusquedaWebMaterial(consultaProveedor.value);
+  m.querySelector("#pr_cat_supplier_near").onclick=()=>abrirBusquedaCercanaMaterial(consultaProveedor.value);
+  m.querySelector("#pr_cat_supplier_photo").onclick=()=>abrirBusquedaFotoMaterial(mat,materialTexto(mat)||mat.nombre||"Buscar producto por foto");
   const checks=[...m.querySelectorAll("[data-pr-cat-func]")],todos=m.querySelector("#pr_cat_func_todos"),cat=m.querySelector("#pr_cat_categoria"),bloqueGen=m.querySelector("#pr_cat_generador");
   const sincronizarTodos=()=>{const marcados=checks.filter(x=>x.checked).length;todos.checked=checks.length>0&&marcados===checks.length;todos.indeterminate=marcados>0&&marcados<checks.length};
   const ajustarClase=()=>{bloqueGen.style.display=cat.value==="generador"?"grid":"none";enlazarEspecificaciones(m,cat.value)};
