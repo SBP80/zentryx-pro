@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1079 - CATÁLOGO TÉCNICO: FOTOS DEL ARTÍCULO, FOTO PRINCIPAL, MINIATURA Y GALERÍA
 // V1078 - EXTRACTORES: DATOS VACÍOS PENDIENTES + DIAGNÓSTICO DE CAUDAL/PRESIÓN
 // V1077 - CATÁLOGO TÉCNICO: CREAR ARTÍCULOS NUEVOS SIN AÑADIR STOCK
 // V1076 - EXTRACCIÓN TÉCNICA: DIMENSIONES VISIBLES SEGÚN FORMA DE CONDUCTO
@@ -22,7 +23,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1078";
+const ZX_VERSION="1079";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1111,7 +1112,7 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"catalogo_tecnico_proyectos", modulo:"proyectos", titulo:"Usar el Catálogo técnico de Proyectos",
-    consulta:"catalogo tecnico proyectos ficha tecnica material tornillo cable tuberia valvula deposito bomba generador datos libres medida potencia cop scop eer seer temperatura impulsion",
+    consulta:"catalogo tecnico proyectos ficha tecnica material tornillo cable tuberia valvula deposito bomba generador datos libres medida potencia cop scop eer seer temperatura impulsion fotos fotografias camara miniatura galeria foto principal",
     resumen:"Crea o prepara artículos de Materiales y guarda sus datos técnicos, desde consumibles y fijaciones hasta equipos y generadores.",
     pasos:[
       "Abre Proyectos y pulsa Catálogo técnico.",
@@ -1125,8 +1126,10 @@ const AYUDAS_DIRECTAS=[
       "Si una opción no aparece, selecciona Personalizar y escribe el dato, valor o medida que necesites. Así la ficha no queda limitada por las opciones propuestas.",
       "Si la clase es Generador / climatización aparecen además Tipo de generador, Servicios y Prestaciones del generador. En Servicios, Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina de una vez y no se guarda como servicio adicional.",
       "Las prestaciones propias de generadores incluyen potencia de calefacción y refrigeración en kW, rendimiento en %, temperatura máxima de impulsión en °C, COP, SCOP, EER y SEER.",
-      "Puedes añadir una URL de foto para el dosier, texto para el cliente y notas técnicas en cualquier clase.",
-      "Pulsa Guardar. La ficha técnica queda asociada al mismo artículo de Materiales y no crea otra copia.",
+      "En Fotos del artículo puedes hacer una foto con la cámara o elegir varias imágenes del dispositivo. La ficha admite varias fotografías y permite marcar cuál es la principal.",
+      "La foto principal aparece como miniatura junto al artículo en el Catálogo técnico y se usa como foto del dosier. Pulsa la miniatura o Ver fotos para abrir la galería y recorrer todas las imágenes.",
+      "Puedes quitar fotografías antes de guardar. También puedes mantener una URL externa para el dosier cuando la imagen no esté guardada en Zentryx.",
+      "Pulsa Guardar. Las fotografías nuevas se suben y la ficha técnica queda asociada al mismo artículo de Materiales; no se crea otro artículo.",
       "Al añadir o editar un generador de un proyecto, el campo Generador del catálogo técnico muestra solo artículos clasificados como Generador / climatización.",
       "Al guardar un generador, el proyecto conserva una copia de los datos usados en ese momento, por lo que cambios posteriores del catálogo no cambian ese proyecto."
     ]
@@ -1627,7 +1630,7 @@ const BASE=[
       "Selecciona una clase técnica. El catálogo admite materiales, consumibles, fijaciones, tuberías, hidráulica, aislamiento, electricidad, control, bombas, depósitos, emisores, generadores, ventilación, extracción, solar, herramientas y la opción Otro.",
       "Datos técnicos libres permite registrar cualquier dato con su valor y medida. El formulario adapta Valor y Medida al Dato elegido, evita arrastrar datos incompatibles y mantiene Personalizar para alternativas no incluidas.",
       "Solo al elegir Generador / climatización aparecen Tipo de generador, Servicios y sus prestaciones específicas. Todos marca o desmarca Calefacción, ACS, Refrigeración y Piscina sin guardarse como servicio adicional.",
-      "La ficha también admite una URL de foto para el dosier, texto para el cliente y notas técnicas. Guardarla modifica los datos técnicos del artículo existente y no crea otro artículo.",
+      "La ficha permite hacer o elegir varias fotografías del artículo, marcar una como principal, abrirlas en galería y ver una miniatura junto al nombre en el listado. La principal se usa también en el dosier; puede mantenerse una URL externa opcional. Guardar modifica la ficha técnica del artículo existente y no crea otro artículo.",
       "La edición del Catálogo técnico necesita conexión.",
       "Al añadir o editar un generador, Generador del catálogo técnico es opcional y muestra solo artículos clasificados como generadores.",
       "Cuando guardas el generador, el proyecto conserva una copia de los datos técnicos usados. Si después cambia la ficha del catálogo, el generador ya guardado mantiene su copia anterior.",
@@ -1653,7 +1656,7 @@ const BASE=[
       "En cada selector de extractor aparecen los artículos clasificados como Extracción. Si la ficha contiene Caudal de aire y Presión disponible, Zentryx los compara con el cálculo de ese sistema. Un campo técnico vacío queda como dato pendiente, no como valor cero. Si falta caudal o presión, la selección no se considera comprobada; si alguno resulta insuficiente, Zentryx indica cuál falla y compara el valor disponible con el requerido.",
       "Cada guardado normativo conserva la norma, el conjunto de reglas, fecha de verificación, ubicación, datos usados y resultados. Para obras en Madrid ciudad, Zentryx identifica además la Ordenanza 4/2021 de Calidad del Aire y Sostenibilidad y la Guía municipal de comprobaciones de ventilación versión enero de 2026; las comprobaciones del punto de evacuación quedan marcadas como pendientes hasta registrarlas.",
       "Si la revisión autonómica o municipal no está completada, la ficha lo muestra como pendiente y el cálculo no debe considerarse cierre normativo definitivo.",
-      "Al guardar la extracción se conserva una copia de la ficha técnica de cada extractor seleccionado. Los cambios posteriores del catálogo no alteran esas copias mientras no cambies expresamente el extractor de cada sistema.",
+      "Al guardar la extracción se conserva una copia de respaldo de la ficha técnica del extractor seleccionado. Mientras el artículo siga disponible en el Catálogo técnico, la ficha del proyecto vuelve a comprobar caudal y presión con sus datos actuales; la copia guardada se usa como respaldo si el artículo ya no está disponible.",
       "Guarda para abrir la ficha en modo consulta. Usa Editar desde la parte superior cuando necesites cambiar datos.",
       "En Instalación y generadores puedes añadir varias fuentes existentes o previstas e indicar sus servicios, potencia y estado.",
       "En equipos existentes puedes indicar si se conservan o se retiran. Los equipos nuevos o previstos no muestran esa decisión.",
@@ -1698,7 +1701,7 @@ const BASE=[
       "Una opción enviada o aceptada permite consultar el dosier guardado, pero ya no cambiar su diseño.",
       "Cuando la opción está aceptada, el cierre del dosier muestra la aceptación registrada y el pie del documento la identifica como propuesta aceptada, no como vista previa."
     ],
-    palabras:"proyecto multidisciplinar especialidades fontaneria electricidad ventilacion extraccion extractor caudal m3h renovaciones conducto circular rectangular velocidad aire presion pa codos rejillas compuertas simultaneidad margen aire acondicionado humedad estancias calculo por estancias estudio presupuesto catalogo tecnico ficha tecnica equipo termico materiales marca modelo referencia cop scop eer seer rendimiento temperatura maxima impulsion foto cliente notas aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot empresa configuracion valores comunes contacto telefono email web"
+    palabras:"proyecto multidisciplinar especialidades fontaneria electricidad ventilacion extraccion extractor caudal m3h renovaciones conducto circular rectangular velocidad aire presion pa codos rejillas compuertas simultaneidad margen aire acondicionado humedad estancias calculo por estancias estudio presupuesto catalogo tecnico ficha tecnica equipo termico materiales marca modelo referencia cop scop eer seer rendimiento temperatura maxima impulsion foto fotos fotografias camara miniatura galeria principal cliente notas aerotermia generador gas gasoleo leña pellet biomasa solar termica fotovoltaica hibrido cliente inmueble potencia calefaccion acs refrigeracion emisor radiador suelo radiante fancoil conducto circuito impulsion retorno calculo termico estimacion version carga litros temperatura estrategia regla prioridad apoyo simultaneo reserva excedente fotovoltaico horario propuesta opcion partida material mano obra servicio transporte subcontrata ingenieria legalizacion rite cae coste precio venta margen iva descuento presupuesto comercial borrador base imponible total cliente enviado enviada aceptar aceptada bloqueo bloqueada dosier presentacion comercial visual profesional tecnico portada color beneficios capitulos alcance garantia forma pago plazo validez recomendada snapshot empresa configuracion valores comunes contacto telefono email web"
   },
   {
     id:"clientes",icono:"👥",titulo:"Clientes",roles:["todos"],
