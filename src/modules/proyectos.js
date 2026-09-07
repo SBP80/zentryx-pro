@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1060
+// ZENTRYX PRO - PROYECTOS V1061
+// V1061 - EXTRACCIÓN: LA FICHA REVALIDA EL EXTRACTOR CONTRA EL CATÁLOGO ACTUAL; SNAPSHOT SOLO COMO RESPALDO
 // V1060 - EXTRACCIÓN: REFRESCAR SNAPSHOT DEL EXTRACTOR AL GUARDAR PARA NO CONSERVAR DATOS ANTIGUOS DEL CATÁLOGO
 // V1059 - CATÁLOGO/EXTRACCIÓN: LIMPIAR PREFIJO VISUAL "NOMBRE DEL ARTÍCULO:" EN NOMBRES
 // V1058 - EXTRACTORES: CAMPOS VACÍOS QUEDAN PENDIENTES + AVISOS EXPLÍCITOS DE CAUDAL/PRESIÓN
@@ -39,7 +40,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1060";
+const ZX_VERSION="1061";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -1862,7 +1863,7 @@ function resumenExtraccion(p){
     const qGuardado=Math.max(0,nExt(z.caudal_adoptado_m3h!=null?z.caudal_adoptado_m3h:z.caudal_calculo_m3h)),qNorm=Math.max(0,nExt(z.caudal_normativo_m3h)),qMinLocal=Math.max(0,nExt(z.caudal_minimo_local_m3h!=null?z.caudal_minimo_local_m3h:qNorm)),manualCalc=calcZonaExtraccion(z),zonaCalculo=x.modo_asistente==="avanzado"?z:Object.assign({},z,{presion_adicional_pa:0}),calc=qGuardado>0?calcZonaExtraccion(zonaCalculo,qGuardado,z.diametro_recomendado_mm||null):manualCalc,norm={tipo:tipoNormativoZona(z),independiente:!!z.independiente_normativa,ref:z.normativa_ref||"",caudal_m3h:qNorm,minimo_local_m3h:qMinLocal,estado:qNorm>0?"ok":""};
     return {zona:z,norm,dim:null,manualCalc,caudal_minimo_local_m3h:qMinLocal,caudal_reglamentario_m3h:qNorm,caudal_adoptado_m3h:calc.caudal_m3h,manual_bajo_minimo:!!z.manual_bajo_minimo,calc};
   }).filter(x=>x.calc.caudal_m3h>0),modo=x.modo_asistente||"normativa",sim=modo==="normativa"?100:Math.min(100,Math.max(0,nExt(x.simultaneidad_pct,100))),margen=Math.max(0,nExt(x.margen_pct,10)),sistemas=sistemasExtraccionCalculados(items,modo,sim,margen);
-  sistemas.forEach(sys=>{const g=seleccionSistemaGuardada(x,sys.clave),datos=datosExtractorTecnico(g.snapshot),cmp=comparacionExtractorSistema(datos,sys);sys.extractor_material_id=g.material_id;sys.extractor_snapshot=g.snapshot;sys.extractor=datos;sys.cumpleQ=cmp.cumpleQ;sys.cumpleP=cmp.cumpleP;sys.comparacion_extractor=cmp});
+  sistemas.forEach(sys=>{const g=seleccionSistemaGuardada(x,sys.clave),matActual=g.material_id?MATERIALES.find(m=>String(m.id)===String(g.material_id)):null,origen=matActual?snapshotMaterialTecnico(matActual):g.snapshot,datos=datosExtractorTecnico(origen),cmp=comparacionExtractorSistema(datos,sys);sys.extractor_material_id=g.material_id;sys.extractor_snapshot=origen;sys.extractor=datos;sys.cumpleQ=cmp.cumpleQ;sys.cumpleP=cmp.cumpleP;sys.comparacion_extractor=cmp});
   return {config:x,zonas:items.map(a=>Object.assign({},a.zona,a.calc)),sistemas};
 }
 function estadoExtractorSistemaHTML(snapshot,datos,sys){
