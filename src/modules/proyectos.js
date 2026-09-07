@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1057
+// ZENTRYX PRO - PROYECTOS V1058
+// V1058 - EXTRACTORES: CAMPOS VACÍOS QUEDAN PENDIENTES + AVISOS EXPLÍCITOS DE CAUDAL/PRESIÓN
 // V1057 - CATÁLOGO TÉCNICO: ALTA DIRECTA DE ARTÍCULO EN MATERIALES + VERSIONADO INTERNO COHERENTE
 // V1056 - EXTRACCIÓN TÉCNICA: MOSTRAR SOLO LAS DIMENSIONES QUE CORRESPONDEN A LA FORMA DEL CONDUCTO
 // V1054 - EXTRACCIÓN GUIADA: NO MOSTRAR VOLUMEN TÉCNICO RESIDUAL; RESULTADOS TÉCNICOS SOLO CUANDO CORRESPONDEN
@@ -36,7 +37,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1057";
+const ZX_VERSION="1058";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -1817,7 +1818,8 @@ function opcionesExtractorCatalogo(sel){
 function numeroEspecificacionTecnica(origen,nombres){
   const t=origen&&origen.tecnico_meta?origen.tecnico_meta:tecnicoMaterial(origen),aliases=(nombres||[]).map(normalizar),xs=especificacionesTecnicas(t);
   const e=xs.find(x=>aliases.some(a=>normalizar(x.nombre).includes(a)));if(!e)return null;
-  const raw=String(e.valor??"").trim().replace(",","."),n=Number(raw);if(!Number.isFinite(n))return null;
+  const raw=String(e.valor??"").trim().replace(",",".");if(raw==="")return null;
+  const n=Number(raw);if(!Number.isFinite(n))return null;
   return {valor:n,medida:medidaTecnicaCanonica(e.medida||"")};
 }
 function datosExtractorTecnico(origen){
@@ -1827,6 +1829,19 @@ function datosExtractorTecnico(origen){
   let p=pr&&pr.valor!=null?pr.valor:null;if(p!=null&&pr.medida==="kPa")p*=1000;if(p!=null&&pr.medida==="mbar")p*=100;
   let w=po&&po.valor!=null?po.valor:null;if(w!=null&&po.medida==="kW")w*=1000;
   return {caudal_m3h:q,presion_pa:p,potencia_w:w,sonido_dba:so&&so.valor!=null?so.valor:null};
+}
+function comparacionExtractorSistema(datos,sys){
+  const qReq=Number(sys&&sys.caudal_diseno_m3h),pReq=Number(sys&&sys.presion_diseno_pa),requiereQ=Number.isFinite(qReq)&&qReq>0,requiereP=Number.isFinite(pReq)&&pReq>0;
+  const q=datos&&datos.caudal_m3h!=null&&Number.isFinite(Number(datos.caudal_m3h))?Number(datos.caudal_m3h):null,p=datos&&datos.presion_pa!=null&&Number.isFinite(Number(datos.presion_pa))?Number(datos.presion_pa):null;
+  const cumpleQ=requiereQ?(q==null?null:q>=qReq):null,cumpleP=requiereP?(p==null?null:p>=pReq):null;
+  if(cumpleQ===false&&cumpleP===false)return {cumpleQ,cumpleP,clase:"is-bad",texto:`Caudal insuficiente: ${q} m³/h disponibles frente a ${qReq} m³/h requeridos · Presión insuficiente: ${p} Pa disponibles frente a ${pReq} Pa requeridos`};
+  if(cumpleQ===false)return {cumpleQ,cumpleP,clase:"is-bad",texto:`Caudal insuficiente: ${q} m³/h disponibles frente a ${qReq} m³/h requeridos`};
+  if(cumpleP===false)return {cumpleQ,cumpleP,clase:"is-bad",texto:`Presión insuficiente: ${p} Pa disponibles frente a ${pReq} Pa requeridos`};
+  const faltan=[];if(requiereQ&&q==null)faltan.push("caudal de catálogo");if(requiereP&&p==null)faltan.push("presión disponible");
+  if(faltan.length)return {cumpleQ,cumpleP,clase:"",texto:`Falta ${faltan.join(" y ")} para completar la comprobación`};
+  if(requiereQ&&cumpleQ===true&&requiereP&&cumpleP===true)return {cumpleQ,cumpleP,clase:"is-ok",texto:"Cumple caudal y presión calculados"};
+  if(requiereQ&&cumpleQ===true&&!requiereP)return {cumpleQ,cumpleP,clase:"",texto:"El caudal cumple; la presión de diseño del sistema está sin calcular"};
+  return {cumpleQ,cumpleP,clase:"",texto:"Faltan datos para completar la comprobación"};
 }
 function nExt(v,def=0){const n=Number(String(v??"").replace(",","."));return Number.isFinite(n)?n:def}
 function calcZonaExtraccion(z,caudalForzado=null,diametroForzado=null){
@@ -1844,14 +1859,13 @@ function resumenExtraccion(p){
     const qGuardado=Math.max(0,nExt(z.caudal_adoptado_m3h!=null?z.caudal_adoptado_m3h:z.caudal_calculo_m3h)),qNorm=Math.max(0,nExt(z.caudal_normativo_m3h)),qMinLocal=Math.max(0,nExt(z.caudal_minimo_local_m3h!=null?z.caudal_minimo_local_m3h:qNorm)),manualCalc=calcZonaExtraccion(z),zonaCalculo=x.modo_asistente==="avanzado"?z:Object.assign({},z,{presion_adicional_pa:0}),calc=qGuardado>0?calcZonaExtraccion(zonaCalculo,qGuardado,z.diametro_recomendado_mm||null):manualCalc,norm={tipo:tipoNormativoZona(z),independiente:!!z.independiente_normativa,ref:z.normativa_ref||"",caudal_m3h:qNorm,minimo_local_m3h:qMinLocal,estado:qNorm>0?"ok":""};
     return {zona:z,norm,dim:null,manualCalc,caudal_minimo_local_m3h:qMinLocal,caudal_reglamentario_m3h:qNorm,caudal_adoptado_m3h:calc.caudal_m3h,manual_bajo_minimo:!!z.manual_bajo_minimo,calc};
   }).filter(x=>x.calc.caudal_m3h>0),modo=x.modo_asistente||"normativa",sim=modo==="normativa"?100:Math.min(100,Math.max(0,nExt(x.simultaneidad_pct,100))),margen=Math.max(0,nExt(x.margen_pct,10)),sistemas=sistemasExtraccionCalculados(items,modo,sim,margen);
-  sistemas.forEach(sys=>{const g=seleccionSistemaGuardada(x,sys.clave),datos=datosExtractorTecnico(g.snapshot);sys.extractor_material_id=g.material_id;sys.extractor_snapshot=g.snapshot;sys.extractor=datos;sys.cumpleQ=datos.caudal_m3h==null?null:datos.caudal_m3h>=sys.caudal_diseno_m3h;sys.cumpleP=datos.presion_pa==null?null:datos.presion_pa>=sys.presion_diseno_pa});
+  sistemas.forEach(sys=>{const g=seleccionSistemaGuardada(x,sys.clave),datos=datosExtractorTecnico(g.snapshot),cmp=comparacionExtractorSistema(datos,sys);sys.extractor_material_id=g.material_id;sys.extractor_snapshot=g.snapshot;sys.extractor=datos;sys.cumpleQ=cmp.cumpleQ;sys.cumpleP=cmp.cumpleP;sys.comparacion_extractor=cmp});
   return {config:x,zonas:items.map(a=>Object.assign({},a.zona,a.calc)),sistemas};
 }
-function estadoExtractorSistemaHTML(snapshot,cumpleQ,cumpleP){
+function estadoExtractorSistemaHTML(snapshot,datos,sys){
   if(!snapshot)return '<span class="zx_pr_extract_status is-pending">Extractor sin seleccionar</span>';
-  if(cumpleQ===false||cumpleP===false)return '<span class="zx_pr_extract_status is-bad">Revisar selección</span>';
-  if(cumpleQ===true&&cumpleP===true)return '<span class="zx_pr_extract_status is-ok">Cumple preliminarmente</span>';
-  return '<span class="zx_pr_extract_status is-pending">Faltan datos de catálogo para comprobar</span>';
+  const c=sys&&sys.comparacion_extractor?sys.comparacion_extractor:comparacionExtractorSistema(datos,sys),clase=c.clase==="is-bad"?"is-bad":c.clase==="is-ok"?"is-ok":"is-pending";
+  return `<span class="zx_pr_extract_status ${clase}">${limpiar(c.texto||"Faltan datos de catálogo para comprobar")}</span>`;
 }
 function estadoNormativoFichaHTML(x){
   const n=x.normativa&&typeof x.normativa==="object"?x.normativa:null;if(!n)return '<span class="zx_pr_norm_status is-pending">Pendiente de recalcular con normativa</span>';
@@ -1864,7 +1878,7 @@ function estadoNormativoFichaHTML(x){
 }
 function sistemaExtraccionFichaHTML(sys){
   const snap=sys.extractor_snapshot,nombre=snap?(materialTexto(snap)||snap.nombre||"Extractor seleccionado"):"Sin seleccionar";
-  return `<div class="zx_pr_extract_system_card"><div class="zx_pr_extract_system_head"><b>${limpiar(sys.nombre)}</b><span>${sys.zonas.length} zona(s)</span></div><div class="zx_pr_extract_summary"><div><span>Caudal base</span><b>${sys.caudal_base_m3h>0?limpiar(sys.caudal_base_m3h)+" m³/h":"Sin calcular"}</b></div><div><span>Caudal de diseño</span><b>${sys.caudal_diseno_m3h>0?limpiar(sys.caudal_diseno_m3h)+" m³/h":"Sin calcular"}</b></div><div><span>Presión de diseño</span><b>${sys.presion_diseno_pa>0?limpiar(sys.presion_diseno_pa)+" Pa":"Sin calcular"}</b></div><div><span>Extractor</span><b>${limpiar(nombre)}</b></div></div><div class="zx_pr_extract_list">${sys.zonas.map(z=>{const qTec=nExt(z.caudal_manual_resultado_m3h),qMin=nExt(z.caudal_minimo_local_m3h!=null?z.caudal_minimo_local_m3h:z.caudal_normativo_m3h),qNorm=nExt(z.caudal_normativo_m3h),qAdop=nExt(z.caudal_adoptado_m3h!=null?z.caudal_adoptado_m3h:z.caudal_m3h),detalle=(qTec>0||qNorm>0)?`<small>Caudal técnico: ${qTec>0?limpiar(qTec)+" m³/h":"sin indicar"}${qMin>0?" · Mínimo local: "+limpiar(qMin)+" m³/h":" · Mínimo local pendiente"}${qNorm>0?" · Regla aplicada: "+limpiar(qNorm)+" m³/h":" · Regla aplicada pendiente"} · Adoptado: ${limpiar(qAdop)} m³/h</small>`:"";return `<div><b>${limpiar(z.nombre||z.uso||"Zona")}</b><span>${limpiar(z.caudal_m3h)} m³/h${z.velocidad_ms!=null?" · "+limpiar(z.velocidad_ms)+" m/s":""}${z.perdida_pa>0?" · "+limpiar(z.perdida_pa)+" Pa":""}</span>${detalle}${z.normativa_ref?`<small>${limpiar(z.normativa_ref)}</small>`:""}</div>`}).join("")}</div><div class="zx_pr_extract_equipment"><span>Extractor de este sistema</span><b>${limpiar(nombre)}</b>${estadoExtractorSistemaHTML(snap,sys.cumpleQ,sys.cumpleP)}</div></div>`;
+  return `<div class="zx_pr_extract_system_card"><div class="zx_pr_extract_system_head"><b>${limpiar(sys.nombre)}</b><span>${sys.zonas.length} zona(s)</span></div><div class="zx_pr_extract_summary"><div><span>Caudal base</span><b>${sys.caudal_base_m3h>0?limpiar(sys.caudal_base_m3h)+" m³/h":"Sin calcular"}</b></div><div><span>Caudal de diseño</span><b>${sys.caudal_diseno_m3h>0?limpiar(sys.caudal_diseno_m3h)+" m³/h":"Sin calcular"}</b></div><div><span>Presión de diseño</span><b>${sys.presion_diseno_pa>0?limpiar(sys.presion_diseno_pa)+" Pa":"Sin calcular"}</b></div><div><span>Extractor</span><b>${limpiar(nombre)}</b></div></div><div class="zx_pr_extract_list">${sys.zonas.map(z=>{const qTec=nExt(z.caudal_manual_resultado_m3h),qMin=nExt(z.caudal_minimo_local_m3h!=null?z.caudal_minimo_local_m3h:z.caudal_normativo_m3h),qNorm=nExt(z.caudal_normativo_m3h),qAdop=nExt(z.caudal_adoptado_m3h!=null?z.caudal_adoptado_m3h:z.caudal_m3h),detalle=(qTec>0||qNorm>0)?`<small>Caudal técnico: ${qTec>0?limpiar(qTec)+" m³/h":"sin indicar"}${qMin>0?" · Mínimo local: "+limpiar(qMin)+" m³/h":" · Mínimo local pendiente"}${qNorm>0?" · Regla aplicada: "+limpiar(qNorm)+" m³/h":" · Regla aplicada pendiente"} · Adoptado: ${limpiar(qAdop)} m³/h</small>`:"";return `<div><b>${limpiar(z.nombre||z.uso||"Zona")}</b><span>${limpiar(z.caudal_m3h)} m³/h${z.velocidad_ms!=null?" · "+limpiar(z.velocidad_ms)+" m/s":""}${z.perdida_pa>0?" · "+limpiar(z.perdida_pa)+" Pa":""}</span>${detalle}${z.normativa_ref?`<small>${limpiar(z.normativa_ref)}</small>`:""}</div>`}).join("")}</div><div class="zx_pr_extract_equipment"><span>Extractor de este sistema</span><b>${limpiar(nombre)}</b>${estadoExtractorSistemaHTML(snap,sys.extractor,sys)}</div></div>`;
 }
 function bloqueExtraccionFichaHTML(p){
   if(!especialidadesProyecto(p).includes("extraccion"))return "";
@@ -1908,8 +1922,8 @@ function renderSistemasExtraccionFormulario(sistemas){
   const box=document.getElementById("pr_extract_systems");if(!box)return;
   box.querySelectorAll("[data-pr-extract-system]").forEach(e=>{EXTRACTORES_EXTRACCION_FORM[e.dataset.prExtractSystem]=e.value||""});
   box.innerHTML=(sistemas||[]).length?(sistemas||[]).map(sys=>{
-    const sel=EXTRACTORES_EXTRACCION_FORM[sys.clave]||"",mat=MATERIALES.find(m=>String(m.id)===String(sel)),datos=datosExtractorTecnico(mat),cq=datos.caudal_m3h==null?null:datos.caudal_m3h>=sys.caudal_diseno_m3h,cp=datos.presion_pa==null?null:datos.presion_pa>=sys.presion_diseno_pa;
-    return `<div class="zx_pr_extract_system_card"><div class="zx_pr_extract_system_head"><b>${limpiar(sys.nombre)}</b><span>${sys.zonas.length} zona(s)</span></div><div class="zx_pr_extract_summary"><div><span>Caudal base</span><b>${limpiar(sys.caudal_base_m3h)} m³/h</b></div><div><span>Caudal de diseño</span><b>${limpiar(sys.caudal_diseno_m3h)} m³/h</b></div><div><span>Presión de diseño</span><b>${sys.presion_diseno_pa>0?limpiar(sys.presion_diseno_pa)+" Pa":"Sin calcular"}</b></div><div><span>Sistema</span><b>${sys.independiente?"Propio / independiente":"Ventilación general"}</b></div></div><label>Extractor de este sistema<select data-pr-extract-system="${limpiar(sys.clave)}">${opcionesExtractorCatalogo(sel)}</select></label><div class="zx_pr_extract_catalog_info">${mat?`<b>${limpiar(materialTexto(mat)||mat.nombre)}</b><span>${datos.caudal_m3h!=null?"Caudal catálogo: "+limpiar(datos.caudal_m3h)+" m³/h":"Caudal de catálogo sin indicar"}${datos.presion_pa!=null?" · Presión: "+limpiar(datos.presion_pa)+" Pa":" · Presión sin indicar"}</span><em class="${cq===false||cp===false?"is-bad":cq===true&&cp===true?"is-ok":""}">${cq===false||cp===false?"No alcanza el cálculo de este sistema":cq===true&&cp===true?"Cumple caudal y presión calculados":"Faltan datos para comprobar"}</em>`:"Selecciona un artículo clasificado como Extracción en el Catálogo técnico para comparar caudal y presión."}</div></div>`;
+    const sel=EXTRACTORES_EXTRACCION_FORM[sys.clave]||"",mat=MATERIALES.find(m=>String(m.id)===String(sel)),datos=datosExtractorTecnico(mat),cmp=comparacionExtractorSistema(datos,sys);
+    return `<div class="zx_pr_extract_system_card"><div class="zx_pr_extract_system_head"><b>${limpiar(sys.nombre)}</b><span>${sys.zonas.length} zona(s)</span></div><div class="zx_pr_extract_summary"><div><span>Caudal base</span><b>${limpiar(sys.caudal_base_m3h)} m³/h</b></div><div><span>Caudal de diseño</span><b>${limpiar(sys.caudal_diseno_m3h)} m³/h</b></div><div><span>Presión de diseño</span><b>${sys.presion_diseno_pa>0?limpiar(sys.presion_diseno_pa)+" Pa":"Sin calcular"}</b></div><div><span>Sistema</span><b>${sys.independiente?"Propio / independiente":"Ventilación general"}</b></div></div><label>Extractor de este sistema<select data-pr-extract-system="${limpiar(sys.clave)}">${opcionesExtractorCatalogo(sel)}</select></label><div class="zx_pr_extract_catalog_info">${mat?`<b>${limpiar(materialTexto(mat)||mat.nombre)}</b><span>${datos.caudal_m3h!=null?"Caudal catálogo: "+limpiar(datos.caudal_m3h)+" m³/h":"Caudal de catálogo sin indicar"}${datos.presion_pa!=null?" · Presión: "+limpiar(datos.presion_pa)+" Pa":" · Presión sin indicar"}</span><em class="${cmp.clase}">${limpiar(cmp.texto)}</em>`:"Selecciona un artículo clasificado como Extracción en el Catálogo técnico para comparar caudal y presión."}</div></div>`;
   }).join(""):'<div class="zx_pr_empty">Añade y calcula al menos una zona para obtener los sistemas de extracción.</div>';
   box.querySelectorAll("[data-pr-extract-system]").forEach(e=>{e.onchange=()=>{EXTRACTORES_EXTRACCION_FORM[e.dataset.prExtractSystem]=e.value||"";resumenExtraccionFormulario()}});
 }
