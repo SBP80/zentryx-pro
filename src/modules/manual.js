@@ -1,5 +1,7 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1081 - CATÁLOGO TÉCNICO: BÚSQUEDA VISUAL POR FOTO CON GOOGLE LENS Y FOTO TEMPORAL
+// V1080 - CATÁLOGO TÉCNICO: BÚSQUEDA DE PRODUCTO/PROVEEDOR EN WEB Y CERCA DEL DISPOSITIVO
 // V1079 - CATÁLOGO TÉCNICO: FOTOS DEL ARTÍCULO, FOTO PRINCIPAL, MINIATURA Y GALERÍA
 // V1078 - EXTRACTORES: DATOS VACÍOS PENDIENTES + DIAGNÓSTICO DE CAUDAL/PRESIÓN
 // V1077 - CATÁLOGO TÉCNICO: CREAR ARTÍCULOS NUEVOS SIN AÑADIR STOCK
@@ -23,7 +25,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1079";
+const ZX_VERSION="1081";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1112,13 +1114,18 @@ const AYUDAS_DIRECTAS=[
   },
   {
     id:"catalogo_tecnico_proyectos", modulo:"proyectos", titulo:"Usar el Catálogo técnico de Proyectos",
-    consulta:"catalogo tecnico proyectos ficha tecnica material tornillo cable tuberia valvula deposito bomba generador datos libres medida potencia cop scop eer seer temperatura impulsion fotos fotografias camara miniatura galeria foto principal",
+    consulta:"catalogo tecnico proyectos ficha tecnica material tornillo cable tuberia valvula deposito bomba generador datos libres medida potencia cop scop eer seer temperatura impulsion fotos fotografias camara miniatura galeria foto principal buscar producto proveedor web cerca cercano tienda comprar precio lens busqueda visual buscar por foto imagen etiqueta marca modelo referencia",
     resumen:"Crea o prepara artículos de Materiales y guarda sus datos técnicos, desde consumibles y fijaciones hasta equipos y generadores.",
     pasos:[
       "Abre Proyectos y pulsa Catálogo técnico.",
       "Busca el artículo que quieras preparar o usa el filtro para ver artículos con ficha técnica o pendientes de ficha.",
       "Si el artículo todavía no existe, pulsa Nuevo artículo, indica al menos Nombre y Unidad y créalo. Esta acción crea el artículo en Materiales pero no añade stock.",
+      "Antes de crear un artículo puedes usar Buscar en web o Cerca de mí con el Nombre, Marca, Modelo y Referencia que hayas escrito, o Buscar por foto para hacer una fotografía o elegir una imagen sin crear todavía el artículo.",
       "Abre el artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
+      "En Buscar producto / proveedor, revisa o edita la búsqueda preparada con nombre, marca, modelo y referencia. Buscar en web abre resultados de compra, precios y proveedores; Cerca de mí intenta usar la ubicación del dispositivo y abre comercios próximos en el mapa.",
+      "Buscar por foto abre un selector con las fotografías actuales del artículo. Puedes buscar con cualquiera de ellas, incluida una foto preparada pero todavía sin guardar, o hacer/elegir una imagen nueva solo para buscar.",
+      "La búsqueda visual se realiza con Google Lens. Una imagen nueva usada solo para buscar se sube temporalmente al almacenamiento actual para que Lens pueda leerla y Zentryx programa su borrado; esa imagen no se añade a la ficha.",
+      "Estas búsquedas son externas: no cambian la ficha, el stock ni los precios guardados en Zentryx.",
       "Elige su clase técnica: material o consumible, fijación, tubería, hidráulica, aislamiento, electricidad, control, bomba, depósito, emisor, generador, ventilación, extracción, solar, herramienta u otro.",
       "Indica un subtipo o descripción técnica si ayuda a identificarlo.",
       "En Datos técnicos libres puedes añadir tantos datos como necesites. Dato y medida ofrecen opciones habituales; Valor usa opciones cuando existen valores típicos y escritura directa cuando el dato es numérico o libre.",
@@ -1624,8 +1631,10 @@ const BASE=[
     pasos:[
       "Entra en Proyectos. Si necesitas preparar datos técnicos de materiales o equipos, pulsa Catálogo técnico; para iniciar un estudio, pulsa Crear proyecto.",
       "El Catálogo técnico usa los artículos activos de Materiales y permite buscar por artículo, categoría, dato técnico o referencia.",
-      "Si necesitas un artículo que todavía no existe, pulsa Nuevo artículo. Se crea en Materiales sin generar stock y después se abre su ficha técnica.",
+      "Si necesitas un artículo que todavía no existe, pulsa Nuevo artículo. Se crea en Materiales sin generar stock y después se abre su ficha técnica. Antes de crearlo puedes buscarlo en web o cerca del dispositivo con los datos escritos.",
       "Puedes filtrar entre todos los artículos, los que ya tienen ficha técnica y los que todavía no la tienen.",
+      "Dentro de una ficha técnica, Buscar producto / proveedor permite abrir una búsqueda de compra y precios en web, una búsqueda de comercios próximos o una búsqueda visual por foto con Google Lens. El texto se puede editar y la consulta externa no cambia los datos guardados.",
+      "Buscar por foto puede usar una foto guardada, una foto preparada aún sin guardar o una imagen nueva hecha/elegida solo para buscar. Las imágenes nuevas usadas solo para buscar se suben de forma temporal y no pasan a la ficha.",
       "Abre un artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
       "Selecciona una clase técnica. El catálogo admite materiales, consumibles, fijaciones, tuberías, hidráulica, aislamiento, electricidad, control, bombas, depósitos, emisores, generadores, ventilación, extracción, solar, herramientas y la opción Otro.",
       "Datos técnicos libres permite registrar cualquier dato con su valor y medida. El formulario adapta Valor y Medida al Dato elegido, evita arrastrar datos incompatibles y mantiene Personalizar para alternativas no incluidas.",
