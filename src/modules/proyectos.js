@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1062
+// ZENTRYX PRO - PROYECTOS V1063
+// V1063 - CATÁLOGO TÉCNICO: GALERÍA ABRE EN FOTO PRINCIPAL DESDE MINIATURA + OCULTA FLECHAS CON UNA SOLA FOTO
 // V1062 - CATÁLOGO TÉCNICO: FOTOS MÚLTIPLES DEL ARTÍCULO + PRINCIPAL + MINIATURA Y GALERÍA
 // V1061 - EXTRACCIÓN: LA FICHA REVALIDA EL EXTRACTOR CONTRA EL CATÁLOGO ACTUAL; SNAPSHOT SOLO COMO RESPALDO
 // V1060 - EXTRACCIÓN: REFRESCAR SNAPSHOT DEL EXTRACTOR AL GUARDAR PARA NO CONSERVAR DATOS ANTIGUOS DEL CATÁLOGO
@@ -41,7 +42,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1062";
+const ZX_VERSION="1063";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -328,14 +329,16 @@ function abrirGaleriaFotosMaterial(fotos,titulo,indiceInicial){
   g.innerHTML=`<div class="zx_pr_cat_gallery_box"><div class="zx_pr_cat_gallery_top"><button type="button" data-pr-cat-gallery-close>← Volver</button><div><b>${limpiar(titulo||"Fotos del artículo")}</b><span data-pr-cat-gallery-count></span></div></div><div class="zx_pr_cat_gallery_stage"><button type="button" class="zx_pr_cat_gallery_nav prev" data-pr-cat-gallery-prev aria-label="Foto anterior">‹</button><img data-pr-cat-gallery-main alt=""><button type="button" class="zx_pr_cat_gallery_nav next" data-pr-cat-gallery-next aria-label="Foto siguiente">›</button></div><div class="zx_pr_cat_gallery_thumbs" data-pr-cat-gallery-thumbs></div></div>`;
   document.body.appendChild(g);
   const main=g.querySelector("[data-pr-cat-gallery-main]"),count=g.querySelector("[data-pr-cat-gallery-count]"),thumbs=g.querySelector("[data-pr-cat-gallery-thumbs]");
+  const prev=g.querySelector("[data-pr-cat-gallery-prev]"),next=g.querySelector("[data-pr-cat-gallery-next]");
+  if(xs.length<=1){prev.hidden=true;next.hidden=true;prev.style.display="none";next.style.display="none"}
   const pintar=()=>{const x=xs[idx];main.src=x.url;main.alt=x.nombre||"Foto";count.textContent=(idx+1)+" de "+xs.length;thumbs.innerHTML=xs.map((f,i)=>`<button type="button" class="${i===idx?"is-active":""}" data-pr-cat-gallery-thumb="${i}"><img src="${limpiar(f.url)}" alt="${limpiar(f.nombre||("Foto "+(i+1)))}"></button>`).join("");thumbs.querySelectorAll("[data-pr-cat-gallery-thumb]").forEach(b=>b.onclick=()=>{idx=Number(b.dataset.prCatGalleryThumb)||0;pintar()})};
   g.querySelector("[data-pr-cat-gallery-close]").onclick=cerrarGaleriaMaterial;
-  g.querySelector("[data-pr-cat-gallery-prev]").onclick=()=>{idx=(idx-1+xs.length)%xs.length;pintar()};
-  g.querySelector("[data-pr-cat-gallery-next]").onclick=()=>{idx=(idx+1)%xs.length;pintar()};
+  prev.onclick=()=>{idx=(idx-1+xs.length)%xs.length;pintar()};
+  next.onclick=()=>{idx=(idx+1)%xs.length;pintar()};
   g.onclick=e=>{if(e.target===g)cerrarGaleriaMaterial()};
   pintar();
 }
-function abrirGaleriaMaterial(m,indiceInicial){const xs=fotosGaleriaMaterial(m);if(xs.length)abrirGaleriaFotosMaterial(xs,materialTexto(m)||m&&m.nombre||"Fotos del artículo",indiceInicial)}
+function abrirGaleriaMaterial(m,indiceInicial){const xs=fotosGaleriaMaterial(m);if(!xs.length)return;let idx=indiceInicial;if(idx==null){const principal=fotoPrincipalMaterialTecnico(tecnicoMaterial(m));const encontrado=xs.findIndex(x=>String(x.url||"")===String(principal||""));idx=encontrado>=0?encontrado:0}abrirGaleriaFotosMaterial(xs,materialTexto(m)||m&&m.nombre||"Fotos del artículo",idx)}
 function limpiarNombreArchivo(v){return String(v||"foto").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9._-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,80)||"foto"}
 async function imagenParaCanvas(file){
   if(typeof createImageBitmap==="function"){try{return await createImageBitmap(file,{imageOrientation:"from-image"})}catch(e){}}
@@ -481,7 +484,7 @@ function abrirCatalogoTecnico(){
     if(q)xs=xs.filter(x=>{const t=tecnicoMaterial(x),esp=especificacionesTecnicas(t).map(e=>[e.nombre,e.valor,e.medida].join(" ")).join(" ");return normalizar([x.nombre,x.marca,x.modelo,x.referencia,x.familia,textoCategoriaTecnica(categoriaTecnicaMaterial(t)),textoGenerador(t.tipo_generador),t.subtipo,esp].join(" ")).includes(q)});
     m.querySelector("#pr_cat_list").innerHTML=listaCatalogoTecnicoHTML(xs);
     m.querySelectorAll("[data-pr-cat-edit]").forEach(b=>b.onclick=()=>{const x=MATERIALES.find(z=>String(z.id)===String(b.dataset.prCatEdit));if(x)formularioMaterialTecnico(x)});
-    m.querySelectorAll("[data-pr-cat-gallery]").forEach(b=>b.onclick=()=>{const x=MATERIALES.find(z=>String(z.id)===String(b.dataset.prCatGallery));if(x)abrirGaleriaMaterial(x,0)});
+    m.querySelectorAll("[data-pr-cat-gallery]").forEach(b=>b.onclick=()=>{const x=MATERIALES.find(z=>String(z.id)===String(b.dataset.prCatGallery));if(x)abrirGaleriaMaterial(x)});
   };
   m.querySelector("#pr_cat_back").onclick=()=>{cerrarGaleriaMaterial();cerrarModal();shell()};
   m.querySelector("#pr_cat_new").onclick=formularioNuevoMaterialCatalogo;
