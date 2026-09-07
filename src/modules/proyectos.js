@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1058
+// ZENTRYX PRO - PROYECTOS V1059
+// V1059 - CATÁLOGO/EXTRACCIÓN: LIMPIAR PREFIJO VISUAL "NOMBRE DEL ARTÍCULO:" EN NOMBRES
 // V1058 - EXTRACTORES: CAMPOS VACÍOS QUEDAN PENDIENTES + AVISOS EXPLÍCITOS DE CAUDAL/PRESIÓN
 // V1057 - CATÁLOGO TÉCNICO: ALTA DIRECTA DE ARTÍCULO EN MATERIALES + VERSIONADO INTERNO COHERENTE
 // V1056 - EXTRACCIÓN TÉCNICA: MOSTRAR SOLO LAS DIMENSIONES QUE CORRESPONDEN A LA FORMA DEL CONDUCTO
@@ -37,7 +38,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1058";
+const ZX_VERSION="1059";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -284,7 +285,8 @@ async function crearTrabajoDesdePropuesta(p,op){
 function textoTipoPartida(v){return ({material:"Material",mano_obra:"Mano de obra",servicio:"Servicio",transporte:"Transporte",subcontrata:"Subcontrata",ingenieria:"Ingeniería",legalizacion:"Legalización",rite:"RITE",cae:"CAE",otro:"Otro"})[v]||v||"Partida"}
 function eur(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €":"0,00 €"}
 function numValor(v){const s=String(v??"").trim().replace(",",".");if(s==="")return 0;const n=Number(s);return Number.isFinite(n)?n:0}
-function materialTexto(m){return [m&&m.nombre,m&&m.marca,m&&m.modelo].filter(Boolean).join(" · ")}
+function nombreMaterialVisible(v){return String(v??"").replace(/^(?:\s*nombre\s+del\s+art[ií]culo\s*:\s*)+/i,"").trim()}
+function materialTexto(m){return [nombreMaterialVisible(m&&m.nombre),m&&m.marca,m&&m.modelo].filter(Boolean).join(" · ")}
 function opcionesMateriales(sel){return `<option value="">Sin artículo del catálogo</option>`+MATERIALES.map(m=>`<option value="${limpiar(m.id)}" ${String(sel)===String(m.id)?"selected":""}>${limpiar(materialTexto(m))}${m.referencia?" · "+limpiar(m.referencia):""}</option>`).join("")}
 function tecnicoMaterial(m){const x=m&&m.tecnico_meta;return x&&typeof x==="object"&&!Array.isArray(x)?x:{}}
 const CATEGORIAS_TECNICAS=[
