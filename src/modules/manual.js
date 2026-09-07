@@ -1,6 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
-// V1075 - EXTRACCIÓN TÉCNICA: DISTINGUIR MÍNIMO LOCAL CTE, REPARTO REGLAMENTARIO Y CAUDAL ADOPTADO
+// V1076 - EXTRACCIÓN TÉCNICA: DIMENSIONES VISIBLES SEGÚN FORMA DE CONDUCTO
 // V1074 - EXTRACCIÓN TÉCNICA: COMPARAR CAUDAL TÉCNICO, REGLA APLICADA Y CAUDAL ADOPTADO
 // V1073 - EXTRACCIÓN: SEPARAR AIRE EXTERIOR RITE DE LOS CÁLCULOS DE EXTRACCIÓN
 // V1072 - EXTRACCIÓN GUIADA: SOLO CAMPOS APLICABLES SEGÚN EL USO
@@ -20,7 +20,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1075";
+const ZX_VERSION="1076";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1641,6 +1641,7 @@ const BASE=[
       "Para conductos de extracción mecánica cubiertos por CTE DB HS 3, Zentryx calcula la sección mínima reglamentaria y propone el siguiente diámetro circular comercial que la cumple.",
       "En Asistente guiado solo necesitas indicar datos observables que correspondan al uso elegido: qué espacio es y, cuando haga falta, superficie o plazas; después el recorrido que puedas medir o contar. Los campos que no intervienen en la regla aplicable se ocultan. Cada campo explica cómo obtener el dato. La velocidad, la pérdida aproximada, el caudal y la propuesta de conducto se calculan automáticamente.",
       "Técnico muestra renovaciones por hora, caudal directo, dimensiones manuales del conducto y presión adicional para casos en los que existan datos concretos de proyecto, medición, fabricante o técnico.",
+      "En Técnico, si el conducto es Circular se muestra Diámetro; si es Rectangular se muestran Ancho y Alto; y si está Sin dimensionar no se muestran dimensiones. Los valores de la otra forma se conservan al cambiar de selección, pero no intervienen en el cálculo mientras esa forma no esté activa.",
       "En Técnico debes mantener seleccionado el uso de la zona para que Zentryx pueda comprobar el mínimo reglamentario cuando exista una regla cargada. Los dormitorios de vivienda y las plazas de garaje siguen disponibles cuando intervienen en esa comprobación.",
       "En Técnico Zentryx conserva por separado el caudal técnico calculado, el mínimo reglamentario del local, el caudal que corresponde a la regla aplicada y el caudal adoptado para diseño. En vivienda, el CTE puede exigir a la vez un mínimo por local y un mínimo total para los locales húmedos; Zentryx muestra ambos criterios y diferencia el reparto propuesto del mínimo individual. Si el valor técnico queda por debajo de la regla aplicable, se muestra un aviso y se mantiene visible el dato técnico introducido.",
       "En Asistente guiado la simultaneidad no puede reducir el caudal reglamentario aplicado. En Técnico, si se usa simultaneidad, tampoco puede dejar el sistema por debajo del mínimo reglamentario conocido. El margen se aplica después para seleccionar el extractor.",
