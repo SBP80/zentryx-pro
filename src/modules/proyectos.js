@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1059
+// ZENTRYX PRO - PROYECTOS V1060
+// V1060 - EXTRACCIÓN: REFRESCAR SNAPSHOT DEL EXTRACTOR AL GUARDAR PARA NO CONSERVAR DATOS ANTIGUOS DEL CATÁLOGO
 // V1059 - CATÁLOGO/EXTRACCIÓN: LIMPIAR PREFIJO VISUAL "NOMBRE DEL ARTÍCULO:" EN NOMBRES
 // V1058 - EXTRACTORES: CAMPOS VACÍOS QUEDAN PENDIENTES + AVISOS EXPLÍCITOS DE CAUDAL/PRESIÓN
 // V1057 - CATÁLOGO TÉCNICO: ALTA DIRECTA DE ARTÍCULO EN MATERIALES + VERSIONADO INTERNO COHERENTE
@@ -38,7 +39,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1059";
+const ZX_VERSION="1060";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -1968,7 +1969,7 @@ async function guardarExtraccion(p){
   if(!calc.length){alert("No hay ningún caudal calculado para guardar.");return}
   const zonas=calc.map(x=>Object.assign({},x.zona,{zona_id:x.zona.zona_id||uidExtraccion(),caudal_calculo_m3h:x.calc.caudal_m3h,caudal_manual_resultado_m3h:modo==="avanzado"&&x.manualCalc?nExt(x.manualCalc.caudal_m3h):null,caudal_minimo_local_m3h:x.norm.estado==="ok"?nExt(x.norm.minimo_local_m3h!=null?x.norm.minimo_local_m3h:x.norm.caudal_m3h):null,caudal_normativo_m3h:x.norm.estado==="ok"?nExt(x.norm.caudal_m3h):null,caudal_adoptado_m3h:nExt(x.calc.caudal_m3h),manual_bajo_minimo:modo==="avanzado"?!!x.manual_bajo_minimo:false,manual_bajo_minimo_local:modo==="avanzado"?!!x.manual_bajo_minimo_local:false,velocidad_guardada_ms:x.calc.velocidad_ms,perdida_guardada_pa:x.calc.perdida_pa,norma_tipo:x.norm.tipo,normativa_ref:x.norm.ref||null,seccion_min_cm2:modo==="normativa"&&x.dim?x.dim.seccion_cm2:null,diametro_recomendado_mm:modo==="normativa"&&x.dim?x.dim.diametro_comercial_mm:null,independiente_normativa:!!x.norm.independiente}));
   const u=sesion(),meta=p.inmueble_meta&&typeof p.inmueble_meta==="object"&&!Array.isArray(p.inmueble_meta)?{...p.inmueble_meta}:{},prev=metaExtraccionProyecto(p),ahora=new Date().toISOString(),sistemas=r.sistemas.map(sys=>{
-    const sel=EXTRACTORES_EXTRACCION_FORM[sys.clave]||"",mat=MATERIALES.find(m=>String(m.id)===String(sel)),prevSys=seleccionSistemaGuardada(prev,sys.clave),mismo=String(sel||"")===String(prevSys.material_id||""),snapshot=sel?(mismo&&prevSys.snapshot?prevSys.snapshot:(mat?snapshotMaterialTecnico(mat):null)):null;
+    const sel=EXTRACTORES_EXTRACCION_FORM[sys.clave]||"",mat=MATERIALES.find(m=>String(m.id)===String(sel)),prevSys=seleccionSistemaGuardada(prev,sys.clave),mismo=String(sel||"")===String(prevSys.material_id||""),snapshot=sel?(mat?snapshotMaterialTecnico(mat):(mismo&&prevSys.snapshot?prevSys.snapshot:null)):null;
     return {clave:sys.clave,nombre:sys.nombre,independiente:!!sys.independiente,zonas_ids:sys.items.map(x=>x.zona.zona_id).filter(Boolean),caudal_base_m3h:sys.caudal_base_m3h,caudal_reglamentario_m3h:sys.caudal_reglamentario_m3h,caudal_pre_margen_m3h:sys.caudal_pre_margen_m3h,caudal_diseno_m3h:sys.caudal_diseno_m3h,presion_diseno_pa:sys.presion_diseno_pa,extractor_material_id:sel||null,extractor_snapshot:snapshot};
   }),general=sistemas.find(x=>x.clave==="vivienda_general")||sistemas[0]||null,estadoNormativa=modo==="normativa"?"estatal_ok_territorial_pendiente":(!r.ctx.esEspana||r.normativaIncompleta?"tecnico_normativa_pendiente":r.manualBajo?"tecnico_minimo_corregido_territorial_pendiente":"tecnico_comprobado_territorial_pendiente"),normativa={estado:estadoNormativa,ruleset:NORMATIVA_EXTRACCION_ES.ruleset,verificado_el:NORMATIVA_EXTRACCION_ES.verificado_el,pais:r.ctx.pais,provincia:r.ctx.provincia,municipio:r.ctx.municipio,cte:NORMATIVA_EXTRACCION_ES.cte,rite:NORMATIVA_EXTRACCION_ES.rite,revision_territorial:r.ctx.esMadridCiudad?"parcial":"pendiente",manual_bajo_minimo_zonas:modo==="avanzado"?zonas.filter(z=>z.manual_bajo_minimo).map(z=>z.zona_id):[],municipal:r.ctx.esMadridCiudad?{norma:"Madrid · Ordenanza 4/2021 de Calidad del Aire y Sostenibilidad",guia:"Guía de comprobaciones de ventilación · versión enero 2026",estado:"punto de evacuación pendiente de comprobar"}:null};
   meta.extraccion={version:4,modo_asistente:modo,dormitorios_grupo:document.getElementById("pr_extract_dorm").value||"",simultaneidad_pct:r.simultaneidad_pct,margen_pct:r.margen_pct,descarga:document.getElementById("pr_extract_descarga").value.trim()||null,zonas,sistemas,caudal_base_m3h:general?general.caudal_base_m3h:0,caudal_diseno_m3h:general?general.caudal_diseno_m3h:0,presion_diseno_pa:general?general.presion_diseno_pa:0,extractor_material_id:general?general.extractor_material_id:null,extractor_snapshot:general?general.extractor_snapshot:null,normativa,notas:document.getElementById("pr_extract_notas").value.trim()||null,actualizado_at:ahora,actualizado_por:u.nombre||u.usuario||""};
