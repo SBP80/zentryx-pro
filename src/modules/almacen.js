@@ -1,5 +1,6 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
+// V1012 - ACCESO AL BUSCADOR TÉCNICO GENERAL POR TEXTO O FOTO
 // V1011 - MEDIDAS VISIBLES Y DINÁMICAS EN CANTIDADES DE STOCK
 // V1010 - CURSOR NATURAL EN RECUENTO IPHONE
 // Base: materiales + tablas definitivas de almacén
@@ -7,7 +8,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1011";
+const ZX_VERSION="1012";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
@@ -513,6 +514,7 @@ function render(){
           <p>Stock por ubicación, reservas de trabajos y trazabilidad.</p>
         </div>
         <div class="zx_al_head_actions">
+          <button class="zx_al_btn_secondary" id="zx_al_tech_search">🔎 Buscar equipo/material</button>
           ${puedeGestionarStock()?`<button class="zx_al_btn_secondary" id="zx_al_new_location">＋ Ubicación</button>`:""}
           ${puedeGestionarStock()?`<button class="zx_al_btn_primary" id="zx_al_new_stock">＋ Añadir stock</button>`:""}
         </div>
@@ -528,6 +530,9 @@ function render(){
       render();
     };
   });
+
+  const busquedaTecnica=document.getElementById("zx_al_tech_search");
+  if(busquedaTecnica) busquedaTecnica.onclick=()=>{if(typeof window.ZX_BUSCADOR_TECNICO_GENERAL==="function")window.ZX_BUSCADOR_TECNICO_GENERAL({titulo:"Buscar equipo o material"});else alert("El buscador técnico no está disponible en esta carga.")};
 
   const nuevoStock=document.getElementById("zx_al_new_stock");
   if(nuevoStock) nuevoStock.onclick=abrirEntradaNueva;
