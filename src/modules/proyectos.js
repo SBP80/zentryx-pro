@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1066
+// ZENTRYX PRO - PROYECTOS V1067
+// V1067 - BUSCADOR POR FOTO EN IPHONE: PREVISUALIZAR FOTO NUEVA Y LANZAR LENS CON PULSACIÓN DIRECTA PARA EVITAR BLOQUEO DE POP-UP
 // V1066 - BUSCADOR TÉCNICO GENERAL: TEXTO LIBRE + FOTO + TEXTO + WEB + PROVEEDORES CERCANOS, REUTILIZABLE EN PROYECTOS/PRESUPUESTOS/MATERIALES
 // V1065 - CATÁLOGO TÉCNICO: BÚSQUEDA VISUAL POR FOTO CON GOOGLE LENS + FOTO TEMPORAL DE CÁMARA/GALERÍA
 // V1064 - CATÁLOGO TÉCNICO: BÚSQUEDA DE PRODUCTO/PROVEEDOR EN WEB Y CERCA DEL DISPOSITIVO
@@ -45,7 +46,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1066";
+const ZX_VERSION="1067";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -309,8 +310,10 @@ function abrirBusquedaWebMaterial(texto){
   try{window.open(url,"_blank","noopener,noreferrer")}catch(e){location.href=url}
 }
 function navegarVentanaBusqueda(win,url){
-  if(win&&!win.closed){try{win.opener=null}catch(e){}try{win.location.href=url;return}catch(e){}}
-  try{window.open(url,"_blank","noopener,noreferrer")}catch(e){location.href=url}
+  if(win&&!win.closed){try{win.opener=null}catch(e){}try{win.location.href=url;return true}catch(e){}}
+  try{const nueva=window.open(url,"_blank","noopener,noreferrer");if(nueva)return true}catch(e){}
+  try{location.href=url;return true}catch(e){}
+  return false;
 }
 function abrirBusquedaCercanaMaterial(texto){
   const q=String(texto||"").trim();if(!q){alert("Escribe algún dato o una descripción para buscar proveedores cercanos.");return}
@@ -513,17 +516,22 @@ async function buscarItemFotoMaterial(x,materialId,btn,texto){
 }
 function abrirBusquedaFotoMaterial(mat,titulo,textoInicial){
   cerrarBusquedaFotoMaterial();
-  const xs=itemsBusquedaFotoMaterial(mat),g=document.createElement("div");g.id="zx_pr_cat_photo_search";g.className="zx_pr_cat_gallery";
-  const cards=xs.length?xs.map((x,i)=>`<article class="zx_pr_cat_photo_item ${x.principal?"is-main":""}"><div class="zx_pr_cat_photo_open"><img src="${limpiar(x.url)}" alt="${limpiar(x.nombre||("Foto "+(i+1)))}"></div><div class="zx_pr_cat_photo_info"><span>${x.principal?"★ Principal":limpiar(x.nombre||("Foto "+(i+1)))}</span><div style="grid-template-columns:1fr"><button type="button" data-pr-cat-photo-search="${limpiar(x.id)}">🔎 Buscar esta foto</button></div></div></article>`).join(""):`<div class="zx_pr_cat_photos_empty">No hay fotos guardadas. Puedes hacer una foto o elegir una imagen solo para la búsqueda.</div>`;
-  g.innerHTML=`<div class="zx_pr_cat_gallery_box" style="grid-template-rows:auto minmax(0,1fr) auto"><div class="zx_pr_cat_gallery_top"><button type="button" data-pr-cat-photo-search-close>← Volver</button><div><b>${limpiar(titulo||"Buscar por foto")}</b><span>Búsqueda visual externa con Google Lens</span></div></div><div style="overflow:auto;padding:12px"><label class="zx_pr_photo_search_text">Descripción opcional<textarea data-pr-cat-photo-search-text rows="3" placeholder="Añade datos para afinar: tipo, potencia, tensión, presión, aplicación, modelo parcial…">${limpiar(textoBusquedaTecnica(textoInicial))}</textarea></label><div class="zx_pr_info" style="margin-bottom:10px"><b>Elige una foto guardada o usa una nueva.</b><span>La fotografía y el texto anterior se usan juntos cuando has escrito una descripción.</span></div><div class="zx_pr_cat_photos_grid">${cards}</div></div><div style="padding:12px;border-top:1px solid #e2e8f0"><div class="zx_pr_cat_photo_actions" style="margin:0"><button type="button" data-pr-cat-photo-search-camera>📷 Hacer foto para buscar</button><button type="button" data-pr-cat-photo-search-library>🖼️ Elegir foto para buscar</button></div><input class="zx_pr_hidden_file" data-pr-cat-photo-search-camera-input type="file" accept="image/*" capture="environment"><input class="zx_pr_hidden_file" data-pr-cat-photo-search-library-input type="file" accept="image/*"><div class="zx_pr_info" style="margin-top:10px"><b>Una foto nueva usada solo para buscar no se añade a la ficha.</b><span>Zentryx crea una copia temporal para la búsqueda visual y programa su borrado después.</span></div></div></div>`;
+  let xs=itemsBusquedaFotoMaterial(mat),fotoSoloBusqueda=null;
+  const g=document.createElement("div");g.id="zx_pr_cat_photo_search";g.className="zx_pr_cat_gallery";
+  const cardsHTML=()=>xs.length?xs.map((x,i)=>`<article class="zx_pr_cat_photo_item ${x.principal?"is-main":""}"><div class="zx_pr_cat_photo_open"><img src="${limpiar(x.url)}" alt="${limpiar(x.nombre||("Foto "+(i+1)))}"></div><div class="zx_pr_cat_photo_info"><span>${x.principal?"★ Principal":limpiar(x.nombre||("Foto "+(i+1)))}</span><div style="grid-template-columns:1fr"><button type="button" data-pr-cat-photo-search="${limpiar(x.id)}">🔎 Buscar esta foto</button></div></div></article>`).join(""):`<div class="zx_pr_cat_photos_empty">No hay fotos guardadas. Puedes hacer una foto o elegir una imagen solo para la búsqueda.</div>`;
+  g.innerHTML=`<div class="zx_pr_cat_gallery_box" style="grid-template-rows:auto minmax(0,1fr) auto"><div class="zx_pr_cat_gallery_top"><button type="button" data-pr-cat-photo-search-close>← Volver</button><div><b>${limpiar(titulo||"Buscar por foto")}</b><span>Búsqueda visual externa con Google Lens</span></div></div><div style="overflow:auto;padding:12px"><label class="zx_pr_photo_search_text">Descripción opcional<textarea data-pr-cat-photo-search-text rows="3" placeholder="Añade datos para afinar: tipo, potencia, tensión, presión, aplicación, modelo parcial…">${limpiar(textoBusquedaTecnica(textoInicial))}</textarea></label><div class="zx_pr_info" style="margin-bottom:10px"><b>Elige una foto guardada o usa una nueva.</b><span>Si eliges una imagen nueva, primero aparecerá aquí para que la compruebes. Después pulsa Buscar esta foto. La fotografía y el texto se usan juntos cuando has escrito una descripción.</span></div><div class="zx_pr_cat_photos_grid" data-pr-cat-photo-search-grid>${cardsHTML()}</div></div><div style="padding:12px;border-top:1px solid #e2e8f0"><div class="zx_pr_cat_photo_actions" style="margin:0"><button type="button" data-pr-cat-photo-search-camera>📷 Hacer foto para buscar</button><button type="button" data-pr-cat-photo-search-library>🖼️ Elegir foto para buscar</button></div><input class="zx_pr_hidden_file" data-pr-cat-photo-search-camera-input type="file" accept="image/*" capture="environment"><input class="zx_pr_hidden_file" data-pr-cat-photo-search-library-input type="file" accept="image/*"><div class="zx_pr_info" style="margin-top:10px"><b>Una foto nueva usada solo para buscar no se añade a la ficha.</b><span>Zentryx crea una copia temporal cuando pulses Buscar esta foto y programa su borrado después.</span></div></div></div>`;
   document.body.appendChild(g);
-  const cerrar=()=>cerrarBusquedaFotoMaterial();g.querySelector("[data-pr-cat-photo-search-close]").onclick=cerrar;g.onclick=e=>{if(e.target===g)cerrar()};
   const textoFoto=()=>g.querySelector("[data-pr-cat-photo-search-text]")?.value||"";
-  g.querySelectorAll("[data-pr-cat-photo-search]").forEach(b=>{b.onclick=()=>{const x=xs.find(z=>String(z.id)===String(b.dataset.prCatPhotoSearch));if(x)buscarItemFotoMaterial(x,mat&&mat.id,b,textoFoto())}});
+  const liberarSoloBusqueda=()=>{if(fotoSoloBusqueda&&fotoSoloBusqueda.url&&String(fotoSoloBusqueda.url).startsWith("blob:")){try{URL.revokeObjectURL(fotoSoloBusqueda.url)}catch(e){}}fotoSoloBusqueda=null};
+  const cerrar=()=>{liberarSoloBusqueda();cerrarBusquedaFotoMaterial()};
+  g.querySelector("[data-pr-cat-photo-search-close]").onclick=cerrar;g.onclick=e=>{if(e.target===g)cerrar()};
+  const enlazarCards=()=>{g.querySelectorAll("[data-pr-cat-photo-search]").forEach(b=>{b.onclick=async()=>{const x=xs.find(z=>String(z.id)===String(b.dataset.prCatPhotoSearch));if(!x)return;await buscarItemFotoMaterial(x,mat&&mat.id,b,textoFoto());if(x.solo_busqueda&&x.url&&String(x.url).startsWith("blob:")){try{URL.revokeObjectURL(x.url)}catch(e){}}}})};
+  const pintarCards=()=>{const grid=g.querySelector("[data-pr-cat-photo-search-grid]");if(!grid)return;grid.innerHTML=cardsHTML();enlazarCards();const elegido=grid.querySelector('[data-pr-cat-photo-search="busqueda_nueva"]');if(elegido)try{elegido.closest("article")?.scrollIntoView({block:"nearest",behavior:"smooth"})}catch(e){}};
+  enlazarCards();
   const cam=g.querySelector("[data-pr-cat-photo-search-camera-input]"),lib=g.querySelector("[data-pr-cat-photo-search-library-input]");
   g.querySelector("[data-pr-cat-photo-search-camera]").onclick=()=>cam.click();g.querySelector("[data-pr-cat-photo-search-library]").onclick=()=>lib.click();
-  const buscarArchivo=async(input)=>{const f=input.files&&input.files[0];input.value="";if(!f)return;let win=null;try{win=window.open("about:blank","_blank")}catch(e){};try{const preparada=await prepararFotoCatalogo(f),url=await subirFotoTemporalBusqueda(preparada,mat&&mat.id);if(preparada.preview)try{URL.revokeObjectURL(preparada.preview)}catch(e){}abrirBusquedaLensURL(url,win,textoFoto());cerrar()}catch(e){if(win&&!win.closed)try{win.close()}catch(err){}alert("No se pudo buscar por foto.\n"+(e&&e.message?e.message:""))}};
-  cam.onchange=()=>buscarArchivo(cam);lib.onchange=()=>buscarArchivo(lib);
+  const prepararArchivo=async(input)=>{const f=input.files&&input.files[0];input.value="";if(!f)return;const btnCam=g.querySelector("[data-pr-cat-photo-search-camera]"),btnLib=g.querySelector("[data-pr-cat-photo-search-library]");if(btnCam)btnCam.disabled=true;if(btnLib)btnLib.disabled=true;try{const preparada=await prepararFotoCatalogo(f);liberarSoloBusqueda();fotoSoloBusqueda={id:"busqueda_nueva",url:preparada.preview,nombre:preparada.nombre||"Foto nueva",principal:false,nueva:true,blob:preparada.blob,solo_busqueda:true};xs=itemsBusquedaFotoMaterial(mat).filter(x=>String(x.id)!=="busqueda_nueva");xs.push(fotoSoloBusqueda);pintarCards()}catch(e){alert("No se pudo preparar la foto.\n"+(e&&e.message?e.message:""))}finally{if(btnCam)btnCam.disabled=false;if(btnLib)btnLib.disabled=false}};
+  cam.onchange=()=>prepararArchivo(cam);lib.onchange=()=>prepararArchivo(lib);
 }
 const CATEGORIAS_TECNICAS=[
   ["general","Material / consumible"],
