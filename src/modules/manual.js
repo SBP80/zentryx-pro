@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1084 - PROYECTOS · FONTANERÍA V1: CTE DB HS 4, PUNTOS DE CONSUMO, CAUDALES AF/ACS Y COMPROBACIÓN TÉCNICA BASE
 // V1083 - BUSCADOR POR FOTO EN IPHONE: LA FOTO NUEVA SE PREVISUALIZA ANTES DE LANZAR LA BÚSQUEDA VISUAL
 // V1082 - BUSCADOR TÉCNICO GENERAL: TEXTO LIBRE, FOTO + TEXTO Y ACCESOS DESDE PROYECTOS, PRESUPUESTOS, CATÁLOGO Y ALMACÉN
 // V1081 - CATÁLOGO TÉCNICO: BÚSQUEDA VISUAL POR FOTO CON GOOGLE LENS Y FOTO TEMPORAL
@@ -27,7 +28,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1083";
+const ZX_VERSION="1084";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1650,6 +1651,13 @@ const BASE=[
       "Registra los datos iniciales del inmueble; las cantidades muestran su medida junto al campo.",
       "En Especialidades del proyecto puedes activar una o varias áreas dentro del mismo expediente: climatización/aerotermia, fontanería, electricidad, ventilación, extracción, aire acondicionado y control de humedad.",
       "Las especialidades comparten cliente, inmueble, catálogo técnico, propuestas, partidas, presupuesto, dosier, documentos e historial.",
+      "Si Fontanería está activa, la ficha muestra Fontanería · suministro de agua. El primer bloque técnico usa CTE DB HS 4 para registrar los puntos de consumo y sus caudales mínimos de agua fría y ACS.",
+      "En Fontanería → Asistente guiado añade cada aparato o punto de consumo y su cantidad. Zentryx toma los caudales mínimos de la tabla 2.1 de HS 4 y muestra también el diámetro mínimo de ramal de la tabla 4.2 cuando ese aparato figura en ella.",
+      "El Asistente guiado suma el caudal máximo instalado de AF y ACS, pero no inventa un coeficiente de simultaneidad. CTE DB HS 4 exige adoptar un criterio adecuado por tramo antes de obtener el caudal de cálculo y el diámetro de la red, por lo que la ficha queda marcada como dimensionado pendiente.",
+      "Fontanería → Técnico permite introducir por separado la simultaneidad de AF y ACS, el material de la tubería, la velocidad adoptada, la presión disponible, la altura geométrica, las pérdidas calculadas y el tipo de punto más desfavorable.",
+      "Para la velocidad, Zentryx comprueba los intervalos de HS 4: 0,50–2,00 m/s en tuberías metálicas y 0,50–3,50 m/s en termoplásticos o multicapa. El diámetro que muestra es interior teórico; después debe elegirse un diámetro comercial que respete además los mínimos reglamentarios.",
+      "La comprobación de presión descuenta la altura geométrica y las pérdidas que hayas introducido. El mínimo es 100 kPa para grifos comunes y 150 kPa para fluxores y calentadores; la presión no debe superar 500 kPa. Las pérdidas deben proceder del recorrido real o del cálculo técnico del proyecto.",
+      "Cada guardado de Fontanería queda dentro del inmueble_meta del proyecto, registra la referencia CTE usada, la fecha de verificación, los datos y resultados y añade una entrada al historial. No requiere una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
       "Para obras en España, el asistente aplica CTE DB HS 3 a viviendas, cocinas, garajes, trasteros y almacenes de residuos. El caudal por persona asociado a categorías IDA del RITE corresponde al aire exterior de ventilación y no se usa como si fuera caudal de extracción. Los locales no residenciales que requieran RITE deben tratar la ventilación exterior por separado; la extracción se comprueba con IT 1.1.4.2.5 y con el método que corresponda al uso.",
