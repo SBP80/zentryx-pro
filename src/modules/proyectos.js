@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1067
+// ZENTRYX PRO - PROYECTOS V1068
+// V1068 - BUSCADOR TÉCNICO DESDE OTROS MÓDULOS: INSTALA SU CSS ANTES DE ABRIR, INCLUSO SIN HABER ENTRADO EN PROYECTOS
 // V1067 - BUSCADOR POR FOTO EN IPHONE: PREVISUALIZAR FOTO NUEVA Y LANZAR LENS CON PULSACIÓN DIRECTA PARA EVITAR BLOQUEO DE POP-UP
 // V1066 - BUSCADOR TÉCNICO GENERAL: TEXTO LIBRE + FOTO + TEXTO + WEB + PROVEEDORES CERCANOS, REUTILIZABLE EN PROYECTOS/PRESUPUESTOS/MATERIALES
 // V1065 - CATÁLOGO TÉCNICO: BÚSQUEDA VISUAL POR FOTO CON GOOGLE LENS + FOTO TEMPORAL DE CÁMARA/GALERÍA
@@ -46,7 +47,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1067";
+const ZX_VERSION="1068";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -329,6 +330,7 @@ function abrirBusquedaCercanaMaterial(texto){
 function cerrarBuscadorTecnicoGeneral(){const g=document.getElementById("zx_pr_tech_search");if(g)g.remove()}
 function textoBusquedaTecnica(v){return String(v||"").replace(/\s+/g," ").trim()}
 function abrirBuscadorTecnicoGeneral(opciones){
+  instalarCSS();
   const o=opciones&&typeof opciones==="object"?opciones:{},mat=o.material||MATERIALES.find(x=>String(x.id)===String(o.material_id||""))||null;
   const inicial=textoBusquedaTecnica(o.texto||(mat?consultaBusquedaMaterial(mat):"")),titulo=String(o.titulo||"Buscador técnico");
   cerrarBuscadorTecnicoGeneral();
