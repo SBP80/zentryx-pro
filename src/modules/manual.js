@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1085 - PROYECTOS · FONTANERÍA V2: ACOMETIDA, UNIDADES CONVERSIBLES Y PRODUCCIÓN ACS ENLAZADA CON GENERADORES
 // V1084 - PROYECTOS · FONTANERÍA V1: CTE DB HS 4, PUNTOS DE CONSUMO, CAUDALES AF/ACS Y COMPROBACIÓN TÉCNICA BASE
 // V1083 - BUSCADOR POR FOTO EN IPHONE: LA FOTO NUEVA SE PREVISUALIZA ANTES DE LANZAR LA BÚSQUEDA VISUAL
 // V1082 - BUSCADOR TÉCNICO GENERAL: TEXTO LIBRE, FOTO + TEXTO Y ACCESOS DESDE PROYECTOS, PRESUPUESTOS, CATÁLOGO Y ALMACÉN
@@ -28,7 +29,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1084";
+const ZX_VERSION="1085";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1654,7 +1655,11 @@ const BASE=[
       "Si Fontanería está activa, la ficha muestra Fontanería · suministro de agua. El primer bloque técnico usa CTE DB HS 4 para registrar los puntos de consumo y sus caudales mínimos de agua fría y ACS.",
       "En Fontanería → Asistente guiado añade cada aparato o punto de consumo y su cantidad. Zentryx toma los caudales mínimos de la tabla 2.1 de HS 4 y muestra también el diámetro mínimo de ramal de la tabla 4.2 cuando ese aparato figura en ella.",
       "El Asistente guiado suma el caudal máximo instalado de AF y ACS, pero no inventa un coeficiente de simultaneidad. CTE DB HS 4 exige adoptar un criterio adecuado por tramo antes de obtener el caudal de cálculo y el diámetro de la red, por lo que la ficha queda marcada como dimensionado pendiente.",
-      "Fontanería → Técnico permite introducir por separado la simultaneidad de AF y ACS, el material de la tubería, la velocidad adoptada, la presión disponible, la altura geométrica, las pérdidas calculadas y el tipo de punto más desfavorable.",
+      "Fontanería pregunta también por el suministro/acometida cuando se conocen los datos: diámetro, material, contador, presión y caudal medido. El diámetro por sí solo no se considera prueba del caudal disponible; una presión dinámica y un ensayo de caudal aportan una base más fiable.",
+      "En los campos de acometida puedes trabajar con varias unidades. Presión admite bar, kPa, m.c.a. y psi; caudal admite L/s, L/min y m³/h; los diámetros pueden indicarse en mm o pulgadas. Al cambiar la unidad Zentryx convierte el valor y conserva internamente la magnitud física.",
+      "Fontanería → Técnico permite introducir por separado la simultaneidad de AF y ACS, el material de la tubería, la velocidad adoptada, la altura geométrica, las pérdidas calculadas y el tipo de punto más desfavorable. La presión residual solo se da por comprobable cuando la presión de origen se ha identificado como dinámica.",
+      "Producción de ACS no crea otra lista de equipos. Fontanería lee los generadores del mismo proyecto que tengan marcado el servicio ACS, cuenta cuáles están disponibles y muestra su situación, potencia registrada y papel previsto. Si existe una propuesta aceptada, muestra la regla de ACS correspondiente cuando la hay.",
+      "Si existen puntos con demanda de ACS pero ningún generador del proyecto tiene marcado ACS, la ficha lo avisa. La potencia general de un generador no se trata como potencia útil de ACS si ese dato específico no está disponible.",
       "Para la velocidad, Zentryx comprueba los intervalos de HS 4: 0,50–2,00 m/s en tuberías metálicas y 0,50–3,50 m/s en termoplásticos o multicapa. El diámetro que muestra es interior teórico; después debe elegirse un diámetro comercial que respete además los mínimos reglamentarios.",
       "La comprobación de presión descuenta la altura geométrica y las pérdidas que hayas introducido. El mínimo es 100 kPa para grifos comunes y 150 kPa para fluxores y calentadores; la presión no debe superar 500 kPa. Las pérdidas deben proceder del recorrido real o del cálculo técnico del proyecto.",
       "Cada guardado de Fontanería queda dentro del inmueble_meta del proyecto, registra la referencia CTE usada, la fecha de verificación, los datos y resultados y añade una entrada al historial. No requiere una tabla nueva.",
