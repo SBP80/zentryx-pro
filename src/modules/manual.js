@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1083 - BUSCADOR POR FOTO EN IPHONE: LA FOTO NUEVA SE PREVISUALIZA ANTES DE LANZAR LA BÚSQUEDA VISUAL
 // V1082 - BUSCADOR TÉCNICO GENERAL: TEXTO LIBRE, FOTO + TEXTO Y ACCESOS DESDE PROYECTOS, PRESUPUESTOS, CATÁLOGO Y ALMACÉN
 // V1081 - CATÁLOGO TÉCNICO: BÚSQUEDA VISUAL POR FOTO CON GOOGLE LENS Y FOTO TEMPORAL
 // V1080 - CATÁLOGO TÉCNICO: BÚSQUEDA DE PRODUCTO/PROVEEDOR EN WEB Y CERCA DEL DISPOSITIVO
@@ -26,7 +27,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1082";
+const ZX_VERSION="1083";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1124,7 +1125,7 @@ const AYUDAS_DIRECTAS=[
       "Antes de crear un artículo puedes usar el Buscador técnico. Admite Nombre, Marca, Modelo y Referencia, pero también cualquier descripción: potencia, tensión, presión, medidas, uso, avería, repuesto o cualquier otro dato que conozcas.",
       "Abre el artículo y activa Usar este artículo en el Catálogo técnico de Proyectos.",
       "En Buscador técnico puedes usar solo texto, solo una fotografía o ambos. Buscar en web abre una consulta general con el texto indicado; Proveedores cercanos usa la ubicación del dispositivo cuando está disponible.",
-      "Buscar por foto abre las fotografías actuales del artículo y también permite hacer una foto o elegir una imagen nueva aunque no exista ningún artículo guardado. La descripción escrita es opcional y se envía junto a la búsqueda visual para afinar los resultados.",
+      "Buscar por foto abre las fotografías actuales del artículo y también permite hacer una foto o elegir una imagen nueva aunque no exista ningún artículo guardado. En iPhone, una imagen nueva se muestra primero en la propia pantalla; comprueba la foto y pulsa Buscar esta foto para lanzar Google Lens. La descripción escrita es opcional y se envía junto a la búsqueda visual para afinar los resultados.",
       "La búsqueda visual se realiza con Google Lens. Una imagen nueva usada solo para buscar se sube temporalmente al almacenamiento actual para que Lens pueda leerla y Zentryx programa su borrado; esa imagen no se añade a la ficha.",
       "Estas búsquedas son externas: no crean artículos ni cambian la ficha, el stock, los precios o el presupuesto que estés editando.",
       "Elige su clase técnica: material o consumible, fijación, tubería, hidráulica, aislamiento, electricidad, control, bomba, depósito, emisor, generador, ventilación, extracción, solar, herramienta u otro.",
