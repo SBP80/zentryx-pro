@@ -1,5 +1,7 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1087 - PROYECTOS · FONTANERÍA V4 + SANEAMIENTO V1: ESQUEMAS COLOREADOS, TEMPERATURAS ACS Y DESAGÜES DESDE PUNTOS DE CONSUMO
+// V1086 - PROYECTOS · FONTANERÍA V3: TOPOLOGÍA AF/ACS, RAMALES/COLECTORES Y FORMAS DE RECIRCULACIÓN
 // V1085 - PROYECTOS · FONTANERÍA V2: ACOMETIDA, UNIDADES CONVERSIBLES Y PRODUCCIÓN ACS ENLAZADA CON GENERADORES
 // V1084 - PROYECTOS · FONTANERÍA V1: CTE DB HS 4, PUNTOS DE CONSUMO, CAUDALES AF/ACS Y COMPROBACIÓN TÉCNICA BASE
 // V1083 - BUSCADOR POR FOTO EN IPHONE: LA FOTO NUEVA SE PREVISUALIZA ANTES DE LANZAR LA BÚSQUEDA VISUAL
@@ -29,7 +31,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1085";
+const ZX_VERSION="1087";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1650,19 +1652,32 @@ const BASE=[
       "Selecciona un cliente existente y una de sus direcciones guardadas.",
       "Indica el tipo y estado del proyecto, y asigna comercial o técnico si corresponde.",
       "Registra los datos iniciales del inmueble; las cantidades muestran su medida junto al campo.",
-      "En Especialidades del proyecto puedes activar una o varias áreas dentro del mismo expediente: climatización/aerotermia, fontanería, electricidad, ventilación, extracción, aire acondicionado y control de humedad.",
+      "En Especialidades del proyecto puedes activar una o varias áreas dentro del mismo expediente: climatización/aerotermia, fontanería, saneamiento, electricidad, ventilación, extracción, aire acondicionado y control de humedad.",
       "Las especialidades comparten cliente, inmueble, catálogo técnico, propuestas, partidas, presupuesto, dosier, documentos e historial.",
       "Si Fontanería está activa, la ficha muestra Fontanería · suministro de agua. El primer bloque técnico usa CTE DB HS 4 para registrar los puntos de consumo y sus caudales mínimos de agua fría y ACS.",
       "En Fontanería → Asistente guiado añade cada aparato o punto de consumo y su cantidad. Zentryx toma los caudales mínimos de la tabla 2.1 de HS 4 y muestra también el diámetro mínimo de ramal de la tabla 4.2 cuando ese aparato figura en ella.",
       "El Asistente guiado suma el caudal máximo instalado de AF y ACS, pero no inventa un coeficiente de simultaneidad. CTE DB HS 4 exige adoptar un criterio adecuado por tramo antes de obtener el caudal de cálculo y el diámetro de la red, por lo que la ficha queda marcada como dimensionado pendiente.",
       "Fontanería pregunta también por el suministro/acometida cuando se conocen los datos: diámetro, material, contador, presión y caudal medido. El diámetro por sí solo no se considera prueba del caudal disponible; una presión dinámica y un ensayo de caudal aportan una base más fiable.",
       "En los campos de acometida puedes trabajar con varias unidades. Presión admite bar, kPa, m.c.a. y psi; caudal admite L/s, L/min y m³/h; los diámetros pueden indicarse en mm o pulgadas. Al cambiar la unidad Zentryx convierte el valor y conserva internamente la magnitud física.",
+      "Fontanería registra también cómo se distribuyen AF y ACS. Cada red puede ser troncal con derivaciones, por colector con salida independiente a cada punto, mixta o dividida en varios ramales o zonas.",
+      "Cada punto de consumo puede indicar opcionalmente su ramal o colector. Si dos aparatos iguales están en ramales distintos, conviene registrarlos en tarjetas separadas para que después el cálculo técnico pueda tratar sus recorridos por separado.",
+      "La recirculación de ACS puede quedar sin definir, indicarse como inexistente, usar un retorno único desde el extremo, retorno desde cada punto, por cada ramal, desde cada colector, varios retornos a un colector común, circuito en anillo o una solución mixta.",
+      "Cuando hay varios retornos, el formulario permite dejar registrado el número de retornos y el tipo de equilibrado: manual, termostático o dinámico. También puede registrar longitud del retorno más largo, diámetro, material, estado del aislamiento y temperatura de retorno.",
+      "Registrar la forma del circuito no cierra todavía el cálculo de recirculación. El caudal de retorno y la bomba se decidirán después con los recorridos, pérdidas, temperaturas y condiciones de funcionamiento reales.",
       "Fontanería → Técnico permite introducir por separado la simultaneidad de AF y ACS, el material de la tubería, la velocidad adoptada, la altura geométrica, las pérdidas calculadas y el tipo de punto más desfavorable. La presión residual solo se da por comprobable cuando la presión de origen se ha identificado como dinámica.",
       "Producción de ACS no crea otra lista de equipos. Fontanería lee los generadores del mismo proyecto que tengan marcado el servicio ACS, cuenta cuáles están disponibles y muestra su situación, potencia registrada y papel previsto. Si existe una propuesta aceptada, muestra la regla de ACS correspondiente cuando la hay.",
+      "Fontanería incorpora un bloque de temperaturas y acumulación de ACS. Permite indicar si el sistema es con acumulación o instantáneo, volumen, temperatura de producción, distribución y retorno objetivo. La recomendación distingue edificios de uso exclusivo de vivienda del ámbito sanitario del RD 487/2022 y no aplica un mismo valor a todos los casos.",
+      "Cuando el RD 487/2022 resulte aplicable, Zentryx recuerda los criterios sanitarios de referencia: acumulación final mínima de 60 °C, más de 50 °C en distribución y retorno cuando exista, y posibilidad de alcanzar 70 °C para tratamiento térmico. En edificios de uso exclusivo de vivienda, excluidos con carácter general de ese real decreto, la consigna normal se ajusta al fabricante y a la estrategia higiénica; con bomba de calor puede mostrarse 50–55 °C como referencia energética, no como obligación reglamentaria.",
+      "La ficha y el formulario pueden generar un esquema hidráulico automático. AF se representa en azul, ACS en rojo y el retorno de recirculación en naranja; los equipos se distinguen visualmente y los diámetros conocidos aparecen junto a cada tramo. Los diámetros pendientes quedan marcados como tales hasta completar el cálculo por tramos.",
       "Si existen puntos con demanda de ACS pero ningún generador del proyecto tiene marcado ACS, la ficha lo avisa. La potencia general de un generador no se trata como potencia útil de ACS si ese dato específico no está disponible.",
       "Para la velocidad, Zentryx comprueba los intervalos de HS 4: 0,50–2,00 m/s en tuberías metálicas y 0,50–3,50 m/s en termoplásticos o multicapa. El diámetro que muestra es interior teórico; después debe elegirse un diámetro comercial que respete además los mínimos reglamentarios.",
       "La comprobación de presión descuenta la altura geométrica y las pérdidas que hayas introducido. El mínimo es 100 kPa para grifos comunes y 150 kPa para fluxores y calentadores; la presión no debe superar 500 kPa. Las pérdidas deben proceder del recorrido real o del cálculo técnico del proyecto.",
       "Cada guardado de Fontanería queda dentro del inmueble_meta del proyecto, registra la referencia CTE usada, la fecha de verificación, los datos y resultados y añade una entrada al historial. No requiere una tabla nueva.",
+      "Saneamiento puede activarse como especialidad del mismo proyecto. Al configurarlo por primera vez, Zentryx propone los desagües correspondientes a los puntos de Fontanería que normalmente necesitan evacuación y conserva esos puntos como una propuesta editable.",
+      "La propuesta de Saneamiento no copia a ciegas todos los puntos de suministro: grifos sin desagüe asociado pueden quedar fuera, y puedes añadir manualmente sumideros, condensados de climatización, descargas de seguridad ACS, vaciados, tratamiento de agua u otros puntos.",
+      "En Saneamiento se elige uso privado o público para aplicar las UD y diámetros mínimos individuales de CTE DB HS 5 tabla 4.1. Los desagües continuos, como condensados, usan la regla de 1 UD por cada 0,03 L/s cuando se conoce el caudal. Los ramales largos, colectores, bajantes, pendientes y ventilación quedan pendientes de su cálculo detallado.",
+      "Saneamiento genera también un esquema inicial de aguas residuales, con aparatos, ramales, diámetros mínimos conocidos, colector/bajante y salida. Puedes pulsar Actualizar desde Fontanería para rehacer solo los puntos automáticos conservando los puntos manuales añadidos.",
+      "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
       "Para obras en España, el asistente aplica CTE DB HS 3 a viviendas, cocinas, garajes, trasteros y almacenes de residuos. El caudal por persona asociado a categorías IDA del RITE corresponde al aire exterior de ventilación y no se usa como si fuera caudal de extracción. Los locales no residenciales que requieran RITE deben tratar la ventilación exterior por separado; la extracción se comprueba con IT 1.1.4.2.5 y con el método que corresponda al uso.",
