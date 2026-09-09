@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1088 - PROYECTOS · SANEAMIENTO V2: DESAGÜES INDIVIDUALES, NOMBRE/REFERENCIA, SINCRONIZACIÓN CONSERVADORA Y ESQUEMA MÓVIL
 // V1087 - PROYECTOS · FONTANERÍA V4 + SANEAMIENTO V1: ESQUEMAS COLOREADOS, TEMPERATURAS ACS Y DESAGÜES DESDE PUNTOS DE CONSUMO
 // V1086 - PROYECTOS · FONTANERÍA V3: TOPOLOGÍA AF/ACS, RAMALES/COLECTORES Y FORMAS DE RECIRCULACIÓN
 // V1085 - PROYECTOS · FONTANERÍA V2: ACOMETIDA, UNIDADES CONVERSIBLES Y PRODUCCIÓN ACS ENLAZADA CON GENERADORES
@@ -31,7 +32,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1087";
+const ZX_VERSION="1088";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1673,10 +1674,11 @@ const BASE=[
       "Para la velocidad, Zentryx comprueba los intervalos de HS 4: 0,50–2,00 m/s en tuberías metálicas y 0,50–3,50 m/s en termoplásticos o multicapa. El diámetro que muestra es interior teórico; después debe elegirse un diámetro comercial que respete además los mínimos reglamentarios.",
       "La comprobación de presión descuenta la altura geométrica y las pérdidas que hayas introducido. El mínimo es 100 kPa para grifos comunes y 150 kPa para fluxores y calentadores; la presión no debe superar 500 kPa. Las pérdidas deben proceder del recorrido real o del cálculo técnico del proyecto.",
       "Cada guardado de Fontanería queda dentro del inmueble_meta del proyecto, registra la referencia CTE usada, la fecha de verificación, los datos y resultados y añade una entrada al historial. No requiere una tabla nueva.",
-      "Saneamiento puede activarse como especialidad del mismo proyecto. Al configurarlo por primera vez, Zentryx propone los desagües correspondientes a los puntos de Fontanería que normalmente necesitan evacuación y conserva esos puntos como una propuesta editable.",
+      "Saneamiento puede activarse como especialidad del mismo proyecto. Al configurarlo por primera vez, Zentryx propone los desagües correspondientes a los puntos de Fontanería que normalmente necesitan evacuación. Si un registro de Fontanería tiene cantidad superior a una unidad, Saneamiento lo desglosa en puntos individuales para poder asignar a cada aparato su propio nombre, estancia y ramal.",
       "La propuesta de Saneamiento no copia a ciegas todos los puntos de suministro: grifos sin desagüe asociado pueden quedar fuera, y puedes añadir manualmente sumideros, condensados de climatización, descargas de seguridad ACS, vaciados, tratamiento de agua u otros puntos.",
+      "Cada punto de Saneamiento puede tener Nombre / referencia, tipo de aparato, cantidad, zona o estancia y ramal/colector. Al pulsar Actualizar desde Fontanería se reconstruyen los puntos automáticos conservando los nombres, zonas y ramales ya indicados cuando siguen correspondiendo al mismo punto de origen; los puntos manuales también se conservan.",
       "En Saneamiento se elige uso privado o público para aplicar las UD y diámetros mínimos individuales de CTE DB HS 5 tabla 4.1. Los desagües continuos, como condensados, usan la regla de 1 UD por cada 0,03 L/s cuando se conoce el caudal. Los ramales largos, colectores, bajantes, pendientes y ventilación quedan pendientes de su cálculo detallado.",
-      "Saneamiento genera también un esquema inicial de aguas residuales, con aparatos, ramales, diámetros mínimos conocidos, colector/bajante y salida. Puedes pulsar Actualizar desde Fontanería para rehacer solo los puntos automáticos conservando los puntos manuales añadidos.",
+      "El resumen separa los puntos con datos pendientes del estado de la red para no mostrar cero pendientes mientras colectores o bajantes siguen sin dimensionar. El esquema inicial de aguas residuales se adapta al ancho del móvil y muestra por separado cada aparato, su referencia y diámetro mínimo conocido, además de colector/bajante y salida.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
