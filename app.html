@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3556</title>
+<title>Zentryx PRO V3557</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3556";
+window.ZX_VERSION="3557";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -48,7 +48,7 @@ window.ZX_VERSION="3556";
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
 <script src="src/modules/trabajos.js?v=3244&build=20260904a"></script>
-<script src="src/modules/proyectos.js?v=1078&build=20260910d"></script>
+<script src="src/modules/proyectos.js?v=1079&build=20260910e"></script>
 <script src="src/modules/almacen.js?v=1012&build=20260908a"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <script src="src/modules/vehiculos.js?v=3225&build=20260903a"></script>
@@ -90,9 +90,33 @@ async function comprobarVersionPublicada(){
   return false;
 }
 
+async function asegurarModuloProyectos(){
+  const esperada="1079";
+  const cargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
+  if(cargada===esperada) return true;
+  if(!navigator.onLine) return true;
+  try{
+    const url="src/modules/proyectos.js?v="+esperada+"&build=20260910e&zx_refresh="+Date.now();
+    const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
+    if(!r.ok) return false;
+    const js=await r.text();
+    if(!js.includes("ZENTRYX PRO - PROYECTOS V"+esperada) || !js.includes('const ZX_VERSION="'+esperada+'"')) return false;
+    (0,eval)(js+"\n//# sourceURL="+url);
+    const recargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
+    return recargada===esperada;
+  }catch(e){
+    console.warn("No se pudo verificar proyectos.js V"+esperada,e);
+    return false;
+  }
+}
+
 async function iniciar(){
   if(iniciado) return;
   if(await comprobarVersionPublicada()) return;
+  if(!(await asegurarModuloProyectos())){
+    mostrarErrorArranque();
+    return;
+  }
   if(typeof window.ZENTRYX_sessionValid!=="function" || !window.ZENTRYX_sessionValid()){
     if(typeof window.ZENTRYX_logout==="function") window.ZENTRYX_logout();
     else location.replace("index.html?v="+window.ZX_VERSION+"&t="+Date.now());
@@ -130,7 +154,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3556 - PROYECTOS V1078 ESQUEMAS TÉCNICOS V1 + SANEAMIENTO V4 + ALMACÉN V1012 + MANUAL V1090 -->
+<!-- ZENTRYX PRO V3557 - PROYECTOS V1079 CONTROL DE CARGA + ESQUEMAS TÉCNICOS V1 + SANEAMIENTO V4 + ALMACÉN V1012 + MANUAL V1090 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
