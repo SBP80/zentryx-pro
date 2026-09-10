@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1090 - PROYECTOS · ESQUEMAS TÉCNICOS V1: NORMA VISUAL COMÚN + SANEAMIENTO PROFESIONAL + EXTRACCIÓN Y CLIMATIZACIÓN
 // V1089 - PROYECTOS · SANEAMIENTO V3: TOPOLOGÍAS REALES DE RED Y ESQUEMA SEGÚN DISTRIBUCIÓN
 // V1088 - PROYECTOS · SANEAMIENTO V2: DESAGÜES INDIVIDUALES, NOMBRE/REFERENCIA, SINCRONIZACIÓN CONSERVADORA Y ESQUEMA MÓVIL
 // V1087 - PROYECTOS · FONTANERÍA V4 + SANEAMIENTO V1: ESQUEMAS COLOREADOS, TEMPERATURAS ACS Y DESAGÜES DESDE PUNTOS DE CONSUMO
@@ -33,7 +34,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1089";
+const ZX_VERSION="1090";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1656,6 +1657,8 @@ const BASE=[
       "Registra los datos iniciales del inmueble; las cantidades muestran su medida junto al campo.",
       "En Especialidades del proyecto puedes activar una o varias áreas dentro del mismo expediente: climatización/aerotermia, fontanería, saneamiento, electricidad, ventilación, extracción, aire acondicionado y control de humedad.",
       "Las especialidades comparten cliente, inmueble, catálogo técnico, propuestas, partidas, presupuesto, dosier, documentos e historial.",
+      "Los esquemas técnicos usan una norma visual común de Zentryx: cada especialidad mantiene un color propio, los equipos y puntos se distinguen mediante nodos, los recorridos se representan con líneas de red y las medidas conocidas aparecen junto al tramo. Cuando un dato no está calculado se muestra como pendiente en lugar de inventarlo.",
+      "El objetivo de estos esquemas es servir para trabajar: deben mostrar qué elemento se instala, en qué zona está, cómo se conecta y qué diámetro, sección, caudal, temperatura u otra medida se conoce. El esquema funcional se genera automáticamente desde los datos del proyecto y se irá completando con el cálculo por tramos.",
       "Si Fontanería está activa, la ficha muestra Fontanería · suministro de agua. El primer bloque técnico usa CTE DB HS 4 para registrar los puntos de consumo y sus caudales mínimos de agua fría y ACS.",
       "En Fontanería → Asistente guiado añade cada aparato o punto de consumo y su cantidad. Zentryx toma los caudales mínimos de la tabla 2.1 de HS 4 y muestra también el diámetro mínimo de ramal de la tabla 4.2 cuando ese aparato figura en ella.",
       "El Asistente guiado suma el caudal máximo instalado de AF y ACS, pero no inventa un coeficiente de simultaneidad. CTE DB HS 4 exige adoptar un criterio adecuado por tramo antes de obtener el caudal de cálculo y el diámetro de la red, por lo que la ficha queda marcada como dimensionado pendiente.",
@@ -1680,7 +1683,10 @@ const BASE=[
       "Cada punto de Saneamiento puede tener Nombre / referencia, tipo de aparato, cantidad, zona o estancia y ramal/colector. Al pulsar Actualizar desde Fontanería se reconstruyen los puntos automáticos conservando los nombres, zonas y ramales ya indicados cuando siguen correspondiendo al mismo punto de origen; los puntos manuales también se conservan.",
       "En Saneamiento se elige uso privado o público para aplicar las UD y diámetros mínimos individuales de CTE DB HS 5 tabla 4.1. Los desagües continuos, como condensados, usan la regla de 1 UD por cada 0,03 L/s cuando se conoce el caudal. Los ramales largos, colectores, bajantes, pendientes y ventilación quedan pendientes de su cálculo detallado.",
       "La forma general de la red se registra sin asumir que siempre existe una bajante. Puede indicarse: sifones individuales con ramales a bajante/colector, bote sifónico por local húmedo con ramal, red horizontal directa a colector/arqueta, varios ramales/colectores/bajantes por zonas, red mixta o una configuración personalizada/técnica. La ventilación se define y calcula aparte, porque puede existir con cualquiera de estas topologías.",
-      "El resumen separa los puntos con datos pendientes del estado de la red para no mostrar cero pendientes mientras la red sigue sin dimensionar. El esquema inicial de aguas residuales se adapta al ancho del móvil, muestra por separado cada aparato, referencia y diámetro mínimo conocido, y cambia el encabezado de la red según la topología seleccionada sin inventar una bajante cuando se ha indicado una red horizontal directa.",
+      "El resumen separa los puntos con datos pendientes del estado de la red para no mostrar cero pendientes mientras la red sigue sin dimensionar. El esquema técnico de aguas residuales se adapta al ancho del móvil, muestra por separado cada aparato, referencia, zona/ramal, UD y diámetro mínimo conocido, y cambia la geometría según la topología seleccionada.",
+      "En Saneamiento la red residual se representa con azul pizarra/gris técnico, sustituyendo el antiguo marrón. La salida o arqueta se diferencia en verde azulado. En una red horizontal directa el colector se dibuja horizontalmente y no se introduce una bajante que no exista. Las flechas ayudan a leer el sentido de evacuación.",
+      "El campo Caudal continuo solo aparece en puntos que realmente puedan descargar de forma continua o semicontinua, como condensados. No se muestra en lavabos, duchas u otros aparatos de descarga discontinua.",
+      "El aviso de dimensionado pendiente se adapta a la topología elegida: una red horizontal no pide una bajante, mientras que una red con ramales a bajante/colector sí deja esos elementos pendientes cuando faltan longitudes, pendientes y diámetros.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
@@ -1696,6 +1702,7 @@ const BASE=[
       "En Técnico Zentryx conserva por separado el caudal técnico calculado, el mínimo reglamentario del local, el caudal que corresponde a la regla aplicada y el caudal adoptado para diseño. En vivienda, el CTE puede exigir a la vez un mínimo por local y un mínimo total para los locales húmedos; Zentryx muestra ambos criterios y diferencia el reparto propuesto del mínimo individual. Si el valor técnico queda por debajo de la regla aplicable, se muestra un aviso y se mantiene visible el dato técnico introducido.",
       "En Asistente guiado la simultaneidad no puede reducir el caudal reglamentario aplicado. En Técnico, si se usa simultaneidad, tampoco puede dejar el sistema por debajo del mínimo reglamentario conocido. El margen se aplica después para seleccionar el extractor.",
       "Zentryx separa los sistemas que no deben compartir extractor. La ventilación general de vivienda y la extracción independiente de la zona de cocción muestran por separado su caudal de diseño, presión de diseño y extractor.",
+      "La ficha de Extracción genera además un esquema técnico automático. Cada sistema muestra sus zonas conectadas al conducto, caudal adoptado, sección o diámetro conocido/propuesto, ubicación del recorrido y extractor o salida. Los sistemas independientes se dibujan por separado para no sugerir conexiones que no existen.",
       "En cada selector de extractor aparecen los artículos clasificados como Extracción. Si la ficha contiene Caudal de aire y Presión disponible, Zentryx los compara con el cálculo de ese sistema. Un campo técnico vacío queda como dato pendiente, no como valor cero. Si falta caudal o presión, la selección no se considera comprobada; si alguno resulta insuficiente, Zentryx indica cuál falla y compara el valor disponible con el requerido.",
       "Cada guardado normativo conserva la norma, el conjunto de reglas, fecha de verificación, ubicación, datos usados y resultados. Para obras en Madrid ciudad, Zentryx identifica además la Ordenanza 4/2021 de Calidad del Aire y Sostenibilidad y la Guía municipal de comprobaciones de ventilación versión enero de 2026; las comprobaciones del punto de evacuación quedan marcadas como pendientes hasta registrarlas.",
       "Si la revisión autonómica o municipal no está completada, la ficha lo muestra como pendiente y el cálculo no debe considerarse cierre normativo definitivo.",
@@ -1706,6 +1713,7 @@ const BASE=[
       "Indica el papel previsto cuando corresponda: principal, apoyo, emergencia, alternativo, simultáneo, solo ACS, solo calefacción o manual.",
       "En Emisores y circuitos registra cada sistema por zona: suelo radiante, radiadores, fancoils, conductos, aerotermos, piscina u otro.",
       "Para cada emisor puedes indicar si ya existe o está previsto, temperaturas de impulsión y retorno, potencia, cantidad con su unidad y si trabaja en calefacción o refrigeración.",
+      "Cuando Climatización tiene generadores o emisores registrados, la ficha muestra un esquema funcional común. A la izquierda aparecen los generadores con potencia, papel y servicios conocidos; a la derecha los emisores/circuitos con su zona, temperaturas y potencia. El bloque central se marca como Red / Control y no pretende inventar todavía depósitos, bombas, válvulas o conexiones hidráulicas no definidas: esos elementos se añadirán cuando se complete el diseño técnico.",
       "En Cálculo térmico pulsa Nuevo cálculo para registrar una versión del estudio sin modificar las versiones anteriores.",
       "En Cálculo térmico selecciona la forma de trabajo: Asistente guiado o una de las entradas de Técnico. El Asistente guiado pide superficie, una descripción sencilla del aislamiento y ocupantes; los coeficientes internos quedan ocultos bajo Ver criterios técnicos usados.",
       "En Técnico · por estancias puedes registrar nombre o uso, superficie, altura, orientación, paredes exteriores, huecos, aislamiento, ventilación o infiltraciones y ocupantes. Las condiciones de cálculo deben proceder del proyecto, mediciones o documentación técnica y corresponder a los criterios aplicables a la ubicación de la obra.",
