@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1092 - PROYECTOS · SANEAMIENTO V6: LONGITUDES, PENDIENTES, COLECTOR HORIZONTAL CTE HS 5 Y VENTILACIÓN SEPARADA
 // V1091 - PROYECTOS · SANEAMIENTO V5: ESTADO DE PUNTOS DEFINIDOS Y PENDIENTES SEPARADO DEL ESTADO DE LA RED
 // V1090 - PROYECTOS · ESQUEMAS TÉCNICOS V1: NORMA VISUAL COMÚN + SANEAMIENTO PROFESIONAL + EXTRACCIÓN Y CLIMATIZACIÓN
 // V1089 - PROYECTOS · SANEAMIENTO V3: TOPOLOGÍAS REALES DE RED Y ESQUEMA SEGÚN DISTRIBUCIÓN
@@ -35,7 +36,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1091";
+const ZX_VERSION="1092";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1689,6 +1690,11 @@ const BASE=[
       "En Saneamiento la red residual se representa con azul pizarra/gris técnico, sustituyendo el antiguo marrón. La salida o arqueta se diferencia en verde azulado. En una red horizontal directa el colector se dibuja horizontalmente y no se introduce una bajante que no exista. Las flechas ayudan a leer el sentido de evacuación.",
       "El campo Caudal continuo solo aparece en puntos que realmente puedan descargar de forma continua o semicontinua, como condensados. No se muestra en lavabos, duchas u otros aparatos de descarga discontinua.",
       "El aviso de dimensionado pendiente se adapta a la topología elegida: una red horizontal no pide una bajante, mientras que una red con ramales a bajante/colector sí deja esos elementos pendientes cuando faltan longitudes, pendientes y diámetros.",
+      "Saneamiento permite registrar en cada punto la longitud del ramal, su pendiente y, cuando sea necesario, un diámetro adoptado. En aparatos con diámetro mínimo CTE, un diámetro manual inferior al mínimo queda avisado. Si un ramal individual supera 1,5 m, Zentryx mantiene el cálculo pormenorizado pendiente en vez de dar por válido automáticamente el mínimo de la tabla 4.1.",
+      "Para la topología Red horizontal directa a colector/arqueta, el bloque Dimensionado de la red permite indicar longitud del colector principal, pendiente, material, número de uniones o cambios de dirección, diámetro adoptado, destino y ubicación de salida.",
+      "Con una pendiente adoptada de 1 %, 2 % o 4 %, Zentryx calcula el diámetro mínimo del colector horizontal a partir de las UD totales mediante la tabla 4.5 de CTE DB HS 5. No interpola pendientes distintas ni considera cerrado el dimensionado si faltan datos del recorrido.",
+      "La ventilación de saneamiento tiene un bloque independiente. Puede registrarse conexión a ventilación primaria existente, primaria más secundaria, ventilación terciaria, válvulas de aireación-ventilación, solución mixta o técnica. La selección registra la solución prevista, pero no sustituye la comprobación normativa de la red y del edificio.",
+      "El esquema técnico de Saneamiento incorpora los datos definidos: longitudes y pendientes de ramales, diámetro del colector calculado o adoptado, material, destino y estado de ventilación. Los valores ausentes continúan marcados como pendientes y no se inventan.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
