@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1091 - PROYECTOS · SANEAMIENTO V5: ESTADO DE PUNTOS DEFINIDOS Y PENDIENTES SEPARADO DEL ESTADO DE LA RED
 // V1090 - PROYECTOS · ESQUEMAS TÉCNICOS V1: NORMA VISUAL COMÚN + SANEAMIENTO PROFESIONAL + EXTRACCIÓN Y CLIMATIZACIÓN
 // V1089 - PROYECTOS · SANEAMIENTO V3: TOPOLOGÍAS REALES DE RED Y ESQUEMA SEGÚN DISTRIBUCIÓN
 // V1088 - PROYECTOS · SANEAMIENTO V2: DESAGÜES INDIVIDUALES, NOMBRE/REFERENCIA, SINCRONIZACIÓN CONSERVADORA Y ESQUEMA MÓVIL
@@ -34,7 +35,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1090";
+const ZX_VERSION="1091";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1682,6 +1683,7 @@ const BASE=[
       "La propuesta de Saneamiento no copia a ciegas todos los puntos de suministro: grifos sin desagüe asociado pueden quedar fuera, y puedes añadir manualmente sumideros, condensados de climatización, descargas de seguridad ACS, vaciados, tratamiento de agua u otros puntos.",
       "Cada punto de Saneamiento puede tener Nombre / referencia, tipo de aparato, cantidad, zona o estancia y ramal/colector. Al pulsar Actualizar desde Fontanería se reconstruyen los puntos automáticos conservando los nombres, zonas y ramales ya indicados cuando siguen correspondiendo al mismo punto de origen; los puntos manuales también se conservan.",
       "En Saneamiento se elige uso privado o público para aplicar las UD y diámetros mínimos individuales de CTE DB HS 5 tabla 4.1. Los desagües continuos, como condensados, usan la regla de 1 UD por cada 0,03 L/s cuando se conoce el caudal. Los ramales largos, colectores, bajantes, pendientes y ventilación quedan pendientes de su cálculo detallado.",
+      "El resumen separa el dimensionado individual de los puntos del estado de la red: un punto solo figura como completo cuando tiene sus UD y su diámetro individual determinados. Si, por ejemplo, un condensado tiene caudal y UD calculadas pero todavía no tiene diámetro, queda como punto individual pendiente aunque la red general se trate por separado.",
       "La forma general de la red se registra sin asumir que siempre existe una bajante. Puede indicarse: sifones individuales con ramales a bajante/colector, bote sifónico por local húmedo con ramal, red horizontal directa a colector/arqueta, varios ramales/colectores/bajantes por zonas, red mixta o una configuración personalizada/técnica. La ventilación se define y calcula aparte, porque puede existir con cualquiera de estas topologías.",
       "El resumen separa los puntos con datos pendientes del estado de la red para no mostrar cero pendientes mientras la red sigue sin dimensionar. El esquema técnico de aguas residuales se adapta al ancho del móvil, muestra por separado cada aparato, referencia, zona/ramal, UD y diámetro mínimo conocido, y cambia la geometría según la topología seleccionada.",
       "En Saneamiento la red residual se representa con azul pizarra/gris técnico, sustituyendo el antiguo marrón. La salida o arqueta se diferencia en verde azulado. En una red horizontal directa el colector se dibuja horizontalmente y no se introduce una bajante que no exista. Las flechas ayudan a leer el sentido de evacuación.",
