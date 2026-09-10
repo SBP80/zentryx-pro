@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1089 - PROYECTOS · SANEAMIENTO V3: TOPOLOGÍAS REALES DE RED Y ESQUEMA SEGÚN DISTRIBUCIÓN
 // V1088 - PROYECTOS · SANEAMIENTO V2: DESAGÜES INDIVIDUALES, NOMBRE/REFERENCIA, SINCRONIZACIÓN CONSERVADORA Y ESQUEMA MÓVIL
 // V1087 - PROYECTOS · FONTANERÍA V4 + SANEAMIENTO V1: ESQUEMAS COLOREADOS, TEMPERATURAS ACS Y DESAGÜES DESDE PUNTOS DE CONSUMO
 // V1086 - PROYECTOS · FONTANERÍA V3: TOPOLOGÍA AF/ACS, RAMALES/COLECTORES Y FORMAS DE RECIRCULACIÓN
@@ -32,7 +33,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1088";
+const ZX_VERSION="1089";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1678,7 +1679,8 @@ const BASE=[
       "La propuesta de Saneamiento no copia a ciegas todos los puntos de suministro: grifos sin desagüe asociado pueden quedar fuera, y puedes añadir manualmente sumideros, condensados de climatización, descargas de seguridad ACS, vaciados, tratamiento de agua u otros puntos.",
       "Cada punto de Saneamiento puede tener Nombre / referencia, tipo de aparato, cantidad, zona o estancia y ramal/colector. Al pulsar Actualizar desde Fontanería se reconstruyen los puntos automáticos conservando los nombres, zonas y ramales ya indicados cuando siguen correspondiendo al mismo punto de origen; los puntos manuales también se conservan.",
       "En Saneamiento se elige uso privado o público para aplicar las UD y diámetros mínimos individuales de CTE DB HS 5 tabla 4.1. Los desagües continuos, como condensados, usan la regla de 1 UD por cada 0,03 L/s cuando se conoce el caudal. Los ramales largos, colectores, bajantes, pendientes y ventilación quedan pendientes de su cálculo detallado.",
-      "El resumen separa los puntos con datos pendientes del estado de la red para no mostrar cero pendientes mientras colectores o bajantes siguen sin dimensionar. El esquema inicial de aguas residuales se adapta al ancho del móvil y muestra por separado cada aparato, su referencia y diámetro mínimo conocido, además de colector/bajante y salida.",
+      "La forma general de la red se registra sin asumir que siempre existe una bajante. Puede indicarse: sifones individuales con ramales a bajante/colector, bote sifónico por local húmedo con ramal, red horizontal directa a colector/arqueta, varios ramales/colectores/bajantes por zonas, red mixta o una configuración personalizada/técnica. La ventilación se define y calcula aparte, porque puede existir con cualquiera de estas topologías.",
+      "El resumen separa los puntos con datos pendientes del estado de la red para no mostrar cero pendientes mientras la red sigue sin dimensionar. El esquema inicial de aguas residuales se adapta al ancho del móvil, muestra por separado cada aparato, referencia y diámetro mínimo conocido, y cambia el encabezado de la red según la topología seleccionada sin inventar una bajante cuando se ha indicado una red horizontal directa.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
