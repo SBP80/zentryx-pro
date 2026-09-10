@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1078
+// ZENTRYX PRO - PROYECTOS V1079
+// V1079 - CONTROL DE VERSIÓN DE MÓDULO: EXPONE LA VERSIÓN REAL CARGADA PARA EVITAR MEZCLAS DE CACHÉ EN PWA/IPHONE
 // V1078 - ESQUEMAS TÉCNICOS V1: MOTOR VISUAL COMÚN + SANEAMIENTO V4 PROFESIONAL + ESQUEMAS DE EXTRACCIÓN Y CLIMATIZACIÓN
 // V1077 - SANEAMIENTO V3: TOPOLOGÍAS REALES DE RED + COMPATIBILIDAD V2 + ESQUEMA ADAPTADO AL TIPO DE RED
 // V1076 - SANEAMIENTO V2: PUNTOS INDIVIDUALES DESDE FONTANERÍA + NOMBRE/REFERENCIA + ESQUEMA MÓVIL SIN RECORTE + ESTADO DE RED CLARO
@@ -57,7 +58,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1078";
+const ZX_VERSION="1079";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -2635,6 +2636,8 @@ window.ZX_proyectos=async function(){
   const abrir=window.ZX_PROYECTO_ABRIR_ID;window.ZX_PROYECTO_ABRIR_ID="";if(abrir)abrirFicha(abrir);
 };
 window.ZX_abrirProyectos=window.ZX_proyectos;
+window.ZENTRYX_MODULE_VERSIONS=window.ZENTRYX_MODULE_VERSIONS||{};
+window.ZENTRYX_MODULE_VERSIONS.proyectos=ZX_VERSION;
 if(zx()&&typeof zx().registrarModulo==="function")zx().registrarModulo("proyectos",{nombre:"Proyectos",activo:true,version:ZX_VERSION});
 console.log("ZENTRYX proyectos.js V"+ZX_VERSION+" cargado");
 })();
