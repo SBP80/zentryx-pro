@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3566</title>
+<title>Zentryx PRO V3567</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3566";
+window.ZX_VERSION="3567";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -48,11 +48,11 @@ window.ZX_VERSION="3566";
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
 <script src="src/modules/trabajos.js?v=3244&build=20260904a"></script>
-<script src="src/modules/proyectos.js?v=1088&build=20260912n"></script>
+<script src="src/modules/proyectos.js?v=1089&build=20260912o"></script>
 <script src="src/modules/almacen.js?v=1012&build=20260908a"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <script src="src/modules/vehiculos.js?v=3225&build=20260903a"></script>
-<script src="src/modules/manual.js?v=1094&build=20260912n"></script>
+<script src="src/modules/manual.js?v=1095&build=20260912o"></script>
 <script src="src/modules/asistente.js?v=1010&build=20260827d"></script>
 
 <script>
@@ -91,12 +91,12 @@ async function comprobarVersionPublicada(){
 }
 
 async function asegurarModuloProyectos(){
-  const esperada="1088";
+  const esperada="1089";
   const cargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
   if(cargada===esperada) return true;
   if(!navigator.onLine) return true;
   try{
-    const url="src/modules/proyectos.js?v="+esperada+"&build=20260912n&zx_refresh="+Date.now();
+    const url="src/modules/proyectos.js?v="+esperada+"&build=20260912o&zx_refresh="+Date.now();
     const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
     if(!r.ok) return false;
     const js=await r.text();
@@ -154,7 +154,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3566 - PROYECTOS V1088 + SANEAMIENTO V7 ESTADOS DE REVISIÓN Y PENDIENTES SIMULTÁNEOS + CONTROL DE CARGA + MANUAL V1094 -->
+<!-- ZENTRYX PRO V3567 - PROYECTOS V1089 + SANEAMIENTO V9 RECORRIDO REAL DE OBRA + CONTROL DE CARGA + MANUAL V1095 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
