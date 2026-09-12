@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1093 - PROYECTOS · SANEAMIENTO V7: COMPROBACIÓN TÉCNICA ESTRUCTURADA DE VENTILACIÓN HS 5
 // V1092 - PROYECTOS · SANEAMIENTO V6: LONGITUDES, PENDIENTES, COLECTOR HORIZONTAL CTE HS 5 Y VENTILACIÓN SEPARADA
 // V1091 - PROYECTOS · SANEAMIENTO V5: ESTADO DE PUNTOS DEFINIDOS Y PENDIENTES SEPARADO DEL ESTADO DE LA RED
 // V1090 - PROYECTOS · ESQUEMAS TÉCNICOS V1: NORMA VISUAL COMÚN + SANEAMIENTO PROFESIONAL + EXTRACCIÓN Y CLIMATIZACIÓN
@@ -1694,6 +1695,9 @@ const BASE=[
       "Para la topología Red horizontal directa a colector/arqueta, el bloque Dimensionado de la red permite indicar longitud del colector principal, pendiente, material, número de uniones o cambios de dirección, diámetro adoptado, destino y ubicación de salida.",
       "Con una pendiente adoptada de 1 %, 2 % o 4 %, Zentryx calcula el diámetro mínimo del colector horizontal a partir de las UD totales mediante la tabla 4.5 de CTE DB HS 5. No interpola pendientes distintas ni considera cerrado el dimensionado si faltan datos del recorrido.",
       "La ventilación de saneamiento tiene un bloque independiente. Puede registrarse conexión a ventilación primaria existente, primaria más secundaria, ventilación terciaria, válvulas de aireación-ventilación, solución mixta o técnica. La selección registra la solución prevista, pero no sustituye la comprobación normativa de la red y del edificio.",
+      "Saneamiento incorpora una Comprobación técnica de ventilación que cambia según la solución elegida. Para conexión a ventilación primaria existente registra plantas del edificio, referencia y diámetro de la ventilación, verificación de la conexión, salida a cubierta, tipo de cubierta, altura de terminación, proximidad a tomas de aire y huecos habitables, presencia de marquesinas o terrazas y protección frente a cuerpos extraños.",
+      "Para una ventilación primaria usada como único sistema, Zentryx comprueba el criterio base de HS 5: edificios de menos de 7 plantas, o de menos de 11 cuando la bajante está sobredimensionada, y ramales inferiores a 5 m. También revisa las alturas mínimas de terminación sobre cubierta, la distancia a tomas de aire y huecos y que no termine bajo marquesinas o terrazas.",
+      "Las opciones Primaria + secundaria, Terciaria y Válvulas de aireación-ventilación activan sus comprobaciones específicas. Si faltan datos, el estado queda en Comprobación pendiente; si un dato contradice un criterio registrado, muestra Requiere revisión; solo cuando los criterios base disponibles son coherentes pasa a Comprobación técnica base correcta. Incluso entonces la revisión final de ejecución y documentación de obra sigue pendiente.",
       "El esquema técnico de Saneamiento incorpora los datos definidos: longitudes y pendientes de ramales, diámetro del colector calculado o adoptado, material, destino y estado de ventilación. Los valores ausentes continúan marcados como pendientes y no se inventan.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
