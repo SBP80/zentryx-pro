@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3584</title>
+<title>Zentryx PRO V3585</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3584";
+window.ZX_VERSION="3585";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -48,11 +48,11 @@ window.ZX_VERSION="3584";
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
 <script src="src/modules/trabajos.js?v=3244&build=20260904a"></script>
-<script src="src/modules/proyectos.js?v=1103&build=20260913n"></script>
+<script src="src/modules/proyectos.js?v=1104&build=20260913o"></script>
 <script src="src/modules/almacen.js?v=1012&build=20260908a"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <script src="src/modules/vehiculos.js?v=3225&build=20260903a"></script>
-<script src="src/modules/manual.js?v=1107&build=20260913n"></script>
+<script src="src/modules/manual.js?v=1108&build=20260913o"></script>
 <script src="src/modules/asistente.js?v=1010&build=20260827d"></script>
 
 <script>
@@ -91,7 +91,7 @@ async function comprobarVersionPublicada(){
 }
 
 async function asegurarModuloProyectos(){
-  const esperada="1103";
+  const esperada="1104";
   const cargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
   if(cargada===esperada) return true;
 
@@ -106,7 +106,7 @@ async function asegurarModuloProyectos(){
   const controller=typeof AbortController!=="undefined"?new AbortController():null;
   const timer=controller?setTimeout(()=>controller.abort(),4500):null;
   try{
-    const url="src/modules/proyectos.js?v="+esperada+"&build=20260913n&zx_refresh="+Date.now();
+    const url="src/modules/proyectos.js?v="+esperada+"&build=20260913o&zx_refresh="+Date.now();
     const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"},signal:controller?controller.signal:undefined});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const js=await r.text();
@@ -174,7 +174,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3584 - UX MOVIL V4 · ARRANQUE TOLERANTE A CONEXION DEBIL · PROYECTOS V1103 + MANUAL V1107 -->
+<!-- ZENTRYX PRO V3585 - UX MOVIL V5 · ACCESO DIRECTO A PLANO · ARRANQUE TOLERANTE A CONEXION DEBIL · PROYECTOS V1104 + MANUAL V1108 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
