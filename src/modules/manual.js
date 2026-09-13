@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1096 - PROYECTOS · SANEAMIENTO V10: ASISTENTE DE PLANO DE EJECUCIÓN Y ESTADOS DE DATOS PENDIENTES
 // V1095 - PROYECTOS · SANEAMIENTO V9: RECORRIDO REAL DE OBRA, BAJANTES, COLECTORES, ARQUETAS Y CAMBIOS DE COTA
 // V1094 - PROYECTOS · SANEAMIENTO V8: INCUMPLIMIENTOS Y COMPROBACIONES PENDIENTES VISIBLES A LA VEZ
 // V1093 - PROYECTOS · SANEAMIENTO V7: COMPROBACIÓN TÉCNICA ESTRUCTURADA DE VENTILACIÓN HS 5
@@ -39,7 +40,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1095";
+const ZX_VERSION="1096";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1701,10 +1702,13 @@ const BASE=[
       "Para una ventilación primaria usada como único sistema, Zentryx comprueba el criterio base de HS 5: edificios de menos de 7 plantas, o de menos de 11 cuando la bajante está sobredimensionada, y ramales inferiores a 5 m. También revisa las alturas mínimas de terminación sobre cubierta, la distancia a tomas de aire y huecos y que no termine bajo marquesinas o terrazas.",
       "Las opciones Primaria + secundaria, Terciaria y Válvulas de aireación-ventilación activan sus comprobaciones específicas. Si faltan datos, el estado queda en Comprobación pendiente; si un dato contradice un criterio registrado, muestra Requiere revisión. Cuando existen a la vez incumplimientos y comprobaciones aún pendientes, Zentryx muestra ambos bloques para que ninguna tarea quede oculta. Solo cuando los criterios base disponibles son coherentes pasa a Comprobación técnica base correcta. Incluso entonces la revisión final de ejecución y documentación de obra sigue pendiente.",
       "El esquema técnico de Saneamiento incorpora los datos definidos: longitudes y pendientes de ramales, diámetro del colector calculado o adoptado, material, destino y estado de ventilación. Los valores ausentes continúan marcados como pendientes y no se inventan.",
-      "El bloque Recorrido real y elementos de obra documenta la instalación física sin inventar componentes. Puedes añadir, solo cuando correspondan, ramales horizontales, colectores, bajantes, arquetas, cambios de cota, registros, conexiones/salidas u otros elementos. Las tarjetas se leen en orden de instalación y pueden reordenarse con los controles de subir y bajar.",
-      "Cada elemento de recorrido puede registrar referencia, ubicación, cómo va instalado —empotrado, visto, suspendido, por falso techo, por patinillo, enterrado, registrable u otro—, origen y destino y, según su tipo, longitud, diámetro, pendiente real, material, plantas o niveles, cotas inicial/final y observaciones de montaje. Los campos que no corresponden al tipo elegido se ocultan para mantener el formulario claro en móvil.",
-      "El esquema muestra además un Recorrido real de obra en forma de secuencia de trabajo. Cada paso indica dónde está, de dónde viene, a dónde va y los datos técnicos registrados. Los elementos incompletos se mantienen como pendientes; este bloque no altera por sí solo el cálculo CTE ya validado ni convierte un levantamiento parcial en una instalación comprobada.",
-      "Los elementos del recorrido se guardan dentro de detalle_red.elementos_red, en el mismo inmueble_meta.saneamiento del proyecto. No se crean tablas ni campos nuevos y cada guardado sigue añadiendo historial del proyecto.",
+      "El bloque Plano de ejecución y recorrido de obra documenta cómo está previsto o cómo se ha comprobado físicamente el saneamiento. Solo se añaden ramales, colectores, bajantes, arquetas, cambios de cota, registros, conexiones/salidas u otros elementos que existan o estén previstos. Las tarjetas se leen en orden de instalación y pueden reordenarse con los controles de subir y bajar.",
+      "El botón Asistente de recorrido guía un elemento cada vez. Pregunta los datos uno a uno y reutiliza los que ya estén registrados en el proyecto, por ejemplo longitud, pendiente, diámetro, material o destino del colector cuando estén disponibles. El técnico puede seguir usando Añadir manualmente cuando prefiera introducir la tarjeta completa directamente.",
+      "En cada pregunta del asistente puedes indicar No se conoce, Lo introduciré luego y, cuando corresponde, No aplica. También existe una ayuda Cómo obtener este dato con una indicación breve sobre dónde consultarlo o cómo medirlo. Los datos que falten siguen apareciendo como pendientes y no se inventan.",
+      "Cada elemento tiene Estado en obra: Previsto / proyecto, Comprobado en obra o Sin verificar. Marca Comprobado en obra solo cuando el elemento se haya visto, medido o contrastado físicamente. Los demás estados permiten preparar el trabajo sin presentar como ejecutado algo que todavía no se ha comprobado.",
+      "Cada elemento puede registrar referencia, ubicación, montaje, origen y destino y, según su tipo, longitud, diámetro, pendiente real, material, plantas o niveles, cotas y observaciones. Los campos que no corresponden al tipo elegido se ocultan. En ramales y colectores, longitud, diámetro y pendiente dejan de mostrarse como opcionales cuando son necesarios para cerrar los datos principales del tramo.",
+      "La ficha muestra Plano de ejecución · recorrido como una secuencia técnica ordenada. Mientras no existan datos suficientes para situar los elementos, Zentryx no dibuja una geometría supuestamente real. El bloque diferencia lo previsto, lo comprobado en obra y lo pendiente, y no cambia por sí solo los cálculos CTE ya validados.",
+      "Los elementos y sus estados se guardan dentro de detalle_red.elementos_red, en el mismo inmueble_meta.saneamiento del proyecto. No se crean tablas ni campos nuevos y cada guardado sigue añadiendo historial del proyecto.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
