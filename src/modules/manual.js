@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1119 - INTERFAZ MÓVIL V16: DIMENSIONADO DE SANEAMIENTO CON DATOS PRINCIPALES VISIBLES Y DATOS ADICIONALES/CRITERIO CTE PLEGADOS
 // V1118 - INTERFAZ MÓVIL V15: RESÚMENES DE RECORRIDO SIN DATOS REPETIDOS Y CON IDENTIFICACIÓN MÁS CLARA DE TRAMOS PENDIENTES
 // V1117 - INTERFAZ MÓVIL V14: RECORRIDO Y ELEMENTOS DE SANEAMIENTO EN LISTA COMPACTA, AYUDA PLEGADA Y EDICIÓN DE UN SOLO ELEMENTO CADA VEZ
 // V1116 - INTERFAZ MÓVIL V13: CORRECCIÓN EN IPHONE/SAFARI PARA QUE LOS PUNTOS DE SANEAMIENTO PERMANEZCAN PLEGADOS HASTA TOCAR SU FILA
@@ -62,7 +63,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1115";
+const ZX_VERSION="1119";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1717,7 +1718,7 @@ const BASE=[
       "El campo Caudal continuo solo aparece en puntos que realmente puedan descargar de forma continua o semicontinua, como condensados. No se muestra en lavabos, duchas u otros aparatos de descarga discontinua.",
       "El aviso de dimensionado pendiente se adapta a la topología elegida: una red horizontal no pide una bajante, mientras que una red con ramales a bajante/colector sí deja esos elementos pendientes cuando faltan longitudes, pendientes y diámetros.",
       "Saneamiento permite registrar en cada punto la longitud del ramal, su pendiente y, cuando sea necesario, un diámetro adoptado. En aparatos con diámetro mínimo CTE, un diámetro manual inferior al mínimo queda avisado. Si un ramal individual supera 1,5 m, Zentryx mantiene el cálculo pormenorizado pendiente en vez de dar por válido automáticamente el mínimo de la tabla 4.1.",
-      "Para la topología Red horizontal directa a colector/arqueta, el bloque Dimensionado de la red permite indicar longitud del colector principal, pendiente, material, número de uniones o cambios de dirección, diámetro adoptado, destino y ubicación de salida.",
+      "Para la topología Red horizontal directa a colector/arqueta, Dimensionado de la red muestra primero pendiente, diámetro adoptado y material junto al resumen del colector. Longitud, uniones o cambios de dirección, destino y ubicación de salida quedan en Datos adicionales, cerrado al entrar. El criterio CTE se consulta en Ayuda · Criterio de cálculo, también cerrado por defecto.",
       "Con una pendiente adoptada de 1 %, 2 % o 4 %, Zentryx calcula el diámetro mínimo del colector horizontal a partir de las UD totales mediante la tabla 4.5 de CTE DB HS 5. No interpola pendientes distintas ni considera cerrado el dimensionado si faltan datos del recorrido.",
       "La ventilación de saneamiento tiene un bloque independiente. Puede registrarse conexión a ventilación primaria existente, primaria más secundaria, ventilación terciaria, válvulas de aireación-ventilación, solución mixta o técnica. La selección registra la solución prevista, pero no sustituye la comprobación normativa de la red y del edificio.",
       "Saneamiento incorpora una Comprobación técnica de ventilación que cambia según la solución elegida. Para conexión a ventilación primaria existente registra plantas del edificio, referencia y diámetro de la ventilación, verificación de la conexión, salida a cubierta, tipo de cubierta, altura de terminación, proximidad a tomas de aire y huecos habitables, presencia de marquesinas o terrazas y protección frente a cuerpos extraños.",
