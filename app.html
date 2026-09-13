@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3588</title>
+<title>Zentryx PRO V3589</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3588";
+window.ZX_VERSION="3589";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -48,11 +48,11 @@ window.ZX_VERSION="3588";
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
 <script src="src/modules/trabajos.js?v=3244&build=20260904a"></script>
-<script src="src/modules/proyectos.js?v=1107&build=20260913r"></script>
+<script src="src/modules/proyectos.js?v=1108&build=20260913s"></script>
 <script src="src/modules/almacen.js?v=1012&build=20260908a"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <script src="src/modules/vehiculos.js?v=3225&build=20260903a"></script>
-<script src="src/modules/manual.js?v=1111&build=20260913r"></script>
+<script src="src/modules/manual.js?v=1112&build=20260913s"></script>
 <script src="src/modules/asistente.js?v=1010&build=20260827d"></script>
 
 <script>
@@ -91,38 +91,73 @@ async function comprobarVersionPublicada(){
 }
 
 async function asegurarModuloProyectos(){
-  const esperada="1107";
-  const cargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
-  if(cargada===esperada) return true;
+  const esperada="1108";
+  const versionActual=()=>window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
+  const compatible=()=>{
+    const v=versionActual();
+    // V1107 ya contiene la corrección estructural y es un respaldo válido sin conexión.
+    return (v===esperada && window.ZENTRYX_PROYECTOS_SAN_NAV_V2===true) || v==="1107";
+  };
+  if(compatible()) return true;
 
-  // El módulo Proyectos no debe bloquear el arranque general por una conexión débil.
-  // Si ya hay una versión cargada desde caché, se conserva y se intenta actualizar solo si hay red.
-  const disponible=typeof window.ZX_proyectos==="function";
+  const instalarBloqueoProyectos=(motivo)=>{
+    const v=versionActual()||"desconocida";
+    console.error("Proyectos incompatible: V"+v+". "+(motivo||""));
+    window.ZX_proyectos=async function(){
+      const app=document.getElementById("app");
+      if(!app)return;
+      app.innerHTML=""+
+        "<main style='padding:18px;font-family:system-ui,-apple-system,sans-serif;color:#0f172a'>"+
+          "<section style='max-width:620px;margin:24px auto;padding:20px;border:1px solid #e2e8f0;border-radius:18px;background:white'>"+
+            "<h2 style='margin:0 0 8px'>Proyectos necesita actualizarse</h2>"+
+            "<p style='margin:0 0 14px;color:#475569;line-height:1.5'>La copia de Proyectos almacenada en este dispositivo no es compatible con la navegación actual de Saneamiento. No se abrirá la copia antigua para evitar perder cambios o dejar botones sin respuesta.</p>"+
+            "<button id='zx_retry_proyectos' type='button' style='border:0;border-radius:12px;padding:12px 16px;background:#0f766e;color:white;font-weight:800'>Actualizar Proyectos</button>"+
+          "</section>"+
+        "</main>";
+      const b=document.getElementById("zx_retry_proyectos");
+      if(b)b.onclick=()=>location.replace("app.html?v=3589&t="+Date.now());
+    };
+  };
+
   if(!navigator.onLine){
-    if(cargada && cargada!==esperada) console.warn("Proyectos V"+cargada+" en caché; se esperaba V"+esperada+". Se mantiene temporalmente sin conexión.");
-    return true;
+    instalarBloqueoProyectos("Sin conexión para obtener V"+esperada+".");
+    return false;
   }
 
-  const controller=typeof AbortController!=="undefined"?new AbortController():null;
-  const timer=controller?setTimeout(()=>controller.abort(),4500):null;
+  const verificarRecibida=(js)=>js.includes("ZENTRYX PRO - PROYECTOS V"+esperada) && js.includes('const ZX_VERSION="'+esperada+'"') && js.includes("ZENTRYX_PROYECTOS_SAN_NAV_V2=true");
+  const baseUrl="src/modules/proyectos.js?v="+esperada+"&build=20260913s&zx_refresh="+Date.now();
+
+  // Primer intento: descarga explícita sin caché y evaluación de la copia verificada.
   try{
-    const url="src/modules/proyectos.js?v="+esperada+"&build=20260913r&zx_refresh="+Date.now();
-    const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"},signal:controller?controller.signal:undefined});
-    if(!r.ok) throw new Error("HTTP "+r.status);
-    const js=await r.text();
-    if(!js.includes("ZENTRYX PRO - PROYECTOS V"+esperada) || !js.includes('const ZX_VERSION="'+esperada+'"')) throw new Error("La versión recibida de Proyectos no coincide");
-    (0,eval)(js+"\n//# sourceURL="+url);
-    const recargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
-    if(recargada!==esperada) throw new Error("Proyectos no registró la versión esperada");
-    return true;
-  }catch(e){
-    console.warn("No se pudo actualizar proyectos.js a V"+esperada+" durante el arranque. Zentryx continuará con la copia disponible.",e);
-    return true;
-  }finally{
-    if(timer) clearTimeout(timer);
-  }
-}
+    const controller=typeof AbortController!=="undefined"?new AbortController():null;
+    const timer=controller?setTimeout(()=>controller.abort(),6500):null;
+    try{
+      const r=await fetch(baseUrl,{cache:"no-store",headers:{"Cache-Control":"no-cache, no-store, must-revalidate"},signal:controller?controller.signal:undefined});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const js=await r.text();
+      if(!verificarRecibida(js))throw new Error("La copia recibida no es Proyectos V"+esperada+" compatible");
+      (0,eval)(js+"\n//# sourceURL="+baseUrl);
+    }finally{if(timer)clearTimeout(timer)}
+    if(compatible())return true;
+  }catch(e){console.warn("Primer intento de actualización de Proyectos falló",e)}
 
+  // Segundo intento: etiqueta script con una URL nueva para evitar una respuesta antigua del navegador/PWA.
+  try{
+    await new Promise((resolve,reject)=>{
+      const s=document.createElement("script");
+      const timeout=setTimeout(()=>{try{s.remove()}catch(e){}reject(new Error("Tiempo agotado"))},7000);
+      s.src="src/modules/proyectos.js?v="+esperada+"&build=20260913s&zx_script="+Date.now();
+      s.async=true;
+      s.onload=()=>{clearTimeout(timeout);resolve()};
+      s.onerror=()=>{clearTimeout(timeout);reject(new Error("No se pudo cargar el script"))};
+      document.head.appendChild(s);
+    });
+    if(compatible())return true;
+  }catch(e){console.warn("Segundo intento de actualización de Proyectos falló",e)}
+
+  instalarBloqueoProyectos("No se pudo obtener V"+esperada+".");
+  return false;
+}
 async function iniciar(){
   if(iniciado) return;
   if(await comprobarVersionPublicada()) return;
@@ -174,7 +209,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3588 - UX MOVIL V8 · NAVEGACION DE SANEAMIENTO CORREGIDA DESDE EL PROYECTO COMPLETO · VERSION PUBLICADA COHERENTE · ARRANQUE TOLERANTE A CONEXION DEBIL · PROYECTOS V1107 + MANUAL V1111 -->
+<!-- ZENTRYX PRO V3589 - CARGA SEGURA DE PROYECTOS · RECHAZA V1105/V1106 DEFECTUOSAS · PROYECTOS V1108 + MANUAL V1112 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
