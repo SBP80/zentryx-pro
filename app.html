@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3580</title>
+<title>Zentryx PRO V3581</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3580";
+window.ZX_VERSION="3581";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -94,46 +94,66 @@ async function asegurarModuloProyectos(){
   const esperada="1100";
   const cargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
   if(cargada===esperada) return true;
-  if(!navigator.onLine) return true;
+
+  // El módulo Proyectos no debe bloquear el arranque general por una conexión débil.
+  // Si ya hay una versión cargada desde caché, se conserva y se intenta actualizar solo si hay red.
+  const disponible=typeof window.ZX_proyectos==="function";
+  if(!navigator.onLine){
+    if(cargada && cargada!==esperada) console.warn("Proyectos V"+cargada+" en caché; se esperaba V"+esperada+". Se mantiene temporalmente sin conexión.");
+    return true;
+  }
+
+  const controller=typeof AbortController!=="undefined"?new AbortController():null;
+  const timer=controller?setTimeout(()=>controller.abort(),4500):null;
   try{
-    const url="src/modules/proyectos.js?v="+esperada+"&build=20260913i&zx_refresh="+Date.now();
-    const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
-    if(!r.ok) return false;
+    const url="src/modules/proyectos.js?v="+esperada+"&build=20260913j&zx_refresh="+Date.now();
+    const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"},signal:controller?controller.signal:undefined});
+    if(!r.ok) throw new Error("HTTP "+r.status);
     const js=await r.text();
-    if(!js.includes("ZENTRYX PRO - PROYECTOS V"+esperada) || !js.includes('const ZX_VERSION="'+esperada+'"')) return false;
+    if(!js.includes("ZENTRYX PRO - PROYECTOS V"+esperada) || !js.includes('const ZX_VERSION="'+esperada+'"')) throw new Error("La versión recibida de Proyectos no coincide");
     (0,eval)(js+"\n//# sourceURL="+url);
     const recargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
-    return recargada===esperada;
+    if(recargada!==esperada) throw new Error("Proyectos no registró la versión esperada");
+    return true;
   }catch(e){
-    console.warn("No se pudo verificar proyectos.js V"+esperada,e);
-    return false;
+    console.warn("No se pudo actualizar proyectos.js a V"+esperada+" durante el arranque. Zentryx continuará con la copia disponible.",e);
+    return true;
+  }finally{
+    if(timer) clearTimeout(timer);
   }
 }
 
 async function iniciar(){
   if(iniciado) return;
   if(await comprobarVersionPublicada()) return;
-  if(!(await asegurarModuloProyectos())){
-    mostrarErrorArranque();
-    return;
-  }
+  await asegurarModuloProyectos();
   if(typeof window.ZENTRYX_sessionValid!=="function" || !window.ZENTRYX_sessionValid()){
     if(typeof window.ZENTRYX_logout==="function") window.ZENTRYX_logout();
     else location.replace("index.html?v="+window.ZX_VERSION+"&t="+Date.now());
     return;
   }
-  if(!window.sb || !window.ZENTRYX_UI_LAYOUT || typeof window.ZENTRYX_UI_LAYOUT.iniciar!=="function"){
+  if(!window.ZENTRYX_UI_LAYOUT || typeof window.ZENTRYX_UI_LAYOUT.iniciar!=="function"){
     mostrarErrorArranque();
     return;
   }
 
   iniciado=true;
 
-  if(window.ZENTRYX && typeof window.ZENTRYX.refrescarAccesoUsuarioActual==="function"){
-    await window.ZENTRYX.refrescarAccesoUsuarioActual();
-  }
-  if(window.ZENTRYX && typeof window.ZENTRYX.cargarConfigEmpresa==="function"){
-    await window.ZENTRYX.cargarConfigEmpresa();
+  // La falta temporal del cliente remoto no impide abrir la interfaz y trabajar con caché/borradores.
+  // La actualización remota se hace únicamente cuando el cliente está disponible.
+  if(window.sb){
+    try{
+      if(window.ZENTRYX && typeof window.ZENTRYX.refrescarAccesoUsuarioActual==="function"){
+        await window.ZENTRYX.refrescarAccesoUsuarioActual();
+      }
+      if(window.ZENTRYX && typeof window.ZENTRYX.cargarConfigEmpresa==="function"){
+        await window.ZENTRYX.cargarConfigEmpresa();
+      }
+    }catch(e){
+      console.warn("Zentryx continúa con datos locales durante una conexión inestable.",e);
+    }
+  }else{
+    console.warn("Cliente remoto no disponible al arrancar. Zentryx continúa en modo local.");
   }
 
   window.ZENTRYX_UI_LAYOUT.iniciar();
@@ -154,7 +174,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3580 - INTERFAZ COMPACTA V1 · SANEAMIENTO · PROYECTOS V1100 + MANUAL V1104 -->
+<!-- ZENTRYX PRO V3581 - ARRANQUE TOLERANTE A CONEXION DEBIL · PROYECTOS V1100 + MANUAL V1104 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
