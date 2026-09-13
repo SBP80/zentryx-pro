@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3586</title>
+<title>Zentryx PRO V3587</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -48,11 +48,11 @@ window.ZX_VERSION="3586";
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
 <script src="src/modules/trabajos.js?v=3244&build=20260904a"></script>
-<script src="src/modules/proyectos.js?v=1105&build=20260913p"></script>
+<script src="src/modules/proyectos.js?v=1106&build=20260913q"></script>
 <script src="src/modules/almacen.js?v=1012&build=20260908a"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <script src="src/modules/vehiculos.js?v=3225&build=20260903a"></script>
-<script src="src/modules/manual.js?v=1109&build=20260913p"></script>
+<script src="src/modules/manual.js?v=1110&build=20260913q"></script>
 <script src="src/modules/asistente.js?v=1010&build=20260827d"></script>
 
 <script>
@@ -91,7 +91,7 @@ async function comprobarVersionPublicada(){
 }
 
 async function asegurarModuloProyectos(){
-  const esperada="1105";
+  const esperada="1106";
   const cargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
   if(cargada===esperada) return true;
 
@@ -106,7 +106,7 @@ async function asegurarModuloProyectos(){
   const controller=typeof AbortController!=="undefined"?new AbortController():null;
   const timer=controller?setTimeout(()=>controller.abort(),4500):null;
   try{
-    const url="src/modules/proyectos.js?v="+esperada+"&build=20260913p&zx_refresh="+Date.now();
+    const url="src/modules/proyectos.js?v="+esperada+"&build=20260913q&zx_refresh="+Date.now();
     const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"},signal:controller?controller.signal:undefined});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const js=await r.text();
@@ -174,7 +174,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3586 - UX MOVIL V6 · VOLVER CONTEXTUAL EN SANEAMIENTO · ARRANQUE TOLERANTE A CONEXION DEBIL · PROYECTOS V1105 + MANUAL V1109 -->
+<!-- ZENTRYX PRO V3587 - UX MOVIL V7 · DESPLAZAMIENTO INTERNO DE PLANO Y REGRESO A RESUMEN CORREGIDOS · ARRANQUE TOLERANTE A CONEXION DEBIL · PROYECTOS V1106 + MANUAL V1110 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
