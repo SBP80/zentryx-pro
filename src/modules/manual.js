@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1106 - INTERFAZ MÓVIL V3: SANEAMIENTO AGRUPADO EN INSTALACIÓN, CÁLCULO, PLANO Y OBRA, Y NOTAS
 // V1105 - INTERFAZ MÓVIL V2: BORRADOR Y RESUMEN EN UNA SOLA FRANJA, PLANO CERRADO AL ENTRAR
 // V1104 - INTERFAZ MÓVIL V1: SANEAMIENTO COMPACTO, RESUMEN PRIMARIO Y DETALLES BAJO DEMANDA
 // V1103 - PROYECTOS · SANEAMIENTO V12: PLANO TÉCNICO DE RED ADAPTADO A IPHONE SIN RECORTES
@@ -49,7 +50,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1105";
+const ZX_VERSION="1106";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1719,7 +1720,7 @@ const BASE=[
       "Cada elemento puede registrar referencia, ubicación, montaje, origen y destino y, según su tipo, longitud, diámetro, pendiente real, material, plantas o niveles, cotas y observaciones. Los campos que no corresponden al tipo elegido se ocultan. En ramales y colectores, longitud, diámetro y pendiente dejan de mostrarse como opcionales cuando son necesarios para cerrar los datos principales del tramo.",
       "Cuando uno o varios tramos tienen origen y destino seleccionados desde datos ya registrados, la ficha muestra Plano técnico de red · ejecución. Cada punto, ramal, elemento o salida se dibuja como nodo y una referencia compartida aparece una sola vez. Cuando varios tramos llegan o salen del mismo nodo, el dibujo forma la rama correspondiente de manera automática. Las líneas muestran el sentido y los datos principales del tramo; debajo queda un detalle legible de cada conexión. En iPhone y otras pantallas estrechas el plano reorganiza los nodos, centra las etiquetas y ajusta todo el dibujo al ancho disponible para evitar recortes o desplazamiento lateral. El esquema representa relaciones técnicas y no posiciones físicas a escala: la posición exacta se dibuja solo cuando existan cotas, posiciones o un plano de referencia suficientes.",
       "Mientras el formulario de Saneamiento está abierto, Zentryx conserva automáticamente un borrador local de los cambios que todavía no se han enviado con Guardar saneamiento. Si iPhone o la PWA suspenden o recargan la pantalla, al volver al mismo proyecto se recuperan puntos, red, recorrido, ventilación, notas y la posición aproximada de desplazamiento. Un aviso permite Continuar borrador o Descartar borrador. El borrador se guarda solo en el dispositivo, no escribe en la base de datos y se elimina después de un guardado correcto.",
-      "En móvil, Saneamiento abre con una vista reducida: el nombre del proyecto ocupa una cabecera menor, el borrador recuperado se muestra en una franja corta, Puntos/Carga/Colector/Plano comparten una sola fila y el Plano de la instalación permanece cerrado hasta pulsarlo. Normativa, puntos, dimensionado, recorrido, ventilación, estado técnico, esquema CTE, detalle de tramos y notas también permanecen cerrados hasta que el usuario los abre. Los datos y cálculos siguen disponibles sin ocupar toda la pantalla al entrar.",
+      "En móvil, Saneamiento abre con una vista corta: el nombre del proyecto ocupa una cabecera menor, el borrador recuperado se muestra en una franja breve y Puntos/Carga/Colector/Plano comparten una sola fila. Debajo solo aparecen cuatro bloques principales cerrados: Instalación, Cálculo, Plano y obra, y Notas. Dentro de ellos quedan los puntos, datos básicos, ventilación, dimensionado, comprobaciones CTE, plano técnico, recorrido y notas. Así los datos siguen disponibles, pero la pantalla inicial evita una lista larga de secciones y reduce el desplazamiento vertical.",
       "La ficha mantiene además Plano de ejecución · recorrido como lista técnica ordenada para conservar todos los elementos, incluidos los que todavía no tienen conexiones suficientes. El bloque diferencia lo previsto, lo comprobado en obra y lo pendiente, y no cambia por sí solo los cálculos CTE ya validados.",
       "Los elementos y sus estados se guardan dentro de detalle_red.elementos_red, en el mismo inmueble_meta.saneamiento del proyecto. No se crean tablas ni campos nuevos y cada guardado sigue añadiendo historial del proyecto.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
