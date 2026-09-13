@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3575</title>
+<title>Zentryx PRO V3576</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3575";
+window.ZX_VERSION="3576";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -91,12 +91,12 @@ async function comprobarVersionPublicada(){
 }
 
 async function asegurarModuloProyectos(){
-  const esperada="1095";
+  const esperada="1096";
   const cargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
   if(cargada===esperada) return true;
   if(!navigator.onLine) return true;
   try{
-    const url="src/modules/proyectos.js?v="+esperada+"&build=20260913d&zx_refresh="+Date.now();
+    const url="src/modules/proyectos.js?v="+esperada+"&build=20260913e&zx_refresh="+Date.now();
     const r=await fetch(url,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
     if(!r.ok) return false;
     const js=await r.text();
@@ -154,7 +154,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3573 - CORRECCION ARRANQUE: CONTROL DE CARGA ESPERA PROYECTOS V1095 + MANUAL V1099 -->
+<!-- ZENTRYX PRO V3576 - CORRECCION ARRANQUE: CONTROL DE CARGA ESPERA PROYECTOS V1096 + MANUAL V1100 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
