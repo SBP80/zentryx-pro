@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1101 - PROYECTOS · SANEAMIENTO V11: BORRADOR LOCAL AUTOMÁTICO Y RECUPERACIÓN EN IPHONE/PWA
 // V1100 - PROYECTOS · SANEAMIENTO V11: TRAZADO CONECTADO DE EJECUCIÓN CON ORIGEN/DESTINO ENLAZADOS
 // V1099 - PROYECTOS · SANEAMIENTO V10: ORIGEN Y DESTINO GUIADOS CON PUNTOS/ELEMENTOS YA REGISTRADOS
 // V1098 - PROYECTOS · SANEAMIENTO V10: ESTADOS PENDIENTES POR CAMPO Y CONSERVACIÓN DE RESPUESTAS DEL ASISTENTE
@@ -44,7 +45,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1100";
+const ZX_VERSION="1101";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1713,6 +1714,7 @@ const BASE=[
       "Cada elemento tiene Estado en obra: Previsto / proyecto, Comprobado en obra o Sin verificar. Marca Comprobado en obra solo cuando el elemento se haya visto, medido o contrastado físicamente. Los demás estados permiten preparar el trabajo sin presentar como ejecutado algo que todavía no se ha comprobado.",
       "Cada elemento puede registrar referencia, ubicación, montaje, origen y destino y, según su tipo, longitud, diámetro, pendiente real, material, plantas o niveles, cotas y observaciones. Los campos que no corresponden al tipo elegido se ocultan. En ramales y colectores, longitud, diámetro y pendiente dejan de mostrarse como opcionales cuando son necesarios para cerrar los datos principales del tramo.",
       "Cuando un tramo tiene origen y destino seleccionados desde datos ya registrados, la ficha añade Trazado conectado de ejecución. Muestra visualmente el origen, el tramo y el destino, junto con longitud, diámetro, pendiente, material, estado de obra y datos aún pendientes. Esta vista no se presenta como dibujo a escala: la forma física solo puede representarse con precisión cuando existan posiciones, cotas o un plano de referencia suficientes.",
+      "Mientras el formulario de Saneamiento está abierto, Zentryx conserva automáticamente un borrador local de los cambios que todavía no se han enviado con Guardar saneamiento. Si iPhone o la PWA suspenden o recargan la pantalla, al volver al mismo proyecto se recuperan puntos, red, recorrido, ventilación, notas y la posición aproximada de desplazamiento. Un aviso permite Continuar borrador o Descartar borrador. El borrador se guarda solo en el dispositivo, no escribe en la base de datos y se elimina después de un guardado correcto.",
       "La ficha mantiene además Plano de ejecución · recorrido como lista técnica ordenada para conservar todos los elementos, incluidos los que todavía no tienen conexiones suficientes. El bloque diferencia lo previsto, lo comprobado en obra y lo pendiente, y no cambia por sí solo los cálculos CTE ya validados.",
       "Los elementos y sus estados se guardan dentro de detalle_red.elementos_red, en el mismo inmueble_meta.saneamiento del proyecto. No se crean tablas ni campos nuevos y cada guardado sigue añadiendo historial del proyecto.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
