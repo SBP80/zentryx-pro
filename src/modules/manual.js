@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - MANUAL DE USO
+// V1097 - PROYECTOS · SANEAMIENTO V10: CONFIRMACIÓN EXPLÍCITA DEL ÚLTIMO PASO ANTES DE AÑADIR UN ELEMENTO AL PLANO
 // V1096 - PROYECTOS · SANEAMIENTO V10: ASISTENTE DE PLANO DE EJECUCIÓN Y ESTADOS DE DATOS PENDIENTES
 // V1095 - PROYECTOS · SANEAMIENTO V9: RECORRIDO REAL DE OBRA, BAJANTES, COLECTORES, ARQUETAS Y CAMBIOS DE COTA
 // V1094 - PROYECTOS · SANEAMIENTO V8: INCUMPLIMIENTOS Y COMPROBACIONES PENDIENTES VISIBLES A LA VEZ
@@ -40,7 +41,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1096";
+const ZX_VERSION="1097";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1705,6 +1706,7 @@ const BASE=[
       "El bloque Plano de ejecución y recorrido de obra documenta cómo está previsto o cómo se ha comprobado físicamente el saneamiento. Solo se añaden ramales, colectores, bajantes, arquetas, cambios de cota, registros, conexiones/salidas u otros elementos que existan o estén previstos. Las tarjetas se leen en orden de instalación y pueden reordenarse con los controles de subir y bajar.",
       "El botón Asistente de recorrido guía un elemento cada vez. Pregunta los datos uno a uno y reutiliza los que ya estén registrados en el proyecto, por ejemplo longitud, pendiente, diámetro, material o destino del colector cuando estén disponibles. El técnico puede seguir usando Añadir manualmente cuando prefiera introducir la tarjeta completa directamente.",
       "En cada pregunta del asistente puedes indicar No se conoce, Lo introduciré luego y, cuando corresponde, No aplica. También existe una ayuda Cómo obtener este dato con una indicación breve sobre dónde consultarlo o cómo medirlo. Los datos que falten siguen apareciendo como pendientes y no se inventan.",
+      "En el último paso, marcar No se conoce, Lo introduciré luego o No aplica solo registra esa respuesta. El elemento no se incorpora hasta pulsar expresamente Añadir al plano, de forma que el técnico pueda revisar la última decisión antes de crearlo.",
       "Cada elemento tiene Estado en obra: Previsto / proyecto, Comprobado en obra o Sin verificar. Marca Comprobado en obra solo cuando el elemento se haya visto, medido o contrastado físicamente. Los demás estados permiten preparar el trabajo sin presentar como ejecutado algo que todavía no se ha comprobado.",
       "Cada elemento puede registrar referencia, ubicación, montaje, origen y destino y, según su tipo, longitud, diámetro, pendiente real, material, plantas o niveles, cotas y observaciones. Los campos que no corresponden al tipo elegido se ocultan. En ramales y colectores, longitud, diámetro y pendiente dejan de mostrarse como opcionales cuando son necesarios para cerrar los datos principales del tramo.",
       "La ficha muestra Plano de ejecución · recorrido como una secuencia técnica ordenada. Mientras no existan datos suficientes para situar los elementos, Zentryx no dibuja una geometría supuestamente real. El bloque diferencia lo previsto, lo comprobado en obra y lo pendiente, y no cambia por sí solo los cálculos CTE ya validados.",
