@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3572</title>
+<title>Zentryx PRO V3573</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3572";
+window.ZX_VERSION="3573";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -91,7 +91,7 @@ async function comprobarVersionPublicada(){
 }
 
 async function asegurarModuloProyectos(){
-  const esperada="1093";
+  const esperada="1094";
   const cargada=window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
   if(cargada===esperada) return true;
   if(!navigator.onLine) return true;
@@ -154,7 +154,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3572 - PROYECTOS V1094 + SANEAMIENTO V10 PENDIENTES POR CAMPO + CONTROL DE CARGA + MANUAL V1098 -->
+<!-- ZENTRYX PRO V3573 - CORRECCION ARRANQUE: CONTROL DE CARGA ESPERA PROYECTOS V1094 + MANUAL V1098 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
