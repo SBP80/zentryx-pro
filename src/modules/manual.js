@@ -1,3 +1,4 @@
+// V1128 - Saneamiento: Distancias y entorno oculta la altura sobre huecos cuando no existen huecos habitables a menos de 6 m y muestra un resumen breve del estado.
 // V1127 - Saneamiento: Ventilación primaria muestra solo salida a exterior/cubierta, tipo de cubierta y altura; Bajante sobredimensionada pasa a Dimensionado y las verificaciones de proximidad/entorno a Distancias y entorno.
 // ===============================
 // V1125 - Saneamiento: en Ventilación → Comprobación técnica → Datos de instalación solo quedan visibles Nº de plantas y Conexión verificada; Referencia y Ø existente pasan a Datos opcionales.
@@ -6,6 +7,7 @@
 // V1122 - Saneamiento: Comprobación técnica sin estado duplicado; red, ventilación y plano usan resúmenes cortos y el detalle técnico sigue plegado.
 // V1121 - Saneamiento: Comprobación técnica compacta con estado principal, tres controles visibles y detalle técnico plegado.
 // ZENTRYX PRO - MANUAL DE USO
+// V1128 - INTERFAZ MÓVIL V24: DISTANCIAS Y ENTORNO CON CAMPOS CONDICIONALES SEGÚN RESPUESTA
 // V1127 - INTERFAZ MÓVIL V23: VENTILACIÓN PRIMARIA CON SOLUCIÓN PRINCIPAL VISIBLE Y DIMENSIONADO/DISTANCIAS PLEGADOS
 // V1125 - INTERFAZ MÓVIL V21: DATOS DE INSTALACIÓN DE VENTILACIÓN CON CAMPOS PRINCIPALES VISIBLES Y DATOS OPCIONALES PLEGADOS
 // V1124 - INTERFAZ MÓVIL V20: COMPROBACIÓN DE VENTILACIÓN CON CABECERA DE ESTADO BREVE Y AVISO FINAL COMPACTO
@@ -75,7 +77,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1127";
+const ZX_VERSION="1128";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
