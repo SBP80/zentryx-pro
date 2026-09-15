@@ -1,4 +1,4 @@
-// V1126 - Saneamiento: Ventilación primaria muestra solo salida a exterior/cubierta, tipo de cubierta y altura; Bajante sobredimensionada pasa a Dimensionado y las verificaciones de proximidad/entorno a Distancias y entorno.
+// V1127 - Saneamiento: Ventilación primaria muestra solo salida a exterior/cubierta, tipo de cubierta y altura; Bajante sobredimensionada pasa a Dimensionado y las verificaciones de proximidad/entorno a Distancias y entorno.
 // ===============================
 // V1125 - Saneamiento: en Ventilación → Comprobación técnica → Datos de instalación solo quedan visibles Nº de plantas y Conexión verificada; Referencia y Ø existente pasan a Datos opcionales.
 // V1124 - Saneamiento: la comprobación de Ventilación usa estado breve en cabecera y sustituye el aviso verde largo por una franja corta de revisión final pendiente.
@@ -6,7 +6,7 @@
 // V1122 - Saneamiento: Comprobación técnica sin estado duplicado; red, ventilación y plano usan resúmenes cortos y el detalle técnico sigue plegado.
 // V1121 - Saneamiento: Comprobación técnica compacta con estado principal, tres controles visibles y detalle técnico plegado.
 // ZENTRYX PRO - MANUAL DE USO
-// V1126 - INTERFAZ MÓVIL V22: VENTILACIÓN PRIMARIA CON SOLUCIÓN PRINCIPAL VISIBLE Y DIMENSIONADO/DISTANCIAS PLEGADOS
+// V1127 - INTERFAZ MÓVIL V23: VENTILACIÓN PRIMARIA CON SOLUCIÓN PRINCIPAL VISIBLE Y DIMENSIONADO/DISTANCIAS PLEGADOS
 // V1125 - INTERFAZ MÓVIL V21: DATOS DE INSTALACIÓN DE VENTILACIÓN CON CAMPOS PRINCIPALES VISIBLES Y DATOS OPCIONALES PLEGADOS
 // V1124 - INTERFAZ MÓVIL V20: COMPROBACIÓN DE VENTILACIÓN CON CABECERA DE ESTADO BREVE Y AVISO FINAL COMPACTO
 // V1123 - INTERFAZ MÓVIL V19: VENTILACIÓN COMPACTA CON DATOS PRINCIPALES VISIBLES Y COMPROBACIÓN/AYUDA/DATOS ADICIONALES PLEGADOS
@@ -75,7 +75,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1126";
+const ZX_VERSION="1127";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
