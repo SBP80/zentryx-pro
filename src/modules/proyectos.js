@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1126
+// ZENTRYX PRO - PROYECTOS V1127
+// V1127 - NORMATIVA VERSIONADA: AVISO EXPLÍCITO PARA PROYECTOS ANTIGUOS SIN RULESET REGISTRADO
 // V1126 - NORMATIVA VERSIONADA: CATÁLOGO CENTRAL, DETECCIÓN DE RULESET ANTIGUO Y CONSERVACIÓN DEL HISTÓRICO AL RECALCULAR
 // V1125 - UX MÓVIL V26: CORRECCIÓN REAL DEL CAMPO CONDICIONAL DE ALTURA SOBRE HUECOS Y FIRMA DE CARGA NUEVA
 // V1124 - UX MÓVIL V25: DISTANCIAS Y ENTORNO DE VENTILACIÓN PRIMARIA CON ALTURA SOBRE HUECOS SOLO CUANDO HAY HUECO HABITABLE CERCANO Y RESUMEN CORTO DEL ESTADO
@@ -102,7 +103,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1126";
+const ZX_VERSION="1127";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -143,10 +144,14 @@ function compararNormativaProyecto(clave,guardada){
   return {estado:"sin_catalogo",requiere_revision:false,actual:null,guardada:guardada||null};
 }
 function avisoActualizacionNormativaHTML(clave,guardada){
-  if(!guardada||typeof guardada!=="object"||!guardada.ruleset)return "";
-  const c=compararNormativaProyecto(clave,guardada);
+  const g=guardada&&typeof guardada==="object"&&!Array.isArray(guardada)?guardada:null;
+  const c=compararNormativaProyecto(clave,g);
   if(!c||!c.requiere_revision)return "";
-  const actual=c.actual&&c.actual.ruleset?String(c.actual.ruleset):"reglas actuales",antigua=guardada&&guardada.ruleset?String(guardada.ruleset):"sin versión registrada";
+  const actual=c.actual&&c.actual.ruleset?String(c.actual.ruleset):"reglas actuales";
+  if(c.estado==="sin_version_guardada"){
+    return `<div class="zx_pr_norm_box is-warn zx_pr_norm_update" role="status"><b>Normativa sin versión registrada</b><span>Este proyecto procede de una versión anterior de Zentryx y no conserva el ruleset con el que se calculó. El cálculo guardado no se cambia automáticamente. Revisa esta especialidad con la normativa instalada (${limpiar(actual)}) y pulsa Guardar solo cuando quieras registrar esta versión y dejar constancia en el historial.</span></div>`;
+  }
+  const antigua=g&&g.ruleset?String(g.ruleset):"sin versión registrada";
   return `<div class="zx_pr_norm_box is-warn zx_pr_norm_update" role="status"><b>Revisión normativa disponible</b><span>Este proyecto conserva ${limpiar(antigua)}. La versión instalada usa ${limpiar(actual)}. No se modifica el cálculo guardado automáticamente: revisa esta especialidad y pulsa Guardar para registrar la nueva versión y dejar trazabilidad en el historial.</span></div>`;
 }
 function snapshotNormativaProyecto(clave,extra){
