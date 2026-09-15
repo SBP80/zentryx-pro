@@ -1,3 +1,4 @@
+// V1130 - Proyectos: normativa versionada con catálogo central; conserva ruleset histórico, detecta revisiones nuevas y exige revisión/guardado explícito para aplicarlas.
 // V1129 - Saneamiento: corrige la visibilidad condicional de Altura sobre hueco y documenta indicadores globales de acordeón con estados abierto/cerrado claramente distintos.
 // V1128 - Saneamiento: Distancias y entorno oculta la altura sobre huecos cuando no existen huecos habitables a menos de 6 m y muestra un resumen breve del estado.
 // V1127 - Saneamiento: Ventilación primaria muestra solo salida a exterior/cubierta, tipo de cubierta y altura; Bajante sobredimensionada pasa a Dimensionado y las verificaciones de proximidad/entorno a Distancias y entorno.
@@ -79,7 +80,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1129";
+const ZX_VERSION="1130";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1702,6 +1703,7 @@ const BASE=[
       "Registra los datos iniciales del inmueble; las cantidades muestran su medida junto al campo.",
       "En Especialidades del proyecto puedes activar una o varias áreas dentro del mismo expediente: climatización/aerotermia, fontanería, saneamiento, electricidad, ventilación, extracción, aire acondicionado y control de humedad.",
       "Las especialidades comparten cliente, inmueble, catálogo técnico, propuestas, partidas, presupuesto, dosier, documentos e historial.",
+      "Las reglas normativas de Proyectos se guardan con un identificador de ruleset y su fecha de verificación. Si una actualización del CTE, RITE u otra norma cambia un criterio de cálculo, la versión de Zentryx que incorpore ese cambio debe publicar un ruleset nuevo. Los proyectos ya guardados conservan el ruleset histórico y no se recalculan ni se sobrescriben automáticamente. Cuando exista una revisión distinta, Zentryx la marca como disponible; al abrir la especialidad se revisa con las reglas instaladas y solo al pulsar Guardar queda registrada la nueva versión en el proyecto y en su historial. Una mera revisión documental sin cambio de criterios no obliga a recalcular mientras el ruleset siga siendo el mismo.",
       "Los esquemas técnicos usan una norma visual común de Zentryx: cada especialidad mantiene un color propio, los equipos y puntos se distinguen mediante nodos, los recorridos se representan con líneas de red y las medidas conocidas aparecen junto al tramo. Cuando un dato no está calculado se muestra como pendiente en lugar de inventarlo.",
       "El objetivo de estos esquemas es servir para trabajar: deben mostrar qué elemento se instala, en qué zona está, cómo se conecta y qué diámetro, sección, caudal, temperatura u otra medida se conoce. El esquema funcional se genera automáticamente desde los datos del proyecto y se irá completando con el cálculo por tramos.",
       "Si Fontanería está activa, la ficha muestra Fontanería · suministro de agua. El primer bloque técnico usa CTE DB HS 4 para registrar los puntos de consumo y sus caudales mínimos de agua fría y ACS.",
