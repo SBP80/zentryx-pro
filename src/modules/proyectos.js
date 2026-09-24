@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1132
+// ZENTRYX PRO - PROYECTOS V1133
+// V1133 - SANEAMIENTO: SEPARACIÓN MÓVIL DE LA ETIQUETA DEL COLECTOR RESPECTO A LA ÚLTIMA ENTRADA Y A LA SALIDA
 // V1132 - SANEAMIENTO: PLANO MÓVIL DE COLECTORES MULTIENTRADA CON RAMAS INDEPENDIENTES Y CONVERGENCIA VISUAL SIN FALSAS CONEXIONES
 // V1131 - SANEAMIENTO: COLECTORES CON VARIAS ENTRADAS ENLAZADAS, MIGRACIÓN COMPATIBLE DEL ORIGEN ÚNICO Y PLANO TOPOLOGICO CON CONVERGENCIAS
 // V1130 - SANEAMIENTO: VINCULACIÓN DIRECTA DE ORIGEN/DESTINO EN ELEMENTOS EXISTENTES, REUTILIZA DATOS REGISTRADOS Y RECONOCE DESTINOS YA ESCRITOS SIN REPETIRLOS
@@ -108,7 +109,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1132";
+const ZX_VERSION="1133";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -3152,7 +3153,12 @@ function grafoRedConectadaSaneamientoSVG(elementos=[]){
     }
     const x1=a.x+a.w/2,y1=a.y+a.h,x2=b.x+b.w/2,y2=b.y,mid=y2>y1?(y1+y2)/2:y1+42;
     const cls=isInput?"is-input":checked?"is-checked":pendiente?"is-pending":"",marker=isInput?"zx_pr_arrow":checked?"zx_pr_arrow_ok":pendiente?"zx_pr_arrow_pending":"zx_pr_arrow",d=y2>y1?`M ${x1} ${y1} V ${mid} H ${x2} V ${y2}`:`M ${x1} ${y1} C ${x1} ${y1+55}, ${x2} ${y2-55}, ${x2} ${y2}`;
-    const spec=isInput?"":specsCortasTramoPlanoSaneamiento(x.e),tipo=textoTipoElementoRedSaneamiento(x.e.tipo),titulo=(x.e.referencia?x.e.referencia+" · ":"")+tipo,labelW=m.compacto?176:166,labelH=spec?42:31,lx=m.compacto?Math.max(8,Math.min(m.width-labelW-8,(x1+x2)/2-labelW/2)):Math.min(m.width-labelW-8,Math.max(8,(x1+x2)/2+12)),ly=Math.max(8,mid-labelH/2+(m.compacto&&m.edges.length>1?(idx%2?12:-12):0));
+    const spec=isInput?"":specsCortasTramoPlanoSaneamiento(x.e),tipo=textoTipoElementoRedSaneamiento(x.e.tipo),titulo=(x.e.referencia?x.e.referencia+" · ":"")+tipo,labelW=m.compacto?176:166,labelH=spec?42:31,lx=m.compacto?Math.max(8,Math.min(m.width-labelW-8,(x1+x2)/2-labelW/2)):Math.min(m.width-labelW-8,Math.max(8,(x1+x2)/2+12));
+    let ly=Math.max(8,mid-labelH/2+(m.compacto&&m.edges.length>1?(idx%2?12:-12):0));
+    if(!isInput&&m.compacto&&m.fanIn&&x.from===m.fanIn.targetRef){
+      const sourceBottom=Math.max(0,...m.fanIn.sourceRefs.map(ref=>{const p=m.pos.get(ref);return p?p.y+p.h:0}));
+      ly=Math.min(y2-labelH-14,Math.max(ly,sourceBottom+12));
+    }
     paths+=`<path class="zx_pr_network_edge ${cls}" d="${d}" marker-end="url(#${marker})"><title>${limpiar(x.fromLabel)} → ${limpiar(x.toLabel)}${isInput?" · conexión de entrada":" · "+limpiar(titulo)+(spec?" · "+limpiar(spec):"")}</title></path>`;
     if(!isInput)labels+=`<g class="zx_pr_network_edge_label" transform="translate(${lx} ${ly})"><rect width="${labelW}" height="${labelH}" rx="9"></rect><text x="9" y="14">${limpiar(titulo.length>(m.compacto?28:26)?titulo.slice(0,m.compacto?27:25)+"…":titulo)}</text>${spec?`<text class="spec" x="9" y="29">${limpiar(spec.length>(m.compacto?31:29)?spec.slice(0,m.compacto?30:28)+"…":spec)}</text>`:""}</g>`;
   });
@@ -3417,7 +3423,7 @@ window.ZX_proyectos=async function(){
   const abrir=window.ZX_PROYECTO_ABRIR_ID;window.ZX_PROYECTO_ABRIR_ID="";if(abrir)abrirFicha(abrir);
 };
 window.ZX_abrirProyectos=window.ZX_proyectos;
-window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V2=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V1=true;window.ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_NAV_V2=true;window.ZENTRYX_PROYECTOS_SAN_SCROLL_V1=true;window.ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1=true;window.ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2=true;
+window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V2=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V1=true;window.ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LABEL_V1=true;window.ZENTRYX_PROYECTOS_SAN_NAV_V2=true;window.ZENTRYX_PROYECTOS_SAN_SCROLL_V1=true;window.ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1=true;window.ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2=true;
 window.ZENTRYX_MODULE_VERSIONS=window.ZENTRYX_MODULE_VERSIONS||{};
 window.ZENTRYX_MODULE_VERSIONS.proyectos=ZX_VERSION;
 if(zx()&&typeof zx().registrarModulo==="function")zx().registrarModulo("proyectos",{nombre:"Proyectos",activo:true,version:ZX_VERSION});
