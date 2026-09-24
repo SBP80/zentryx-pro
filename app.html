@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3613</title>
+<title>Zentryx PRO V3614</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3613";
+window.ZX_VERSION="3614";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -49,11 +49,11 @@ window.ZX_VERSION="3613";
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
 <script src="src/modules/trabajos.js?v=3244&build=20260904a"></script>
-<script src="src/modules/proyectos.js?v=1132&build=20260924n2"></script>
+<script src="src/modules/proyectos.js?v=1133&build=20260925p1"></script>
 <script src="src/modules/almacen.js?v=1012&build=20260908a"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <script src="src/modules/vehiculos.js?v=3225&build=20260903a"></script>
-<script src="src/modules/manual.js?v=1134&build=20260924n2"></script>
+<script src="src/modules/manual.js?v=1135&build=20260925p1"></script>
 <script src="src/modules/asistente.js?v=1010&build=20260827d"></script>
 
 <script>
@@ -92,11 +92,11 @@ async function comprobarVersionPublicada(){
 }
 
 async function asegurarModuloProyectos(){
-  const esperada="1132";
+  const esperada="1133";
   const versionActual=()=>window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
   const compatible=()=>{
     const v=versionActual();
-    return v===esperada && window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V2===true && window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V1===true && window.ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1===true && window.ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1===true && window.ZENTRYX_PROYECTOS_SAN_NAV_V2===true && window.ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1===true && window.ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2===true && window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2===true && window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2===true && window.ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2===true && window.ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2===true && window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1===true && window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2===true;
+    return v===esperada && window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V2===true && window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V1===true && window.ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1===true && window.ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1===true && window.ZENTRYX_PROYECTOS_SAN_FANIN_LABEL_V1===true && window.ZENTRYX_PROYECTOS_SAN_NAV_V2===true && window.ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1===true && window.ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2===true && window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2===true && window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2===true && window.ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2===true && window.ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1===true && window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2===true && window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1===true && window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2===true;
   };
   if(compatible()) return true;
 
@@ -115,7 +115,7 @@ async function asegurarModuloProyectos(){
           "</section>"+
         "</main>";
       const b=document.getElementById("zx_retry_proyectos");
-      if(b)b.onclick=()=>location.replace("app.html?v=3613&t="+Date.now());
+      if(b)b.onclick=()=>location.replace("app.html?v=3614&t="+Date.now());
     };
   };
 
@@ -124,8 +124,8 @@ async function asegurarModuloProyectos(){
     return false;
   }
 
-  const verificarRecibida=(js)=>js.includes("ZENTRYX PRO - PROYECTOS V"+esperada) && js.includes('const ZX_VERSION="'+esperada+'"') && js.includes("ZENTRYX_PROYECTOS_NORM_VERSIONING_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_NAV_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2=true") && js.includes('[data-pr-vent-opening-height][hidden]{display:none!important}') && js.includes('data-zx-vent-primary-layout="compact_v3"') && js.includes('data-zx-vent-distances="conditional_v2"') && js.includes("zx_pr_vent_primary_dimension") && js.includes("zx_pr_vent_primary_distances");
-  const baseUrl="src/modules/proyectos.js?v="+esperada+"&build=20260924n2&zx_refresh="+Date.now();
+  const verificarRecibida=(js)=>js.includes("ZENTRYX PRO - PROYECTOS V"+esperada) && js.includes('const ZX_VERSION="'+esperada+'"') && js.includes("ZENTRYX_PROYECTOS_NORM_VERSIONING_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_FANIN_LABEL_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_NAV_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1=true") && js.includes("ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2=true") && js.includes('[data-pr-vent-opening-height][hidden]{display:none!important}') && js.includes('data-zx-vent-primary-layout="compact_v3"') && js.includes('data-zx-vent-distances="conditional_v2"') && js.includes("zx_pr_vent_primary_dimension") && js.includes("zx_pr_vent_primary_distances");
+  const baseUrl="src/modules/proyectos.js?v="+esperada+"&build=20260925p1&zx_refresh="+Date.now();
 
   // Primer intento: descarga explícita sin caché y evaluación de la copia verificada.
   try{
@@ -146,7 +146,7 @@ async function asegurarModuloProyectos(){
     await new Promise((resolve,reject)=>{
       const s=document.createElement("script");
       const timeout=setTimeout(()=>{try{s.remove()}catch(e){}reject(new Error("Tiempo agotado"))},7000);
-      s.src="src/modules/proyectos.js?v="+esperada+"&build=20260924n2&zx_script="+Date.now();
+      s.src="src/modules/proyectos.js?v="+esperada+"&build=20260925p1&zx_script="+Date.now();
       s.async=true;
       s.onload=()=>{clearTimeout(timeout);resolve()};
       s.onerror=()=>{clearTimeout(timeout);reject(new Error("No se pudo cargar el script"))};
@@ -166,9 +166,9 @@ function instalarVigilanciaDimensionadoCompacto(){
     if(!d) return;
     const ok=d.getAttribute("data-zx-dimension-layout")==="compact_v2" && !!d.querySelector(".zx_pr_dimension_now") && !!d.querySelector(".zx_pr_dimension_primary") && !!d.querySelector(".zx_pr_dimension_extra") && !!d.querySelector(".zx_pr_dimension_help");
     if(ok) return;
-    console.error("Dimensionado de Saneamiento antiguo detectado; se fuerza recarga de Proyectos V1132.");
-    try{sessionStorage.setItem("zx_force_proyectos_1132",String(Date.now()))}catch(e){}
-    location.replace("app.html?v=3613&force_proyectos=1132&t="+Date.now());
+    console.error("Dimensionado de Saneamiento antiguo detectado; se fuerza recarga de Proyectos V1133.");
+    try{sessionStorage.setItem("zx_force_proyectos_1133",String(Date.now()))}catch(e){}
+    location.replace("app.html?v=3614&force_proyectos=1133&t="+Date.now());
   };
   const ob=new MutationObserver(()=>setTimeout(validar,0));
   ob.observe(document.documentElement,{childList:true,subtree:true});
@@ -228,7 +228,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3613 - CARGA SEGURA DE PROYECTOS V1132 · CONVERGENCIA MÓVIL SIN FALSAS CONEXIONES · MANUAL V1134 + NORMATIVA V1001 -->
+<!-- ZENTRYX PRO V3614 - CARGA SEGURA DE PROYECTOS V1133 · ETIQUETA MÓVIL DEL COLECTOR SIN SOLAPE · MANUAL V1135 + NORMATIVA V1001 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
