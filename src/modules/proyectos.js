@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1135
+// ZENTRYX PRO - PROYECTOS V1136
+// V1136 - SANEAMIENTO: EL ASISTENTE PUEDE COMPLETAR UN ELEMENTO DE RECORRIDO EXISTENTE SIN CREAR DUPLICADOS Y SOLO PIDE LOS DATOS PRINCIPALES QUE SIGUEN PENDIENTES
 // V1135 - SANEAMIENTO: EN LA FICHA, EL ESQUEMA CTE DE CÁLCULO QUEDA PLEGADO PARA EVITAR DUPLICAR EL PLANO; LA TOPOLOGÍA Y LA VISTA DE EJECUCIÓN QUEDAN PRIMERO
 // V1134 - SANEAMIENTO: SEPARA EL ESQUEMA TOPOLOGICO DE LA VISTA REAL DE EJECUCIÓN Y MUESTRA QUÉ DATOS FÍSICOS FALTAN SIN INVENTAR GEOMETRÍA
 // V1133 - SANEAMIENTO: SEPARACIÓN MÓVIL DE LA ETIQUETA DEL COLECTOR RESPECTO A LA ÚLTIMA ENTRADA Y A LA SALIDA
@@ -111,7 +112,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1135";
+const ZX_VERSION="1136";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -2738,6 +2739,7 @@ function filaElementoRedSaneamientoHTML(x={}){
           <button type="button" data-pr-drain-net-del aria-label="Quitar elemento">×</button>
         </div>
       </div>
+      ${!st.completo?'<button type="button" class="zx_pr_secondary_full" data-pr-route-wiz-edit>Completar con Asistente</button>':""}
       <input type="hidden" data-pr-drain-net-field-status value="${estados}">
       <input type="hidden" data-pr-drain-net-from-ref value="${limpiar(e.desde_ref)}">
       <input type="hidden" data-pr-drain-net-to-ref value="${limpiar(e.hasta_ref)}">
@@ -3000,11 +3002,39 @@ function htmlControlPasoAsistenteSaneamiento(paso,borrador){
   return `<input data-pr-route-wiz-input ${num?'type="number" inputmode="decimal"':''} ${num&&paso.step?`step="${paso.step}"`:""} value="${v!=null?limpiar(v):""}" placeholder="${limpiar(paso.ph||"")}">${paso.unit?`<span class="zx_pr_route_wizard_unit">${limpiar(paso.unit)}</span>`:""}`;
 }
 
+function pasosPendientesAsistenteElementoSaneamiento(e){
+  e=normalizarElementosRedSaneamiento([e||{}])[0];const t=tipoElementoRedSaneamiento(e.tipo),st=normalizarEstadoCamposElementoSaneamiento(e.estado_campos),faltan=new Set();
+  if(["ramal","colector","bajante","otro"].includes(t)&&!String(e.referencia||"").trim()&&!String(e.ubicacion||"").trim()&&!st.referencia&&!st.ubicacion)faltan.add("ubicacion");
+  if(normalizarMontajeElementoSaneamiento(e.montaje)==="sin_indicar"&&!st.montaje)faltan.add("montaje");
+  if(["ramal","colector"].includes(t)){
+    if(!(e.longitud_m>0)&&!st.longitud_m)faltan.add("longitud_m");
+    if(!(e.diametro_mm>0)&&!st.diametro_mm)faltan.add("diametro_mm");
+    if(!(e.pendiente_pct>0)&&!st.pendiente_pct)faltan.add("pendiente_pct");
+    if(t==="colector"){
+      if(!entradasColectorSaneamiento(e).some(x=>String(x.valor||"").trim())&&!st.entradas)faltan.add("entradas");
+    }else if(!String(e.desde||"").trim()&&!st.desde)faltan.add("desde");
+    if(!String(e.hasta||"").trim()&&!st.hasta)faltan.add("hasta");
+  }else if(t==="bajante"){
+    if(!(e.diametro_mm>0)&&!st.diametro_mm)faltan.add("diametro_mm");
+    if(!String(e.desde||e.planta_inicio||"").trim()&&!st.desde)faltan.add("desde");
+    if(!String(e.hasta||e.planta_fin||"").trim()&&!st.hasta)faltan.add("hasta");
+  }else if(["arqueta","registro"].includes(t)){
+    if(!String(e.ubicacion||e.referencia||"").trim()&&!st.ubicacion&&!st.referencia)faltan.add("ubicacion");
+  }else if(t==="cambio_cota"){
+    if(e.cota_inicio_m==null&&!st.cota_inicio_m)faltan.add("cota_inicio_m");
+    if(e.cota_fin_m==null&&!st.cota_fin_m)faltan.add("cota_fin_m");
+    if(!String(e.ubicacion||e.referencia||"").trim()&&!st.ubicacion&&!st.referencia)faltan.add("ubicacion");
+  }else if(t==="salida"){
+    if(!String(e.ubicacion||e.referencia||e.hasta||"").trim()&&!st.ubicacion&&!st.referencia&&!st.hasta)faltan.add("ubicacion");
+  }
+  return pasosAsistenteElementoSaneamiento(t).filter(p=>faltan.has(p.k));
+}
+
 function montarAsistenteRecorridoSaneamiento(m,repintar){
   const panel=m.querySelector("#pr_drain_route_assistant"),start=m.querySelector("#pr_drain_route_assistant_start");if(!panel||!start)return;
-  let borrador=null,pasos=[],i=0;
+  let borrador=null,pasos=[],i=0,filaObjetivo=null;
   const box=()=>m.querySelector("#pr_drain_network_elements");
-  const cerrar=()=>{panel.hidden=true;panel.innerHTML="";borrador=null;pasos=[];i=0};
+  const cerrar=()=>{panel.hidden=true;panel.innerHTML="";borrador=null;pasos=[];i=0;filaObjetivo=null};
   const guardarValor=()=>{
     const paso=pasos[i],inp=panel.querySelector("[data-pr-route-wiz-input]");if(!paso||!inp)return;
     const st=borrador.estado_campos||{};
@@ -3027,7 +3057,7 @@ function montarAsistenteRecorridoSaneamiento(m,repintar){
     const paso=pasos[i],st=borrador.estado_campos&&borrador.estado_campos[paso.k],t=textoTipoElementoRedSaneamiento(borrador.tipo);
     const choices=paso.kind==="conexion"?htmlCandidatosConexionAsistenteSaneamiento(paso,borrador):paso.kind==="conexiones"?htmlCandidatosEntradasAsistenteSaneamiento(paso,borrador):"";
     panel.hidden=false;
-    panel.innerHTML=`<div class="zx_pr_route_wizard_head"><div><b>Asistente de recorrido</b><span>${limpiar(t)} · paso ${i+1} de ${pasos.length}</span></div><button type="button" data-pr-route-wiz-close aria-label="Cerrar asistente">×</button></div><div class="zx_pr_route_wizard_progress"><i style="width:${Math.round((i+1)/pasos.length*100)}%"></i></div><div class="zx_pr_route_wizard_question">${limpiar(paso.q)}</div>${choices}<div class="zx_pr_route_wizard_control">${htmlControlPasoAsistenteSaneamiento(paso,borrador)}</div>${st?`<div class="zx_pr_route_wizard_mark">Marcado: ${limpiar(textoEstadoCampoElementoSaneamiento(st))}</div>`:""}<button class="zx_pr_route_help_btn" type="button" data-pr-route-wiz-help>¿Cómo obtener este dato?</button><div class="zx_pr_route_wizard_help" data-pr-route-wiz-help-box hidden>${limpiar(paso.help||"No hay indicaciones adicionales para este dato.")}</div>${paso.kind!=="estado"?`<div class="zx_pr_route_wizard_unknown"><button type="button" data-pr-route-wiz-state="no_conocido">No se conoce</button><button type="button" data-pr-route-wiz-state="mas_tarde">Lo introduciré luego</button>${paso.optional?'<button type="button" data-pr-route-wiz-state="no_aplica">No aplica</button>':""}</div>`:""}<div class="zx_pr_route_wizard_nav"><button type="button" data-pr-route-wiz-prev ${i===0?"disabled":""}>← Anterior</button><button class="primary" type="button" data-pr-route-wiz-next>${i===pasos.length-1?"Añadir al plano":"Siguiente →"}</button></div>`;
+    panel.innerHTML=`<div class="zx_pr_route_wizard_head"><div><b>Asistente de recorrido</b><span>${limpiar(t)} · paso ${i+1} de ${pasos.length}</span></div><button type="button" data-pr-route-wiz-close aria-label="Cerrar asistente">×</button></div><div class="zx_pr_route_wizard_progress"><i style="width:${Math.round((i+1)/pasos.length*100)}%"></i></div><div class="zx_pr_route_wizard_question">${limpiar(paso.q)}</div>${choices}<div class="zx_pr_route_wizard_control">${htmlControlPasoAsistenteSaneamiento(paso,borrador)}</div>${st?`<div class="zx_pr_route_wizard_mark">Marcado: ${limpiar(textoEstadoCampoElementoSaneamiento(st))}</div>`:""}<button class="zx_pr_route_help_btn" type="button" data-pr-route-wiz-help>¿Cómo obtener este dato?</button><div class="zx_pr_route_wizard_help" data-pr-route-wiz-help-box hidden>${limpiar(paso.help||"No hay indicaciones adicionales para este dato.")}</div>${paso.kind!=="estado"?`<div class="zx_pr_route_wizard_unknown"><button type="button" data-pr-route-wiz-state="no_conocido">No se conoce</button><button type="button" data-pr-route-wiz-state="mas_tarde">Lo introduciré luego</button>${paso.optional?'<button type="button" data-pr-route-wiz-state="no_aplica">No aplica</button>':""}</div>`:""}<div class="zx_pr_route_wizard_nav"><button type="button" data-pr-route-wiz-prev ${i===0?"disabled":""}>← Anterior</button><button class="primary" type="button" data-pr-route-wiz-next>${i===pasos.length-1?(filaObjetivo?"Actualizar elemento":"Añadir al plano"):"Siguiente →"}</button></div>`;
     panel.querySelector("[data-pr-route-wiz-close]").onclick=cerrar;
     panel.querySelector("[data-pr-route-wiz-help]").onclick=()=>{const h=panel.querySelector("[data-pr-route-wiz-help-box]");h.hidden=!h.hidden};
     panel.querySelectorAll("[data-pr-route-wiz-choice]").forEach(b=>b.onclick=()=>{
@@ -3064,21 +3094,34 @@ function montarAsistenteRecorridoSaneamiento(m,repintar){
   };
   const finalizar=()=>{
     const b=box(),v=b&&b.querySelector("[data-pr-drain-net-empty]");if(v)v.remove();if(!b)return;
-    const t=document.createElement("div");t.innerHTML=filaElementoRedSaneamientoHTML(borrador);const row=t.firstElementChild;b.appendChild(row);conectarElementoRedSaneamiento(row,repintar);row.open=true;cerrar();repintar&&repintar();requestAnimationFrame(()=>row.scrollIntoView({behavior:"smooth",block:"start"}));
+    const t=document.createElement("div");t.innerHTML=filaElementoRedSaneamientoHTML(borrador);const row=t.firstElementChild;
+    if(filaObjetivo&&filaObjetivo.isConnected)filaObjetivo.replaceWith(row);else b.appendChild(row);
+    conectarElementoRedSaneamiento(row,repintar);row.open=true;cerrar();repintar&&repintar();requestAnimationFrame(()=>row.scrollIntoView({behavior:"smooth",block:"start"}));
   };
   const elegirTipo=tipo=>{
-    borrador=prellenarElementoAsistenteSaneamiento(tipo,leerDetalleRedSaneamientoFormulario());pasos=pasosAsistenteElementoSaneamiento(tipo);i=0;
+    filaObjetivo=null;borrador=prellenarElementoAsistenteSaneamiento(tipo,leerDetalleRedSaneamientoFormulario());pasos=pasosAsistenteElementoSaneamiento(tipo);i=0;
     const entradas=tipo==="colector"?entradasColectorSaneamiento(borrador).length:0;
     const conocidos=[borrador.longitud_m,borrador.diametro_mm,borrador.pendiente_pct,borrador.material!=="sin_indicar"?borrador.material:null,borrador.hasta,borrador.ubicacion].filter(x=>x!=null&&x!=="").length+entradas;
     renderPaso();
     if(conocidos){const info=document.createElement("div");info.className="zx_pr_route_wizard_prefill";info.textContent=`Zentryx ha recuperado ${conocidos} dato(s) ya registrados para este elemento. Revísalos antes de terminar.`;panel.insertBefore(info,panel.querySelector(".zx_pr_route_wizard_question"))}
   };
   const renderTipos=()=>{
-    panel.hidden=false;panel.innerHTML=`<div class="zx_pr_route_wizard_head"><div><b>Asistente de recorrido</b><span>Un elemento cada vez</span></div><button type="button" data-pr-route-wiz-close aria-label="Cerrar asistente">×</button></div><div class="zx_pr_route_wizard_intro"><b>¿Qué elemento quieres documentar?</b><span>Zentryx reutilizará los datos que ya existan. En un colector podrás seleccionar varias entradas sin volver a escribirlas.</span></div><div class="zx_pr_route_wizard_types">${TIPOS_ELEMENTO_RED_SANEAMIENTO.map(([v,t])=>`<button type="button" data-pr-route-wiz-type="${v}">${limpiar(t)}</button>`).join("")}</div>`;
+    filaObjetivo=null;panel.hidden=false;panel.innerHTML=`<div class="zx_pr_route_wizard_head"><div><b>Asistente de recorrido</b><span>Un elemento cada vez</span></div><button type="button" data-pr-route-wiz-close aria-label="Cerrar asistente">×</button></div><div class="zx_pr_route_wizard_intro"><b>¿Qué elemento quieres documentar?</b><span>Zentryx reutilizará los datos que ya existan. En un colector podrás seleccionar varias entradas sin volver a escribirlas.</span></div><div class="zx_pr_route_wizard_types">${TIPOS_ELEMENTO_RED_SANEAMIENTO.map(([v,t])=>`<button type="button" data-pr-route-wiz-type="${v}">${limpiar(t)}</button>`).join("")}</div>`;
     panel.querySelector("[data-pr-route-wiz-close]").onclick=cerrar;
     panel.querySelectorAll("[data-pr-route-wiz-type]").forEach(b=>b.onclick=()=>elegirTipo(b.dataset.prRouteWizType));
     panel.scrollIntoView({behavior:"smooth",block:"start"});
   };
+  const abrirExistente=row=>{
+    if(!row)return;filaObjetivo=row;borrador=leerElementoRedSaneamiento(row);pasos=pasosPendientesAsistenteElementoSaneamiento(borrador);i=0;
+    if(!pasos.length){
+      panel.hidden=false;panel.innerHTML=`<div class="zx_pr_route_wizard_head"><div><b>Asistente de recorrido</b><span>${limpiar(textoTipoElementoRedSaneamiento(borrador.tipo))}</span></div><button type="button" data-pr-route-wiz-close aria-label="Cerrar asistente">×</button></div><div class="zx_pr_route_wizard_intro"><b>No hay datos principales nuevos que pedir.</b><span>Los campos que siguen sin valor ya están marcados como no conocidos, para después o no aplicables. Puedes abrir la tarjeta si quieres revisarlos manualmente.</span></div>`;
+      panel.querySelector("[data-pr-route-wiz-close]").onclick=cerrar;panel.scrollIntoView({behavior:"smooth",block:"start"});return;
+    }
+    renderPaso();
+    const info=document.createElement("div");info.className="zx_pr_route_wizard_prefill";info.textContent=`Se completará este ${textoTipoElementoRedSaneamiento(borrador.tipo).toLowerCase()} sin crear otro elemento. Solo se preguntan ${pasos.length} dato(s) principal(es) pendientes.`;panel.insertBefore(info,panel.querySelector(".zx_pr_route_wizard_question"));
+    panel.scrollIntoView({behavior:"smooth",block:"start"});
+  };
+  const b=box();if(b&&!b.dataset.routeWizardEditBound){b.dataset.routeWizardEditBound="1";b.addEventListener("click",ev=>{const btn=ev.target&&ev.target.closest?ev.target.closest("[data-pr-route-wiz-edit]"):null;if(!btn)return;ev.preventDefault();ev.stopPropagation();abrirExistente(btn.closest("[data-pr-drain-net-id]"))})}
   start.onclick=renderTipos;
 }
 
@@ -3456,7 +3499,7 @@ window.ZX_proyectos=async function(){
   const abrir=window.ZX_PROYECTO_ABRIR_ID;window.ZX_PROYECTO_ABRIR_ID="";if(abrir)abrirFicha(abrir);
 };
 window.ZX_abrirProyectos=window.ZX_proyectos;
-window.ZENTRYX_PROYECTOS_SAN_FICHA_PLAN_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_SPLIT_V1=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V2=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V1=true;window.ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LABEL_V1=true;window.ZENTRYX_PROYECTOS_SAN_NAV_V2=true;window.ZENTRYX_PROYECTOS_SAN_SCROLL_V1=true;window.ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1=true;window.ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2=true;
+window.ZENTRYX_PROYECTOS_SAN_FICHA_PLAN_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_SPLIT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_ASSIST_EDIT_V1=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V2=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V1=true;window.ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LABEL_V1=true;window.ZENTRYX_PROYECTOS_SAN_NAV_V2=true;window.ZENTRYX_PROYECTOS_SAN_SCROLL_V1=true;window.ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1=true;window.ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2=true;
 window.ZENTRYX_MODULE_VERSIONS=window.ZENTRYX_MODULE_VERSIONS||{};
 window.ZENTRYX_MODULE_VERSIONS.proyectos=ZX_VERSION;
 if(zx()&&typeof zx().registrarModulo==="function")zx().registrarModulo("proyectos",{nombre:"Proyectos",activo:true,version:ZX_VERSION});
