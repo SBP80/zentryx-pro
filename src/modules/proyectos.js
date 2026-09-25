@@ -3636,3 +3636,4 @@ window.ZENTRYX_MODULE_VERSIONS.proyectos=ZX_VERSION;
 if(zx()&&typeof zx().registrarModulo==="function")zx().registrarModulo("proyectos",{nombre:"Proyectos",activo:true,version:ZX_VERSION});
 console.log("ZENTRYX proyectos.js V"+ZX_VERSION+" cargado");
 })();
+
