@@ -1,3 +1,4 @@
+// V1152 - Saneamiento: una entrada física puede indicar que su origen está fuera o no está representado en la base vinculada. En ese caso no se asigna una posición ficticia al origen; se coloca únicamente el punto por el que la tubería entra en el plano cuando se conozca y desde ahí se registran sus codos/cambios y la conexión real con el colector.
 // V1151 - Saneamiento: el visor de geometría permite ampliar hasta 1200 %, incorpora un tirador de precisión separado de la cruz para que el dedo no tape el punto y permite registrar el ángulo de cada codo/cambio de dirección cuando se conoce.
 // V1150 - Saneamiento: las entradas registradas de un colector pueden colocarse sobre el plano como recorridos físicos propios. Cada entrada guarda su origen, cambios de dirección opcionales y el punto real donde conecta con el colector; el recorrido del colector se muestra como referencia y no se dibujan enlaces no confirmados.
 // V1149 - Saneamiento: el último punto de un recorrido puede cerrar la parte visible sobre la base y dejar constancia de que continúa hacia un destino registrado fuera del plano. El destino no recibe coordenadas inventadas y el trazado puede reabrirse si después se conoce más recorrido.
@@ -101,7 +102,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1151";
+const ZX_VERSION="1152";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
