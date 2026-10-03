@@ -1,3 +1,4 @@
+// V1155 - Sesión/PWA: al pasar Zentryx a segundo plano en iPhone/iPad, el tiempo suspendido no cuenta como inactividad; al volver se reanuda la sesión mientras no haya alcanzado su límite absoluto. También se corrige la trazabilidad histórica al guardar Extracción, Fontanería y Saneamiento.
 // V1154 - Saneamiento: la comprobación en obra queda separada de los datos de proyecto. Al marcar un elemento como Comprobado en obra, Zentryx permite registrar resultado y medidas reales sin sobrescribir longitud, diámetro, pendiente ni montaje previstos.
 // V1153 - Saneamiento: los tramos permiten registrar cotas de ejecución. En ramales y colectores, longitud y pendiente calculan el desnivel; al introducir una cota se obtiene la opuesta. Si la cota absoluta todavía no se conoce, puede marcarse Pendiente de replanteo sin invalidar el trazado físico.
 // V1152 - Saneamiento: una entrada física puede indicar que su origen está fuera o no está representado en la base vinculada. En ese caso no se asigna una posición ficticia al origen; se coloca únicamente el punto por el que la tubería entra en el plano cuando se conozca y desde ahí se registran sus codos/cambios y la conexión real con el colector.
@@ -104,7 +105,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1154";
+const ZX_VERSION="1155";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -278,6 +279,19 @@ function salirManual(){
 }
 
 const AYUDAS_DIRECTAS=[
+  {
+    id:"sesion_segundo_plano",
+    modulo:"inicio",
+    titulo:"Volver a Zentryx después de dejarlo en segundo plano",
+    consulta:"sesion segundo plano iphone ipad pwa vuelve login acceso inactividad reanudar cerrar aplicacion pantalla entrar",
+    resumen:"Dejar Zentryx en segundo plano no cuenta como tiempo de inactividad. Al volver, la sesión continúa mientras no haya alcanzado el límite absoluto de seguridad.",
+    pasos:[
+      "Puedes dejar Zentryx en segundo plano y volver a la misma sesión sin que ese tiempo suspendido cuente como inactividad.",
+      "La inactividad real mientras Zentryx está visible mantiene el límite de 90 minutos.",
+      "Una sesión conserva un límite absoluto de 12 horas desde el acceso; al alcanzarlo se solicita entrar de nuevo.",
+      "Cerrar sesión manualmente sigue cerrando el acceso de forma inmediata."
+    ]
+  },
   {
     id:"acciones_superiores_moviles",
     modulo:"inicio",
