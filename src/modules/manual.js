@@ -1,3 +1,4 @@
+// V1162 - Saneamiento: la vista física identifica el colector correcto de las entradas pendientes aunque el último tramo visible sea un registro u otro elemento posterior. En móvil, el esquema técnico separa las entradas convergentes de la cadena C1 → RG1 → salida para que ninguna línea atraviese otra tarjeta y parezca una conexión distinta.
 // V1161 - Saneamiento: el Esquema técnico de red representa los elementos encadenados en serie. Si un colector termina en un registro y ese registro continúa a la salida, se muestra C1 → RG1 → salida, sin crear una derivación visual falsa desde C1.
 // V1160 - Saneamiento: el selector Tramo físico activo actualiza al momento el número de puntos y el estado finalizado del tramo después de editar su geometría, evitando mostrar un recuento anterior mientras la tarjeta ya muestra el estado nuevo.
 // V1159 - PWA/iPhone: corregida la restauración tras cerrar o recrear la aplicación. La navegación guarda ahora el módulo realmente abierto, incluido Proyectos, para que al volver pueda reabrir el proyecto y Saneamiento desde el estado local en vez de regresar a Inicio.
@@ -111,7 +112,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1161";
+const ZX_VERSION="1162";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
