@@ -1,3 +1,4 @@
+// V1157 - Saneamiento: en redes con varios elementos, el punto físico compartido entre un elemento y el siguiente queda vinculado. El inicio heredado no se mueve ni se elimina de forma independiente; si se ajusta el punto final del elemento anterior, el inicio del siguiente se actualiza al mismo punto para evitar discontinuidades.
 // V1156 - Saneamiento: los elementos del recorrido pueden encadenarse sin perder el destino existente. Insertar después crea el siguiente elemento entre el actual y su destino, conserva las referencias internas y, si ya existe un trazado físico finalizado, usa su último punto como inicio del siguiente elemento. La Geometría de ejecución permite elegir qué elemento físico se está editando.
 // V1155 - Sesión/PWA: al pasar Zentryx a segundo plano en iPhone/iPad, el tiempo suspendido no cuenta como inactividad; al volver se reanuda la sesión mientras no haya alcanzado su límite absoluto. También se corrige la trazabilidad histórica al guardar Extracción, Fontanería y Saneamiento.
 // V1154 - Saneamiento: la comprobación en obra queda separada de los datos de proyecto. Al marcar un elemento como Comprobado en obra, Zentryx permite registrar resultado y medidas reales sin sobrescribir longitud, diámetro, pendiente ni montaje previstos.
@@ -106,7 +107,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1155";
+const ZX_VERSION="1157";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
