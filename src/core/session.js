@@ -1,18 +1,20 @@
 // ===============================
 // ZENTRYX PRO - SESSION
+// V3157 - REANUDACIÓN SEGURA EN IPHONE/PWA: EL TIEMPO EN SEGUNDO PLANO NO CUENTA COMO INACTIVIDAD; CAPTURA DE ACTIVIDAD EN FASE CAPTURE; DIAGNÓSTICO DE CIERRES AUTOMÁTICOS
 // V3156 - CIERRE DE SESIÓN PERSISTENTE HASTA NUEVO LOGIN
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3156";
-const ZX_APP_VERSION=String(window.ZX_VERSION || "3444");
+const ZX_VERSION="3157";
+const ZX_APP_VERSION=String(window.ZX_VERSION || window.ZX_APP_VERSION || "3634");
 
 const SESSION_KEY="zentryx_session";
 const USER_KEY="usuario";
 const DEVICE_KEY="zentryx_device_id";
 const SESSION_EVENT_KEY="zentryx_session_event";
 const LOGOUT_GUARD_KEY="zentryx_logout_guard";
+const SESSION_DIAGNOSTIC_KEY="zentryx_session_diagnostic";
 
 const LOGIN_URL="index.html?v="+ZX_APP_VERSION+"&t="+Date.now();
 const APP_URL="app.html?v="+ZX_APP_VERSION+"&t="+Date.now();
@@ -169,6 +171,7 @@ function normalizeSession(session){
     expires_at:expires,
     inicio:session.inicio || new Date(created).toISOString(),
     actividad:new Date(last).toISOString(),
+    background_since:parseTime(session.background_since),
     session_id:session.session_id || createRandomId("zx_"),
     dispositivo_id:session.dispositivo_id || getDeviceId()
   };
@@ -207,6 +210,62 @@ function clearSession(options){
   }
 }
 
+function saveSessionDiagnostic(reason,extra){
+  try{
+    localStorage.setItem(SESSION_DIAGNOSTIC_KEY,JSON.stringify(Object.assign({
+      reason:String(reason || "unknown"),
+      at:now(),
+      page:safePathname(),
+      hidden:!!document.hidden
+    },extra || {})));
+  }catch(error){}
+}
+
+function absoluteSessionValid(session,current){
+  if(!session) return false;
+  const t=current==null ? now() : current;
+  return t<session.expires_at && t<session.created_at+MAX_SESSION_MS;
+}
+
+function markBackgroundStart(){
+  if(!isAppPage()) return false;
+  const session=readSession();
+  if(!session) return false;
+  const current=now();
+  if(!absoluteSessionValid(session,current)) return false;
+
+  // El instante de ocultación cuenta como actividad real. A partir de aquí
+  // el tiempo suspendido por iOS no debe consumirse como "inactividad".
+  session.last_activity=current;
+  session.actividad=new Date(current).toISOString();
+  session.background_since=current;
+  session.expires_at=session.created_at+MAX_SESSION_MS;
+  const saved=saveSession(session);
+  if(saved) lastActivityWrite=current;
+  return saved;
+}
+
+function resumeFromBackground(){
+  const session=readSession();
+  if(!session) return false;
+
+  const current=now();
+  if(!absoluteSessionValid(session,current)) return false;
+
+  const hiddenSince=parseTime(session.background_since);
+  if(hiddenSince){
+    session.last_activity=current;
+    session.actividad=new Date(current).toISOString();
+    session.background_since=null;
+    session.expires_at=session.created_at+MAX_SESSION_MS;
+    const saved=saveSession(session);
+    if(saved) lastActivityWrite=current;
+    return saved;
+  }
+
+  return true;
+}
+
 function sessionStatus(){
   const session=readSession();
 
@@ -220,27 +279,27 @@ function sessionStatus(){
     return {valid:false,reason:"expired",session:session};
   }
 
-  if(current-session.last_activity>=INACTIVITY_MS){
-    return {valid:false,reason:"inactive",session:session};
-  }
-
   const storedUser=readRaw(USER_KEY);
   if(storedUser && storedUser.id!==undefined && String(storedUser.id)!==String(session.id)){
     return {valid:false,reason:"user_mismatch",session:session};
+  }
+
+  // Mientras exista una marca válida de segundo plano no se aplica el reloj
+  // de inactividad. Esto protege también frente a temporizadores aplazados por
+  // iOS que puedan ejecutarse justo antes del evento de reanudación.
+  if(parseTime(session.background_since)){
+    return {valid:true,reason:"background",session:session};
+  }
+
+  if(current-session.last_activity>=INACTIVITY_MS){
+    return {valid:false,reason:"inactive",session:session};
   }
 
   return {valid:true,reason:"ok",session:session};
 }
 
 function sessionValid(){
-  const status=sessionStatus();
-
-  if(!status.valid){
-    if(status.reason!=="missing") clearSession();
-    return false;
-  }
-
-  return true;
+  return sessionStatus().valid;
 }
 
 function updateActivity(force){
@@ -255,6 +314,7 @@ function updateActivity(force){
   const session=status.session;
   session.last_activity=current;
   session.actividad=new Date(current).toISOString();
+  session.background_since=null;
   // La actividad nunca extiende el límite absoluto de 12 horas.
   session.expires_at=session.created_at+MAX_SESSION_MS;
 
@@ -339,6 +399,19 @@ function logout(){
   redirect("index.html?logout=1&v="+ZX_APP_VERSION+"&t="+Date.now());
 }
 
+function endInvalidSession(reason){
+  const status=sessionStatus();
+  saveSessionDiagnostic(reason || status.reason || "invalid",{
+    status_reason:status.reason || "unknown",
+    has_session:!!status.session,
+    created_at:status.session ? status.session.created_at : null,
+    last_activity:status.session ? status.session.last_activity : null,
+    background_since:status.session ? status.session.background_since : null
+  });
+  clearSession({broadcast:true});
+  redirect("index.html?expired=1&reason="+encodeURIComponent(reason || status.reason || "invalid")+"&v="+ZX_APP_VERSION+"&t="+Date.now());
+}
+
 function protectApp(){
   if(!isAppPage()) return true;
 
@@ -348,9 +421,9 @@ function protectApp(){
     return false;
   }
 
-  if(!sessionValid()){
-    clearSession();
-    redirect(LOGIN_URL);
+  const status=sessionStatus();
+  if(!status.valid){
+    endInvalidSession("protect_app_"+status.reason);
     return false;
   }
 
@@ -367,10 +440,22 @@ function protectLogin(){
     return false;
   }
 
-  if(sessionValid()){
+  const status=sessionStatus();
+  if(status.valid){
     updateActivity(true);
     redirect(APP_URL);
     return true;
+  }
+
+  if(status.reason!=="missing"){
+    saveSessionDiagnostic("login_"+status.reason,{
+      status_reason:status.reason,
+      has_session:!!status.session,
+      created_at:status.session ? status.session.created_at : null,
+      last_activity:status.session ? status.session.last_activity : null,
+      background_since:status.session ? status.session.background_since : null
+    });
+    clearSession({broadcast:false});
   }
 
   return false;
@@ -384,26 +469,37 @@ function startActivityControl(){
   if(activityControlStarted) return;
   activityControlStarted=true;
 
-  ["pointerdown","touchstart","keydown"].forEach(function(eventName){
-    document.addEventListener(eventName,recordUserActivity,{passive:true});
+  ["pointerdown","touchstart","keydown","input","change"].forEach(function(eventName){
+    // capture:true evita perder actividad cuando un modal o módulo detiene
+    // la propagación del evento antes de llegar a document.
+    document.addEventListener(eventName,recordUserActivity,{passive:true,capture:true});
   });
 
   document.addEventListener("visibilitychange",function(){
-    if(document.hidden) return;
+    if(document.hidden){
+      markBackgroundStart();
+      return;
+    }
 
     if(isAppPage()){
+      resumeFromBackground();
       if(!sessionValid()){
-        logout();
+        endInvalidSession("resume_invalid");
         return;
       }
       updateActivity(true);
     }
   });
 
+  window.addEventListener("pagehide",function(){
+    markBackgroundStart();
+  });
+
   window.addEventListener("pageshow",function(){
     if(isAppPage()){
+      resumeFromBackground();
       if(!sessionValid()){
-        logout();
+        endInvalidSession("pageshow_invalid");
         return;
       }
       updateActivity(true);
@@ -428,12 +524,17 @@ function startActivityControl(){
   });
 
   window.setInterval(function(){
-    if(isAppPage() && !sessionValid()) logout();
+    // Safari/iOS puede congelar temporizadores y ejecutarlos juntos al volver.
+    // Nunca se invalida una sesión mientras la PWA está oculta.
+    if(document.hidden) return;
+    if(isAppPage() && !sessionValid()) endInvalidSession("periodic_invalid");
   },VALIDATION_INTERVAL_MS);
 }
 
 window.ZENTRYX_createSession=createSession;
 window.ZENTRYX_logout=logout;
+window.ZENTRYX_endInvalidSession=endInvalidSession;
+window.ZENTRYX_resumeSession=resumeFromBackground;
 window.ZENTRYX_sessionValid=sessionValid;
 window.ZENTRYX_sessionStatus=sessionStatus;
 window.ZENTRYX_readSession=readSession;
@@ -445,6 +546,9 @@ window.ZENTRYX_sanitizeLocalUser=sanitizeLocalUser;
 window.ZENTRYX_logoutGuardActive=logoutGuardActive;
 
 sanitizeStoredUser();
+// Si iOS mató el proceso mientras estaba en segundo plano, al reconstruir la
+// PWA esta marca permite reanudar sin contar el tiempo suspendido como inactividad.
+if(!document.hidden) resumeFromBackground();
 protectApp();
 protectLogin();
 startActivityControl();
