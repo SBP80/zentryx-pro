@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3633</title>
+<title>Zentryx PRO V3634</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,8 +15,10 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-const ZX_VERSION="3633";
-const ZX_APP_VERSION="3633";
+const ZX_VERSION="3634";
+const ZX_APP_VERSION="3634";
+window.ZX_VERSION=ZX_VERSION;
+window.ZX_APP_VERSION=ZX_APP_VERSION;
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -284,7 +286,7 @@ body.zx_login_page.zx_alto_contraste .user_card{
 
   <div class="box" id="app"></div>
 
-  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3633 LOGIN</div>
+  <div class="footer" id="zxVersionFooter">Zentryx PRO · V3634 LOGIN</div>
 </div>
 
 <script>
@@ -297,7 +299,7 @@ const ZX_DEV_LAST_KEY="zentryx_dev_last_access";
 </script>
 
 <script src="src/core/security.js?v=3152&build=20260829a"></script>
-<script src="src/core/session.js?v=3156&build=20260830a"></script>
+<script src="src/core/session.js?v=3157&build=20261003a"></script>
 
 <script>
 let usuarioActual=null;
@@ -331,34 +333,45 @@ function cuentaDesarrollador(){
 function guardarSesionDesarrollador(){
   const u=cuentaDesarrollador();
   const ahora=new Date().toISOString();
+  let sesionGuardada=false;
 
-  if(typeof window.ZENTRYX_createSession==="function"){
-    window.ZENTRYX_createSession(u);
-  }else{
-    localStorage.setItem("zentryx_session",JSON.stringify({
-      id:u.id,
-      usuario:u.usuario,
-      nombre:u.nombre,
-      rol:u.rol,
-      empresa_id:u.empresa_id,
-      tecnico:true,
-      desarrollador:true,
-      inicio:ahora,
-      actividad:ahora
-    }));
-    localStorage.setItem("usuario",JSON.stringify(u));
+  try{
+    if(typeof window.ZENTRYX_createSession==="function"){
+      sesionGuardada=window.ZENTRYX_createSession(u)===true;
+    }else{
+      localStorage.setItem("zentryx_session",JSON.stringify({
+        id:u.id,
+        usuario:u.usuario,
+        nombre:u.nombre,
+        rol:u.rol,
+        empresa_id:u.empresa_id,
+        tecnico:true,
+        desarrollador:true,
+        inicio:ahora,
+        actividad:ahora
+      }));
+      localStorage.setItem("usuario",JSON.stringify(u));
+      sesionGuardada=!!localStorage.getItem("zentryx_session");
+    }
+
+    if(!sesionGuardada) return false;
+
+    try{
+      localStorage.setItem(ZX_DEV_LAST_KEY,ahora);
+      localStorage.setItem(ZX_LOGIN_LAST_USER,JSON.stringify({
+        id:u.id,
+        usuario:u.usuario,
+        nombre:u.nombre,
+        rol:u.rol,
+        foto_url:"",
+        tecnico:true,
+        guardado_en:ahora
+      }));
+    }catch(error){}
+    return true;
+  }catch(error){
+    return false;
   }
-
-  localStorage.setItem(ZX_DEV_LAST_KEY,ahora);
-  localStorage.setItem(ZX_LOGIN_LAST_USER,JSON.stringify({
-    id:u.id,
-    usuario:u.usuario,
-    nombre:u.nombre,
-    rol:u.rol,
-    foto_url:"",
-    tecnico:true,
-    guardado_en:ahora
-  }));
 }
 
 function crearIdDispositivo(){
@@ -506,35 +519,44 @@ function setLoading(txt){
 function irApp(){location.replace("app.html?v="+ZX_APP_VERSION+"&t="+Date.now())}
 
 function guardarSesion(){
-  if(typeof ZENTRYX_createSession==="function"){
-    ZENTRYX_createSession(usuarioActual);
-  }else{
-    localStorage.setItem("zentryx_session",JSON.stringify({
-      id:usuarioActual.id,
-      usuario:usuarioActual.usuario,
-      nombre:usuarioActual.nombre || usuarioActual.usuario,
-      rol:usuarioActual.rol || "Usuario",
-      empresa_id:usuarioActual.empresa_id || "demo",
-      permisos:usuarioActual.permisos && typeof usuarioActual.permisos==="object" ? usuarioActual.permisos : {},
-      inicio:new Date().toISOString(),
-      actividad:new Date().toISOString()
-    }));
-    const usuarioLocal=typeof window.ZENTRYX_sanitizeLocalUser==="function"
-      ? window.ZENTRYX_sanitizeLocalUser(usuarioActual)
-      : {
-          id:usuarioActual.id,
-          usuario:usuarioActual.usuario,
-          nombre:usuarioActual.nombre || usuarioActual.usuario,
-          rol:usuarioActual.rol || "Usuario",
-          empresa_id:usuarioActual.empresa_id || "demo",
-          permisos:usuarioActual.permisos && typeof usuarioActual.permisos==="object" ? usuarioActual.permisos : {},
-          foto_url:usuarioActual.foto_url || "",
-          activo:usuarioActual.activo!==false
-        };
-    localStorage.setItem("usuario",JSON.stringify(usuarioLocal));
-  }
+  let sesionGuardada=false;
 
-  guardarUltimoUsuario(usuarioActual);
+  try{
+    if(typeof ZENTRYX_createSession==="function"){
+      sesionGuardada=ZENTRYX_createSession(usuarioActual)===true;
+    }else{
+      localStorage.setItem("zentryx_session",JSON.stringify({
+        id:usuarioActual.id,
+        usuario:usuarioActual.usuario,
+        nombre:usuarioActual.nombre || usuarioActual.usuario,
+        rol:usuarioActual.rol || "Usuario",
+        empresa_id:usuarioActual.empresa_id || "demo",
+        permisos:usuarioActual.permisos && typeof usuarioActual.permisos==="object" ? usuarioActual.permisos : {},
+        inicio:new Date().toISOString(),
+        actividad:new Date().toISOString()
+      }));
+      const usuarioLocal=typeof window.ZENTRYX_sanitizeLocalUser==="function"
+        ? window.ZENTRYX_sanitizeLocalUser(usuarioActual)
+        : {
+            id:usuarioActual.id,
+            usuario:usuarioActual.usuario,
+            nombre:usuarioActual.nombre || usuarioActual.usuario,
+            rol:usuarioActual.rol || "Usuario",
+            empresa_id:usuarioActual.empresa_id || "demo",
+            permisos:usuarioActual.permisos && typeof usuarioActual.permisos==="object" ? usuarioActual.permisos : {},
+            foto_url:usuarioActual.foto_url || "",
+            activo:usuarioActual.activo!==false
+          };
+      localStorage.setItem("usuario",JSON.stringify(usuarioLocal));
+      sesionGuardada=!!localStorage.getItem("zentryx_session");
+    }
+
+    if(!sesionGuardada) return false;
+    try{guardarUltimoUsuario(usuarioActual)}catch(error){}
+    return true;
+  }catch(error){
+    return false;
+  }
 }
 
 function guardarUltimoUsuario(u){
@@ -752,7 +774,10 @@ async function guardarPINDesarrollador(){
   }
 
   localStorage.setItem(ZX_DEV_PIN_KEY,await ZENTRYX_SECURITY.hashPin("ZX_DEV::"+p1));
-  guardarSesionDesarrollador();
+  if(!guardarSesionDesarrollador()){
+    mostrarMsg("No se pudo guardar la sesión en este dispositivo. Vuelve a intentarlo.");
+    return;
+  }
   mostrarMsg("Acceso desarrollador creado.","ok");
   setTimeout(irApp,500);
 }
@@ -806,7 +831,10 @@ async function entrarDesarrollador(){
   if(verificacionDev.needsUpgrade){
     localStorage.setItem(ZX_DEV_PIN_KEY,await ZENTRYX_SECURITY.hashPin("ZX_DEV::"+pin));
   }
-  guardarSesionDesarrollador();
+  if(!guardarSesionDesarrollador()){
+    mostrarMsg("No se pudo guardar la sesión en este dispositivo. Vuelve a intentarlo.");
+    return;
+  }
   mostrarMsg("Acceso correcto.","ok");
   setTimeout(irApp,350);
 }
@@ -1029,7 +1057,10 @@ async function guardarPIN(){
   usuarioActual.pin_bloqueado_hasta=null;
 
   await registrarDispositivoSeguro();
-  guardarSesion();
+  if(!guardarSesion()){
+    mostrarMsg("No se pudo guardar la sesión en este dispositivo. Vuelve a intentarlo.");
+    return;
+  }
   if(ZENTRYX_SECURITY && typeof ZENTRYX_SECURITY.rememberSessionPin==="function"){
     await ZENTRYX_SECURITY.rememberSessionPin(p1);
   }
@@ -1122,7 +1153,10 @@ async function entrar(){
     usuarioActual.ultimo_login=new Date().toISOString();
 
     await registrarDispositivoSeguro();
-    guardarSesion();
+    if(!guardarSesion()){
+      mostrarMsg("No se pudo guardar la sesión en este dispositivo. Vuelve a intentarlo.");
+      return;
+    }
 
     if(ZENTRYX_SECURITY && typeof ZENTRYX_SECURITY.rememberSessionPin==="function"){
       await ZENTRYX_SECURITY.rememberSessionPin(pin);
