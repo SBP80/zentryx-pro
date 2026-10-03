@@ -1,3 +1,4 @@
+// V1158 - PWA/iPhone: si iOS recrea la aplicación al volver del segundo plano, Zentryx recupera el último módulo y, en Proyectos/Saneamiento, vuelve al proyecto y al tramo físico que estaban abiertos usando el borrador local sin guardar cambios en la base.
 // V1157 - Saneamiento: en redes con varios elementos, el punto físico compartido entre un elemento y el siguiente queda vinculado. El inicio heredado no se mueve ni se elimina de forma independiente; si se ajusta el punto final del elemento anterior, el inicio del siguiente se actualiza al mismo punto para evitar discontinuidades.
 // V1156 - Saneamiento: los elementos del recorrido pueden encadenarse sin perder el destino existente. Insertar después crea el siguiente elemento entre el actual y su destino, conserva las referencias internas y, si ya existe un trazado físico finalizado, usa su último punto como inicio del siguiente elemento. La Geometría de ejecución permite elegir qué elemento físico se está editando.
 // V1155 - Sesión/PWA: al pasar Zentryx a segundo plano en iPhone/iPad, el tiempo suspendido no cuenta como inactividad; al volver se reanuda la sesión mientras no haya alcanzado su límite absoluto. También se corrige la trazabilidad histórica al guardar Extracción, Fontanería y Saneamiento.
@@ -107,7 +108,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1157";
+const ZX_VERSION="1158";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -286,9 +287,11 @@ const AYUDAS_DIRECTAS=[
     modulo:"inicio",
     titulo:"Volver a Zentryx después de dejarlo en segundo plano",
     consulta:"sesion segundo plano iphone ipad pwa vuelve login acceso inactividad reanudar cerrar aplicacion pantalla entrar",
-    resumen:"Dejar Zentryx en segundo plano no cuenta como tiempo de inactividad. Al volver, la sesión continúa mientras no haya alcanzado el límite absoluto de seguridad.",
+    resumen:"Dejar Zentryx en segundo plano no cuenta como tiempo de inactividad. Si iOS recrea la aplicación al volver, Zentryx recupera el último módulo abierto; en Proyectos/Saneamiento también recupera el proyecto, el tramo físico activo y el borrador local.",
     pasos:[
       "Puedes dejar Zentryx en segundo plano y volver a la misma sesión sin que ese tiempo suspendido cuente como inactividad.",
+      "Si iOS descarga y vuelve a crear la PWA, Zentryx abre de nuevo el último módulo. Si estabas en Proyectos/Saneamiento, recupera además el proyecto abierto, el tramo físico activo y la posición aproximada del formulario desde el almacenamiento local.",
+      "Los cambios no confirmados de Saneamiento continúan como borrador del dispositivo y no se escriben en la base hasta pulsar Guardar.",
       "La inactividad real mientras Zentryx está visible mantiene el límite de 90 minutos.",
       "Una sesión conserva un límite absoluto de 12 horas desde el acceso; al alcanzarlo se solicita entrar de nuevo.",
       "Cerrar sesión manualmente sigue cerrando el acceso de forma inmediata."
