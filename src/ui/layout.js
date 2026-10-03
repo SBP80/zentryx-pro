@@ -1,12 +1,12 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
-// V3160 - NAVEGACIÓN Y MENÚ DEL MÓDULO PROYECTOS
+// V3161 - PERSISTENCIA DEL MÓDULO ACTUAL AL REABRIR PWA / NAVEGACIÓN DIRECTA
 // V3159 - CIERRE DE SESIÓN FIABLE Y CAMBIO DE USUARIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3160";
+const ZX_VERSION="3161";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -3535,6 +3535,12 @@ const ZXRouter={
     const abierto=zxRouterEjecutarModulo(id);
     if(!abierto) return false;
 
+    // V3161: toda apertura real debe dejar persistido el módulo actual.
+    // Antes, Proyectos podía abrirse correctamente sin actualizar zentryx_last_module;
+    // al recrear iOS la PWA se restauraba el valor antiguo (normalmente Inicio).
+    guardarModuloActual(id);
+    activo(id);
+
     const ruta=zxRouterGuardarRutaActual(id,opts);
 
     if(opts.query){
@@ -3584,6 +3590,9 @@ function abrirModulo(nombre,callback){
     return;
   }
 
+  // V3161: también persiste aperturas directas que no pasan por ZXRouter
+  // (accesos rápidos, compatibilidad y módulos heredados).
+  guardarModuloActual(nombre);
   activo(nombre);
 
   try{
