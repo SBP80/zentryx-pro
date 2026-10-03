@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1158
+// ZENTRYX PRO - PROYECTOS V1159
+// V1159 - SANEAMIENTO: LA TOPOLOGÍA MÓVIL EVITA QUE UNA ENTRADA PAREZCA CONECTADA A OTRA AL ENCADENAR ELEMENTOS, Y LA VISTA FÍSICA IDENTIFICA EL COLECTOR CORRECTO PARA LAS ENTRADAS PENDIENTES.
 // V1158 - SANEAMIENTO: EL ESQUEMA TÉCNICO RESPETA LA SECUENCIA DE ELEMENTOS ENCADENADOS. SI C1 TERMINA EN RG1 Y RG1 TERMINA EN ARQUETA 1, YA NO DIBUJA UNA FALSA DERIVACIÓN C1→ARQUETA 1; REPRESENTA C1→RG1→ARQUETA 1. TAMBIÉN ALINEA LA VERSIÓN INTERNA REAL DEL MÓDULO.
 // V1157 - SANEAMIENTO: EL SELECTOR DE TRAMO FÍSICO ACTIVO SE ACTUALIZA INMEDIATAMENTE AL AÑADIR, AJUSTAR, QUITAR O FINALIZAR PUNTOS; YA NO MUESTRA UN RECUENTO ANTIGUO MIENTRAS LA TARJETA DEL TRAZADO MUESTRA EL ESTADO NUEVO.
 // V1156 - PWA/IPHONE: CONSERVA EL MÓDULO Y EL CONTEXTO DE PROYECTOS AL RECREARSE EL PROCESO; SANEAMIENTO GUARDA PROYECTO, VISTA, ELEMENTO FÍSICO ACTIVO Y DESPLAZAMIENTO PARA VOLVER AL PUNTO DE TRABAJO SIN ENVIAR DATOS A LA BASE
@@ -134,7 +135,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1158";
+const ZX_VERSION="1159";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -3328,15 +3329,24 @@ function modeloRedConectadaSaneamiento(elementos=[],compacto=false){
     width=320;nodeW=132;nodeH=74;
     const targets=[...nodes.values()].filter(n=>n.tipo==="is-element"&&n.entrada>1);
     if(targets.length===1){
-      const target=targets[0],inputs=edges.filter(x=>x.kind==="entrada"&&x.to===target.ref).sort((a,b)=>(a.entradaIndex??0)-(b.entradaIndex??0)),outgoing=edges.filter(x=>x.kind==="tramo"&&x.from===target.ref),sourceRefs=[...new Set(inputs.map(x=>x.from))],salidas=[...new Set(outgoing.map(x=>x.to))],permitidos=new Set(sourceRefs.concat([target.ref],salidas)),otros=[...nodes.values()].filter(n=>!permitidos.has(n.ref));
-      if(inputs.length>=2&&sourceRefs.length===inputs.length&&outgoing.length===1&&salidas.length===1&&!otros.length){
+      const target=targets[0],inputs=edges.filter(x=>x.kind==="entrada"&&x.to===target.ref).sort((a,b)=>(a.entradaIndex??0)-(b.entradaIndex??0)),sourceRefs=[...new Set(inputs.map(x=>x.from))];
+      const cadena=[target.ref],vistos=new Set(cadena);let cursor=target.ref,cadenaValida=true;
+      for(let guard=0;guard<nodes.size;guard++){
+        const salidas=edges.filter(x=>x.kind==="tramo"&&x.from===cursor);
+        if(!salidas.length)break;
+        if(salidas.length!==1){cadenaValida=false;break}
+        const sig=salidas[0].to;if(vistos.has(sig)){cadenaValida=false;break}
+        cadena.push(sig);vistos.add(sig);cursor=sig;
+      }
+      const permitidos=new Set(sourceRefs.concat(cadena)),otros=[...nodes.values()].filter(n=>!permitidos.has(n.ref));
+      if(inputs.length>=2&&sourceRefs.length===inputs.length&&cadenaValida&&cadena.length>=2&&!otros.length){
         const leftX=14,rightX=174,firstY=22,gapY=18,step=nodeH+gapY;
         inputs.forEach((x,j)=>pos.set(x.from,{x:leftX,y:firstY+j*step,w:nodeW,h:nodeH}));
         const targetY=firstY+((inputs.length-1)*step)/2;
         pos.set(target.ref,{x:rightX,y:targetY,w:nodeW,h:nodeH});
-        const outRef=outgoing[0].to,outY=Math.max(firstY+inputs.length*step+58,targetY+nodeH+116);
-        pos.set(outRef,{x:(width-nodeW)/2,y:outY,w:nodeW,h:nodeH});
-        height=outY+nodeH+26;
+        let outY=Math.max(firstY+inputs.length*step+58,targetY+nodeH+116);
+        cadena.slice(1).forEach((ref,k)=>pos.set(ref,{x:(width-nodeW)/2,y:outY+k*(nodeH+76),w:nodeW,h:nodeH}));
+        height=outY+Math.max(1,cadena.length-1)*(nodeH+76)-76+nodeH+26;
         fanIn={targetRef:target.ref,sourceRefs,junctionX:rightX-14,junctionY:targetY+nodeH/2};
       }
     }
@@ -3447,6 +3457,7 @@ function vistaEjecucionRealSaneamientoHTML(elementos=[],geometria={}){
     ["Cotas",textoCotas]
   ].map(([a,b])=>`<div><span>${limpiar(a)}</span><b>${limpiar(b)}</b></div>`).join("");
   const xs=normalizarElementosRedSaneamiento(elementos),refPlano=String(g.referencia||"").trim(),docPlano=normalizarDocumentoGeometriaSaneamiento(g.documento),fuente=g.fuente==="plano_referencia"&&refPlano?`Plano · ${refPlano}`:textoFuenteGeometriaSaneamiento(g.fuente),parcial=vistaParcialGeometriaSaneamientoHTML(elementos,g),segmentosParciales=xs.reduce((n,e)=>n+Math.max(0,posicionesTrazadoElementoGeometriaSaneamiento(g,e).length-1),0),puntosTrazado=xs.reduce((n,e)=>n+posicionesTrazadoElementoGeometriaSaneamiento(g,e).length,0),trazadosFisicos=xs.map(e=>({e,cierre:cierreTrazadoElementoGeometriaSaneamiento(g,e),ps:posicionesTrazadoElementoGeometriaSaneamiento(g,e)})).filter(x=>x.ps.length),cierresActivos=trazadosFisicos.filter(x=>x.cierre),trazadosAbiertos=trazadosFisicos.filter(x=>!x.cierre);
+  const colectoresConEntradas=xs.filter(e=>tipoElementoRedSaneamiento(e.tipo)==="colector"&&entradasVinculadasColectorSaneamiento(e).length).map(e=>String(e.referencia||textoTipoElementoRedSaneamiento(e.tipo)||"colector").trim()).filter(Boolean),destinoEntradas=colectoresConEntradas.length===1?colectoresConEntradas[0]:"su colector correspondiente";
   let estado="Pendiente de geometría",avisoTitulo="No se dibuja una planta física todavía.",avisoTexto="Faltan posiciones medibles o un plano de referencia suficiente. Zentryx no inventa la geometría.",faltaBase="Indicar si se usará un plano base o referencias medibles para colocar el recorrido.";
   if(g.fuente==="plano_referencia"&&!refPlano){estado="Plano previsto · documento pendiente";avisoTexto="Se ha indicado que la geometría se obtendrá desde un plano o documento, pero todavía no se ha identificado cuál. No se considera vinculado ni se dibuja ninguna posición.";faltaBase="Identificar el plano o documento de referencia y después registrar las posiciones reales sobre esa base."}
   else if(g.fuente==="plano_referencia"&&!docPlano){estado="Plano identificado · archivo pendiente";avisoTexto="El plano o documento de referencia está identificado, pero todavía falta vincular su archivo o imagen y registrar posiciones reales antes de dibujar el recorrido.";faltaBase="Vincular el archivo o imagen de la base identificada y después colocar sobre ella los puntos y recorridos reales."}
@@ -3456,7 +3467,7 @@ function vistaEjecucionRealSaneamientoHTML(elementos=[],geometria={}){
       const c=cierresActivos[cierresActivos.length-1],ultimo=c.ps[c.ps.length-1],orden=ordenPosicionTrazadoGeometriaSaneamiento(ultimo),ref=String(c.e.referencia||textoTipoElementoRedSaneamiento(c.e.tipo)||"tramo"),destino=String(c.e.hasta||c.cierre.destino||"destino registrado").trim()||"destino registrado";
       estado=`Plano vinculado · ${puntosTrazado} punto(s) · visible finalizado${entradasGeo.total?` · ${entradasGeo.conectadas}/${entradasGeo.total} entradas`:""}`;
       avisoTitulo=entradasGeo.pendientes?"Trazado visible finalizado · entradas pendientes.":"Trazado visible finalizado en esta base.";
-      avisoTexto=c.cierre.modo==="conecta_elemento"?`${ref} termina en el punto ${orden} y conecta con ${destino} dentro de esta misma base.${entradasGeo.total?(entradasGeo.pendientes?` Quedan ${entradasGeo.pendientes} entrada(s) registrada(s) por situar y conectar físicamente con ${ref}.`:` Las ${entradasGeo.total} entrada(s) registradas ya están conectadas físicamente con ${ref}.`):""}`:`${ref} termina en el punto ${orden} de la base y continúa hacia ${destino} fuera de ella. No se asigna una posición física al destino que no aparece en el plano.${entradasGeo.total?(entradasGeo.pendientes?` Quedan ${entradasGeo.pendientes} entrada(s) registrada(s) por situar y conectar físicamente con ${ref}.`:` Las ${entradasGeo.total} entrada(s) registradas ya están conectadas físicamente con ${ref}.`):""}`;
+      avisoTexto=c.cierre.modo==="conecta_elemento"?`${ref} termina en el punto ${orden} y conecta con ${destino} dentro de esta misma base.${entradasGeo.total?(entradasGeo.pendientes?` Quedan ${entradasGeo.pendientes} entrada(s) registrada(s) por situar y conectar físicamente con ${destinoEntradas}.`:` Las ${entradasGeo.total} entrada(s) registradas ya están conectadas físicamente con ${destinoEntradas}.`):""}`:`${ref} termina en el punto ${orden} de la base y continúa hacia ${destino} fuera de ella. No se asigna una posición física al destino que no aparece en el plano.${entradasGeo.total?(entradasGeo.pendientes?` Quedan ${entradasGeo.pendientes} entrada(s) registrada(s) por situar y conectar físicamente con ${destinoEntradas}.`:` Las ${entradasGeo.total} entrada(s) registradas ya están conectadas físicamente con ${destinoEntradas}.`):""}`;
       faltaBase="Completar únicamente las posiciones que sí pertenezcan a esta base cuando se conozcan.";
     }else{
       estado=segmentosParciales?`Plano vinculado · ${np} punto(s) · trazado parcial`:np?`Plano vinculado · ${np} punto(s) · trazado pendiente`:"Plano vinculado · posiciones pendientes";
