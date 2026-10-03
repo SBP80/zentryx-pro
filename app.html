@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Zentryx PRO V3640</title>
+<title>Zentryx PRO V3641</title>
 
 <link rel="manifest" href="manifest.json?v=3550">
 <meta name="theme-color" content="#2563eb">
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Zentryx PRO">
 
 <script>
-window.ZX_VERSION="3640";
+window.ZX_VERSION="3641";
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -49,11 +49,11 @@ window.ZX_VERSION="3640";
 <script src="src/modules/agenda.js?v=3158&build=20260827b"></script>
 <script src="src/modules/clientes.js?v=3132&build=20260817d"></script>
 <script src="src/modules/trabajos.js?v=3244&build=20260904a"></script>
-<script src="src/modules/proyectos.js?v=1158&build=20261003g"></script>
+<script src="src/modules/proyectos.js?v=1159&build=20261003h"></script>
 <script src="src/modules/almacen.js?v=1012&build=20260908a"></script>
 <script src="src/modules/monitor.js?v=3100"></script>
 <script src="src/modules/vehiculos.js?v=3225&build=20260903a"></script>
-<script src="src/modules/manual.js?v=1161&build=20261003g"></script>
+<script src="src/modules/manual.js?v=1162&build=20261003h"></script>
 <script src="src/modules/asistente.js?v=1010&build=20260827d"></script>
 
 <script>
@@ -92,7 +92,7 @@ async function comprobarVersionPublicada(){
 }
 
 async function asegurarModuloProyectos(){
-  const esperada="1158";
+  const esperada="1159";
   const versionActual=()=>window.ZENTRYX_MODULE_VERSIONS&&String(window.ZENTRYX_MODULE_VERSIONS.proyectos||"");
   const compatible=()=>{
     const v=versionActual();
@@ -115,7 +115,7 @@ async function asegurarModuloProyectos(){
           "</section>"+
         "</main>";
       const b=document.getElementById("zx_retry_proyectos");
-      if(b)b.onclick=()=>location.replace("app.html?v=3640&t="+Date.now());
+      if(b)b.onclick=()=>location.replace("app.html?v=3641&t="+Date.now());
     };
   };
 
@@ -166,9 +166,9 @@ function instalarVigilanciaDimensionadoCompacto(){
     if(!d) return;
     const ok=d.getAttribute("data-zx-dimension-layout")==="compact_v2" && !!d.querySelector(".zx_pr_dimension_now") && !!d.querySelector(".zx_pr_dimension_primary") && !!d.querySelector(".zx_pr_dimension_extra") && !!d.querySelector(".zx_pr_dimension_help");
     if(ok) return;
-    console.error("Dimensionado de Saneamiento antiguo detectado; se fuerza recarga de Proyectos V1158.");
-    try{sessionStorage.setItem("zx_force_proyectos_1158",String(Date.now()))}catch(e){}
-    location.replace("app.html?v=3640&force_proyectos=1158&t="+Date.now());
+    console.error("Dimensionado de Saneamiento antiguo detectado; se fuerza recarga de Proyectos V1159.");
+    try{sessionStorage.setItem("zx_force_proyectos_1159",String(Date.now()))}catch(e){}
+    location.replace("app.html?v=3641&force_proyectos=1159&t="+Date.now());
   };
   const ob=new MutationObserver(()=>setTimeout(validar,0));
   ob.observe(document.documentElement,{childList:true,subtree:true});
@@ -230,7 +230,7 @@ if(document.readyState==="loading"){
 })();
 </script>
 
-<!-- ZENTRYX PRO V3640 - SANEAMIENTO: TOPOLOGÍA ENCADENADA CORREGIDA · PROYECTOS V1158 · MANUAL V1161 + NORMATIVA V1001 -->
+<!-- ZENTRYX PRO V3641 - SANEAMIENTO: TOPOLOGÍA MÓVIL Y DESTINO DE ENTRADAS CORREGIDOS · PROYECTOS V1159 · MANUAL V1162 + NORMATIVA V1001 -->
 <style id="zx-global-ui-consistency-style">
   .zx_global_top_actions{
     position:sticky;
