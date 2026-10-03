@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - PANEL DESARROLLADOR
+// V3127 - SALIDA DE DESARROLLADOR USA EL GESTOR COMÚN DE SESIÓN PARA LIMPIEZA Y BLOQUEO COHERENTES
 // V3126 - DIAGNÓSTICO SIN MÓDULOS RETIRADOS
 // ===============================
 (function(){
 "use strict";
 
-const ZX_DEV_VERSION="3126";
+const ZX_DEV_VERSION="3127";
 const LOG_KEY="zentryx_dev_logs";
 const MAX_LOGS=180;
 const MAX_LOG_DAYS=14;
@@ -254,6 +255,8 @@ function versionApp(){
 
 function estadoSesion(){
   const s=sesion();
+  let ultimoCierre=null;
+  try{ultimoCierre=JSON.parse(localStorage.getItem("zentryx_session_diagnostic") || "null")}catch(e){}
   return {
     id:s.id || "",
     usuario:s.usuario || "",
@@ -263,7 +266,9 @@ function estadoSesion(){
     tecnico:!!s.tecnico,
     desarrollador:!!s.desarrollador,
     inicio:s.inicio || "",
-    actividad:s.actividad || ""
+    actividad:s.actividad || "",
+    segundo_plano_desde:s.background_since || null,
+    ultimo_cierre_automatico:ultimoCierre
   };
 }
 
@@ -731,9 +736,16 @@ window.ZX_dev_salir=function(){
     return;
   }
 
-  localStorage.removeItem("zentryx_session");
-  localStorage.removeItem("usuario");
-  location.href="index.html?v="+Date.now();
+  if(typeof window.ZENTRYX_logout==="function"){
+    window.ZENTRYX_logout();
+    return;
+  }
+
+  try{localStorage.setItem("zentryx_logout_guard",String(Date.now()))}catch(e){}
+  try{localStorage.removeItem("zentryx_session")}catch(e){}
+  try{localStorage.removeItem("usuario")}catch(e){}
+  try{sessionStorage.clear()}catch(e){}
+  location.replace("index.html?logout=1&v="+String(window.ZX_VERSION||"")+"&t="+Date.now());
 };
 
 window.ZX_dev_copiar_informe=function(){
