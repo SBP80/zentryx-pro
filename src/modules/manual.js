@@ -1,3 +1,4 @@
+// V1165 - Saneamiento: CTE DB HS 5 tabla 4.2 calcula las UD de descargas, vaciados, tratamiento de agua y otros equipos no incluidos en tabla 4.1 a partir del diámetro de desagüe 32/40/50/60/80/100 mm.
 // V1163 - Saneamiento: las entradas físicas muestran en un desplegable compacto los codos/cambios guardados con su ángulo y permiten reabrir cada punto intermedio para ajustar posición o grados sin borrar la conexión con el colector.
 // V1162 - Saneamiento: la vista física identifica el colector correcto de las entradas pendientes aunque el último tramo visible sea un registro u otro elemento posterior. En móvil, el esquema técnico separa las entradas convergentes de la cadena C1 → RG1 → salida para que ninguna línea atraviese otra tarjeta y parezca una conexión distinta.
 // V1161 - Saneamiento: el Esquema técnico de red representa los elementos encadenados en serie. Si un colector termina en un registro y ese registro continúa a la salida, se muestra C1 → RG1 → salida, sin crear una derivación visual falsa desde C1.
@@ -113,7 +114,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1162";
+const ZX_VERSION="1165";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1776,7 +1777,7 @@ const BASE=[
       "Saneamiento puede activarse como especialidad del mismo proyecto. Al configurarlo por primera vez, Zentryx propone los desagües correspondientes a los puntos de Fontanería que normalmente necesitan evacuación. Si un registro de Fontanería tiene cantidad superior a una unidad, Saneamiento lo desglosa en puntos individuales para poder asignar a cada aparato su propio nombre, estancia y ramal.",
       "La propuesta de Saneamiento no copia a ciegas todos los puntos de suministro: grifos sin desagüe asociado pueden quedar fuera, y puedes añadir manualmente sumideros, condensados de climatización, descargas de seguridad ACS, vaciados, tratamiento de agua u otros puntos.",
       "Cada punto de Saneamiento puede tener Nombre / referencia, tipo de aparato, cantidad, zona o estancia y ramal/colector. Al pulsar Actualizar desde Fontanería se reconstruyen los puntos automáticos conservando los nombres, zonas y ramales ya indicados cuando siguen correspondiendo al mismo punto de origen; los puntos manuales también se conservan.",
-      "En Saneamiento se elige uso privado o público para aplicar las UD y diámetros mínimos individuales de CTE DB HS 5 tabla 4.1. Los desagües continuos, como condensados, usan la regla de 1 UD por cada 0,03 L/s cuando se conoce el caudal. Los ramales largos, colectores, bajantes, pendientes y ventilación quedan pendientes de su cálculo detallado.",
+      "En Saneamiento se elige uso privado o público para aplicar las UD y diámetros mínimos individuales de CTE DB HS 5 tabla 4.1. Para descargas de seguridad ACS, vaciados, tratamiento de agua y otros aparatos o equipos no incluidos en la tabla 4.1, Zentryx aplica la tabla 4.2 a partir del diámetro del tubo de desagüe: Ø32 = 1 UD, Ø40 = 2 UD, Ø50 = 3 UD, Ø60 = 4 UD, Ø80 = 5 UD y Ø100 = 6 UD. Los desagües continuos, como condensados, usan la regla de 1 UD por cada 0,03 L/s cuando se conoce el caudal. Los cálculos que todavía no tengan una regla implementada quedan marcados como pendientes.",
       "El resumen separa el dimensionado individual de los puntos del estado de la red: un punto solo figura como completo cuando tiene sus UD y su diámetro individual determinados. Si, por ejemplo, un condensado tiene caudal y UD calculadas pero todavía no tiene diámetro, queda como punto individual pendiente aunque la red general se trate por separado.",
       "La forma general de la red se registra sin asumir que siempre existe una bajante. Puede indicarse: sifones individuales con ramales a bajante/colector, bote sifónico por local húmedo con ramal, red horizontal directa a colector/arqueta, varios ramales/colectores/bajantes por zonas, red mixta o una configuración personalizada/técnica. La ventilación se define y calcula aparte, porque puede existir con cualquiera de estas topologías.",
       "El resumen separa los puntos con datos pendientes del estado de la red para no mostrar cero pendientes mientras la red sigue sin dimensionar. El esquema técnico de aguas residuales se adapta al ancho del móvil, muestra por separado cada aparato, referencia, zona/ramal, UD y diámetro mínimo conocido, y cambia la geometría según la topología seleccionada.",
