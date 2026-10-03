@@ -1,3 +1,4 @@
+// V1154 - Saneamiento: la comprobación en obra queda separada de los datos de proyecto. Al marcar un elemento como Comprobado en obra, Zentryx permite registrar resultado y medidas reales sin sobrescribir longitud, diámetro, pendiente ni montaje previstos.
 // V1153 - Saneamiento: los tramos permiten registrar cotas de ejecución. En ramales y colectores, longitud y pendiente calculan el desnivel; al introducir una cota se obtiene la opuesta. Si la cota absoluta todavía no se conoce, puede marcarse Pendiente de replanteo sin invalidar el trazado físico.
 // V1152 - Saneamiento: una entrada física puede indicar que su origen está fuera o no está representado en la base vinculada. En ese caso no se asigna una posición ficticia al origen; se coloca únicamente el punto por el que la tubería entra en el plano cuando se conozca y desde ahí se registran sus codos/cambios y la conexión real con el colector.
 // V1151 - Saneamiento: el visor de geometría permite ampliar hasta 1200 %, incorpora un tirador de precisión separado de la cruz para que el dedo no tape el punto y permite registrar el ángulo de cada codo/cambio de dirección cuando se conoce.
@@ -103,7 +104,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1153";
+const ZX_VERSION="1154";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1780,6 +1781,7 @@ const BASE=[
       "Dentro de Saneamiento, Ver plano abre una vista propia con el Esquema técnico de red y la Vista de ejecución separada, fuera de los bloques plegables. El botón superior cambia a Resumen mientras esa vista o una sección interna está abierta. Al pulsarlo cierra las secciones y vuelve al inicio compacto de Saneamiento sin salir de la especialidad ni perder el borrador. Solo cuando ya estás en el resumen principal, Volver sale hacia la ficha del proyecto. La navegación se mantiene activa aunque se repinten los cálculos, resúmenes o el propio plano. En toda la aplicación, los paneles plegables muestran un indicador de estado más visible: azul y hacia abajo cuando están cerrados, verde y hacia arriba cuando están abiertos.",
       "En iPhone, al abrir Ver plano o cualquier bloque largo, la sección crece con todo su contenido y el formulario puede desplazarse verticalmente hasta el final. El plano no debe quedar cortado por la tarjeta siguiente ni limitar el desplazamiento del contenedor.",
       "La ficha mantiene además Recorrido de obra como lista técnica ordenada para conservar todos los elementos, incluidos los que todavía no tienen conexiones suficientes. El bloque diferencia lo previsto, lo comprobado en obra y lo pendiente, y no cambia por sí solo los cálculos CTE ya validados.",
+      "Cuando un elemento cambia a Comprobado en obra, aparece un bloque propio de comprobación. Los datos previstos del proyecto permanecen sin cambios y se pueden registrar por separado el resultado de la comprobación, la longitud medida, el diámetro observado, la pendiente medida, el montaje visto y observaciones. Si se indica que coincide pero se introducen valores distintos a los previstos, Zentryx avisa antes de guardar. Si hay diferencias, se conservan ambas referencias —proyecto y obra— para no sustituir una por la otra.",
       "Los elementos y sus estados se guardan dentro de detalle_red.elementos_red, en el mismo inmueble_meta.saneamiento del proyecto. No se crean tablas ni campos nuevos y cada guardado sigue añadiendo historial del proyecto.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
