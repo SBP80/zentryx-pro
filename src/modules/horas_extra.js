@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
+// V3088 - INTERFAZ PC/TABLET: CONTENIDO CENTRADO, CABECERA DIFERENCIADA Y REGISTROS EN DOS COLUMNAS EN ESCRITORIO. IPHONE NO CAMBIA.
 // V3087 - UN SOLO FLUJO PARA VER, COMPARTIR E IMPRIMIR PDF
 // ===============================
 (function(){
@@ -904,6 +905,9 @@ function asegurarEstiloVistaHoras(){
     .zx_hx_totales{margin-top:20px;font-size:16px;font-weight:bold}
     .zx_hx_firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px}
     .zx_hx_firma{border-top:1px solid #111827;padding-top:8px;text-align:center;font-size:14px}
+@media(max-width:899px){.zx_hx_shell,.zx_hx_list{display:contents}}
+    @media(min-width:900px){.zx_hx_shell{max-width:1500px;margin:0 auto;display:grid;gap:14px}.zx_hx_header{border-top:4px solid #2563eb}.zx_hx_list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.zx_hx_list>.zx_card{margin:0;min-width:0}}
+
     @media(max-width:700px){
       #zx_hx_preview_actions{grid-template-columns:1fr 1.45fr;padding:10px 8px;gap:6px}
       #zx_hx_preview_actions button{font-size:14px;padding:13px 4px}
@@ -987,7 +991,8 @@ window.ZX_enviarHorasExtra=function(){
 
 function renderHoras(datos){
   app().innerHTML=`
-    <div class="zx_card">
+    <div class="zx_hx_shell">
+    <div class="zx_card zx_hx_header">
       <h2>Horas extra</h2>
       <div class="zx_text">
         Validación, pago, cobro y documento PDF.
@@ -996,11 +1001,14 @@ function renderHoras(datos){
 
     ${datos.length ? resumen(datos) : ""}
 
+    <div class="zx_hx_list">
     ${
       datos.length
       ? datos.map(renderFila).join("")
       : `<div class="zx_card"><div class="zx_text">Sin registros</div></div>`
     }
+    </div>
+    </div>
   `;
 }
 
