@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - PROYECTOS V1166
+// ZENTRYX PRO - PROYECTOS V1167
+// V1167 - SANEAMIENTO: CTE DB HS 5 TABLA 4.4 PARA BAJANTES. CALCULA Ø MÍNIMO CON UD TOTALES, MÁXIMO DE UD POR RAMAL Y Nº DE PLANTAS SERVIDAS, SIN REDUCIR POR DEBAJO DE LOS TRAMOS AGUAS ARRIBA.
 // V1166 - INTERFAZ PC/TABLET: LISTADO PRINCIPAL MÁS LEGIBLE: CABECERA Y FILTROS CON MAYOR JERARQUÍA, TARJETAS DE PROYECTO EN DOS COLUMNAS EN PC Y ESTADOS MÁS CERCANOS AL CONTENIDO. NO CAMBIA SANEAMIENTO NI IPHONE.
 // V1165 - INTERFAZ PC/TABLET: JERARQUÍA VISUAL DE SANEAMIENTO: MAYOR CONTRASTE ENTRE CABECERA, NORMATIVA, INDICADORES Y BLOQUES; TEXTOS AUXILIARES MÁS LEGIBLES; ACORDEONES CERRADOS CON INDICADOR AZUL Y ABIERTOS EN VERDE. NO CAMBIA DATOS, CÁLCULOS NI IPHONE.
 // V1164 - INTERFAZ PC/TABLET: SANEAMIENTO MANTIENE EL MODAL AMPLIO PERO ORGANIZA SU CONTENIDO EN UN ÁREA DE LECTURA CONTROLADA; ACCIONES SUPERIORES MÁS CORTAS, RESUMEN MÁS LEGIBLE Y GRUPOS CERRADOS EN DOS COLUMNAS EN PC. AL ABRIR UN GRUPO RECUPERA TODO EL ANCHO ÚTIL. IPHONE NO CAMBIA.
@@ -141,7 +142,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1166";
+const ZX_VERSION="1167";
 const TABLA="proyectos";
 const CACHE_KEY="zentryx_cache_proyectos_v1";
 let CACHE=[];
@@ -2623,7 +2624,7 @@ function agregarPuntoFontaneria(x={}){
 
 let PROYECTO_FONTANERIA_ACTUAL=null;
 const NORMATIVA_ACS_SANITARIA=normativaActualProyecto("acs_sanitaria",{ruleset:"ES-RD487-ACS",verificado_el:"2026-09-10",norma:"RD 487/2022 modificado por RD 614/2024"});
-const NORMATIVA_SANEAMIENTO_ES=normativaActualProyecto("saneamiento",{ruleset:"ES-CTE-HS5-EVACUACION-AGUAS",verificado_el:"2026-09-12",cte:{nombre:"CTE · DB HS 5 Evacuación de aguas",ref:"HS 5 · tablas 4.1, 4.2, 4.3 y 4.5 · apartados 3.3.3.1 a 3.3.3.4, 4.1.1 y 4.1.3"}});
+const NORMATIVA_SANEAMIENTO_ES=normativaActualProyecto("saneamiento",{ruleset:"ES-CTE-HS5-EVACUACION-AGUAS",verificado_el:"2026-09-12",cte:{nombre:"CTE · DB HS 5 Evacuación de aguas",ref:"HS 5 · tablas 4.1, 4.2, 4.3, 4.4 y 4.5 · apartados 3.3.3.1 a 3.3.3.4 y 4.1.1 a 4.1.3"}});
 const TABLA_COLECTORES_HS5=[
   {diametro:50,p1:null,p2:20,p4:25},{diametro:63,p1:null,p2:24,p4:29},{diametro:75,p1:null,p2:38,p4:57},
   {diametro:90,p1:96,p2:130,p4:160},{diametro:110,p1:264,p2:321,p4:382},{diametro:125,p1:390,p2:480,p4:580},
@@ -2635,6 +2636,18 @@ const TABLA_RAMALES_COLECTORES_HS5=[
   {diametro:63,p1:null,p2:11,p4:14},{diametro:75,p1:null,p2:21,p4:28},{diametro:90,p1:47,p2:60,p4:75},
   {diametro:110,p1:123,p2:151,p4:181},{diametro:125,p1:180,p2:234,p4:280},{diametro:160,p1:438,p2:582,p4:800},
   {diametro:200,p1:870,p2:1150,p4:1680}
+];
+const TABLA_BAJANTES_HS5=[
+  {diametro:50,total_h3:10,total_m3:25,ramal_h3:6,ramal_m3:6},
+  {diametro:63,total_h3:19,total_m3:38,ramal_h3:11,ramal_m3:9},
+  {diametro:75,total_h3:27,total_m3:53,ramal_h3:21,ramal_m3:13},
+  {diametro:90,total_h3:135,total_m3:280,ramal_h3:70,ramal_m3:53},
+  {diametro:110,total_h3:360,total_m3:740,ramal_h3:181,ramal_m3:134},
+  {diametro:125,total_h3:540,total_m3:1100,ramal_h3:280,ramal_m3:200},
+  {diametro:160,total_h3:1208,total_m3:2240,ramal_h3:1120,ramal_m3:400},
+  {diametro:200,total_h3:2200,total_m3:3600,ramal_h3:1680,ramal_m3:600},
+  {diametro:250,total_h3:3800,total_m3:5600,ramal_h3:2500,ramal_m3:1000},
+  {diametro:315,total_h3:6000,total_m3:9240,ramal_h3:4320,ramal_m3:1650}
 ];
 const TIPOS_ELEMENTO_RED_SANEAMIENTO=[
   ["ramal","Ramal horizontal"],["colector","Colector horizontal"],["bajante","Bajante"],["arqueta","Arqueta"],["cambio_cota","Cambio de cota"],["registro","Registro / acceso"],["salida","Conexión / salida"],["otro","Otro elemento"]
@@ -2729,7 +2742,7 @@ function normalizarElementosRedSaneamiento(v=[]){
   return (Array.isArray(v)?v:[]).map((e,i)=>{
     const x=e&&typeof e==="object"&&!Array.isArray(e)?e:{},tipo=tipoElementoRedSaneamiento(x.tipo),desde=String(x.desde||""),desde_ref=String(x.desde_ref||"");
     const entradas=tipo==="colector"?normalizarEntradasColectorSaneamiento(x.entradas,desde,desde_ref):[];
-    const primera=entradas[0]||null,ci=numFontOpt(x.cota_inicio_m),cf=numFontOpt(x.cota_fin_m);
+    const primera=entradas[0]||null,ci=numFontOpt(x.cota_inicio_m),cf=numFontOpt(x.cota_fin_m),plantas=numFontOpt(x.plantas_servidas);
     return {
       elemento_id:String(x.elemento_id||("red_"+(Date.now()+i)+"_"+Math.random().toString(36).slice(2,7))),
       tipo,
@@ -2754,13 +2767,14 @@ function normalizarElementosRedSaneamiento(v=[]){
       cota_referencia:normalizarReferenciaCotaSaneamiento(x.cota_referencia),
       planta_inicio:String(x.planta_inicio||""),
       planta_fin:String(x.planta_fin||""),
+      plantas_servidas:plantas!=null?Math.max(1,Math.round(plantas)):null,
       observaciones:String(x.observaciones||"")
     };
   });
 }
 
 function detalleFaltaElementoSaneamiento(e,key,texto){const st=e&&e.estado_campos&&e.estado_campos[key];return st?`${texto} · ${textoEstadoCampoElementoSaneamiento(st)}`:texto}
-function detalleFaltaCamposElementoSaneamiento(e,keys,texto){const nombres={referencia:"referencia",ubicacion:"ubicación",desde:"origen",entradas:"entradas",hasta:"destino",montaje:"montaje",longitud_m:"longitud",diametro_mm:"diámetro",pendiente_pct:"pendiente"},xs=(keys||[]).map(k=>{const st=e&&e.estado_campos&&e.estado_campos[k];return st?`${nombres[k]||k}: ${textoEstadoCampoElementoSaneamiento(st)}`:""}).filter(Boolean);return xs.length?`${texto} (${xs.join("; ")})`:texto}
+function detalleFaltaCamposElementoSaneamiento(e,keys,texto){const nombres={referencia:"referencia",ubicacion:"ubicación",desde:"origen",entradas:"entradas",hasta:"destino",montaje:"montaje",longitud_m:"longitud",diametro_mm:"diámetro",pendiente_pct:"pendiente",plantas_servidas:"nº plantas"},xs=(keys||[]).map(k=>{const st=e&&e.estado_campos&&e.estado_campos[k];return st?`${nombres[k]||k}: ${textoEstadoCampoElementoSaneamiento(st)}`:""}).filter(Boolean);return xs.length?`${texto} (${xs.join("; ")})`:texto}
 function estadoElementoRedSaneamiento(e){
   e=e||{};const t=tipoElementoRedSaneamiento(e.tipo),faltan=[];
   if(["ramal","colector","bajante","otro"].includes(t)&&!String(e.referencia||"").trim()&&!String(e.ubicacion||"").trim())faltan.push(detalleFaltaCamposElementoSaneamiento(e,["referencia","ubicacion"],"referencia/ubicación"));
@@ -2775,6 +2789,7 @@ function estadoElementoRedSaneamiento(e){
     if(!String(e.hasta||"").trim())faltan.push(detalleFaltaCamposElementoSaneamiento(e,["hasta"],"destino"));
   }else if(t==="bajante"){
     if(!(e.diametro_mm>0))faltan.push(detalleFaltaElementoSaneamiento(e,"diametro_mm","diámetro"));
+    if(!(e.plantas_servidas>0))faltan.push(detalleFaltaElementoSaneamiento(e,"plantas_servidas","nº plantas servidas"));
     if(!String(e.desde||e.planta_inicio||"").trim()||!String(e.hasta||e.planta_fin||"").trim())faltan.push(detalleFaltaElementoSaneamiento(e,"desde","inicio/fin"));
   }else if(t==="arqueta"){
     if(!String(e.ubicacion||e.referencia||"").trim())faltan.push(detalleFaltaElementoSaneamiento(e,"ubicacion","ubicación"));
@@ -2799,7 +2814,7 @@ function resumenCompactoElementoRedSaneamiento(e){
     enlace=ent&&e.hasta?ent+" → "+e.hasta:ent?"Entradas: "+ent:e.hasta?"Hasta "+e.hasta:"";
   }else enlace=e.desde&&e.hasta?e.desde+" → "+e.hasta:e.desde?"Desde "+e.desde:e.hasta?"Hasta "+e.hasta:"";
   const conexion=enlace?[ubic||ident,enlace].filter(Boolean).join(" · "):(ubic||ident||textoEstadoObraElementoSaneamiento(e.estado_obra));
-  const specs=[e.longitud_m!=null?"L "+fmtFontaneria(e.longitud_m,1,1)+" m":"",e.diametro_mm!=null?"Ø"+fmtFontaneria(e.diametro_mm,0,0)+" mm":"",e.pendiente_pct!=null?"P "+fmtFontaneria(e.pendiente_pct,1,1)+" %":"",e.material&&e.material!=="sin_indicar"?textoMaterialSaneamiento(e.material):"",normalizarMontajeElementoSaneamiento(e.montaje)!=="sin_indicar"?textoMontajeElementoSaneamiento(e.montaje):"",tipoConCotasEjecucionSaneamiento(e.tipo)&&estadoCotasElementoSaneamiento(e).estado!=="sin_indicar"?textoResumenCotasElementoSaneamiento(e):""].filter(Boolean).join(" · ");
+  const specs=[e.longitud_m!=null?"L "+fmtFontaneria(e.longitud_m,1,1)+" m":"",e.diametro_mm!=null?"Ø"+fmtFontaneria(e.diametro_mm,0,0)+" mm":"",e.pendiente_pct!=null?"P "+fmtFontaneria(e.pendiente_pct,1,1)+" %":"",t==="bajante"&&e.plantas_servidas!=null?fmtFontaneria(e.plantas_servidas,0,0)+" planta(s)":"",e.material&&e.material!=="sin_indicar"?textoMaterialSaneamiento(e.material):"",normalizarMontajeElementoSaneamiento(e.montaje)!=="sin_indicar"?textoMontajeElementoSaneamiento(e.montaje):"",tipoConCotasEjecucionSaneamiento(e.tipo)&&estadoCotasElementoSaneamiento(e).estado!=="sin_indicar"?textoResumenCotasElementoSaneamiento(e):""].filter(Boolean).join(" · ");
   return {titulo,conexion,specs,estado:st.completo?"Completo":st.faltan.length+" pend.",completo:st.completo};
 }
 
@@ -2857,6 +2872,7 @@ function filaElementoRedSaneamientoHTML(x={}){
         <label data-pr-drain-net-diameter-wrap><span data-pr-drain-net-diameter-label>Ø adoptado</span> <span class="zx_pr_unit">mm</span><input data-pr-drain-net-diameter type="number" min="0" step="1" inputmode="decimal" value="${e.diametro_mm!=null?limpiar(e.diametro_mm):""}"></label>
         <label data-pr-drain-net-slope-wrap><span data-pr-drain-net-slope-label>Pendiente real</span> <span class="zx_pr_unit">%</span><input data-pr-drain-net-slope type="number" min="0" step="0.1" inputmode="decimal" value="${e.pendiente_pct!=null?limpiar(e.pendiente_pct):""}"></label>
         <label data-pr-drain-net-material-wrap>Material<select data-pr-drain-net-material>${opcionesMaterialSaneamiento(e.material)}</select></label>
+        <label data-pr-drain-net-stack-floors-wrap>Nº de plantas servidas <span class="zx_pr_unit">plantas</span><input data-pr-drain-net-stack-floors type="number" min="1" step="1" inputmode="numeric" value="${e.plantas_servidas!=null?limpiar(e.plantas_servidas):""}" placeholder="Ej. 2"></label>
         <label data-pr-drain-net-floor-start-wrap>Planta / nivel inicial · opcional<input data-pr-drain-net-floor-start value="${limpiar(e.planta_inicio)}" placeholder="P1, cubierta…"></label>
         <label data-pr-drain-net-floor-end-wrap>Planta / nivel final · opcional<input data-pr-drain-net-floor-end value="${limpiar(e.planta_fin)}" placeholder="PB, sótano…"></label>
       </div>
@@ -2899,7 +2915,7 @@ function filaElementoRedSaneamientoHTML(x={}){
 
 function leerEstadoCamposFilaSaneamiento(row){try{return normalizarEstadoCamposElementoSaneamiento(JSON.parse(row.querySelector("[data-pr-drain-net-field-status]")?.value||"{}"))}catch(e){return {}}}
 function escribirEstadoCamposFilaSaneamiento(row,o){const h=row&&row.querySelector("[data-pr-drain-net-field-status]");if(h)h.value=JSON.stringify(normalizarEstadoCamposElementoSaneamiento(o))}
-function claveCampoElementoDesdeControl(el){if(!el)return "";const a=[["prDrainNetRef","referencia"],["prDrainNetPlace","ubicacion"],["prDrainNetMount","montaje"],["prDrainNetFrom","desde"],["prDrainNetTo","hasta"],["prDrainNetLength","longitud_m"],["prDrainNetDiameter","diametro_mm"],["prDrainNetSlope","pendiente_pct"],["prDrainNetMaterial","material"],["prDrainNetFloorStart","planta_inicio"],["prDrainNetFloorEnd","planta_fin"],["prDrainNetCotaStart","cota_inicio_m"],["prDrainNetCotaEnd","cota_fin_m"],["prDrainNetNotes","observaciones"]];for(const [d,k] of a)if(d in el.dataset)return k;return ""}
+function claveCampoElementoDesdeControl(el){if(!el)return "";const a=[["prDrainNetRef","referencia"],["prDrainNetPlace","ubicacion"],["prDrainNetMount","montaje"],["prDrainNetFrom","desde"],["prDrainNetTo","hasta"],["prDrainNetLength","longitud_m"],["prDrainNetDiameter","diametro_mm"],["prDrainNetSlope","pendiente_pct"],["prDrainNetMaterial","material"],["prDrainNetStackFloors","plantas_servidas"],["prDrainNetFloorStart","planta_inicio"],["prDrainNetFloorEnd","planta_fin"],["prDrainNetCotaStart","cota_inicio_m"],["prDrainNetCotaEnd","cota_fin_m"],["prDrainNetNotes","observaciones"]];for(const [d,k] of a)if(d in el.dataset)return k;return ""}
 function leerEntradasColectorFilaSaneamiento(row){
   if(!row)return [];
   try{
@@ -2943,6 +2959,7 @@ function leerElementoRedSaneamiento(row){
     diametro_mm:numFontOpt(row.querySelector("[data-pr-drain-net-diameter]")?.value),
     pendiente_pct:numFontOpt(row.querySelector("[data-pr-drain-net-slope]")?.value),
     material:row.querySelector("[data-pr-drain-net-material]")?.value,
+    plantas_servidas:numFontOpt(row.querySelector("[data-pr-drain-net-stack-floors]")?.value),
     cota_inicio_m:numFontOpt(row.querySelector("[data-pr-drain-net-cota-start]")?.value),
     cota_fin_m:numFontOpt(row.querySelector("[data-pr-drain-net-cota-end]")?.value),
     cota_estado:row.querySelector("[data-pr-drain-net-cota-state]")?.value,
@@ -3053,10 +3070,21 @@ function pintarComprobacionObraFilaSaneamiento(row){
   if(st){const reales=[];if(c.longitud_m!=null)reales.push(["Longitud",e.longitud_m,c.longitud_m]);if(c.diametro_mm!=null)reales.push(["Ø",e.diametro_mm,c.diametro_mm]);if(c.pendiente_pct!=null)reales.push(["Pendiente",e.pendiente_pct,c.pendiente_pct]);if(c.montaje!=="sin_indicar")reales.push(["Montaje",normalizarMontajeElementoSaneamiento(e.montaje),c.montaje]);const dif=reales.filter(x=>String(x[1]??"")!==String(x[2]??""));st.className="zx_pr_route_workcheck_state"+(c.resultado==="coincide"?" is-ok":c.resultado==="diferencias"?" is-warn":"");if(c.resultado==="sin_indicar")st.textContent="Indica el resultado cuando la comprobación física se haya realizado.";else if(c.resultado==="coincide")st.textContent=dif.length?"Resultado marcado como coincide, pero hay valores comprobados distintos al proyecto. Revísalos antes de guardar.":"Comprobación registrada como coincidente con el proyecto.";else st.textContent=dif.length?`Diferencias registradas: ${dif.map(x=>x[0]).join(", ")}. Los datos de proyecto no se modifican.`:"Hay diferencias indicado; añade las medidas u observaciones disponibles sin alterar el proyecto.";}
 }
 function pintarDimensionadoRamalColectorFilaSaneamiento(row){
-  if(!row)return;const box=row.querySelector("[data-pr-drain-net-hs5]"),e=leerElementoRedSaneamiento(row);if(!box)return;
-  if(tipoElementoRedSaneamiento(e.tipo)!=="ramal"){box.hidden=true;box.className="zx_pr_norm_box";box.innerHTML="";return}
+  if(!row)return;const box=row.querySelector("[data-pr-drain-net-hs5]"),e=leerElementoRedSaneamiento(row);if(!box)return;const tipo=tipoElementoRedSaneamiento(e.tipo);box.className="zx_pr_norm_box";
+  if(tipo==="bajante"){
+    box.hidden=false;const uso=document.getElementById("pr_drain_use")?.value||"privado",r=resultadoBajanteHS5(e,leerSaneamientoFormulario(),leerElementosRedSaneamientoFormulario(),uso);
+    if(!r||r.estado==="origen_pendiente"){box.innerHTML="<b>CTE DB HS 5 · tabla 4.4</b><span>Vincula al menos un tramo que descargue en la bajante para obtener la carga.</span>";return}
+    if(r.estado==="carga_pendiente"){box.innerHTML="<b>CTE DB HS 5 · tabla 4.4</b><span>Hay conexiones hacia la bajante, pero faltan datos para obtener todas sus UD.</span>";return}
+    if(r.estado==="plantas_pendientes"){box.innerHTML=`<b>CTE DB HS 5 · tabla 4.4</b><span>Carga total ${limpiar(fmtFontaneria(r.ud_total,0,1))} UD · máximo ramal ${limpiar(fmtFontaneria(r.ud_ramal_max,0,1))} UD. Indica cuántas plantas sirve esta bajante.</span>`;return}
+    if(r.estado==="fuera_tabla"){box.classList.add("is-bad");box.innerHTML=`<b>Revisar dimensionado</b><span>Carga total ${r.ud_total!=null?limpiar(fmtFontaneria(r.ud_total,0,1))+" UD":"pendiente"}${r.ud_ramal_max!=null?" · máximo ramal "+limpiar(fmtFontaneria(r.ud_ramal_max,0,1))+" UD":""}${r.plantas_servidas?" · "+limpiar(r.plantas_servidas)+" planta(s)":""}. El caso queda fuera del alcance tabulado de la tabla 4.4 o exige un diámetro superior a Ø315 mm.</span>`;return}
+    const cat=r.plantas_servidas>3?"más de 3 plantas":"hasta 3 plantas",aguas=r.diametro_aguas_arriba_mm!=null&&Number(r.diametro_min_mm)>Number(r.diametro_tabla_mm)?` · aguas arriba Ø${limpiar(fmtFontaneria(r.diametro_aguas_arriba_mm,0,0))} mm`:"",base=`Carga total ${limpiar(fmtFontaneria(r.ud_total,0,1))} UD · máximo ramal ${limpiar(fmtFontaneria(r.ud_ramal_max,0,1))} UD · ${cat} · tabla 4.4 Ø${limpiar(fmtFontaneria(r.diametro_tabla_mm,0,0))} mm${aguas} · mínimo Ø${limpiar(fmtFontaneria(r.diametro_min_mm,0,0))} mm`;
+    if(r.diametro_adoptado_mm==null){box.innerHTML=`<b>CTE DB HS 5 · tabla 4.4</b><span>${base}. Introduce el Ø adoptado para comprobarlo.</span>`;return}
+    if(r.cumple){box.classList.add("is-ok");box.innerHTML=`<b>Dimensionado base correcto</b><span>${base} · adoptado Ø${limpiar(fmtFontaneria(r.diametro_adoptado_mm,0,0))} mm. Las desviaciones de la bajante se comprueban aparte.</span>`}
+    else{box.classList.add("is-bad");box.innerHTML=`<b>Ø adoptado insuficiente</b><span>${base} · adoptado Ø${limpiar(fmtFontaneria(r.diametro_adoptado_mm,0,0))} mm.</span>`}
+    return
+  }
+  if(tipo!=="ramal"){box.hidden=true;box.innerHTML="";return}
   box.hidden=false;const uso=document.getElementById("pr_drain_use")?.value||"privado",r=resultadoRamalColectorHS5(e,leerSaneamientoFormulario(),leerElementosRedSaneamientoFormulario(),uso);
-  box.className="zx_pr_norm_box";
   if(!r||r.estado==="origen_pendiente"){box.innerHTML="<b>CTE DB HS 5 · tabla 4.3</b><span>Vincula el origen del ramal para calcular la carga en UD.</span>";return}
   if(r.estado==="carga_pendiente"){box.innerHTML="<b>CTE DB HS 5 · tabla 4.3</b><span>El origen está vinculado, pero faltan datos para obtener todas las UD que llegan a este ramal.</span>";return}
   if(r.estado==="pendiente_no_tabulada"){box.innerHTML=`<b>CTE DB HS 5 · tabla 4.3</b><span>Carga ${limpiar(fmtFontaneria(r.ud,0,1))} UD · pendiente ${r.pendiente_pct!=null?limpiar(fmtFontaneria(r.pendiente_pct,1,1))+" %":"pendiente"}. La tabla 4.3 solo da valores para 1 %, 2 % y 4 %; no se interpola.</span>`;return}
@@ -3076,6 +3104,7 @@ function actualizarVisibilidadElementoRedSaneamiento(row){
   show("[data-pr-drain-net-diameter-wrap]",["ramal","colector","bajante","registro","salida","otro"].includes(t));
   show("[data-pr-drain-net-slope-wrap]",["ramal","colector"].includes(t));
   show("[data-pr-drain-net-material-wrap]",["ramal","colector","bajante","otro"].includes(t));
+  show("[data-pr-drain-net-stack-floors-wrap]",t==="bajante");
   show("[data-pr-drain-net-floor-start-wrap]",["bajante","cambio_cota"].includes(t));
   show("[data-pr-drain-net-floor-end-wrap]",["bajante","cambio_cota"].includes(t));
   show("[data-pr-drain-net-cotas-wrap]",tipoConCotasEjecucionSaneamiento(t));
@@ -3127,6 +3156,7 @@ function pasosAsistenteElementoSaneamiento(tipo){
   if(["ramal","colector","bajante","registro","salida","otro"].includes(tipo))x.push({k:"diametro_mm",q:"¿Qué diámetro está adoptado o instalado?",kind:"number",unit:"mm",step:"1",help:"Consulta la marca de la tubería o el plano de ejecución. Si solo puedes medir el exterior y no conoces la designación real, anótalo en observaciones en vez de asumir un diámetro.",optional:!["ramal","colector","bajante"].includes(tipo)});
   if(["ramal","colector"].includes(tipo))x.push({k:"pendiente_pct",q:"¿Qué pendiente real tiene?",kind:"number",unit:"%",step:"0.1",help:"Puede obtenerse con nivel, láser o inclinómetro. También puede calcularse con la diferencia de cota dividida por la longitud horizontal, siempre que ambas medidas sean fiables."});
   if(["ramal","colector","bajante","otro"].includes(tipo))x.push({k:"material",q:"¿De qué material es?",kind:"material",help:"Revisa marcado, ficha de producto, memoria o inspección visual. Si hay duda entre materiales, marca que no se conoce y compruébalo después."});
+  if(tipo==="bajante")x.push({k:"plantas_servidas",q:"¿Cuántas plantas sirve esta bajante?",kind:"number",unit:"plantas",step:"1",help:"Indica el número de plantas que descargan en esta bajante. La tabla 4.4 distingue hasta 3 plantas y más de 3 plantas; no se deduce automáticamente de los nombres P1, PB o similares."});
   if(["bajante","cambio_cota"].includes(tipo))x.push(
     {k:"planta_inicio",q:"¿En qué planta o nivel comienza?",kind:"text",ph:"P2, P1, cubierta…",help:"Usa la denominación del proyecto o del edificio para que coincida con el resto de documentación.",optional:true},
     {k:"planta_fin",q:"¿En qué planta o nivel termina?",kind:"text",ph:"PB, sótano…",help:"Usa la misma referencia de niveles que en el resto del proyecto.",optional:true}
@@ -3206,6 +3236,7 @@ function pasosPendientesAsistenteElementoSaneamiento(e){
     if(!String(e.hasta||"").trim()&&!st.hasta)faltan.add("hasta");
   }else if(t==="bajante"){
     if(!(e.diametro_mm>0)&&!st.diametro_mm)faltan.add("diametro_mm");
+    if(!(e.plantas_servidas>0)&&!st.plantas_servidas)faltan.add("plantas_servidas");
     if(!String(e.desde||e.planta_inicio||"").trim()&&!st.desde)faltan.add("desde");
     if(!String(e.hasta||e.planta_fin||"").trim()&&!st.hasta)faltan.add("hasta");
   }else if(["arqueta","registro"].includes(t)){
@@ -3776,6 +3807,12 @@ function actualizarVisibilidadComprobacionVentilacion(){const tipo=document.getE
 function leerComprobacionVentilacionFormulario(){return {plantas_edificio:numModal("pr_drain_vent_floors"),referencia_columna:document.getElementById("pr_drain_vent_ref")?.value.trim()||"",diametro_ventilacion_mm:numModal("pr_drain_vent_d"),conexion_verificada:document.getElementById("pr_drain_vent_connection_verified")?.value||"sin_comprobar",bajante_sobredimensionada:document.getElementById("pr_drain_vent_stack_oversized")?.value||"sin_comprobar",primaria_exterior:document.getElementById("pr_drain_vent_primary_outside")?.value||"sin_comprobar",cubierta:document.getElementById("pr_drain_vent_roof")?.value||"sin_comprobar",altura_salida_m:numModal("pr_drain_vent_roof_height"),toma_aire_menos_6m:document.getElementById("pr_drain_vent_air_intake")?.value||"sin_comprobar",huecos_habitables_menos_6m:document.getElementById("pr_drain_vent_opening")?.value||"sin_comprobar",altura_sobre_huecos_m:numModal("pr_drain_vent_opening_height"),bajo_marquesina_terraza:document.getElementById("pr_drain_vent_canopy")?.value||"sin_comprobar",protegida_cuerpos_extranos:document.getElementById("pr_drain_vent_protected")?.value||"sin_comprobar",secundaria_conexiones:document.getElementById("pr_drain_vent_secondary_connections")?.value||"sin_comprobar",secundaria_superior:document.getElementById("pr_drain_vent_secondary_top")?.value||"sin_comprobar",secundaria_inferior:document.getElementById("pr_drain_vent_secondary_bottom")?.value||"sin_comprobar",secundaria_desviaciones:document.getElementById("pr_drain_vent_secondary_deviations")?.value||"sin_comprobar",terciaria_base_ps:document.getElementById("pr_drain_vent_tertiary_base")?.value||"sin_comprobar",terciaria_distancia_2_20d:document.getElementById("pr_drain_vent_tertiary_distance")?.value||"sin_comprobar",terciaria_toma_correcta:document.getElementById("pr_drain_vent_tertiary_takeoff")?.value||"sin_comprobar",terciaria_pendiente_1:document.getElementById("pr_drain_vent_tertiary_slope")?.value||"sin_comprobar",terciaria_altura_rebosadero:document.getElementById("pr_drain_vent_tertiary_overflow")?.value||"sin_comprobar",valvulas_instaladas:numModal("pr_drain_vent_valves_count"),valvulas_ubicacion:document.getElementById("pr_drain_vent_valves_location")?.value||"sin_comprobar",valvulas_posicion:document.getElementById("pr_drain_vent_valves_position")?.value||"sin_comprobar",revision_tecnica_documentada:document.getElementById("pr_drain_vent_technical_review")?.value||"sin_comprobar"}}
 function diametroColectorHS5(ud,pendiente){const u=Number(ud),pnd=Number(pendiente);if(!(u>0)||![1,2,4].includes(pnd))return null;const key="p"+pnd,fila=TABLA_COLECTORES_HS5.find(r=>r[key]!=null&&u<=r[key]);return fila?fila.diametro:null}
 function diametroRamalColectorHS5(ud,pendiente){const u=Number(ud),pnd=Number(pendiente);if(!(u>0)||![1,2,4].includes(pnd))return null;const key="p"+pnd,fila=TABLA_RAMALES_COLECTORES_HS5.find(r=>r[key]!=null&&u<=r[key]);return fila?fila.diametro:null}
+function diametroBajanteHS5(udTotal,udRamalMax,plantas){
+  const total=Number(udTotal),ramal=Number(udRamalMax),n=Math.round(Number(plantas));if(!(total>0)||!(ramal>0)||!(n>0))return null;
+  const mas3=n>3,keyTotal=mas3?"total_m3":"total_h3",keyRamal=mas3?"ramal_m3":"ramal_h3",fila=TABLA_BAJANTES_HS5.find(r=>total<=Number(r[keyTotal])&&ramal<=Number(r[keyRamal]));
+  return fila?Number(fila.diametro):null
+}
+function diametroTabuladoBajanteNoInferiorHS5(diametro){const d=Number(diametro);if(!(d>0))return null;const fila=TABLA_BAJANTES_HS5.find(r=>Number(r.diametro)>=d);return fila?Number(fila.diametro):null}
 
 function esViviendaExclusivaProyecto(p){const t=normalizar(p&&p.inmueble_meta&&p.inmueble_meta.tipo_inmueble||"");return /vivienda|piso|chalet|apartamento|unifamiliar|adosado/.test(t)}
 function leerACSConfigFontaneriaFormulario(){return normalizarACSConfigFontaneria({sistema:document.getElementById("pr_water_acs_system")?.value||"sin_indicar",ambito_sanitario:document.getElementById("pr_water_acs_scope")?.value||"auto",volumen_acumulacion_l:numFontOpt(document.getElementById("pr_water_acs_volume")?.value),temperatura_produccion_c:numFontOpt(document.getElementById("pr_water_acs_prod_temp")?.value),temperatura_distribucion_c:numFontOpt(document.getElementById("pr_water_acs_dist_temp")?.value),temperatura_retorno_objetivo_c:numFontOpt(document.getElementById("pr_water_acs_return_temp")?.value)})}
@@ -3848,8 +3885,10 @@ function cargaReferenciaSaneamientoHS5(ref,puntos,elementos,uso,visitados){
     return ud>0?{ud,diametro_aguas_arriba_mm:diam}:null
   }
   if(r.startsWith("elemento:")){
-    const id=r.slice(9),e=els.find(x=>String(x&&x.elemento_id||"")===id);if(!e)return null;
-    const refs=tipoElementoRedSaneamiento(e.tipo)==="colector"?entradasVinculadasColectorSaneamiento(e).map(x=>String(x.ref||"")).filter(Boolean):[String(e.desde_ref||"")].filter(Boolean);
+    const id=r.slice(9),e=els.find(x=>String(x&&x.elemento_id||"")===id);if(!e)return null;const t=tipoElementoRedSaneamiento(e.tipo);let refs=[];
+    if(t==="colector")refs=entradasVinculadasColectorSaneamiento(e).map(x=>String(x.ref||"")).filter(Boolean);
+    else if(t==="bajante"){const self="elemento:"+String(e.elemento_id||""),directos=els.filter(x=>String(x&&x.elemento_id||"")!==String(e.elemento_id||"")&&String(x&&x.hasta_ref||"").trim()===self).map(x=>"elemento:"+String(x.elemento_id||"")),propio=String(e.desde_ref||"").trim();refs=[...new Set(directos.concat(propio?[propio]:[]))]}
+    else refs=[String(e.desde_ref||"")].filter(Boolean);
     if(!refs.length)return null;let ud=0,diam=null;
     for(const rr of refs){const c=cargaReferenciaSaneamientoHS5(rr,pts,els,uso,next);if(!c)return null;ud+=Number(c.ud||0);if(c.diametro_aguas_arriba_mm!=null)diam=diam==null?Number(c.diametro_aguas_arriba_mm):Math.max(diam,Number(c.diametro_aguas_arriba_mm))}
     if(e.diametro_mm!=null&&Number(e.diametro_mm)>0)diam=diam==null?Number(e.diametro_mm):Math.max(diam,Number(e.diametro_mm));
@@ -3872,6 +3911,23 @@ function resumenRamalesColectoresHS5(elementos,puntos,uso){
   let pendientes=0,incorrectos=0,correctos=0;
   resultados.forEach(x=>{const r=x.resultado;if(!r||r.estado!=="calculado"||r.diametro_adoptado_mm==null)pendientes++;else if(r.cumple===false)incorrectos++;else correctos++});
   return {total:xs.length,correctos,pendientes,incorrectos,completo:xs.length===0||(pendientes===0&&incorrectos===0),resultados}
+}
+function cargasDirectasBajanteHS5(e,puntos,elementos,uso){
+  e=e&&typeof e==="object"&&!Array.isArray(e)?e:{};const els=normalizarElementosRedSaneamiento(elementos),self="elemento:"+String(e.elemento_id||""),directos=els.filter(x=>String(x&&x.elemento_id||"")!==String(e.elemento_id||"")&&String(x&&x.hasta_ref||"").trim()===self).map(x=>"elemento:"+String(x.elemento_id||"")),propio=String(e.desde_ref||"").trim(),refs=[...new Set(directos.concat(propio?[propio]:[]))];if(!refs.length)return {estado:"origen_pendiente",entradas:0};
+  let total=0,maxRamal=0,diamAguas=null;for(const ref of refs){const c=cargaReferenciaSaneamientoHS5(ref,puntos,els,uso,new Set());if(!c||!(Number(c.ud)>0))return {estado:"carga_pendiente",entradas:refs.length};total+=Number(c.ud);maxRamal=Math.max(maxRamal,Number(c.ud));if(c.diametro_aguas_arriba_mm!=null&&Number(c.diametro_aguas_arriba_mm)>0)diamAguas=diamAguas==null?Number(c.diametro_aguas_arriba_mm):Math.max(diamAguas,Number(c.diametro_aguas_arriba_mm))}
+  return {estado:"calculado",ud_total:total,ud_ramal_max:maxRamal,diametro_aguas_arriba_mm:diamAguas,entradas:refs.length}
+}
+function resultadoBajanteHS5(e,puntos,elementos,uso){
+  e=e&&typeof e==="object"&&!Array.isArray(e)?e:{};if(tipoElementoRedSaneamiento(e.tipo)!=="bajante")return null;const plantas=e.plantas_servidas==null?null:Math.max(1,Math.round(Number(e.plantas_servidas))),adopt=numFontOpt(e.diametro_mm),carga=cargasDirectasBajanteHS5(e,puntos,elementos,uso);
+  if(!carga||carga.estado!=="calculado")return Object.assign({plantas_servidas:plantas,diametro_adoptado_mm:adopt},carga||{estado:"origen_pendiente"});
+  if(!(plantas>0))return Object.assign({},carga,{estado:"plantas_pendientes",plantas_servidas:null,diametro_adoptado_mm:adopt});
+  const tabla=diametroBajanteHS5(carga.ud_total,carga.ud_ramal_max,plantas);if(tabla==null)return Object.assign({},carga,{estado:"fuera_tabla",plantas_servidas:plantas,diametro_adoptado_mm:adopt});
+  const base=Math.max(Number(tabla),Number(carga.diametro_aguas_arriba_mm||0)),minimo=diametroTabuladoBajanteNoInferiorHS5(base);if(minimo==null)return Object.assign({},carga,{estado:"fuera_tabla",plantas_servidas:plantas,diametro_tabla_mm:Number(tabla),diametro_adoptado_mm:adopt});
+  const cumple=adopt!=null?Number(adopt)>=Number(minimo):null;return Object.assign({},carga,{estado:"calculado",plantas_servidas:plantas,categoria_plantas:plantas>3?"mas_3":"hasta_3",diametro_tabla_mm:Number(tabla),diametro_min_mm:Number(minimo),diametro_adoptado_mm:adopt,cumple})
+}
+function resumenBajantesHS5(elementos,puntos,uso){
+  const xs=normalizarElementosRedSaneamiento(elementos).filter(e=>tipoElementoRedSaneamiento(e.tipo)==="bajante"),resultados=xs.map(e=>({elemento_id:e.elemento_id,referencia:e.referencia||"",resultado:resultadoBajanteHS5(e,puntos,elementos,uso)}));let pendientes=0,incorrectos=0,correctos=0;
+  resultados.forEach(x=>{const r=x.resultado;if(!r||r.estado!=="calculado"||r.diametro_adoptado_mm==null)pendientes++;else if(r.cumple===false)incorrectos++;else correctos++});return {total:xs.length,correctos,pendientes,incorrectos,completo:xs.length===0||(pendientes===0&&incorrectos===0),resultados}
 }
 function opcionesSaneamiento(sel){return `<option value="">Selecciona punto</option>`+PUNTOS_SANEAMIENTO_CTE.map(x=>`<option value="${x.id}" ${String(sel||"")===x.id?"selected":""}>${limpiar(x.nombre)}</option>`).join("")}
 function tipoSaneamientoDesdeFont(t){return ({lavamanos:"lavabo",lavabo:"lavabo",ducha:"ducha",banera_grande:"banera",banera_pequena:"banera",bide:"bide",inodoro_cisterna:"inodoro_cisterna",inodoro_fluxor:"inodoro_fluxor",urinario_temporizado:"urinario_suspendido",urinario_cisterna:"urinario_suspendido",fregadero_domestico:"fregadero_cocina",fregadero_no_domestico:"fregadero_otro",lavadero:"lavadero",lavavajillas_domestico:"lavavajillas",lavavajillas_industrial:"lavavajillas",lavadora_domestica:"lavadora",lavadora_industrial:"lavadora",vertedero:"vertedero"})[String(t||"")]||""}
@@ -3963,7 +4019,7 @@ function resumenSaneamiento(puntos,uso,tipoRed="sin_indicar"){
   const tr=normalizarTipoRedSaneamiento(tipoRed);
   return {puntos:uds,ud:redondearCalc(ud,1),completos,pendientes_datos:pendDatos,pendientes_dimensionado:pendDimensionado,pendientes_tecnicos:pendTecnicos,pendientes:pendTecnicos,ramales_con_longitud:ramalesConLongitud,ramales_largos:ramalesLargos,red_estado:tr==="sin_indicar"?"Forma por definir":textoTipoRedSaneamiento(tr),red_pendiente:true}
 }
-function resultadoDetalleRedSaneamiento(puntos,uso,tipoRed,detalle){const res=resumenSaneamiento(puntos,uso,tipoRed),d=normalizarDetalleRedSaneamiento(detalle),tipo=normalizarTipoRedSaneamiento(tipoRed),diamMin=diametroColectorHS5(res.ud,d.pendiente_colector_pct),adopt=d.diametro_adoptado_mm!=null?d.diametro_adoptado_mm:diamMin,cumple=diamMin!=null&&adopt!=null?Number(adopt)>=Number(diamMin):null,longitudOk=d.longitud_colector_m!=null&&d.longitud_colector_m>0,pendienteOk=[1,2,4].includes(Number(d.pendiente_colector_pct)),destinoOk=d.destino!=="sin_indicar",ventOk=d.ventilacion.tipo!=="sin_indicar",ramalesOk=(puntos||[]).every(x=>x.longitud_ramal_m!=null&&Number(x.longitud_ramal_m)>0&&[1,2,4].includes(Number(x.pendiente_ramal_pct))),ramalesLargos=(puntos||[]).filter(x=>x.longitud_ramal_m!=null&&Number(x.longitud_ramal_m)>1.5).length,ramalesColectores=resumenRamalesColectoresHS5(d.elementos_red,puntos,uso),colectorCalculado=tipo==="horizontal_directa"&&diamMin!=null&&pendienteOk,colectorCompleto=colectorCalculado&&longitudOk&&destinoOk&&cumple!==false,faseDetalle=colectorCompleto&&ramalesOk&&ramalesLargos===0&&ramalesColectores.completo&&ventOk,ventComp=comprobacionVentilacionSaneamiento(puntos,d.ventilacion),faseNormativa=faseDetalle&&ventComp.estado==="base_ok";return {res,detalle:d,diametro_min_mm:diamMin,diametro_adoptado_mm:adopt,cumple_diametro:cumple,colector_calculado:colectorCalculado,colector_completo:colectorCompleto,longitud_ok:longitudOk,pendiente_ok:pendienteOk,destino_ok:destinoOk,ventilacion_ok:ventOk,ramales_ok:ramalesOk,ramales_largos:ramalesLargos,ramales_colectores_hs5:ramalesColectores,fase_detalle_completa:faseDetalle,comprobacion_ventilacion:ventComp,fase_normativa_base_completa:faseNormativa,red_completa:false}}
+function resultadoDetalleRedSaneamiento(puntos,uso,tipoRed,detalle){const res=resumenSaneamiento(puntos,uso,tipoRed),d=normalizarDetalleRedSaneamiento(detalle),tipo=normalizarTipoRedSaneamiento(tipoRed),diamMin=diametroColectorHS5(res.ud,d.pendiente_colector_pct),adopt=d.diametro_adoptado_mm!=null?d.diametro_adoptado_mm:diamMin,cumple=diamMin!=null&&adopt!=null?Number(adopt)>=Number(diamMin):null,longitudOk=d.longitud_colector_m!=null&&d.longitud_colector_m>0,pendienteOk=[1,2,4].includes(Number(d.pendiente_colector_pct)),destinoOk=d.destino!=="sin_indicar",ventOk=d.ventilacion.tipo!=="sin_indicar",ramalesOk=(puntos||[]).every(x=>x.longitud_ramal_m!=null&&Number(x.longitud_ramal_m)>0&&[1,2,4].includes(Number(x.pendiente_ramal_pct))),ramalesLargos=(puntos||[]).filter(x=>x.longitud_ramal_m!=null&&Number(x.longitud_ramal_m)>1.5).length,ramalesColectores=resumenRamalesColectoresHS5(d.elementos_red,puntos,uso),bajantes=resumenBajantesHS5(d.elementos_red,puntos,uso),colectorCalculado=tipo==="horizontal_directa"&&diamMin!=null&&pendienteOk,colectorCompleto=colectorCalculado&&longitudOk&&destinoOk&&cumple!==false,faseDetalle=colectorCompleto&&ramalesOk&&ramalesLargos===0&&ramalesColectores.completo&&bajantes.completo&&ventOk,ventComp=comprobacionVentilacionSaneamiento(puntos,d.ventilacion),faseNormativa=faseDetalle&&ventComp.estado==="base_ok";return {res,detalle:d,diametro_min_mm:diamMin,diametro_adoptado_mm:adopt,cumple_diametro:cumple,colector_calculado:colectorCalculado,colector_completo:colectorCompleto,longitud_ok:longitudOk,pendiente_ok:pendienteOk,destino_ok:destinoOk,ventilacion_ok:ventOk,ramales_ok:ramalesOk,ramales_largos:ramalesLargos,ramales_colectores_hs5:ramalesColectores,bajantes_hs5:bajantes,fase_detalle_completa:faseDetalle,comprobacion_ventilacion:ventComp,fase_normativa_base_completa:faseNormativa,red_completa:false}}
 function cabeceraEsquemaSaneamiento(tipo){const t=normalizarTipoRedSaneamiento(tipo);return ({sin_indicar:{titulo:"Red por definir",sub:"Topología pendiente"},sifones_individuales:{titulo:"Ramales a bajante / colector",sub:"Sifones individuales"},bote_sifonico:{titulo:"Bote sifónico + ramal",sub:"Agrupación por local húmedo"},horizontal_directa:{titulo:"Colector horizontal principal",sub:"Salida directa a arqueta / red"},varias_zonas:{titulo:"Red por zonas / plantas",sub:"Varios ramales o colectores"},mixta:{titulo:"Red mixta",sub:"Combinación de soluciones"},personalizada:{titulo:"Red personalizada",sub:"Definición técnica"}})[t]||{titulo:"Red por definir",sub:"Topología pendiente"}}
 function textoPendienteRedSaneamiento(tipo){const t=normalizarTipoRedSaneamiento(tipo);return ({sin_indicar:"Define primero la forma general de la red. Después se completarán longitudes, pendientes, colectores o bajantes cuando existan y la ventilación como cálculo independiente.",sifones_individuales:"Los aparatos y diámetros mínimos individuales ya están definidos. Faltan longitudes y pendientes de los ramales, dimensionado del colector/bajante real y ventilación.",bote_sifonico:"Falta definir qué aparatos agrupa cada bote sifónico, longitud y pendiente de sus ramales, descarga hacia colector/bajante y ventilación.",horizontal_directa:"No se presupone bajante. Faltan longitudes, pendientes, uniones y dimensionado del colector horizontal hasta la arqueta o red de salida; la ventilación se calcula aparte.",varias_zonas:"Falta definir cada zona o planta, sus ramales/colectores, conexiones entre ellos, longitudes, pendientes, bajantes cuando existan y ventilación.",mixta:"La red combina soluciones. Faltan recorridos, longitudes, pendientes y conexiones reales de cada tramo; la ventilación se calcula aparte.",personalizada:"La topología queda abierta al técnico. Define los recorridos, tramos, pendientes, uniones, colectores/bajantes si existen y ventilación."})[t]||"Dimensionado detallado pendiente."}
 function puntoSaneamientoEsquema(pt,uso){
@@ -4332,7 +4388,7 @@ window.ZX_proyectos=async function(){
   if(estado&&estado.proyecto_id&&(estado.vista==="ficha"||estado.vista==="saneamiento")){const p=CACHE.find(x=>String(x.id)===String(estado.proyecto_id));if(p){if(estado.vista==="saneamiento"){SANEAMIENTO_GEOMETRIA_ELEMENTO_ACTIVO=String(estado.elemento_id||"");SANEAMIENTO_GEOMETRIA_REABRIR=!!estado.elemento_id;formularioSaneamiento(p,{reanudar:true})}else abrirFicha(p.id)}}
 };
 window.ZX_abrirProyectos=window.ZX_proyectos;
-window.ZENTRYX_PROYECTOS_SAN_TABLE42_V1=true;window.ZENTRYX_PROYECTOS_SAN_TABLE43_V1=true;window.ZENTRYX_PROYECTOS_SAN_FICHA_PLAN_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_SPLIT_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_SOURCE_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_REF_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_FILE_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_FILE_PICK_V2=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_ANCHOR_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_ANCHOR_EDITOR_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_TRACE_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_PARTIAL_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_MISSING_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_VISIBLE_END_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_INPUTS_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_INPUT_BEND_EDIT_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_INPUT_ORIGIN_MODE_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_COTAS_V1=true;window.ZENTRYX_PROYECTOS_SAN_OBRA_CHECK_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_EDITOR_V2=true;window.ZENTRYX_PROYECTOS_SAN_MULTI_ELEMENT_CHAIN_V1=true;window.ZENTRYX_PROYECTOS_SAN_CHAIN_JUNCTION_LOCK_V1=true;window.ZENTRYX_PROYECTOS_SAN_CHAIN_TOPOLOGY_V1=true;window.ZENTRYX_PROYECTOS_PWA_RESUME_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_ASSIST_EDIT_V1=true;window.ZENTRYX_PROYECTOS_SAN_SCHEME_TERMS_V1=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V2=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V1=true;window.ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LABEL_V1=true;window.ZENTRYX_PROYECTOS_SAN_NAV_V2=true;window.ZENTRYX_PROYECTOS_SAN_SCROLL_V1=true;window.ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1=true;window.ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2=true;
+window.ZENTRYX_PROYECTOS_SAN_TABLE42_V1=true;window.ZENTRYX_PROYECTOS_SAN_TABLE43_V1=true;window.ZENTRYX_PROYECTOS_SAN_TABLE44_V1=true;window.ZENTRYX_PROYECTOS_SAN_FICHA_PLAN_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_SPLIT_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_SOURCE_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_REF_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_FILE_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_FILE_PICK_V2=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_ANCHOR_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_ANCHOR_EDITOR_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_TRACE_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_PARTIAL_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_MISSING_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_VISIBLE_END_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_INPUTS_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_INPUT_BEND_EDIT_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_INPUT_ORIGIN_MODE_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_COTAS_V1=true;window.ZENTRYX_PROYECTOS_SAN_OBRA_CHECK_V1=true;window.ZENTRYX_PROYECTOS_SAN_EXEC_GEOMETRY_EDITOR_V2=true;window.ZENTRYX_PROYECTOS_SAN_MULTI_ELEMENT_CHAIN_V1=true;window.ZENTRYX_PROYECTOS_SAN_CHAIN_JUNCTION_LOCK_V1=true;window.ZENTRYX_PROYECTOS_SAN_CHAIN_TOPOLOGY_V1=true;window.ZENTRYX_PROYECTOS_PWA_RESUME_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_ASSIST_EDIT_V1=true;window.ZENTRYX_PROYECTOS_SAN_SCHEME_TERMS_V1=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V2=true;window.ZENTRYX_PROYECTOS_NORM_VERSIONING_V1=true;window.ZENTRYX_PROYECTOS_SAN_MULTI_INPUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LAYOUT_V1=true;window.ZENTRYX_PROYECTOS_SAN_FANIN_LABEL_V1=true;window.ZENTRYX_PROYECTOS_SAN_NAV_V2=true;window.ZENTRYX_PROYECTOS_SAN_SCROLL_V1=true;window.ZENTRYX_PROYECTOS_SAN_PLAN_VIEW_V1=true;window.ZENTRYX_PROYECTOS_SAN_POINTS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_ROUTE_SUMMARY_V2=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_DIMENSION_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_STATUS_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_INSTALL_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_COMPACT_V2=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V1=true;window.ZENTRYX_PROYECTOS_SAN_VENT_PRIMARY_CONDITIONAL_V2=true;
 window.ZENTRYX_PROYECTOS_SAN_DESKTOP_HIERARCHY_V1=true;window.ZENTRYX_PROYECTOS_DESKTOP_LIST_V1=true;
 window.ZENTRYX_MODULE_VERSIONS=window.ZENTRYX_MODULE_VERSIONS||{};
 window.ZENTRYX_MODULE_VERSIONS.proyectos=ZX_VERSION;
