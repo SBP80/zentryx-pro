@@ -1,12 +1,13 @@
 // ===============================
 // ZENTRYX PRO - LAYOUT
+// V3162 - ANCHO RESPONSIVE UNIFICADO EN PC/TABLET
 // V3161 - PERSISTENCIA DEL MÓDULO ACTUAL AL REABRIR PWA / NAVEGACIÓN DIRECTA
 // V3159 - CIERRE DE SESIÓN FIABLE Y CAMBIO DE USUARIO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3161";
+const ZX_VERSION="3162";
 
 let ZX_RELOJ_TIMER=null;
 let ZX_AGENDA_TIMER=null;
@@ -1936,22 +1937,44 @@ function estilos(){
       }
     }
 
-    /* TABLETA: rejilla compacta, contenido con más aire. */
+    /* TABLETA: usar el ancho disponible sin alterar el diseño móvil. */
     @media(min-width:640px) and (max-width:1099px){
       #zx_nav_inner{grid-template-columns:repeat(6,1fr)}
       .zx_nav_btn{min-height:58px}
-      #app{padding:18px}
+      #zx_topbar_inner,
+      #zx_reloj_inner,
+      #zx_nav_inner,
+      #app{max-width:none;width:100%}
+      #app{padding:18px 20px}
+      .zx_md,
+      .zx_manual_wrap,
+      .zx_pr_shell,
+      .zx_al_wrap{width:100%!important;max-width:none!important}
+      #zx_pr_modal .zx_pr_modal_box{
+        width:calc(100vw - 32px)!important;
+        max-width:none!important;
+        max-height:calc(100dvh - 24px)!important;
+      }
       body{padding-bottom:34px}
     }
 
-    /* PC: todos los módulos en una fila y contenido ancho. */
+    /* PC: área de trabajo amplia y criterio común entre módulos. */
     @media(min-width:1100px){
       #zx_nav_inner{grid-template-columns:repeat(10,1fr)}
       #app{padding:24px}
       #zx_topbar_inner,
       #zx_reloj_inner,
       #zx_nav_inner,
-      #app{max-width:1320px}
+      #app{max-width:1760px}
+      .zx_md,
+      .zx_manual_wrap{width:100%!important;max-width:1480px!important}
+      .zx_pr_shell,
+      .zx_al_wrap{width:100%!important;max-width:1680px!important}
+      #zx_pr_modal .zx_pr_modal_box{
+        width:min(1720px,calc(100vw - 48px))!important;
+        max-width:1720px!important;
+        max-height:calc(100dvh - 32px)!important;
+      }
       body{padding-bottom:40px}
     }
   `;
