@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - VEHÍCULOS
+// V3226 - INTERFAZ PC/TABLET: CONTENIDO CENTRADO, CABECERA MÁS CLARA Y LISTADO MENOS DENSO EN ESCRITORIO. IPHONE NO CAMBIA.
 // V3225 - CORRECCIONES UI MÓVIL, KM, CONTADORES Y MAPAS
 // V3224 - MEDIDA KM VISIBLE EN RECORRIDOS Y PUNTO KILOMÉTRICO
 // V3223 - ACTIVACIÓN Y DESACTIVACIÓN DEL VEHÍCULO VISIBLES EN MOVIMIENTOS
@@ -7,7 +8,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3225";
+const ZX_VERSION="3226";
 const TABLA="vehiculos";
 const CACHE_KEY="zentryx_cache_vehiculos_v3154";
 const ASISTENCIA_KEY="zentryx_vehiculos_asistencia_v3154";
@@ -4916,7 +4917,9 @@ function instalarCSS(){
     @media(max-width:560px){.zx_veh_filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible;gap:7px;padding-bottom:3px}.zx_veh_filters button{width:100%;min-width:0;padding:9px 5px;font-size:12px;white-space:normal;line-height:1.05}.zx_veh_tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:8px}.zx_veh_tabs button{width:100%;min-width:0;white-space:normal;line-height:1.15;min-height:46px}.zx_veh_uso_filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:7px;padding-bottom:12px}.zx_veh_uso_filtros button{width:100%;min-width:0;white-space:normal;line-height:1.15;min-height:42px}.zx_veh_incident_grid,.zx_inc_detail_grid,.zx_inc_manage_grid{grid-template-columns:1fr}.zx_veh_incident_grid .wide,.zx_inc_detail_grid .wide{grid-column:auto}.zx_inc_audit_top{display:block}}
     @media(max-width:390px){.zx_veh_header{grid-template-columns:1fr}.zx_veh_header_actions{grid-template-columns:1fr 1fr}.zx_flota_head{display:grid}.zx_flota_stats{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_veh_panel{padding:15px;border-radius:22px}.zx_veh_header h2{font-size:27px}.zx_veh_actions,.zx_veh_more_panel{grid-template-columns:1fr}.zx_veh_kpis{grid-template-columns:1fr 1fr}.zx_veh_card_head{grid-template-columns:52px minmax(0,1fr)}.zx_veh_media{width:52px;height:52px}.zx_veh_status_inline{grid-column:1/-1}.zx_veh_fastline{grid-template-columns:1fr 1fr}}
     @media(min-width:700px){.zx_veh_shell{padding-bottom:32px}.zx_veh_kpis{grid-template-columns:repeat(5,minmax(0,1fr))}.zx_veh_kpi_alert{grid-column:auto}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_veh_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(min-width:900px){.zx_veh_shell{max-width:1600px;margin:0 auto}.zx_veh_header{border-top:4px solid #2563eb}}
+    @media(min-width:1100px){.zx_veh_panel{padding:22px}.zx_veh_list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(min-width:1400px){.zx_veh_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
   document.head.appendChild(s);
 }
