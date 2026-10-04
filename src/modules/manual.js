@@ -1,3 +1,4 @@
+// V1169 - Interfaz PC/tablet: Manual usa tarjetas más diferenciadas, mejor lectura en pantallas grandes y tres columnas en PC; el desplegable abierto se marca en verde y el cerrado permanece azul. iPhone no cambia.
 // V1168 - Interfaz PC/tablet: Saneamiento mejora la lectura con mayor contraste entre cabecera, normativa, indicadores y bloques; los textos secundarios ganan tamaño y los desplegables mantienen azul al cerrar y verde al abrir. iPhone no cambia.
 // V1167 - Interfaz PC/tablet: Proyectos y Saneamiento usan el ancho grande disponible sin estirar el contenido de trabajo; Saneamiento agrupa las secciones cerradas en dos columnas en PC y abre cada sección a todo el ancho útil. iPhone conserva su disposición móvil.
 // V1166 - Saneamiento: los elementos Ramal horizontal vinculados a un origen registrado calculan el Ø mínimo mediante CTE DB HS 5 tabla 4.3 según UD y pendiente 1/2/4 %, sin permitir un diámetro menor que los tramos situados aguas arriba.
@@ -117,7 +118,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1168";
+const ZX_VERSION="1169";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -2048,6 +2049,35 @@ function instalarCSS(){
   document.head.appendChild(s);
 }
 
+
+function instalarCSSDesktopV1169(){
+  if(document.getElementById("zx_manual_desktop_v1169")) return;
+  const s=document.createElement("style");
+  s.id="zx_manual_desktop_v1169";
+  s.textContent=`
+    @media(min-width:701px){
+      .zx_manual_wrap{width:100%!important;max-width:1360px!important;padding:18px 18px 72px;border-color:#cbd5e1;background:#f5f7fb;box-shadow:0 14px 34px rgba(15,23,42,.07)}
+      .zx_manual_head{padding:24px 26px;margin-bottom:18px;border:1px solid #1e40af}
+      .zx_manual_head h1{font-size:34px}
+      .zx_manual_search{top:10px;padding:16px 18px;border-color:#bfdbfe;box-shadow:0 8px 22px rgba(30,64,175,.08)}
+      .zx_manual_grid{gap:16px}
+      .zx_manual_card{border-color:#cbd5e1;border-radius:18px;box-shadow:0 6px 18px rgba(15,23,42,.05)}
+      .zx_manual_btn{min-height:88px;padding:17px 18px;background:#fff}
+      .zx_manual_btn strong{font-size:17px;color:#0f172a}
+      .zx_manual_btn span{font-size:13px;color:#475569}
+      .zx_manual_arrow{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:#eff6ff;color:#2563eb;font-size:18px}
+      .zx_manual_card.is-open{border-color:#86efac;box-shadow:0 7px 20px rgba(5,150,105,.08)}
+      .zx_manual_card.is-open .zx_manual_btn{background:#f0fdf4}
+      .zx_manual_card.is-open .zx_manual_arrow{background:#dcfce7;color:#059669}
+      .zx_manual_body{background:#fff;padding:2px 20px 20px}
+    }
+    @media(min-width:1200px){
+      .zx_manual_grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+    }
+  `;
+  document.head.appendChild(s);
+}
+
 function marcarManualActivo(){
   try{
     window.ZX_MODULO_ACTUAL="manual";
@@ -2069,6 +2099,7 @@ function marcarManualActivo(){
 function render(){
   marcarManualActivo();
   instalarCSS();
+  instalarCSSDesktopV1169();
   const u=usuario();
   const items=contenidos();
   const cont=app();
@@ -2111,6 +2142,8 @@ function render(){
       if(!body) return;
       const abrir=body.hidden;
       body.hidden=!abrir;
+      const card=btn.closest(".zx_manual_card");
+      if(card) card.classList.toggle("is-open",abrir);
       const arrow=btn.querySelector(".zx_manual_arrow");
       if(arrow) arrow.textContent=abrir ? "⌃" : "⌄";
     };
