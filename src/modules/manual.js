@@ -1,3 +1,4 @@
+// V1166 - Saneamiento: los elementos Ramal horizontal vinculados a un origen registrado calculan el Ø mínimo mediante CTE DB HS 5 tabla 4.3 según UD y pendiente 1/2/4 %, sin permitir un diámetro menor que los tramos situados aguas arriba.
 // V1165 - Saneamiento: CTE DB HS 5 tabla 4.2 calcula las UD de descargas, vaciados, tratamiento de agua y otros equipos no incluidos en tabla 4.1 a partir del diámetro de desagüe 32/40/50/60/80/100 mm.
 // V1163 - Saneamiento: las entradas físicas muestran en un desplegable compacto los codos/cambios guardados con su ángulo y permiten reabrir cada punto intermedio para ajustar posición o grados sin borrar la conexión con el colector.
 // V1162 - Saneamiento: la vista física identifica el colector correcto de las entradas pendientes aunque el último tramo visible sea un registro u otro elemento posterior. En móvil, el esquema técnico separa las entradas convergentes de la cadena C1 → RG1 → salida para que ninguna línea atraviese otra tarjeta y parezca una conexión distinta.
@@ -114,7 +115,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1165";
+const ZX_VERSION="1166";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1786,6 +1787,7 @@ const BASE=[
       "El aviso de dimensionado pendiente se adapta a la topología elegida: una red horizontal no pide una bajante, mientras que una red con ramales a bajante/colector sí deja esos elementos pendientes cuando faltan longitudes, pendientes y diámetros.",
       "Saneamiento permite registrar en cada punto la longitud del ramal, su pendiente y, cuando sea necesario, un diámetro adoptado. En aparatos con diámetro mínimo CTE, un diámetro manual inferior al mínimo queda avisado. Si un ramal individual supera 1,5 m, Zentryx mantiene el cálculo pormenorizado pendiente en vez de dar por válido automáticamente el mínimo de la tabla 4.1.",
       "Para la topología Red horizontal directa a colector/arqueta, Dimensionado de la red muestra primero pendiente, diámetro adoptado y material junto al resumen del colector. Longitud, uniones o cambios de dirección, destino y ubicación de salida quedan en Datos adicionales, cerrado al entrar. El criterio CTE se consulta en Ayuda · Criterio de cálculo, también cerrado por defecto.",
+      "En Obra y recorrido, un elemento Ramal horizontal con origen vinculado calcula la carga que recibe y obtiene el diámetro de la tabla 4.3 de CTE DB HS 5 para pendientes del 1 %, 2 % o 4 %. El diámetro mínimo final nunca puede quedar por debajo del diámetro de los tramos situados aguas arriba. Si el origen no está vinculado, faltan UD o se introduce otra pendiente, el cálculo queda pendiente y no se inventa un valor.",
       "Con una pendiente adoptada de 1 %, 2 % o 4 %, Zentryx calcula el diámetro mínimo del colector horizontal a partir de las UD totales mediante la tabla 4.5 de CTE DB HS 5. No interpola pendientes distintas ni considera cerrado el dimensionado si faltan datos del recorrido.",
       "La ventilación de saneamiento tiene un bloque independiente. Puede registrarse conexión a ventilación primaria existente, primaria más secundaria, ventilación terciaria, válvulas de aireación-ventilación, solución mixta o técnica. La selección registra la solución prevista, pero no sustituye la comprobación normativa de la red y del edificio.",
       "Saneamiento incorpora una Comprobación técnica de ventilación que cambia según la solución elegida. Para conexión a ventilación primaria existente registra plantas del edificio, referencia y diámetro de la ventilación, verificación de la conexión, salida a cubierta, tipo de cubierta, altura de terminación, proximidad a tomas de aire y huecos habitables, presencia de marquesinas o terrazas y protección frente a cuerpos extraños.",
