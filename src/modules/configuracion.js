@@ -1,12 +1,13 @@
 // ===============================
 // ZENTRYX PRO - AJUSTES
+// V3122 - INTERFAZ PC/TABLET: AJUSTES PRIORIZA DOS COLUMNAS LEGIBLES, CABECERAS DE TARJETA MÁS CLARAS Y MEJOR SEPARACIÓN VISUAL. IPHONE NO CAMBIA.
 // V3121 - PRESUPUESTOS: VALORES DE DOSIER POR EMPRESA
 // V3119 - AJUSTES OPERATIVOS Y ESTADOS NO EDITABLES
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3121";
+const ZX_VERSION="3122";
 const SETTINGS_KEY="zentryx_settings";
 const THEME_KEY="zentryx_theme";
 const CONFIG_KEY="zentryx_config";
@@ -759,8 +760,38 @@ function instalarCSS(){
   document.head.appendChild(s);
 }
 
+
+function instalarCSSDesktopV3122(){
+  if(document.getElementById("zx_configuracion_desktop_v3122")) return;
+  const s=document.createElement("style");
+  s.id="zx_configuracion_desktop_v3122";
+  s.textContent=`
+    @media(min-width:700px){
+      .zx_set_shell{width:100%;max-width:1480px;margin:0 auto;gap:18px}
+      .zx_set_hero,.zx_set_card,.zx_set_nav{border-color:#cbd5e1;box-shadow:0 9px 24px rgba(15,23,42,.055)}
+      .zx_set_hero{padding:22px 24px;border-top:4px solid var(--zx-primary);background:linear-gradient(135deg,#fff,#f8fbff)}
+      .zx_set_nav{padding:11px 14px;background:#f8fafc}
+      .zx_set_nav button{border:1px solid #e2e8f0;background:#fff}
+      .zx_set_card{padding:20px 22px;background:#fff}
+      .zx_set_card_head{padding-bottom:13px;margin-bottom:15px;border-bottom:1px solid #e2e8f0}
+      .zx_set_card h3{font-size:21px}
+      .zx_set_card p{font-size:13.5px;color:#475569}
+      .zx_set_toggle,.zx_set_info{background:#f8fafc;border-color:#dbe3ef}
+      .zx_set_label{color:#334155}
+      .zx_set_save{max-width:520px;justify-self:start}
+    }
+    @media(min-width:1100px){
+      .zx_set_shell{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      .zx_set_hero,.zx_set_nav,.zx_set_budget_card{grid-column:1/-1!important}
+      .zx_set_modgrid{grid-template-columns:1fr 1fr;gap:10px}
+    }
+  `;
+  document.head.appendChild(s);
+}
+
 window.ZX_configuracion=async function(){
   instalarCSS();
+  instalarCSSDesktopV3122();
 
   if(zx() && typeof zx().marcarModuloActivo==="function"){
     zx().marcarModuloActivo("configuracion");
