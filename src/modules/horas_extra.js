@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - HORAS EXTRA
+// V3089 - INTERFAZ PC/TABLET: ACTIVA EL ESTILO DESKTOP EN LA PANTALLA PRINCIPAL, RESUMEN COMPACTO Y REGISTROS EN DOS COLUMNAS. IPHONE NO CAMBIA.
 // V3088 - INTERFAZ PC/TABLET: CONTENIDO CENTRADO, CABECERA DIFERENCIADA Y REGISTROS EN DOS COLUMNAS EN ESCRITORIO. IPHONE NO CAMBIA.
 // V3087 - UN SOLO FLUJO PARA VER, COMPARTIR E IMPRIMIR PDF
 // ===============================
@@ -521,7 +522,7 @@ function renderBotones(h){
 
 function renderFila(h){
   return `
-    <div class="zx_card">
+    <div class="zx_card zx_hx_record">
       <h2>${limpiar(h.nombre || h.usuario || "Usuario")}</h2>
 
       <div class="zx_text">
@@ -549,13 +550,14 @@ function resumen(datos){
   });
 
   return `
-    <div class="zx_card">
-      <h2>Resumen</h2>
-
-      <div class="zx_text">
-        Registros: <b>${datos.length}</b><br>
-        Total horas: <b>${formatoDuracion(min)}</b><br>
-        Total importe: <b>${formatoDinero(imp)}</b>
+    <div class="zx_card zx_hx_summary">
+      <div class="zx_hx_summary_copy">
+        <h2>Resumen</h2>
+        <div class="zx_text">
+          Registros: <b>${datos.length}</b><br>
+          Total horas: <b>${formatoDuracion(min)}</b><br>
+          Total importe: <b>${formatoDinero(imp)}</b>
+        </div>
       </div>
 
       <button class="zx_btn_big zx_azul" onclick="ZX_imprimirHorasExtra()">
@@ -906,7 +908,20 @@ function asegurarEstiloVistaHoras(){
     .zx_hx_firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px}
     .zx_hx_firma{border-top:1px solid #111827;padding-top:8px;text-align:center;font-size:14px}
 @media(max-width:899px){.zx_hx_shell,.zx_hx_list{display:contents}}
-    @media(min-width:900px){.zx_hx_shell{max-width:1500px;margin:0 auto;display:grid;gap:14px}.zx_hx_header{border-top:4px solid #2563eb}.zx_hx_list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.zx_hx_list>.zx_card{margin:0;min-width:0}}
+    @media(min-width:900px){
+      .zx_hx_shell{max-width:1500px;margin:0 auto;display:grid;gap:14px}
+      .zx_hx_header{border-top:4px solid #2563eb;border-color:#cbd5e1;background:#f8fafc;box-shadow:0 8px 24px rgba(15,23,42,.055)}
+      .zx_hx_header h2{font-size:28px;margin:0 0 5px;color:#0f172a}
+      .zx_hx_summary{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:24px;padding:18px 20px;border-color:#cbd5e1;border-left:5px solid #2563eb;box-shadow:0 6px 18px rgba(15,23,42,.045)}
+      .zx_hx_summary h2{margin:0 0 8px;color:#0f172a;font-size:22px}
+      .zx_hx_summary .zx_text{line-height:1.55;color:#475569}
+      .zx_hx_summary .zx_btn_big{width:auto!important;min-width:280px;max-width:380px;margin:0!important;padding-left:22px!important;padding-right:22px!important}
+      .zx_hx_list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+      .zx_hx_list>.zx_card{margin:0;min-width:0}
+      .zx_hx_record{border-color:#cbd5e1;border-left:5px solid #dbeafe;padding:16px 18px;box-shadow:0 6px 18px rgba(15,23,42,.045)}
+      .zx_hx_record h2{margin:0 0 9px;color:#0f172a;font-size:21px;line-height:1.15}
+      .zx_hx_record .zx_text{color:#475569;line-height:1.55}
+    }
 
     @media(max-width:700px){
       #zx_hx_preview_actions{grid-template-columns:1fr 1.45fr;padding:10px 8px;gap:6px}
@@ -990,6 +1005,7 @@ window.ZX_enviarHorasExtra=function(){
 };
 
 function renderHoras(datos){
+  asegurarEstiloVistaHoras();
   app().innerHTML=`
     <div class="zx_hx_shell">
     <div class="zx_card zx_hx_header">
