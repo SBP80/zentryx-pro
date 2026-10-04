@@ -1,5 +1,6 @@
 // ============================================================
 // ZENTRYX PRO - ALMACÉN
+// V1013 - INTERFAZ PC/TABLET: MAYOR ANCHO ÚTIL, CABECERA MÁS CLARA, TRES COLUMNAS DE STOCK EN MONITORES GRANDES Y MODALES MÁS ANCHOS. IPHONE NO CAMBIA.
 // V1012 - ACCESO AL BUSCADOR TÉCNICO GENERAL POR TEXTO O FOTO
 // V1011 - MEDIDAS VISIBLES Y DINÁMICAS EN CANTIDADES DE STOCK
 // V1010 - CURSOR NATURAL EN RECUENTO IPHONE
@@ -8,7 +9,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1012";
+const ZX_VERSION="1013";
 
 const T_MATERIALES="materiales";
 const T_CATALOGO="materiales_catalogo";
@@ -126,7 +127,7 @@ function instalarCSS(){
   const style=document.createElement("style");
   style.id="zx_almacen_css";
   style.textContent=`
-    .zx_al_wrap{max-width:1240px;margin:0 auto;padding:18px 14px 46px}
+    .zx_al_wrap{max-width:1580px;margin:0 auto;padding:18px 14px 46px}
     .zx_al_head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:14px}
     .zx_al_head h1{margin:0;font-size:30px;color:#071330}.zx_al_head p{margin:5px 0 0;color:#64748b;font-weight:750}
     .zx_al_head_actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -208,6 +209,8 @@ function instalarCSS(){
 
 
     .zx_al_move b{display:block;color:#071330}.zx_al_move small{color:#64748b;font-weight:750}
+    @media(min-width:900px){.zx_al_head{border-top:4px solid #0f766e;padding-top:16px}.zx_al_modal_box{width:min(900px,calc(100vw - 56px));max-width:900px}}
+    @media(min-width:1250px){.zx_al_grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @media(max-width:840px){.zx_al_summary{grid-template-columns:1fr 1fr}.zx_al_grid{grid-template-columns:1fr}.zx_al_tools{grid-template-columns:1fr 1fr}}
     @media(max-width:540px){.zx_al_head{align-items:stretch;flex-direction:column}.zx_al_head_actions{display:grid;grid-template-columns:1fr 1fr}.zx_al_summary,.zx_al_tools,.zx_al_form2{grid-template-columns:1fr}.zx_al_actions{grid-template-columns:1fr}.zx_al_stock{grid-template-columns:1fr 1fr 1fr}}
   `;
