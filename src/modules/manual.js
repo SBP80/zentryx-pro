@@ -1,3 +1,4 @@
+// V1172 - Saneamiento: documentado el dimensionado de bajantes con CTE DB HS 5 tabla 4.4 mediante UD totales, máximo de UD por ramal y número de plantas servidas.
 // V1171 - Manual actualizado con el cierre visual de Usuarios y Horas extra en PC/tablet; sin cambios funcionales en iPhone.
 // V1170 - Manual actualizado con el criterio visual común aplicado también a Fichaje, Agenda, Trabajos, Clientes, Vehículos, Usuarios, Horas extra y Almacén en PC/tablet; sin cambios funcionales en iPhone.
 // V1169 - Interfaz PC/tablet: Manual usa tarjetas más diferenciadas, mejor lectura en pantallas grandes y tres columnas en PC; el desplegable abierto se marca en verde y el cerrado permanece azul. iPhone no cambia.
@@ -120,7 +121,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1171";
+const ZX_VERSION="1172";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1794,6 +1795,7 @@ const BASE=[
       "Saneamiento permite registrar en cada punto la longitud del ramal, su pendiente y, cuando sea necesario, un diámetro adoptado. En aparatos con diámetro mínimo CTE, un diámetro manual inferior al mínimo queda avisado. Si un ramal individual supera 1,5 m, Zentryx mantiene el cálculo pormenorizado pendiente en vez de dar por válido automáticamente el mínimo de la tabla 4.1.",
       "Para la topología Red horizontal directa a colector/arqueta, Dimensionado de la red muestra primero pendiente, diámetro adoptado y material junto al resumen del colector. Longitud, uniones o cambios de dirección, destino y ubicación de salida quedan en Datos adicionales, cerrado al entrar. El criterio CTE se consulta en Ayuda · Criterio de cálculo, también cerrado por defecto.",
       "En Obra y recorrido, un elemento Ramal horizontal con origen vinculado calcula la carga que recibe y obtiene el diámetro de la tabla 4.3 de CTE DB HS 5 para pendientes del 1 %, 2 % o 4 %. El diámetro mínimo final nunca puede quedar por debajo del diámetro de los tramos situados aguas arriba. Si el origen no está vinculado, faltan UD o se introduce otra pendiente, el cálculo queda pendiente y no se inventa un valor.",
+      "En Obra y recorrido, un elemento Bajante usa CTE DB HS 5 tabla 4.4. Zentryx suma las UD de los tramos que descargan directamente en esa bajante, identifica la mayor carga de un ramal y pide el número de plantas servidas para elegir la columna Hasta 3 plantas o Más de 3 plantas. El diámetro adoptado no puede quedar por debajo del resultado tabulado ni reducir el diámetro de los tramos aguas arriba; si falta una conexión, las UD o el número de plantas, el dimensionado queda pendiente. Esta comprobación corresponde al dimensionado base de la bajante; las desviaciones respecto a la vertical, especialmente las superiores a 45°, se revisan aparte con los criterios específicos de HS 5.",
       "Con una pendiente adoptada de 1 %, 2 % o 4 %, Zentryx calcula el diámetro mínimo del colector horizontal a partir de las UD totales mediante la tabla 4.5 de CTE DB HS 5. No interpola pendientes distintas ni considera cerrado el dimensionado si faltan datos del recorrido.",
       "La ventilación de saneamiento tiene un bloque independiente. Puede registrarse conexión a ventilación primaria existente, primaria más secundaria, ventilación terciaria, válvulas de aireación-ventilación, solución mixta o técnica. La selección registra la solución prevista, pero no sustituye la comprobación normativa de la red y del edificio.",
       "Saneamiento incorpora una Comprobación técnica de ventilación que cambia según la solución elegida. Para conexión a ventilación primaria existente registra plantas del edificio, referencia y diámetro de la ventilación, verificación de la conexión, salida a cubierta, tipo de cubierta, altura de terminación, proximidad a tomas de aire y huecos habitables, presencia de marquesinas o terrazas y protección frente a cuerpos extraños.",
@@ -1816,7 +1818,7 @@ const BASE=[
       "En iPhone, al abrir Ver plano o cualquier bloque largo, la sección crece con todo su contenido y el formulario puede desplazarse verticalmente hasta el final. El plano no debe quedar cortado por la tarjeta siguiente ni limitar el desplazamiento del contenedor.",
       "La ficha mantiene además Recorrido de obra como lista técnica ordenada para conservar todos los elementos, incluidos los que todavía no tienen conexiones suficientes. El bloque diferencia lo previsto, lo comprobado en obra y lo pendiente, y no cambia por sí solo los cálculos CTE ya validados.",
       "Cuando un elemento cambia a Comprobado en obra, aparece un bloque propio de comprobación. Los datos previstos del proyecto permanecen sin cambios y se pueden registrar por separado el resultado de la comprobación, la longitud medida, el diámetro observado, la pendiente medida, el montaje visto y observaciones. Si se indica que coincide pero se introducen valores distintos a los previstos, Zentryx avisa antes de guardar. Si hay diferencias, se conservan ambas referencias —proyecto y obra— para no sustituir una por la otra.",
-      "Los elementos y sus estados se guardan dentro de detalle_red.elementos_red, en el mismo inmueble_meta.saneamiento del proyecto. No se crean tablas ni campos nuevos y cada guardado sigue añadiendo historial del proyecto.",
+      "Los elementos y sus estados se guardan dentro de detalle_red.elementos_red, en el mismo inmueble_meta.saneamiento del proyecto. No se crean tablas ni columnas SQL nuevas y cada guardado sigue añadiendo historial del proyecto.",
       "Los datos de Saneamiento se guardan dentro de inmueble_meta.saneamiento y cada guardado añade historial del proyecto. No crea una tabla nueva.",
       "Si Extracción está activa, la ficha muestra un bloque propio para configurarla sin mezclarla con el cálculo térmico.",
       "Extracción abre por defecto en Asistente guiado. El usuario describe lo que puede observar o medir y Zentryx decide qué regla corresponde. La dirección de la obra identifica país, provincia y municipio y el cálculo guarda el conjunto de reglas empleado y su fecha de verificación.",
