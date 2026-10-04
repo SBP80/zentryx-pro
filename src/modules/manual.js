@@ -1,3 +1,4 @@
+// V1167 - Interfaz PC/tablet: Proyectos y Saneamiento usan el ancho grande disponible sin estirar el contenido de trabajo; Saneamiento agrupa las secciones cerradas en dos columnas en PC y abre cada sección a todo el ancho útil. iPhone conserva su disposición móvil.
 // V1166 - Saneamiento: los elementos Ramal horizontal vinculados a un origen registrado calculan el Ø mínimo mediante CTE DB HS 5 tabla 4.3 según UD y pendiente 1/2/4 %, sin permitir un diámetro menor que los tramos situados aguas arriba.
 // V1165 - Saneamiento: CTE DB HS 5 tabla 4.2 calcula las UD de descargas, vaciados, tratamiento de agua y otros equipos no incluidos en tabla 4.1 a partir del diámetro de desagüe 32/40/50/60/80/100 mm.
 // V1163 - Saneamiento: las entradas físicas muestran en un desplegable compacto los codos/cambios guardados con su ángulo y permiten reabrir cada punto intermedio para ajustar posición o grados sin borrar la conexión con el colector.
@@ -115,7 +116,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1166";
+const ZX_VERSION="1167";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -1735,6 +1736,7 @@ const BASE=[
     resumen:"Estudios técnicos multidisciplinares vinculados a clientes, direcciones e instalaciones existentes.",
     pasos:[
       "Entra en Proyectos. Puedes pulsar Buscar equipo/material para abrir el Buscador técnico sin crear antes un proyecto o artículo; Catálogo técnico sirve para preparar fichas y Crear proyecto inicia un estudio.",
+      "En PC y tablet, las fichas de Proyectos usan una ventana amplia para trabajar. El contenido mantiene un ancho de lectura controlado: en Saneamiento, las secciones cerradas se agrupan en dos columnas cuando hay espacio y la sección que se abre usa todo el ancho útil. En iPhone se conserva la disposición móvil.",
       "El Catálogo técnico usa los artículos activos de Materiales y permite buscar por artículo, categoría, dato técnico o referencia.",
       "Si necesitas un artículo que todavía no existe, pulsa Nuevo artículo. Se crea en Materiales sin generar stock y después se abre su ficha técnica. Antes de crearlo puedes buscarlo en web o cerca del dispositivo con los datos escritos.",
       "Puedes filtrar entre todos los artículos, los que ya tienen ficha técnica y los que todavía no la tienen.",
