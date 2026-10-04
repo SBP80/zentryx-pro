@@ -1,5 +1,5 @@
 // ===============================
-// ZENTRYX PRO - NORMATIVA V1001
+// ZENTRYX PRO - NORMATIVA V1002
 // Catálogo central de reglas normativas y control de revisiones.
 // Una actualización que cambie criterios de cálculo DEBE cambiar el ruleset.
 // Los proyectos guardados conservan el ruleset con el que fueron calculados.
@@ -7,7 +7,7 @@
 (function(){
 "use strict";
 
-const VERSION="1001";
+const VERSION="1002";
 
 const CATALOGO={
   extraccion:{
@@ -30,7 +30,7 @@ const CATALOGO={
     ruleset:"ES-CTE-HS5-EVACUACION-AGUAS",
     verificado_el:"2026-09-12",
     ambito:"España",
-    cte:{nombre:"CTE · DB HS 5 Evacuación de aguas",ref:"HS 5 · tablas 4.1, 4.3 y 4.5 · apartados 3.3.3.1 a 3.3.3.4, 4.1.1 y 4.1.3"}
+    cte:{nombre:"CTE · DB HS 5 Evacuación de aguas",ref:"HS 5 · tablas 4.1, 4.2, 4.3 y 4.5 · apartados 3.3.3.1 a 3.3.3.4, 4.1.1 y 4.1.3"}
   },
   acs_sanitaria:{
     clave:"acs_sanitaria",
