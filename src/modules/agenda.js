@@ -1,12 +1,13 @@
 // ===============================
 // ZENTRYX PRO - AGENDA
+// V3159 - INTERFAZ PC/TABLET: CONTENIDO CENTRADO, CABECERA MÁS DEFINIDA Y FILTROS SIN SCROLL HORIZONTAL EN ESCRITORIO. IPHONE NO CAMBIA.
 // V3158 - FESTIVOS LABORALES AUTOMÁTICOS Y COLORES POR ÁMBITO
 // V3157 - ESTADO DE JORNADA CLARO EN TARJETAS DE TRABAJO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3158";
+const ZX_VERSION="3159";
 const TABLA="agenda_eventos";
 const CACHE_KEY="zentryx_cache_agenda_eventos_v3139";
 const ZX_AGENDA_TIMEOUT=8500;
@@ -2260,7 +2261,10 @@ function instalarCSS(){
     }
 
     @media(min-width:1100px){
+      .zx_ag_shell{max-width:1560px;margin:0 auto}
       .zx_ag_panel{padding:22px}
+      .zx_ag_header{border-top:4px solid #2563eb}
+      .zx_ag_filters{overflow:visible;flex-wrap:wrap}
       .zx_ag_day{min-height:128px}
     }
   `;
