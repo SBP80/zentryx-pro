@@ -26,13 +26,14 @@
 // V3168 - DESCARGA IPHONE COMO ARCHIVO + GUARDAR EN ARCHIVOS
 // V3169 - IMPRESION IPHONE MEDIANTE HOJA NATIVA
 // V3170 - IMPRIMIR CONVENIO REUTILIZA EL FLUJO DE COMPARTIR VALIDADO
+// V3173 - INTERFAZ PC/TABLET: LISTADO EN DOS COLUMNAS, FILTROS MÁS COMPACTOS Y MODALES MÁS ANCHOS EN ESCRITORIO. IPHONE NO CAMBIA.
 // V3172 - AÑADE PERMISO INDIVIDUAL PARA PROYECTOS
 // V3171 - VERSION INTERNA ALINEADA CON EL ARCHIVO INSTALADO
 // ===============================
 (function(){
 "use strict";
 
-window.ZX_USUARIOS_VERSION="3172";
+window.ZX_USUARIOS_VERSION="3173";
 
 const ZX_USUARIOS_CACHE_KEY="zentryx_cache_usuarios";
 
@@ -1872,6 +1873,7 @@ async function abrirFichaUsuario(u){
 
 function renderUsuariosPantalla(usuarios){
   app().innerHTML=`
+    <div class="zx_usuarios_shell">
     <div class="zx_card zx_usuarios_head">
       <div class="zx_usuarios_head_top">
         <div>
@@ -1893,6 +1895,7 @@ function renderUsuariosPantalla(usuarios){
 
     <div class="zx_usuarios_lista" id="zx_usuarios_lista">
       ${renderListaUsuarios(usuarios)}
+    </div>
     </div>
   `;
 
@@ -4630,6 +4633,13 @@ async function verDocumentosUsuario(u,origen="ficha"){
       .zx_user_row_avatar{width:48px;height:48px;border-radius:14px}
       .zx_user_row_name{font-size:17px}
       .zx_user_open_btn{padding:9px 10px;font-size:12px}
+    }
+    @media(min-width:900px){
+      .zx_usuarios_shell{max-width:1500px;margin:0 auto}
+      .zx_usuarios_head{border-top:4px solid #2563eb}
+      .zx_user_toolbar{display:grid;grid-template-columns:minmax(320px,1fr) auto;align-items:center}
+      .zx_usuarios_lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+      #zx_modal .zx_modal_caja{width:min(900px,calc(100vw - 56px));max-width:900px}
     }
   `;
 
