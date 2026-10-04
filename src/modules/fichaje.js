@@ -1,5 +1,6 @@
 // ===============================
 // ZENTRYX PRO - FICHAJE PRO
+// V3154 - INTERFAZ PC/TABLET: PANTALLA PRINCIPAL EN DOS COLUMNAS, TARJETAS MÁS CLARAS Y MODALES MÁS ANCHOS EN ESCRITORIO. IPHONE NO CAMBIA.
 // V3153 - DURACIONES CON FORMATO h:min:s VISIBLE + km NORMALIZADO EN RESÚMENES
 // V3152 - MEDIDA KM VISIBLE EN CAMPOS DE VEHÍCULO
 // V3151 - IMPORTE EXACTO POR MINUTOS + PRECIO HISTÓRICO INMUTABLE EN HORAS EXTRA
@@ -3271,6 +3272,14 @@ function estilosAdminCompacto(){
       .zx_resumen_grid{grid-template-columns:repeat(4,minmax(0,1fr));}
       .zx_jornada_resumen_grid{grid-template-columns:repeat(4,minmax(0,1fr));}
     }
+
+    @media(min-width:900px){
+      .zx_fichaje_shell{max-width:1500px;margin:0 auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+      .zx_fichaje_shell>.zx_card{margin:0;min-width:0;border:1px solid #dbe4ef;box-shadow:0 8px 24px rgba(15,23,42,.055)}
+      .zx_fichaje_estado_card{border-top:4px solid #2563eb!important}
+      .zx_fichaje_shell .zx_section_toggle{box-shadow:none;border:1px solid rgba(255,255,255,.14)}
+      .zx_modal_caja{max-width:820px}
+    }
   `;
 
   document.head.appendChild(s);
@@ -3619,7 +3628,8 @@ window.ZX_fichaje_real=async function(){
   const todasTxt=ZX_VER_TODAS_JORNADAS ? String(adminTodas.length)+" jornadas" : "Histórico de empleados";
 
   app().innerHTML=`
-    <div class="zx_card">
+    <div class="zx_fichaje_shell">
+    <div class="zx_card zx_fichaje_estado_card">
       <h2>Fichaje</h2>
 
       <div class="zx_text">Estado actual:</div>
@@ -3673,6 +3683,7 @@ window.ZX_fichaje_real=async function(){
       ${renderBotonSeccion("Ver últimos fichajes", ultimosTxt, ZX_VER_ULTIMOS, "ZX_toggleUltimos()") }
 
       ${ZX_VER_ULTIMOS ? (hist.length ? hist.map(h=>renderFichajeMini(h)).join("") : `<div class="zx_text">Sin registros.</div>`) : ""}
+    </div>
     </div>
   `;
 
