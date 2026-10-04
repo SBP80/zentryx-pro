@@ -1,11 +1,12 @@
 // ===============================
 // ZENTRYX PRO - CLIENTES
+// V3133 - INTERFAZ PC/TABLET: LISTADO MENOS DENSO, CABECERA MÁS CLARA Y FICHAS/MODALES MÁS ANCHOS EN ESCRITORIO. IPHONE NO CAMBIA.
 // V3132 - NOMBRE ESTRUCTURADO EN VCARD COMPARTIDA
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3132";
+const ZX_VERSION="3133";
 const TABLA="clientes";
 const TABLA_CONTACTOS="clientes_contactos";
 const TABLA_DIRECCIONES="clientes_direcciones";
@@ -2825,7 +2826,9 @@ function instalarCSS(){
     @media(max-width:520px){.zx_cli_docs_toolbar{grid-template-columns:1fr}.zx_cli_doc_card{grid-template-columns:40px minmax(0,1fr);align-items:start}.zx_cli_doc_icon{width:40px;height:40px}.zx_cli_doc_actions{grid-column:1/-1;display:grid;grid-template-columns:1fr auto}.zx_cli_doc_actions button{min-height:42px}.zx_cli_docs_caja{padding:16px;border-radius:24px}}
     @media(max-width:390px){.zx_cli_panel{padding:15px;border-radius:22px}.zx_cli_header{grid-template-columns:1fr}.zx_cli_header_actions{grid-template-columns:1fr 1fr}.zx_cli_header_actions button{padding:11px 10px;font-size:14px}.zx_cli_header h2{font-size:27px}.zx_cli_kpis{gap:5px}.zx_cli_kpis span{font-size:9px}.zx_cli_top h3{font-size:18px}.zx_cli_ficha_actions{grid-template-columns:1fr}.zx_cli_top_actions{grid-template-columns:1fr 1fr}.zx_cli_top_actions button{font-size:14px;padding:11px 8px}}
     @media(min-width:700px){.zx_cli_shell{padding-bottom:32px}.zx_cli_kpis b{font-size:22px}.zx_cli_kpis span{font-size:11px}.zx_cli_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_grid3{grid-template-columns:repeat(3,minmax(0,1fr))}.zx_cli_ficha_grid{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_cli_ficha_doc{grid-template-columns:1fr auto;align-items:center}}
-    @media(min-width:1100px){.zx_cli_panel{padding:22px}.zx_cli_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(min-width:900px){.zx_cli_shell{max-width:1600px;margin:0 auto}.zx_cli_header{border-top:4px solid #2563eb}#zx_modal_cliente .zx_modal_caja{width:min(920px,calc(100vw - 56px));max-width:920px}.zx_cli_ficha_modal{max-width:1180px!important}}
+    @media(min-width:1100px){.zx_cli_panel{padding:22px}.zx_cli_list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(min-width:1400px){.zx_cli_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
   document.head.appendChild(s);
 }
