@@ -1,12 +1,13 @@
 // ===============================
 // ZENTRYX PRO - MI DÍA
+// V3164 - INTERFAZ PC/TABLET: INICIO RECUPERA UNA LECTURA MÁS COMPACTA, COLOCA JORNADA Y VEHÍCULO EN PARALELO Y EVITA BOTONES EXCESIVAMENTE LARGOS. IPHONE NO CAMBIA.
 // V3163 - ABRIR TRABAJO DESDE INICIO ENTRA DIRECTAMENTE EN SU FICHA
 // V3162 - VEHÍCULOS RESPETA PERMISO DE MÓDULO
 // ===============================
 (function(){
 "use strict";
 
-const ZX_VERSION="3163";
+const ZX_VERSION="3164";
 const CACHE_PREFIX="zentryx_mi_dia_v3161";
 const CACHE_MAX_MS=72*60*60*1000;
 const QUERY_TIMEOUT_MS=8500;
@@ -856,6 +857,34 @@ function estilos(){
   document.head.appendChild(s);
 }
 
+
+function estilosEscritorioV3164(){
+  if(document.getElementById("zx_mi_dia_desktop_v3164")) return;
+  const s=document.createElement("style");
+  s.id="zx_mi_dia_desktop_v3164";
+  s.textContent=`
+    @media(min-width:700px){
+      .zx_md{width:100%;max-width:1180px!important;gap:18px}
+      .zx_md_hero{padding:22px 24px;border-color:#cbd5e1;box-shadow:0 12px 30px rgba(15,23,42,.07)}
+      .zx_md_hero_top{padding-bottom:14px;border-bottom:1px solid #e2e8f0}
+      .zx_md_day{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;margin-top:14px}
+      .zx_md_status{grid-column:1;grid-row:1;min-height:82px;padding:15px 16px;border-color:#cbd5e1}
+      .zx_md_inline{grid-column:2;grid-row:1;min-height:82px;padding:15px 16px;border-color:#cbd5e1}
+      .zx_md_primary{grid-column:1/-1;grid-row:2;width:min(100%,760px);justify-self:center;padding:15px 18px}
+      .zx_md_card{border-color:#cbd5e1;box-shadow:0 10px 26px rgba(15,23,42,.055)}
+      .zx_md_empty{padding:17px 19px}
+      .zx_md_empty button{min-width:150px}
+    }
+    @media(min-width:1100px){
+      .zx_md{max-width:1240px!important}
+      .zx_md_hero h2{font-size:32px}
+      .zx_md_hero p{font-size:14px}
+      .zx_md_status b,.zx_md_inline b{font-size:17px}
+    }
+  `;
+  document.head.appendChild(s);
+}
+
 window.ZX_miDia_abrirTrabajo=abrirTrabajo;
 window.ZX_miDia_mapa=abrirMapa;
 window.ZX_miDia_llamar=llamar;
@@ -912,6 +941,7 @@ window.ZENTRYX_UI_inicio=async function(){
 
   const renderId=++ZX_MI_DIA_RENDER;
   estilos();
+  estilosEscritorioV3164();
 
   document.querySelectorAll(".zx_nav_btn").forEach(b=>{
     b.classList.remove("zx_activo");
