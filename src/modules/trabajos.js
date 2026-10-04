@@ -1,5 +1,6 @@
 // ===============================
-// ZENTRYX PRO - TRABAJOS V3244
+// ZENTRYX PRO - TRABAJOS V3245
+// V3245 - INTERFAZ PC/TABLET: CONTENIDO CENTRADO, CABECERA MÁS CLARA, LISTADO MENOS DENSO Y MODALES DE EDICIÓN MÁS ANCHOS EN ESCRITORIO. IPHONE NO CAMBIA.
 // V3244 - CONTADORES COHERENTES + PLURALES CORRECTOS + FILTROS VISIBLES SIN SCROLL LATERAL EN MÓVIL
 // V3243 - GUARDAR VISIBLE ARRIBA EN MODALES + SELECTOR DE MEDIDA CON PERSONALIZAR EN MATERIALES
 // V3242 - MEDIDA DEL MATERIAL VISIBLE JUNTO A CANTIDAD Y ACTUALIZADA AL CAMBIARLA
@@ -23,7 +24,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="3244";
+const ZX_VERSION="3245";
 const TABLA="trabajos";
 const CACHE_KEY="zentryx_cache_trabajos";
 const MATERIAL_LIBRARY_KEY="zentryx_material_library_v1";
@@ -7365,7 +7366,9 @@ function instalarCSS(){
     }
     @media(max-width:390px){.zx_tr_panel{padding:15px;border-radius:22px}.zx_tr_header h2{font-size:27px}.zx_tr_actions,.zx_tr_ficha_actions{grid-template-columns:1fr}.zx_tr_kpis{grid-template-columns:1fr 1fr}.zx_tr_top h3{font-size:19px}}
     @media(min-width:700px){.zx_tr_shell{padding-bottom:32px}.zx_tr_kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.zx_tr_list{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.zx_tr_info.ficha{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(min-width:1100px){.zx_tr_panel{padding:22px}.zx_tr_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(min-width:900px){.zx_tr_shell{max-width:1600px;margin:0 auto}.zx_tr_header{border-top:4px solid #2563eb}#zx_modal_trabajo:not(.zx_tr_fullscreen):not(.zx_tr_part_fullscreen) .zx_modal_caja{width:min(960px,calc(100vw - 56px));max-width:960px}}
+    @media(min-width:1100px){.zx_tr_panel{padding:22px}.zx_tr_list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(min-width:1400px){.zx_tr_list{grid-template-columns:repeat(3,minmax(0,1fr))}}
   `;
   document.head.appendChild(s);
 }
