@@ -1,3 +1,4 @@
+// V1171 - Manual actualizado con el cierre visual de Usuarios y Horas extra en PC/tablet; sin cambios funcionales en iPhone.
 // V1170 - Manual actualizado con el criterio visual común aplicado también a Fichaje, Agenda, Trabajos, Clientes, Vehículos, Usuarios, Horas extra y Almacén en PC/tablet; sin cambios funcionales en iPhone.
 // V1169 - Interfaz PC/tablet: Manual usa tarjetas más diferenciadas, mejor lectura en pantallas grandes y tres columnas en PC; el desplegable abierto se marca en verde y el cerrado permanece azul. iPhone no cambia.
 // V1168 - Interfaz PC/tablet: Saneamiento mejora la lectura con mayor contraste entre cabecera, normativa, indicadores y bloques; los textos secundarios ganan tamaño y los desplegables mantienen azul al cerrar y verde al abrir. iPhone no cambia.
@@ -119,7 +120,7 @@
 (function(){
 "use strict";
 
-const ZX_VERSION="1170";
+const ZX_VERSION="1171";
 
 function app(){return document.getElementById("app")}
 function limpiar(v){
@@ -2051,7 +2052,7 @@ function instalarCSS(){
 }
 
 
-function instalarCSSDesktopV1170(){
+function instalarCSSDesktopV1171(){
   if(document.getElementById("zx_manual_desktop_v1169")) return;
   const s=document.createElement("style");
   s.id="zx_manual_desktop_v1169";
@@ -2100,7 +2101,7 @@ function marcarManualActivo(){
 function render(){
   marcarManualActivo();
   instalarCSS();
-  instalarCSSDesktopV1170();
+  instalarCSSDesktopV1171();
   const u=usuario();
   const items=contenidos();
   const cont=app();
