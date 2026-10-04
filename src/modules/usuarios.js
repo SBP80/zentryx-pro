@@ -26,6 +26,7 @@
 // V3168 - DESCARGA IPHONE COMO ARCHIVO + GUARDAR EN ARCHIVOS
 // V3169 - IMPRESION IPHONE MEDIANTE HOJA NATIVA
 // V3170 - IMPRIMIR CONVENIO REUTILIZA EL FLUJO DE COMPARTIR VALIDADO
+// V3174 - INTERFAZ PC/TABLET: CABECERA, FILTROS Y TARJETAS DE USUARIO CON MAYOR JERARQUÍA VISUAL. IPHONE NO CAMBIA.
 // V3173 - INTERFAZ PC/TABLET: LISTADO EN DOS COLUMNAS, FILTROS MÁS COMPACTOS Y MODALES MÁS ANCHOS EN ESCRITORIO. IPHONE NO CAMBIA.
 // V3172 - AÑADE PERMISO INDIVIDUAL PARA PROYECTOS
 // V3171 - VERSION INTERNA ALINEADA CON EL ARCHIVO INSTALADO
@@ -4636,9 +4637,18 @@ async function verDocumentosUsuario(u,origen="ficha"){
     }
     @media(min-width:900px){
       .zx_usuarios_shell{max-width:1500px;margin:0 auto}
-      .zx_usuarios_head{border-top:4px solid #2563eb}
-      .zx_user_toolbar{display:grid;grid-template-columns:minmax(320px,1fr) auto;align-items:center}
-      .zx_usuarios_lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+      .zx_usuarios_head{border-top:4px solid #2563eb;border-color:#cbd5e1;background:#f8fafc;padding:18px 20px;box-shadow:0 8px 24px rgba(15,23,42,.055)}
+      .zx_usuarios_head_top h2{margin:0;color:#0f172a;font-size:28px;line-height:1.05}
+      .zx_usuarios_head_top .zx_text{margin-top:5px;color:#475569;font-size:14px;font-weight:800}
+      .zx_btn_mini{min-width:104px}
+      .zx_user_toolbar{display:grid;grid-template-columns:minmax(360px,1fr) auto;align-items:center;gap:14px;margin-top:16px;padding-top:14px;border-top:1px solid #dbe3ee}
+      .zx_user_filter_resume{display:inline-flex;align-items:center;width:max-content;max-width:100%;padding:7px 10px;border:1px solid #bfdbfe;border-radius:999px;background:#eff6ff;color:#1e3a8a}
+      .zx_usuarios_lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+      .zx_user_row{padding:14px 15px;border-color:#cbd5e1;border-left:5px solid #dbeafe;box-shadow:0 6px 18px rgba(15,23,42,.045)}
+      .zx_user_row_main{grid-template-columns:56px minmax(0,1fr) auto;gap:12px}
+      .zx_user_row_avatar{width:56px;height:56px}
+      .zx_user_row_name{font-size:19px}
+      .zx_user_open_btn{min-width:74px;padding:10px 14px}
       #zx_modal .zx_modal_caja{width:min(900px,calc(100vw - 56px));max-width:900px}
     }
   `;
